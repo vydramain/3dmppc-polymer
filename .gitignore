@@ -1,0 +1,16 @@
+# Build output
+/build/
+/out/
+cmake-build-*/
+
+# Editor / IDE
+.vscode/
+.idea/
+.cache/
+compile_commands.json
+
+# OS
+.DS_Store
+
+# Reference material — keep local, never publish
+/book/
