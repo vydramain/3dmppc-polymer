@@ -1,6 +1,8 @@
-// 3dmppc demo: a rotating, textured cube drawn by the software rasterizer at the
-// console's native 320x240. Everything here is deliberately explicit — this is
-// the seed of a PSX-like fantasy console runtime.
+// 3dmppc demo: the Solidmaid protagonist (PSX-style low-poly, palette-atlas
+// textured) rotating on a turntable, drawn by the software rasterizer at the
+// console's native 320x240. Falls back to the classic cube when the solid disc
+// assets are missing. Everything here is deliberately explicit — this is the
+// seed of a PSX-like fantasy console runtime.
 #include <SDL3/SDL.h>
 
 #include <cstdio>
@@ -58,19 +60,23 @@ int main(int, char**) {
     rv_3dmppc::rv_Framebuffer fb(kWidth, kHeight);
     rv_3dmppc::rv_Rasterizer raster(fb);
 
-    // Geometry: prefer the asset, fall back to a generated cube.
-    rv_3dmppc::Mesh mesh = rv_3dmppc::loadObj("assets/cube.obj").value_or(makeCube());
+    // Geometry: the Solidmaid protagonist from the solid disc, cube fallback.
+    auto protagonist = rv_3dmppc::loadObj("mppcdiscs/solid/assets/protagonist.obj");
+    const bool haveProtagonist = protagonist.has_value();
+    rv_3dmppc::Mesh mesh = std::move(protagonist).value_or(makeCube());
 
-    // rv_Texture: prefer a PNG, fall back to a procedural checker.
+    // rv_Texture: the disc's palette atlas, then the demo PNG, then a checker.
     rv_3dmppc::rv_Texture texture =
-        rv_3dmppc::loadImage("assets/texture.png")
+        rv_3dmppc::loadImage(haveProtagonist ? "mppcdiscs/solid/assets/protagonist_tex.png"
+                                             : "assets/texture.png")
             .value_or(rv_3dmppc::rv_Texture::checker(64, rv_3dmppc::rgb(230, 230, 230),
                                             rv_3dmppc::rgb(90, 90, 90)));
 
     const rv_3dmppc::Mat4 proj = rv_3dmppc::perspectiveLH(
         60.0f * 3.14159265f / 180.0f, float(kWidth) / kHeight, 0.1f, 100.0f);
+    // A gentle high-ish angle on the character (it spans y in [-1, 1]).
     const rv_3dmppc::Mat4 view =
-        rv_3dmppc::lookAtLH({0, 1.2f, -3.2f}, {0, 0, 0}, {0, 1, 0});
+        rv_3dmppc::lookAtLH({0, 0.35f, -2.5f}, {0, 0, 0}, {0, 1, 0});
 
     std::uint64_t prev = SDL_GetTicks();
     float angle = 0.0f;
@@ -81,7 +87,10 @@ int main(int, char**) {
         prev = now;
         angle += dt;
 
-        const rv_3dmppc::Mat4 model = rv_3dmppc::rotationY(angle) * rv_3dmppc::rotationX(0.5f);
+        // Upright turntable for the character; keep the old tilt for the cube.
+        const rv_3dmppc::Mat4 model =
+            haveProtagonist ? rv_3dmppc::rotationY(angle)
+                            : rv_3dmppc::rotationY(angle) * rv_3dmppc::rotationX(0.5f);
         const rv_3dmppc::Mat4 mvp = proj * view * model;
 
         fb.clear(rv_3dmppc::rgb(24, 22, 40));  // deep PSX blue-grey

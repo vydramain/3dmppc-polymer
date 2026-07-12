@@ -1,5 +1,5 @@
 // Paletted-era style texture: 32-bit RGBA source, nearest sampling, no filtering
-// (per docs/specs.md — "textures без фильтрации").
+// (per docs/platform/specs.md — "textures без фильтрации").
 #pragma once
 
 #include <cstdint>

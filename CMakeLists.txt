@@ -64,3 +64,15 @@ add_custom_command(TARGET 3dmppc POST_BUILD
           ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:3dmppc>/assets
   COMMENT "Copying assets"
 )
+
+# Copy the runtime files of the solid disc (only what the demo loads — the
+# source .glb / concept sketch stay out of the build tree).
+add_custom_command(TARGET 3dmppc POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E make_directory
+          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solid/assets
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/assets/protagonist.obj
+          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/assets/protagonist_tex.png
+          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solid/assets
+  COMMENT "Copying solid disc assets"
+)

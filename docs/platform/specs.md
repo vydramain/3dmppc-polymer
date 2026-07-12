@@ -31,7 +31,8 @@ two parts:
 - Memory card, e.g. 128 KB
 
 ### Game package
-- `.cart` / `.psxcart` / `.zip`
+- `.mppcdisc` — an *mppc polymer disc*: the console name (`mppc`) plus the
+  PSX-era optical medium (`disc`). This is the one package a game ships as.
 
 ---
 
@@ -58,5 +59,5 @@ don't drift by accident:
   color. We keep 16-bit as the primary frame format.
 - **CPU / GPU:** everything is software on day one (CPU rasterizer). The PSX
   hardware numbers are only a guideline for the polygon budget.
-- **Storage vs package:** instead of a CD-ROM, games ship as `.cart` /
-  `.psxcart` / `.zip` packages.
+- **Storage vs package:** instead of a CD-ROM, games ship as a single
+  `.mppcdisc` package.
