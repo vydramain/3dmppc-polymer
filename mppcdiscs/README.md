@@ -6,7 +6,7 @@ This is where **games live**. Each subdirectory is one `.mppcdisc` game (a
 a disc is later packaged into a single `.mppcdisc` file for distribution (see
 [`../docs/platform/`](../docs/platform/)).
 
-Think of this directory as the **shelf of cartridges**. The console
+Think of this directory as the **shelf of discs**. The console
 (`src/`) is game-agnostic; anything game-specific lives in a disc under here.
 Drop as many discs as you like side by side.
 
@@ -22,9 +22,9 @@ mppcdiscs/
 
 > **Note:** this is a **stub**. The disc manifest format (`disc.toml`) and the
 > exact folder contract are not finalised — they'll be pinned down alongside the
-> console's cartridge format in
-> [`../docs/platform/`](../docs/platform/) (`cartridge-format.md`,
-> `cartridge-abi.md`). For now the layout above is the working convention.
+> console's disc format in
+> [`../docs/platform/`](../docs/platform/) (`disc-format.md`,
+> `disc-abi.md`). For now the layout above is the working convention.
 
 ## Discs here
 

@@ -29,7 +29,7 @@ here as references.
 
 Early. The protagonist has a runtime-ready low-poly model and texture (derived
 from the Godot-era concept art via voxel-remesh → decimate → procedural palette
-paint). Everything else is to be built as the console's cartridge API comes
+paint). Everything else is to be built as the console's disc API comes
 online. See the design docs for what goes here:
 
 - [`../../docs/mppcdisc/solid/overview.md`](../../docs/mppcdisc/solid/overview.md) — the game

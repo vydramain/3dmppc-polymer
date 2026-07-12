@@ -20,7 +20,7 @@ Compact, replayable, tone-first.
 ## Platform
 
 The **3dmppc console** — a PSX-like fantasy console. The game ships as a single
-`.mppcdisc` cartridge. See [console fit](README.md#console-fit-hard-constraints)
+`.mppcdisc` disc. See [console fit](README.md#console-fit-hard-constraints)
 and [`../../platform/specs.md`](../../platform/specs.md). (Originally a Godot 4.5 PC
 project; re-targeted to the console.)
 
@@ -38,7 +38,7 @@ project; re-targeted to the console.)
    caricatured as folklore, backed by unsettling soundscapes. Keep the satire
    empathetic.
 5. **Small world, big mood.** Minimal content, focused on tone and pacing — the
-   right scope for a first cartridge and for the console's budget.
+   right scope for a first disc and for the console's budget.
 
 ## Core loop (the day)
 
@@ -54,7 +54,7 @@ project; re-targeted to the console.)
 **Win:** complete the factory ritual and return home once.
 **Lose:** knocked out anywhere → restart the day.
 
-## Scope (first cartridge)
+## Scope (first disc)
 
 - **Session length:** 7–12 minutes per loop; restartable anytime.
 - **In scope:** one loop, two enemy archetypes, two weapons (brick + pipe), one

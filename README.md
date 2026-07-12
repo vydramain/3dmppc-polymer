@@ -5,8 +5,8 @@ console. It renders 3D geometry entirely on the CPU into a 320×240 framebuffer
 and presents it through SDL3 with crisp integer scaling.
 
 Target hardware fantasy lives in [`docs/platform/specs.md`](docs/platform/specs.md).
-The demo in `src/` is only a **skeleton cartridge** — see [`docs/README.md`](docs/README.md)
-for the console-vs-cartridge split.
+The demo in `src/` is only a **skeleton disc** — see [`docs/README.md`](docs/README.md)
+for the console-vs-disc split.
 
 ## Features (day one)
 
@@ -35,8 +35,8 @@ src/
 assets/cube.obj        sample geometry (the skeleton demo's own assets)
 mppcdiscs/             disc library — the games the console loads
   solid/               the reference game's content (assets, scripts, data)
-docs/README.md         console vs cartridge — read this first
-docs/platform/         the console: hardware spec, runtime, cartridge format
+docs/README.md         console vs disc — read this first
+docs/platform/         the console: hardware spec, runtime, disc format
 docs/mppcdisc/solid/   the reference game (Solidmaid) design — ships as a .mppcdisc
 ```
 

@@ -22,7 +22,7 @@ and marketing.
 
 ## Enemy bestiary
 
-Two archetypes ship in the first cartridge (the slice); the third is a
+Two archetypes ship in the first disc (the slice); the third is a
 post-slice escalation enemy.
 
 - **Kipuchka** *(pickpocket / kikimora)* — **in slice.** Small, fast, jittery

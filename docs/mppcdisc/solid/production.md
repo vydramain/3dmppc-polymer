@@ -6,7 +6,7 @@ ritual, one boss. Small, finished, and replayable beats sprawling and unfinished
 > The original fine-grained task list targeted Godot scenes/scripts. It was **not
 > carried forward verbatim** — the game now runs on the mppc console runtime, so
 > tasks are re-framed engine-agnostically below. Adjust as the console's
-> cartridge API firms up in [`../../platform/`](../../platform/).
+> disc API firms up in [`../../platform/`](../../platform/).
 
 ## Cadence & sizing
 

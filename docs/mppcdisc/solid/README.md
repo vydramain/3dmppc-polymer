@@ -1,4 +1,4 @@
-# Solidmaid: Alkoldun Vasiliusavich — the reference cartridge
+# Solidmaid: Alkoldun Vasiliusavich — the reference disc
 
 The main game for the [3dmppc console](../../platform/), shipping as a
 `.mppcdisc` package. A first-person folk-horror shooter set in the post-Soviet
@@ -7,21 +7,13 @@ with improvised tools (brick, pipe), perform occult rituals under pressure, and
 watch the world mutate a little more each loop.
 
 It is also the project by which we **prove the console**: the first real
-cartridge. Once it runs well, the console and the game get split into separate
+disc. Once it runs well, the console and the game get split into separate
 repositories — so keep this design free of console *implementation* detail
 (that belongs in [`../../platform/`](../../platform/)).
 
 The buildable content of this game (assets, scripts, data) lives outside `docs/`,
 in [`../../../mppcdiscs/solid/`](../../../mppcdiscs/solid/); this directory holds only
 the **design**.
-
-## Status
-
-Migrated from an abandoned standalone **Godot 4.5** prototype (a 2D brawler that
-was rebooted into an FPS). The design has been **re-targeted to the mppc console**
-(software 3D rasterizer, 320×240, 16-bit, gamepad, memory card). Canonical
-direction: the **first-person folk-horror shooter**; the earlier 2D brawler is
-history and was not carried forward.
 
 ## Documents
 
@@ -43,8 +35,10 @@ model and concept sketch are in
 
 ## Console fit (hard constraints)
 
-From [`../../platform/specs.md`](../../platform/specs.md) — the game must live inside
-these; anything that can't is a *console* discussion, not a game one:
+The hardware limits from [`../../platform/specs.md`](../../platform/specs.md).
+Every design decision in this game must fit within them. If an idea can't fit
+(say, 512×512 textures), that's a proposal to change the *console spec* — take
+it to [`../../platform/`](../../platform/), don't bend the game docs around it:
 
 - **Display:** 320×240 (or 256×224), 16-bit color + dithering.
 - **Textures:** 4-bit / 8-bit paletted, no filtering (nearest).
