@@ -3,12 +3,12 @@
 // here through damagePlayer(); combat (updateCombat) resolves everything else.
 //
 // Determinism: only ctx.rng is used for jitter/variety, never the clock/rand.
-#include "game/enemies.hpp"
+#include "enemies.hpp"
 
 #include <cmath>
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
 
 namespace rv_3dmppc {
 

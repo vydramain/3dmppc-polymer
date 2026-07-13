@@ -9,7 +9,7 @@
 
 #include "core/input.hpp"
 #include "gpu/camera.hpp"
-#include "game/types.hpp"
+#include "types.hpp"
 #include "math/math.hpp"
 
 namespace rv_3dmppc {

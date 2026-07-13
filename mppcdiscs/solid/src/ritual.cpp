@@ -2,14 +2,14 @@
 // pressure. Holding [Interact] near the socket fills a step; a hit interrupts it
 // (combat calls interruptRitual). The encounter escalates once around step 2;
 // on completion the return-home trigger is armed (by the day loop).
-#include "game/ritual.hpp"
+#include "ritual.hpp"
 
 #include <cmath>
 
 #include "core/audio.hpp"
-#include "game/context.hpp"
-#include "game/game_state.hpp"
-#include "game/spawner.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
+#include "spawner.hpp"
 
 namespace rv_3dmppc {
 

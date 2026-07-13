@@ -53,21 +53,21 @@ add_executable(3dmppc
   src/assets/stb_image_impl.cpp
   src/platform/console.cpp
   # solid disc (the game)
-  src/game/solid.cpp
-  src/game/player.cpp
-  src/game/weapons.cpp
-  src/game/enemies.cpp
-  src/game/spawner.cpp
-  src/game/combat.cpp
-  src/game/areas.cpp
-  src/game/ritual.cpp
-  src/game/dayloop.cpp
-  src/game/assets_gen.cpp
-  src/game/scene_render.cpp
-  src/game/hud.cpp
+  mppcdiscs/solid/src/solid.cpp
+  mppcdiscs/solid/src/player.cpp
+  mppcdiscs/solid/src/weapons.cpp
+  mppcdiscs/solid/src/enemies.cpp
+  mppcdiscs/solid/src/spawner.cpp
+  mppcdiscs/solid/src/combat.cpp
+  mppcdiscs/solid/src/areas.cpp
+  mppcdiscs/solid/src/ritual.cpp
+  mppcdiscs/solid/src/dayloop.cpp
+  mppcdiscs/solid/src/assets_gen.cpp
+  mppcdiscs/solid/src/scene_render.cpp
+  mppcdiscs/solid/src/hud.cpp
 )
 
-target_include_directories(3dmppc PRIVATE src ${STB_DIR})
+target_include_directories(3dmppc PRIVATE src mppcdiscs/solid/src ${STB_DIR})
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 
 if(MSVC)

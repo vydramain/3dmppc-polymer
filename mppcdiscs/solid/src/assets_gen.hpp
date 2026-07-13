@@ -6,7 +6,7 @@
 
 #include <array>
 
-#include "game/types.hpp"
+#include "types.hpp"
 #include "gpu/mesh.hpp"
 #include "gpu/texture.hpp"
 

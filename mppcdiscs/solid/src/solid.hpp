@@ -3,9 +3,9 @@
 // ORCHESTRATOR (integration point): it only wires the zones together.
 #pragma once
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
-#include "game/scene_render.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
+#include "scene_render.hpp"
 #include "platform/disc.hpp"
 
 namespace rv_3dmppc {

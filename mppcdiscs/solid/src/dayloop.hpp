@@ -7,7 +7,7 @@
 #include <cstdint>
 
 #include "core/input.hpp"
-#include "game/areas.hpp"
+#include "areas.hpp"
 
 namespace rv_3dmppc {
 

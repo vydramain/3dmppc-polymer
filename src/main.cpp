@@ -8,36 +8,43 @@
 //   --headless    run without a window (smoke test); pair with --frames
 //   --frames N    stop after N frames (0 = run until quit)
 //   --fixed-step  use a fixed 1/60 dt (reproducible)
-#include <cstdlib>
-
 #include <getopt.h>
 
-#include "game/solid.hpp"
+#include <cstdlib>
+
 #include "platform/console.hpp"
+#include "solid.hpp"
 
 int main(int argc, char** argv) {
-  rv_3dmppc::ConsoleConfig cfg;
+    rv_3dmppc::ConsoleConfig cfg;
 
-  static struct option long_opts[] = {
-    {"headless", no_argument, 0, 'H'},
-    {"fixed-step", no_argument, 0, 'F'},
-    {"scale", required_argument, 0, 's'},
-    {"frames", required_argument, 0, 'n'},
-    {0, 0, 0, 0}
-  };
+    static struct option long_opts[] = {{"headless", no_argument, 0, 'H'},
+                                        {"fixed-step", no_argument, 0, 'F'},
+                                        {"scale", required_argument, 0, 's'},
+                                        {"frames", required_argument, 0, 'n'},
+                                        {0, 0, 0, 0}};
 
-  int c;
-  while ((c = getopt_long(argc, argv, "HFs:n:", long_opts, NULL)) != -1) {
-    switch (c) {
-      case 'H': cfg.headless = true;            break;
-      case 'F': cfg.fixedStep = true;           break;
-      case 's': cfg.scale = atoi(optarg);       break;
-      case 'n': cfg.maxFrames = atoi(optarg);   break;
-      case '?': return 2;
+    int c;
+    while ((c = getopt_long(argc, argv, "HFs:n:", long_opts, NULL)) != -1) {
+        switch (c) {
+            case 'H':
+                cfg.headless = true;
+                break;
+            case 'F':
+                cfg.fixedStep = true;
+                break;
+            case 's':
+                cfg.scale = atoi(optarg);
+                break;
+            case 'n':
+                cfg.maxFrames = atoi(optarg);
+                break;
+            case '?':
+                return 2;
+        }
     }
-  }
 
-  rv_3dmppc::Console console(cfg);
-  rv_3dmppc::SolidDisc disc;
-  return console.run(disc);
+    rv_3dmppc::Console console(cfg);
+    rv_3dmppc::SolidDisc disc;
+    return console.run(disc);
 }

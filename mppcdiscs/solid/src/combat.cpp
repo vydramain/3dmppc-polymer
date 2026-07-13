@@ -1,13 +1,13 @@
 // Combat resolution — Agent C. The single place damage is decided (runs LAST
 // among gameplay systems). Integrates brick projectiles and resolves brick and
 // pipe hits on enemies; a player hit this frame breaks the ritual.
-#include "game/combat.hpp"
+#include "combat.hpp"
 
 #include <cmath>
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
-#include "game/ritual.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
+#include "ritual.hpp"
 
 namespace rv_3dmppc {
 

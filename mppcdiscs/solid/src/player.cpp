@@ -1,11 +1,11 @@
 // Agent B — first-person movement/look, camera feel (head-bob, micro-shake,
 // hitstop) and player damage. Data-oriented free functions over GameState.
-#include "game/player.hpp"
+#include "player.hpp"
 
 #include <cmath>
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
 
 namespace rv_3dmppc {
 

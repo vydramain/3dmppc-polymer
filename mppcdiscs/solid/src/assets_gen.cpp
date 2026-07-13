@@ -14,7 +14,7 @@
 //   * No pixel lighting exists in the rasterizer, so each box face is given a
 //     fixed shade factor for a cheap "lit" read, and every mesh carries sensible
 //     per-vertex colours so untextured meshes still show their material.
-#include "game/assets_gen.hpp"
+#include "assets_gen.hpp"
 
 #include <cmath>
 #include <optional>

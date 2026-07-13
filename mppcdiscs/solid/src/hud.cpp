@@ -3,7 +3,7 @@
 // crosshair, HP bar + low-HP vignette, weapon/ammo/cooldown/charge readout, the
 // interact prompt, the ritual progress bar, and the day-summary / game-over
 // screens. Pure read of GameState — never mutated.
-#include "game/hud.hpp"
+#include "hud.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,7 +11,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "game/game_state.hpp"
+#include "game_state.hpp"
 
 namespace rv_3dmppc {
 

@@ -8,14 +8,14 @@
 
 #include <vector>
 
-#include "game/areas.hpp"
-#include "game/dayloop.hpp"
-#include "game/enemies.hpp"
-#include "game/player.hpp"
-#include "game/ritual.hpp"
-#include "game/spawner.hpp"
-#include "game/types.hpp"
-#include "game/weapons.hpp"
+#include "areas.hpp"
+#include "dayloop.hpp"
+#include "enemies.hpp"
+#include "player.hpp"
+#include "ritual.hpp"
+#include "spawner.hpp"
+#include "types.hpp"
+#include "weapons.hpp"
 
 namespace rv_3dmppc {
 

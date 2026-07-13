@@ -2,12 +2,12 @@
 // pickups, and per-frame exit/pickup logic. Blocky and PSX-legible; all meshes
 // are unit cubes the renderer scales, so a box is (center, size) + optional
 // collider of the same extent. Instance counts stay modest for the frame budget.
-#include "game/areas.hpp"
+#include "areas.hpp"
 
 #include "core/audio.hpp"
-#include "game/context.hpp"
-#include "game/game_state.hpp"
-#include "game/weapons.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
+#include "weapons.hpp"
 
 namespace rv_3dmppc {
 

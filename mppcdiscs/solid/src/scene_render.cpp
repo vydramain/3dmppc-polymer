@@ -2,7 +2,7 @@
 // Gameplay only ever pushes DrawInstances; here we resolve each MeshId to its
 // procedural mesh + texture (owned by the registry) and draw it with a
 // per-instance model transform and tint.
-#include "game/scene_render.hpp"
+#include "scene_render.hpp"
 
 namespace rv_3dmppc {
 

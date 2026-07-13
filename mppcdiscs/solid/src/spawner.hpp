@@ -3,8 +3,8 @@
 // chunk-indexed; Factory spawns escalate the ritual encounter. OWNED BY AGENT C.
 #pragma once
 
-#include "game/enemies.hpp"
-#include "game/types.hpp"
+#include "enemies.hpp"
+#include "types.hpp"
 #include "math/math.hpp"
 
 namespace rv_3dmppc {

@@ -8,8 +8,8 @@
 #pragma once
 
 #include "core/framebuffer.hpp"
-#include "game/assets_gen.hpp"
-#include "game/types.hpp"
+#include "assets_gen.hpp"
+#include "types.hpp"
 #include "gpu/camera.hpp"
 #include "gpu/rasterizer.hpp"
 

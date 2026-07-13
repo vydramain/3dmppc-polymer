@@ -1,14 +1,14 @@
 // Agent D — the day loop: Home → Street → Factory → Return, with a day summary,
 // one Home mutation per survived loop, and persistence to the memory card.
 // Win = complete the ritual and return home; Lose = knocked out → restart day.
-#include "game/dayloop.hpp"
+#include "dayloop.hpp"
 
 #include "core/audio.hpp"
-#include "game/areas.hpp"
-#include "game/context.hpp"
-#include "game/game_state.hpp"
-#include "game/ritual.hpp"
-#include "game/spawner.hpp"
+#include "areas.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
+#include "ritual.hpp"
+#include "spawner.hpp"
 
 namespace rv_3dmppc {
 

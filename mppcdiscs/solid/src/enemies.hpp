@@ -10,7 +10,7 @@
 
 #include <vector>
 
-#include "game/types.hpp"
+#include "types.hpp"
 #include "math/math.hpp"
 
 namespace rv_3dmppc {

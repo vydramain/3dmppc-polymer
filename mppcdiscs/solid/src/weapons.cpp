@@ -1,12 +1,12 @@
 // Agent B — improvised weapons: brick (charged throwable primary) and pipe
 // (fast melee backup). Spawns projectiles into GameState; combat (Agent C)
 // integrates + resolves them. Also builds the first-person held-item draws.
-#include "game/weapons.hpp"
+#include "weapons.hpp"
 
 #include <cmath>
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
 
 namespace rv_3dmppc {
 

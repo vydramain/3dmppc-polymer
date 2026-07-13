@@ -1,12 +1,12 @@
 // Enemy spawner discipline — Agent C. Caps active enemies, keeps a minimum
 // distance from the player, and honours a spawn grace so encounters stay fair
 // and the frame stays stable (mechanics.md). Deterministic: ctx.rng only.
-#include "game/spawner.hpp"
+#include "spawner.hpp"
 
 #include <vector>
 
-#include "game/context.hpp"
-#include "game/game_state.hpp"
+#include "context.hpp"
+#include "game_state.hpp"
 
 namespace rv_3dmppc {
 
