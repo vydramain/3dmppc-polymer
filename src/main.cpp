@@ -1,8 +1,7 @@
-// 3dmppc entry point: power on the console and insert the Solidmaid disc.
+// 3dmppc entry point
 //
-// The console (src/platform, src/core, src/gpu) is game-agnostic; all game logic
-// lives behind the Disc ABI in src/game. See docs/README.md for the console↔disc
-// split and docs/mppcdisc/solid/ for the game design this disc implements.
+// The console is game-agnostic; all game logic lives behind on the Disc.
+// See docs/README.md for the console/disc relations.
 //
 // Flags:
 //   --scale N     window magnification over native 320×240 (default 3)
@@ -10,26 +9,35 @@
 //   --frames N    stop after N frames (0 = run until quit)
 //   --fixed-step  use a fixed 1/60 dt (reproducible)
 #include <cstdlib>
-#include <cstring>
+
+#include <getopt.h>
 
 #include "game/solid.hpp"
 #include "platform/console.hpp"
 
 int main(int argc, char** argv) {
-    rv_3dmppc::ConsoleConfig cfg;
-    for (int i = 1; i < argc; ++i) {
-        if (std::strcmp(argv[i], "--headless") == 0) {
-            cfg.headless = true;
-        } else if (std::strcmp(argv[i], "--fixed-step") == 0) {
-            cfg.fixedStep = true;
-        } else if (std::strcmp(argv[i], "--scale") == 0 && i + 1 < argc) {
-            cfg.scale = std::atoi(argv[++i]);
-        } else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
-            cfg.maxFrames = std::atoi(argv[++i]);
-        }
-    }
+  rv_3dmppc::ConsoleConfig cfg;
 
-    rv_3dmppc::Console console(cfg);
-    rv_3dmppc::SolidDisc disc;
-    return console.run(disc);
+  static struct option long_opts[] = {
+    {"headless", no_argument, 0, 'H'},
+    {"fixed-step", no_argument, 0, 'F'},
+    {"scale", required_argument, 0, 's'},
+    {"frames", required_argument, 0, 'n'},
+    {0, 0, 0, 0}
+  };
+
+  int c;
+  while ((c = getopt_long(argc, argv, "HFs:n:", long_opts, NULL)) != -1) {
+    switch (c) {
+      case 'H': cfg.headless = true;            break;
+      case 'F': cfg.fixedStep = true;           break;
+      case 's': cfg.scale = atoi(optarg);       break;
+      case 'n': cfg.maxFrames = atoi(optarg);   break;
+      case '?': return 2;
+    }
+  }
+
+  rv_3dmppc::Console console(cfg);
+  rv_3dmppc::SolidDisc disc;
+  return console.run(disc);
 }
