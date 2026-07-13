@@ -12,6 +12,7 @@ specifics live in [`../mppcdisc/`](../mppcdisc/).
 | Document                      | What it covers                                          |
 | ----------------------------- | ------------------------------------------------------- |
 | [`specs.md`](specs.md)        | The target hardware spec (display, memory, audio, input, save) and how it maps to the real PSX. |
+| [`disc-loading.md`](disc-loading.md) | How a disc is built into its own `.so`, packaged into a single `.mppcdisc`, and loaded at runtime (`3dmppc solid.mppcdisc`). Covers the thin `extern "C"` ABI and the future Lua scripting path. Design doc — not yet implemented. |
 
 ## Planned documents
 
@@ -20,11 +21,10 @@ document as it grows:
 
 - **`runtime.md`** — how the console boots, the main loop, and how a frame is
   produced (rasterizer → framebuffer → SDL3 presenter).
-- **`disc-format.md`** — the `.mppcdisc` package layout: what a disc
-  contains, how it's laid out on disk, and how the console mounts it.
-- **`disc-abi.md`** — the entry points and services the console exposes to
-  a disc (the boundary the skeleton disc in `src/` currently stands in
-  for).
+
+The `.mppcdisc` package layout (formerly the planned `disc-format.md`) and the
+console↔disc boundary (formerly `disc-abi.md`) are now covered together in
+[`disc-loading.md`](disc-loading.md) as a single design doc.
 
 ## Boundary with the disc
 
