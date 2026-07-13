@@ -42,11 +42,28 @@ endif()
 # --- game ---------------------------------------------------------------------
 add_executable(3dmppc
   src/main.cpp
+  # console (game-agnostic)
   src/core/window.cpp
+  src/core/audio.cpp
+  src/core/savecard.cpp
   src/gpu/rasterizer.cpp
   src/assets/obj_loader.cpp
   src/assets/image.cpp
   src/assets/stb_image_impl.cpp
+  src/platform/console.cpp
+  # solid disc (the game)
+  src/game/solid.cpp
+  src/game/player.cpp
+  src/game/weapons.cpp
+  src/game/enemies.cpp
+  src/game/spawner.cpp
+  src/game/combat.cpp
+  src/game/areas.cpp
+  src/game/ritual.cpp
+  src/game/dayloop.cpp
+  src/game/assets_gen.cpp
+  src/game/scene_render.cpp
+  src/game/hud.cpp
 )
 
 target_include_directories(3dmppc PRIVATE src ${STB_DIR})
@@ -58,12 +75,15 @@ else()
   target_compile_options(3dmppc PRIVATE -Wall -Wextra)
 endif()
 
-# Copy assets next to the binary so relative paths resolve at runtime.
-add_custom_command(TARGET 3dmppc POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:3dmppc>/assets
-  COMMENT "Copying assets"
-)
+# Copy the console's own demo assets next to the binary, if present. The disc is
+# self-generating (procedural assets), so this dir is optional.
+if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
+  add_custom_command(TARGET 3dmppc POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:3dmppc>/assets
+    COMMENT "Copying assets"
+  )
+endif()
 
 # Copy the runtime files of the solid disc (only what the demo loads — the
 # source .glb / concept sketch stay out of the build tree).

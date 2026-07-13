@@ -93,6 +93,31 @@ inline Mat4 rotationX(float radians) {
     return r;
 }
 
+inline Mat4 rotationZ(float radians) {
+    const float c = std::cos(radians), s = std::sin(radians);
+    Mat4 r;
+    r.m[0][0] = c;  r.m[0][1] = -s;
+    r.m[1][0] = s;  r.m[1][1] = c;
+    return r;
+}
+
+inline Mat4 scaling(const Vec3& s) {
+    Mat4 r;
+    r.m[0][0] = s.x;
+    r.m[1][1] = s.y;
+    r.m[2][2] = s.z;
+    return r;
+}
+
+constexpr float kPi = 3.14159265358979323846f;
+inline float radians(float degrees) { return degrees * (kPi / 180.0f); }
+
+inline float clampf(float v, float lo, float hi) {
+    return v < lo ? lo : (v > hi ? hi : v);
+}
+
+inline float lerpf(float a, float b, float t) { return a + (b - a) * t; }
+
 // Left-handed look-at view matrix.
 inline Mat4 lookAtLH(const Vec3& eye, const Vec3& target, const Vec3& up) {
     const Vec3 z = normalize(target - eye);   // forward

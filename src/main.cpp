@@ -1,102 +1,35 @@
-// 3dmppc demo: the Solidmaid protagonist (PSX-style low-poly, palette-atlas
-// textured) rotating on a turntable, drawn by the software rasterizer at the
-// console's native 320x240. Falls back to the classic cube when the solid disc
-// assets are missing. Everything here is deliberately explicit — this is the
-// seed of a PSX-like fantasy console runtime.
-#include <SDL3/SDL.h>
+// 3dmppc entry point: power on the console and insert the Solidmaid disc.
+//
+// The console (src/platform, src/core, src/gpu) is game-agnostic; all game logic
+// lives behind the Disc ABI in src/game. See docs/README.md for the console↔disc
+// split and docs/mppcdisc/solid/ for the game design this disc implements.
+//
+// Flags:
+//   --scale N     window magnification over native 320×240 (default 3)
+//   --headless    run without a window (smoke test); pair with --frames
+//   --frames N    stop after N frames (0 = run until quit)
+//   --fixed-step  use a fixed 1/60 dt (reproducible)
+#include <cstdlib>
+#include <cstring>
 
-#include <cstdio>
+#include "game/solid.hpp"
+#include "platform/console.hpp"
 
-#include "assets/image.hpp"
-#include "assets/obj_loader.hpp"
-#include "core/window.hpp"
-#include "gpu/mesh.hpp"
-#include "gpu/rasterizer.hpp"
-#include "math/math.hpp"
-
-namespace {
-
-constexpr int kWidth = 320;
-constexpr int kHeight = 240;
-constexpr int kScale = 3;
-
-// Fallback unit cube, used when assets/cube.obj is missing.
-rv_3dmppc::Mesh makeCube() {
-    using rv_3dmppc::Vertex;
-    rv_3dmppc::Mesh m;
-    const rv_3dmppc::Vec3 p[8] = {
-        {-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
-        {-1, -1, 1},  {1, -1, 1},  {1, 1, 1},  {-1, 1, 1},
-    };
-    const rv_3dmppc::Vec2 uv[4] = {{0, 1}, {1, 1}, {1, 0}, {0, 0}};
-    auto quad = [&](int a, int b, int c, int d) {
-        const int corner[4] = {a, b, c, d};
-        std::uint32_t base = static_cast<std::uint32_t>(m.vertices.size());
-        for (int i = 0; i < 4; ++i) {
-            Vertex v;
-            v.pos = p[corner[i]];
-            v.uv = uv[i];
-            v.color = {p[corner[i]].x * 0.5f + 0.5f, p[corner[i]].y * 0.5f + 0.5f,
-                       p[corner[i]].z * 0.5f + 0.5f};
-            m.vertices.push_back(v);
+int main(int argc, char** argv) {
+    rv_3dmppc::ConsoleConfig cfg;
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--headless") == 0) {
+            cfg.headless = true;
+        } else if (std::strcmp(argv[i], "--fixed-step") == 0) {
+            cfg.fixedStep = true;
+        } else if (std::strcmp(argv[i], "--scale") == 0 && i + 1 < argc) {
+            cfg.scale = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--frames") == 0 && i + 1 < argc) {
+            cfg.maxFrames = std::atoi(argv[++i]);
         }
-        for (std::uint32_t i : {0u, 1u, 2u, 0u, 2u, 3u}) m.indices.push_back(base + i);
-    };
-    quad(0, 1, 2, 3);  // back
-    quad(5, 4, 7, 6);  // front
-    quad(4, 0, 3, 7);  // left
-    quad(1, 5, 6, 2);  // right
-    quad(3, 2, 6, 7);  // top
-    quad(4, 5, 1, 0);  // bottom
-    return m;
-}
-
-}  // namespace
-
-int main(int, char**) {
-    rv_3dmppc::rv_Window window("3dmppc — software rasterizer", kWidth, kHeight, kScale);
-    if (!window.ok()) return 1;
-
-    rv_3dmppc::rv_Framebuffer fb(kWidth, kHeight);
-    rv_3dmppc::rv_Rasterizer raster(fb);
-
-    // Geometry: the Solidmaid protagonist from the solid disc, cube fallback.
-    auto protagonist = rv_3dmppc::loadObj("mppcdiscs/solid/assets/protagonist.obj");
-    const bool haveProtagonist = protagonist.has_value();
-    rv_3dmppc::Mesh mesh = std::move(protagonist).value_or(makeCube());
-
-    // rv_Texture: the disc's palette atlas, then the demo PNG, then a checker.
-    rv_3dmppc::rv_Texture texture =
-        rv_3dmppc::loadImage(haveProtagonist ? "mppcdiscs/solid/assets/protagonist_tex.png"
-                                             : "assets/texture.png")
-            .value_or(rv_3dmppc::rv_Texture::checker(64, rv_3dmppc::rgb(230, 230, 230),
-                                            rv_3dmppc::rgb(90, 90, 90)));
-
-    const rv_3dmppc::Mat4 proj = rv_3dmppc::perspectiveLH(
-        60.0f * 3.14159265f / 180.0f, float(kWidth) / kHeight, 0.1f, 100.0f);
-    // A gentle high-ish angle on the character (it spans y in [-1, 1]).
-    const rv_3dmppc::Mat4 view =
-        rv_3dmppc::lookAtLH({0, 0.35f, -2.5f}, {0, 0, 0}, {0, 1, 0});
-
-    std::uint64_t prev = SDL_GetTicks();
-    float angle = 0.0f;
-
-    while (window.pumpEvents()) {
-        const std::uint64_t now = SDL_GetTicks();
-        const float dt = (now - prev) / 1000.0f;
-        prev = now;
-        angle += dt;
-
-        // Upright turntable for the character; keep the old tilt for the cube.
-        const rv_3dmppc::Mat4 model =
-            haveProtagonist ? rv_3dmppc::rotationY(angle)
-                            : rv_3dmppc::rotationY(angle) * rv_3dmppc::rotationX(0.5f);
-        const rv_3dmppc::Mat4 mvp = proj * view * model;
-
-        fb.clear(rv_3dmppc::rgb(24, 22, 40));  // deep PSX blue-grey
-        raster.drawMesh(mesh, mvp, &texture);
-        window.present(fb);
     }
 
-    return 0;
+    rv_3dmppc::Console console(cfg);
+    rv_3dmppc::SolidDisc disc;
+    return console.run(disc);
 }

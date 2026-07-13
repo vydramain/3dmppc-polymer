@@ -15,7 +15,8 @@ float edge(float ax, float ay, float bx, float by, float cx, float cy) {
 
 }  // namespace
 
-void rv_Rasterizer::drawMesh(const Mesh& mesh, const Mat4& mvp, const rv_Texture* tex) {
+void rv_Rasterizer::drawMesh(const Mesh& mesh, const Mat4& mvp, const rv_Texture* tex,
+                             const Vec3& tint, bool cullBack) {
     for (std::size_t i = 0; i + 2 < mesh.indices.size(); i += 3) {
         std::array<SVert, 3> sv;
         bool behind = false;
@@ -43,14 +44,17 @@ void rv_Rasterizer::drawMesh(const Mesh& mesh, const Mat4& mvp, const rv_Texture
             sv[k].color = v.color;
         }
 
-        if (!behind) rasterizeTriangle(sv[0], sv[1], sv[2], tex);
+        if (!behind) rasterizeTriangle(sv[0], sv[1], sv[2], tex, tint, cullBack);
     }
 }
 
 void rv_Rasterizer::rasterizeTriangle(const SVert& a, const SVert& b, const SVert& c,
-                                   const rv_Texture* tex) {
+                                   const rv_Texture* tex, const Vec3& tint, bool cullBack) {
     const float area = edge(a.x, a.y, b.x, b.y, c.x, c.y);
     if (std::fabs(area) < 1e-6f) return;  // degenerate
+    // Optional back-face cull: with Y flipped to screen space, a front-facing
+    // (CCW in model) triangle has negative screen area. Drop the other winding.
+    if (cullBack && area > 0.0f) return;
     const float invArea = 1.0f / area;
 
     // Bounding box clamped to the framebuffer.
@@ -95,6 +99,11 @@ void rv_Rasterizer::rasterizeTriangle(const SVert& a, const SVert& b, const SVer
                 col.y *= ((t >> 8) & 0xFF) / 255.0f;
                 col.z *= (t & 0xFF) / 255.0f;
             }
+
+            // Per-draw tint (telegraphs / corruption / low-HP mood).
+            col.x *= tint.x;
+            col.y *= tint.y;
+            col.z *= tint.z;
 
             fb_.setDepth(x, y, z);
             fb_.plot(x, y, fromVec3(col));
