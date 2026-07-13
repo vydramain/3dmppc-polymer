@@ -37,6 +37,23 @@ rv_Window::rv_Window(const std::string& title, int logicalW, int logicalH, int s
         return;
     }
     SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_NEAREST);
+
+    // Grab the mouse for first-person look. Esc frees it, a click re-grabs.
+    setMouseGrab(true);
+}
+
+void rv_Window::setMouseGrab(bool grab) {
+    if (!window_ || grab == mouseGrabbed_) return;
+    if (SDL_SetWindowRelativeMouseMode(window_, grab)) {
+        mouseGrabbed_ = grab;
+        mouseDx_ = mouseDy_ = 0.0f;  // drop the jump across a grab transition
+    }
+}
+
+void rv_Window::consumeMouseDelta(float& dx, float& dy) {
+    dx = mouseDx_;
+    dy = mouseDy_;
+    mouseDx_ = mouseDy_ = 0.0f;
 }
 
 rv_Window::~rv_Window() {
@@ -49,10 +66,31 @@ rv_Window::~rv_Window() {
 bool rv_Window::pumpEvents() {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_EVENT_QUIT) {
+        switch (e.type) {
+        case SDL_EVENT_QUIT:
             running_ = false;
-        } else if (e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE) {
-            running_ = false;
+            break;
+        case SDL_EVENT_KEY_DOWN:
+            // Esc releases a grabbed cursor first; press it again to quit.
+            if (e.key.key == SDLK_ESCAPE) {
+                if (mouseGrabbed_) setMouseGrab(false);
+                else running_ = false;
+            }
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (!mouseGrabbed_) setMouseGrab(true);  // click to re-capture
+            break;
+        case SDL_EVENT_MOUSE_MOTION:
+            if (mouseGrabbed_) {
+                mouseDx_ += e.motion.xrel;
+                mouseDy_ += e.motion.yrel;
+            }
+            break;
+        case SDL_EVENT_WINDOW_FOCUS_LOST:
+            setMouseGrab(false);  // don't trap the cursor on alt-tab
+            break;
+        default:
+            break;
         }
     }
     return running_;

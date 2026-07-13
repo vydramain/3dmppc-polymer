@@ -31,6 +31,8 @@ struct Button {
 struct InputState {
     Vec2 moveAxis{};  // left stick: x=strafe (+right), y=forward (+fwd), [-1,1]
     Vec2 lookAxis{};  // right stick: x=yaw (+right), y=pitch (+up), [-1,1]
+    Vec2 lookDelta{}; // mouse look: this-frame yaw/pitch delta in radians
+                      // (x=+right, y=+up). Absolute — applied without dt scaling.
 
     Button throwBrick;  // primary face button — ready/throw brick
     Button meleePipe;   // secondary face button — pipe swing

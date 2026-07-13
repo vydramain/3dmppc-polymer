@@ -53,9 +53,11 @@ void updatePlayer(GameState& gs, const GameContext& ctx, const InputState& in, f
         return;  // no look/move this frame — the freeze is the game-feel
     }
 
-    // ---- look (right stick) --------------------------------------------------
-    p.yaw += in.lookAxis.x * kTurnSpeed * dt;
-    p.pitch += in.lookAxis.y * kTurnSpeed * dt;
+    // ---- look (right stick + mouse) -----------------------------------------
+    // Stick/keys are a held rate (scaled by dt); the mouse delta is an absolute
+    // this-frame amount already in radians, so it is added straight in.
+    p.yaw += in.lookAxis.x * kTurnSpeed * dt + in.lookDelta.x;
+    p.pitch += in.lookAxis.y * kTurnSpeed * dt + in.lookDelta.y;
     p.pitch = clampf(p.pitch, -kPitchClamp, kPitchClamp);
 
     // ---- move (left stick, relative to yaw) ---------------------------------

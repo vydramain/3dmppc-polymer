@@ -179,6 +179,14 @@ int Console::run(Disc& disc) {
         if (cfg_.fixedStep) dt = 1.0f / 60.0f;
 
         sampleInput(in, pad);
+
+        // Mouse look: turn this frame's accumulated pixel motion into a yaw/pitch
+        // delta (radians). SDL's Y is down-positive, so negate it for +up pitch.
+        constexpr float kMouseSensitivity = 0.0025f;  // rad per pixel (~0.14 deg)
+        float mdx = 0.0f, mdy = 0.0f;
+        window.consumeMouseDelta(mdx, mdy);
+        in.lookDelta = {mdx * kMouseSensitivity, -mdy * kMouseSensitivity};
+
         disc.update(in, dt);
         disc.render(fb);
         window.present(fb);
