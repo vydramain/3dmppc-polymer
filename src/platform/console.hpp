@@ -6,24 +6,24 @@
 
 namespace rv_3dmppc {
 
-class Disc;
+class rv_Disc;
 
-struct ConsoleConfig {
-    int scale = 3;          // window magnification over native 320×240
-    bool headless = false;  // no window/present — for automated smoke tests
-    int maxFrames = 0;      // if > 0, stop after this many frames (0 = run until quit)
-    bool fixedStep = false; // headless: use a fixed 1/60 dt for reproducibility
+struct rv_ConsoleConfig {
+    int scale = 3;           // window magnification over native 320×240
+    bool headless = false;   // no window/present — for automated smoke tests
+    int maxFrames = 0;       // if > 0, stop after this many frames (0 = run until quit)
+    bool fixedStep = false;  // headless: use a fixed 1/60 dt for reproducibility
 };
 
-class Console {
-public:
-    explicit Console(const ConsoleConfig& cfg) : cfg_(cfg) {}
+class rv_Console {
+   public:
+    explicit rv_Console(const rv_ConsoleConfig& cfg) : cfg_(cfg) {}
 
     // Boot services, run the disc to completion, tear down. Returns process code.
-    int run(Disc& disc);
+    int run(rv_Disc& disc);
 
-private:
-    ConsoleConfig cfg_;
+   private:
+    rv_ConsoleConfig cfg_;
 };
 
 }  // namespace rv_3dmppc

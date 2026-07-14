@@ -52,22 +52,22 @@ add_executable(3dmppc
   src/assets/image.cpp
   src/assets/stb_image_impl.cpp
   src/platform/console.cpp
-  # solid disc (the game)
-  mppcdiscs/solid/src/solid.cpp
-  mppcdiscs/solid/src/player.cpp
-  mppcdiscs/solid/src/weapons.cpp
-  mppcdiscs/solid/src/enemies.cpp
-  mppcdiscs/solid/src/spawner.cpp
-  mppcdiscs/solid/src/combat.cpp
-  mppcdiscs/solid/src/areas.cpp
-  mppcdiscs/solid/src/ritual.cpp
-  mppcdiscs/solid/src/dayloop.cpp
-  mppcdiscs/solid/src/assets_gen.cpp
-  mppcdiscs/solid/src/scene_render.cpp
-  mppcdiscs/solid/src/hud.cpp
+  # solidmaid disc (the game)
+  mppcdiscs/solidmaid/src/solidmaid.cpp
+  mppcdiscs/solidmaid/src/player.cpp
+  mppcdiscs/solidmaid/src/weapons.cpp
+  mppcdiscs/solidmaid/src/enemies.cpp
+  mppcdiscs/solidmaid/src/spawner.cpp
+  mppcdiscs/solidmaid/src/combat.cpp
+  mppcdiscs/solidmaid/src/areas.cpp
+  mppcdiscs/solidmaid/src/ritual.cpp
+  mppcdiscs/solidmaid/src/dayloop.cpp
+  mppcdiscs/solidmaid/src/assets_gen.cpp
+  mppcdiscs/solidmaid/src/scene_render.cpp
+  mppcdiscs/solidmaid/src/hud.cpp
 )
 
-target_include_directories(3dmppc PRIVATE src mppcdiscs/solid/src ${STB_DIR})
+target_include_directories(3dmppc PRIVATE src mppcdiscs/solidmaid/src ${STB_DIR})
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 
 if(MSVC)
@@ -86,14 +86,14 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
   )
 endif()
 
-# Copy the runtime files of the solid disc (only what the demo loads — the
+# Copy the runtime files of the solidmaid disc (only what the demo loads — the
 # source .glb / concept sketch stay out of the build tree).
 add_custom_command(TARGET 3dmppc POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E make_directory
-          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solid/assets
+          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solidmaid/assets
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/assets/protagonist.obj
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/assets/protagonist_tex.png
-          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solid/assets
-  COMMENT "Copying solid disc assets"
+          ${CMAKE_SOURCE_DIR}/mppcdiscs/solidmaid/assets/protagonist.obj
+          ${CMAKE_SOURCE_DIR}/mppcdiscs/solidmaid/assets/protagonist_tex.png
+          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solidmaid/assets
+  COMMENT "Copying solidmaid disc assets"
 )

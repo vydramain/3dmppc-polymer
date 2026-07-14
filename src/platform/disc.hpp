@@ -22,20 +22,20 @@ constexpr int kNativeWidth = 320;
 constexpr int kNativeHeight = 240;
 
 // The capabilities the console hands a disc at boot.
-struct DiscServices {
+struct rv_DiscServices {
     Audio* audio = nullptr;
     SaveCard* save = nullptr;
 };
 
-class Disc {
-public:
-    virtual ~Disc() = default;
+class rv_Disc {
+   public:
+    virtual ~rv_Disc() = default;
 
     // Shown in the window title / logs.
     virtual const char* title() const = 0;
 
     // Called once, before the first frame, with the console's services.
-    virtual void boot(const DiscServices& services) = 0;
+    virtual void boot(const rv_DiscServices& services) = 0;
 
     // Advance the simulation by `dt` seconds using this frame's input.
     virtual void update(const InputState& input, float dt) = 0;

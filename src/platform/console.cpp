@@ -107,12 +107,9 @@ void sampleInput(InputState& in, SDL_Gamepad* pad) {
     // Update each button exactly once per frame with the OR of both sources.
     in.throwBrick.update(k[SDL_SCANCODE_SPACE] || k[SDL_SCANCODE_J] ||
                          gp(SDL_GAMEPAD_BUTTON_SOUTH));
-    in.meleePipe.update(k[SDL_SCANCODE_K] || k[SDL_SCANCODE_LSHIFT] ||
-                        gp(SDL_GAMEPAD_BUTTON_WEST));
-    in.interact.update(k[SDL_SCANCODE_E] || k[SDL_SCANCODE_F] ||
-                       gp(SDL_GAMEPAD_BUTTON_EAST));
-    in.context.update(k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_TAB] ||
-                      gp(SDL_GAMEPAD_BUTTON_NORTH) ||
+    in.meleePipe.update(k[SDL_SCANCODE_K] || k[SDL_SCANCODE_LSHIFT] || gp(SDL_GAMEPAD_BUTTON_WEST));
+    in.interact.update(k[SDL_SCANCODE_E] || k[SDL_SCANCODE_F] || gp(SDL_GAMEPAD_BUTTON_EAST));
+    in.context.update(k[SDL_SCANCODE_Q] || k[SDL_SCANCODE_TAB] || gp(SDL_GAMEPAD_BUTTON_NORTH) ||
                       gp(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) ||
                       gp(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER));
     in.start.update(k[SDL_SCANCODE_RETURN] || gp(SDL_GAMEPAD_BUTTON_START));
@@ -120,7 +117,7 @@ void sampleInput(InputState& in, SDL_Gamepad* pad) {
 
 }  // namespace
 
-int Console::run(Disc& disc) {
+int rv_Console::run(rv_Disc& disc) {
     rv_Framebuffer fb(kNativeWidth, kNativeHeight);
 
     // ---- Headless: no window, fixed step, bounded frames, silent. ------------
@@ -129,7 +126,7 @@ int Console::run(Disc& disc) {
     if (cfg_.headless) {
         NullAudio audio;
         NullSaveCard save;
-        DiscServices services{&audio, &save};
+        rv_DiscServices services{&audio, &save};
         disc.boot(services);
 
         InputState in;
@@ -138,8 +135,7 @@ int Console::run(Disc& disc) {
             disc.update(in, 1.0f / 60.0f);
             disc.render(fb);
         }
-        std::printf("[console] headless run complete: %d frames of '%s'\n", frames,
-                    disc.title());
+        std::printf("[console] headless run complete: %d frames of '%s'\n", frames, disc.title());
         return 0;
     }
 
@@ -165,7 +161,7 @@ int Console::run(Disc& disc) {
     // if no device opens); the save card sits next to the working directory.
     std::unique_ptr<Audio> audio(makeSdlAudio());
     std::unique_ptr<SaveCard> save(makeFileSaveCard("solid.card"));
-    DiscServices services{audio.get(), save.get()};
+    rv_DiscServices services{audio.get(), save.get()};
     disc.boot(services);
 
     InputState in;

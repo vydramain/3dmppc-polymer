@@ -1,4 +1,4 @@
-#include "solid.hpp"
+#include "solidmaid.hpp"
 
 #include "areas.hpp"
 #include "combat.hpp"
@@ -18,9 +18,15 @@ namespace {
 Color atmosphere(const GameState& gs) {
     Vec3 base{0.09f, 0.086f, 0.16f};  // deep PSX blue-grey (Home)
     switch (gs.world.current) {
-        case Area::Home:    base = {0.10f, 0.09f, 0.13f}; break;
-        case Area::Street:  base = {0.13f, 0.13f, 0.16f}; break;
-        case Area::Factory: base = {0.10f, 0.08f, 0.07f}; break;
+        case Area::Home:
+            base = {0.10f, 0.09f, 0.13f};
+            break;
+        case Area::Street:
+            base = {0.13f, 0.13f, 0.16f};
+            break;
+        case Area::Factory:
+            base = {0.10f, 0.08f, 0.07f};
+            break;
     }
     const float murk = clampf(gs.loop.corruption * 0.04f, 0.0f, 0.5f);
     base = base * (1.0f - murk);
@@ -33,14 +39,14 @@ bool inPlayablePhase(Phase p) {
 
 }  // namespace
 
-void SolidDisc::boot(const DiscServices& services) {
+void SolidMaidDisc::boot(const rv_DiscServices& services) {
     ctx_.audio = services.audio;
     ctx_.save = services.save;
     renderer_.init();
     bootDayLoop(state_, ctx_);
 }
 
-void SolidDisc::update(const InputState& in, float dt) {
+void SolidMaidDisc::update(const InputState& in, float dt) {
     if (in.quit) quit_ = true;
 
     state_.time += dt;
@@ -61,7 +67,7 @@ void SolidDisc::update(const InputState& in, float dt) {
     }
 }
 
-void SolidDisc::render(rv_Framebuffer& fb) {
+void SolidMaidDisc::render(rv_Framebuffer& fb) {
     const Camera cam = playerCamera(state_);
 
     DrawList list;

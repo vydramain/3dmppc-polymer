@@ -1,20 +1,20 @@
 // Solidmaid: Alkoldun Vasiliusavich — the reference disc. Implements the console
-// Disc ABI and orchestrates the game systems each frame. OWNED BY THE
+// rv_Disc ABI and orchestrates the game systems each frame. OWNED BY THE
 // ORCHESTRATOR (integration point): it only wires the zones together.
 #pragma once
 
 #include "context.hpp"
 #include "game_state.hpp"
-#include "scene_render.hpp"
 #include "platform/disc.hpp"
+#include "scene_render.hpp"
 
 namespace rv_3dmppc {
 
-class SolidDisc final : public Disc {
-public:
+class SolidMaidDisc final : public rv_Disc {
+   public:
     const char* title() const override { return "Solidmaid: Alkoldun Vasiliusavich"; }
 
-    void boot(const DiscServices& services) override;
+    void boot(const rv_DiscServices& services) override;
     void update(const InputState& in, float dt) override;
     void render(rv_Framebuffer& fb) override;
     bool finished() const override { return quit_; }
@@ -22,7 +22,7 @@ public:
     // Read-only view for QA/integration harnesses (not used by the console).
     const GameState& debugState() const { return state_; }
 
-private:
+   private:
     GameState state_;
     GameContext ctx_;
     SceneRenderer renderer_;

@@ -13,10 +13,10 @@
 #include <cstdlib>
 
 #include "platform/console.hpp"
-#include "solid.hpp"
+#include "solidmaid.hpp"
 
 int main(int argc, char** argv) {
-    rv_3dmppc::ConsoleConfig cfg;
+    rv_3dmppc::rv_ConsoleConfig cfg;
 
     static struct option long_opts[] = {{"headless", no_argument, 0, 'H'},
                                         {"fixed-step", no_argument, 0, 'F'},
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
         }
     }
 
-    rv_3dmppc::Console console(cfg);
-    rv_3dmppc::SolidDisc disc;
+    rv_3dmppc::rv_Console console(cfg);
+    rv_3dmppc::SolidMaidDisc disc;
     return console.run(disc);
 }
