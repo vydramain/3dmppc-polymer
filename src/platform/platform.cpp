@@ -9,7 +9,7 @@
 //  * Windowed branch: real SDL3 audio, a file-backed memory card, and gamepad
 //    input with a simultaneous keyboard fallback so the template is playable on
 //    a plain desktop.
-#include "platform/console.hpp"
+#include "platform/platform.hpp"
 
 #include <SDL3/SDL.h>
 
@@ -117,7 +117,7 @@ void sampleInput(InputState& in, SDL_Gamepad* pad) {
 
 }  // namespace
 
-int rv_Console::run(rv_Disc& disc) {
+int rv_Platform::run(rv_Disc& disc) {
     rv_Framebuffer fb(kNativeWidth, kNativeHeight);
 
     // ---- Headless: no window, fixed step, bounded frames, silent. ------------
