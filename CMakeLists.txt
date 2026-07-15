@@ -51,7 +51,7 @@ add_executable(3dmppc
   src/assets/obj_loader.cpp
   src/assets/image.cpp
   src/assets/stb_image_impl.cpp
-  src/platform/console.cpp
+  src/platform/platform.cpp
   # solidmaid disc (the game)
   mppcdiscs/solidmaid/src/solidmaid.cpp
   mppcdiscs/solidmaid/src/player.cpp

@@ -40,7 +40,7 @@ The goal, restated: *the game plays **on** the console; it does not link **into*
 ```
    pdk/                    src/                     mppcdiscs/<game>/
    (devkit: the contract)  (console: the machine)   (games: disc code)
-   — abstract only —       — concrete + runtime —    — implement the entry —
+   — abstract + POD —      — concrete + runtime —    — implement the entry —
         ▲        ▲                                          │
         │        └──────────── implements ──────────────┐  │
         │                     (src depends on pdk)       │  │
@@ -74,21 +74,26 @@ The goal, restated: *the game plays **on** the console; it does not link **into*
 
 The root of the contract is **`rv_pdko`** — the *Phantasy Development Kit
 Organizer*. It is the single handle a disc receives, and it vends the console's
-subsystem **controllers**. A disc never constructs a controller; it asks the
-organizer for one.
+subsystem **controllers** (by pointer). A disc never constructs a controller; it
+asks the organizer for one.
 
-| Symbol     | File          | Subsystem                         | Example surface                       |
-| ---------- | ------------- | --------------------------------- | ------------------------------------- |
-| `rv_pdko`  | `rv_pdko.hpp` | organizer / façade                | `audio()`, `video()`, `io()`, `disk()`|
-| `rv_ca`    | `rv_ca.hpp`   | **C**ontroller **A**udio (SPU)    | `playSfx()`, `setMood()`              |
-| `rv_cv`    | `rv_cv.hpp`   | **C**ontroller **V**ideo (GPU)    | `clear()`, `drawMesh()` / primitives  |
-| `rv_cio`   | `rv_cio.hpp`  | **C**ontroller **I**nput/**O**utput | `input()`, `cardRead()`, `cardWrite()` |
-| `rv_cd`    | `rv_cd.hpp`   | **C**ontroller **D**isk (CD-ROM)  | read assets/code from the inserted disc|
+| Symbol     | File               | Subsystem                           | Realized surface                                    |
+| ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
+| `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`             |
+| `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `malloc`/`write`/`free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
+| `rv_cv`    | `rv_cv.hpp`        | **C**ontroller **V**ideo (GPU)      | *(deferred — surface not defined yet)*              |
+| `rv_cio`   | `rv_cio.hpp`       | **C**ontroller **I**nput/**O**utput | *(deferred — gamepads + memory card)*               |
+| `rv_cd`    | `rv_cd.hpp`        | **C**ontroller **D**isk (drive)     | *(deferred — read the mounted `.mppcdisc`)*         |
+
+Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
+(`rv_sample`, `rv_voice_conf`, `rv_loop`), and the cross-controller error enum is
+`rv_err.hpp` (see *Error convention*).
 
 Subsystem split, PSX-faithful:
 
-- **`rv_cd`** is the *game medium* — the read-only optical disc. It streams assets
-  and code out of the mounted `.mppcdisc` on demand.
+- **`rv_cd`** is the **drive** — the hardware that *reads* the read-only optical
+  **disc** (the `.mppcdisc` medium). The accessor is `rv_pdko::drive()`: you talk
+  to the drive, the disc is what it reads. It streams assets and code on demand.
 - **`rv_cio`** is the *read/write* I/O: gamepads (input) **and** the memory card
   (persistent save). Save lives here because it is read/write, unlike the disc.
 
@@ -96,23 +101,23 @@ Subsystem split, PSX-faithful:
 
 ```
   ╔══════════════════════════ pdk/  (PHANTASY DEV KIT) ══════════════════════════╗
-  ║  PURELY ABSTRACT classes + POD. No implementation.                           ║
+  ║  ABSTRACT controller classes + POD. No implementation.                       ║
   ║                                                                              ║
-  ║                              ┌───────────────┐                               ║
-  ║                              │    rv_pdko    │  organizer / façade           ║
-  ║                              │  audio(): rv_ca& │                            ║
-  ║                              │  video(): rv_cv& │                            ║
-  ║                              │  io()   : rv_cio&│                            ║
-  ║                              │  disk() : rv_cd& │                            ║
-  ║                              └───────────────┘                               ║
+  ║                              ┌────────────────┐                              ║
+  ║                              │    rv_pdko     │  organizer / façade          ║
+  ║                              │  audio(): rv_ca*  │                           ║
+  ║                              │  video(): rv_cv*  │                           ║
+  ║                              │  io()   : rv_cio* │                           ║
+  ║                              │  drive(): rv_cd*  │                           ║
+  ║                              └────────────────┘                              ║
   ║        ┌───────────────┬───────────┴───────┬───────────────┐                 ║
   ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐              ║
   ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │              ║
-  ║   │playSfx │      │clear   │         │input     │     │read    │              ║
-  ║   │setMood │      │drawMesh│         │cardRead  │     │assets  │              ║
-  ║   └────────┘      └────────┘         │cardWrite │     └────────┘              ║
-  ║                                      └──────────┘                            ║
-  ║   POD vocabulary: Color, Vec2/3, Mat4, InputState, enum Sfx/Mood, (Mesh?)     ║
+  ║   │malloc  │      │(defer) │         │ (defer)  │     │(defer) │              ║
+  ║   │write   │      └────────┘         └──────────┘     └────────┘              ║
+  ║   │voice_* │                                                                 ║
+  ║   └────────┘                                                                 ║
+  ║   POD: rv_sample, rv_voice_conf, rv_loop (audio) · rv_err (shared)            ║
   ║   + the disc-entry interface the game implements (see "Two directions")       ║
   ╚══════════════════════════════════════════════════════════════════════════════╝
                       △  implements                          △  implements
@@ -124,13 +129,38 @@ Subsystem split, PSX-faithful:
         │   ├ SoftVideo  : rv_cv        │        │    // boot:  pdk_ = &pdko  │
         │   │   └ rv_Rasterizer,        │        │    // render:              │
         │   │     rv_Framebuffer  (priv)│        │    //   pdk_->video()      │
-        │   ├ SdlAudio   : rv_ca        │        │    //        .drawMesh(…)  │
-        │   ├ DesktopIo  : rv_cio       │        │    // update:              │
-        │   └ DiscMedium : rv_cd        │        │    //   pdk_->io().input() │
+        │   ├ SdlAudio   : rv_ca        │        │    // update:              │
+        │   ├ DesktopIo  : rv_cio       │        │    //   pdk_->io()...      │
+        │   └ DiscMedium : rv_cd        │        │    //   pdk_->audio()...   │
         └───────────────────────────────┘        └────────────────────────────┘
          concrete backends are PRIVATE to          a game sees only rv_pdko and
          src/, never virtual, never in pdk/         its controllers — no src/ type
 ```
+
+---
+
+## Audio — two layers (low-level now, sequencer later)
+
+Audio deliberately follows the PSX split of a low-level sound-chip library and a
+high-level sequencer built on top of it:
+
+- **Low-level — `ca/rv_ca.hpp` (the SPU).** The realized layer. The game manages a
+  private pool of **sound RAM** (`malloc` → `write` sample → `free`) and drives a
+  fixed set of **voices** (`voice_setup` a config, then `voice_play` / `voice_stop`
+  / `voice_status` by voice bitmask). This is the hardware boundary the console
+  implements. Sample data crosses as `rv_sample` (POD), voice settings as
+  `rv_voice_conf` (POD), loop behaviour as `rv_loop`.
+
+**Deferred within the audio layer** (tracked so they are conscious omissions, not
+oversights): per-voice **pitch/playback rate**, **reverb**, **master volume**, and
+**ADPCM** sample encoding (raw PCM for now).
+
+### Error convention (`rv_err.hpp`)
+
+Every controller call returns an `int`, kernel-style: **`>= 0` is success, a
+negative value is an `rv_err`**. Calls that yield a value (e.g. `rv_ca::malloc`
+returns a sound-RAM address) return that value when `>= 0`, or a negative code.
+Callers test uniformly with `if (rc < 0) { ... }`.
 
 ---
 
@@ -140,7 +170,7 @@ PDK holds **two** interfaces, and they must not be merged — they point opposit
 
 | Interface                | Implemented by | Called by | Meaning                                                     |
 | ------------------------ | -------------- | --------- | ----------------------------------------------------------- |
-| `rv_pdko` (+ controllers)| the console    | the game  | **the hardware** — GPU, SPU, I/O, disc; unified behind one façade |
+| `rv_pdko` (+ controllers)| the console    | the game  | **the hardware** — GPU, SPU, I/O, drive; unified behind one façade |
 | the disc-entry interface | the game       | the console | **the cartridge's pins** — `boot` / `update` / `render` hooks the console drives |
 
 The disc-entry interface is the counterpart of `rv_pdko`: the console owns the
@@ -169,9 +199,8 @@ decisions*.
     │ 4. frame loop (owned by the console — it just lives by it):
     │   ┌────────────────────────────────────────────────────────────────┐
     │   │ console: io.pollHardware()          // SDL → fill input          │
-    │   │ disc.update(dt)       ──► game: pdk_->io().input(); … logic      │
-    │   │ disc.render()         ──► game: pdk_->video().clear();           │
-    │   │                                   pdk_->video().drawMesh(…);     │
+    │   │ disc.update(dt)       ──► game: pdk_->io()...; … logic           │
+    │   │ disc.render()         ──► game: pdk_->video()...;                │
     │   │ console: video.present()            // framebuffer → window      │
     │   └────────────────────────────────────────────────────────────────┘
     │        ▲ console calls the disc (entry)   ▼ disc calls the console (rv_pdko)
@@ -187,10 +216,11 @@ decisions*.
 
 - The controllers (`rv_ca` / `rv_cv` / `rv_cio` / `rv_cd`) are **owned by the
   concrete console** and live as long as it does.
-- The organizer **vends references**, not values: `rv_pdko::video()` returns
-  `rv_cv&`. Returning an abstract base by value would slice off the concrete
-  implementation — the accessors must hand back references (or pointers).
-- A disc holds **only** a `rv_pdko*` / controller references. It never owns, copies,
+- The organizer **vends pointers**, not values: `rv_pdko::video()` returns
+  `rv_cv*`. Returning an abstract base by value would slice off the concrete
+  implementation — the accessors must hand back a pointer (or reference). The
+  pointer is **borrowed**: raw, non-owning.
+- A disc holds **only** a `rv_pdko*` / controller pointers. It never owns, copies,
   or destroys them.
 
 ---
@@ -228,9 +258,13 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_ca`   | **C**ontroller **A**udio                     |
 | `rv_cv`   | **C**ontroller **V**ideo                     |
 | `rv_cio`  | **C**ontroller **I**nput/**O**utput          |
-| `rv_cd`   | **C**ontroller **D**isk                      |
+| `rv_cd`   | **C**ontroller **D**isk (accessor `drive()`) |
 
 (`rv_` is the project-wide namespace prefix, `namespace rv_3dmppc`.)
+
+Note the disc vs drive distinction: the **disc** is the read-only medium
+(`.mppcdisc`); the **drive** (`rv_cd`, `rv_pdko::drive()`) is the console hardware
+that reads it. The accessor names the drive, not the disc.
 
 ---
 
@@ -238,30 +272,30 @@ bug: the boundary is checked by the toolchain every build.
 
 Tracked here so they are chosen deliberately rather than by drift:
 
-1. **`rv_cv` granularity — how thick is the GPU boundary?**
+1. **`rv_cv` granularity — how thick is the GPU boundary?** *(still open)*
    - *High-level*: `drawMesh(const Mesh&, const Mat4& mvp, const Texture*, …)`. Mirrors
      the existing `rv_Rasterizer` 1:1, but then `Mesh` / `Texture` **cross the boundary**
      and must move into `pdk/` as POD.
-   - *Low-level*: submit primitives / vertices; the game builds and keeps meshes on
-     its side, and only POD (numbers) crosses. Thinner `pdk/`, more work.
-   - This is the single decision that sets how much POD `pdk/` carries.
+   - *Low-level / retained*: upload meshes once (handle), submit by handle + transform
+     per frame; only POD crosses, and vertex buffers stay private to the console.
+   - This is the single decision that sets how much POD the video layer carries.
+   - *(Audio resolved this the low-level way: sample RAM + voices, `rv_ca`. Video is
+     still to be decided.)*
 
 2. **Home of the disc-entry interface.** Migrate `rv_Disc` from `src/platform/` into
    `pdk/` so a disc implements one PDK type and calls one PDK type — and rename it to
    fit the PDK scheme, or keep `rv_Disc`.
 
-3. **The POD vocabulary.** Decide the exact set that lives in `pdk/` (`Color`,
-   `Vec2/3`, `Mat4`, `InputState`, `Sfx`, `Mood`, and — pending decision #1 — possibly
-   `Mesh` / `Texture`).
-
 ---
 
 ## Status
 
-Template stubs exist (`rv_pdko`, `rv_ca`, `rv_cv`, `rv_cio`, `rv_cd`); method
-surfaces are not filled in yet. The console (`src/`) and the reference disc
-(`mppcdiscs/solidmaid/`) still use the older in-binary path
-(`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving them behind `rv_pdko`
-is the next step, and depends on the open decisions above.
-</content>
-</invoke>
+- **`rv_pdko`** — done: virtual destructor + pure-virtual accessors vending
+  controllers by pointer (`audio()`, `video()`, `io()`, `drive()`).
+- **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
+  management + voices). Pitch, reverb, master volume, and ADPCM are deferred.
+- **`rv_cv` / `rv_cio` / `rv_cd`** — stubs; their surfaces are defined separately.
+- The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
+  older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
+  them behind `rv_pdko`, and rewriting the game's high-level audio onto the
+  low-level `rv_ca`, is the next step.
