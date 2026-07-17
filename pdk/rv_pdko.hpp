@@ -2,7 +2,7 @@
 
 #include "ca/rv_ca.hpp"
 #include "rv_cd.hpp"
-#include "rv_cio.hpp"
+#include "cio/rv_cio.hpp"
 #include "rv_cv.hpp"
 
 namespace rv_3dmppc {

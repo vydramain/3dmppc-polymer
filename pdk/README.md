@@ -82,20 +82,23 @@ asks the organizer for one.
 | `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`             |
 | `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `malloc`/`write`/`free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `rv_cv.hpp`        | **C**ontroller **V**ideo (GPU)      | *(deferred — surface not defined yet)*              |
-| `rv_cio`   | `rv_cio.hpp`       | **C**ontroller **I**nput/**O**utput | *(deferred — gamepads + memory card)*               |
+| `rv_cio`   | `cio/rv_cio.hpp`   | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`); memory card deferred |
 | `rv_cd`    | `rv_cd.hpp`        | **C**ontroller **D**isk (drive)     | *(deferred — read the mounted `.mppcdisc`)*         |
 
 Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
-(`rv_sample`, `rv_voice_conf`, `rv_loop`), and the cross-controller error enum is
-`rv_err.hpp` (see *Error convention*).
+(`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
+`rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), and the
+cross-controller error enum is `rv_err.hpp` (see *Error convention*).
 
 Subsystem split, PSX-faithful:
 
 - **`rv_cd`** is the **drive** — the hardware that *reads* the read-only optical
   **disc** (the `.mppcdisc` medium). The accessor is `rv_pdko::drive()`: you talk
   to the drive, the disc is what it reads. It streams assets and code on demand.
-- **`rv_cio`** is the *read/write* I/O: gamepads (input) **and** the memory card
-  (persistent save). Save lives here because it is read/write, unlike the disc.
+- **`rv_cio`** is the *read/write* I/O: gamepad **input** (an instantaneous
+  per-port state snapshot, plus the mouse look channel) and haptic **output**.
+  The memory card (persistent save) belongs here too — read/write, unlike the
+  disc — but is **deferred**.
 
 ### Class realization — abstract in `pdk/`, concrete at the edges
 
@@ -113,7 +116,7 @@ Subsystem split, PSX-faithful:
   ║        ┌───────────────┬───────────┴───────┬───────────────┐                 ║
   ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐              ║
   ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │              ║
-  ║   │malloc  │      │(defer) │         │ (defer)  │     │(defer) │              ║
+  ║   │malloc  │      │(defer) │         │ iport_*  │     │(defer) │              ║
   ║   │write   │      └────────┘         └──────────┘     └────────┘              ║
   ║   │voice_* │                                                                 ║
   ║   └────────┘                                                                 ║
@@ -286,6 +289,17 @@ Tracked here so they are chosen deliberately rather than by drift:
    `pdk/` so a disc implements one PDK type and calls one PDK type — and rename it to
    fit the PDK scheme, or keep `rv_Disc`.
 
+3. **`rv_cio` open points.**
+   - *`init()` ownership*: whether a disc calls `rv_cio::init()` or the console
+     brings I/O up before boot — tied to who owns the frame loop (push vs pull).
+   - *derived input sources*: the `*_DPAD_*` / `*_MOVE` bits in `rv_isource`
+     interpret an analog source past a threshold — arguably binding logic over the
+     raw stick value. Kept for Steam Deck coverage; decide whether the device
+     surface stays strictly raw.
+   - *haptic modelling*: `RV_HAPTIC_EFFECT_WAVEFORM` has no payload yet, and the
+     `rv_oheffect::type` tag (currently `1U << n` values) vs a plain enumerator is
+     unsettled.
+
 ---
 
 ## Status
@@ -294,7 +308,10 @@ Tracked here so they are chosen deliberately rather than by drift:
   controllers by pointer (`audio()`, `video()`, `io()`, `drive()`).
 - **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
   management + voices). Pitch, reverb, master volume, and ADPCM are deferred.
-- **`rv_cv` / `rv_cio` / `rv_cd`** — stubs; their surfaces are defined separately.
+- **`rv_cio` (input/output)** — surface defined: per-port input snapshot,
+  capabilities, mouse, and haptic output; memory card deferred. Concrete backend
+  in `src/` still pending.
+- **`rv_cv` / `rv_cd`** — stubs; their surfaces are defined separately.
 - The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
   older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
   them behind `rv_pdko`, and rewriting the game's high-level audio onto the
