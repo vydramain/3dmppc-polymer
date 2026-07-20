@@ -14,19 +14,22 @@ enum rv_ohetype : uint32_t {
 };
 
 // Which actuator(s) an effect drives. A real bitmask — BOTH is LEFT | RIGHT.
+// NONE is the empty mask, not a bit of its own.
 enum rv_ohtarget : uint32_t {
-    RV_HAPTIC_TARGET_NONE = 1U << 0,
-    RV_HAPTIC_TARGET_LEFT = 1U << 1,
-    RV_HAPTIC_TARGET_RIGHT = 1U << 2,
+    RV_HAPTIC_TARGET_NONE = 0U,
+    RV_HAPTIC_TARGET_LEFT = 1U << 0,
+    RV_HAPTIC_TARGET_RIGHT = 1U << 1,
     RV_HAPTIC_TARGET_BOTH = RV_HAPTIC_TARGET_LEFT | RV_HAPTIC_TARGET_RIGHT,
 };
 
+// Constant strength per side, held for a fixed duration.
 struct rv_ohrumble {
     uint16_t strength_left;
     uint16_t strength_right;
     uint16_t duration_ms;
 };
 
+// A repeating on/off pulse train, driven by timing rather than strength.
 struct rv_ohpulse {
     uint32_t target;  // rv_ohtarget bitmask
 

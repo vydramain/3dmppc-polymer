@@ -42,7 +42,7 @@ The goal, restated: *the game plays **on** the console; it does not link **into*
    (devkit: the contract)  (console: the machine)   (games: disc code)
    — abstract + POD —      — concrete + runtime —    — implement the entry —
         ▲        ▲                                          │
-        │        └──────────── implements ──────────────┐  │
+        │        └──────────── implements ───────────────┐  │
         │                     (src depends on pdk)       │  │
         └───────────────── depends on ───────────────────┘◄─┘
                           (a game depends on pdk ONLY)
@@ -80,10 +80,10 @@ asks the organizer for one.
 | Symbol     | File               | Subsystem                           | Realized surface                                    |
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
 | `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`             |
-| `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `malloc`/`write`/`free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
+| `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `rv_cv.hpp`        | **C**ontroller **V**ideo (GPU)      | *(deferred — surface not defined yet)*              |
 | `rv_cio`   | `cio/rv_cio.hpp`   | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`); memory card deferred |
-| `rv_cd`    | `rv_cd.hpp`        | **C**ontroller **D**isk (drive)     | *(deferred — read the mounted `.mppcdisc`)*         |
+| `rv_cd`    | `cd/rv_cd.hpp`     | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer |
 
 Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
@@ -94,7 +94,17 @@ Subsystem split, PSX-faithful:
 
 - **`rv_cd`** is the **drive** — the hardware that *reads* the read-only optical
   **disc** (the `.mppcdisc` medium). The accessor is `rv_pdko::drive()`: you talk
-  to the drive, the disc is what it reads. It streams assets and code on demand.
+  to the drive, the disc is what it reads. It reads assets on demand.
+
+  **Mounting is not part of this contract.** Finding the medium, parsing the
+  manifest, `dlopen`ing the disc module and checking its ABI all belong to
+  *console initialisation* — the same category as opening the audio device before
+  constructing the concrete `rv_ca`. They happen before the game exists, so they
+  cannot be operations a game invokes: `rv_cd` has exactly **one** client, the
+  game, and therefore no `mount()`/`eject()`. Failures during mounting are not
+  `rv_err` either — with no disc booted, the console answers to the *user*
+  ("medium unreadable", "disc built for another version"); `rv_err` starts at
+  `boot()`.
 - **`rv_cio`** is the *read/write* I/O: gamepad **input** (an instantaneous
   per-port state snapshot, plus the mouse look channel) and haptic **output**.
   The memory card (persistent save) belongs here too — read/write, unlike the
@@ -106,26 +116,26 @@ Subsystem split, PSX-faithful:
   ╔══════════════════════════ pdk/  (PHANTASY DEV KIT) ══════════════════════════╗
   ║  ABSTRACT controller classes + POD. No implementation.                       ║
   ║                                                                              ║
-  ║                              ┌────────────────┐                              ║
-  ║                              │    rv_pdko     │  organizer / façade          ║
+  ║                              ┌───────────────────┐                           ║
+  ║                              │    rv_pdko        │  organizer / façade       ║
   ║                              │  audio(): rv_ca*  │                           ║
   ║                              │  video(): rv_cv*  │                           ║
   ║                              │  io()   : rv_cio* │                           ║
   ║                              │  drive(): rv_cd*  │                           ║
-  ║                              └────────────────┘                              ║
-  ║        ┌───────────────┬───────────┴───────┬───────────────┐                 ║
-  ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐              ║
-  ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │              ║
-  ║   │malloc  │      │(defer) │         │ iport_*  │     │(defer) │              ║
-  ║   │write   │      └────────┘         └──────────┘     └────────┘              ║
+  ║                              └───────────────────┘                           ║
+  ║        ┌───────────────┬───────────┴────────┬───────────────┐                ║
+  ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐             ║
+  ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │             ║
+  ║   │malloc  │      │(defer) │         │ iport_*  │     │(defer) │             ║
+  ║   │write   │      └────────┘         └──────────┘     └────────┘             ║
   ║   │voice_* │                                                                 ║
   ║   └────────┘                                                                 ║
-  ║   POD: rv_sample, rv_voice_conf, rv_loop (audio) · rv_err (shared)            ║
-  ║   + the disc-entry interface the game implements (see "Two directions")       ║
+  ║   POD: rv_sample, rv_voice_conf, rv_loop (audio) · rv_err (shared)           ║
+  ║   + the disc-entry interface the game implements (see "Two directions")      ║
   ╚══════════════════════════════════════════════════════════════════════════════╝
                       △  implements                          △  implements
-        ┌─────────────┴──────────────────┐        ┌──────────┴────────────────┐
-        │  src/  (THE CONSOLE)           │        │  mppcdiscs/<game>/         │
+        ┌─────────────┴─────────────────┐        ┌───────────┴────────────────┐
+        │  src/  (THE CONSOLE)          │        │  mppcdiscs/<game>/         │
         │                               │        │                            │
         │  rv_Console : rv_pdko         │        │  <Game>Disc : entry        │
         │   owns the loop + controllers:│        │    rv_pdko* pdk_;          │
@@ -148,7 +158,8 @@ Audio deliberately follows the PSX split of a low-level sound-chip library and a
 high-level sequencer built on top of it:
 
 - **Low-level — `ca/rv_ca.hpp` (the SPU).** The realized layer. The game manages a
-  private pool of **sound RAM** (`malloc` → `write` sample → `free`) and drives a
+  private pool of **sound RAM** (`sound_asset_malloc` → `sound_asset_write` sample
+  → `sound_asset_free`) and drives a
   fixed set of **voices** (`voice_setup` a config, then `voice_play` / `voice_stop`
   / `voice_status` by voice bitmask). This is the hardware boundary the console
   implements. Sample data crosses as `rv_sample` (POD), voice settings as
@@ -160,10 +171,26 @@ oversights): per-voice **pitch/playback rate**, **reverb**, **master volume**, a
 
 ### Error convention (`rv_err.hpp`)
 
-Every controller call returns an `int`, kernel-style: **`>= 0` is success, a
-negative value is an `rv_err`**. Calls that yield a value (e.g. `rv_ca::malloc`
-returns a sound-RAM address) return that value when `>= 0`, or a negative code.
-Callers test uniformly with `if (rc < 0) { ... }`.
+Every controller call returns a signed integer, kernel-style: **`>= 0` is success,
+a negative value is an `rv_err`**. Calls that yield a value (e.g.
+`rv_ca::sound_asset_malloc` returns a sound-RAM address, `rv_cd::asset_read`
+returns a byte count) return that value when `>= 0`, or a negative code. Callers
+test uniformly with `if (rc < 0) { ... }`.
+
+Codes: `RV_ERR_INVAL` (malformed call — a disc bug), `RV_ERR_NOMEM` (a pool the
+controller manages is exhausted), `RV_ERR_BUSY` (resource occupied, retry may
+work), `RV_ERR_NOENT` (the named thing does not exist — a content problem, not a
+coding one), `RV_ERR_IO` (the device failed to carry out a well-formed call).
+Values are ABI: existing codes never change, new ones are appended.
+
+**Signed vs unsigned.** Signed (`int` / `int64_t`) wherever a value shares its
+channel with an error code — every method return, and every field that
+round-trips through one (`rv_voice_conf::sample_address` holds what
+`sound_asset_malloc` returned, so it must be equally wide and equally signed).
+Unsigned (`uintN_t`) only for pure data with no error channel, such as
+`rv_istate::buttons` and `rv_cio::iport_abilities`, where "nothing" is honestly
+`0`. A mask carried by a signed type is defined over bits 0..62 so it can never
+be mistaken for an error.
 
 ---
 
@@ -290,8 +317,6 @@ Tracked here so they are chosen deliberately rather than by drift:
    fit the PDK scheme, or keep `rv_Disc`.
 
 3. **`rv_cio` open points.**
-   - *`init()` ownership*: whether a disc calls `rv_cio::init()` or the console
-     brings I/O up before boot — tied to who owns the frame loop (push vs pull).
    - *derived input sources*: the `*_DPAD_*` / `*_MOVE` bits in `rv_isource`
      interpret an analog source past a threshold — arguably binding logic over the
      raw stick value. Kept for Steam Deck coverage; decide whether the device
@@ -311,7 +336,20 @@ Tracked here so they are chosen deliberately rather than by drift:
 - **`rv_cio` (input/output)** — surface defined: per-port input snapshot,
   capabilities, mouse, and haptic output; memory card deferred. Concrete backend
   in `src/` still pending.
-- **`rv_cv` / `rv_cd`** — stubs; their surfaces are defined separately.
+- **`rv_cd` (disc drive)** — surface defined: `asset_open` resolves a
+  disc-relative name into a handle, `asset_size` reports the entry's size as a
+  sizing hint, `asset_read` copies the whole entry into a buffer the game owns.
+  **The drive never allocates the game's data buffer** — the game owns that
+  memory, because only the game knows how long the bytes are needed and the RAM
+  budget is its to spend. An entry is named by a plain name with no path
+  separators, resolved into a handle. The medium is read-only (persistent save is
+  the memory card, i.e. `rv_cio`), and no host path ever crosses: the game cannot
+  tell a directory from a packed image.
+  Deferred: enumeration (the disc builder bakes any listing at build time), ranged
+  reads, streaming, and the mapping model (console places the resource in its own
+  RAM and lends an address) — the last only pays off once the console owns a real
+  fantasy-RAM allocator.
+- **`rv_cv`** — stub; the surface waits on the granularity decision below.
 - The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
   older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
   them behind `rv_pdko`, and rewriting the game's high-level audio onto the

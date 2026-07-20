@@ -15,6 +15,9 @@ namespace rv_3dmppc {
 // pushed past a threshold, in a direction) — arguably binding logic layered on
 // top of the raw stick value. Kept for full Steam Deck coverage; revisit if the
 // device surface should stay strictly raw. See README "Open decisions".
+//
+// Bit positions are fixed: a new source takes the next free bit. Bits 0..52 are
+// in use.
 enum rv_isource : uint64_t {
     // Front buttons
     RV_ISOURCE_FRONT_BTTN_SOUTH = 1ULL << 0,
@@ -99,7 +102,8 @@ struct rv_iaxes {
     float x, y;
 };
 
-// Inertial (gyro/accelerometer) sample for a motion-capable controller.
+// Inertial (gyro/accelerometer) sample for a motion-capable controller. Zero on
+// a port whose iport_abilities() do not advertise the gyro sources.
 struct rv_imotion {
     // Orientation (unit quaternion)
     float quat_x;
@@ -119,6 +123,7 @@ struct rv_imotion {
 };
 
 // Instantaneous state of one controller port, filled by rv_cio::iport_state().
+// A zeroed state is what an empty or out-of-range port reports.
 struct rv_istate {
     // Live rv_isource bitmask: held digital buttons, plus liveness bits for
     // analog sources (set when out of dead zone / touched).
@@ -132,7 +137,7 @@ struct rv_istate {
     rv_iaxes left_trackpad;
     rv_iaxes right_trackpad;
 
-    // Triggers
+    // Triggers, normalized to [0, 1] — 0 released, 1 fully pulled.
     float left_trigger;
     float right_trigger;
 
