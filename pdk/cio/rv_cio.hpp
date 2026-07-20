@@ -18,16 +18,14 @@ namespace rv_3dmppc {
 // slot reports zero abilities and a zeroed state; it is never an error and
 // never renumbers the other slots.
 //
+// The query methods report data, not status: an empty or out-of-range port reads
+// as zero rather than as an error. Only ohaptic() can fail.
+//
 // DEFERRED: the memory card (persistent save) is part of controller I/O on real
 // hardware but is not surfaced here yet — see README "Status".
 class rv_cio {
    public:
     virtual ~rv_cio() = default;
-
-    // Bring the I/O subsystem up. Returns RV_OK, or a negative rv_err.
-    // OPEN: whether a disc calls this, or the console has already done it before
-    // boot, depends on who owns the frame loop — see README "Open decisions".
-    virtual int init() = 0;
 
     // Count of controller port slots the console exposes. Slots are fixed and
     // stable; probe iport_abilities()/iport_state() to see which are populated.
@@ -42,6 +40,9 @@ class rv_cio {
     // Mouse look channel: motion RELATIVE to the previous poll (variant B), not
     // an absolute cursor position. Suited to camera look; a UI cursor would need
     // a separate absolute-position query. The mouse is singular — no port index.
+    //
+    // Each call reports the motion accumulated since the previous call. The
+    // first call returns {0, 0}.
     virtual rv_imouse imouse() = 0;
 
     // Instantaneous state (buttons, sticks, triggers, motion) of `port`. Returns
@@ -49,7 +50,8 @@ class rv_cio {
     virtual rv_istate iport_state(int port) = 0;
 
     // Play a haptic effect on `port`'s controller — the output ("O") half of
-    // controller I/O. Returns RV_OK, or a negative rv_err.
+    // controller I/O. `effect` is taken by value. Returns RV_OK, or a negative
+    // rv_err (RV_ERR_INVAL for an empty port or an unknown effect type).
     virtual int ohaptic(int port, rv_oheffect effect) = 0;
 };
 

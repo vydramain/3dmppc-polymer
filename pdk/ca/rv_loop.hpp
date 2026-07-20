@@ -2,7 +2,7 @@
 
 namespace rv_3dmppc {
 
-// How a voice repeats its sample once started.
+// How a voice repeats its sample once started. Set in rv_voice_conf::loop_type.
 enum class rv_loop {
     none = 0,  // play once, then the voice goes silent (one-shot)
     forever,   // repeat the whole sample indefinitely
