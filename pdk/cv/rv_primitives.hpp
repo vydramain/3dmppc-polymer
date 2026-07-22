@@ -81,8 +81,8 @@ struct rv_polygon {
 // texture's upper-left corner, per `mapping`; WIREFRAME outlines the rectangle
 // with `color`. Addresses are read the same way as on rv_polygon.
 //
-// The maximum size is a spec value (see README "Video"), not a promise of these
-// field widths.
+// Off-screen portions are clipped by the console; the field widths promise
+// nothing beyond the screen the game queried (rv_cv::screen_width/height).
 //
 // DEFERRED: the blending flags and the PSX fixed-size fast paths (1x1/8x8/16x16).
 struct rv_sprite {

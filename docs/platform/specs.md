@@ -11,24 +11,43 @@ two parts:
 
 ## Target Spec
 
-### Display
-- **Resolution:** two modes — `320×240` or `256×224`
-- **Color:** 16-bit + dithering
-- **Textures:** 4-bit / 8-bit paletted, no filtering
+The PDK carries **no numbers** — a disc queries the console at `disc_initialize`
+and validates its baked assumptions (see `pdk/README.md`, "Video"). The values
+below are the **reference console's answers** (`rv_pconsole` defaults):
+
+### Display / video (`rv_cv`)
+| Query | Reference answer |
+| --- | --- |
+| `screen_width` × `screen_height` | `320×240` (secondary mode `256×224` planned) |
+| `texture_max_width` × `texture_max_height` | `256×256` |
+| `video_memory_size` | 1 MB |
+| `frame_capacity` | 4096 primitives/frame |
+| *(hidden by design)* | 1024 ordering-table buckets |
+
+- **Color:** 16-bit + dithering; texel formats 4-bit / 8-bit paletted +
+  15-bit direct (PSX transparency rules), no filtering
+
+### Audio (`rv_ca`)
+| Query | Reference answer |
+| --- | --- |
+| `voice_count` | 24 |
+| `sound_memory_size` | 512 KB |
+
+- Sample-based (raw PCM for now, ADPCM deferred), 16-bit, stereo
+
+### Input (`rv_cio`)
+| Query | Reference answer |
+| --- | --- |
+| `iport_count` | 2 |
+
+### Save (`rv_cm`)
+| Query | Reference answer |
+| --- | --- |
+| `card_slots` | 16 |
+| `card_slot_size` | 8 KB (total 128 KB) |
 
 ### Memory
-- **RAM:** 2 MB (main heap)
-- **VRAM:** 1 MB (video heap)
-
-### Audio
-- Sample-based, ADPCM-like
-- 16-bit, 24 voices, stereo
-
-### Input
-- 1–2 gamepads
-
-### Save
-- Memory card, e.g. 128 KB
+- **RAM:** 2 MB (main heap; not yet contracted — no RAM controller in the PDK)
 
 ### Game package
 - `.mppcdisc` — an *mppc polymer disc*: the console name (`mppc`) plus the

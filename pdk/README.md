@@ -114,10 +114,10 @@ Subsystem split, PSX-faithful:
   durable state) are the opposite of this snapshot-style contract.
 - **`rv_cm`** is the **memory card** — the writable-medium counterpart of the
   drive: the disc is read-only, the card is where a game persists its saves. The
-  accessor is `rv_pdko::card()`. The medium is a set of 8 KB **slots** (the slot
-  size is ABI — a save blob is designed against it at build time; the slot
-  *count* is console configuration, queried at boot via `card_slots()`, default
-  16 = 128 KB). The card is always inserted; persistence (the file-backed image)
+  accessor is `rv_pdko::card()`. The medium is a set of equally-sized **slots**;
+  count and size are implementation values, queried at boot (`card_slots()` /
+  `card_slot_size()`) and validated against the save blob the game was built
+  with. The card is always inserted; persistence (the file-backed image)
   is the console's concern, never an operation the game invokes. Writes replace
   a slot whole and are **atomic**: a failed write leaves the old save intact.
 
@@ -148,14 +148,15 @@ Subsystem split, PSX-faithful:
         ┌─────────────┴─────────────────┐        ┌───────────┴────────────────┐
         │  src/  (THE CONSOLE)          │        │  mppcdiscs/<game>/         │
         │                               │        │                            │
-        │  rv_Console : rv_pdko         │        │  <Game>Disc : entry        │
+        │  rv_pconsole : rv_pdko        │        │  rv_dmain : rv_de          │
         │   owns the loop + controllers:│        │    rv_pdko* pdk_;          │
-        │   ├ SoftVideo  : rv_cv        │        │    // boot:  pdk_ = &pdko  │
-        │   │   └ rv_Rasterizer,        │        │    // render:              │
-        │   │     rv_Framebuffer  (priv)│        │    //   pdk_->video()      │
-        │   ├ SdlAudio   : rv_ca        │        │    // update:              │
-        │   ├ DesktopIo  : rv_cio       │        │    //   pdk_->io()...      │
-        │   └ DiscMedium : rv_cd        │        │    //   pdk_->audio()...   │
+        │   ├ (video)    : rv_cv        │        │    // disc_initialize:     │
+        │   │   └ rv_Rasterizer,        │        │    //   pdk_ = &pdko       │
+        │   │     rv_Framebuffer  (priv)│        │    // frame_render:        │
+        │   ├ (audio)    : rv_ca        │        │    //   pdk_->video()      │
+        │   ├ (input)    : rv_cio       │        │    // frame_update:        │
+        │   ├ (drive)    : rv_cd        │        │    //   pdk_->io()...      │
+        │   └ (card)     : rv_cm        │        │    //   pdk_->audio()...   │
         └───────────────────────────────┘        └────────────────────────────┘
          concrete backends are PRIVATE to          a game sees only rv_pdko and
          src/, never virtual, never in pdk/         its controllers — no src/ type
@@ -229,15 +230,18 @@ Because the console re-orders primitives, there is **no global drawing state**:
 texture address, palette address, fill mode and wrap mode all travel inside the
 primitive (the PSX texpage/CLUT attributes, generalized).
 
-Hardware numbers (spec values — a later console revision may raise them; the
-contract shapes do not change with them):
+**Hardware geometry is implementation-defined — the PDK carries no numbers.**
+The devkit only gives a game the means to ASK: `screen_width/height`,
+`texture_max_width/height`, `video_memory_size`, `frame_capacity` (video);
+`voice_count`, `sound_memory_size` (audio); `card_slots`, `card_slot_size`
+(memory card); `iport_count`, `iport_abilities` (input). A disc queries these in
+`disc_initialize`, validates the assumptions its assets were built against, and
+returns a negative `rv_err` on a mismatch — the console then refuses to run it.
+The reference console's defaults live in `docs/platform/specs.md`.
 
-| Number                   | Value   |
-| ------------------------ | ------- |
-| Video RAM pool           | 1 MB    |
-| Primitive budget / frame | 4096    |
-| Ordering-table buckets   | 1024    |
-| Max texture size         | 256×256 |
+One number stays hidden on purpose: the ordering-table bucket count. The game
+hands depth VALUES, never bucket indices — how finely the console quantizes is
+its own business.
 
 **Dropped on purpose** (PSX features that do not cross into this contract):
 drawing area / drawing offset registers (a frame is always the whole 320×240),
@@ -262,43 +266,60 @@ PDK holds **two** interfaces, and they must not be merged — they point opposit
 
 | Interface                | Implemented by | Called by | Meaning                                                     |
 | ------------------------ | -------------- | --------- | ----------------------------------------------------------- |
-| `rv_pdko` (+ controllers)| the console    | the game  | **the hardware** — GPU, SPU, I/O, drive; unified behind one façade |
-| the disc-entry interface | the game       | the console | **the cartridge's pins** — `boot` / `update` / `render` hooks the console drives |
+| `rv_pdko` (+ controllers)| the console    | the game  | **the hardware** — GPU, SPU, I/O, drive, card; unified behind one façade |
+| `rv_de`          | the game       | the console | **the cartridge's pins** — the `disc_*` / `frame_*` hooks the console drives |
 
-The disc-entry interface is the counterpart of `rv_pdko`: the console owns the
-frame loop and must call *into* the game each frame. It is what today lives as
-`rv_Disc` (`boot` / `update` / `render` / `finished` / `title`) in
-`src/platform/disc.hpp`; conceptually it belongs in `pdk/` alongside `rv_pdko`, so
-that a disc implements **one** PDK type and calls **one** PDK type. See *Open
-decisions*.
+`rv_de` (`pdk/de/rv_de.hpp`) is the counterpart of `rv_pdko`: the
+console owns the frame loop and calls *into* the game each frame, so that a disc
+implements **one** PDK type and calls **one** PDK type. Its hooks (`disc_*` for
+lifecycle, `frame_*` for the per-frame pair):
+
+- `disc_initialize(rv_pdko&)` — once, before the first frame: the disc stashes
+  the facade, queries capabilities, loads assets, reads its save. Returns
+  `>= 0`, or a negative `rv_err` — the console then refuses to run the disc
+  (`rv_err` starts here).
+- `frame_update(dt)` — one frame of simulation; input is pulled via `io()`. Do
+  one frame's worth of work and RETURN — the console cannot preempt a hook.
+- `frame_render()` — build the frame (`frame_configure` → `frame_put`s) and end
+  it with `frame_flush()`. Skipped in headless runs.
+- `disc_release()` — a QUERY, polled every frame: "does the disc ask the console
+  to power off?" It releases nothing itself (a teardown hook for the `dlclose`
+  era is DEFERRED, under a different name).
+- `disc_title()` — name for the window title / logs (a string literal).
+
+By convention every disc implements it in a class named `rv_dmain` — the
+loader-facing name is fixed, like `main()` for programs. It replaces `rv_Disc` +
+`rv_DiscServices` from `src/platform/disc.hpp`.
 
 ---
 
 ## Runtime — handshake and a frame
 
 ```
-  loader (today: constructed in main.cpp; tomorrow: dlopen from a .mppcdisc)
+  rv_pconsole (src/) — today statically linked; tomorrow dlopen from a .mppcdisc
+    │             (the module exports an rv_mppcdisc POD: abi + factory)
     │
     │ 1. build the CONCRETE console (it constructs its own controllers)
-    ├──────────►  rv_Console console;     // : rv_pdko, owns rv_ca/rv_cv/rv_cio/rv_cd
+    ├──────────►  rv_pconsole console;   // : rv_pdko, owns rv_ca/cv/cio/cd/cm
     │
-    │ 2. obtain the disc (its code implements the disc-entry interface)
-    ├──────────►  entry& disc;
+    │ 2. disc_load(path): obtain the disc object (checks abi BEFORE any call)
+    ├──────────►  rv_de* disc;   // the game's class is named rv_dmain
     │
-    │ 3. HANDSHAKE: the console hands ITSELF to the disc as rv_pdko&
-    ├──────────►  disc.boot(console);     ──►  the disc stashes rv_pdko* pdk_
+    │ 3. disc_run(*disc) — HANDSHAKE: the console hands ITSELF over as rv_pdko&
+    ├──────────►  disc->disc_initialize(console);  ──►  disc stashes rv_pdko*
+    │                 (negative rv_err → the console refuses to run the disc)
     │
     │ 4. frame loop (owned by the console — it just lives by it):
-    │   ┌────────────────────────────────────────────────────────────────┐
-    │   │ console: io.pollHardware()          // SDL → fill input          │
-    │   │ disc.update(dt)       ──► game: pdk_->io()...; … logic           │
-    │   │ disc.render()         ──► game: pdk_->video()...;                │
-    │   │ console: video.present()            // framebuffer → window      │
-    │   └────────────────────────────────────────────────────────────────┘
-    │        ▲ console calls the disc (entry)   ▼ disc calls the console (rv_pdko)
+    │   ┌──────────────────────────────────────────────────────────────────┐
+    │   │ console: poll SDL events            // → iport_state snapshots    │
+    │   │ disc->frame_update(dt)   ──► game: pdk_->io()...; … logic         │
+    │   │ disc->frame_render()     ──► game: pdk_->video()->frame_put/flush │
+    │   │ console: present                    // framebuffer → window       │
+    │   └──────────────────────────────────────────────────────────────────┘
+    │        ▲ console calls the disc (rv_de)   ▼ disc calls rv_pdko
     │                    two opposite arrows — the whole thing hangs on them
     │
-    │ 5. teardown: disc.finished() → leave loop, destroy the disc
+    │ 5. teardown: disc_release() == true → leave loop, destroy the disc
     └──────────►  (future: dlclose, clean up the temp extraction)
 ```
 
@@ -359,6 +380,10 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_cio`  | **C**ontroller **I**nput/**O**utput          |
 | `rv_cd`   | **C**ontroller **D**isk (accessor `drive()`) |
 | `rv_cm`   | **C**ontroller **M**emory card (accessor `card()`) |
+| `rv_de` | the disc-entry interface a game implements (`disc_*` / `frame_*` hooks) |
+| `rv_dmain` | convention: the name of every disc's class implementing `rv_de` |
+| `rv_pconsole` | the concrete console in `src/` — implements `rv_pdko`, owns the loop (`disc_load` / `disc_run`) |
+| `rv_mppcdisc` | packaging (future): POD a `.mppcdisc` module exports — `abi_version` + factory |
 
 (`rv_` is the project-wide namespace prefix, `namespace rv_3dmppc`.)
 
@@ -376,9 +401,12 @@ Tracked here so they are chosen deliberately rather than by drift:
    low-level way, mirroring audio: video RAM + self-contained primitives over a
    hardware ordering table. See the *Video* section above.)*
 
-2. **Home of the disc-entry interface.** Migrate `rv_Disc` from `src/platform/` into
-   `pdk/` so a disc implements one PDK type and calls one PDK type — and rename it to
-   fit the PDK scheme, or keep `rv_Disc`.
+2. **Home of the disc-entry interface.** *(RESOLVED — `rv_de` lives in
+   `pdk/de/rv_de.hpp`, hooks `disc_initialize` / `frame_update` /
+   `frame_render` / `disc_release` / `disc_title`; every disc implements it in a
+   class named `rv_dmain`. See "Two directions of the contract". The header is
+   written; `rv_Disc` + `rv_DiscServices` in `src/` die with the MVP
+   migration.)*
 
 3. **`rv_cio` open points.**
    - *derived input sources*: the `*_DPAD_*` / `*_MOVE` bits in `rv_isource`
@@ -396,7 +424,8 @@ Tracked here so they are chosen deliberately rather than by drift:
 - **`rv_pdko`** — done: virtual destructor + pure-virtual accessors vending
   controllers by pointer (`audio()`, `video()`, `io()`, `drive()`, `card()`).
 - **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
-  management + voices). Pitch, reverb, master volume, and ADPCM are deferred.
+  management + voices + geometry queries `voice_count`/`sound_memory_size`).
+  Pitch, reverb, master volume, and ADPCM are deferred.
 - **`rv_cio` (input/output)** — surface defined: per-port input snapshot,
   capabilities, mouse, and haptic output (the memory card lives in `rv_cm`).
   Concrete backend in `src/` still pending.
@@ -413,19 +442,26 @@ Tracked here so they are chosen deliberately rather than by drift:
   reads, streaming, and the mapping model (console places the resource in its own
   RAM and lends an address) — the last only pays off once the console owns a real
   fantasy-RAM allocator.
-- **`rv_cv` (video, low-level)** — surface defined: video RAM
-  (`video_asset_malloc/write/free`; textures + 16-bit palettes with the PSX
+- **`rv_cv` (video, low-level)** — surface defined: geometry queries
+  (`screen_*`, `texture_max_*`, `video_memory_size`, `frame_capacity`), video
+  RAM (`video_asset_malloc/write/free`; textures + 16-bit palettes with the PSX
   transparency rules), frame submission (`frame_configure` with clear colour and
   the optional Z flag, `frame_put`, `frame_flush`), primitives (line / triangle /
   quad / sprite) sorted by the hardware ordering table. Blending, modulation,
   VRAM readback, the display stage (`rv_pixel`) and the sprite fixed-size fast
   paths are deferred. Concrete backend in `src/` still pending.
-- **`rv_cm` (memory card)** — surface defined: 8 KB slots (slot count is console
-  configuration, queried via `card_slots()`, default 16 = 128 KB), `card_size` /
+- **`rv_cm` (memory card)** — surface defined: equally-sized slots (count and
+  size queried via `card_slots()` / `card_slot_size()`), `card_size` /
   `card_read` / `card_write` / `card_erase`, whole-slot and **atomic** — a failed
   write leaves the old save intact. The card is always inserted; the file-backed
   image is console business. Concrete backend in `src/` pending (today's
   `core/savecard.*` becomes it).
+- **`rv_de` (disc entry)** — surface defined and written (`de/rv_de.hpp`):
+  `disc_initialize` (the game's only fallible hook, returns `rv_err`),
+  `frame_update` / `frame_render` (one frame's worth each; render ends with
+  `frame_flush()`), `disc_release` (power-off query), `disc_title`. Each disc
+  implements it in a class named `rv_dmain`. `disc_initialize` is where the disc
+  queries the hardware geometry and validates its baked assumptions.
 - The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
   older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
   them behind `rv_pdko`, and rewriting the game's high-level audio onto the

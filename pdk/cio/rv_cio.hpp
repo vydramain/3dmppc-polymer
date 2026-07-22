@@ -30,13 +30,13 @@ class rv_cio {
 
     // Count of controller port slots the console exposes. Slots are fixed and
     // stable; probe iport_abilities()/iport_state() to see which are populated.
-    virtual int iports_ports() = 0;
+    virtual int64_t iport_count() = 0;
 
     // Bitmask of rv_isource values describing what `port` is CAPABLE of
     // reporting (static capability, e.g. "this controller has a gyro"). Returns
     // 0 for an empty or out-of-range slot. This is distinct from the live bits
     // in rv_istate::buttons, which report what a source is doing right now.
-    virtual uint64_t iport_abilities(int port) = 0;
+    virtual uint64_t iport_abilities(int64_t port) = 0;
 
     // Mouse look channel: motion RELATIVE to the previous poll (variant B), not
     // an absolute cursor position. Suited to camera look; a UI cursor would need
@@ -48,12 +48,12 @@ class rv_cio {
 
     // Instantaneous state (buttons, sticks, triggers, motion) of `port`. Returns
     // a zeroed state for an empty or out-of-range slot.
-    virtual rv_istate iport_state(int port) = 0;
+    virtual rv_istate iport_state(int64_t port) = 0;
 
     // Play a haptic effect on `port`'s controller — the output ("O") half of
     // controller I/O. `effect` is taken by value. Returns RV_OK, or a negative
     // rv_err (RV_ERR_INVAL for an empty port or an unknown effect type).
-    virtual int ohaptic(int port, rv_oheffect effect) = 0;
+    virtual int64_t ohaptic(int64_t port, rv_oheffect effect) = 0;
 };
 
 }  // namespace rv_3dmppc
