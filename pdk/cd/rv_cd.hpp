@@ -8,7 +8,7 @@ namespace rv_3dmppc {
 // accessor is rv_pdko::drive()). The disc is the medium; the drive is what reads
 // it.
 //
-// The medium is READ-ONLY. Persistent save is the memory card — see rv_cio.
+// The medium is READ-ONLY. Persistent save is the memory card — see rv_cm.
 //
 // An entry is addressed by NAME, resolved once into a HANDLE and read by handle
 // from then on. The drive never allocates the game's data buffer: asset_read()

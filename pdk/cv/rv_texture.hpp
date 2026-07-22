@@ -35,13 +35,15 @@ enum rv_texfmt {
 // its own buffer once it returns.
 //
 // A palette is uploaded the same way, as an array of 16-bit entries in the SAME
-// layout as a DIRECT15 texel (see above). Transparency is decided AFTER the
-// palette lookup, so the 0000h / STP rules reach the indexed formats through
-// their palette.
+// layout as a DIRECT15 texel (see above): pass format = RV_TEXFMT_DIRECT15,
+// width = the number of entries (16 for IDX4, 256 for IDX8), height = 1.
+// Transparency is decided AFTER the palette lookup, so the 0000h / STP rules
+// reach the indexed formats through their palette.
 //
-// The maximum texture size (256x256 texels for now) is a spec value enforced by
-// video_asset_write (RV_ERR_INVAL), not a promise of these field widths — the
-// wide fields let the limit grow without an ABI break.
+// The maximum texture size is IMPLEMENTATION-defined — query
+// rv_cv::texture_max_width() / texture_max_height(); video_asset_write()
+// enforces it (RV_ERR_INVAL). The wide fields here promise nothing about the
+// limit — they just let it grow without an ABI break.
 struct rv_texture {
     rv_texfmt format;  // how to read `data` (and whether a palette is needed)
 

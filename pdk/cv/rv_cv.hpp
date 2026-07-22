@@ -21,18 +21,39 @@ namespace rv_3dmppc {
 // references its sample. There is no global drawing state: because the console
 // re-orders primitives by depth, every attribute travels inside the primitive.
 //
-// Methods return >= 0 on success, a negative rv_err on failure.
+// The hardware geometry (screen size, texture limits, memory, frame budget) is
+// IMPLEMENTATION-defined — the PDK carries no numbers. The game queries it (see
+// the geometry section below) in rv_de::disc_initialize and validates its own
+// baked assumptions against the answers; on a mismatch it returns a negative
+// rv_err and the console refuses to run the disc. The reference console's
+// defaults live in docs/platform/specs.md.
 //
-// The hardware numbers (1 MB video RAM pool, 4096 primitives per frame, 1024
-// ordering-table buckets, 256x256 max texture) are SPEC values — see the README
-// "Video" section. They may grow in a later console revision; the contract
-// shapes do not change with them.
+// Methods return >= 0 on success, a negative rv_err on failure.
 //
 // DEFERRED: the blending / texture-combine primitive flags, VRAM readback, and
 // the display/output stage (rv_pixel).
 class rv_cv {
    public:
     virtual ~rv_cv() = default;
+
+    // --- hardware geometry: the game asks, the console answers ---
+
+    // Native framebuffer size, in pixels. A frame is always the whole screen
+    // (there is no drawing-area / scissor state). Stable for the whole session
+    // — query once at disc_initialize.
+    virtual int64_t screen_width() = 0;
+    virtual int64_t screen_height() = 0;
+
+    // Largest texture video_asset_write() accepts, in texels per axis.
+    virtual int64_t texture_max_width() = 0;
+    virtual int64_t texture_max_height() = 0;
+
+    // Total video RAM the video_asset_* pool manages, in bytes.
+    virtual int64_t video_memory_size() = 0;
+
+    // How many primitives one frame accepts before frame_put() reports
+    // RV_ERR_NOMEM.
+    virtual int64_t frame_capacity() = 0;
 
     // --- video RAM: reserve, fill, release ---
 
@@ -52,7 +73,7 @@ class rv_cv {
     //
     // Returns RV_OK, or a negative rv_err:
     //   RV_ERR_INVAL  unknown `addr`, the data does not fit, or the texture
-    //                 exceeds the spec size limit (256x256)
+    //                 exceeds texture_max_width() / texture_max_height()
     //
     // The bytes are copied during the call; the game may release its own buffer
     // once this returns.
@@ -81,7 +102,7 @@ class rv_cv {
     // Returns RV_OK, or a negative rv_err:
     //   RV_ERR_INVAL  unknown type, a polygon vertex_count other than 3 or 4,
     //                 or an address the primitive names is unknown
-    //   RV_ERR_NOMEM  the frame's primitive buffer is full
+    //   RV_ERR_NOMEM  the frame's primitive buffer is full (frame_capacity())
     virtual int64_t frame_put(rv_primitive primitive) = 0;
 
     // Render every filed primitive in ascending depth order (far-to-near), then

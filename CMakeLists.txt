@@ -67,7 +67,7 @@ add_executable(3dmppc
   mppcdiscs/solidmaid/src/hud.cpp
 )
 
-target_include_directories(3dmppc PRIVATE src mppcdiscs/solidmaid/src ${STB_DIR})
+target_include_directories(3dmppc PRIVATE src pdk mppcdiscs/solidmaid/src ${STB_DIR})
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 
 if(MSVC)

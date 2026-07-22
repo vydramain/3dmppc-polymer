@@ -7,6 +7,11 @@
 //
 // SHARED CONTRACT — owned by the orchestrator. Console (Agent A) drives it; the
 // Solidmaid disc (game/solid) implements it.
+//
+// DEPRECATED, dies with the MVP migration: replaced by pdk/rv_de.hpp (rv_de +
+// rv_pdko instead of rv_Disc + rv_DiscServices). The PDK carries no size
+// constants at all — a disc queries rv_cv::screen_width()/screen_height(); the
+// literals below serve only this legacy path and die with it.
 #pragma once
 
 #include "core/audio.hpp"
@@ -17,7 +22,7 @@ namespace rv_3dmppc {
 
 class rv_Framebuffer;
 
-// Native console framebuffer size (docs/platform/specs.md: 320×240 primary).
+// Legacy: native framebuffer size of the old in-binary path.
 constexpr int kNativeWidth = 320;
 constexpr int kNativeHeight = 240;
 

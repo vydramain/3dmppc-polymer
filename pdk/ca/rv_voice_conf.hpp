@@ -20,8 +20,8 @@ struct rv_voice_conf {
     rv_loop loop_type;       // how the sample repeats (see rv_loop)
     int64_t sample_address;  // address from rv_ca::sound_asset_malloc
 
-    short ar, dr, sr, rr, sl;        // ADSR rates + sustain level
-    short volume, volumeL, volumeR;  // overall + per-channel (L/R) volumes
+    int16_t ar, dr, sr, rr, sl;            // ADSR rates + sustain level
+    int16_t volume, volume_l, volume_r;    // overall + per-channel (L/R) volumes
 };
 
 }  // namespace rv_3dmppc
