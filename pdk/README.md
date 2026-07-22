@@ -79,11 +79,12 @@ asks the organizer for one.
 
 | Symbol     | File               | Subsystem                           | Realized surface                                    |
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
-| `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`             |
+| `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`, `card()`   |
 | `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `cv/rv_cv.hpp`     | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
-| `rv_cio`   | `cio/rv_cio.hpp`   | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`); memory card deferred |
+| `rv_cio`   | `cio/rv_cio.hpp`   | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
 | `rv_cd`    | `cd/rv_cd.hpp`     | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer |
+| `rv_cm`    | `cm/rv_cm.hpp`     | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 
 Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
@@ -107,10 +108,18 @@ Subsystem split, PSX-faithful:
   `rv_err` either — with no disc booted, the console answers to the *user*
   ("medium unreadable", "disc built for another version"); `rv_err` starts at
   `boot()`.
-- **`rv_cio`** is the *read/write* I/O: gamepad **input** (an instantaneous
-  per-port state snapshot, plus the mouse look channel) and haptic **output**.
-  The memory card (persistent save) belongs here too — read/write, unlike the
-  disc — but is **deferred**.
+- **`rv_cio`** is the *live* I/O: gamepad **input** (an instantaneous per-port
+  state snapshot, plus the mouse look channel) and haptic **output**. The memory
+  card is deliberately NOT here — storage semantics (rare calls, real errors,
+  durable state) are the opposite of this snapshot-style contract.
+- **`rv_cm`** is the **memory card** — the writable-medium counterpart of the
+  drive: the disc is read-only, the card is where a game persists its saves. The
+  accessor is `rv_pdko::card()`. The medium is a set of 8 KB **slots** (the slot
+  size is ABI — a save blob is designed against it at build time; the slot
+  *count* is console configuration, queried at boot via `card_slots()`, default
+  16 = 128 KB). The card is always inserted; persistence (the file-backed image)
+  is the console's concern, never an operation the game invokes. Writes replace
+  a slot whole and are **atomic**: a failed write leaves the old save intact.
 
 ### Class realization — abstract in `pdk/`, concrete at the edges
 
@@ -124,14 +133,14 @@ Subsystem split, PSX-faithful:
   ║                              │  video(): rv_cv*  │                           ║
   ║                              │  io()   : rv_cio* │                           ║
   ║                              │  drive(): rv_cd*  │                           ║
+  ║                              │  card() : rv_cm*  │                           ║
   ║                              └───────────────────┘                           ║
-  ║        ┌───────────────┬───────────┴────────┬───────────────┐                ║
-  ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐             ║
-  ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │             ║
-  ║   │malloc  │      │frame_* │         │ iport_*  │     │asset_* │             ║
-  ║   │write   │      └────────┘         └──────────┘     └────────┘             ║
-  ║   │voice_* │                                                                 ║
-  ║   └────────┘                                                                 ║
+  ║      ┌───────────────┬───────────────┴───────────────┬───────────────┐       ║
+  ║  ┌───┴───┐       ┌───┴───┐       ┌───┴───┐       ┌───┴───┐       ┌───┴───┐   ║
+  ║  │ rv_ca │       │ rv_cv │       │ rv_cio│       │ rv_cd │       │ rv_cm │   ║
+  ║  │malloc │       │frame_*│       │iport_*│       │asset_*│       │card_* │   ║
+  ║  │voice_*│       └───────┘       └───────┘       └───────┘       └───────┘   ║
+  ║  └───────┘                                                                   ║
   ║   POD: audio in ca/, i/o in cio/, video in cv/ · rv_err (shared)             ║
   ║   + the disc-entry interface the game implements (see "Two directions")      ║
   ╚══════════════════════════════════════════════════════════════════════════════╝
@@ -349,6 +358,7 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_cv`   | **C**ontroller **V**ideo                     |
 | `rv_cio`  | **C**ontroller **I**nput/**O**utput          |
 | `rv_cd`   | **C**ontroller **D**isk (accessor `drive()`) |
+| `rv_cm`   | **C**ontroller **M**emory card (accessor `card()`) |
 
 (`rv_` is the project-wide namespace prefix, `namespace rv_3dmppc`.)
 
@@ -384,12 +394,12 @@ Tracked here so they are chosen deliberately rather than by drift:
 ## Status
 
 - **`rv_pdko`** — done: virtual destructor + pure-virtual accessors vending
-  controllers by pointer (`audio()`, `video()`, `io()`, `drive()`).
+  controllers by pointer (`audio()`, `video()`, `io()`, `drive()`, `card()`).
 - **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
   management + voices). Pitch, reverb, master volume, and ADPCM are deferred.
 - **`rv_cio` (input/output)** — surface defined: per-port input snapshot,
-  capabilities, mouse, and haptic output; memory card deferred. Concrete backend
-  in `src/` still pending.
+  capabilities, mouse, and haptic output (the memory card lives in `rv_cm`).
+  Concrete backend in `src/` still pending.
 - **`rv_cd` (disc drive)** — surface defined: `asset_open` resolves a
   disc-relative name into a handle, `asset_size` reports the entry's size as a
   sizing hint, `asset_read` copies the whole entry into a buffer the game owns.
@@ -397,7 +407,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   memory, because only the game knows how long the bytes are needed and the RAM
   budget is its to spend. An entry is named by a plain name with no path
   separators, resolved into a handle. The medium is read-only (persistent save is
-  the memory card, i.e. `rv_cio`), and no host path ever crosses: the game cannot
+  the memory card, i.e. `rv_cm`), and no host path ever crosses: the game cannot
   tell a directory from a packed image.
   Deferred: enumeration (the disc builder bakes any listing at build time), ranged
   reads, streaming, and the mapping model (console places the resource in its own
@@ -410,6 +420,12 @@ Tracked here so they are chosen deliberately rather than by drift:
   quad / sprite) sorted by the hardware ordering table. Blending, modulation,
   VRAM readback, the display stage (`rv_pixel`) and the sprite fixed-size fast
   paths are deferred. Concrete backend in `src/` still pending.
+- **`rv_cm` (memory card)** — surface defined: 8 KB slots (slot count is console
+  configuration, queried via `card_slots()`, default 16 = 128 KB), `card_size` /
+  `card_read` / `card_write` / `card_erase`, whole-slot and **atomic** — a failed
+  write leaves the old save intact. The card is always inserted; the file-backed
+  image is console business. Concrete backend in `src/` pending (today's
+  `core/savecard.*` becomes it).
 - The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
   older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
   them behind `rv_pdko`, and rewriting the game's high-level audio onto the

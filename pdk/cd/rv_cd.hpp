@@ -2,8 +2,6 @@
 
 #include <cstdint>
 
-#include "../rv_err.hpp"
-
 namespace rv_3dmppc {
 
 // Controller Drive — reads entries from the mounted .mppcdisc medium (the

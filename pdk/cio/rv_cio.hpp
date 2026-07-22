@@ -21,15 +21,16 @@ namespace rv_3dmppc {
 // The query methods report data, not status: an empty or out-of-range port reads
 // as zero rather than as an error. Only ohaptic() can fail.
 //
-// DEFERRED: the memory card (persistent save) is part of controller I/O on real
-// hardware but is not surfaced here yet — see README "Status".
+// The memory card is NOT here: persistent save is its own controller (rv_cm) —
+// storage semantics (rare calls, real errors, durable state) are the opposite
+// of this snapshot-style contract.
 class rv_cio {
    public:
     virtual ~rv_cio() = default;
 
     // Count of controller port slots the console exposes. Slots are fixed and
     // stable; probe iport_abilities()/iport_state() to see which are populated.
-    virtual int iports_size() = 0;
+    virtual int iports_ports() = 0;
 
     // Bitmask of rv_isource values describing what `port` is CAPABLE of
     // reporting (static capability, e.g. "this controller has a gyro"). Returns
