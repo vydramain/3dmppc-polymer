@@ -3,11 +3,11 @@
 #include "ca/rv_ca.hpp"
 #include "cd/rv_cd.hpp"
 #include "cio/rv_cio.hpp"
-#include "rv_cv.hpp"
+#include "cv/rv_cv.hpp"
 
 namespace rv_3dmppc {
 
-// The organizer / fasade the console hands a disc at boot. It vends the console's
+// The organizer / facade the console hands a disc at boot. It vends the console's
 // subsystem controllers by pointer (the console owns them; the disc only borrows,
 // never deletes). A disc holds one rv_pdko* and asks it for a controller rather
 // than constructing one. Pure abstract: the concrete console subclasses it.

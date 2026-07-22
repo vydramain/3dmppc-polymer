@@ -81,14 +81,16 @@ asks the organizer for one.
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
 | `rv_pdko`  | `rv_pdko.hpp`      | organizer / façade                  | `audio()`, `video()`, `io()`, `drive()`             |
 | `rv_ca`    | `ca/rv_ca.hpp`     | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
-| `rv_cv`    | `rv_cv.hpp`        | **C**ontroller **V**ideo (GPU)      | *(deferred — surface not defined yet)*              |
+| `rv_cv`    | `cv/rv_cv.hpp`     | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cio`   | `cio/rv_cio.hpp`   | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`); memory card deferred |
 | `rv_cd`    | `cd/rv_cd.hpp`     | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer |
 
 Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
-`rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), and the
-cross-controller error enum is `rv_err.hpp` (see *Error convention*).
+`rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), the video POD
+is in `cv/` (`rv_color`, `rv_uv`, `rv_vertex`, `rv_texture`, and the primitive
+family in `rv_primitives.hpp`), and the cross-controller error enum is
+`rv_err.hpp` (see *Error convention*).
 
 Subsystem split, PSX-faithful:
 
@@ -126,11 +128,11 @@ Subsystem split, PSX-faithful:
   ║        ┌───────────────┬───────────┴────────┬───────────────┐                ║
   ║   ┌────┴───┐      ┌────┴───┐         ┌──────┴───┐     ┌─────┴──┐             ║
   ║   │ rv_ca  │      │ rv_cv  │         │  rv_cio  │     │ rv_cd  │             ║
-  ║   │malloc  │      │(defer) │         │ iport_*  │     │(defer) │             ║
+  ║   │malloc  │      │frame_* │         │ iport_*  │     │asset_* │             ║
   ║   │write   │      └────────┘         └──────────┘     └────────┘             ║
   ║   │voice_* │                                                                 ║
   ║   └────────┘                                                                 ║
-  ║   POD: rv_sample, rv_voice_conf, rv_loop (audio) · rv_err (shared)           ║
+  ║   POD: audio in ca/, i/o in cio/, video in cv/ · rv_err (shared)             ║
   ║   + the disc-entry interface the game implements (see "Two directions")      ║
   ╚══════════════════════════════════════════════════════════════════════════════╝
                       △  implements                          △  implements
@@ -191,6 +193,57 @@ Unsigned (`uintN_t`) only for pure data with no error channel, such as
 `rv_istate::buttons` and `rv_cio::iport_abilities`, where "nothing" is honestly
 `0`. A mask carried by a signed type is defined over bits 0..62 so it can never
 be mistaken for an error.
+
+---
+
+## Video — the realized surface (`cv/`)
+
+Video resolved the granularity question the same way audio did — **low-level**,
+PSX-faithful in structure:
+
+- **Video RAM.** The game reserves a region (`video_asset_malloc`), uploads
+  texture or palette data (`video_asset_write` + `rv_texture`), and keeps only
+  the returned opaque address. A palette is an array of 16-bit entries in the
+  DIRECT15 texel layout; texel transparency (value `0000h` = fully-transparent
+  hole, bit 15 = semi-transparency flag — so no opaque black in textures) is a
+  deliberate PSX inheritance, decided AFTER the palette lookup.
+- **The frame.** Each frame the game calls `frame_configure(flags, clear
+  colour)`, `frame_put`s self-contained primitives (`rv_line`, `rv_polygon` —
+  triangle or quad, `rv_sprite`), then `frame_flush()`. The console sorts
+  primitives by `rv_primitive::depth` into a hardware **ordering table**
+  (larger = nearer / on top; equal depth keeps submission order; out-of-range
+  clamps) and renders far-to-near. The optional per-pixel Z test
+  (`RV_PIPELINE_BUFFER_CONFIG_TYPE_Z`) layers on top of that ordering — the
+  ordering table itself is never off.
+
+Because the console re-orders primitives, there is **no global drawing state**:
+texture address, palette address, fill mode and wrap mode all travel inside the
+primitive (the PSX texpage/CLUT attributes, generalized).
+
+Hardware numbers (spec values — a later console revision may raise them; the
+contract shapes do not change with them):
+
+| Number                   | Value   |
+| ------------------------ | ------- |
+| Video RAM pool           | 1 MB    |
+| Primitive budget / frame | 4096    |
+| Ordering-table buckets   | 1024    |
+| Max texture size         | 256×256 |
+
+**Dropped on purpose** (PSX features that do not cross into this contract):
+drawing area / drawing offset registers (a frame is always the whole 320×240),
+polylines (a chain is N line primitives), the texpage state commands, raw VRAM
+coordinate addressing (replaced by the allocator), and the mask-bit write
+protection.
+
+**Deferred within the video layer**: blending (the semi-transparency modes) and
+texture-combine (raw/modulation) flags, VRAM readback, the display/output stage
+(`rv_pixel`, 24-bit video), and the PSX fixed-size sprite fast paths
+(1×1/8×8/16×16).
+
+**Open — an `src/` decision, not a contract one:** whether the rasterizer
+interpolates uv/colour affine (authentic PSX texture warping) or
+perspective-correct (what `src/gpu/rasterizer.cpp` does today).
 
 ---
 
@@ -276,6 +329,13 @@ target_link_libraries(<game> PRIVATE mppc_pdk)
 A game not compiling because it reached for a console header is the feature, not a
 bug: the boundary is checked by the toolchain every build.
 
+### File conventions
+
+- A source file stays under 255 lines.
+- PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.hpp`
+  holds line / polygon / sprite and the `rv_primitive` union); otherwise one type
+  per file, as in `ca/`.
+
 ---
 
 ## Naming reference
@@ -302,15 +362,9 @@ that reads it. The accessor names the drive, not the disc.
 
 Tracked here so they are chosen deliberately rather than by drift:
 
-1. **`rv_cv` granularity — how thick is the GPU boundary?** *(still open)*
-   - *High-level*: `drawMesh(const Mesh&, const Mat4& mvp, const Texture*, …)`. Mirrors
-     the existing `rv_Rasterizer` 1:1, but then `Mesh` / `Texture` **cross the boundary**
-     and must move into `pdk/` as POD.
-   - *Low-level / retained*: upload meshes once (handle), submit by handle + transform
-     per frame; only POD crosses, and vertex buffers stay private to the console.
-   - This is the single decision that sets how much POD the video layer carries.
-   - *(Audio resolved this the low-level way: sample RAM + voices, `rv_ca`. Video is
-     still to be decided.)*
+1. **`rv_cv` granularity — how thick is the GPU boundary?** *(RESOLVED — the
+   low-level way, mirroring audio: video RAM + self-contained primitives over a
+   hardware ordering table. See the *Video* section above.)*
 
 2. **Home of the disc-entry interface.** Migrate `rv_Disc` from `src/platform/` into
    `pdk/` so a disc implements one PDK type and calls one PDK type — and rename it to
@@ -349,8 +403,14 @@ Tracked here so they are chosen deliberately rather than by drift:
   reads, streaming, and the mapping model (console places the resource in its own
   RAM and lends an address) — the last only pays off once the console owns a real
   fantasy-RAM allocator.
-- **`rv_cv`** — stub; the surface waits on the granularity decision below.
+- **`rv_cv` (video, low-level)** — surface defined: video RAM
+  (`video_asset_malloc/write/free`; textures + 16-bit palettes with the PSX
+  transparency rules), frame submission (`frame_configure` with clear colour and
+  the optional Z flag, `frame_put`, `frame_flush`), primitives (line / triangle /
+  quad / sprite) sorted by the hardware ordering table. Blending, modulation,
+  VRAM readback, the display stage (`rv_pixel`) and the sprite fixed-size fast
+  paths are deferred. Concrete backend in `src/` still pending.
 - The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
   older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
   them behind `rv_pdko`, and rewriting the game's high-level audio onto the
-  low-level `rv_ca`, is the next step.
+  low-level `rv_ca` and its rendering onto `rv_cv`, is the next step.
