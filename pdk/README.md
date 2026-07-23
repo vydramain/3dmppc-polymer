@@ -344,16 +344,16 @@ PDK is a header-only interface target. The include paths make the boundary
 physically impassable:
 
 ```cmake
-add_library(mppc_pdk INTERFACE)
-target_include_directories(mppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk)  # ONLY pdk/
+add_library(3dmppc_pdk INTERFACE)
+target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk)  # ONLY pdk/
 
 # console: sees pdk AND its own internals
-target_link_libraries(3dmppc PRIVATE mppc_pdk)
+target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 target_include_directories(3dmppc PRIVATE src)
 
 # a game: sees pdk ONLY. It is not given a path into src/, so it physically
 # cannot write #include "gpu/rasterizer.hpp" — the compiler refuses.
-target_link_libraries(<game> PRIVATE mppc_pdk)
+target_link_libraries(<game> PRIVATE 3dmppc_pdk)
 ```
 
 A game not compiling because it reached for a console header is the feature, not a

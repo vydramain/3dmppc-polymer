@@ -40,35 +40,24 @@ if(NOT EXISTS ${STB_DIR}/stb_image.h)
   )
 endif()
 
+# --- phantasy development kit -------------------------------------------------
+
+add_library(3dmppc_pdk INTERFACE)
+target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
+
 # --- game ---------------------------------------------------------------------
+# CONFIGURE_DEPENDS: the build system re-checks the glob before each build, so
+# a newly added .cpp is picked up without re-running cmake by hand.
+file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
+
 add_executable(3dmppc
-  src/main.cpp
   # console (game-agnostic)
-  src/core/window.cpp
-  src/core/audio.cpp
-  src/core/savecard.cpp
-  src/gpu/rasterizer.cpp
-  src/assets/obj_loader.cpp
-  src/assets/image.cpp
-  src/assets/stb_image_impl.cpp
-  src/platform/platform.cpp
-  # solidmaid disc (the game)
-  mppcdiscs/solidmaid/src/solidmaid.cpp
-  mppcdiscs/solidmaid/src/player.cpp
-  mppcdiscs/solidmaid/src/weapons.cpp
-  mppcdiscs/solidmaid/src/enemies.cpp
-  mppcdiscs/solidmaid/src/spawner.cpp
-  mppcdiscs/solidmaid/src/combat.cpp
-  mppcdiscs/solidmaid/src/areas.cpp
-  mppcdiscs/solidmaid/src/ritual.cpp
-  mppcdiscs/solidmaid/src/dayloop.cpp
-  mppcdiscs/solidmaid/src/assets_gen.cpp
-  mppcdiscs/solidmaid/src/scene_render.cpp
-  mppcdiscs/solidmaid/src/hud.cpp
+  ${3DMPPC_CONSOLE_SOURCES}
 )
 
-target_include_directories(3dmppc PRIVATE src pdk mppcdiscs/solidmaid/src ${STB_DIR})
+target_include_directories(3dmppc PRIVATE src ${STB_DIR})
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
+target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 
 if(MSVC)
   target_compile_options(3dmppc PRIVATE /W4)

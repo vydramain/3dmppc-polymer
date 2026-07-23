@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "rv_vertex.hpp"
+#include "pdk/cv/rv_vertex.hpp"
 
 namespace rv_3dmppc {
 

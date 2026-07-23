@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-#include "rv_imouse.hpp"
-#include "rv_isource.hpp"
-#include "rv_ohaptic.hpp"
+#include "pdk/cio/rv_imouse.hpp"
+#include "pdk/cio/rv_isource.hpp"
+#include "pdk/cio/rv_ohaptic.hpp"
 
 namespace rv_3dmppc {
 

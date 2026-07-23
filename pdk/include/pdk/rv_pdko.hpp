@@ -1,11 +1,11 @@
 #pragma once
 
-#include "ca/rv_ca.hpp"
-#include "cd/rv_cd.hpp"
-#include "cio/rv_cio.hpp"
-#include "cm/rv_cm.hpp"
-#include "cv/rv_cv.hpp"
-#include "rv_err.hpp"  // IWYU pragma: keep (shared error vocabulary)
+#include "pdk/ca/rv_ca.hpp"
+#include "pdk/cd/rv_cd.hpp"
+#include "pdk/cio/rv_cio.hpp"
+#include "pdk/cm/rv_cm.hpp"
+#include "pdk/cv/rv_cv.hpp"
+#include "pdk/rv_err.hpp"  // IWYU pragma: keep (shared error vocabulary)
 
 namespace rv_3dmppc {
 
@@ -20,11 +20,11 @@ class rv_pdko {
    public:
     virtual ~rv_pdko() = default;
 
-    virtual rv_ca* audio() = 0;  // sound chip (low-level SPU)
-    virtual rv_cm* card() = 0;   // memory card - persistent save slots
-    virtual rv_cd* drive() = 0;  // disc drive - reads the mounted .mppcdisc
-    virtual rv_cio* io() = 0;    // gamepads + haptic output + mouse
-    virtual rv_cv* video() = 0;  // GPU / rasterizer
+    virtual rv_ca* ca() = 0;    // sound chip (low-level SPU)
+    virtual rv_cd* cd() = 0;    // disc drive - reads the mounted .mppcdisc
+    virtual rv_cm* cm() = 0;    // memory card - persistent save slots
+    virtual rv_cio* cio() = 0;  // gamepads + haptic output + mouse
+    virtual rv_cv* cv() = 0;    // GPU / rasterizer
 };
 
 }  // namespace rv_3dmppc
