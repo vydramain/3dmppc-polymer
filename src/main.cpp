@@ -12,8 +12,12 @@
 
 #include <cstdlib>
 
+#include "rv_dmain/rv_dmain.hpp"
+#include "rv_pconsole/rv_pconsole.hpp"
+#include "rv_pconsole/rv_pconsole_conf.hpp"
+
 int main(int argc, char** argv) {
-    // rv_3dmppc::rv_PlatformConfig cfg;
+    rv_3dmppc::rv_pconsole_conf conf;
 
     static struct option long_opts[] = {{"headless", no_argument, 0, 'H'},
                                         {"fixed-step", no_argument, 0, 'F'},
@@ -25,24 +29,23 @@ int main(int argc, char** argv) {
     while ((c = getopt_long(argc, argv, "HFs:n:", long_opts, NULL)) != -1) {
         switch (c) {
             case 'H':
-                // cfg.headless = true;
+                conf.params.headless = true;
                 break;
             case 'F':
-                // cfg.fixedStep = true;
+                conf.params.fixed_step = true;
                 break;
             case 's':
-                // cfg.scale = atoi(optarg);
+                conf.params.scale = atoi(optarg);
                 break;
             case 'n':
-                // cfg.maxFrames = atoi(optarg);
+                conf.params.max_frames = atoi(optarg);
                 break;
             case '?':
                 return 2;
         }
     }
 
-    // rv_3dmppc::rv_Platform platform(cfg);
-    // rv_3dmppc::SolidMaidDisc disc;
-    // return platform.run(disc);
-    return 0;
+    rv_3dmppc::rv_pconsole console(conf);
+    rv_3dmppc::rv_dmain disc;  // Will be replaced with rv_pconsole.disc_load(path)
+    return console.disc_run(disc);
 }
