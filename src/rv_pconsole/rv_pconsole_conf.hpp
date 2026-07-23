@@ -31,12 +31,21 @@ struct rv_pccm_conf {
     int64_t card_slot_size = 8 * 1024;
 };
 
+struct rv_pconsole_params {
+    bool headless = false;
+    bool fixed_step = false;
+    uint64_t scale = 3;
+    uint64_t max_frames = 0;
+};
+
 // rv_cd has no entry: its contract exposes no geometry.
 struct rv_pconsole_conf {
     rv_pcca_conf ca;
     rv_pccv_conf cv;
     rv_pccio_conf cio;
     rv_pccm_conf cm;
+
+    rv_pconsole_params params;
 };
 
 }  // namespace rv_3dmppc

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "pdk/de/rv_de.hpp"
 #include "pdk/rv_pdko.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
@@ -18,21 +19,22 @@ class rv_pconsole : public rv_pdko {
     rv_pccm cm_;
     rv_pccv cv_;
 
+    rv_pconsole_params params_;
+
    public:
-    rv_pconsole(const rv_pconsole_conf conf)
-        : ca_(conf.ca), cio_(conf.cio), cm_(conf.cm), cv_(conf.cv) {}
+    rv_pconsole(const rv_pconsole_conf& conf)
+        : ca_(conf.ca), cio_(conf.cio), cm_(conf.cm), cv_(conf.cv), params_(conf.params) {}
 
     ~rv_pconsole() = default;
 
     rv_ca* ca() override;
-
     rv_cd* cd() override;
-
-    rv_cm* cm() override;
-
     rv_cio* cio() override;
-
+    rv_cm* cm() override;
     rv_cv* cv() override;
+
+    // rv_de& disc_load(const char* path);
+    int64_t disc_run(rv_de& disc);
 };
 
 }  // namespace rv_3dmppc
