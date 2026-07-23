@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-#include "rv_sample.hpp"
-#include "rv_voice_conf.hpp"
+#include "pdk/ca/rv_sample.hpp"
+#include "pdk/ca/rv_voice_conf.hpp"
 
 namespace rv_3dmppc {
 

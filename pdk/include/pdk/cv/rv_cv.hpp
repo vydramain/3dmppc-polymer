@@ -2,10 +2,10 @@
 
 #include <cstdint>
 
-#include "rv_pipeline.hpp"  // IWYU pragma: keep (frame_configure flag vocabulary)
-#include "rv_primitives.hpp"
-#include "rv_texture.hpp"
-#include "rv_vertex.hpp"
+#include "pdk/cv/rv_pipeline.hpp"  // IWYU pragma: keep (frame_configure flag vocabulary)
+#include "pdk/cv/rv_primitives.hpp"
+#include "pdk/cv/rv_texture.hpp"
+#include "pdk/cv/rv_vertex.hpp"
 
 namespace rv_3dmppc {
 
