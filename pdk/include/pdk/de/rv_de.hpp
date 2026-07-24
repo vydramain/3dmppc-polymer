@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cmath>
+
 #include "pdk/rv_pdko.hpp"
 
 namespace rv_3dmppc {
