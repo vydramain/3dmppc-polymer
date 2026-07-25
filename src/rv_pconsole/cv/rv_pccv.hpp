@@ -1,6 +1,6 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — контроллер видео: видеопамять, кадр-как-команды, флаш.
+// Ревизия: stage 4 — контроллер видео: резолв адресов текстур в вид для растера.
 // ──────────────────────────────────────────────────────────────────────────────
 //
 // The console's rv_cv implementation: the "GPU". It owns the four pieces a frame
@@ -23,9 +23,12 @@
 // rv_pcvram / rv_pcotable / rv_pcfbuf / rv_pcraster are the machine's parts, and
 // they never learn about each other.
 //
-// DEFERRED: texture sampling. A primitive may legally ask for it (the addresses
-// are validated as the contract requires), it simply rasterizes as a flat fill
-// and the frame reports it once — see the warning counter below.
+// PATTERN: address resolution at the boundary. This class is the ONLY one that
+// knows an rv_polygon::addr_texture is a video RAM address: at flush it turns
+// the addresses into an rv_pctexview (borrowed pointers plus a shape) and hands
+// that down. The rasterizer and the sampler below it stay pool-free, and the
+// pool's "who may hold a pointer into it, and for how long" rule stays inside
+// the one class that owns the pool.
 #pragma once
 
 #include <cstdint>
@@ -37,6 +40,7 @@
 #include "pdk/cv/rv_vertex.hpp"
 #include "rv_pconsole/cv/rv_pcfbuf.hpp"
 #include "rv_pconsole/cv/rv_pcotable.hpp"
+#include "rv_pconsole/cv/rv_pctexel.hpp"
 #include "rv_pconsole/cv/rv_pcvram.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -87,6 +91,23 @@ class rv_pccv : public rv_cv {
     // Is `format` one of the rv_texfmt enumerators this console knows?
     static bool texture_format_known(rv_texfmt format);
 
+    // Resolve the addresses a primitive names into a view the rasterizer can
+    // sample. Returns an INVALID view when the primitive does not sample, when
+    // the region was never uploaded into, or when an indexed format's palette is
+    // missing — never an error, because frame_put already reported everything
+    // the disc can still act on and a flush has no error channel back to it.
+    //
+    // The view borrows pointers into the pool. They are valid only for the
+    // duration of the draw call: the disc cannot free a region mid-flush (it is
+    // not running), so the shortest possible lifetime is also a safe one.
+    rv_pctexview texture_view(const rv_primitive& primitive) const;
+
+    // The texture / palette pair a primitive samples, or (0, 0) when it does not
+    // sample at all. Shared by polygons and sprites, which name their assets
+    // identically.
+    static void texture_addresses(const rv_primitive& primitive, int64_t& addr_texture,
+                                  int64_t& addr_palette);
+
     // Drop the frame's commands and their ordering. Does NOT touch the clear
     // colour or the Z flag — frame_configure sets those and then calls this.
     void frame_reset();
@@ -106,13 +127,6 @@ class rv_pccv : public rv_cv {
 
     rv_color clear_color_{0, 0, 0};  // default: a black frame
     bool z_enabled_ = false;         // default: ordering table only
-
-    // How many primitives of THIS frame asked for the DEFERRED texture path.
-    // The counter lives here rather than in the rasterizer because the
-    // rasterizer is a stateless service (rv_pcraster.hpp) and could not tell a
-    // frame's first textured primitive from its thousandth — which is exactly
-    // what "warn once per frame, not once per primitive" needs to know.
-    int64_t texture_requests_ = 0;
 };
 
 }  // namespace rv_3dmppc

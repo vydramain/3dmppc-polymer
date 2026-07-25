@@ -1,17 +1,66 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 7 — контроллер звука: звуковая память, 24 голоса, микшер.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The rv_ca contract made concrete: a private pool of sound RAM, a fixed set of
+// voices reading out of it, and a mixer summing them for the host's device.
+//
+// The split is the usual one for this tree — this class is the CONTRACT SURFACE
+// (argument validation, the error vocabulary, addresses in and out) and owns
+// nothing that makes noise; rv_pcmixer owns the voices and the thread boundary;
+// rv_pcvoice owns the arithmetic. Sound RAM is the same rv_pcpool the video side
+// uses, with a different Meta — see rv_pconsole/cv/rv_pcvram.hpp, which is the
+// same idea for textures.
 #pragma once
 
+#include <cstdint>
+
 #include "pdk/ca/rv_ca.hpp"
+#include "rv_infra/rv_pcpool.hpp"
+#include "rv_pconsole/ca/rv_pcmixer.hpp"
+#include "rv_pconsole/rv_pchost.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
+
+// What a sound-RAM region remembers about its last upload. Only the length is
+// needed: format is fixed by the console (raw S16LE mono at RV_PCA_SAMPLE_RATE)
+// and is exactly why rv_sample carries no format fields.
+struct rv_pcca_meta {
+    bool written = false;
+    int64_t frames = 0;  // uploaded frames, i.e. bytes / RV_PCA_FRAME_BYTES
+};
 
 class rv_pcca : public rv_ca {
    private:
     rv_pcca_conf conf_;
 
+    // Borrowed: the host owns the audio device and outlives every controller.
+    rv_pchost& host_;
+
+    // DECLARATION ORDER IS LOAD-BEARING: the voices inside mixer_ hold pointers
+    // into sram_, so sound RAM must be constructed first and destroyed last.
+    rv_pcpool<rv_pcca_meta> sram_;
+    rv_pcmixer mixer_;
+
+    // Did the host actually give us a device? A console with no sound card is
+    // still a console, but its voices have no clock — see the constructor.
+    bool sounding_ = false;
+
+    // Common guard for every mask-taking entry point: a mask must name at least
+    // one voice and must name only voices this console has. Returns RV_OK or
+    // RV_ERR_INVAL.
+    int64_t validate_mask(int64_t voice_mask) const;
+
    public:
-    rv_pcca(const rv_pcca_conf conf) : conf_(conf) {}
-    ~rv_pcca() = default;
+    rv_pcca(const rv_pcca_conf& conf, rv_pchost& host);
+
+    // Tears the device down BEFORE the mixer it pulls from stops existing.
+    ~rv_pcca();
+
+    rv_pcca(const rv_pcca&) = delete;
+    rv_pcca& operator=(const rv_pcca&) = delete;
 
     int64_t voice_count() override;
 

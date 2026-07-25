@@ -1,8 +1,131 @@
-#include "rv_pccd.hpp"
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 5 — реализация rv_cd: разрешение имён, хендлы, чтение записей.
+// ──────────────────────────────────────────────────────────────────────────────
+#include "rv_pconsole/cd/rv_pccd.hpp"
+
+#include <new>
+#include <utility>
 
 #include "pdk/rv_err.hpp"
+#include "rv_infra/rv_log.hpp"
 
-// Operations return RV_ERR_IO until the backend lands (stage 5).
-int64_t rv_3dmppc::rv_pccd::asset_open(const char*) { return RV_ERR_IO; }
-int64_t rv_3dmppc::rv_pccd::asset_size(int64_t) { return RV_ERR_IO; }
-int64_t rv_3dmppc::rv_pccd::asset_read(int64_t, void*, int64_t) { return RV_ERR_IO; }
+namespace rv_3dmppc {
+
+rv_pccd::rv_pccd(const rv_pccd_conf& conf)
+    : conf_(conf), medium_(std::make_unique<rv_pcdirmedium>(conf.medium_path)) {}
+
+const char* rv_pccd::handle_name(int64_t handle) const {
+    if (handle < 0 || handle >= static_cast<int64_t>(resnames_.size())) return nullptr;
+    return resnames_[static_cast<size_t>(handle)].c_str();
+}
+
+int64_t rv_pccd::asset_open(const char* resname) {
+    // SECURITY: the name gate runs FIRST, before the table is consulted and long
+    // before anything reaches the filesystem. A resource name addresses one entry
+    // ON the inserted medium and has no syntax for leaving it, so `/`, `\` or
+    // `..` is not a formatting slip — it is an attempt to read bytes that are not
+    // on the disc. `../../etc/passwd` must never become an open() on the host, so
+    // it is refused here rather than somewhere deeper where the medium might be
+    // tempted to resolve it. See rv_pcresname_valid() in rv_pcmedium.hpp.
+    if (!rv_pcresname_valid(resname)) {
+        RV_LOG_WARN("pccd", "asset_open rejected an illegal resource name");
+        return RV_ERR_INVAL;
+    }
+
+    // PATTERN: handle table — resolution is idempotent. A name already in the
+    // table returns its original handle, even if the entry has since vanished:
+    // the contract promises a STABLE mapping from name to handle, and the fate of
+    // the entry behind it is reported by asset_size / asset_read, not here.
+    std::string key(resname);
+    if (auto it = by_name_.find(key); it != by_name_.end()) return it->second;
+
+    if (!medium_->mounted()) {
+        // An empty drive is a legal machine, so this is "no such entry" and not a
+        // device failure. Nothing is added to the table: inserting a disc later
+        // must not find the name poisoned by a lookup made while the drive was
+        // empty.
+        RV_LOG_WARN("pccd", "asset_open('{}') with no medium mounted", key);
+        return RV_ERR_NOENT;
+    }
+
+    // Existence probe. The medium may answer RV_ERR_IO, which asset_open has no
+    // way to express (its codes are INVAL / NOENT / NOMEM), so an entry that
+    // cannot even be measured is reported as one that is not there — the honest
+    // summary for a caller whose only question was "can this be resolved?".
+    const int64_t size = medium_->entry_size(resname);
+    if (size < 0) {
+        RV_LOG_WARN("pccd", "asset_open('{}') found no readable entry (rc {})", key, size);
+        return RV_ERR_NOENT;
+    }
+
+    if (static_cast<int64_t>(resnames_.size()) >= kResourceTableMax) {
+        RV_LOG_ERR("pccd", "resource table full ({} entries); cannot resolve '{}'",
+                   kResourceTableMax, key);
+        return RV_ERR_NOMEM;
+    }
+
+    const int64_t handle = static_cast<int64_t>(resnames_.size());
+    try {
+        // The name is COPIED: the contract says `resname` need not outlive the
+        // call, so the table may not hold the caller's pointer.
+        resnames_.push_back(key);
+        by_name_.emplace(std::move(key), handle);
+    } catch (const std::bad_alloc&) {
+        // Keep the two halves of the table consistent, then report the only code
+        // the contract offers for "the table cannot grow".
+        if (static_cast<int64_t>(resnames_.size()) > handle) resnames_.pop_back();
+        RV_LOG_ERR("pccd", "out of memory growing the resource table");
+        return RV_ERR_NOMEM;
+    }
+
+    RV_LOG_DBG("pccd", "resolved '{}' to handle {} ({} bytes)", resnames_.back(), handle, size);
+    return handle;
+}
+
+// THEOREM: size is a hint, not a promise — the drive reports the entry's size AT
+// THE MOMENT OF THE CALL and nothing more. Between this call and the asset_read
+// that follows, the medium is free to change underneath: a directory medium is
+// live host filesystem, and a developer re-exporting an .obj mid-run genuinely
+// does change the entry's length. Caching the size at asset_open() would make
+// the drive assert a fact it cannot maintain, so it is re-measured every time and
+// the byte count returned by asset_read() remains the only authoritative answer.
+// This is why asset_read() refuses a short buffer rather than truncating: a game
+// that sized its allocation from a now-stale hint must be told, not silently fed
+// a fragment.
+int64_t rv_pccd::asset_size(int64_t handle) {
+    const char* resname = handle_name(handle);
+    if (resname == nullptr) {
+        RV_LOG_WARN("pccd", "asset_size on unknown handle {}", handle);
+        return RV_ERR_INVAL;
+    }
+
+    // The handle stays valid even with the drive empty; what it names does not.
+    if (!medium_->mounted()) return RV_ERR_NOENT;
+
+    return medium_->entry_size(resname);
+}
+
+int64_t rv_pccd::asset_read(int64_t handle, void* baddr, int64_t baddr_size) {
+    const char* resname = handle_name(handle);
+    if (resname == nullptr) {
+        RV_LOG_WARN("pccd", "asset_read on unknown handle {}", handle);
+        return RV_ERR_INVAL;
+    }
+    // `baddr` must be non-null even for an empty entry (rv_cd.hpp): the drive
+    // copies into memory the game owns and never allocates on its behalf.
+    if (baddr == nullptr || baddr_size < 0) {
+        RV_LOG_WARN("pccd", "asset_read('{}') with a malformed buffer (size {})", resname,
+                    baddr_size);
+        return RV_ERR_INVAL;
+    }
+
+    if (!medium_->mounted()) return RV_ERR_NOENT;
+
+    // Whole-entry transfer, straight into the game's buffer. The medium checks
+    // the capacity before it writes anything, so a short buffer costs the caller
+    // an error code and not a clobbered allocation.
+    return medium_->entry_read(resname, baddr, baddr_size);
+}
+
+}  // namespace rv_3dmppc

@@ -1,27 +1,32 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — пул видеопамяти с first-fit аллокатором и коалесценцией.
+// Ревизия: stage 0 — видеопамять как тонкая обёртка над общим пулом консоли.
 // ──────────────────────────────────────────────────────────────────────────────
 //
 // The video RAM the rv_cv contract promises: a fixed-size private pool the disc
-// reserves regions in and gets opaque ADDRESSES back — never pointers. The pool
-// is a std::vector<uint8_t>, so the "addresses" are byte offsets into it and stay
-// valid across host-heap reallocation (they are not pointers, so there is nothing
-// to dangle).
+// reserves regions in and gets opaque ADDRESSES back — never pointers.
 //
-// PATTERN: free-list allocator (object pool). One flat, offset-ordered vector of
-// blocks covers the whole pool with no gaps; allocation splits a free block and
-// release merges neighbours back. A general-purpose allocator would work too, but
-// the console must be able to answer "is this address a live region?" for every
-// primitive that names one, and that question is exactly what the block list is.
+// The allocator itself lives in rv_infra/rv_pcpool.hpp and is shared with sound
+// RAM; what remains here is the part that is specific to VIDEO — the texture
+// shape a region carries, and the contract's error vocabulary around it. A
+// primitive names a region by address alone, so its format and dimensions have
+// to be remembered next to the bytes; that is exactly the pool's Meta slot.
 #pragma once
 
 #include <cstdint>
-#include <vector>
 
 #include "pdk/cv/rv_texture.hpp"
+#include "rv_infra/rv_pcpool.hpp"
 
 namespace rv_3dmppc {
+
+// What a video region remembers about its last upload.
+struct rv_pcvram_meta {
+    bool written = false;
+    rv_texfmt format = RV_TEXFMT_DIRECT15;
+    int64_t width = 0;
+    int64_t height = 0;
+};
 
 class rv_pcvram {
    public:
@@ -35,7 +40,7 @@ class rv_pcvram {
     int64_t free(int64_t addr);
 
     // Copy `texture.size` bytes of `texture.data` into the region at `addr` and
-    // remember the texture's shape for the texturing stage. Returns RV_OK, or
+    // remember the texture's shape for the sampler. Returns RV_OK, or
     // RV_ERR_INVAL for an unknown address, a null source, or data that does not
     // fit the region.
     int64_t write(int64_t addr, const rv_texture& texture);
@@ -50,33 +55,21 @@ class rv_pcvram {
     // address is required.
     int64_t region_format(int64_t addr) const;
 
-    // Read-only view of a region's bytes, or nullptr when `addr` is unknown.
-    // The texturing stage will sample through this; nothing does yet.
+    // Shape of the uploaded texture, or a negative rv_err on the same terms as
+    // region_format(). The sampler needs both to turn a uv into a texel offset.
+    int64_t region_width(int64_t addr) const;
+    int64_t region_height(int64_t addr) const;
+
+    // Read-only view of a region's bytes, or nullptr when `addr` is not live.
     const uint8_t* region_data(int64_t addr) const;
 
-    int64_t capacity() const { return static_cast<int64_t>(pool_.size()); }
+    int64_t capacity() const { return pool_.capacity(); }
 
    private:
-    // One span of the pool. `reserved` marks the head block that exists only to
-    // keep address 0 out of circulation; it is never freed and never merged.
-    struct rv_pcvram_block {
-        int64_t offset = 0;
-        int64_t size = 0;
-        bool used = false;
-        bool reserved = false;
+    // Shared helper: both accessors below need "is it live AND written".
+    const rv_pcvram_meta* written_meta(int64_t addr) const;
 
-        // Metadata of the last upload, kept next to the bytes because the
-        // primitive that samples this region carries only the address.
-        bool written = false;
-        rv_texfmt format = RV_TEXFMT_DIRECT15;
-        int64_t width = 0;
-        int64_t height = 0;
-    };
-
-    int64_t find_block(int64_t addr) const;  // index into blocks_, or -1
-
-    std::vector<uint8_t> pool_;
-    std::vector<rv_pcvram_block> blocks_;  // offset-ordered, gapless
+    rv_pcpool<rv_pcvram_meta> pool_;
 };
 
 }  // namespace rv_3dmppc

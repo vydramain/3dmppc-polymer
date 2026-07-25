@@ -39,6 +39,15 @@ endif()
 add_library(3dmppc_pdk INTERFACE)
 target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 
+# --- disc-side SDK ------------------------------------------------------------
+# Header-only conveniences written AGAINST the contract, for discs only: matrix
+# math, camera, transform to screen-space vertices, format parsers. It is not
+# the contract (the console implements nothing here) and not a game, so it is
+# its own tree — and the console below deliberately does NOT link it. If the
+# console ever needs something from sdk/, that something was misfiled.
+add_library(3dmppc_sdk INTERFACE)
+target_include_directories(3dmppc_sdk INTERFACE ${CMAKE_SOURCE_DIR}/sdk/include)
+
 # --- the disc -----------------------------------------------------------------
 # rv_dmain is a GAME, not part of the machine, so it is built as its own target
 # that links 3dmppc_pdk and NOTHING else. That is what makes "a game depends on
@@ -52,6 +61,7 @@ file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/
 
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
+target_link_libraries(rv_dmain PRIVATE 3dmppc_sdk)
 
 if(MSVC)
   target_compile_options(rv_dmain PRIVATE /W4)
@@ -83,4 +93,14 @@ endif()
 
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
+
+# --- authoring tools ----------------------------------------------------------
+# Offline converters that prepare disc content (PNG -> paletted texels, ...).
+# They are BUILD-TIME tools, not part of the machine: the console never decodes
+# an image format, it uploads texels that were prepared here. Their dependencies
+# (stb_image) are therefore the tools' own and never reach the console.
+option(3DMPPC_BUILD_TOOLS "Build the offline authoring tools" ON)
+if(3DMPPC_BUILD_TOOLS)
+  add_subdirectory(tools)
+endif()
 # NEUROSLOP-END

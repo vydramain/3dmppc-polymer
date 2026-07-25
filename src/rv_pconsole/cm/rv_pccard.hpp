@@ -1,0 +1,92 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 6 — файловый образ карты памяти с атомарной записью.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The medium behind rv_cm: one file holding every slot of one memory card.
+//
+// The card is small enough (16 x 8 KiB = 128 KiB on the reference machine) that
+// the whole image is read into RAM once at construction and lives there for the
+// session; the file exists only so saves outlive the process. Reads never touch
+// the disk, and a write rewrites the entire image — which is what makes the
+// contract's atomicity promise implementable (see the THEOREM in rv_pccard.cpp).
+//
+// This class knows nothing about rv_err: it answers bool / -1 and leaves the
+// contract vocabulary to rv_pccm.
+#pragma once
+
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace rv_3dmppc {
+
+// On-disk layout, little-endian throughout, in this order:
+//
+//   header  : magic[8] "MPPCCARD", u32 version, u32 reserved,
+//             i64 slot_count, i64 slot_size                    (32 bytes)
+//   lengths : i64 x slot_count — stored bytes per slot, -1 = empty slot
+//   payload : slot_size x slot_count, fixed stride, unused tail is zeroed
+//
+// Fixed stride costs nothing worth saving (the card is tiny) and buys a
+// property that matters: the file size is a pure function of the geometry, so a
+// truncated image is detected by a size comparison alone.
+class rv_pccard {
+   public:
+    // Loads `image_path` (empty = "memcard.mppccard" in the working directory).
+    // A missing file is NOT an error: the card simply reads as all-empty and
+    // the file is created by the first successful write. A file that exists but
+    // does not match the requested geometry — or is corrupt — leaves the card
+    // UNUSABLE rather than being reformatted: those bytes are somebody's saves.
+    rv_pccard(const std::string& image_path, int64_t slot_count, int64_t slot_size);
+
+    // False when the backing file could not be trusted. Every operation then
+    // fails; nothing is ever written over the file that caused it.
+    bool medium_ok() const { return medium_ok_; }
+
+    int64_t slot_count() const { return slot_count_; }
+    int64_t slot_size() const { return slot_size_; }
+
+    // Stored bytes in `slot`, or -1 when the slot is empty. `slot` must be in
+    // range — range checking belongs to the controller.
+    int64_t slot_length(int64_t slot) const;
+
+    // First byte of `slot`'s payload; only slot_length() bytes are meaningful.
+    const uint8_t* slot_data(int64_t slot) const;
+
+    // Replace `slot` with `size` bytes of `data` and persist the image.
+    // Returns false on a medium failure, and then the slot — in memory and on
+    // disk alike — still holds exactly what it held before the call.
+    bool slot_write(int64_t slot, const void* data, int64_t size);
+
+    // Empty `slot` and persist. Erasing an already-empty slot touches nothing
+    // and succeeds, so it never brings a file into existence.
+    bool slot_erase(int64_t slot);
+
+   private:
+    // Reads the file into image_. Returns false only for a file that exists and
+    // cannot be trusted; a missing file yields a freshly formatted RAM image.
+    bool load();
+
+    // Writes image_ out atomically (temp file + fsync + rename).
+    bool flush();
+
+    // Apply one slot mutation (`new_length` < 0 empties the slot) and persist
+    // it, undoing the in-RAM change when the persist fails. The single place
+    // where the contract's "old content intact" promise is kept.
+    bool commit(int64_t slot, int64_t new_length, const void* data);
+
+    void format_empty();
+    int64_t length_at(int64_t slot) const;
+    void set_length(int64_t slot, int64_t length);
+    uint8_t* payload_at(int64_t slot);
+
+    std::string image_path_;
+    int64_t slot_count_ = 0;
+    int64_t slot_size_ = 0;
+    int64_t payload_offset_ = 0;
+    bool medium_ok_ = true;
+    std::vector<uint8_t> image_;
+};
+
+}  // namespace rv_3dmppc

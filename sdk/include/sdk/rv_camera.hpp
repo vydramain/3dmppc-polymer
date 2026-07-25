@@ -1,0 +1,146 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 8 — левосторонние look_at и perspective, мир → clip space.
+// ──────────────────────────────────────────────────────────────────────────────
+#pragma once
+
+#include <cmath>
+
+#include "sdk/rv_math.hpp"
+
+namespace rv_3dmppc {
+
+// The camera half of a disc's transform chain: a VIEW matrix (where the eye is)
+// and a PROJECTION matrix (what the lens does). Both follow the conventions fixed
+// in sdk/rv_math.hpp — left-handed, +z forward, column vectors, row-major storage.
+//
+// ── CLIP SPACE, fixed here ────────────────────────────────────────────────────
+//
+//   After the projection, a point is in homogeneous CLIP space (x, y, z, w) with
+//
+//       w == the view-space z of the point (its distance in front of the eye)
+//
+//   which is what makes both later stages cheap: the near-plane test is just
+//   "is w big enough" and the ordering-table key is just w (see sdk/rv_xform.hpp).
+//   After dividing by w the visible volume is
+//
+//       x, y in [-1, +1]   (-1 left / bottom, +1 right / TOP — y still points UP)
+//       z    in [ 0, +1]   (0 at the near plane, 1 at the far plane)
+//
+//   The z range is the D3D-style [0, 1] rather than OpenGL's [-1, 1]. Nothing
+//   downstream consumes ndc z (the console has no depth buffer fed from here —
+//   the ordering table takes a value the disc computes), so the range is picked
+//   for being the one that pairs naturally with a left-handed frustum.
+//
+//   Flipping y for the framebuffer (whose y grows DOWN) happens in rv_xform.hpp,
+//   NOT here: clip space keeps the project's +y up.
+
+// A left-handed view matrix. Places the eye at `eye`, aims its +z (forward) at
+// `target`, and rolls it so `up` is as close to the frame's +y as the aim allows.
+//
+// The basis is built as forward = normalize(target - eye), then
+// right = normalize(cross(up, forward)) — cross(up, forward) is the LEFT-handed
+// order, and with up = +y, forward = +z it yields exactly +x. The view matrix is
+// the INVERSE of that camera frame: since the basis is orthonormal, the inverse
+// rotation is the transpose (the basis vectors become the ROWS), and the inverse
+// translation is -dot(axis, eye) in the last column.
+//
+// Degenerate input (eye == target, or `up` parallel to the aim) yields a
+// zero-length axis and a collapsed matrix. That mirrors rv_normalize: a disc has
+// nowhere to report an error to mid-frame, and a collapsed frame is visible.
+inline rv_mat4 rv_look_at(rv_vec3 eye, rv_vec3 target, rv_vec3 up) {
+    const rv_vec3 forward = rv_normalize(target - eye);
+    const rv_vec3 right = rv_normalize(rv_cross(up, forward));
+    const rv_vec3 upward = rv_cross(forward, right);
+
+    rv_mat4 r = rv_mat4_identity();
+    r.m[0][0] = right.x;
+    r.m[0][1] = right.y;
+    r.m[0][2] = right.z;
+    r.m[0][3] = -rv_dot(right, eye);
+    r.m[1][0] = upward.x;
+    r.m[1][1] = upward.y;
+    r.m[1][2] = upward.z;
+    r.m[1][3] = -rv_dot(upward, eye);
+    r.m[2][0] = forward.x;
+    r.m[2][1] = forward.y;
+    r.m[2][2] = forward.z;
+    r.m[2][3] = -rv_dot(forward, eye);
+    return r;
+}
+
+// THEOREM: left-handed perspective projection. Similar triangles: a point at
+// view-space (x, y, z) projects onto a screen plane at distance d as (x*d/z,
+// y*d/z) — the division by z is the whole of perspective. A 4x4 matrix cannot
+// divide, so it instead COPIES z into w (the m[3][2] = 1 row, the only row that
+// is not a scale) and leaves the division to the perspective divide downstream.
+// The x and y scales fold d and the aspect ratio into one number each:
+// 1/tan(fov/2) is the focal length that makes the half-angle land exactly on the
+// +-1 edge of the frame, and x is additionally divided by the aspect so a wide
+// screen widens the view instead of stretching it.
+//
+// The z row maps [near, far] onto [0, 1] AFTER the divide: with
+// z_clip = z*f/(f-n) - n*f/(f-n) and w = z, z_ndc = (z-n)/(f-n) * f/z — nonlinear
+// in z (precision concentrates near the eye), which is the classic depth-buffer
+// behaviour and irrelevant here because the console sorts whole primitives.
+//
+// `fov_y_radians` is the FULL vertical field of view; `aspect` is width/height.
+// near must be > 0 and far > near — a zero or negative near plane is what makes
+// the projection singular, and the near-plane rejection in rv_xform.hpp exists
+// precisely because points can sit on the wrong side of it.
+inline rv_mat4 rv_perspective(float fov_y_radians, float aspect, float near_plane,
+                              float far_plane) {
+    const float focal = 1.0f / std::tan(fov_y_radians * 0.5f);
+    const float range = far_plane - near_plane;
+
+    rv_mat4 r{};
+    r.m[0][0] = focal / aspect;
+    r.m[1][1] = focal;
+    r.m[2][2] = far_plane / range;
+    r.m[2][3] = -(near_plane * far_plane) / range;
+    r.m[3][2] = 1.0f;  // w := z_view — left-handed: +z is IN FRONT of the eye
+    return r;
+}
+
+// The camera a disc actually carries around: the two matrices plus the numbers
+// the later stages need to re-derive (the near plane for rejection, the depth
+// range for the ordering-table key).
+//
+// PATTERN: parameter object. The transform stage needs five loosely related
+// values at once; bundling them keeps rv_xform_* signatures short and makes the
+// "build once per frame, use per triangle" split obvious.
+struct rv_camera {
+    rv_mat4 view;
+    rv_mat4 projection;
+    float near_plane;
+    float far_plane;
+};
+
+inline rv_camera rv_camera_make(rv_vec3 eye, rv_vec3 target, rv_vec3 up, float fov_y_radians,
+                                float aspect, float near_plane, float far_plane) {
+    rv_camera camera{};
+    camera.view = rv_look_at(eye, target, up);
+    camera.projection = rv_perspective(fov_y_radians, aspect, near_plane, far_plane);
+    camera.near_plane = near_plane;
+    camera.far_plane = far_plane;
+    return camera;
+}
+
+// projection * view — the half of the chain that is constant for the whole frame.
+// Multiply a model matrix in from the RIGHT to get an mvp: it is applied first.
+inline rv_mat4 rv_camera_view_projection(const rv_camera& camera) {
+    return rv_mat4_mul(camera.projection, camera.view);
+}
+
+inline rv_mat4 rv_camera_mvp(const rv_camera& camera, const rv_mat4& model) {
+    return rv_mat4_mul(rv_camera_view_projection(camera), model);
+}
+
+// One world point through one combined matrix, into clip space. The w of the
+// result is NOT 1 and must not be dropped: the near test and the divide both
+// live on it.
+inline rv_vec4 rv_world_to_clip(const rv_mat4& mvp, rv_vec3 world) {
+    return rv_mat4_mul_vec4(mvp, rv_point4(world));
+}
+
+}  // namespace rv_3dmppc

@@ -1,0 +1,71 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 4 — сэмплер текселей: форматы, палитра, режимы обёртки.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The texel sampler: everything that turns a texture coordinate into the 16-bit
+// value the framebuffer stores. It is the second half of the texturing stage —
+// the rasterizer decides WHICH texel a pixel wants, this decides WHAT that texel
+// is worth.
+//
+// PATTERN: value view (non-owning). rv_pctexview borrows the bytes video RAM
+// already holds; it never allocates, never frees and never learns what an
+// address is. Resolving an rv_polygon::addr_texture into one of these is
+// rv_pccv's job, which is what keeps the rasterizer testable without a pool:
+// hand it a view over a stack array and it draws.
+//
+// PATTERN: stateless service (as in rv_pcraster). Only static functions — a
+// sample depends on nothing but its arguments, so the ordering table may
+// interleave primitives from different textures freely.
+#pragma once
+
+#include <cstdint>
+
+#include "pdk/cv/rv_primitives.hpp"
+#include "pdk/cv/rv_texture.hpp"
+
+namespace rv_3dmppc {
+
+// A read-only view of one uploaded texture, plus its palette when the format is
+// an indexed one. Everything the sampler needs and nothing it does not: no
+// address, no pool, no ownership.
+struct rv_pctexview {
+    const uint8_t* texels = nullptr;    // region bytes, laid out per `format`
+    const uint16_t* palette = nullptr;  // CLUT entries; nullptr for DIRECT15
+    int64_t palette_count = 0;          // entries behind `palette` (bounds guard)
+
+    rv_texfmt format = RV_TEXFMT_DIRECT15;
+
+    int64_t width = 0;   // texel columns
+    int64_t height = 0;  // texel rows
+
+    // Can this view be sampled at all? An invalid view is the console's way of
+    // saying "this primitive asked to sample, but there is nothing to sample" —
+    // an unwritten region, a missing palette — and the rasterizer falls back to
+    // a flat fill rather than dropping the primitive.
+    bool valid() const;
+};
+
+// The outcome of one sample. `drawn == false` means the pixel is transparent and
+// must be skipped ENTIRELY — no colour write and no depth write; see the
+// transparency theorem in rv_pctexel.cpp.
+struct rv_pctexel_sample {
+    uint16_t value = 0;  // RGB555 + STP, exactly as the framebuffer stores it
+    bool drawn = false;
+};
+
+class rv_pctexel {
+   public:
+    // Fetch the texel at (u, v). Coordinates outside the texture are resolved by
+    // `mapping`; STRETCH arrives here already rescaled by the rasterizer and is
+    // therefore treated as CLAMP.
+    static rv_pctexel_sample sample(const rv_pctexview& view, int64_t u, int64_t v,
+                                    rv_texture_mapping_type mapping);
+
+    // Bring one axis coordinate into [0, size). `size` must be positive (a valid
+    // view guarantees it). Exposed because the rasterizer's STRETCH path wants
+    // the same rounding rules, and because it is the piece worth testing alone.
+    static int64_t wrap(int64_t coord, int64_t size, rv_texture_mapping_type mapping);
+};
+
+}  // namespace rv_3dmppc

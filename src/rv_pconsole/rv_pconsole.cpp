@@ -28,7 +28,8 @@ using rv_pcclock = std::chrono::steady_clock;
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf& conf)
     : params_(conf.params),
       host_(conf),
-      ca_(conf.ca),
+      ca_(conf.ca, host_),
+      cd_(conf.cd),
       cio_(conf.cio, host_),
       cm_(conf.cm),
       cv_(conf.cv, host_) {}
@@ -131,6 +132,10 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_3dmppc::rv_de& disc) {
             }
         }
     }
+
+    // Devkit: hand the last frame the machine produced to disk, if asked. After
+    // the loop rather than inside it, so a dump costs nothing per frame.
+    host_.dump_last_frame();
     // NEUROSLOP-END
 
     return rv_3dmppc::RV_OK;
