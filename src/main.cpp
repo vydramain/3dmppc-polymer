@@ -3,30 +3,56 @@
 // The console is game-agnostic; all game logic lives behind on the Disc.
 // See docs/README.md for the console/disc relations.
 //
+// Usage:
+//   3dmppc [flags] [DISC.mppcdisc]
+//
+// The first positional argument is the disc to boot: the console mounts that
+// archive, loads the code inside it and runs it. With no disc it falls back to
+// the built-in rv_dmain — a service test of the hardware, not a game.
+//
 // Flags:
 //   --scale N     window magnification over native 320×240 (default 3)
 //   --headless    run without a window (smoke test); pair with --frames
 //   --frames N    stop after N frames (0 = run until quit)
 //   --fixed-step  use a fixed 1/60 dt (reproducible)
-//   --disc PATH   medium to mount in the drive (empty = no disc inserted)
+//   --disc PATH   medium to mount in the drive (empty = no disc inserted).
+//                 A DIRECTORY of loose assets — the development shortcut, kept
+//                 because it needs no packaging step. A packaged .mppcdisc goes
+//                 in the positional argument instead, and brings its own medium.
 //   --memcard P   memory-card image (default: memcard.mppccard here)
 //   --mute        silence the audio output stage
 //   --dump-frame P  write the last presented frame to P as a binary PPM
 #include <getopt.h>
 
 #include <cstdlib>
+#include <format>
+#include <string>
 
 #include "rv_dmain/rv_dmain.hpp"
+#include "rv_infra/rv_log.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
+
+// NEUROSLOP-BEGIN (claude-opus-5)
+namespace rv_3dmppc {
+namespace {
+
+// The log macros name rv_log_emit unqualified, so they only compile from inside
+// the namespace — and main() is, by definition, outside it.
+void rv_main_log_error(const std::string& message) { RV_LOG_ERR("main", "{}", message); }
+
+}  // namespace
+}  // namespace rv_3dmppc
+// NEUROSLOP-END
 
 int main(int argc, char** argv) {
     rv_3dmppc::rv_pconsole_conf conf;
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Note what is NOT here: any game's name. The console mounts whatever
-    // medium it is pointed at and boots the disc it was built with; with no
-    // --disc it runs the built-in skeleton against an empty drive.
+    // medium it is pointed at and boots the disc it is handed on the command
+    // line; with nothing at all it runs the built-in skeleton against an empty
+    // drive.
     static struct option long_opts[] = {{"headless", no_argument, 0, 'H'},
                                         {"fixed-step", no_argument, 0, 'F'},
                                         {"scale", required_argument, 0, 's'},
@@ -68,9 +94,38 @@ int main(int argc, char** argv) {
                 return 2;
         }
     }
-    // NEUROSLOP-END
+
+    // getopt_long has left optind on the first thing that was not a flag. One
+    // positional argument is expected — the disc — and more than one is a typo
+    // worth refusing rather than silently ignoring.
+    const char* disc_path = (optind < argc) ? argv[optind] : nullptr;
+    if (optind + 1 < argc) {
+        rv_3dmppc::rv_main_log_error(
+            std::format("expected at most one disc path, got {}", argc - optind));
+        return 2;
+    }
 
     rv_3dmppc::rv_pconsole console(conf);
-    rv_3dmppc::rv_dmain disc;  // Will be replaced with rv_pconsole.disc_load(path)
-    return console.disc_run(disc);
+
+    if (disc_path != nullptr) {
+        // The console owns the loaded disc; it lives exactly as long as the
+        // console does, and its teardown (disc_shutdown, destroy, dlclose,
+        // unlink) happens when this scope ends. Nothing here holds the pointer
+        // past that.
+        rv_3dmppc::rv_de* disc = console.disc_load(disc_path);
+        if (disc == nullptr) {
+            // The loader has already said, precisely, what was wrong with it.
+            rv_3dmppc::rv_main_log_error(
+                std::format("refusing to boot '{}'", rv_3dmppc::rv_log_escape(disc_path)));
+            return 1;
+        }
+        return static_cast<int>(console.disc_run(*disc) < 0 ? 1 : 0);
+    }
+
+    // No disc in the machine: the built-in service test of the hardware. It is
+    // linked into the console on purpose — it is how the console is checked
+    // without a game, and it is not a game itself.
+    rv_3dmppc::rv_dmain disc;
+    return static_cast<int>(console.disc_run(disc) < 0 ? 1 : 0);
+    // NEUROSLOP-END
 }

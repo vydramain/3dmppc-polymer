@@ -19,8 +19,7 @@ namespace rv_3dmppc {
 //   disc_initialize(pdko)                   — once, before the first frame
 //   loop: frame_update(dt); frame_render()  — until disc_release() is true
 //
-// DEFERRED: a teardown hook for the dlclose era (under a name other than
-// disc_release, which is taken by the power-off query).
+//   disc_shutdown()                         — once, after the last frame
 class rv_de {
    public:
     virtual ~rv_de() = default;
@@ -49,6 +48,20 @@ class rv_de {
     // Power-off QUERY, polled by the console every frame: true = the disc asks
     // the console to shut down. It releases nothing itself.
     virtual bool disc_release() const { return false; }
+
+    // Called once, after the last frame, before the console tears the disc down.
+    // The place to release what disc_initialize acquired: free video and sound
+    // RAM, write a final save.
+    //
+    // The facade is STILL VALID here — this is the last moment it is. After it
+    // returns, the console destroys the disc and may unload its code entirely
+    // (see pdk/rv_abi.hpp), so anything not released by now is released by
+    // nobody: a destructor belonging to code that has been unmapped cannot run.
+    //
+    // Called on every path out of the frame loop, including the user powering
+    // the machine off, but NOT when disc_initialize refused to start — a disc
+    // that never initialized has nothing to give back.
+    virtual void disc_shutdown() {}
 
     // Name for the window title / logs. The pointer must stay valid for the
     // disc's whole lifetime (a string literal).

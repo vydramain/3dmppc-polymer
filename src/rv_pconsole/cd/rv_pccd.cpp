@@ -29,7 +29,12 @@ int64_t rv_pccd::asset_open(const char* resname) {
     // it is refused here rather than somewhere deeper where the medium might be
     // tempted to resolve it. See rv_pcresname_valid() in rv_pcmedium.hpp.
     if (!rv_pcresname_valid(resname)) {
-        RV_LOG_WARN("pccd", "asset_open rejected an illegal resource name");
+        // The name goes through rv_log_escape() because it is exactly the string
+        // an attack would put a newline or an ANSI escape into — see the note on
+        // that function. Naming it matters: "an illegal name was rejected" tells
+        // whoever reads the log nothing about WHICH asset the disc wanted.
+        RV_LOG_WARN("pccd", "asset_open('{}') rejected: illegal resource name",
+                    rv_log_escape(resname));
         return RV_ERR_INVAL;
     }
 
@@ -45,7 +50,11 @@ int64_t rv_pccd::asset_open(const char* resname) {
         // device failure. Nothing is added to the table: inserting a disc later
         // must not find the name poisoned by a lookup made while the drive was
         // empty.
-        RV_LOG_WARN("pccd", "asset_open('{}') with no medium mounted", key);
+        // DBG, not WARN: an empty drive is a legal machine and the console
+        // already said so once at boot. Repeating it as a warning on every
+        // lookup is noise, and noise is what teaches people to stop reading
+        // logs — the one thing a log cannot survive.
+        RV_LOG_DBG("pccd", "asset_open('{}') with no medium mounted", rv_log_escape(key.c_str()));
         return RV_ERR_NOENT;
     }
 

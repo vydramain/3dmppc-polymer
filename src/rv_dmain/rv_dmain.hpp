@@ -15,11 +15,11 @@
 //   rv_ca  — a synthesized beep on the south button
 //   rv_cio — everything above is driven from port 0
 //
-// BOUNDARY: this translation unit includes pdk/ (the contract) and sdk/ (the
+// BOUNDARY: this translation unit includes pdk/ (the contract) and pdklib/ (the
 // disc-side conveniences) and NOTHING else. No console header, no console
 // logger, no SDL — the disc plays ON the console, it does not link INTO it
 // (pdk/README.md). The build enforces it: the disc target links 3dmppc_pdk and
-// 3dmppc_sdk and never sees the console's include path.
+// 3dmppc_pdklib and never sees the console's include path.
 #pragma once
 
 #include <cstdint>
@@ -38,6 +38,7 @@ class rv_dmain : public rv_de {
     void frame_update(float dt) override;
     void frame_render() override;
     bool disc_release() const override { return release_; }
+    void disc_shutdown() override;
     const char* disc_title() const override;
 
    private:
@@ -50,12 +51,14 @@ class rv_dmain : public rv_de {
     };
 
     void build_texture();
+    void build_font();
     void probe_drive();
     void load_save();
     void build_beep();
     void draw_cube();
     void draw_wrap_row();
     void draw_status_bars();
+    void draw_legend();
 
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.
@@ -72,6 +75,13 @@ class rv_dmain : public rv_de {
     // --- video ---
     std::vector<uint16_t> texels_;  // the procedural DIRECT15 test texture
     int64_t addr_texture_ = 0;      // 0 reads as "not uploaded" by design
+
+    // The font, so the screen can say what it is. Text is not a console feature
+    // and never will be: on the machine this imitates, a font was an asset the
+    // game shipped, not something the GPU knew about. So it comes from pdklib/,
+    // like any other disc-side convenience.
+    int64_t addr_font_ = 0;
+    int64_t addr_font_palette_ = 0;
     float spin_ = 0.0f;
     float hue_ = 0.0f;
 

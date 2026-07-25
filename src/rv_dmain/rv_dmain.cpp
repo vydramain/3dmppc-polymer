@@ -12,10 +12,11 @@
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/rv_err.hpp"
-#include "sdk/rv_camera.hpp"
-#include "sdk/rv_color.hpp"
-#include "sdk/rv_math.hpp"
-#include "sdk/rv_xform.hpp"
+#include "pdklib/rv_camera.hpp"
+#include "pdklib/rv_color.hpp"
+#include "pdklib/rv_math.hpp"
+#include "pdklib/rv_text.hpp"
+#include "pdklib/rv_xform.hpp"
 
 namespace rv_3dmppc {
 namespace {
@@ -58,6 +59,43 @@ constexpr uint32_t RV_DMAIN_SAVE_MAGIC = 0x524D4149;  // 'RMAI'
 // the cube and the status bars sit in front of it.
 constexpr int32_t RV_DMAIN_DEPTH_WRAP_ROW = -900;
 constexpr int32_t RV_DMAIN_DEPTH_BARS = 800;
+constexpr int32_t RV_DMAIN_DEPTH_PANEL = 880;  // the slab text sits on
+constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900;   // over everything, it explains it
+
+// What the screen says about itself. A diagnostics screen that does not say it
+// is a diagnostics screen is just a confusing game — someone who runs the
+// console for the first time, with no disc, should not have to read the source
+// to learn what they are looking at.
+//
+// Kept to 40 columns: at scale 1 a cell is 8 px wide, and 40 cells is exactly
+// the 320-pixel screen.
+constexpr const char* RV_DMAIN_TITLE = "3DMPPC SERVICE TEST";
+constexpr const char* RV_DMAIN_SUBTITLE = "no disc - built-in diagnostics";
+
+// One entry per line, rather than one string with '\n' in it, because the lines
+// need MORE leading than the font's own cell height gives them: a 7-pixel glyph
+// on an 8-pixel pitch leaves one pixel between rows, which is legible in
+// isolation and mush in a paragraph. Drawing line by line buys that pixel back.
+constexpr const char* RV_DMAIN_LEGEND[] = {
+    "textures  clamp / tile / stretch",  //
+    "          the gap is transparency",
+    "cube      pdklib transform + lambert",
+    "ticks     boots, from memory card",
+    "bar       asset size, from drive",
+    "south     beep     esc/option quit",
+    "",
+    "run a disc:  3dmppc game.mppcdisc",
+};
+
+// Pixels between the tops of consecutive text lines.
+constexpr int RV_DMAIN_LEADING = 10;
+
+// The cube is rendered into a VIEWPORT rather than the whole screen: the pdklib
+// transform maps normalized coordinates onto the width and height it is handed,
+// anchored at the upper left, so a smaller pair confines the cube to a corner
+// and leaves the rest of the frame for text that has to be readable.
+constexpr float RV_DMAIN_CUBE_VIEW_W = 150.0f;
+constexpr float RV_DMAIN_CUBE_VIEW_H = 128.0f;
 
 // The unit cube: six quads, each in the PDK's Z ORDER, because the console
 // splits a quad into triangles (1,2,3) and (2,3,4) rather than walking the rim.
@@ -136,11 +174,50 @@ int64_t rv_dmain::disc_initialize(rv_pdko& pdk) {
     prev_buttons_.assign(static_cast<std::size_t>(iport_count_), 0ULL);
 
     build_texture();
+    build_font();
     probe_drive();
     load_save();
     build_beep();
 
     return RV_OK;
+}
+
+void rv_dmain::build_font() {
+    rv_cv* cv = pdk_->cv();
+
+    // The atlas is expanded into a buffer the DISC owns and uploaded; the buffer
+    // dies at the end of this function because video_asset_write copies during
+    // the call. 128x48 IDX4 is 3 KiB — cheap enough to keep resident forever.
+    std::vector<uint8_t> atlas(rv_text_atlas_size, 0);
+    if (!rv_text_build_atlas(atlas.data(), atlas.size())) return;
+
+    const int64_t atlas_addr = cv->video_asset_malloc(static_cast<int64_t>(rv_text_atlas_size));
+    if (atlas_addr < 0) return;
+    if (cv->video_asset_write(atlas_addr, rv_text_atlas_texture(atlas.data())) < 0) {
+        cv->video_asset_free(atlas_addr);
+        return;
+    }
+
+    // One palette is one colour of text. There is no vertex-colour modulation in
+    // the contract yet, so recolouring means uploading another palette and
+    // pointing addr_palette at it — which is exactly how the machine this
+    // imitates recoloured its fonts.
+    std::vector<uint16_t> palette(rv_text_palette_entries, 0);
+    rv_text_build_palette(rv_color{220, 226, 240}, palette.data(), palette.size());
+
+    const int64_t palette_addr = cv->video_asset_malloc(static_cast<int64_t>(rv_text_palette_size));
+    if (palette_addr < 0) {
+        cv->video_asset_free(atlas_addr);
+        return;
+    }
+    if (cv->video_asset_write(palette_addr, rv_text_palette_texture(palette.data())) < 0) {
+        cv->video_asset_free(palette_addr);
+        cv->video_asset_free(atlas_addr);
+        return;
+    }
+
+    addr_font_ = atlas_addr;
+    addr_font_palette_ = palette_addr;
 }
 
 void rv_dmain::build_texture() {
@@ -351,6 +428,7 @@ void rv_dmain::frame_render() {
     draw_wrap_row();
     draw_cube();
     draw_status_bars();
+    draw_legend();
 
     // The console does NOT flush for the disc (rv_de::frame_render). Nothing
     // filed above reaches the screen without this call.
@@ -368,11 +446,15 @@ void rv_dmain::draw_wrap_row() {
     // through it — that is the 0000h cut-out rule.
     const rv_texture_mapping_type modes[3] = {RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE,
                                               RV_TEXWRAP_STRETCH};
-    const float size = 48.0f;
-    const float gap = 8.0f;
+    const float size = 44.0f;
+    const float gap = 6.0f;
     const float total = 3.0f * size + 2.0f * gap;
-    const float x0 = (static_cast<float>(screen_width_) - total) * 0.5f;
-    const float y0 = 8.0f;
+
+    // Top RIGHT, next to the cube's viewport rather than over it. Everything on
+    // this screen has to be readable at the same time, so nothing overlaps
+    // anything else except the text panels, which cover deliberately.
+    const float x0 = static_cast<float>(screen_width_) - total - 6.0f;
+    const float y0 = 30.0f;
 
     for (int i = 0; i < 3; ++i) {
         rv_primitive primitive{};
@@ -397,10 +479,13 @@ void rv_dmain::draw_wrap_row() {
 void rv_dmain::draw_cube() {
     rv_cv* cv = pdk_->cv();
 
-    const float width = static_cast<float>(screen_width_);
-    const float height = static_cast<float>(screen_height_);
+    // The viewport, not the screen — see RV_DMAIN_CUBE_VIEW_*. Aspect comes from
+    // the same pair, or the cube would be stretched to the screen's shape while
+    // being drawn into a differently shaped box.
+    const float width = RV_DMAIN_CUBE_VIEW_W;
+    const float height = RV_DMAIN_CUBE_VIEW_H;
 
-    const rv_camera camera = rv_camera_make(rv_vec3{0.0f, 1.2f, -4.2f},  // eye
+    const rv_camera camera = rv_camera_make(rv_vec3{0.0f, 1.2f, -4.6f},  // eye
                                             rv_vec3{0.0f, 0.0f, 0.0f},   // target
                                             rv_vec3{0.0f, 1.0f, 0.0f},   // up
                                             1.0472f,                     // 60° vertical fov
@@ -463,14 +548,77 @@ void rv_dmain::draw_status_bars() {
                                RV_DMAIN_DEPTH_BARS));
     }
 
-    // Top-left: one square per passing probe — path rejection, then audio. Dark
-    // means that probe did not pass, and the eye finds it instantly.
-    cv->frame_put(make_bar(6.0f, 6.0f, 6.0f, 6.0f,
-                           drive_rejects_paths_ ? rv_color{80, 220, 100} : rv_color{60, 60, 60},
-                           RV_DMAIN_DEPTH_BARS));
-    cv->frame_put(make_bar(16.0f, 6.0f, 6.0f, 6.0f,
-                           beep_ok_ ? rv_color{80, 220, 100} : rv_color{60, 60, 60},
-                           RV_DMAIN_DEPTH_BARS));
+    // One square per passing probe — path rejection, then audio. Dark means that
+    // probe did not pass, and the eye finds it instantly.
+    //
+    // They ride ON the title slab, at text depth: the slab is opaque and drawn
+    // in front of the scene, so anything at the bar depth would simply vanish
+    // underneath it. That is exactly what happened the first time.
+    const rv_color pass{80, 220, 100};
+    const rv_color fail{90, 90, 96};
+    cv->frame_put(make_bar(width - 22.0f, 8.0f, 6.0f, 6.0f, drive_rejects_paths_ ? pass : fail,
+                           RV_DMAIN_DEPTH_TEXT));
+    cv->frame_put(make_bar(width - 13.0f, 8.0f, 6.0f, 6.0f, beep_ok_ ? pass : fail,
+                           RV_DMAIN_DEPTH_TEXT));
+}
+
+void rv_dmain::draw_legend() {
+    if (addr_font_ == 0) return;
+
+    rv_cv* cv = pdk_->cv();
+    auto file = [cv](const rv_primitive& primitive) { cv->frame_put(primitive); };
+
+    const rv_text_style style =
+        rv_text_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+
+    const float width = static_cast<float>(screen_width_);
+    const rv_color slab{12, 14, 22};
+
+    // The text sits on an opaque slab rather than straight over the render. The
+    // console has no blending yet, so a "dim overlay" is not available — but it
+    // would not help anyway: this palette's ink is light, and light ink over a
+    // lit cube is the exact thing that made the first version unreadable. A
+    // solid dark rectangle underneath is the whole fix, and it costs one
+    // primitive.
+    cv->frame_put(make_bar(0.0f, 0.0f, width, 24.0f, slab, RV_DMAIN_DEPTH_PANEL));
+    rv_text_draw(style, 6, 3, RV_DMAIN_TITLE, file);
+    rv_text_draw(style, 6, 13, RV_DMAIN_SUBTITLE, file);
+
+    constexpr int line_count = static_cast<int>(sizeof(RV_DMAIN_LEGEND) / sizeof(*RV_DMAIN_LEGEND));
+    const int block_height = line_count * RV_DMAIN_LEADING;
+    const int top = static_cast<int>(screen_height_) - block_height - 28;
+
+    cv->frame_put(make_bar(0.0f, static_cast<float>(top - 4), width,
+                           static_cast<float>(block_height + 8), slab, RV_DMAIN_DEPTH_PANEL));
+
+    for (int i = 0; i < line_count; ++i) {
+        rv_text_draw(style, 6, top + i * RV_DMAIN_LEADING, RV_DMAIN_LEGEND[i], file);
+    }
+}
+
+void rv_dmain::disc_shutdown() {
+    // The facade is still valid here and this is the LAST moment it is. Whatever
+    // disc_initialize took is given back now, not in a destructor: once this
+    // returns the console may unload the disc's code, and a destructor belonging
+    // to unmapped code cannot run.
+    if (!pdk_) return;
+
+    rv_cv* cv = pdk_->cv();
+    if (addr_texture_ != 0) cv->video_asset_free(addr_texture_);
+    if (addr_font_ != 0) cv->video_asset_free(addr_font_);
+    if (addr_font_palette_ != 0) cv->video_asset_free(addr_font_palette_);
+    addr_texture_ = 0;
+    addr_font_ = 0;
+    addr_font_palette_ = 0;
+
+    rv_ca* ca = pdk_->ca();
+    if (ca && addr_beep_ != 0) {
+        // Stop first: the contract makes sound_asset_free() answer RV_ERR_BUSY
+        // while a voice is still reading out of the region.
+        ca->voice_stop(1);
+        ca->sound_asset_free(addr_beep_);
+        addr_beep_ = 0;
+    }
 }
 
 const char* rv_dmain::disc_title() const { return "rv_dmain - service test"; }

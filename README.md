@@ -1,106 +1,214 @@
 # 3dmppc — PSX-like fantasy console
 
-A tiny C++23 fantasy console in the spirit of the PlayStation. It rasterizes
-entirely on the CPU into a 320×240 framebuffer of 15-bit colour and presents it
-through SDL3 with crisp integer scaling.
+A fantasy console in the spirit of the PlayStation, written in C++23 with no
+engine. It rasterizes entirely on the CPU into a 320×240 framebuffer of 15-bit
+colour, plays 24 voices of sound, and boots games from a single-file medium
+called a **`.mppcdisc`**.
 
-The three trees, and the boundary between them, are the whole point:
+Games are not built into it. You burn a disc, you insert a disc, the console
+runs it — and the console never learns the game's name.
 
-| Tree | What it is |
+---
+
+## The one-minute version
+
+```sh
+# 1. build the console
+cmake -S . -B build -G Ninja && cmake --build build
+
+# 2. build the developer tools (separate product, separate command)
+cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
+
+# 3. burn the sample game into a disc
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/hello -o build/hello.mppcdisc \
+    --baker pdk/tools/build/mppcbaker/mppcbaker
+
+# 4. run it
+./build/3dmppc build/hello.mppcdisc
+```
+
+Press **Esc** (or **Option/Start** on a gamepad) to quit.
+
+Running `./build/3dmppc` with no disc gives you the built-in **service test** — a
+diagnostics screen that exercises every subsystem and explains itself on screen.
+It is how you tell a broken console from a broken disc.
+
+---
+
+## The five trees, and why there are five
+
+This is the part worth understanding before anything else. Each tree depends
+only on the ones above it, and every boundary is enforced by the build rather
+than by discipline.
+
+| Tree | What it is | Depends on |
+| --- | --- | --- |
+| [`pdk/`](pdk/) | **the contract** — the headers describing what the console can do | nothing |
+| [`pdklib/`](pdklib/) | **disc-side conveniences** written against the contract: matrices, camera, `.obj`, text | `pdk/` |
+| `src/` | **the console** — the concrete machine that implements the contract | `pdk/` |
+| [`pdk/tools/`](pdk/tools/) | **authoring tools** that turn a directory into a disc | `pdk/` |
+| [`mppcdiscs/`](mppcdiscs/) | **the games** | `pdk/`, `pdklib/` |
+
+There is deliberately **no arrow between `src/` and `mppcdiscs/`**: the console
+never names a game, and a game never sees a console header. A disc target links
+`pdk` and `pdklib` and nothing else, so the first `#include` of a console header
+fails to compile rather than being caught in review. See
+[`pdk/README.md`](pdk/README.md) for why the contract is shaped this way.
+
+The console and the tools build with **two separate commands** on purpose. The
+console is firmware — it loads a disc and runs it. It must never look like the
+thing that *compiles* one, and a player's machine needs neither the tools nor
+the compiler they drive.
+
+---
+
+## Three things that are easy to confuse
+
+| | What it is | When | Whose machine |
+| --- | --- | --- | --- |
+| `mppcburner` | the tool that compiles a game and burns a disc | while developing | the developer's |
+| `.mppcdisc` | the artifact: compiled `disc.so` + assets, no source inside | sits as a file | — |
+| `3dmppc` | the console: `dlopen` and run, **compiles nothing** | while playing | the player's |
+
+---
+
+## Running the console
+
+```sh
+./build/3dmppc [flags] [DISC.mppcdisc]
+```
+
+| Flag | What it does |
 | --- | --- |
-| [`pdk/`](pdk/) | the **contract** — the devkit headers both sides depend on |
-| `src/` | the **console** — the concrete machine that implements the contract |
-| [`mppcdiscs/`](mppcdiscs/) | the **discs** — games, which depend on `pdk/` only |
+| `--scale N` | window magnification over the native 320×240 (default 3) |
+| `--headless` | no window; pair with `--frames` for a smoke test |
+| `--frames N` | stop after N frames (0 = run until quit) |
+| `--fixed-step` | feed the disc a fixed 1/60 dt — reproducible runs |
+| `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
+| `--memcard PATH` | memory-card image (default `memcard.mppccard` in the working directory) |
+| `--mute` | silence the output stage; voices still play as far as the disc can tell |
+| `--dump-frame PATH` | write the last presented frame as a binary PPM |
 
-Target hardware fantasy lives in [`docs/platform/specs.md`](docs/platform/specs.md);
-the console-vs-disc split is [`docs/README.md`](docs/README.md).
+`--dump-frame` is how you check what the machine actually drew without taking a
+screenshot: `magick frame.ppm frame.png` and look at it, or diff it against a
+known-good frame.
+
+Logs go to **stderr**, so `2>/dev/null` silences them and `2>log.txt` captures
+them while the program's own output stays on stdout.
+
+---
+
+## Authoring a game
+
+### The disc directory
+
+```
+mygame/
+  disc.toml        the manifest: what to compile, what to bake, what to copy
+  src/*.cpp        the game — implements rv_de, exports itself with RV_DISC_EXPORT
+  assets/          PNGs get baked into texels; everything else is copied in
+```
+
+Start by copying [`mppcdiscs/hello/`](mppcdiscs/hello/) — it is the smallest
+complete disc and its README walks through what each piece is for.
+
+### disc.toml
+
+```toml
+[disc]
+id = "mygame"
+title = "My Game"
+abi_version = 1
+
+[build]
+sources = ["src/*.cpp"]
+
+[assets]
+files = ["assets/*.obj"]
+
+[textures]
+files = ["assets/*.png"]
+format = "idx8"
+```
+
+### Burning
+
+```sh
+mppcburner build mygame -o mygame.mppcdisc [--baker PATH] [--pdk PATH] [--pdklib PATH]
+mppcburner inspect mygame.mppcdisc
+```
+
+`inspect` prints the manifest and the entry list to **stdout** (so it pipes into
+`grep` cleanly) and diagnostics to stderr.
+
+The burner refuses rather than shipping something broken: a texture larger than
+the console allows, assets that overflow VRAM, an ABI version the console does
+not speak, or two assets whose names collide once flattened. Every one of those
+is cheaper to hit on your desk than on a player's loading screen.
+
+### What a disc must contain
+
+Two things make a translation unit a disc rather than a library:
+
+```cpp
+class rv_dmain : public rv_de { /* ... */ };   // implement the lifecycle
+RV_DISC_EXPORT(rv_3dmppc::rv_dmain)            // last line of the file
+```
+
+`RV_DISC_EXPORT` plants the two `extern "C"` symbols the console looks up after
+`dlopen`; everything else in the disc is hidden. Release what you acquired in
+`disc_shutdown()`, not in a destructor — after that hook returns the console may
+unload your code, and a destructor belonging to unmapped code cannot run.
+
+---
+
+## Where to read more
+
+| Document | What it covers |
+| --- | --- |
+| [`docs/README.md`](docs/README.md) | **console vs disc** — read this first |
+| [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
+| [`pdklib/README.md`](pdklib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
+| [`docs/platform/specs.md`](docs/platform/specs.md) | the hardware spec, and every place it deliberately differs from a real PSX |
+| [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md) | how a disc is packaged and loaded |
+| [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
+| [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
+| [`mppcdiscs/hello/README.md`](mppcdiscs/hello/README.md) | the sample disc, annotated |
+| [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
+| [`docs/mppcdisc/solid/`](docs/mppcdisc/solid/) | design of the reference game (Solidmaid), not yet written |
+
+---
 
 ## Where it stands
 
-- **PDK contract** — closed. Video, audio, drive, memory card and I/O are all
-  specified, with a shared kernel-style error convention (`rv_err`).
-- **Video (`rv_cv`)** — live: video RAM pool, ordering table, a rasterizer for
-  lines / sprites / triangles / quads with Gouraud interpolation, affine texture
-  sampling (4/8-bit paletted + 15-bit direct, PSX cut-out transparency) and 4×4
-  ordered dithering.
-- **Input (`rv_cio`)** — live: gamepads through SDL, with the keyboard overlaid
-  on port 0.
-- **Drive (`rv_cd`)** — live: reads assets off a mounted medium by name.
-- **Memory card (`rv_cm`)** — live: 16 slots in a file image, written atomically.
-- **Audio (`rv_ca`)** — live: sound-RAM pool, 24 voices with ADSR envelopes, a
-  saturating mixer feeding SDL from its own thread.
-- **The disc** — `src/rv_dmain` is a skeleton **service test**: it touches every
-  subsystem so a broken one is visible on screen or audible. The real game
-  (Solidmaid) is designed in [`docs/mppcdisc/solid/`](docs/mppcdisc/solid/) and
-  not written yet.
-- **Not there yet** — semi-transparency and blending, `.mppcdisc` packaging with
-  `dlopen`, ADPCM / pitch / reverb, gyro and trackpads.
-
-## Layout
-
-```
-pdk/include/pdk/     the contract: rv_pdko (facade) + rv_de (disc entry)
-  cv/ ca/ cd/ cm/ cio/   one controller per subsystem
-sdk/include/sdk/     disc-side conveniences BUILT ON the contract — matrices,
-                     camera, transform to screen vertices, .obj, colour.
-                     The console never links this.
-src/
-  main.cpp           argv -> console configuration -> boot
-  rv_pconsole/       the machine
-    rv_pconsole.*      composition root + the frame loop
-    rv_pchost.*        the only file that knows SDL exists
-    cv/                video: framebuffer, VRAM, ordering table, rasterizer, sampler
-    ca/                audio: sound RAM, voices, mixer
-    cd/ cm/ cio/       drive, memory card, controller ports
-  rv_dmain/          the skeleton disc (builds against pdk/ + sdk/ ONLY)
-  rv_infra/          console-internal odds and ends (logger, memory pool)
-tools/               offline authoring tools (PNG -> paletted texels)
-mppcdiscs/           disc library — the games the console loads
-docs/README.md       console vs disc — read this first
-docs/platform/       the console: hardware spec, disc format
-docs/mppcdisc/solid/ the reference game (Solidmaid) design
-```
-
-## Build & run
-
-SDL3 is used from the system if installed (e.g. `libsdl3-dev`), otherwise built
-from source on the first configure — that one needs a network connection.
-
-```sh
-cmake -S . -B build -G Ninja
-cmake --build build
-
-./build/3dmppc                        # Esc, Option/Start, or close the window to quit
-./build/3dmppc --scale 4              # window magnification over native 320×240
-./build/3dmppc --headless --frames 120  # smoke test: no window, bounded run
-./build/3dmppc --fixed-step           # feed the disc a fixed 1/60 dt
-./build/3dmppc --disc mppcdiscs/solidmaid/assets   # mount a medium in the drive
-./build/3dmppc --memcard saves/a.mppccard --mute   # pick a card image, silence audio
-./build/3dmppc --dump-frame frame.ppm  # write the last frame out for inspection
-```
-
-The skeleton disc is a service test: the squares top-left are subsystem probes,
-the row of textures shows the three wrap modes (the missing quadrant is the
-cut-out transparency rule), the ticks bottom-left count boots off the memory
-card, the bar bottom-right sizes an asset read from the drive, and the south
-button plays a beep.
+- **Contract** — closed. Video, audio, drive, memory card, I/O, plus the binary
+  ABI a packaged disc is loaded through.
+- **Video** — VRAM pool, ordering table, rasterizer for lines / sprites /
+  triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
+  paletted + 15-bit direct, PSX cut-out transparency), 4×4 ordered dithering.
+- **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer on its own
+  thread.
+- **Drive** — mounts a directory or a `.mppcdisc` archive behind one interface.
+- **Memory card** — 16 slots in a file image, written atomically.
+- **Input** — gamepads through SDL, keyboard overlaid on port 0.
+- **Packaging** — `mppcburner` compiles a disc directory into a `.mppcdisc`, and
+  the console loads it with a two-stage ABI handshake.
+- **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
+  gyro and trackpads, a RAM budget, the 256×224 display mode, Lua discs.
 
 ## Conventions
 
 - Left-handed math: `+x` right, `+y` up, `+z` forward.
-- Every call across the PDK returns `>= 0` on success and a negative `rv_err`
-  on failure — callers test with `if (rc < 0)`.
-- Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/`
+- Every call across the contract returns `>= 0` on success and a negative
+  `rv_err` on failure — callers test with `if (rc < 0)`.
+- Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/ pdklib/ pdk/tools/`
   maps every pattern and algorithm to the line that implements it.
 - Machine-generated code carries a `NEUROSLOP` banner or `NEUROSLOP-BEGIN/END`
   markers. It has not been reviewed by a human.
 
-## Next steps
+## Requirements
 
-- **Texture sampling** — `RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE` currently draws
-  flat; the VRAM pool already stores the texels and the palette.
-- **The disc drive (`rv_cd`)**, then the memory card and the sound chip.
-- **Packaging** — a disc becomes its own `.so` inside a single `.mppcdisc`,
-  loaded at runtime instead of linked in. Design:
-  [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md).
-- **Lua** scripting for script-kind discs, once the native path is real.
+SDL3 (used from the system if installed, otherwise built from source on the
+first configure), CMake 3.24+, Ninja, and a C++23 compiler. The tools
+additionally shells out to `cmake` and `ninja` at run time to compile a disc,
+and downloads `stb_image.h` into its own build directory.
