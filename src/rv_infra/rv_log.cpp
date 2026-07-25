@@ -23,7 +23,6 @@ static const char* level_name(rv_log_level lvl) {
     return "?";
 }
 
-// NEUROSLOP-BEGIN (claude-opus-5)
 std::string rv_log_escape(const char* text, std::size_t max_length) {
     if (!text) return "(null)";
 
@@ -48,7 +47,6 @@ std::string rv_log_escape(const char* text, std::size_t max_length) {
     }
     return out;
 }
-// NEUROSLOP-END
 
 void rv_log_emit(rv_log_level lvl, const char* tag, const char* file, int line, std::string msg) {
     if (lvl > g_threshold) return;
