@@ -1,41 +1,50 @@
 # mppcdiscs/ — the mppc disc library
 
 This is where **games live**. Each subdirectory is one `.mppcdisc` game (a
-"disc") in its unpacked, development form: its assets, scripts, and data. The
-[3dmppc console](../src/) loads a disc from here and reads its assets at runtime;
-a disc is later packaged into a single `.mppcdisc` file for distribution (see
+"disc") in its unpacked, development form: its manifest, sources, and assets.
+`mppcburner` compiles a directory from here into a single `.mppcdisc` file, and
+the console loads that file at runtime (see
 [`../docs/platform/`](../docs/platform/)).
 
 Think of this directory as the **shelf of discs**. The console
-(`src/`) is game-agnostic; anything game-specific lives in a disc under here.
+(`../src/`) is game-agnostic; anything game-specific lives in a disc under here.
 Drop as many discs as you like side by side.
 
 ```
 mppcdiscs/
   <disc-id>/
-    disc.toml       manifest: id, title, entry point, memory budget (TODO — format TBD)
-    assets/         art, models, textures, audio — what the console streams in
-    scripts/        gameplay logic (planned: Lua — see the console spec)
-    data/           levels, tables, tuning, save-schema, loop flags
-  solid/            the reference game — see below
+    disc.toml       manifest: id, title, ABI version, what to compile/bake/copy
+    src/*.cpp       the game — implements rv_de, exports itself with RV_DISC_EXPORT
+    assets/         PNGs get baked into texels; everything else is copied in
 ```
 
-> **Note:** this is a **stub**. The disc manifest format (`disc.toml`) and the
-> exact folder contract are not finalised — they'll be pinned down alongside the
-> console's disc format in
-> [`../docs/platform/`](../docs/platform/) (`disc-format.md`,
-> `disc-abi.md`). For now the layout above is the working convention.
+See [`../README.md`](../README.md#authoring-a-game) for the manifest fields and
+the burn command, and [`../docs/platform/disc-loading.md`](../docs/platform/disc-loading.md)
+for how the packaged disc is loaded.
 
 ## Discs here
 
 | Disc                    | What it is                                             |
 | ----------------------- | ------------------------------------------------------ |
-| [`solid/`](solid/)      | *Solidmaid: Alkoldun Vasiliusavich* — the **reference game** used to prove the console. Design docs: [`../docs/mppcdisc/solid/`](../docs/mppcdisc/solid/). |
+| [`hello/`](hello/)      | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. Annotated in [`hello/README.md`](hello/README.md). |
+
+## Real games live in their own repositories
+
+This repository is the **console** plus that one example. A game is not a
+subdirectory of the machine that runs it: it gets its own repository, carrying
+its own assets, code, and design docs, and it is burned against this console's
+`pdk/` contract. Nothing here should ever need to name a specific game — if it
+does, that is a bug in the layering, not a missing folder.
+
+To work on such a game against a local console checkout, symlink it onto the
+shelf; the root [`.gitignore`](../.gitignore) keeps those symlinks out of this
+repository.
 
 ## Relationship to the rest of the repo
 
-- **`src/`** — the console runtime (game-agnostic). Reads discs from here.
-- **`src/rv_dmain/`** — the **skeleton disc** the console boots today. It is a
-  template, not a game, and it carries no assets at all.
-- **`docs/mppcdisc/`** — *design* documentation for discs (one subdir per disc,
-  e.g. `solid/`); the actual buildable content lives here in `mppcdiscs/`.
+- **`../src/`** — the console runtime (game-agnostic). Loads discs; never names
+  one.
+- **`../src/rv_dmain/`** — the built-in **service test**. It is a disc, but a
+  linked-in one: a diagnostics screen, not a game.
+- **`../pdk/`, `../pdklib/`** — the contract a disc is written against, and the
+  disc-side conveniences built on it. A disc links these and nothing else.

@@ -11,8 +11,8 @@ This project is two distinct things that must not be confused:
 ```
 ┌─────────────────────────────┐        ┌──────────────────────┐
 │  3dmppc  (the console)      │  loads │   game.mppcdisc      │
-│  src/ — rasterizer, runtime │◄───────│  the main game       │
-│  docs/platform/             │        │  docs/mppcdisc/      │
+│  src/ — rasterizer, runtime │◄───────│  a game, with its    │
+│  docs/platform/             │        │  own design docs     │
 └─────────────────────────────┘        └──────────────────────┘
 ```
 
@@ -27,22 +27,21 @@ files primitives, and presents a frame. It exists to:
 - serve as a reference for how a real disc is structured, and
 - give us something to run while the console's capabilities grow.
 
-The **real game** is designed separately (see `docs/mppcdisc/`) and will
-eventually be built as its own `.mppcdisc` package, loaded by the console rather
-than compiled into it. Nothing in `docs/mppcdisc/` describes the skeleton disc.
+A **real game** is developed separately, in its own repository, and is built as
+its own `.mppcdisc` package that the console loads rather than compiles in.
+Nothing about a game is documented here.
 
 ## Where things live
 
 | Directory          | What it documents                                            |
 | ------------------ | ------------------------------------------------------------ |
 | `docs/platform/`   | The **console**: hardware fantasy spec, runtime, disc ABI/format. This is the machine. |
-| `docs/mppcdisc/`   | **Disc design docs** — one subdir per game. The reference game (Solidmaid) is [`docs/mppcdisc/solid/`](mppcdisc/solid/). |
 
-Keep the split honest: anything that is true regardless of which game runs
-belongs in `docs/platform/`; anything specific to a game belongs under
-`docs/mppcdisc/<disc-id>/`.
+Keep the split honest: this repository documents the machine, and only the
+machine. Anything that is true regardless of which game runs belongs in
+`docs/platform/`; anything specific to a game belongs in **that game's own
+repository**, next to its assets and code — not here.
 
-Note the difference between **docs** and **content**: `docs/mppcdisc/` holds
-game *design*, while the buildable games themselves (assets, scripts, data) live
-outside `docs/`, in [`../mppcdiscs/`](../mppcdiscs/) — the console's disc library,
-from which it loads games at runtime.
+The one game in this repo is [`../mppcdiscs/hello/`](../mppcdiscs/hello/), and it
+is here as the worked **example** of how a disc is put together, not as a game
+anyone is designing.

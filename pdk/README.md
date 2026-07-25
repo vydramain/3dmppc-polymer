@@ -470,7 +470,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   `frame_flush()`), `disc_release` (power-off query), `disc_title`. Each disc
   implements it in a class named `rv_dmain`. `disc_initialize` is where the disc
   queries the hardware geometry and validates its baked assumptions.
-- The console (`src/`) and the reference disc (`mppcdiscs/solidmaid/`) still use the
-  older in-binary path (`rv_Disc` + `rv_DiscServices` + a raw framebuffer). Moving
-  them behind `rv_pdko`, and rewriting the game's high-level audio onto the
-  low-level `rv_ca` and its rendering onto `rv_cv`, is the next step.
+- The console (`src/`) still uses the older in-binary path (`rv_Disc` +
+  `rv_DiscServices` + a raw framebuffer). Moving it behind `rv_pdko`, and
+  rewriting high-level audio onto the low-level `rv_ca` and rendering onto
+  `rv_cv`, is the next step.

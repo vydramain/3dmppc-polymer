@@ -40,7 +40,7 @@ struct rv_manifest_budget {
 
 struct rv_manifest {
     // [disc]
-    std::string id;     // short machine name, e.g. "solidmaid"
+    std::string id;     // short machine name, e.g. "hello"
     std::string title;  // human title for the window and logs
     int abi_version = 0;
 
