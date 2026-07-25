@@ -1,0 +1,36 @@
+# ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+# Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+# Ревизия: stage 10 — сборка mppcbaker (бывший mppctex).
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# mppcbaker BAKES a texture: PNG in, .mppctex out. Named for what it does, not
+# for what it produces — the artifact is .mppctex and a tool sharing that name
+# would make "build the mppctex" ambiguous forever.
+
+# --- stb_image (vendored, TOOL-ONLY dependency) -------------------------------
+# The header lives in the repository, not on the network: see
+# third_party/README.md for why. A tool that cannot be built on a plane is a
+# poor tool, and pdk/tools ships as its own package.
+#
+# The console decodes no image format and never will, so this reaches exactly
+# one target and cannot drift into src/ by accident.
+set(MPPCBAKER_STB_DIR ${RV_REPO_ROOT}/third_party/stb)
+if(NOT EXISTS ${MPPCBAKER_STB_DIR}/stb_image.h)
+  message(FATAL_ERROR
+    "mppcbaker: third_party/stb/stb_image.h is missing. It is vendored, not "
+    "downloaded — restore it from the repository rather than fetching it.")
+endif()
+
+add_executable(mppcbaker mppcbaker.cpp)
+
+# SYSTEM: stb_image.h is third-party and not warning-clean under -Wextra. Its
+# implementation is textually part of mppcbaker.cpp, but the diagnostics still
+# point INTO the header, so a system include directory silences exactly stb's
+# noise and leaves every warning about our own code standing.
+target_include_directories(mppcbaker SYSTEM PRIVATE ${MPPCBAKER_STB_DIR})
+
+if(MSVC)
+  target_compile_options(mppcbaker PRIVATE /W4)
+else()
+  target_compile_options(mppcbaker PRIVATE -Wall -Wextra)
+endif()
