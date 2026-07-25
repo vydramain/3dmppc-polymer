@@ -25,30 +25,15 @@
 #include <getopt.h>
 
 #include <cstdlib>
-#include <format>
-#include <string>
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_infra/rv_log.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
-// NEUROSLOP-BEGIN (claude-opus-5)
-namespace rv_3dmppc {
-namespace {
-
-// The log macros name rv_log_emit unqualified, so they only compile from inside
-// the namespace — and main() is, by definition, outside it.
-void rv_main_log_error(const std::string& message) { RV_LOG_ERR("main", "{}", message); }
-
-}  // namespace
-}  // namespace rv_3dmppc
-// NEUROSLOP-END
-
 int main(int argc, char** argv) {
     rv_3dmppc::rv_pconsole_conf conf;
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
     // Note what is NOT here: any game's name. The console mounts whatever
     // medium it is pointed at and boots the disc it is handed on the command
     // line; with nothing at all it runs the built-in skeleton against an empty
@@ -100,8 +85,7 @@ int main(int argc, char** argv) {
     // worth refusing rather than silently ignoring.
     const char* disc_path = (optind < argc) ? argv[optind] : nullptr;
     if (optind + 1 < argc) {
-        rv_3dmppc::rv_main_log_error(
-            std::format("expected at most one disc path, got {}", argc - optind));
+        RV_LOG_ERR("main", "expected at most one disc path, got {}", argc - optind);
         return 2;
     }
 
@@ -115,8 +99,7 @@ int main(int argc, char** argv) {
         rv_pdk::rv_de* disc = console.disc_load(disc_path);
         if (disc == nullptr) {
             // The loader has already said, precisely, what was wrong with it.
-            rv_3dmppc::rv_main_log_error(
-                std::format("refusing to boot '{}'", rv_3dmppc::rv_log_escape(disc_path)));
+            RV_LOG_ERR("main", "refusing to boot '{}'", rv_3dmppc::rv_log_escape(disc_path));
             return 1;
         }
         return static_cast<int>(console.disc_run(*disc) < 0 ? 1 : 0);
@@ -129,5 +112,4 @@ int main(int argc, char** argv) {
     // that names a disc: the service test is embedded deliberately.
     rv_service::rv_dmain disc;
     return static_cast<int>(console.disc_run(disc) < 0 ? 1 : 0);
-    // NEUROSLOP-END
 }
