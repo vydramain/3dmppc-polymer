@@ -7,7 +7,7 @@
 #include "pdk/cv/rv_texture.hpp"
 #include "pdk/cv/rv_vertex.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Controller Video — the low-level GPU contract (the "hardware").
 //
@@ -112,4 +112,4 @@ class rv_cv {
     virtual int64_t frame_flush() = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

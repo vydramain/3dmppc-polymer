@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Controller Memory card — the writable-medium counterpart of the drive
 // (rv_cd): where the disc is read-only, the card is where a game persists its
@@ -69,4 +69,4 @@ class rv_cm {
     virtual int64_t card_erase(int64_t slot) = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

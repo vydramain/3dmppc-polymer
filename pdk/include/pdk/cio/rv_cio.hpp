@@ -6,7 +6,7 @@
 #include "pdk/cio/rv_isource.hpp"
 #include "pdk/cio/rv_ohaptic.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Controller Input/Output: the console's controller ports (gamepad input +
 // haptic output) plus the mouse. State is read as an instantaneous snapshot,
@@ -56,4 +56,4 @@ class rv_cio {
     virtual int64_t ohaptic(int64_t port, rv_oheffect effect) = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

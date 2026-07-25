@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Every input source a controller port can carry, one bit each. The SAME
 // vocabulary is used two ways:
@@ -144,4 +144,4 @@ struct rv_istate {
     rv_imotion motion;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

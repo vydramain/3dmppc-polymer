@@ -4,7 +4,7 @@
 
 #include "pdk/cv/rv_vertex.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // A line segment handed to rv_cv::frame_put() inside an rv_primitive. The two
 // vertex colours are interpolated along the segment (equal colours = a flat
@@ -130,4 +130,4 @@ struct rv_primitive {
     } data;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

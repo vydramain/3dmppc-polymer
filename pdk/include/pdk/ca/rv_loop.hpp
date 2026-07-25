@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // How a voice repeats its sample once started. Set in rv_voice_conf::loop_type.
 enum class rv_loop {
@@ -9,4 +9,4 @@ enum class rv_loop {
     // sustain,  // DEFERRED: loop until voice_stop, then run the release phase
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

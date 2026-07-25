@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Per-frame buffer configuration, passed as a bitmask to rv_cv::frame_configure().
 // The console ALWAYS orders primitives back-to-front by rv_primitive::depth (the
@@ -11,4 +11,4 @@ enum rv_pipeline_buffer_config_type {
     RV_PIPELINE_BUFFER_CONFIG_TYPE_Z = 1U << 0,  // add per-pixel depth rejection
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

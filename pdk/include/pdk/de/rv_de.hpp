@@ -4,7 +4,7 @@
 
 #include "pdk/rv_pdko.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Disc Entry — the second direction of the PDK contract: the hooks a game
 // implements and the console drives (rv_pdko is the opposite arrow — what the
@@ -68,4 +68,4 @@ class rv_de {
     virtual const char* disc_title() const = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk
