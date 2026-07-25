@@ -1,7 +1,11 @@
 # Build output
+# The console and the developer tools are separate products with separate build roots,
+# so there is more than one of these.
 /build/
+/pdk/tools/build/
 /out/
 cmake-build-*/
+build-*/
 
 # Editor / IDE
 .vscode/
@@ -14,3 +18,24 @@ compile_commands.json
 
 # Reference material — keep local, never publish
 /book/
+
+# --- what the tools produce ---------------------------------------------------
+# Everything below is REGENERATED from something that is tracked, which is the
+# whole test for belonging here: a burned disc comes from its directory, a baked
+# texture from its PNG, a save from playing. Game SOURCES and source assets are
+# not in this list — nothing regenerates those.
+
+# Burned discs (mppcburner) and baked textures (mppcbaker)
+*.mppcdisc
+*.mppctex
+
+# The CMake project mppcburner generates inside a disc directory while compiling
+# it. Named after the tool so it is obvious who left it there.
+.mppcburn/
+
+# Memory-card images written by the console while a disc plays
+*.mppccard
+
+# Frame dumps (--dump-frame). Keep one deliberately if it ever becomes a golden
+# reference for a test — then commit it with -f and say why in the message.
+*.ppm

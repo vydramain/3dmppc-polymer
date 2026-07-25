@@ -1,11 +1,18 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 10 — монтирование архива как носителя и загрузка диска.
+// ──────────────────────────────────────────────────────────────────────────────
 #include "rv_pconsole.hpp"
 
 #include <algorithm>
 #include <chrono>
+#include <memory>
+#include <string>
 #include <thread>
 
 #include "pdk/rv_err.hpp"
 #include "rv_infra/rv_log.hpp"
+#include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
 namespace rv_3dmppc {
 namespace {
@@ -41,7 +48,24 @@ rv_3dmppc::rv_cm* rv_3dmppc::rv_pconsole::cm() { return &cm_; }
 rv_3dmppc::rv_cio* rv_3dmppc::rv_pconsole::cio() { return &cio_; }
 rv_3dmppc::rv_cv* rv_3dmppc::rv_pconsole::cv() { return &cv_; }
 
-// rv_3dmppc::rv_de& rv_3dmppc::rv_pconsole::disc_load(const char* /*path*/) {};
+// NEUROSLOP-BEGIN (claude-opus-5)
+rv_3dmppc::rv_de* rv_3dmppc::rv_pconsole::disc_load(const char* path) {
+    // The code first: a disc that will not load must not change what is in the
+    // drive. Every refusal has already named itself in the log by the time this
+    // returns, so nothing is added here beyond the verdict.
+    const int64_t rc = loader_.load(path);
+    if (0 > rc) return nullptr;
+
+    // One archive, two roles. The bytes the disc reads through rv_cd come out of
+    // the SAME file its code came out of — that is what makes a `.mppcdisc` one
+    // object rather than a program plus a loose pile of assets. The drive never
+    // learns it is now talking to a zip (PATTERN: strategy, rv_pcmedium.hpp);
+    // only this line knows.
+    cd_.medium_insert(std::make_unique<rv_pczipmedium>(std::string(path)));
+
+    return loader_.disc();
+}
+// NEUROSLOP-END
 
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_3dmppc::rv_de& disc) {
     int64_t dir = disc.disc_initialize(*this);
@@ -51,6 +75,13 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_3dmppc::rv_de& disc) {
                    dir);
         return rv_3dmppc::RV_ERR_INVAL;
     }
+
+    // The disc has started, so it is now owed a disc_shutdown() (rv_de.hpp says
+    // the hook never runs for a disc that refused to start). For a disc that came
+    // off an archive that debt belongs to the loader, whose teardown chain runs it
+    // before unmapping the code; telling it here is what separates "started" from
+    // "loaded". A disc this loader did not produce is ignored — see below.
+    loader_.notify_initialized(&disc);
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // A headless run never opens a display: the host stays a null object, so
@@ -132,6 +163,14 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_3dmppc::rv_de& disc) {
             }
         }
     }
+
+    // The last hook, after the last frame. For a LOADED disc it is deliberately
+    // NOT called here: it is the first link of the loader's teardown chain
+    // (disc_shutdown -> destroy -> dlclose -> unlink), which exists as one
+    // sequence precisely so it cannot be run out of order or twice. The built-in
+    // rv_dmain has no loader behind it, so for that one the frame loop is the
+    // only place the hook can come from.
+    if (loader_.disc() != &disc) disc.disc_shutdown();
 
     // Devkit: hand the last frame the machine produced to disk, if asked. After
     // the loop rather than inside it, so a dump costs nothing per frame.

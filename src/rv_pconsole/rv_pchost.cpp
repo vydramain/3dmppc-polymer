@@ -423,7 +423,7 @@ void rv_pchost::overlay_keyboard(rv_pcport& port) {
 }
 
 // NEUROSLOP-BEGIN (claude-opus-5)
-// Write the presented frame out as a binary PPM. A devkit convenience: it lets
+// Write the presented frame out as a binary PPM. A developer-tooling convenience: it lets
 // the exact pixels the console produced be inspected or diffed without a screen
 // capture, which is the difference between "looks right to me" and a repeatable
 // check. Deliberately the LAST frame rather than the first — an animated disc

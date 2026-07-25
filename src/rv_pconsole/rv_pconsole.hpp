@@ -1,3 +1,7 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 10 — сборка консоли: добавлены загрузка диска и кадровый цикл.
+// ──────────────────────────────────────────────────────────────────────────────
 #pragma once
 
 #include "pdk/de/rv_de.hpp"
@@ -8,6 +12,7 @@
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
+#include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
@@ -32,6 +37,14 @@ class rv_pconsole : public rv_pdko {
     rv_pccm cm_;
     rv_pccv cv_;
 
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // DECLARATION ORDER IS LOAD-BEARING here too: declared LAST means destroyed
+    // FIRST, and the loader's teardown runs disc_shutdown() — a hook that is
+    // allowed to touch the facade, i.e. every controller above it. A disc's last
+    // words must not be spoken to subsystems that are already gone.
+    rv_pcloader loader_;
+    // NEUROSLOP-END
+
    public:
     explicit rv_pconsole(const rv_pconsole_conf& conf);
 
@@ -43,7 +56,19 @@ class rv_pconsole : public rv_pdko {
     rv_cm* cm() override;
     rv_cv* cv() override;
 
-    // rv_de& disc_load(const char* path);
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Put a `.mppcdisc` in the machine: load the code it carries and mount the
+    // very same archive as the drive's medium, so the running disc reads its
+    // assets out of the file it was booted from and not from somewhere else.
+    //
+    // Returns the disc to hand to disc_run(), or nullptr when the disc was
+    // refused — the reason is already in the log by then, named precisely (no
+    // such file, not an archive, no manifest, wrong ABI, no code, dlopen,
+    // missing symbol, refused handshake). The pointer is BORROWED: the console
+    // owns the loaded disc and unloads it when it is destroyed, so it must not
+    // outlive this console.
+    rv_de* disc_load(const char* path);
+    // NEUROSLOP-END
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // PATTERN: inversion of control. The frame loop belongs to the console; the

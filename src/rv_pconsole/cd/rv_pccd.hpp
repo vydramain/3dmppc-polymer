@@ -14,6 +14,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "pdk/cd/rv_cd.hpp"
@@ -58,6 +59,18 @@ class rv_pccd : public rv_cd {
     int64_t asset_size(int64_t handle) override;
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // stage 10: swap the inserted medium after construction. The console learns
+    // WHICH archive to mount only when it has loaded the disc out of it, which
+    // is later than this object is built; the conf-built directory medium (the
+    // catalogue path) is untouched and stays the default. PATTERN: strategy —
+    // this is the one seam where the strategy is chosen, and it is deliberately
+    // the only one.
+    void medium_insert(std::unique_ptr<rv_pcmedium> medium) {
+        if (medium) medium_ = std::move(medium);
+    }
+    // NEUROSLOP-END
 
    private:
     // NEUROSLOP-BEGIN (claude-opus-5)

@@ -23,6 +23,33 @@ static const char* level_name(rv_log_level lvl) {
     return "?";
 }
 
+// NEUROSLOP-BEGIN (claude-opus-5)
+std::string rv_log_escape(const char* text, std::size_t max_length) {
+    if (!text) return "(null)";
+
+    std::string out;
+    std::size_t taken = 0;
+    for (const char* p = text; *p != '\0'; ++p) {
+        if (taken >= max_length) {
+            out += "...";
+            break;
+        }
+
+        const unsigned char c = static_cast<unsigned char>(*p);
+        // Printable ASCII passes through; a quote is escaped because the caller
+        // wraps the result in quotes and an unescaped one would fake the end of
+        // the field.
+        if (c >= 0x20 && c < 0x7F && c != '\'' && c != '\\') {
+            out += static_cast<char>(c);
+        } else {
+            out += std::format("\\x{:02X}", c);
+        }
+        ++taken;
+    }
+    return out;
+}
+// NEUROSLOP-END
+
 void rv_log_emit(rv_log_level lvl, const char* tag, const char* file, int line, std::string msg) {
     if (lvl > g_threshold) return;
     std::string out = std::format("[{}] {}: {} ({}:{})\n", level_name(lvl), tag, msg, file, line);

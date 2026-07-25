@@ -39,14 +39,14 @@ endif()
 add_library(3dmppc_pdk INTERFACE)
 target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 
-# --- disc-side SDK ------------------------------------------------------------
+# --- disc-side library (pdklib) ------------------------------------------------------------
 # Header-only conveniences written AGAINST the contract, for discs only: matrix
 # math, camera, transform to screen-space vertices, format parsers. It is not
 # the contract (the console implements nothing here) and not a game, so it is
 # its own tree — and the console below deliberately does NOT link it. If the
-# console ever needs something from sdk/, that something was misfiled.
-add_library(3dmppc_sdk INTERFACE)
-target_include_directories(3dmppc_sdk INTERFACE ${CMAKE_SOURCE_DIR}/sdk/include)
+# console ever needs something from pdklib/, that something was misfiled.
+add_library(3dmppc_pdklib INTERFACE)
+target_include_directories(3dmppc_pdklib INTERFACE ${CMAKE_SOURCE_DIR}/pdk/lib/include)
 
 # --- the disc -----------------------------------------------------------------
 # rv_dmain is a GAME, not part of the machine, so it is built as its own target
@@ -61,7 +61,7 @@ file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/
 
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
-target_link_libraries(rv_dmain PRIVATE 3dmppc_sdk)
+target_link_libraries(rv_dmain PRIVATE 3dmppc_pdklib)
 
 if(MSVC)
   target_compile_options(rv_dmain PRIVATE /W4)
@@ -85,6 +85,12 @@ target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
 
+# NEUROSLOP-BEGIN (claude-opus-5)
+# dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
+# "-ldl" where that is a separate library and empty where it is part of libc.
+target_link_libraries(3dmppc PRIVATE ${CMAKE_DL_LIBS})
+# NEUROSLOP-END
+
 if(MSVC)
   target_compile_options(3dmppc PRIVATE /W4)
 else()
@@ -94,13 +100,12 @@ endif()
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
 
-# --- authoring tools ----------------------------------------------------------
-# Offline converters that prepare disc content (PNG -> paletted texels, ...).
-# They are BUILD-TIME tools, not part of the machine: the console never decodes
-# an image format, it uploads texels that were prepared here. Their dependencies
-# (stb_image) are therefore the tools' own and never reach the console.
-option(3DMPPC_BUILD_TOOLS "Build the offline authoring tools" ON)
-if(3DMPPC_BUILD_TOOLS)
-  add_subdirectory(tools)
-endif()
+# The authoring tools are NOT built here. They live in pdk/tools/ and build with
+# their own command:
+#
+#   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build
+#
+# The console is firmware: it loads a disc and runs it. It must never look like
+# the thing that compiles one, and building it must not drag in a compiler
+# driver, an image decoder, or anything else a player's machine has no use for.
 # NEUROSLOP-END

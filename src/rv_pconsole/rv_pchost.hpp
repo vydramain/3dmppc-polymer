@@ -83,7 +83,7 @@ class rv_pchost {
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Write the most recently presented frame to the path given by
-    // rv_pconsole_params::dump_frame_path, as a binary PPM. A devkit
+    // rv_pconsole_params::dump_frame_path, as a binary PPM. A developer
     // convenience: it makes "what did the console actually draw" a file that
     // can be diffed, instead of a screen capture that cannot. No-op when no
     // path was configured or nothing was ever presented.
