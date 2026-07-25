@@ -1,0 +1,91 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 5 — абстракция носителя привода и реализация «каталог».
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// What is physically inserted into the drive.
+//
+// PATTERN: strategy — the drive (rv_pccd) implements the CONTRACT: name rules,
+// the handle table, which rv_err a situation deserves. The medium implements the
+// STORAGE: where the bytes of an entry actually live. Splitting them now, while
+// the only medium is a plain directory, is what lets stage 10 drop a
+// `.mppcdisc` zip reader in as a second rv_pcmedium without a single edit to
+// rv_pccd — the drive never learns which kind of medium it is talking to.
+//
+// The medium vocabulary is deliberately narrower than rv_cd: it knows entries by
+// NAME only (no handles, no table, no caching) and answers with the same
+// >= 0 / negative-rv_err convention so the drive can forward its verdicts
+// unchanged.
+#pragma once
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+
+namespace rv_3dmppc {
+
+// True when `resname` is a legal entry name per rv_cd::asset_open.
+//
+// SECURITY: this is not pedantry about formatting. A resource name is a NAME,
+// not a path — it addresses one entry inside the medium and has no syntax for
+// leaving it. A name carrying `/`, `\` or `..` is an attempt (deliberate or by
+// accident) to address bytes OUTSIDE the inserted disc: with a directory medium
+// `../../etc/passwd` would resolve to a real file on the host, and the console
+// would hand a disc the contents of a machine it has no business reading. The
+// check therefore runs BEFORE anything reaches the filesystem, so such a name
+// never becomes an open() at all. `:` is refused for the same reason on hosts
+// where it introduces a drive or an alternate data stream.
+bool rv_pcresname_valid(const char* resname);
+
+// The inserted medium. Read-only, by contract (rv_cd.hpp): persistent state is
+// the memory card's job, never the disc's.
+class rv_pcmedium {  // PATTERN: strategy
+   public:
+    virtual ~rv_pcmedium() = default;
+
+    // False when the drive is empty. NOT an error: a console booted with no disc
+    // is a legal, quiet machine, and every lookup against it simply finds
+    // nothing (RV_ERR_NOENT) instead of failing the device (RV_ERR_IO).
+    virtual bool mounted() const = 0;
+
+    // Size in bytes of the entry named `resname`, or a negative rv_err
+    // (RV_ERR_NOENT when there is no such entry, RV_ERR_IO when it exists but
+    // cannot be measured). Doubles as the existence probe.
+    virtual int64_t entry_size(const char* resname) const = 0;
+
+    // Copy the WHOLE entry into `baddr`, which has capacity `cap` bytes.
+    // Returns the byte count written (>= 0), or a negative rv_err:
+    //   RV_ERR_INVAL  `cap` is smaller than the entry
+    //   RV_ERR_NOENT  no such entry
+    //   RV_ERR_IO     the transfer failed
+    // The medium never allocates the destination and never writes past `cap`.
+    virtual int64_t entry_read(const char* resname, void* baddr, int64_t cap) const = 0;
+};
+
+// A medium that is just a directory on the host filesystem: every regular file
+// directly inside it is one entry, named by its filename. This is what an
+// unpacked disc under mppcdiscs/<name>/assets looks like during development.
+class rv_pcdirmedium : public rv_pcmedium {
+   public:
+    // An empty `dir_path` means "no disc inserted" and is not a failure. A
+    // non-empty path that is not a directory IS reported (loudly) but still
+    // leaves the drive merely empty rather than broken.
+    explicit rv_pcdirmedium(const std::string& dir_path);
+
+    bool mounted() const override { return mounted_; }
+
+    int64_t entry_size(const char* resname) const override;
+    int64_t entry_read(const char* resname, void* baddr, int64_t cap) const override;
+
+   private:
+    // Maps an already-validated name onto a path inside `root_`, and re-checks
+    // that the result really is a direct child of the root. Defence in depth:
+    // rv_pccd rejects escaping names long before this, and this catches the day
+    // someone adds a second caller that forgets to.
+    bool entry_path(const char* resname, std::filesystem::path& out) const;
+
+    std::filesystem::path root_;
+    bool mounted_ = false;
+};
+
+}  // namespace rv_3dmppc

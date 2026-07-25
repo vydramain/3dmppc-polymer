@@ -1,6 +1,6 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — реализация rv_cv: валидация, ordering table, флаш кадра.
+// Ревизия: stage 4 — резолв адресов текстуры и палитры в вид для растеризатора.
 // ──────────────────────────────────────────────────────────────────────────────
 #include "rv_pconsole/cv/rv_pccv.hpp"
 
@@ -9,7 +9,6 @@
 
 #include "pdk/cv/rv_pipeline.hpp"
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
 #include "rv_pconsole/cv/rv_pcraster.hpp"
 
 namespace rv_3dmppc {
@@ -96,6 +95,33 @@ int64_t rv_pccv::video_asset_write(int64_t addr, rv_texture texture) {
         return RV_ERR_INVAL;
     }
 
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // The shape must be BACKED by the bytes. Nothing else checks this: the pool
+    // only knows the region is big enough to hold `size`, and the sampler
+    // afterwards trusts width/height to address texels. A disc that declared
+    // 64x64 and uploaded eight bytes would sample whatever else lives in the
+    // pool — inside the allocation, so no crash, just another region's texels
+    // appearing inside this one. Rejecting here turns that into the RV_ERR_INVAL
+    // the contract already promises for "the data does not fit".
+    const uint64_t texels = texture.width * texture.height;
+    uint64_t needed = 0;
+    switch (texture.format) {
+        case RV_TEXFMT_IDX4:
+            // Rows stay byte-aligned, so an odd width costs a padding nibble.
+            needed = ((texture.width + 1) / 2) * texture.height;
+            break;
+        case RV_TEXFMT_IDX8:
+            needed = texels;
+            break;
+        case RV_TEXFMT_DIRECT15:
+            needed = texels * 2;
+            break;
+    }
+    if (texture.size < needed) {
+        return RV_ERR_INVAL;
+    }
+    // NEUROSLOP-END
+
     // Everything left — unknown address, null source, data that overruns the
     // region — is the pool's business.
     return vram_.write(addr, texture);
@@ -106,7 +132,6 @@ int64_t rv_pccv::video_asset_write(int64_t addr, rv_texture texture) {
 void rv_pccv::frame_reset() {
     primitives_.clear();
     otable_.reset();
-    texture_requests_ = 0;
 }
 
 int64_t rv_pccv::frame_configure(uint64_t config, rv_color clear_color) {
@@ -202,10 +227,6 @@ int64_t rv_pccv::frame_put(rv_primitive primitive) {
         return RV_ERR_NOMEM;
     }
 
-    if (rv_pcraster::uses_texture_sampling(primitive)) {
-        ++texture_requests_;
-    }
-
     // File the command and its ordering key. The index is the primitive's
     // position in `primitives_`, which is also its submission order — that is
     // what lets the ordering table keep ties in submission order for free.
@@ -214,6 +235,81 @@ int64_t rv_pccv::frame_put(rv_primitive primitive) {
     otable_.insert(primitive.depth, index);
 
     return RV_OK;
+}
+
+void rv_pccv::texture_addresses(const rv_primitive& primitive, int64_t& addr_texture,
+                                int64_t& addr_palette) {
+    addr_texture = 0;
+    addr_palette = 0;
+
+    switch (primitive.type) {
+        case RV_PRIMITIVE_POLYGON:
+            if (primitive.data.polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
+                addr_texture = primitive.data.polygon.addr_texture;
+                addr_palette = primitive.data.polygon.addr_palette;
+            }
+            break;
+        case RV_PRIMITIVE_SPRITE:
+            if (primitive.data.sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
+                addr_texture = primitive.data.sprite.addr_texture;
+                addr_palette = primitive.data.sprite.addr_palette;
+            }
+            break;
+        default:
+            break;  // a line is never textured (rv_primitives.hpp)
+    }
+}
+
+rv_pctexview rv_pccv::texture_view(const rv_primitive& primitive) const {
+    rv_pctexview view;  // invalid until every piece is found
+
+    int64_t addr_texture = 0;
+    int64_t addr_palette = 0;
+    texture_addresses(primitive, addr_texture, addr_palette);
+    if (addr_texture == 0) {
+        return view;
+    }
+
+    // Every one of these can fail benignly: the disc may have freed the region
+    // after filing the primitive, or allocated it and never uploaded. The answer
+    // is the same in all cases — an invalid view, which the rasterizer draws as
+    // a flat fill.
+    const int64_t format = vram_.region_format(addr_texture);
+    const int64_t width = vram_.region_width(addr_texture);
+    const int64_t height = vram_.region_height(addr_texture);
+    if (format < 0 || width <= 0 || height <= 0) {
+        return view;
+    }
+
+    const uint8_t* texels = vram_.region_data(addr_texture);
+    if (texels == nullptr) {
+        return view;
+    }
+
+    view.texels = texels;
+    view.format = static_cast<rv_texfmt>(format);
+    view.width = width;
+    view.height = height;
+
+    if (format == RV_TEXFMT_IDX4 || format == RV_TEXFMT_IDX8) {
+        const uint8_t* entries = vram_.region_data(addr_palette);
+        const int64_t count = vram_.region_width(addr_palette);
+        if (entries == nullptr || count <= 0) {
+            view.texels = nullptr;  // indexed without a palette is unsamplable
+            return view;
+        }
+
+        // A palette is uploaded as an array of 16-bit entries (rv_texture.hpp:
+        // format DIRECT15, width = entry count, height = 1). Every region starts
+        // on a 4-byte boundary (rv_pcvram.cpp), so the cast is aligned; the
+        // sampler still bounds-checks every index against `palette_count`,
+        // because a disc may legally upload a short palette and an IDX8 texel
+        // can name entry 255 regardless.
+        view.palette = reinterpret_cast<const uint16_t*>(entries);
+        view.palette_count = count;
+    }
+
+    return view;
 }
 
 int64_t rv_pccv::frame_flush() {
@@ -237,18 +333,14 @@ int64_t rv_pccv::frame_flush() {
     fbuf_.clear(rv_pcraster::pack_rgb555(clear_color_), RV_PCCV_DEPTH_FARTHEST, z_enabled_);
 
     otable_.for_each_far_to_near([this](int32_t index) {
-        rv_pcraster::draw(fbuf_, primitives_[static_cast<size_t>(index)], z_enabled_);
-    });
+        const rv_primitive& primitive = primitives_[static_cast<size_t>(index)];
 
-    // Exactly one line per frame, no matter how many primitives asked. A disc
-    // that textures its whole world would otherwise emit thousands of identical
-    // warnings per frame and drown the log it was meant to inform.
-    if (texture_requests_ > 0) {
-        RV_LOG_WARN("pccv",
-                    "{} primitive(s) asked for texture sampling; drawn as flat fill "
-                    "(DEFERRED)",
-                    texture_requests_);
-    }
+        // The view is resolved per primitive, at DRAW time and not at put time:
+        // a primitive filed early in the frame may name a region the disc
+        // uploaded into later in the same frame, and the contract's ordering
+        // makes no promise about which happens first.
+        rv_pcraster::draw(fbuf_, primitive, texture_view(primitive), z_enabled_);
+    });
 
     host_.present(fbuf_.expand_argb());
 

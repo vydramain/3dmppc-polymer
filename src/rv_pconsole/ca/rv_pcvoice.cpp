@@ -1,0 +1,211 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 7 — автомат ADSR и чтение сэмпла без ресемплинга.
+// ──────────────────────────────────────────────────────────────────────────────
+#include "rv_pconsole/ca/rv_pcvoice.hpp"
+
+namespace rv_3dmppc {
+namespace {
+
+// Normalize one rv_voice_conf volume field into a linear gain. Negative volumes
+// would mean phase inversion, which the contract never promises, so they read as
+// silence rather than as a surprise.
+float gain_of(int16_t volume) {
+    if (volume <= 0) return 0.0f;
+    const float g = static_cast<float>(volume) / RV_PCA_VOLUME_UNITY;
+    return g > 1.0f ? 1.0f : g;
+}
+
+int16_t non_negative(int16_t value) { return value < 0 ? static_cast<int16_t>(0) : value; }
+
+}  // namespace
+
+float rv_pcvoice::ramp(float from, float to, int16_t ms) {
+    if (ms <= 0) return 0.0f;
+
+    const float frames = static_cast<float>(ms) * static_cast<float>(RV_PCA_SAMPLE_RATE) / 1000.0f;
+    if (frames < 1.0f) return 0.0f;
+
+    return (to - from) / frames;
+}
+
+void rv_pcvoice::setup(const rv_voice_conf& conf, const uint8_t* data, int64_t frames,
+                       int64_t addr) {
+    armed_ = true;
+    region_ = addr;
+    data_ = data;
+    frames_ = frames > 0 ? frames : 0;
+    position_ = 0;
+    loop_ = conf.loop_type;
+
+    attack_ms_ = non_negative(conf.ar);
+    decay_ms_ = non_negative(conf.dr);
+    sustain_ms_ = non_negative(conf.sr);
+    release_ms_ = non_negative(conf.rr);
+    sustain_level_ = gain_of(conf.sl);
+
+    // Overall volume scales both channels; the per-channel pair places the voice
+    // in the stereo image. Folding them together here means the inner mix loop
+    // is one multiply per channel and nothing else.
+    const float master = gain_of(conf.volume);
+    gain_l_ = master * gain_of(conf.volume_l);
+    gain_r_ = master * gain_of(conf.volume_r);
+
+    // Arming a sounding voice re-arms it silently: the contract says nothing is
+    // audible until voice_play(), so a config swap must not retrigger.
+    enter(rv_pcvoice_phase::idle);
+}
+
+void rv_pcvoice::play() {
+    if (!armed_) return;
+
+    // An empty region is a legal thing to name (the disc reserved it and never
+    // uploaded), and the only honest way to play zero frames is to stay idle.
+    if (!data_ || frames_ <= 0) {
+        enter(rv_pcvoice_phase::idle);
+        return;
+    }
+
+    position_ = 0;
+    envelope_ = 0.0f;
+    enter(rv_pcvoice_phase::attack);
+}
+
+void rv_pcvoice::stop() {
+    if (phase_ == rv_pcvoice_phase::idle) return;
+    enter(rv_pcvoice_phase::release);
+}
+
+void rv_pcvoice::disarm() {
+    armed_ = false;
+    region_ = 0;
+    data_ = nullptr;
+    frames_ = 0;
+    position_ = 0;
+    enter(rv_pcvoice_phase::idle);
+}
+
+// THEOREM: piecewise-linear envelope. The ADSR is one automaton over four
+// phases, each a straight line from the current level to that phase's target:
+// attack walks 0 -> 1 in `ar`, decay walks 1 -> sl in `dr`, sustain holds at sl
+// (or bleeds it to zero over `sr`), release walks whatever is left to 0 in `rr`.
+// The SUSTAIN LEVEL is the KNEE between the decay and release lines, not a phase
+// of its own — which is why `sl` is a level while its neighbours are times, and
+// why a config with sl == full scale simply skips the decay segment instead of
+// needing a special case.
+//
+// Linearity is deliberate. Real SPU hardware also offers exponential segments,
+// which sound better on long decays because loudness is logarithmic; a straight
+// line is one add per frame and cannot drift, and the difference is inaudible on
+// the short envelopes a sound effect actually uses. DEFERRED: exponential mode.
+void rv_pcvoice::enter(rv_pcvoice_phase phase) {
+    phase_ = phase;
+
+    switch (phase) {
+        case rv_pcvoice_phase::idle:
+            envelope_ = 0.0f;
+            target_ = 0.0f;
+            step_ = 0.0f;
+            return;
+        case rv_pcvoice_phase::attack:
+            target_ = 1.0f;
+            step_ = ramp(envelope_, target_, attack_ms_);
+            break;
+        case rv_pcvoice_phase::decay:
+            target_ = sustain_level_;
+            step_ = ramp(envelope_, target_, decay_ms_);
+            break;
+        case rv_pcvoice_phase::sustain:
+            // `sr` is the only rate that is allowed to mean "no ramp at all":
+            // zero holds the level until voice_stop(), which is what a looping
+            // pad or engine hum wants.
+            target_ = 0.0f;
+            step_ = sustain_ms_ > 0 ? ramp(envelope_, target_, sustain_ms_) : 0.0f;
+            return;
+        case rv_pcvoice_phase::release:
+            target_ = 0.0f;
+            step_ = ramp(envelope_, target_, release_ms_);
+            break;
+    }
+
+    // A segment with no time in it is instant: snap to its target now and let
+    // advance() fall through to the next phase on the very next frame.
+    if (step_ == 0.0f) envelope_ = target_;
+}
+
+void rv_pcvoice::advance() {
+    switch (phase_) {
+        case rv_pcvoice_phase::idle:
+            return;
+        case rv_pcvoice_phase::attack:
+            envelope_ += step_;
+            if (step_ <= 0.0f || envelope_ >= target_) {
+                envelope_ = target_;
+                enter(rv_pcvoice_phase::decay);
+            }
+            break;
+        case rv_pcvoice_phase::decay:
+            envelope_ += step_;
+            if (step_ >= 0.0f || envelope_ <= target_) {
+                envelope_ = target_;
+                enter(rv_pcvoice_phase::sustain);
+            }
+            break;
+        case rv_pcvoice_phase::sustain:
+            if (step_ < 0.0f) {
+                envelope_ += step_;
+                if (envelope_ <= 0.0f) enter(rv_pcvoice_phase::idle);
+            }
+            break;
+        case rv_pcvoice_phase::release:
+            envelope_ += step_;
+            if (step_ >= 0.0f || envelope_ <= 0.0f) enter(rv_pcvoice_phase::idle);
+            break;
+    }
+}
+
+int32_t rv_pcvoice::frame_at(int64_t index) const {
+    const uint8_t* frame = data_ + index * RV_PCA_FRAME_BYTES;
+    const uint16_t raw = static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) |
+                                               static_cast<uint16_t>(frame[1] << 8));
+    return static_cast<int16_t>(raw);
+}
+
+// THEOREM: zero resampling by construction. rv_voice_conf has no pitch field —
+// a sample plays at the rate it was recorded at, and the device runs at that
+// same rate — so the read head advances by EXACTLY ONE frame per output frame.
+// There is no phase accumulator, no fractional index, no interpolation kernel
+// and no filter: the entire voice is an add on the index and two multiplies on
+// the value. Every aliasing artefact a resampler can produce is absent because
+// the operation that produces them does not exist here. When pitch arrives it
+// will land in this loop and nowhere else.
+void rv_pcvoice::mix(int32_t* out, int64_t frames) {
+    if (phase_ == rv_pcvoice_phase::idle || !out) return;
+
+    if (!data_ || frames_ <= 0) {
+        // Nothing to read: retiring here is what keeps a looping voice over an
+        // empty region from spinning forever on a zero-length wrap.
+        enter(rv_pcvoice_phase::idle);
+        return;
+    }
+
+    for (int64_t i = 0; i < frames; ++i) {
+        if (position_ >= frames_) {
+            if (loop_ != rv_loop::forever) {
+                enter(rv_pcvoice_phase::idle);
+                return;
+            }
+            position_ = 0;
+        }
+
+        const float value = static_cast<float>(frame_at(position_)) * envelope_;
+        out[2 * i] += static_cast<int32_t>(value * gain_l_);
+        out[2 * i + 1] += static_cast<int32_t>(value * gain_r_);
+
+        ++position_;
+        advance();
+        if (phase_ == rv_pcvoice_phase::idle) return;
+    }
+}
+
+}  // namespace rv_3dmppc

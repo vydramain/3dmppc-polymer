@@ -1,6 +1,6 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — хост SDL, презентация кадра и снимки контроллеров.
+// Ревизия: stage 7 — хост SDL: презентация, снимки контроллеров, звуковой поток.
 // ──────────────────────────────────────────────────────────────────────────────
 //
 // The console's host layer: the ONLY place in the tree that knows SDL exists.
@@ -9,18 +9,30 @@
 // forward-declares the SDL handles instead of including <SDL3/SDL.h>: the
 // dependency stops at rv_pchost.cpp.
 //
-// Two responsibilities, both of which are "the machine's shell" rather than a
+// Three responsibilities, all of which are "the machine's shell" rather than a
 // contract subsystem:
 //   * the window / renderer / streaming texture that a finished frame lands in;
 //   * the event pump, which turns SDL's event stream into the instantaneous
-//     controller SNAPSHOTS rv_cio promises (see pdk/cio/rv_cio.hpp).
+//     controller SNAPSHOTS rv_cio promises (see pdk/cio/rv_cio.hpp);
+//   * the audio device, which pulls finished stereo frames out of the SPU's
+//     mixer from a thread of SDL's own.
 //
 // PATTERN: null object. A headless run never calls open(), so the host stays in
 // its "no window, no input, never powers off" state and every call below is a
 // no-op that returns zeroes. The callers have no headless branch.
+//
+// The audio device is deliberately NOT part of that: open_audio() is a separate
+// entry point that rv_pcca calls when it is constructed, whether or not a window
+// was ever asked for. A headless run is a smoke test of the whole machine, and a
+// machine whose voices never retire because nothing is clocking them is a
+// different machine — the SPU's envelopes advance on the device thread, so the
+// device has to exist even when nobody is watching the screen. See the note on
+// the failure path in rv_pcca.cpp for what happens when the host has no sound
+// card at all.
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "pdk/cio/rv_imouse.hpp"
@@ -31,8 +43,11 @@ struct SDL_Window;
 struct SDL_Renderer;
 struct SDL_Texture;
 struct SDL_Gamepad;
+struct SDL_AudioStream;
 
 namespace rv_3dmppc {
+
+class rv_pcmixer;
 
 class rv_pchost {
    public:
@@ -66,6 +81,33 @@ class rv_pchost {
     // 0xAARRGGBB, produced by rv_pcfbuf::expand_argb().
     void present(const uint32_t* argb);
 
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Write the most recently presented frame to the path given by
+    // rv_pconsole_params::dump_frame_path, as a binary PPM. A devkit
+    // convenience: it makes "what did the console actually draw" a file that
+    // can be diffed, instead of a screen capture that cannot. No-op when no
+    // path was configured or nothing was ever presented.
+    void dump_last_frame() const { dump_frame(last_frame_); }
+    // NEUROSLOP-END
+
+    // --- the audio device ---
+
+    // Open the playback device and start pulling from `mixer`. Independent of
+    // open(): the SPU needs a clock even in a headless run.
+    //
+    // `mixer` is BORROWED and must outlive the stream — the caller (rv_pcca)
+    // guarantees that by calling close_audio() before its mixer is destroyed.
+    // Returns RV_OK, or RV_ERR_IO when SDL has no device to give.
+    int64_t open_audio(rv_pcmixer& mixer);
+
+    // Stop the device and forget the mixer. Safe to call twice, and safe to call
+    // when audio never came up. After it returns, no callback is in flight and
+    // none will start, so the mixer may be destroyed.
+    void close_audio();
+
+    // True once frames are actually leaving the machine.
+    bool sounding() const { return audio_stream_ != nullptr; }
+
     // --- what rv_pccio reads ---
 
     // Snapshot of `port`, already mapped into the rv_isource vocabulary. An
@@ -96,10 +138,27 @@ class rv_pchost {
         rv_istate state{};
     };
 
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    void dump_frame(const uint32_t* argb) const;
+    // NEUROSLOP-END
+
     void adopt_gamepad(uint32_t joystick_id);
     void release_gamepad(uint32_t joystick_id);
     void poll_gamepad(rv_pcport& port);
     void overlay_keyboard(rv_pcport& port);
+
+    // Bring up an SDL subsystem, remembering that SDL now needs quitting. SDL's
+    // own init is reference counted, so the video path and the audio path can
+    // each ask for what they need without knowing about the other — and a
+    // machine with no sound card still gets its window.
+    bool ensure_sdl(uint32_t flags);
+
+    // What SDL calls on ITS OWN THREAD when the device wants more data. Every
+    // line it reaches is either this class's audio state (touched nowhere else)
+    // or rv_pcmixer::render, which takes the SPU lock. See rv_pcmixer.hpp.
+    static void audio_stream_callback(void* userdata, SDL_AudioStream* stream,
+                                      int additional_amount, int total_amount);
+    void fill_audio(SDL_AudioStream* stream, int wanted_bytes);
 
     int64_t screen_width_;
     int64_t screen_height_;
@@ -112,6 +171,22 @@ class rv_pchost {
 
     std::vector<rv_pcport> ports_;
     rv_istate empty_state_{};  // what an out-of-range port reads as
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Frame dumping. `last_frame_` is BORROWED from rv_pccv's framebuffer, which
+    // outlives the host's use of it: the pointer is only ever read inside
+    // dump_last_frame(), which the frame loop calls while the disc is still
+    // alive. Nothing is copied per frame — presenting must stay cheap.
+    std::string dump_path_;
+    const uint32_t* last_frame_ = nullptr;
+    // NEUROSLOP-END
+
+    // The device side. `audio_mixer_` is borrowed from rv_pcca; `audio_block_`
+    // is the staging buffer the callback fills, allocated once at open_audio()
+    // so the device thread never touches the heap.
+    SDL_AudioStream* audio_stream_ = nullptr;
+    rv_pcmixer* audio_mixer_ = nullptr;
+    std::vector<int16_t> audio_block_;
 
     // SDL reports motion as float pixels; accumulating in float keeps sub-pixel
     // movement from being rounded away frame after frame.

@@ -1,6 +1,6 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — реализация растеризатора (краевые функции, дизеринг).
+// Ревизия: stage 4 — растеризатор: uv в фиксированной точке и выборка текселей.
 // ──────────────────────────────────────────────────────────────────────────────
 #include "rv_pconsole/cv/rv_pcraster.hpp"
 
@@ -98,13 +98,90 @@ int64_t edge_at(int64_t x0, int64_t y0, int64_t x1, int64_t y1, int64_t px, int6
 // halves share the (2,3) diagonal by construction.
 bool is_top_left(int64_t dx, int64_t dy) { return dy > 0 || (dy == 0 && dx < 0); }
 
+// THEOREM: fixed point for uv (16.16) — a texture coordinate is affine in screen
+// space exactly like an edge function, so it obeys the same recurrence
+//   u(x + 1, y) = u(x, y) + du/dx,
+// and the inner loop can be one integer add per axis instead of a per-pixel
+// weighted sum. The gradient is a ratio of integers and is almost never one, so
+// it needs a fraction: 16 fractional bits keep the drift over a full 4096-pixel
+// span below 1/16 of a texel (the accumulated error is exact — the ONLY rounding
+// is the single division that builds the gradient), while leaving 47 bits of
+// integer headroom, which is more than any coordinate this console can reach.
+// The alternative, recomputing u from the barycentric weights per pixel, would
+// put a float multiply-add per axis in the hottest loop of the renderer for a
+// precision nobody can see at 320x240.
+constexpr int RV_UV_FX_SHIFT = 16;
+constexpr int64_t RV_UV_FX_ONE = static_cast<int64_t>(1) << RV_UV_FX_SHIFT;
+
+// Gradients are clamped to this magnitude (2^24 texels per pixel). A gradient
+// that large only comes out of a sliver triangle whose doubled area is a handful
+// of units — the texture on it is noise either way — and the clamp is what keeps
+// the accumulator's arithmetic provably inside int64 for every input the
+// contract allows (coordinates are int16, uv is uint16).
+constexpr int64_t RV_UV_FX_LIMIT = static_cast<int64_t>(1) << 40;
+
+int64_t fx_clamp(int64_t value) {
+    if (value > RV_UV_FX_LIMIT) {
+        return RV_UV_FX_LIMIT;
+    }
+    if (value < -RV_UV_FX_LIMIT) {
+        return -RV_UV_FX_LIMIT;
+    }
+    return value;
+}
+
+// numerator / denominator, in 16.16. The caller keeps |numerator| below 2^47 so
+// the shift cannot overflow; every call site here is bounded by the int16
+// coordinate and uint16 uv ranges.
+int64_t fx_ratio(int64_t numerator, int64_t denominator) {
+    if (denominator == 0) {
+        return 0;
+    }
+    return fx_clamp((numerator << RV_UV_FX_SHIFT) / denominator);
+}
+
+// Where a primitive's texels come from, resolved by the caller. A null (or
+// invalid) `view` means "fill with colour" and is the whole of the untextured
+// path — no second code path, no flag to keep in sync.
+//
+// The box is the primitive's own bounding box in screen space, UNCLIPPED: it is
+// what RV_TEXWRAP_STRETCH stretches the texture across, and taking the clipped
+// box instead would rescale the texture whenever the primitive touched a screen
+// edge.
+struct rv_pctexstage {
+    const rv_pctexview* view = nullptr;
+    rv_texture_mapping_type mapping = RV_TEXWRAP_CLAMP;
+
+    int64_t box_x = 0;
+    int64_t box_y = 0;
+    int64_t box_w = 0;
+    int64_t box_h = 0;
+
+    bool active() const { return view != nullptr && view->valid(); }
+    bool stretch() const { return mapping == RV_TEXWRAP_STRETCH; }
+};
+
+// A 16.16 texture coordinate and its two screen-space gradients. `u`/`v` hold
+// the value at the start of the current row; the row loop steps them by the d/dy
+// pair, the pixel loop by the d/dx pair.
+struct rv_pcuvwalk {
+    int64_t u = 0;
+    int64_t v = 0;
+    int64_t du_dx = 0;
+    int64_t dv_dx = 0;
+    int64_t du_dy = 0;
+    int64_t dv_dy = 0;
+};
+
 struct rv_pctri {
     int64_t x[3];
     int64_t y[3];
     rv_color color[3];
+    rv_uv uv[3];
 };
 
-void fill_triangle(rv_pcfbuf& fbuf, rv_pctri tri, int32_t depth, bool z_enabled) {
+void fill_triangle(rv_pcfbuf& fbuf, rv_pctri tri, const rv_pctexstage& stage, int32_t depth,
+                   bool z_enabled) {
     // THEOREM: signed area — area2 = E(v0, v1, v2) is twice the signed area of
     // the triangle. Its sign is the winding; a negative area means every edge
     // function has the opposite sense and the "all E >= 0" test would reject the
@@ -124,12 +201,15 @@ void fill_triangle(rv_pcfbuf& fbuf, rv_pctri tri, int32_t depth, bool z_enabled)
         const int64_t sx = tri.x[1];
         const int64_t sy = tri.y[1];
         const rv_color sc = tri.color[1];
+        const rv_uv suv = tri.uv[1];
         tri.x[1] = tri.x[2];
         tri.y[1] = tri.y[2];
         tri.color[1] = tri.color[2];
+        tri.uv[1] = tri.uv[2];
         tri.x[2] = sx;
         tri.y[2] = sy;
         tri.color[2] = sc;
+        tri.uv[2] = suv;
         area2 = -area2;
     }
 
@@ -176,36 +256,113 @@ void fill_triangle(rv_pcfbuf& fbuf, rv_pctri tri, int32_t depth, bool z_enabled)
     // area2, hoisted out of both loops.
     const double inv_area2 = 1.0 / static_cast<double>(area2);
 
+    const bool textured = stage.active();
+
+    // THEOREM: AFFINE texture mapping — uv is interpolated with the very same
+    // screen-space barycentrics as the vertex colours, NOT divided through by a
+    // per-vertex 1/w. This is not a shortcut a later stage repairs: an rv_vertex
+    // carries x, y, colour and uv and no w at all (pdk/cv/rv_vertex.hpp — the
+    // disc hands the console screen positions, not clip-space points), so the
+    // information perspective correction needs does not exist on this side of the
+    // contract and cannot be reconstructed here. It is inherited from the PSX on
+    // purpose, not missed.
+    //
+    // The visible consequence, and the reason the contract is shaped this way: a
+    // polygon receding into the screen has its texture interpolated linearly in
+    // SCREEN space rather than along the surface, so the texels swim as it turns
+    // and the two halves of a quad visibly disagree along their shared diagonal.
+    // Worst on large, steeply angled surfaces (floors, walls); invisible on small
+    // or screen-parallel ones. A disc manages it exactly as PSX games did — by
+    // subdividing a big surface into more, smaller polygons.
+    rv_pcuvwalk uv;
+    if (textured) {
+        if (stage.stretch()) {
+            // STRETCH ignores the vertex uv entirely: the texture is mapped onto
+            // the primitive's bounding box, so the gradient is one texture per
+            // box and there are no cross terms.
+            uv.du_dx = fx_ratio(stage.view->width, max64(stage.box_w, 1));
+            uv.dv_dy = fx_ratio(stage.view->height, max64(stage.box_h, 1));
+            uv.u = (min_x - stage.box_x) * uv.du_dx;
+            uv.v = (min_y - stage.box_y) * uv.dv_dy;
+        } else {
+            const int64_t u0 = tri.uv[0].u;
+            const int64_t u1 = tri.uv[1].u;
+            const int64_t u2 = tri.uv[2].u;
+            const int64_t v0 = tri.uv[0].v;
+            const int64_t v1 = tri.uv[1].v;
+            const int64_t v2 = tri.uv[2].v;
+
+            // u(p) = (E1 * u0 + E2 * u1 + E0 * u2) / area2 — the weights above —
+            // and every E is affine with the steps already computed, so the two
+            // gradients cost one division each for the whole triangle.
+            uv.du_dx = fx_ratio(step_x[1] * u0 + step_x[2] * u1 + step_x[0] * u2, area2);
+            uv.du_dy = fx_ratio(step_y[1] * u0 + step_y[2] * u1 + step_y[0] * u2, area2);
+            uv.dv_dx = fx_ratio(step_x[1] * v0 + step_x[2] * v1 + step_x[0] * v2, area2);
+            uv.dv_dy = fx_ratio(step_y[1] * v0 + step_y[2] * v1 + step_y[0] * v2, area2);
+
+            // Anchor at vertex 0, where the weights are exactly (1, 0, 0) and the
+            // coordinate is exactly that vertex's uv — no division and no
+            // rounding, so the texel the disc authored to sit on a corner is the
+            // one texel guaranteed to land on it.
+            uv.u = (u0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.du_dx +
+                   (min_y - tri.y[0]) * uv.du_dy;
+            uv.v = (v0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.dv_dx +
+                   (min_y - tri.y[0]) * uv.dv_dy;
+        }
+    }
+
     for (int64_t y = min_y; y <= max_y; ++y) {
         int64_t e0 = row[0];
         int64_t e1 = row[1];
         int64_t e2 = row[2];
+        int64_t u_fx = uv.u;
+        int64_t v_fx = uv.v;
 
         for (int64_t x = min_x; x <= max_x; ++x) {
             if ((e0 + bias[0]) >= 0 && (e1 + bias[1]) >= 0 && (e2 + bias[2]) >= 0) {
-                const double w0 = static_cast<double>(e1) * inv_area2;  // opposite edge 1
-                const double w1 = static_cast<double>(e2) * inv_area2;  // opposite edge 2
-                const double w2 = static_cast<double>(e0) * inv_area2;  // opposite edge 0
+                if (textured) {
+                    // >> on a signed value floors (C++20 onwards), so a
+                    // coordinate lands in the same texel on both sides of zero —
+                    // no half-texel jump across u == 0 under TILE.
+                    const rv_pctexel_sample texel = rv_pctexel::sample(
+                        *stage.view, u_fx >> RV_UV_FX_SHIFT, v_fx >> RV_UV_FX_SHIFT, stage.mapping);
+                    // A transparent texel writes NOTHING — not colour, not
+                    // depth. The Z test is inside emit(), so simply not calling
+                    // it is the whole rule (see rv_pctexel.cpp).
+                    if (texel.drawn) {
+                        emit(fbuf, x, y, rv_pcraster::dither_rgb555(texel.value, x, y), depth,
+                             z_enabled);
+                    }
+                } else {
+                    const double w0 = static_cast<double>(e1) * inv_area2;  // opposite edge 1
+                    const double w1 = static_cast<double>(e2) * inv_area2;  // opposite edge 2
+                    const double w2 = static_cast<double>(e0) * inv_area2;  // opposite edge 0
 
-                rv_color color;
-                color.r =
-                    clamp_channel(w0 * tri.color[0].r + w1 * tri.color[1].r + w2 * tri.color[2].r);
-                color.g =
-                    clamp_channel(w0 * tri.color[0].g + w1 * tri.color[1].g + w2 * tri.color[2].g);
-                color.b =
-                    clamp_channel(w0 * tri.color[0].b + w1 * tri.color[1].b + w2 * tri.color[2].b);
+                    rv_color color;
+                    color.r = clamp_channel(w0 * tri.color[0].r + w1 * tri.color[1].r +
+                                            w2 * tri.color[2].r);
+                    color.g = clamp_channel(w0 * tri.color[0].g + w1 * tri.color[1].g +
+                                            w2 * tri.color[2].g);
+                    color.b = clamp_channel(w0 * tri.color[0].b + w1 * tri.color[1].b +
+                                            w2 * tri.color[2].b);
 
-                emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth, z_enabled);
+                    emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth,
+                         z_enabled);
+                }
             }
 
             e0 += step_x[0];
             e1 += step_x[1];
             e2 += step_x[2];
+            u_fx += uv.du_dx;
+            v_fx += uv.dv_dx;
         }
 
         row[0] += step_y[0];
         row[1] += step_y[1];
         row[2] += step_y[2];
+        uv.u += uv.du_dy;
+        uv.v += uv.dv_dy;
     }
 }
 
@@ -254,15 +411,36 @@ uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int64_t y)
     return static_cast<uint16_t>(r5 | (g5 << 5) | (b5 << 10));
 }
 
-bool rv_pcraster::uses_texture_sampling(const rv_primitive& primitive) {
-    switch (primitive.type) {
-        case RV_PRIMITIVE_POLYGON:
-            return primitive.data.polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
-        case RV_PRIMITIVE_SPRITE:
-            return primitive.data.sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
-        default:
-            return false;  // lines are never textured (rv_primitives.hpp)
-    }
+// THEOREM: one quantizer for every pixel, samples included — a texel takes the
+// same 24 -> 15 bit dither path as a flat fill, so there is a single place where
+// colour becomes framebuffer, and nothing has to be kept in sync when the
+// quantizer changes.
+//
+// The widening used here is c8 = c5 << 3, NOT the display's bit replication
+// ((c5 << 3) | (c5 >> 2)). That choice is what makes this call the IDENTITY on
+// an unmodulated texel: the Bayer threshold spans 0..7, the widened value has
+// three zero low bits, so threshold + low bits never carries into bit 3 and the
+// texel comes back out bit-for-bit — a raw texture is reproduced exactly, with
+// no shimmer added to flat areas. Replication would leave up to 7 in the low
+// bits and let the dither push texels a level up at random, which on a raw
+// texture is pure noise: the texel was already an exact 5-bit value, so there is
+// no quantization error to spread.
+//
+// It is not dead arithmetic, though. The moment texture-combine (modulation)
+// lands, the value entering here is a texel MULTIPLIED by a vertex colour — a
+// genuine 8-bit-per-channel quantity with a real error to dither — and this same
+// call starts doing the work, without the sampling paths changing at all.
+//
+// Bit 15 (STP) is carried through untouched: it is texture data, not colour, and
+// the blending modes that will read it are DEFERRED.
+uint16_t rv_pcraster::dither_rgb555(uint16_t texel, int64_t x, int64_t y) {
+    rv_color color;
+    color.r = static_cast<uint8_t>((texel & 0x1FU) << 3);
+    color.g = static_cast<uint8_t>(((texel >> 5) & 0x1FU) << 3);
+    color.b = static_cast<uint8_t>(((texel >> 10) & 0x1FU) << 3);
+
+    const uint16_t stp = static_cast<uint16_t>(texel & 0x8000U);
+    return static_cast<uint16_t>(pack_rgb555_dithered(color, x, y) | stp);
 }
 
 void rv_pcraster::draw_line(rv_pcfbuf& fbuf, const rv_line& line, int32_t depth, bool z_enabled) {
@@ -305,8 +483,8 @@ void rv_pcraster::draw_line(rv_pcfbuf& fbuf, const rv_line& line, int32_t depth,
     }
 }
 
-void rv_pcraster::draw_sprite(rv_pcfbuf& fbuf, const rv_sprite& sprite, int32_t depth,
-                              bool z_enabled) {
+void rv_pcraster::draw_sprite(rv_pcfbuf& fbuf, const rv_sprite& sprite, const rv_pctexview& texture,
+                              int32_t depth, bool z_enabled) {
     if (sprite.width == 0 || sprite.height == 0) {
         return;
     }
@@ -326,7 +504,46 @@ void rv_pcraster::draw_sprite(rv_pcfbuf& fbuf, const rv_sprite& sprite, int32_t 
         return;
     }
 
-    // DEFERRED: SAMPLE_TEXTURE falls through to the flat fill for now.
+    // A sprite that asked to sample but whose view came back invalid (a region
+    // that was allocated and never uploaded into) falls back to the flat fill
+    // below: a solid rectangle in the wrong colour is a far better bug report
+    // than a primitive that silently disappears.
+    const bool textured =
+        sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE && texture.valid();
+
+    if (textured) {
+        // The texture is laid down from the sprite's UPPER-LEFT corner, one
+        // texel per pixel — the contract's rule (rv_primitives.hpp), and the
+        // reason a sprite carries no uv at all. CLAMP smears the last texel over
+        // the overhang, TILE repeats; both are the sampler's job.
+        //
+        // STRETCH rescales instead: the whole texture is fitted onto the
+        // sprite's own (unclipped) extent, so a clipped sprite keeps its scale.
+        int64_t du_dx = RV_UV_FX_ONE;
+        int64_t dv_dy = RV_UV_FX_ONE;
+        if (sprite.mapping == RV_TEXWRAP_STRETCH) {
+            du_dx = fx_ratio(texture.width, static_cast<int64_t>(sprite.width));
+            dv_dy = fx_ratio(texture.height, static_cast<int64_t>(sprite.height));
+        }
+
+        int64_t v_row = (cy0 - y0) * dv_dy;
+        const int64_t u_start = (cx0 - x0) * du_dx;
+
+        for (int64_t y = cy0; y < cy1; ++y) {
+            int64_t u_fx = u_start;
+            for (int64_t x = cx0; x < cx1; ++x) {
+                const rv_pctexel_sample texel = rv_pctexel::sample(
+                    texture, u_fx >> RV_UV_FX_SHIFT, v_row >> RV_UV_FX_SHIFT, sprite.mapping);
+                if (texel.drawn) {
+                    emit(fbuf, x, y, dither_rgb555(texel.value, x, y), depth, z_enabled);
+                }
+                u_fx += du_dx;
+            }
+            v_row += dv_dy;
+        }
+        return;
+    }
+
     const bool wireframe = sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_WIREFRAME;
 
     for (int64_t y = cy0; y < cy1; ++y) {
@@ -349,8 +566,8 @@ void rv_pcraster::draw_sprite(rv_pcfbuf& fbuf, const rv_sprite& sprite, int32_t 
     }
 }
 
-void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon, int32_t depth,
-                               bool z_enabled) {
+void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon,
+                               const rv_pctexview& texture, int32_t depth, bool z_enabled) {
     if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
         return;  // frame_put already rejected this; nothing sane to draw
     }
@@ -375,8 +592,10 @@ void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon, int32
     }
 
     // FLAT_COLOURED interpolates the vertex colours (equal colours = flat,
-    // different = gouraud — the contract needs no separate shading flag).
-    // DEFERRED: SAMPLE_TEXTURE takes the same path until the texturing stage.
+    // different = gouraud — the contract needs no separate shading flag);
+    // SAMPLE_TEXTURE replaces that with a texel fetch per pixel. An invalid view
+    // means the disc named a region it never uploaded into, and the polygon
+    // falls back to its vertex colours rather than disappearing.
     //
     // A quad is drawn as the triangles (1,2,3) and (2,3,4) — 0-based (0,1,2) and
     // (1,2,3). The split is contract, not an implementation choice: it decides
@@ -385,6 +604,31 @@ void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon, int32
     static const int RV_TRI_INDICES[2][3] = {{0, 1, 2}, {1, 2, 3}};
     const int tri_count = quad ? 2 : 1;
 
+    rv_pctexstage stage;
+    if (polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
+        stage.view = &texture;
+        stage.mapping = polygon.mapping;
+
+        // The STRETCH box is the WHOLE polygon's screen bounding box, computed
+        // once here and shared by both triangles of a quad. Letting each
+        // triangle stretch over its own box would map the texture twice — once
+        // per half — and split the quad down its diagonal.
+        int64_t min_x = polygon.vertexes[0].x;
+        int64_t min_y = polygon.vertexes[0].y;
+        int64_t max_x = min_x;
+        int64_t max_y = min_y;
+        for (uint32_t i = 1; i < polygon.vertex_count; ++i) {
+            min_x = min64(min_x, polygon.vertexes[i].x);
+            min_y = min64(min_y, polygon.vertexes[i].y);
+            max_x = max64(max_x, polygon.vertexes[i].x);
+            max_y = max64(max_y, polygon.vertexes[i].y);
+        }
+        stage.box_x = min_x;
+        stage.box_y = min_y;
+        stage.box_w = max_x - min_x + 1;
+        stage.box_h = max_y - min_y + 1;
+    }
+
     for (int t = 0; t < tri_count; ++t) {
         rv_pctri tri;
         for (int i = 0; i < 3; ++i) {
@@ -392,12 +636,14 @@ void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon, int32
             tri.x[i] = vertex.x;
             tri.y[i] = vertex.y;
             tri.color[i] = vertex.color;
+            tri.uv[i] = vertex.uv;
         }
-        fill_triangle(fbuf, tri, depth, z_enabled);
+        fill_triangle(fbuf, tri, stage, depth, z_enabled);
     }
 }
 
-void rv_pcraster::draw(rv_pcfbuf& fbuf, const rv_primitive& primitive, bool z_enabled) {
+void rv_pcraster::draw(rv_pcfbuf& fbuf, const rv_primitive& primitive, const rv_pctexview& texture,
+                       bool z_enabled) {
     // PATTERN: dispatch on the variant tag. rv_primitive is a tagged union (the
     // PDK is a C-shaped ABI, so no std::variant), and this is the one place that
     // reads the tag.
@@ -406,10 +652,10 @@ void rv_pcraster::draw(rv_pcfbuf& fbuf, const rv_primitive& primitive, bool z_en
             draw_line(fbuf, primitive.data.line, primitive.depth, z_enabled);
             break;
         case RV_PRIMITIVE_POLYGON:
-            draw_polygon(fbuf, primitive.data.polygon, primitive.depth, z_enabled);
+            draw_polygon(fbuf, primitive.data.polygon, texture, primitive.depth, z_enabled);
             break;
         case RV_PRIMITIVE_SPRITE:
-            draw_sprite(fbuf, primitive.data.sprite, primitive.depth, z_enabled);
+            draw_sprite(fbuf, primitive.data.sprite, texture, primitive.depth, z_enabled);
             break;
         default:
             break;

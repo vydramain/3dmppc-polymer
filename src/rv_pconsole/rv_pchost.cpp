@@ -1,6 +1,6 @@
 // ─── NEUROSLOP ────────────────────────────────────────────────────────────────
 // Сгенерировано Claude (claude-opus-5). Не проверено человеком.
-// Ревизия: stage 3 — хост SDL, презентация кадра и снимки контроллеров.
+// Ревизия: stage 7 — хост SDL: презентация, снимки контроллеров, звуковой поток.
 // ──────────────────────────────────────────────────────────────────────────────
 #include "rv_pconsole/rv_pchost.hpp"
 
@@ -10,6 +10,7 @@
 
 #include "pdk/rv_err.hpp"
 #include "rv_infra/rv_log.hpp"
+#include "rv_pconsole/ca/rv_pcmixer.hpp"
 
 namespace rv_3dmppc {
 namespace {
@@ -83,14 +84,27 @@ float trigger_norm(int16_t raw) {
     return v < 0.0f ? 0.0f : v;
 }
 
+// Frames the audio callback produces per pass. Small enough that the staging
+// buffer is a few kilobytes, large enough that a device asking for 20 ms does
+// not walk the mixer a hundred times.
+constexpr int RV_PCHOST_AUDIO_BLOCK_FRAMES = 512;
+
+// Bytes one stereo S16 frame occupies on the device side.
+constexpr int RV_PCHOST_AUDIO_FRAME_BYTES = 2 * static_cast<int>(sizeof(int16_t));
+
 }  // namespace
 
 rv_pchost::rv_pchost(const rv_pconsole_conf& conf)
     : screen_width_(conf.cv.screen_width),
       screen_height_(conf.cv.screen_height),
-      ports_(static_cast<std::size_t>(conf.cio.iport_count > 0 ? conf.cio.iport_count : 0)) {}
+      ports_(static_cast<std::size_t>(conf.cio.iport_count > 0 ? conf.cio.iport_count : 0)),
+      dump_path_(conf.params.dump_frame_path) {}
 
 rv_pchost::~rv_pchost() {
+    // The device thread goes first: everything below it is state a callback in
+    // flight would be reading.
+    close_audio();
+
     for (rv_pcport& port : ports_) {
         if (port.pad) SDL_CloseGamepad(port.pad);
     }
@@ -100,14 +114,25 @@ rv_pchost::~rv_pchost() {
     if (sdl_ready_) SDL_Quit();
 }
 
+bool rv_pchost::ensure_sdl(uint32_t flags) {
+    if (!SDL_InitSubSystem(flags)) return false;
+
+    // One flag for the whole of SDL: the destructor calls SDL_Quit() once, and
+    // SDL takes down whatever subsystems are still up.
+    sdl_ready_ = true;
+    return true;
+}
+
 int64_t rv_pchost::open(const char* title, uint64_t scale) {
     if (scale == 0) scale = 1;
 
-    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
+    // Audio is NOT asked for here — it comes up separately in open_audio(), so
+    // a machine with no sound card still gets a window and a machine with no
+    // display still gets sound.
+    if (!ensure_sdl(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         RV_LOG_ERR("pchost", "SDL_Init failed: {}", SDL_GetError());
         return RV_ERR_IO;
     }
-    sdl_ready_ = true;
 
     const int window_w = static_cast<int>(screen_width_ * static_cast<int64_t>(scale));
     const int window_h = static_cast<int>(screen_height_ * static_cast<int64_t>(scale));
@@ -397,6 +422,37 @@ void rv_pchost::overlay_keyboard(rv_pcport& port) {
     }
 }
 
+// NEUROSLOP-BEGIN (claude-opus-5)
+// Write the presented frame out as a binary PPM. A devkit convenience: it lets
+// the exact pixels the console produced be inspected or diffed without a screen
+// capture, which is the difference between "looks right to me" and a repeatable
+// check. Deliberately the LAST frame rather than the first — an animated disc
+// has usually settled by then.
+void rv_pchost::dump_frame(const uint32_t* argb) const {
+    if (dump_path_.empty() || !argb) return;
+
+    std::FILE* file = std::fopen(dump_path_.c_str(), "wb");
+    if (!file) {
+        RV_LOG_ERR("pchost", "cannot open frame dump '{}'", dump_path_);
+        return;
+    }
+
+    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
+                 static_cast<long long>(screen_height_));
+
+    const int64_t pixels = screen_width_ * screen_height_;
+    for (int64_t i = 0; i < pixels; ++i) {
+        const uint32_t c = argb[i];
+        const unsigned char rgb[3] = {static_cast<unsigned char>((c >> 16) & 0xFF),
+                                      static_cast<unsigned char>((c >> 8) & 0xFF),
+                                      static_cast<unsigned char>(c & 0xFF)};
+        std::fwrite(rgb, 1, sizeof(rgb), file);
+    }
+    std::fclose(file);
+    RV_LOG_INFO("pchost", "frame written to '{}'", dump_path_);
+}
+// NEUROSLOP-END
+
 void rv_pchost::present(const uint32_t* argb) {
     if (!renderer_ || !texture_ || !argb) return;
 
@@ -404,6 +460,105 @@ void rv_pchost::present(const uint32_t* argb) {
     SDL_RenderClear(renderer_);
     SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
     SDL_RenderPresent(renderer_);
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Kept here rather than in the frame loop so the bytes dumped are exactly
+    // the bytes handed to the display — no second path that could drift.
+    last_frame_ = argb;
+    // NEUROSLOP-END
+}
+
+int64_t rv_pchost::open_audio(rv_pcmixer& mixer) {
+    if (audio_stream_) return RV_OK;
+
+    if (!ensure_sdl(SDL_INIT_AUDIO)) {
+        RV_LOG_WARN("pchost", "audio subsystem did not come up: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+
+    audio_mixer_ = &mixer;
+    audio_block_.assign(
+        static_cast<std::size_t>(RV_PCHOST_AUDIO_BLOCK_FRAMES) * RV_PCMIXER_CHANNELS, 0);
+
+    // The console's own format, stated once. SDL_OpenAudioDeviceStream binds a
+    // converting stream to the device, so whatever rate and layout the hardware
+    // actually wants is SDL's problem: the mixer always produces 44100 Hz
+    // stereo and never learns otherwise. That is why the SPU has no resampler —
+    // see the zero-resampling theorem in rv_pcvoice.cpp.
+    //
+    // SDL_AUDIO_S16 is the NATIVE-endian alias on purpose: these are int16
+    // values this process computed, not bytes read off a disc. The S16LE in the
+    // sound-RAM format is a different statement and lives in rv_pcvoice.cpp.
+    SDL_AudioSpec spec;
+    spec.format = SDL_AUDIO_S16;
+    spec.channels = static_cast<int>(RV_PCMIXER_CHANNELS);
+    spec.freq = static_cast<int>(RV_PCA_SAMPLE_RATE);
+
+    audio_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
+                                              &rv_pchost::audio_stream_callback, this);
+    if (!audio_stream_) {
+        RV_LOG_WARN("pchost", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
+        audio_mixer_ = nullptr;
+        return RV_ERR_IO;
+    }
+
+    // Devices open paused; from here on the callback runs on SDL's thread.
+    if (!SDL_ResumeAudioStreamDevice(audio_stream_)) {
+        RV_LOG_WARN("pchost", "SDL_ResumeAudioStreamDevice failed: {}", SDL_GetError());
+        SDL_DestroyAudioStream(audio_stream_);
+        audio_stream_ = nullptr;
+        audio_mixer_ = nullptr;
+        return RV_ERR_IO;
+    }
+
+    RV_LOG_INFO("pchost", "audio out at {} Hz, {} ch, {} voice(s)", RV_PCA_SAMPLE_RATE,
+                RV_PCMIXER_CHANNELS, mixer.voice_count());
+    return RV_OK;
+}
+
+void rv_pchost::close_audio() {
+    if (!audio_stream_) {
+        audio_mixer_ = nullptr;
+        return;
+    }
+
+    // SDL_DestroyAudioStream unbinds the stream from the device and waits for a
+    // callback in flight to finish, so once it returns the mixer pointer is
+    // provably unreachable and rv_pcca may destroy the mixer it points at.
+    SDL_DestroyAudioStream(audio_stream_);
+    audio_stream_ = nullptr;
+    audio_mixer_ = nullptr;
+}
+
+void rv_pchost::audio_stream_callback(void* userdata, SDL_AudioStream* stream,
+                                      int additional_amount, int /*total_amount*/) {
+    rv_pchost* host = static_cast<rv_pchost*>(userdata);
+    if (host) host->fill_audio(stream, additional_amount);
+}
+
+void rv_pchost::fill_audio(SDL_AudioStream* stream, int wanted_bytes) {
+    if (!stream || wanted_bytes <= 0 || !audio_mixer_) return;
+
+    // `wanted_bytes` is expressed in the DEVICE's format, which after SDL's
+    // conversion need not be ours; rounding up by our own frame size only ever
+    // hands the stream a little more than it asked for, which it buffers.
+    int frames_left =
+        (wanted_bytes + RV_PCHOST_AUDIO_FRAME_BYTES - 1) / RV_PCHOST_AUDIO_FRAME_BYTES;
+
+    while (frames_left > 0) {
+        const int block =
+            frames_left < RV_PCHOST_AUDIO_BLOCK_FRAMES ? frames_left : RV_PCHOST_AUDIO_BLOCK_FRAMES;
+
+        audio_mixer_->render(audio_block_.data(), block);
+        if (!SDL_PutAudioStreamData(stream, audio_block_.data(),
+                                    block * RV_PCHOST_AUDIO_FRAME_BYTES)) {
+            // Losing the queue mid-callback is not worth spinning over; the
+            // device will ask again and the next block starts a frame later.
+            return;
+        }
+
+        frames_left -= block;
+    }
 }
 
 const rv_istate& rv_pchost::port_state(int64_t port) const {

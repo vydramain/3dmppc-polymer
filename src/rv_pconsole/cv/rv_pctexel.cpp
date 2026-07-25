@@ -1,0 +1,159 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 4 — реализация сэмплера: IDX4/IDX8/DIRECT15, CLAMP/TILE.
+// ──────────────────────────────────────────────────────────────────────────────
+#include "rv_pconsole/cv/rv_pctexel.hpp"
+
+#include <cstring>
+
+namespace rv_3dmppc {
+
+namespace {
+
+// The fully transparent texel. Not a colour: a hole.
+constexpr uint16_t RV_TEXEL_TRANSPARENT = 0x0000;
+
+// Read one 16-bit value out of the region. std::memcpy and not a
+// reinterpret_cast: video_asset_write() copies the disc's bytes verbatim, so a
+// DIRECT15 region holds uint16_t values in HOST byte order, and memcpy is the
+// only spelling of "reinterpret these two bytes as the uint16_t they were" that
+// is neither an aliasing violation nor an assumption about endianness.
+uint16_t load_u16(const uint8_t* at) {
+    uint16_t value = 0;
+    std::memcpy(&value, at, sizeof(value));
+    return value;
+}
+
+// Is `size` a power of two? Only used to pick the fast wrap path.
+bool is_pow2(int64_t size) { return size > 0 && (size & (size - 1)) == 0; }
+
+}  // namespace
+
+bool rv_pctexview::valid() const {
+    if (texels == nullptr || width <= 0 || height <= 0) {
+        return false;
+    }
+    switch (format) {
+        case RV_TEXFMT_IDX4:
+        case RV_TEXFMT_IDX8:
+            // An indexed texture without a palette is not a texture, it is a
+            // pile of indices. rv_cv::frame_put already rejects the primitive
+            // that names no palette region; this catches the region that exists
+            // but was never uploaded into.
+            return palette != nullptr && palette_count > 0;
+        case RV_TEXFMT_DIRECT15:
+            return true;
+        default:
+            return false;
+    }
+}
+
+// THEOREM: TILE without a power-of-two texture — the contract (rv_texture.hpp)
+// says nothing about texture dimensions being powers of two, so the general wrap
+// is the mathematical modulo, not a bitmask. C's `%` truncates toward zero, so
+// -1 % 64 is -1 and a naive mask-free wrap would index BEFORE the texture; the
+// correction ((c % w) + w) % w maps every integer into [0, w) including the
+// negatives an interpolator produces just outside a polygon's edge. The mask is
+// only a fast path: for w == 2^k, c & (w - 1) equals the corrected modulo for
+// every c (two's complement makes the low k bits of a negative number exactly
+// its residue), so the common case pays one AND and the odd sizes still work.
+int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type mapping) {
+    if (size <= 0) {
+        return 0;
+    }
+
+    if (mapping == RV_TEXWRAP_TILE) {
+        if (is_pow2(size)) {
+            return coord & (size - 1);
+        }
+        return ((coord % size) + size) % size;
+    }
+
+    // CLAMP, and STRETCH — which the rasterizer has already rescaled onto the
+    // primitive's bounding box, so the only coordinates left outside are the
+    // rounding slack at the last row/column. Clamping is what keeps the edge
+    // texel from wrapping around to the opposite edge there.
+    if (coord < 0) {
+        return 0;
+    }
+    if (coord >= size) {
+        return size - 1;
+    }
+    return coord;
+}
+
+rv_pctexel_sample rv_pctexel::sample(const rv_pctexview& view, int64_t u, int64_t v,
+                                     rv_texture_mapping_type mapping) {
+    rv_pctexel_sample out;
+    if (!view.valid()) {
+        return out;  // nothing to sample: drawn == false
+    }
+
+    const int64_t tu = wrap(u, view.width, mapping);
+    const int64_t tv = wrap(v, view.height, mapping);
+
+    uint16_t value = RV_TEXEL_TRANSPARENT;
+
+    switch (view.format) {
+        case RV_TEXFMT_IDX4: {
+            // Two texels per byte. The row stride is rounded UP to a whole byte,
+            // so every row starts on a byte boundary and an odd-width texture
+            // wastes one nibble per row instead of shearing the rows apart.
+            //
+            // Nibble order is the PSX one and is fixed here for good: the LOW
+            // nibble is the LEFT texel of the pair. A disc's texture converter
+            // has to agree with exactly one convention, so it is stated in the
+            // code rather than derived from anything.
+            const int64_t stride = (view.width + 1) / 2;
+            const uint8_t packed = view.texels[tv * stride + (tu >> 1)];
+            const uint8_t index = (tu & 1) != 0 ? static_cast<uint8_t>(packed >> 4)
+                                                : static_cast<uint8_t>(packed & 0x0FU);
+            if (static_cast<int64_t>(index) >= view.palette_count) {
+                return out;  // short palette: nothing sane to draw
+            }
+            value = view.palette[index];
+            break;
+        }
+
+        case RV_TEXFMT_IDX8: {
+            const uint8_t index = view.texels[tv * view.width + tu];
+            if (static_cast<int64_t>(index) >= view.palette_count) {
+                return out;
+            }
+            value = view.palette[index];
+            break;
+        }
+
+        case RV_TEXFMT_DIRECT15:
+            // The texel IS the framebuffer word — same bit layout (0-4 R, 5-9 G,
+            // 10-14 B, 15 STP), so no conversion happens anywhere on this path.
+            value = load_u16(view.texels + (tv * view.width + tu) * 2);
+            break;
+
+        default:
+            return out;  // an rv_texfmt this console does not implement
+    }
+
+    // THEOREM: transparency is decided AFTER the palette lookup — the 0000h rule
+    // lives in the 16-bit COLOUR domain (rv_texture.hpp), and an index is not a
+    // colour. Testing index == 0 instead would hard-wire "entry 0 is the hole",
+    // which is false in both directions: a disc may put an opaque colour in
+    // entry 0 and use it, and it may mark any other entry 0000h to punch a hole.
+    // Since a palette can be re-uploaded between frames, the SAME index has to
+    // be able to change from opaque to transparent without the texels moving —
+    // that is palette animation, and testing the index would break it.
+    //
+    // The consequence for the caller: a transparent texel writes NEITHER colour
+    // NOR depth. Writing depth would make the hole occlude whatever is behind
+    // it, and cut-out sprites — the whole reason this rule exists on the PSX —
+    // would show as primitive-shaped bites out of the background.
+    if (value == RV_TEXEL_TRANSPARENT) {
+        return out;
+    }
+
+    out.value = value;
+    out.drawn = true;
+    return out;
+}
+
+}  // namespace rv_3dmppc

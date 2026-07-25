@@ -1,15 +1,30 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 6 — контроллер карты памяти поверх файлового образа.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The rv_cm implementation of the reference console: geometry out of
+// rv_pccm_conf, bytes out of rv_pccard. Everything this class adds over the
+// image is contract semantics — argument validation and the exact rv_err
+// vocabulary — so the medium never has to know what a rv_err is.
 #pragma once
 
 #include "pdk/cm/rv_cm.hpp"
+#include "rv_pconsole/cm/rv_pccard.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
 class rv_pccm : public rv_cm {
    private:
-    rv_pccm_conf conf_;
+    // The image is the single source of truth for the geometry too: it is what
+    // conf asked for, minus anything the medium refused.
+    rv_pccard card_;
+
+    // True when `slot` names a slot this console has.
+    bool slot_in_range(int64_t slot) const;
 
    public:
-    rv_pccm(const rv_pccm_conf conf) : conf_(conf) {}
+    explicit rv_pccm(const rv_pccm_conf& conf);
     ~rv_pccm() = default;
 
     int64_t card_slots() override;

@@ -1,0 +1,350 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 6 — загрузка образа карты и атомарная запись через rename.
+// ──────────────────────────────────────────────────────────────────────────────
+
+#include "rv_pccard.hpp"
+
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cerrno>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+
+#include "rv_infra/rv_log.hpp"
+
+namespace rv_3dmppc {
+namespace {
+
+constexpr const char* kTag = "pccard";
+constexpr const char* kDefaultImage = "memcard.mppccard";
+
+constexpr int64_t kHeaderSize = 32;
+constexpr int64_t kLengthEntry = 8;
+constexpr uint32_t kVersion = 1;
+
+// A card is hardware, not a filesystem: a geometry that would demand a
+// multi-megabyte image is a misconfiguration, and refusing it here keeps every
+// later size computation inside int64_t with room to spare.
+constexpr int64_t kMaxImageBytes = 64 * 1024 * 1024;
+
+constexpr uint8_t kMagic[8] = {'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D'};
+
+// PATTERN: explicit byte order — the image is written and read one byte at a
+// time so a card written on one machine stays readable on another, instead of
+// silently inheriting whatever layout the compiler gave an int64_t.
+void put_u32(uint8_t* p, uint32_t v) {
+    for (int i = 0; i < 4; ++i) {
+        p[i] = static_cast<uint8_t>((v >> (8 * i)) & 0xFFu);
+    }
+}
+
+uint32_t get_u32(const uint8_t* p) {
+    uint32_t v = 0;
+    for (int i = 0; i < 4; ++i) {
+        v |= static_cast<uint32_t>(p[i]) << (8 * i);
+    }
+    return v;
+}
+
+void put_i64(uint8_t* p, int64_t v) {
+    const uint64_t u = static_cast<uint64_t>(v);
+    for (int i = 0; i < 8; ++i) {
+        p[i] = static_cast<uint8_t>((u >> (8 * i)) & 0xFFu);
+    }
+}
+
+int64_t get_i64(const uint8_t* p) {
+    uint64_t u = 0;
+    for (int i = 0; i < 8; ++i) {
+        u |= static_cast<uint64_t>(p[i]) << (8 * i);
+    }
+    return static_cast<int64_t>(u);
+}
+
+std::string errno_text(int e) { return std::string(std::strerror(e)); }
+
+}  // namespace
+
+rv_pccard::rv_pccard(const std::string& image_path, int64_t slot_count, int64_t slot_size)
+    : image_path_(image_path.empty() ? std::string(kDefaultImage) : image_path),
+      slot_count_(slot_count),
+      slot_size_(slot_size) {
+    if (slot_count_ <= 0 || slot_size_ <= 0) {
+        RV_LOG_ERR(kTag, "refusing geometry {} slot(s) of {} byte(s)", slot_count_, slot_size_);
+        medium_ok_ = false;
+        slot_count_ = 0;
+        slot_size_ = 0;
+        return;
+    }
+    if (slot_count_ > kMaxImageBytes / kLengthEntry ||
+        slot_size_ > (kMaxImageBytes - kHeaderSize) / slot_count_) {
+        RV_LOG_ERR(kTag, "geometry {}x{} exceeds the {} byte image limit", slot_count_, slot_size_,
+                   kMaxImageBytes);
+        medium_ok_ = false;
+        return;
+    }
+
+    payload_offset_ = kHeaderSize + slot_count_ * kLengthEntry;
+    medium_ok_ = load();
+}
+
+void rv_pccard::format_empty() {
+    image_.assign(static_cast<size_t>(payload_offset_ + slot_count_ * slot_size_), 0);
+    std::memcpy(image_.data(), kMagic, sizeof(kMagic));
+    put_u32(image_.data() + 8, kVersion);
+    put_u32(image_.data() + 12, 0);
+    put_i64(image_.data() + 16, slot_count_);
+    put_i64(image_.data() + 24, slot_size_);
+    for (int64_t i = 0; i < slot_count_; ++i) {
+        set_length(i, -1);
+    }
+}
+
+bool rv_pccard::load() {
+    const int64_t expected = payload_offset_ + slot_count_ * slot_size_;
+    const std::filesystem::path path(image_path_);
+
+    std::error_code ec;
+    const bool present = std::filesystem::exists(path, ec);
+    if (ec) {
+        RV_LOG_ERR(kTag, "cannot stat image '{}': {}", image_path_, ec.message());
+        return false;
+    }
+    if (!present) {
+        // Lazy creation: an absent image is a brand-new card, not a fault. The
+        // file appears the first time a disc actually saves something, so a
+        // console that is only ever run never litters the working directory.
+        format_empty();
+        RV_LOG_INFO(kTag, "no image at '{}', card starts empty ({} slot(s) of {} byte(s))",
+                    image_path_, slot_count_, slot_size_);
+        return true;
+    }
+
+    const auto on_disk = std::filesystem::file_size(path, ec);
+    if (ec) {
+        RV_LOG_ERR(kTag, "cannot size image '{}': {}", image_path_, ec.message());
+        return false;
+    }
+    if (on_disk != static_cast<uintmax_t>(expected)) {
+        // Truncated, padded, or written by a console with a different geometry.
+        // Either way these bytes are somebody's saves: refuse the medium rather
+        // than reformat it. A card that answers RV_ERR_IO is recoverable by
+        // moving the file aside; one that was silently reformatted is not.
+        RV_LOG_ERR(kTag, "image '{}' is {} byte(s), expected {} — refusing to touch it",
+                   image_path_, static_cast<int64_t>(on_disk), expected);
+        return false;
+    }
+
+    std::vector<uint8_t> buffer(static_cast<size_t>(expected), 0);
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        RV_LOG_ERR(kTag, "cannot open image '{}' for reading", image_path_);
+        return false;
+    }
+    in.read(reinterpret_cast<char*>(buffer.data()), static_cast<std::streamsize>(expected));
+    if (in.gcount() != static_cast<std::streamsize>(expected)) {
+        RV_LOG_ERR(kTag, "short read on image '{}'", image_path_);
+        return false;
+    }
+
+    if (std::memcmp(buffer.data(), kMagic, sizeof(kMagic)) != 0) {
+        RV_LOG_ERR(kTag, "'{}' is not a card image (bad magic)", image_path_);
+        return false;
+    }
+    const uint32_t version = get_u32(buffer.data() + 8);
+    if (version != kVersion) {
+        RV_LOG_ERR(kTag, "image '{}' has version {}, this console speaks {}", image_path_, version,
+                   kVersion);
+        return false;
+    }
+    const int64_t file_slots = get_i64(buffer.data() + 16);
+    const int64_t file_slot_size = get_i64(buffer.data() + 24);
+    if (file_slots != slot_count_ || file_slot_size != slot_size_) {
+        RV_LOG_ERR(kTag, "image '{}' holds {}x{} byte slots, this console has {}x{} — refusing",
+                   image_path_, file_slots, file_slot_size, slot_count_, slot_size_);
+        return false;
+    }
+
+    for (int64_t i = 0; i < slot_count_; ++i) {
+        const int64_t length = get_i64(buffer.data() + kHeaderSize + i * kLengthEntry);
+        if (length < -1 || length > slot_size_) {
+            RV_LOG_ERR(kTag, "image '{}' slot {} claims {} byte(s) — corrupt", image_path_, i,
+                       length);
+            return false;
+        }
+    }
+
+    image_ = std::move(buffer);
+    RV_LOG_INFO(kTag, "card image '{}' loaded ({} slot(s) of {} byte(s))", image_path_, slot_count_,
+                slot_size_);
+    return true;
+}
+
+int64_t rv_pccard::length_at(int64_t slot) const {
+    return get_i64(image_.data() + kHeaderSize + slot * kLengthEntry);
+}
+
+void rv_pccard::set_length(int64_t slot, int64_t length) {
+    put_i64(image_.data() + kHeaderSize + slot * kLengthEntry, length);
+}
+
+uint8_t* rv_pccard::payload_at(int64_t slot) {
+    return image_.data() + payload_offset_ + slot * slot_size_;
+}
+
+int64_t rv_pccard::slot_length(int64_t slot) const {
+    if (!medium_ok_) {
+        return -1;
+    }
+    return length_at(slot);
+}
+
+const uint8_t* rv_pccard::slot_data(int64_t slot) const {
+    return image_.data() + payload_offset_ + slot * slot_size_;
+}
+
+bool rv_pccard::slot_write(int64_t slot, const void* data, int64_t size) {
+    if (!medium_ok_) {
+        return false;
+    }
+    return commit(slot, size, data);
+}
+
+bool rv_pccard::slot_erase(int64_t slot) {
+    if (!medium_ok_) {
+        return false;
+    }
+    if (length_at(slot) < 0) {
+        // Already empty. Skipping the flush keeps erase from creating an image
+        // file for a card that has never held a save.
+        return true;
+    }
+    return commit(slot, -1, nullptr);
+}
+
+bool rv_pccard::commit(int64_t slot, int64_t new_length, const void* data) {
+    const int64_t old_length = length_at(slot);
+    uint8_t* payload = payload_at(slot);
+
+    // The undo log: the bytes that must reappear if the medium refuses the
+    // write. Only the meaningful prefix is kept — the invariant that everything
+    // past a slot's length is zero makes the rest reconstructible.
+    std::vector<uint8_t> undo;
+    if (old_length > 0) {
+        undo.assign(payload, payload + old_length);
+    }
+
+    std::memset(payload, 0, static_cast<size_t>(slot_size_));
+    if (new_length > 0) {
+        std::memcpy(payload, data, static_cast<size_t>(new_length));
+    }
+    set_length(slot, new_length);
+
+    if (flush()) {
+        return true;
+    }
+
+    std::memset(payload, 0, static_cast<size_t>(slot_size_));
+    if (old_length > 0) {
+        std::memcpy(payload, undo.data(), static_cast<size_t>(old_length));
+    }
+    set_length(slot, old_length);
+    return false;
+}
+
+bool rv_pccard::flush() {
+    // THEOREM: atomic replace via rename — POSIX requires rename(2) to be
+    // atomic WITHIN ONE FILESYSTEM: any observer, including the next boot after
+    // a power cut, sees either the old inode whole or the new inode whole, and
+    // never a state in between. The entire image is therefore built in RAM,
+    // written to a fresh temporary file, forced to the platter with fsync, and
+    // only then renamed over the target. That, and not "careful in-place
+    // writing", is what discharges rv_cm's promise that a failed card_write
+    // leaves the previous content intact: an in-place write of 128 KiB is many
+    // device operations, and a crash in the middle of them leaves a slot half
+    // old and half new — exactly the state the contract forbids.
+    //
+    // Two conditions are load-bearing and easy to lose in a refactor:
+    //   * the temporary MUST live in the same directory as the target. A temp
+    //     in /tmp can land on a different filesystem, where rename fails
+    //     outright (EXDEV) or gets "helpfully" replaced by copy-then-unlink,
+    //     which is not atomic at all.
+    //   * fsync of the FILE orders the data before the rename; fsync of the
+    //     DIRECTORY is what makes the rename itself durable. Without the second
+    //     one a crash can resurrect the old name pointing at nothing.
+    const std::filesystem::path target(image_path_);
+    std::filesystem::path dir = target.parent_path();
+    if (!dir.empty()) {
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+            RV_LOG_ERR(kTag, "cannot create '{}': {}", dir.string(), ec.message());
+            return false;
+        }
+    } else {
+        dir = std::filesystem::path(".");
+    }
+
+    const std::string tmp_path =
+        image_path_ + ".tmp" + std::to_string(static_cast<long long>(::getpid()));
+
+    const int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        RV_LOG_ERR(kTag, "cannot create '{}': {}", tmp_path, errno_text(errno));
+        return false;
+    }
+
+    bool ok = true;
+    size_t written = 0;
+    while (written < image_.size()) {
+        const ssize_t n = ::write(fd, image_.data() + written, image_.size() - written);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            RV_LOG_ERR(kTag, "write to '{}' failed: {}", tmp_path, errno_text(errno));
+            ok = false;
+            break;
+        }
+        written += static_cast<size_t>(n);
+    }
+
+    if (ok && ::fsync(fd) != 0) {
+        RV_LOG_ERR(kTag, "fsync of '{}' failed: {}", tmp_path, errno_text(errno));
+        ok = false;
+    }
+    if (::close(fd) != 0 && ok) {
+        RV_LOG_ERR(kTag, "close of '{}' failed: {}", tmp_path, errno_text(errno));
+        ok = false;
+    }
+
+    if (ok && ::rename(tmp_path.c_str(), image_path_.c_str()) != 0) {
+        RV_LOG_ERR(kTag, "rename '{}' -> '{}' failed: {}", tmp_path, image_path_,
+                   errno_text(errno));
+        ok = false;
+    }
+
+    if (!ok) {
+        ::unlink(tmp_path.c_str());
+        return false;
+    }
+
+    const int dir_fd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
+    if (dir_fd >= 0) {
+        // Best effort: the rename already happened and the card is consistent
+        // either way, so a directory that cannot be synced is a durability
+        // remark, not a failed save.
+        if (::fsync(dir_fd) != 0) {
+            RV_LOG_WARN(kTag, "fsync of '{}' failed: {}", dir.string(), errno_text(errno));
+        }
+        ::close(dir_fd);
+    } else {
+        RV_LOG_WARN(kTag, "cannot open '{}' to sync: {}", dir.string(), errno_text(errno));
+    }
+    return true;
+}
+
+}  // namespace rv_3dmppc

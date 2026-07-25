@@ -20,30 +20,41 @@ the console-vs-disc split is [`docs/README.md`](docs/README.md).
 - **PDK contract** — closed. Video, audio, drive, memory card and I/O are all
   specified, with a shared kernel-style error convention (`rv_err`).
 - **Video (`rv_cv`)** — live: video RAM pool, ordering table, a rasterizer for
-  lines / sprites / triangles / quads with Gouraud interpolation and 4×4 ordered
-  dithering. Texture sampling is the next step.
+  lines / sprites / triangles / quads with Gouraud interpolation, affine texture
+  sampling (4/8-bit paletted + 15-bit direct, PSX cut-out transparency) and 4×4
+  ordered dithering.
 - **Input (`rv_cio`)** — live: gamepads through SDL, with the keyboard overlaid
   on port 0.
-- **Drive (`rv_cd`), memory card (`rv_cm`), audio (`rv_ca`)** — still stubs that
-  answer `RV_ERR_IO`.
-- **The disc** — `src/rv_dmain` is a skeleton "light show" that proves the frame
-  pipeline end to end. The real game (Solidmaid) is designed in
-  [`docs/mppcdisc/solid/`](docs/mppcdisc/solid/) and not written yet.
+- **Drive (`rv_cd`)** — live: reads assets off a mounted medium by name.
+- **Memory card (`rv_cm`)** — live: 16 slots in a file image, written atomically.
+- **Audio (`rv_ca`)** — live: sound-RAM pool, 24 voices with ADSR envelopes, a
+  saturating mixer feeding SDL from its own thread.
+- **The disc** — `src/rv_dmain` is a skeleton **service test**: it touches every
+  subsystem so a broken one is visible on screen or audible. The real game
+  (Solidmaid) is designed in [`docs/mppcdisc/solid/`](docs/mppcdisc/solid/) and
+  not written yet.
+- **Not there yet** — semi-transparency and blending, `.mppcdisc` packaging with
+  `dlopen`, ADPCM / pitch / reverb, gyro and trackpads.
 
 ## Layout
 
 ```
 pdk/include/pdk/     the contract: rv_pdko (facade) + rv_de (disc entry)
   cv/ ca/ cd/ cm/ cio/   one controller per subsystem
+sdk/include/sdk/     disc-side conveniences BUILT ON the contract — matrices,
+                     camera, transform to screen vertices, .obj, colour.
+                     The console never links this.
 src/
   main.cpp           argv -> console configuration -> boot
   rv_pconsole/       the machine
     rv_pconsole.*      composition root + the frame loop
     rv_pchost.*        the only file that knows SDL exists
-    cv/                video: framebuffer, VRAM pool, ordering table, rasterizer
-    ca/ cd/ cm/ cio/   the other four controllers
-  rv_dmain/          the skeleton disc (builds against pdk/ ONLY)
-  rv_infra/          console-internal odds and ends (the logger)
+    cv/                video: framebuffer, VRAM, ordering table, rasterizer, sampler
+    ca/                audio: sound RAM, voices, mixer
+    cd/ cm/ cio/       drive, memory card, controller ports
+  rv_dmain/          the skeleton disc (builds against pdk/ + sdk/ ONLY)
+  rv_infra/          console-internal odds and ends (logger, memory pool)
+tools/               offline authoring tools (PNG -> paletted texels)
 mppcdiscs/           disc library — the games the console loads
 docs/README.md       console vs disc — read this first
 docs/platform/       the console: hardware spec, disc format
@@ -63,7 +74,16 @@ cmake --build build
 ./build/3dmppc --scale 4              # window magnification over native 320×240
 ./build/3dmppc --headless --frames 120  # smoke test: no window, bounded run
 ./build/3dmppc --fixed-step           # feed the disc a fixed 1/60 dt
+./build/3dmppc --disc mppcdiscs/solidmaid/assets   # mount a medium in the drive
+./build/3dmppc --memcard saves/a.mppccard --mute   # pick a card image, silence audio
+./build/3dmppc --dump-frame frame.ppm  # write the last frame out for inspection
 ```
+
+The skeleton disc is a service test: the squares top-left are subsystem probes,
+the row of textures shows the three wrap modes (the missing quadrant is the
+cut-out transparency rule), the ticks bottom-left count boots off the memory
+card, the bar bottom-right sizes an asset read from the drive, and the south
+button plays a beep.
 
 ## Conventions
 
