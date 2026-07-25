@@ -1,0 +1,1093 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 10 — движок сборки диска: globs, генерация CMake, бюджеты, прожиг.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The four gates of `build`, plus the read-only `inspect`.
+//
+// STREAM DISCIPLINE. Everything a program could want to parse — the entry
+// listing and the manifest printed by `inspect` — goes to stdout. Progress
+// lines, warnings and errors go to stderr, ALWAYS, including the ones `build`
+// prints while it is winning. That is what makes `mppcburner inspect x.mppcdisc
+// | grep protagonist` behave: the pipe carries data and nothing else, and a
+// human watching the terminal still sees the progress because stderr is not
+// redirected. Mixing the two is the difference between a tool you can put in a
+// Makefile and one you have to babysit.
+
+#include "rv_build.hpp"
+
+#include <sys/wait.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <array>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <fstream>
+#include <string_view>
+#include <system_error>
+
+#include "pdk/cv/rv_texture.hpp"
+#include "pdk/rv_abi.hpp"
+#include "rv_zipwrite.hpp"
+
+namespace fs = std::filesystem;
+
+namespace rv_pdktools {
+namespace {
+
+// ── diagnostics ───────────────────────────────────────────────────────────────
+
+void say_error(const std::string& message) {
+    std::fprintf(stderr, "mppcburner: error: %s\n", message.c_str());
+}
+
+void say_warning(const std::string& message) {
+    std::fprintf(stderr, "mppcburner: warning: %s\n", message.c_str());
+}
+
+// One line of the [n/4] ladder. On stderr, like every other progress signal.
+void say_step(int step, const char* label, const std::string& detail) {
+    std::fprintf(stderr, "[%d/4] %-11s %s\n", step, label, detail.c_str());
+}
+
+// ── running other people's programs ───────────────────────────────────────────
+
+// POSIX shell quoting: wrap in single quotes, and end/reopen them around any
+// single quote in the payload. Every path we hand to a child goes through here,
+// because a disc directory is allowed to have a space in its name and a build
+// that breaks on that is a build nobody trusts.
+std::string shell_quote(const std::string& text) {
+    std::string out = "'";
+    for (const char c : text) {
+        if (c == '\'') {
+            out += "'\\''";
+        } else {
+            out += c;
+        }
+    }
+    out += "'";
+    return out;
+}
+
+// Run `command`, collecting its stdout AND stderr into `output`. Returns the
+// exit status, or -1 when the child could not be started at all.
+//
+// The output is captured rather than inherited so a successful compile stays
+// quiet and the [n/4] ladder remains readable; on failure the caller dumps what
+// it caught to stderr verbatim, because a compiler's own diagnostic is the most
+// useful sentence anyone could print about a broken disc.
+int run_capture(const std::string& command, std::string& output) {
+    output.clear();
+    const std::string full = command + " 2>&1";
+    std::FILE* pipe = ::popen(full.c_str(), "r");
+    if (pipe == nullptr) {
+        return -1;
+    }
+    std::array<char, 4096> buffer{};
+    while (true) {
+        const std::size_t got = std::fread(buffer.data(), 1, buffer.size(), pipe);
+        if (got == 0) {
+            break;
+        }
+        output.append(buffer.data(), got);
+    }
+    const int status = ::pclose(pipe);
+    if (status == -1) {
+        return -1;
+    }
+    if (WIFEXITED(status)) {
+        return WEXITSTATUS(status);
+    }
+    return 128;
+}
+
+// Print a child's captured output as it was, with no prefixing or reflowing.
+void dump_child_output(const std::string& output) {
+    if (output.empty()) {
+        return;
+    }
+    std::fwrite(output.data(), 1, output.size(), stderr);
+    if (output.back() != '\n') {
+        std::fputc('\n', stderr);
+    }
+}
+
+// ── globbing ──────────────────────────────────────────────────────────────────
+
+bool has_wildcard(std::string_view component) {
+    return component.find('*') != std::string_view::npos ||
+           component.find('?') != std::string_view::npos;
+}
+
+// Classic backtracking wildcard match over one path component. `*` never
+// crosses a '/' here because it is only ever applied within a component.
+bool wildcard_match(std::string_view pattern, std::string_view text) {
+    std::size_t p = 0;
+    std::size_t t = 0;
+    std::size_t star = std::string_view::npos;
+    std::size_t retry = 0;
+    while (t < text.size()) {
+        if (p < pattern.size() && (pattern[p] == '?' || pattern[p] == text[t])) {
+            ++p;
+            ++t;
+        } else if (p < pattern.size() && pattern[p] == '*') {
+            star = p;
+            retry = t;
+            ++p;
+        } else if (star != std::string_view::npos) {
+            p = star + 1;
+            ++retry;
+            t = retry;
+        } else {
+            return false;
+        }
+    }
+    while (p < pattern.size() && pattern[p] == '*') {
+        ++p;
+    }
+    return p == pattern.size();
+}
+
+std::vector<std::string> split_components(const std::string& pattern) {
+    std::vector<std::string> parts;
+    std::string current;
+    for (const char c : pattern) {
+        if (c == '/') {
+            if (!current.empty()) {
+                parts.push_back(current);
+                current.clear();
+            }
+        } else {
+            current += c;
+        }
+    }
+    if (!current.empty()) {
+        parts.push_back(current);
+    }
+    return parts;
+}
+
+// Sorted listing of one directory. Sorted because a disc must burn to the same
+// bytes twice in a row: readdir order is a filesystem's private business and
+// letting it decide link order (or archive order) would make every rebuild a
+// different file.
+std::vector<fs::directory_entry> sorted_children(const fs::path& directory) {
+    std::vector<fs::directory_entry> children;
+    std::error_code ec;
+    for (fs::directory_iterator it(directory, ec), end; !ec && it != end; it.increment(ec)) {
+        children.push_back(*it);
+    }
+    std::sort(children.begin(), children.end(),
+              [](const fs::directory_entry& a, const fs::directory_entry& b) {
+                  return a.path().filename().string() < b.path().filename().string();
+              });
+    return children;
+}
+
+void glob_descend(const fs::path& root, const fs::path& relative,
+                  const std::vector<std::string>& components, std::size_t index,
+                  std::vector<std::string>& out) {
+    const fs::path here = relative.empty() ? root : root / relative;
+    if (index == components.size()) {
+        std::error_code ec;
+        if (fs::is_regular_file(here, ec)) {
+            out.push_back(relative.generic_string());
+        }
+        return;
+    }
+
+    const std::string& component = components[index];
+
+    // `**` matches zero or more directory levels.
+    if (component == "**") {
+        glob_descend(root, relative, components, index + 1, out);
+        for (const fs::directory_entry& child : sorted_children(here)) {
+            if (child.is_symlink() || !child.is_directory()) {
+                continue;
+            }
+            glob_descend(root, relative / child.path().filename(), components, index, out);
+        }
+        return;
+    }
+
+    if (!has_wildcard(component)) {
+        std::error_code ec;
+        const fs::path next = relative / component;
+        if (fs::exists(root / next, ec)) {
+            glob_descend(root, next, components, index + 1, out);
+        }
+        return;
+    }
+
+    for (const fs::directory_entry& child : sorted_children(here)) {
+        const std::string name = child.path().filename().string();
+        if (!wildcard_match(component, name)) {
+            continue;
+        }
+        if (child.is_symlink()) {
+            continue;
+        }
+        glob_descend(root, relative / name, components, index + 1, out);
+    }
+}
+
+// ── .mppctex inspection, for the budget gate ──────────────────────────────────
+
+// The 16-byte header mppcbaker writes (pdk/tools/mppcbaker/README.md). Read back
+// after baking so the budget is checked against the TEXELS that will actually
+// be uploaded, not against a guess made from the PNG.
+struct mppctex_header {
+    int format = 0;
+    int64_t width = 0;
+    int64_t height = 0;
+    int64_t palette_count = 0;
+};
+
+uint16_t read_u16(const unsigned char* p) {
+    return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) |
+                                 static_cast<uint16_t>(static_cast<uint16_t>(p[1]) << 8));
+}
+
+bool read_mppctex_header(const fs::path& path, mppctex_header& out, std::string& error) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        error = "cannot reopen baked texture '" + path.string() + "'";
+        return false;
+    }
+    unsigned char raw[16] = {};
+    file.read(reinterpret_cast<char*>(raw), sizeof(raw));
+    if (file.gcount() != static_cast<std::streamsize>(sizeof(raw))) {
+        error = "baked texture '" + path.string() + "' is shorter than its own header";
+        return false;
+    }
+    if (std::memcmp(raw, "MPTX", 4) != 0) {
+        error = "baked texture '" + path.string() + "' has no MPTX magic";
+        return false;
+    }
+    if (read_u16(raw + 4) != 1) {
+        error = "baked texture '" + path.string() + "' is version " +
+                std::to_string(read_u16(raw + 4)) + ", this burner writes version 1";
+        return false;
+    }
+    out.format = read_u16(raw + 6);
+    out.width = read_u16(raw + 8);
+    out.height = read_u16(raw + 10);
+    out.palette_count = read_u16(raw + 12);
+    if (out.format != rv_pdk::RV_TEXFMT_IDX4 && out.format != rv_pdk::RV_TEXFMT_IDX8 &&
+        out.format != rv_pdk::RV_TEXFMT_DIRECT15) {
+        error = "baked texture '" + path.string() + "' claims unknown format " +
+                std::to_string(out.format);
+        return false;
+    }
+    return true;
+}
+
+// Bytes of texels, by the strides mppcbaker documents.
+int64_t texel_bytes(const mppctex_header& header) {
+    switch (header.format) {
+        case rv_pdk::RV_TEXFMT_IDX4:
+            return ((header.width + 1) / 2) * header.height;
+        case rv_pdk::RV_TEXFMT_IDX8:
+            return header.width * header.height;
+        default:
+            return header.width * header.height * 2;
+    }
+}
+
+// ── finding mppcbaker ─────────────────────────────────────────────────────────
+
+bool is_executable(const fs::path& path) {
+    std::error_code ec;
+    return fs::is_regular_file(path, ec) && ::access(path.c_str(), X_OK) == 0;
+}
+
+fs::path executable_directory() {
+    std::array<char, 4096> buffer{};
+    const ssize_t got = ::readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+    if (got <= 0) {
+        return fs::path();
+    }
+    buffer[static_cast<std::size_t>(got)] = '\0';
+    return fs::path(buffer.data()).parent_path();
+}
+
+// --baker wins; then next to ourselves (the usual case: both tools sit in the
+// same build tree); then $PATH.
+bool find_baker(const std::string& hint, std::string& out, std::string& error) {
+    if (!hint.empty()) {
+        if (!is_executable(hint)) {
+            error = "--baker '" + hint + "' is not an executable file";
+            return false;
+        }
+        out = hint;
+        return true;
+    }
+
+    const fs::path self = executable_directory();
+    if (!self.empty()) {
+        const fs::path candidates[] = {self / "mppcbaker", self / "mppcbaker" / "mppcbaker",
+                                       self.parent_path() / "mppcbaker" / "mppcbaker"};
+        for (const fs::path& candidate : candidates) {
+            if (is_executable(candidate)) {
+                out = candidate.string();
+                return true;
+            }
+        }
+    }
+
+    const char* path_env = std::getenv("PATH");
+    if (path_env != nullptr) {
+        std::string_view rest(path_env);
+        while (!rest.empty()) {
+            const std::size_t colon = rest.find(':');
+            const std::string_view head = rest.substr(0, colon);
+            if (!head.empty()) {
+                const fs::path candidate = fs::path(std::string(head)) / "mppcbaker";
+                if (is_executable(candidate)) {
+                    out = candidate.string();
+                    return true;
+                }
+            }
+            if (colon == std::string_view::npos) {
+                break;
+            }
+            rest.remove_prefix(colon + 1);
+        }
+    }
+
+    error = "mppcbaker not found next to mppcburner or in $PATH; pass --baker PATH";
+    return false;
+}
+
+// ── a minimal zip reader, for `inspect` only ──────────────────────────────────
+//
+// Deliberately small: the central directory gives names and sizes, and that is
+// the whole of what `inspect` prints. The real reader — bounds-checked, CRC-
+// verifying, hostile-input-hardened — lives on the console side in
+// src/rv_pconsole/cd/rv_pczip.*, because that is where an archive downloaded
+// from the internet gets opened. Here the input is a file the developer just
+// produced on their own machine, so the job is reporting, not defence.
+
+struct zip_entry {
+    std::string name;
+    int64_t size = 0;
+    int64_t local_offset = 0;
+    int method = 0;
+};
+
+uint32_t read_u32(const std::vector<unsigned char>& bytes, std::size_t offset) {
+    return static_cast<uint32_t>(bytes[offset]) | (static_cast<uint32_t>(bytes[offset + 1]) << 8) |
+           (static_cast<uint32_t>(bytes[offset + 2]) << 16) |
+           (static_cast<uint32_t>(bytes[offset + 3]) << 24);
+}
+
+uint16_t read_u16(const std::vector<unsigned char>& bytes, std::size_t offset) {
+    return static_cast<uint16_t>(
+        static_cast<uint16_t>(bytes[offset]) |
+        static_cast<uint16_t>(static_cast<uint16_t>(bytes[offset + 1]) << 8));
+}
+
+bool read_whole_file(const fs::path& path, std::vector<unsigned char>& out, std::string& error) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file) {
+        error = "cannot open '" + path.string() + "'";
+        return false;
+    }
+    const std::streamoff size = file.tellg();
+    if (size < 0) {
+        error = "cannot size '" + path.string() + "'";
+        return false;
+    }
+    out.resize(static_cast<std::size_t>(size));
+    file.seekg(0);
+    if (!out.empty()) {
+        file.read(reinterpret_cast<char*>(out.data()), size);
+        if (!file) {
+            error = "short read on '" + path.string() + "'";
+            return false;
+        }
+    }
+    return true;
+}
+
+bool zip_list(const std::vector<unsigned char>& bytes, std::vector<zip_entry>& out,
+              std::string& error) {
+    constexpr uint32_t kEocdSig = 0x06054b50;
+    constexpr uint32_t kCentralSig = 0x02014b50;
+    if (bytes.size() < 22) {
+        error = "file is too small to be a zip archive";
+        return false;
+    }
+    // The end-of-central-directory record sits last, possibly behind a comment
+    // of up to 64 KiB, so it is found by scanning backwards for its signature.
+    std::size_t eocd = 0;
+    bool found = false;
+    const std::size_t limit = std::min<std::size_t>(bytes.size(), 22 + 65535);
+    for (std::size_t back = 22; back <= limit; ++back) {
+        const std::size_t at = bytes.size() - back;
+        if (read_u32(bytes, at) == kEocdSig) {
+            eocd = at;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        error = "no end-of-central-directory record: not a zip archive";
+        return false;
+    }
+
+    const uint16_t count = read_u16(bytes, eocd + 10);
+    const uint32_t directory_size = read_u32(bytes, eocd + 12);
+    const uint32_t directory_offset = read_u32(bytes, eocd + 16);
+    if (static_cast<std::size_t>(directory_offset) + directory_size > bytes.size()) {
+        error = "central directory runs past the end of the file";
+        return false;
+    }
+
+    std::size_t at = directory_offset;
+    for (uint16_t i = 0; i < count; ++i) {
+        if (at + 46 > bytes.size() || read_u32(bytes, at) != kCentralSig) {
+            error = "central directory entry " + std::to_string(i) + " is malformed";
+            return false;
+        }
+        zip_entry entry;
+        entry.method = read_u16(bytes, at + 10);
+        entry.size = read_u32(bytes, at + 24);
+        const uint16_t name_length = read_u16(bytes, at + 28);
+        const uint16_t extra_length = read_u16(bytes, at + 30);
+        const uint16_t comment_length = read_u16(bytes, at + 32);
+        entry.local_offset = read_u32(bytes, at + 42);
+        if (at + 46 + name_length > bytes.size()) {
+            error = "central directory entry " + std::to_string(i) + " has a runaway name";
+            return false;
+        }
+        entry.name.assign(reinterpret_cast<const char*>(bytes.data()) + at + 46, name_length);
+        out.push_back(entry);
+        at += 46u + name_length + extra_length + comment_length;
+    }
+    return true;
+}
+
+bool zip_entry_bytes(const std::vector<unsigned char>& bytes, const zip_entry& entry,
+                     std::string& out, std::string& error) {
+    constexpr uint32_t kLocalSig = 0x04034b50;
+    const std::size_t at = static_cast<std::size_t>(entry.local_offset);
+    if (at + 30 > bytes.size() || read_u32(bytes, at) != kLocalSig) {
+        error = "entry '" + entry.name + "' has no local header where the directory says";
+        return false;
+    }
+    if (entry.method != 0) {
+        error = "entry '" + entry.name + "' is compressed; .mppcdisc is store-only";
+        return false;
+    }
+    const std::size_t data = at + 30 + read_u16(bytes, at + 26) + read_u16(bytes, at + 28);
+    if (data + static_cast<std::size_t>(entry.size) > bytes.size()) {
+        error = "entry '" + entry.name + "' runs past the end of the file";
+        return false;
+    }
+    out.assign(reinterpret_cast<const char*>(bytes.data()) + data,
+               static_cast<std::size_t>(entry.size));
+    return true;
+}
+
+// ── CMake text helpers ────────────────────────────────────────────────────────
+
+// A quoted CMake argument: backslash, double quote and `$` all have meaning
+// inside one, so all three are escaped. Paths come from a manifest and from the
+// command line, and neither is under our control.
+std::string cmake_quote(const std::string& text) {
+    std::string out = "\"";
+    for (const char c : text) {
+        if (c == '\\' || c == '"' || c == '$') {
+            out += '\\';
+        }
+        out += c;
+    }
+    out += "\"";
+    return out;
+}
+
+}  // namespace
+
+// ── flat names ────────────────────────────────────────────────────────────────
+//
+// THEOREM: the asset namespace of a .mppcdisc is FLAT, and two originals that
+// collapse onto one flat name are a REFUSAL rather than a last-writer-wins.
+//
+// The premise is the console's contract, not a convenience: rv_cd resolves a
+// resource by name and forbids path separators in that name outright, so
+// `assets/protagonist.obj` can only ever enter the archive as `protagonist.obj`.
+// The mapping from a disc directory to an archive is therefore not injective —
+// `sprites/tex.png` and `models/tex.png` have the same image.
+//
+// Given a non-injective mapping there are exactly three things a burner can do
+// with a collision:
+//   1. write both entries: the archive now has two records under one name, and
+//      which one the loader hands the game depends on its lookup order. The disc
+//      is nondeterministic with respect to a detail nobody documented.
+//   2. write the last one and drop the rest: the disc is deterministic and
+//      WRONG. The game asks for `tex.png`, gets the other artist's file, and the
+//      symptom is a texture that looks like a different asset — a bug whose
+//      cause is invisible in both the source tree and the running game, because
+//      nothing anywhere ever said the two files were related.
+//   3. refuse, naming both originals.
+// Only (3) leaves the developer with the information needed to fix it, and the
+// fix is one rename. The console CANNOT diagnose this — by the time the archive
+// exists, the second file is simply gone — so the check has to happen here or
+// nowhere. Hence: refusal.
+
+std::string rv_flat_name(const std::string& relative_path) {
+    return fs::path(relative_path).filename().string();
+}
+
+bool rv_check_asset_name(const std::string& name, std::string& error) {
+    if (name.empty()) {
+        error = "an asset resolved to an empty name";
+        return false;
+    }
+    // Belt and braces: rv_flat_name already strips directories, but a name
+    // arriving from anywhere else must still meet rv_cd's contract.
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) {
+        error = "asset name '" + name + "' contains a path separator; rv_cd forbids them";
+        return false;
+    }
+    if (name[0] == '.') {
+        error = "asset name '" + name +
+                "' starts with a dot; dotfiles are editor and VCS bookkeeping, not disc content";
+        return false;
+    }
+    if (name == "disc.toml" || name == "disc.so") {
+        error = "asset name '" + name +
+                "' collides with a service entry; the loader reads that name before it looks at "
+                "the asset namespace";
+        return false;
+    }
+    return true;
+}
+
+bool rv_check_collisions(const std::vector<rv_archive_item>& items, std::string& error) {
+    std::vector<rv_archive_item> sorted = items;
+    std::sort(sorted.begin(), sorted.end(),
+              [](const rv_archive_item& a, const rv_archive_item& b) { return a.name < b.name; });
+    for (std::size_t i = 1; i < sorted.size(); ++i) {
+        if (sorted[i].name == sorted[i - 1].name) {
+            error = "two files collapse onto the archive name '" + sorted[i].name + "': '" +
+                    sorted[i - 1].source + "' and '" + sorted[i].source +
+                    "'. The disc namespace is flat — rename one of them.";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ── globs ─────────────────────────────────────────────────────────────────────
+
+bool rv_glob_expand(const fs::path& root, const std::vector<std::string>& patterns,
+                    std::vector<std::string>& out, std::string& error) {
+    out.clear();
+    for (const std::string& pattern : patterns) {
+        if (pattern.empty()) {
+            error = "empty pattern in the manifest";
+            return false;
+        }
+        if (pattern.front() == '/') {
+            error = "pattern '" + pattern +
+                    "' is absolute; manifest patterns are relative to the disc directory";
+            return false;
+        }
+        if (pattern.find("..") != std::string::npos) {
+            error = "pattern '" + pattern +
+                    "' contains '..'; a disc may only reach files inside its own directory";
+            return false;
+        }
+
+        std::vector<std::string> matched;
+        glob_descend(root, fs::path(), split_components(pattern), 0, matched);
+        if (matched.empty()) {
+            error = "pattern '" + pattern + "' matched no files under '" + root.string() + "'";
+            return false;
+        }
+        out.insert(out.end(), matched.begin(), matched.end());
+    }
+    std::sort(out.begin(), out.end());
+    out.erase(std::unique(out.begin(), out.end()), out.end());
+    return true;
+}
+
+// ── the generated project ─────────────────────────────────────────────────────
+//
+// PATTERN: GENERATE A BUILD SYSTEM, DO NOT BE ONE.
+//
+// The burner has to turn a list of .cpp files into one loadable .so. The
+// tempting shortcut is to shell out to `g++ -shared` directly — it is twenty
+// lines and it works on the first disc. What it does not have is dependency
+// tracking, parallelism, incremental rebuilds, header scanning, compiler
+// detection, response files for long command lines, or any of the per-platform
+// knowledge about how a shared module is linked. Every one of those arrives
+// later as a bug report, and answering them turns this file into a bad build
+// system maintained by one project.
+//
+// So the burner writes a CMakeLists.txt and drives cmake + ninja instead. cmake
+// is a RUN-TIME dependency of the tool (see pdk/tools/mppcburner/CMakeLists.txt),
+// which is a real cost, but it is a dependency every C++ developer already has
+// installed — while a hand-rolled compiler driver is a dependency only this
+// project would ever maintain. The generated project is also a readable
+// artifact: when a disc will not build, `--keep-build` leaves a directory the
+// developer can enter and run `ninja -v` in, which is a far better debugging
+// story than reverse-engineering a command line out of our source.
+//
+// The generated project is what makes the console/disc boundary CHECKABLE. It
+// adds the PDK and the SDK to the include path and nothing else — no src/, no
+// console headers, not even by accident — so a disc that reaches for the
+// implementation fails to compile instead of quietly linking against a private
+// header and breaking on the next refactor. A boundary the build enforces is a
+// boundary; a boundary in a README is a suggestion.
+
+std::string rv_cmake_project_text(const rv_manifest& manifest,
+                                  const std::vector<std::string>& absolute_sources,
+                                  const std::string& pdk_dir, const std::string& pdklib_dir,
+                                  const std::vector<std::string>& absolute_includes) {
+    std::string text;
+    text += "# Generated by mppcburner. Do not edit: every build overwrites this file.\n";
+    text += "# It exists so a disc is compiled by cmake+ninja rather than by a compiler\n";
+    text += "# driver written inside the burner. See rv_build.cpp for the reasoning.\n";
+    text += "cmake_minimum_required(VERSION 3.20)\n";
+    text += "project(mppcdisc_" + manifest.id + " CXX)\n\n";
+
+    text += "set(CMAKE_CXX_STANDARD 23)\n";
+    text += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
+    text += "set(CMAKE_CXX_EXTENSIONS OFF)\n\n";
+
+    // MODULE, not SHARED. In CMake the two differ in intent and in what the
+    // build is allowed to assume: a SHARED library is something other targets
+    // link against, so CMake maintains an import/link interface for it. A
+    // MODULE is a plugin — loaded at run time with dlopen, NEVER linked by
+    // anybody — and that is exactly what a disc is. Saying MODULE makes the
+    // relationship unlinkable by construction: nothing in this project or any
+    // other can accidentally add `disc` to a target_link_libraries and start
+    // depending on its symbols. The console reaches it through dlopen/dlsym and
+    // through no other door.
+    text += "add_library(disc MODULE\n";
+    for (const std::string& source : absolute_sources) {
+        text += "  " + cmake_quote(source) + "\n";
+    }
+    text += ")\n\n";
+
+    // PREFIX "" + OUTPUT_NAME "disc" produce exactly `disc.so`, which is the
+    // name the loader looks for inside the archive. Without PREFIX "" CMake
+    // would write `libdisc.so` and the disc would be unloadable for a reason
+    // that looks like nothing at all.
+    text += "set_target_properties(disc PROPERTIES\n";
+    text += "  PREFIX \"\"\n";
+    text += "  SUFFIX \".so\"\n";
+    text += "  OUTPUT_NAME \"disc\"\n";
+    text += "  POSITION_INDEPENDENT_CODE ON\n";
+    text += "  CXX_VISIBILITY_PRESET hidden\n";
+    text += "  VISIBILITY_INLINES_HIDDEN ON\n";
+    text += ")\n\n";
+
+    text += "# The contract, and only the contract. Nothing from src/ is reachable from\n";
+    text += "# here, which is what turns \"a disc cannot see the console\" from a promise\n";
+    text += "# into a compile error.\n";
+    text += "target_include_directories(disc PRIVATE\n";
+    text += "  " + cmake_quote(pdk_dir) + "\n";
+    text += "  " + cmake_quote(pdklib_dir) + "\n";
+    for (const std::string& include : absolute_includes) {
+        text += "  " + cmake_quote(include) + "\n";
+    }
+    text += ")\n\n";
+
+    if (!manifest.defines.empty()) {
+        text += "target_compile_definitions(disc PRIVATE\n";
+        for (const std::string& define : manifest.defines) {
+            text += "  " + cmake_quote(define) + "\n";
+        }
+        text += ")\n\n";
+    }
+
+    // -fPIC because the result is dlopen'd and must be position independent.
+    // -fvisibility=hidden because a disc exports exactly TWO symbols —
+    // mppc_disc_create and mppc_disc_destroy, marked default by RV_DISC_EXPORT
+    // in pdk/rv_abi.hpp — and everything else it contains is its own business.
+    // Default visibility would put the whole game's symbol table into the
+    // console's process, where it can collide with the console's own names, be
+    // interposed, or be found by a dlsym that meant to find something else. The
+    // two exported names are a door; hidden visibility is the wall the door is
+    // set into.
+    text += "target_compile_options(disc PRIVATE\n";
+    text += "  -fPIC\n";
+    text += "  -fvisibility=hidden\n";
+    text += "  -Wall\n";
+    text += "  -Wextra\n";
+    text += ")\n";
+    return text;
+}
+
+std::string rv_human_size(int64_t bytes) {
+    char buffer[64];
+    const double value = static_cast<double>(bytes);
+    if (bytes < 1024) {
+        std::snprintf(buffer, sizeof(buffer), "%lld B", static_cast<long long>(bytes));
+    } else if (bytes < 1024 * 1024) {
+        std::snprintf(buffer, sizeof(buffer), "%.1f KB", value / 1024.0);
+    } else {
+        std::snprintf(buffer, sizeof(buffer), "%.1f MB", value / (1024.0 * 1024.0));
+    }
+    return std::string(buffer);
+}
+
+// ── build ─────────────────────────────────────────────────────────────────────
+
+int rv_build_run(const rv_build_options& options) {
+    std::error_code ec;
+    const fs::path disc_dir = fs::weakly_canonical(fs::path(options.disc_dir), ec);
+    if (ec || !fs::is_directory(disc_dir, ec)) {
+        say_error("'" + options.disc_dir + "' is not a directory");
+        return 1;
+    }
+    const fs::path output_path = fs::absolute(fs::path(options.output), ec);
+    if (ec) {
+        say_error("cannot resolve output path '" + options.output + "'");
+        return 1;
+    }
+
+    // ── [1/4] manifest ────────────────────────────────────────────────────────
+    const fs::path manifest_path = disc_dir / "disc.toml";
+    rv_manifest manifest;
+    std::string error;
+    if (!rv_manifest_load(manifest_path.string(), manifest, error)) {
+        say_error(error);
+        return 1;
+    }
+    if (!rv_manifest_validate(manifest, error)) {
+        say_error(manifest_path.string() + ": " + error);
+        return 1;
+    }
+    // The ABI gate. A disc built against a different PDK will be refused by the
+    // console at load time anyway (rv_abi.hpp), so burning it would only move
+    // the failure from a build log to a player's loading screen.
+    if (manifest.abi_version != rv_pdk::RV_ABI_VERSION) {
+        say_error("disc declares abi_version = " + std::to_string(manifest.abi_version) +
+                  ", this burner speaks ABI " + std::to_string(rv_pdk::RV_ABI_VERSION) +
+                  ". The console would refuse the result, so it is not burned. Rebuild the disc "
+                  "against a matching PDK, or fix [disc] abi_version if the sources are already "
+                  "current.");
+        return 1;
+    }
+    say_step(1, "manifest", "id=" + manifest.id + " abi=" + std::to_string(manifest.abi_version));
+
+    // ── [2/4] compile ─────────────────────────────────────────────────────────
+    std::vector<std::string> sources;
+    if (!rv_glob_expand(disc_dir, manifest.sources, sources, error)) {
+        say_error("[build] sources: " + error);
+        return 1;
+    }
+    if (sources.empty()) {
+        say_error("[build] sources is empty: a disc with no code cannot export an entry point");
+        return 1;
+    }
+
+    std::vector<std::string> absolute_sources;
+    absolute_sources.reserve(sources.size());
+    for (const std::string& source : sources) {
+        absolute_sources.push_back((disc_dir / source).string());
+    }
+
+    // Manifest include dirs are resolved inside the disc directory and refused
+    // when they leave it. That keeps the "no src/" rule true no matter what the
+    // manifest asks for: the only paths outside the disc that ever reach the
+    // generated project are the PDK and the SDK.
+    std::vector<std::string> absolute_includes;
+    for (const std::string& include : manifest.include_dirs) {
+        const fs::path resolved = fs::weakly_canonical(disc_dir / include, ec);
+        if (ec) {
+            say_error("[build] include_dirs: cannot resolve '" + include + "'");
+            return 1;
+        }
+        const std::string resolved_text = resolved.string();
+        const std::string disc_text = disc_dir.string();
+        if (resolved_text.compare(0, disc_text.size(), disc_text) != 0) {
+            say_error("[build] include_dirs: '" + include +
+                      "' points outside the disc directory. A disc may only include its own "
+                      "headers, the PDK and the SDK.");
+            return 1;
+        }
+        absolute_includes.push_back(resolved_text);
+    }
+
+    const fs::path project_dir =
+        options.build_dir.empty() ? disc_dir / ".mppcburn" : fs::absolute(options.build_dir, ec);
+    const fs::path binary_dir = project_dir / "build";
+    const fs::path texture_dir = project_dir / "textures";
+    fs::create_directories(binary_dir, ec);
+    fs::create_directories(texture_dir, ec);
+    if (ec) {
+        say_error("cannot create build directory '" + project_dir.string() + "'");
+        return 1;
+    }
+
+    {
+        const std::string project_text = rv_cmake_project_text(
+            manifest, absolute_sources, options.pdk_dir, options.pdklib_dir, absolute_includes);
+        std::ofstream out(project_dir / "CMakeLists.txt", std::ios::binary | std::ios::trunc);
+        if (!out) {
+            say_error("cannot write '" + (project_dir / "CMakeLists.txt").string() + "'");
+            return 1;
+        }
+        out.write(project_text.data(), static_cast<std::streamsize>(project_text.size()));
+        if (!out) {
+            say_error("short write on '" + (project_dir / "CMakeLists.txt").string() + "'");
+            return 1;
+        }
+    }
+
+    std::string child_output;
+    const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +
+                                  " -B " + shell_quote(binary_dir.string()) +
+                                  " -DCMAKE_BUILD_TYPE=RelWithDebInfo";
+    int status = run_capture(configure, child_output);
+    if (status != 0) {
+        dump_child_output(child_output);
+        say_error("cmake failed to configure the generated disc project (exit " +
+                  std::to_string(status) +
+                  "). cmake and ninja are run-time dependencies of mppcburner.");
+        return 1;
+    }
+
+    std::string build = "cmake --build " + shell_quote(binary_dir.string());
+    if (options.jobs > 0) {
+        build += " --parallel " + std::to_string(options.jobs);
+    }
+    status = run_capture(build, child_output);
+    if (status != 0) {
+        // The compiler's own diagnostic, verbatim. Nothing this tool could say
+        // about a broken disc is more useful than what the compiler already
+        // said about it.
+        dump_child_output(child_output);
+        say_error("compiling the disc failed (exit " + std::to_string(status) + ")");
+        return 1;
+    }
+
+    const fs::path disc_so = binary_dir / "disc.so";
+    if (!fs::is_regular_file(disc_so, ec)) {
+        dump_child_output(child_output);
+        say_error("the build reported success but produced no '" + disc_so.string() + "'");
+        return 1;
+    }
+    say_step(2, "compile", std::to_string(sources.size()) + " source(s) -> disc.so");
+
+    // ── [3/4] assets ──────────────────────────────────────────────────────────
+    //
+    // The whole archive is PLANNED first — every flat name, and the original it
+    // came from — and only then is any work done. That ordering is what makes
+    // the collision diagnostic useful: two PNGs colliding are two PNGs, not two
+    // identical paths to a baked file that had already overwritten itself.
+    std::vector<rv_archive_item> items;
+
+    std::vector<std::string> asset_files;
+    if (!manifest.files.empty()) {
+        if (!rv_glob_expand(disc_dir, manifest.files, asset_files, error)) {
+            say_error("[assets] files: " + error);
+            return 1;
+        }
+    }
+    for (const std::string& relative : asset_files) {
+        rv_archive_item item;
+        item.name = rv_flat_name(relative);
+        item.source = relative;
+        item.payload = (disc_dir / relative).string();
+        if (!rv_check_asset_name(item.name, error)) {
+            say_error("[assets] files: " + error + " (from '" + relative + "')");
+            return 1;
+        }
+        items.push_back(item);
+    }
+
+    std::vector<std::string> texture_files;
+    if (!manifest.textures.files.empty()) {
+        if (!rv_glob_expand(disc_dir, manifest.textures.files, texture_files, error)) {
+            say_error("[textures] files: " + error);
+            return 1;
+        }
+    }
+    const std::size_t first_texture = items.size();
+    for (const std::string& relative : texture_files) {
+        rv_archive_item item;
+        item.name = fs::path(relative).stem().string() + ".mppctex";
+        item.source = relative;
+        item.payload = (texture_dir / item.name).string();
+        if (!rv_check_asset_name(item.name, error)) {
+            say_error("[textures] files: " + error + " (from '" + relative + "')");
+            return 1;
+        }
+        items.push_back(item);
+    }
+
+    if (!rv_check_collisions(items, error)) {
+        say_error(error);
+        return 1;
+    }
+
+    if (!texture_files.empty()) {
+        std::string baker;
+        if (!find_baker(options.baker, baker, error)) {
+            say_error(error);
+            return 1;
+        }
+
+        int64_t video_memory_used = 0;
+        for (std::size_t i = first_texture; i < items.size(); ++i) {
+            const rv_archive_item& item = items[i];
+            const std::string command =
+                shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
+                shell_quote(item.payload) + " --format " + shell_quote(manifest.textures.format);
+            status = run_capture(command, child_output);
+            if (status != 0) {
+                dump_child_output(child_output);
+                say_error("mppcbaker failed on '" + item.source + "' (exit " +
+                          std::to_string(status) + ")");
+                return 1;
+            }
+
+            mppctex_header header;
+            if (!read_mppctex_header(item.payload, header, error)) {
+                say_error(error);
+                return 1;
+            }
+            // Budget: one texture that does not fit the reference machine's
+            // limits. Caught here rather than at video_asset_write(), where it
+            // would be an RV_ERR_INVAL on a loading screen.
+            if (header.width > manifest.budget.texture_max_width ||
+                header.height > manifest.budget.texture_max_height) {
+                say_error("texture '" + item.source + "' is " + std::to_string(header.width) + "x" +
+                          std::to_string(header.height) + ", over the budget of " +
+                          std::to_string(manifest.budget.texture_max_width) + "x" +
+                          std::to_string(manifest.budget.texture_max_height) +
+                          " declared in [budget]");
+                return 1;
+            }
+            video_memory_used += texel_bytes(header) + header.palette_count * 2;
+        }
+
+        // Budget: everything the disc would upload, against the video memory it
+        // says the target machine has. This is an upper bound — a game that
+        // frees a texture before loading the next one uses less — so it is the
+        // conservative check, and a disc that trips it says so with a number.
+        if (video_memory_used > manifest.budget.video_memory_size) {
+            say_error("baked texels and palettes total " + std::to_string(video_memory_used) +
+                      " bytes, over the [budget] video_memory_size of " +
+                      std::to_string(manifest.budget.video_memory_size) + " bytes");
+            return 1;
+        }
+    }
+
+    say_step(3, "assets",
+             std::to_string(texture_files.size()) + " png -> .mppctex, " +
+                 std::to_string(asset_files.size()) + " copied");
+
+    // ── [4/4] burn ────────────────────────────────────────────────────────────
+    fs::create_directories(output_path.parent_path(), ec);
+    rv_zipwriter writer(output_path.string());
+    if (!writer.ok()) {
+        say_error("cannot open '" + output_path.string() + "' for writing");
+        return 1;
+    }
+
+    // The manifest is re-rendered from the parsed structure rather than copied
+    // byte for byte: what the archive carries is then exactly what the burner
+    // understood, and a comment or a stray key that the parser ignored cannot
+    // ride along and mislead a later reader.
+    const std::string manifest_text = rv_manifest_render(manifest);
+    if (!writer.add("disc.toml", manifest_text.data(), manifest_text.size(), error)) {
+        say_error(error);
+        return 1;
+    }
+    if (!writer.add_file("disc.so", disc_so.string(), error)) {
+        say_error(error);
+        return 1;
+    }
+    for (const rv_archive_item& item : items) {
+        if (!writer.add_file(item.name, item.payload, error)) {
+            say_error(error);
+            return 1;
+        }
+    }
+    if (!writer.finish(error)) {
+        say_error(error);
+        return 1;
+    }
+
+    const int64_t burned = static_cast<int64_t>(fs::file_size(output_path, ec));
+    say_step(4, "burn",
+             output_path.filename().string() + " (" + rv_human_size(ec ? 0 : burned) + ")");
+
+    // The build tree is scratch space and goes away — unless the developer
+    // asked to keep it, in which case it is a readable CMake project they can
+    // run ninja in themselves. It is also kept after a FAILURE (an early return
+    // above), for the same reason.
+    if (!options.keep_build) {
+        fs::remove_all(project_dir, ec);
+        if (ec) {
+            say_warning("could not remove the build directory '" + project_dir.string() + "'");
+        }
+    }
+    return 0;
+}
+
+// ── inspect ───────────────────────────────────────────────────────────────────
+
+int rv_inspect_run(const std::string& archive_path) {
+    std::vector<unsigned char> bytes;
+    std::string error;
+    if (!read_whole_file(archive_path, bytes, error)) {
+        say_error(error);
+        return 1;
+    }
+    std::vector<zip_entry> entries;
+    if (!zip_list(bytes, entries, error)) {
+        say_error(archive_path + ": " + error);
+        return 1;
+    }
+
+    // stdout from here down: this is the part a script reads. Nothing is
+    // unpacked and nothing is written anywhere — inspect is a pure reader.
+    std::printf("[manifest]\n");
+    bool manifest_found = false;
+    for (const zip_entry& entry : entries) {
+        if (entry.name != "disc.toml") {
+            continue;
+        }
+        std::string text;
+        if (!zip_entry_bytes(bytes, entry, text, error)) {
+            say_error(error);
+            return 1;
+        }
+        std::fwrite(text.data(), 1, text.size(), stdout);
+        if (!text.empty() && text.back() != '\n') {
+            std::fputc('\n', stdout);
+        }
+        manifest_found = true;
+        break;
+    }
+    if (!manifest_found) {
+        say_warning(archive_path + " has no disc.toml; the console would refuse it");
+    }
+
+    std::printf("[entries]\n");
+    int64_t total = 0;
+    for (const zip_entry& entry : entries) {
+        std::printf("%s\t%lld\n", entry.name.c_str(), static_cast<long long>(entry.size));
+        total += entry.size;
+    }
+
+    std::printf("[total]\n");
+    std::printf("entries\t%zu\n", entries.size());
+    std::printf("bytes\t%lld\n", static_cast<long long>(total));
+    std::printf("file\t%lld\n", static_cast<long long>(bytes.size()));
+    return 0;
+}
+
+}  // namespace rv_pdktools

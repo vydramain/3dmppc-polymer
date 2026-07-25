@@ -1,0 +1,40 @@
+# ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+# Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+# Ревизия: stage 10 — сборка mppcburner.
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# mppcburner BURNS a disc: a prepared directory in, one .mppcdisc out. Named for
+# the act, not the artifact — .mppcdisc is the disc, and a tool sharing that name
+# would make every sentence in the documentation ambiguous.
+#
+# It compiles a game by GENERATING a CMake project and driving cmake/ninja, so
+# cmake is a run-time dependency of the tool, not a build-time one. Writing our
+# own build system to avoid that would be trading a dependency everyone already
+# has for a pile of code nobody wants to maintain.
+
+add_executable(mppcburner
+  main.cpp
+  rv_manifest.cpp
+  rv_zipwrite.cpp
+  rv_build.cpp
+)
+
+# The contract lives next door. The burner reads pdk/cv/rv_texture.hpp for the
+# texel formats it enforces budgets against, and pdk/rv_abi.hpp for the ABI
+# version it stamps into a manifest.
+target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
+
+# Where a GENERATED disc project should look for the contract and the disc-side
+# SDK. Baked in so the tool works out of the box inside this repository, and
+# overridable at run time (--pdk / --pdklib) so a disc directory living anywhere
+# else builds just as well.
+target_compile_definitions(mppcburner PRIVATE
+  RV_BURNER_DEFAULT_PDK="${RV_REPO_ROOT}/pdk/include"
+  RV_BURNER_DEFAULT_PDKLIB="${RV_REPO_ROOT}/pdk/lib/include"
+)
+
+if(MSVC)
+  target_compile_options(mppcburner PRIVATE /W4)
+else()
+  target_compile_options(mppcburner PRIVATE -Wall -Wextra)
+endif()
