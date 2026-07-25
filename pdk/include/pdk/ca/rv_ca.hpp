@@ -27,8 +27,10 @@ class rv_ca {
     // Number of voices this console provides (fits the 0..62 mask bits), and the
     // size of the sound-RAM pool in bytes. Implementation-defined — query in
     // rv_de::disc_initialize and validate the disc's baked assumptions against
-    // the answers. The reference console's defaults live in
-    // docs/platform/specs.md.
+    // the answers. Both are the machine's own VIRTUAL budget rather than
+    // anything about the host: sound RAM really is exhausted at the size
+    // answered here, and no host memory is reachable past it.
+    // The reference console's defaults live in docs/platform/specs.md.
     virtual int64_t voice_count() = 0;
     virtual int64_t sound_memory_size() = 0;
 

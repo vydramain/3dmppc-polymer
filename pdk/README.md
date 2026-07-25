@@ -170,7 +170,8 @@ Audio deliberately follows the PSX split of a low-level sound-chip library and a
 high-level sequencer built on top of it:
 
 - **Low-level — `ca/rv_ca.hpp` (the SPU).** The realized layer. The game manages a
-  private pool of **sound RAM** (`sound_asset_malloc` → `sound_asset_write` sample
+  private pool of **virtual sound RAM** — the console's own fixed budget, not the
+  host's memory (`sound_asset_malloc` → `sound_asset_write` sample
   → `sound_asset_free`) and drives a
   fixed set of **voices** (`voice_setup` a config, then `voice_play` / `voice_stop`
   / `voice_status` by voice bitmask). This is the hardware boundary the console
@@ -211,8 +212,10 @@ be mistaken for an error.
 Video resolved the granularity question the same way audio did — **low-level**,
 PSX-faithful in structure:
 
-- **Video RAM.** The game reserves a region (`video_asset_malloc`), uploads
-  texture or palette data (`video_asset_write` + `rv_texture`), and keeps only
+- **Video RAM** — virtual, on the same terms as sound RAM: a fixed pool the
+  console owns and runs out of. The game reserves a region
+  (`video_asset_malloc`), uploads texture or palette data (`video_asset_write` +
+  `rv_texture`), and keeps only
   the returned opaque address. A palette is an array of 16-bit entries in the
   DIRECT15 texel layout; texel transparency (value `0000h` = fully-transparent
   hole, bit 15 = semi-transparency flag — so no opaque black in textures) is a
@@ -231,7 +234,10 @@ texture address, palette address, fill mode and wrap mode all travel inside the
 primitive (the PSX texpage/CLUT attributes, generalized).
 
 **Hardware geometry is implementation-defined — the PDK carries no numbers.**
-The devkit only gives a game the means to ASK: `screen_width/height`,
+Whatever a concrete machine answers is a **virtual** budget it imposes on
+itself, not a measurement of the host it runs on; the console is expected to
+hold the line it names, which is why the pool calls can answer `RV_ERR_NOMEM` at
+all. The devkit only gives a game the means to ASK: `screen_width/height`,
 `texture_max_width/height`, `video_memory_size`, `frame_capacity` (video);
 `voice_count`, `sound_memory_size` (audio); `card_slots`, `card_slot_size`
 (memory card); `iport_count`, `iport_abilities` (input). A disc queries these in
@@ -435,10 +441,11 @@ Tracked here so they are chosen deliberately rather than by drift:
   sizing hint, `asset_read` copies the whole entry into a buffer the game owns.
   **The drive never allocates the game's data buffer** — the game owns that
   memory, because only the game knows how long the bytes are needed and the RAM
-  budget is its to spend. An entry is named by a plain name with no path
-  separators, resolved into a handle. The medium is read-only (persistent save is
-  the memory card, i.e. `rv_cm`), and no host path ever crosses: the game cannot
-  tell a directory from a packed image.
+  budget is its to spend — that budget being virtual and, unlike video and sound
+  RAM, not enforced by anything yet. An entry is named by a plain name with no
+  path separators, resolved into a handle. The medium is read-only (persistent
+  save is the memory card, i.e. `rv_cm`), and no host path ever crosses: the
+  game cannot tell a directory from a packed image.
   Deferred: enumeration (the disc builder bakes any listing at build time), ranged
   reads, streaming, and the mapping model (console places the resource in its own
   RAM and lends an address) — the last only pays off once the console owns a real

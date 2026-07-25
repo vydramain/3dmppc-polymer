@@ -34,6 +34,12 @@ mppcdiscs/  the games
 The tools include `pdk/` headers (they enforce the console's texel formats and
 stamp the ABI version) but link nothing from `src/`.
 
+`mppcburner` also enforces the `[budget]` block of `disc.toml` — the texture
+limits and the virtual video-memory size the target machine will hand out. That
+budget is the console's own invention rather than anything about the developer's
+workstation, which is exactly why it has to be checked deliberately here: the
+host would happily pack far more than the console will ever accept.
+
 ## Usage
 
 See [`mppcbaker/README.md`](mppcbaker/README.md) for the `.mppctex` layout and

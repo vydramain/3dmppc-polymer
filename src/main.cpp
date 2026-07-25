@@ -112,7 +112,7 @@ int main(int argc, char** argv) {
         // console does, and its teardown (disc_shutdown, destroy, dlclose,
         // unlink) happens when this scope ends. Nothing here holds the pointer
         // past that.
-        rv_3dmppc::rv_de* disc = console.disc_load(disc_path);
+        rv_pdk::rv_de* disc = console.disc_load(disc_path);
         if (disc == nullptr) {
             // The loader has already said, precisely, what was wrong with it.
             rv_3dmppc::rv_main_log_error(
@@ -124,8 +124,10 @@ int main(int argc, char** argv) {
 
     // No disc in the machine: the built-in service test of the hardware. It is
     // linked into the console on purpose — it is how the console is checked
-    // without a game, and it is not a game itself.
-    rv_3dmppc::rv_dmain disc;
+    // without a game, and it is not a game itself. `service` is a DISC's
+    // namespace, not the machine's, and this is the only line in the console
+    // that names a disc: the service test is embedded deliberately.
+    rv_service::rv_dmain disc;
     return static_cast<int>(console.disc_run(disc) < 0 ? 1 : 0);
     // NEUROSLOP-END
 }

@@ -22,11 +22,15 @@ namespace rv_pdk {
 // re-orders primitives by depth, every attribute travels inside the primitive.
 //
 // The hardware geometry (screen size, texture limits, memory, frame budget) is
-// IMPLEMENTATION-defined — the PDK carries no numbers. The game queries it (see
-// the geometry section below) in rv_de::disc_initialize and validates its own
-// baked assumptions against the answers; on a mismatch it returns a negative
-// rv_err and the console refuses to run the disc. The reference console's
-// defaults live in docs/platform/specs.md.
+// IMPLEMENTATION-defined — the PDK carries no numbers. Whatever a machine
+// answers is its own VIRTUAL budget and not a measurement of the host it runs
+// on: the host's memory is irrelevant here, and a console is expected to hold
+// the line it names (which is what makes RV_ERR_NOMEM below reachable at all).
+// The game queries it (see the geometry section below) in
+// rv_de::disc_initialize and validates its own baked assumptions against the
+// answers; on a mismatch it returns a negative rv_err and the console refuses
+// to run the disc. The reference console's defaults live in
+// docs/platform/specs.md.
 //
 // Methods return >= 0 on success, a negative rv_err on failure.
 //

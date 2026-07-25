@@ -11,6 +11,33 @@ two parts:
 
 ## Target Spec
 
+**Every number below is a *virtual* budget the console imposes on itself.** None
+of it is a property of the machine `3dmppc` runs on: the host has gigabytes of
+RAM and a screen far larger than 320×240, and the console hands a disc none of
+it. The figures describe the fantasy hardware, not the hardware underneath it.
+
+The budget is not decoration — wherever the contract can hold the line, it does,
+and that is what makes a game written for this machine actually written *for*
+it rather than merely on it:
+
+- the video-RAM pool answers `RV_ERR_NOMEM` once its 1 MB is handed out, and the
+  sound-RAM pool the same for its 512 KB (`src/rv_infra/rv_pcpool.hpp`) — through
+  the contract a disc has no way to fall back on the host allocator;
+- a frame rejects the primitive past `frame_capacity` with `RV_ERR_NOMEM`, and a
+  texture over `texture_max_width/height` is refused at upload
+  (`src/rv_pconsole/cv/rv_pccv.cpp`);
+- `card_write` refuses a blob larger than one slot;
+- `mppcburner` re-checks the same texture and video-memory budget at pack time,
+  so an overflow is caught on the author's desk instead of on a loading screen.
+
+Where the budget is **not** enforced, said plainly rather than implied:
+
+- **Main RAM (2 MB) is not in the contract at all.** There is no RAM controller;
+  a disc allocates through the host and nothing counts the bytes. That figure is
+  a target the disc author honours voluntarily, and nothing else.
+- **The medium has no size ceiling.** The drive mounts whatever it is given; a
+  disc may be arbitrarily large.
+
 The PDK carries **no numbers** — a disc queries the console at `disc_initialize`
 and validates its baked assumptions (see `pdk/README.md`, "Video"). The values
 below are the **reference console's answers** (`rv_pconsole` defaults):
@@ -89,7 +116,8 @@ why `rv_sample` carries no format fields at all.
   before anything reaches the filesystem.
 
 ### Memory
-- **RAM:** 2 MB (main heap; not yet contracted — no RAM controller in the PDK)
+- **RAM:** 2 MB (main heap; not yet contracted — there is no RAM controller in
+  the PDK, so unlike video and sound RAM nothing actually enforces this figure)
 
 ### Game package
 - `.mppcdisc` — an *mppc polymer disc*: the console name (`mppc`) plus the

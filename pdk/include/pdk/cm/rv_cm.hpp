@@ -12,7 +12,9 @@ namespace rv_pdk {
 // slot size are IMPLEMENTATION-defined — query card_slots() / card_slot_size()
 // in rv_de::disc_initialize and refuse to run (negative rv_err) if the disc's
 // save blob does not fit; the reference console's defaults live in
-// docs/platform/specs.md. The card is always inserted: persistence (the
+// docs/platform/specs.md. That geometry is the VIRTUAL card's, not the backing
+// store's: card_write() refuses an oversized blob however much room the console
+// happens to have to keep it in. The card is always inserted: persistence (the
 // file-backed image, where it lives, when it is flushed) is the console's
 // concern, never an operation the game invokes.
 //
