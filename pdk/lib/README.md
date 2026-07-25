@@ -10,9 +10,9 @@ do; `pdklib/` is the arithmetic you would otherwise write again in every game.
 
 | Tree | What it is | Who depends on it |
 | --- | --- | --- |
-| [`pdk/`](../pdk/) | the **contract** — the hardware vocabulary | the console **and** every disc |
+| [`pdk/`](../) | the **contract** — the hardware vocabulary | the console **and** every disc |
 | `src/` | the **console** — implements the contract | — |
-| [`mppcdiscs/`](../mppcdiscs/) | the **discs** — games | `pdk/` + (optionally) `pdklib/` |
+| [`mppcdiscs/`](../../mppcdiscs/) | the **discs** — games | `pdk/` + (optionally) `pdklib/` |
 | `pdklib/` | **conveniences for discs**, written *on top of* the contract | discs only, and only if they want to |
 
 `pdklib/` depends on `pdk/` and the standard library. Nothing else — no `src/`, no

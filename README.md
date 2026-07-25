@@ -51,7 +51,7 @@ than by discipline.
 | Tree | What it is | Depends on |
 | --- | --- | --- |
 | [`pdk/`](pdk/) | **the contract** — the headers describing what the console can do | nothing |
-| [`pdklib/`](pdklib/) | **disc-side conveniences** written against the contract: matrices, camera, `.obj`, text | `pdk/` |
+| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, `.obj`, text | `pdk/` |
 | `src/` | **the console** — the concrete machine that implements the contract | `pdk/` |
 | [`pdk/tools/`](pdk/tools/) | **authoring tools** that turn a directory into a disc | `pdk/` |
 | [`mppcdiscs/`](mppcdiscs/) | **the games** | `pdk/`, `pdklib/` |
@@ -175,14 +175,13 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | --- | --- |
 | [`docs/README.md`](docs/README.md) | **console vs disc** — read this first |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
-| [`pdklib/README.md`](pdklib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
+| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
 | [`docs/platform/specs.md`](docs/platform/specs.md) | the hardware spec, and every place it deliberately differs from a real PSX |
 | [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md) | how a disc is packaged and loaded |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`mppcdiscs/hello/README.md`](mppcdiscs/hello/README.md) | the sample disc, annotated |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
-| [`docs/mppcdisc/solid/`](docs/mppcdisc/solid/) | design of the reference game (Solidmaid), not yet written |
 
 ---
 
@@ -233,7 +232,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - Left-handed math: `+x` right, `+y` up, `+z` forward.
 - Every call across the contract returns `>= 0` on success and a negative
   `rv_err` on failure — callers test with `if (rc < 0)`.
-- Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/ pdklib/ pdk/tools/`
+- Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/ pdk/lib/ pdk/tools/`
   maps every pattern and algorithm to the line that implements it.
 - Machine-generated code carries a `NEUROSLOP` banner or `NEUROSLOP-BEGIN/END`
   markers. It has not been reviewed by a human.

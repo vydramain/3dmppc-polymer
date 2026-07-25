@@ -1,281 +1,278 @@
 # Disc loading — build, package, and run a `.mppcdisc`
 
-How a disc goes from source to a running game: build the game into its own
-shared object, package it (plus assets) into a single `.mppcdisc` file, and have
-the console load it at runtime with `3dmppc solid.mppcdisc`.
+How a game goes from a directory of source and art to a running disc: the burner
+compiles it into its own shared object and packs that plus its assets into one
+`.mppcdisc` file; the console mounts the file, loads the code out of it, and
+drives it through the disc ABI.
 
-This is a **design document** for where the console is headed. Today the disc is
-still *compiled into* the console executable (`main.cpp` instantiates
-`SolidDisc` directly). Nothing here is implemented yet; it records the target
-architecture and the decisions behind it, including the future scripting path.
+This describes **what the console and the tools do today**. The native path —
+manifest, compile, bake, pack, mount, `dlopen`, handshake, teardown — is
+implemented and is what `mppcdiscs/hello` exercises end to end. The one part
+that is still design rather than code is the **script (Lua) disc kind**, and it
+is marked as such at the bottom.
 
-> Scope: this folds together the two documents the platform README lists as
-> planned — `disc-abi.md` (the boundary) and `disc-format.md` (the package).
-
----
-
-## Goal
-
-```
-cmake --build build
-  ├── build/3dmppc            the console (game-agnostic executable)
-  └── build/solid.mppcdisc    the game (its own .so + assets, one file)
-
-./build/3dmppc solid.mppcdisc  → console loads the disc, runs the game
-```
-
-The console never names a concrete game. It takes a disc path from `argv[1]`,
-mounts the package, loads the code, and drives it through the disc ABI.
+> Scope: this is both documents the platform README once listed as planned —
+> the boundary (`disc-abi.md`) and the package (`disc-format.md`).
 
 ---
 
-## 1. Build graph: the "thickness of the ABI" decision
+## The whole path
 
-Before any CMake, decide **who owns the rasterizer**. Today the game calls
-console code (`gpu/rasterizer`, `assets/obj_loader`, `assets/image`) that happens
-to be compiled into the same binary. Once the disc is a separate `.so`, that code
-has to live on one side of the boundary.
+```sh
+cmake -S . -B build -G Ninja && cmake --build build            # the console
+cmake -S pdk/tools -B pdk/tools/build -G Ninja \
+  && cmake --build pdk/tools/build                             # the tools
 
-| | **Option A: thin ABI** (recommended) | Option B: shared runtime |
-| --- | --- | --- |
-| What crosses the boundary | only `Disc` + POD structs (`InputState`, `Framebuffer`, `DiscServices`) | also all of `gpu` / `core` / `assets` |
-| Rasterizer | compiled **into the disc** (the `.so` is self-contained) | in a separate `libmppc_runtime.so`, linked by both |
-| C++ ABI surface | minimal → robust across compilers/flags | large → exe + runtime + disc must all be built identically |
-| Code duplication | rasterizer duplicated per disc (it is tiny — fine) | none |
-| Mental model | "the cartridge carries everything it needs" | "the disc depends on the console's runtime version" |
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/hello \
+    -o build/hello.mppcdisc --baker pdk/tools/build/mppcbaker/mppcbaker
 
-For a PSX-like fantasy console, **Option A is the honest choice**: the disc gets
-only a raw `Framebuffer&` (pixel buffer) + input + services, and draws with its
-own code. The only binary contract is the `Disc` vtable and a couple of POD
-structs — exactly what an `extern "C"` factory can keep stable. The sketch below
-assumes Option A.
-
-### CMakeLists sketch (proposal, not yet applied)
-
-```cmake
-cmake_minimum_required(VERSION 3.24)
-project(3dmppc LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# --- console public headers (ABI + services the disc needs) ---
-# The disc needs ONLY headers (the POD contract), not the console's .cpp files.
-add_library(mppc_abi INTERFACE)
-target_include_directories(mppc_abi INTERFACE ${CMAKE_SOURCE_DIR}/src)
-
-# --- CONSOLE (exe) ---
-add_executable(3dmppc
-  src/main.cpp
-  src/core/window.cpp src/core/audio.cpp src/core/savecard.cpp
-  src/gpu/rasterizer.cpp
-  src/assets/obj_loader.cpp src/assets/image.cpp src/assets/stb_image_impl.cpp
-  src/platform/console.cpp
-)
-target_link_libraries(3dmppc PRIVATE SDL3::SDL3 mppc_abi ${CMAKE_DL_LIBS})
-#                                                          ^^^ dlopen/dlsym: -ldl
-
-# --- DISC solid (.so) ---
-# Option A: the disc carries its own rasterizer/loader inside the .so.
-add_library(solid MODULE            # MODULE = plugin, loaded only via dlopen
-  mppcdiscs/solid/src/solid.cpp
-  mppcdiscs/solid/src/player.cpp
-  # ... the rest of the game's .cpp ...
-  # rasterizer/assets as part of the disc (Option A):
-  src/gpu/rasterizer.cpp src/assets/obj_loader.cpp src/assets/image.cpp
-  src/assets/stb_image_impl.cpp
-)
-set_target_properties(solid PROPERTIES PREFIX "" OUTPUT_NAME "disc")  # -> disc.so
-target_link_libraries(solid PRIVATE mppc_abi)
-target_include_directories(solid PRIVATE ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/src)
-
-# --- PACKAGE .mppcdisc ---
-# Build a staging dir: disc.so + manifest + assets, then archive it.
-set(DISC_STAGE ${CMAKE_BINARY_DIR}/stage/solid)
-add_custom_command(
-  OUTPUT ${CMAKE_BINARY_DIR}/solid.mppcdisc
-  DEPENDS solid ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/disc.manifest
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${DISC_STAGE}
-  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:solid> ${DISC_STAGE}/disc.so
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/assets ${DISC_STAGE}/assets
-  COMMAND ${CMAKE_COMMAND} -E copy
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solid/disc.manifest ${DISC_STAGE}/
-  # zip archive using CMake itself (cross-platform, no external zip):
-  COMMAND ${CMAKE_COMMAND} -E tar "cf" ${CMAKE_BINARY_DIR}/solid.mppcdisc
-          --format=zip .
-  WORKING_DIRECTORY ${DISC_STAGE}
-  COMMENT "Packaging solid.mppcdisc"
-)
-add_custom_target(disc_solid ALL DEPENDS ${CMAKE_BINARY_DIR}/solid.mppcdisc)
+./build/3dmppc build/hello.mppcdisc
 ```
 
-Notes on the sketch:
+The console never names a concrete game. It takes a disc path as its first
+positional argument, mounts the archive, loads the code, and runs it. With no
+argument it falls back to the built-in `rv_dmain` — the service test, which is a
+disc but a linked-in one, not a game.
 
-- **`MODULE`, not `SHARED`** — in CMake `MODULE` means "a plugin loaded via
-  `dlopen`, never linked against". That is the correct semantics for a disc.
-- **`add_custom_command(OUTPUT ...)` + `add_custom_target(... ALL DEPENDS ...)`**
-  wires packaging into the Ninja graph: `cmake --build build` builds the `.so`,
-  then sees the dependency and packages the `.mppcdisc`. Order is guaranteed by
-  `DEPENDS solid`.
-- **`cmake -E tar --format=zip`** archives with CMake itself — no external `zip`.
-- **Ninja** needs no special setup. It is just the executor of the graph CMake
-  generates; custom commands become its edges. The only "Ninja tuning" is
-  `-G Ninja` at configure time.
+`--disc PATH` is the separate development shortcut: it mounts a **directory** of
+loose assets as the medium, so art can be iterated without a packaging step. A
+packaged `.mppcdisc` goes in the positional argument instead and brings its own
+medium with it.
 
 ---
 
-## 2. Packaging `.mppcdisc` — the key gotcha
+## 1. Burning — four gates, not four stages
 
-A fundamental constraint to know up front: **`dlopen` cannot load a `.so` from
-inside a zip archive.** The OS loader needs a real file on the filesystem (an
-inode) to map into memory. So at startup:
+`mppcburner build` reads `disc.toml` from the disc directory and does four
+things, each of which is a **gate**: a disc that survives all four cannot fail
+the console for a reason the burner could have seen.
 
-```
-console opens solid.mppcdisc (a zip)
- -> reads manifest
- -> EXTRACTS disc.so to a temp dir (e.g. /tmp/mppc-xxxx/disc.so)
- -> dlopen("/tmp/mppc-xxxx/disc.so")
-```
+| Gate | What it settles |
+| --- | --- |
+| **manifest** | does this disc claim an ABI we speak, is its `id` a safe filename, is the texture format one that exists |
+| **compile** | does the game build against `pdk/` and `pdklib/` and **nothing from `src/`** |
+| **assets** | do the flattened names stay unique and legal, do the texel budgets hold |
+| **burn** | write the container |
 
-This costs **one extraction at boot** — milliseconds, once, unnoticeable. It has
-**zero** effect on per-frame runtime performance. Options:
+The compile gate generates a small CMake project — by default in
+`<disc-dir>/.mppcburn/`, `--keep-build=PATH` puts it elsewhere and leaves it
+behind — and drives `cmake` and `ninja` to build the manifest's `sources` into
+one module. The target is set with `PREFIX ""` and `OUTPUT_NAME "disc"` so the
+result is exactly `disc.so`; the default `libdisc.so` would be unloadable, and
+for a reason that reads as a mystery at the far end.
 
-- **Extract to a temp dir, then `dlopen`** — simple, portable. Recommended.
-- **Linux-only trick**: `memfd_create` + write the `.so` bytes + `dlopen(
-  "/proc/self/fd/N")` — load from memory, no disk. Neat, non-portable. Later.
-- Keep the `.so` *next to* the archive instead of inside — but that breaks the
-  "single-file disc" goal.
+The asset gate is where the flat namespace is enforced. `rv_cd` resolves a
+resource **by name, with no separators**, so `assets/enemies/smoke.png` becomes
+`smoke.mppctex` inside the archive. That flattening can collide, and a collision
+is refused with both originals named — "two `.mppctex` entries collide" would say
+nothing about which two PNGs to rename. Names starting with a dot are refused as
+editor and VCS bookkeeping, and the two **service names** below are reserved.
 
-For the single self-contained file, the answer is **extract-to-temp before
-`dlopen`**.
+The burner also enforces the `[budget]` block — texture dimensions and the
+virtual video-memory size the *target machine* will hand out. That budget is the
+console's own invention, not a property of the workstation, which is exactly why
+it has to be checked deliberately: the host would happily pack far more than the
+console will ever accept.
 
-### Manifest
+`mppcburner inspect DISC.mppcdisc` prints the manifest and the entry list to
+**stdout** (so it pipes into `grep`) and diagnostics to stderr, without
+unpacking anything.
 
-A small text/JSON file inside the archive, read by the console **first**:
+---
 
-```
-id = solid
-title = Solidmaid: Alkoldun Vasiliusavich
+## 2. The container
+
+A `.mppcdisc` is a plain zip written with the **STORE method only — never
+compressed**.
+
+That is a deliberate limit, not a missing feature. The console has to read this
+archive, and a stored entry is read with one seek and one read straight from the
+central directory's offset. A deflated one would put zlib inside the console — a
+dependency the machine otherwise does not have, in the component that must stay
+smallest and most auditable. The medium is also the model: a CD-ROM held its
+data as it was, and the texture pipeline already assumes bytes it can use
+directly. If compression ever earns its place it arrives as a bump of the
+container version, not as a change to this one.
+
+Two entry names are **service names**, read by the loader before it looks at any
+asset, and therefore forbidden to assets:
+
+| Entry | What it is |
+| --- | --- |
+| `disc.toml` | the manifest, re-rendered by the burner into the archive |
+| `disc.so` | the compiled game; the default value of the manifest's `entry` |
+
+Writer: `pdk/tools/mppcburner/rv_zipwrite.*`. Reader: `src/rv_pconsole/cd/rv_pczip.*`.
+
+---
+
+## 3. The manifest, and why the two sides read different amounts of it
+
+The disc directory holds a `disc.toml` in a **subset of TOML** — sections,
+`key = "string"`, `key = 42`, arrays of strings. The parser refuses what it does
+not handle rather than guessing, and its errors name the line number: a manifest
+is written by hand, and *"line 14: unknown key 'source' (did you mean
+'sources'?)"* is the difference between a fixed typo and an afternoon.
+
+```toml
+[disc]
+id = "hello"
+title = "hello - the smallest disc"
 abi_version = 1
-kind = native        # native | script
-entry = disc.so      # native: the .so name; script: the .lua entry point
+
+[build]
+sources = ["src/*.cpp"]
+
+[assets]
+files = ["assets/*.txt"]
+
+[textures]
+files = ["assets/*.png"]
+format = "idx8"
 ```
 
-`abi_version` is critical: the console checks it and **rejects an incompatible
-disc** instead of crashing.
+The **burner** reads all of it (`pdk/tools/mppcburner/rv_manifest.hpp`): build
+globs, defines, include dirs, assets, textures, budget.
+
+The **console** reads only `[disc]`, and only `abi_version`, `id`, `title` and
+`entry` (`src/rv_pconsole/rv_pcloader.hpp`). Unknown sections and keys are
+ignored rather than refused, because the burner deliberately writes more than
+the console reads. This asymmetry is a security boundary, not an oversight:
+every field the console parses is a field an attacker-supplied archive gets to
+influence, so it parses as few as it can, never trusts a length, and treats
+`title` as untrusted text that goes through `rv_log_escape` before it reaches a
+log line.
 
 ---
 
-## 3. Loading and the ABI handshake
+## 4. Loading — the extraction that cannot be avoided
 
-The disc's entry point is a C factory (stable ABI — C has no name mangling, no
-vtable layout to disagree on):
+**A `.so` cannot be `dlopen`ed from inside the archive.** `dlopen` does not take
+bytes, it takes a *path*: the dynamic loader maps the code with `mmap()`, which
+needs a real inode the kernel can back the mapping with, page by page, for as
+long as the code is resident. An entry inside a zip is a byte range belonging to
+another file — there is nothing to map, and the loader offers no interface
+through which the console could hand it a buffer.
+
+So the code entry is extracted to a private temporary file first, and that file
+is what `dlopen` sees:
+
+```
+console opens hello.mppcdisc (a stored zip)
+ -> reads disc.toml, checks abi_version against RV_ABI_VERSION
+ -> extracts the `entry` (disc.so) to a private temporary file
+ -> dlopen(that path, RTLD_NOW | RTLD_LOCAL)
+ -> dlsym mppc_disc_create / mppc_disc_destroy
+ -> create(RV_ABI_VERSION) -> rv_de*
+```
+
+It costs one write of a few hundred kilobytes at boot, once, and nothing per
+frame. The Linux-only `memfd_create` + `/proc/self/fd/N` trick removes the disk
+round trip and is **deliberately not used**: it is not portable, and the
+portable path is the one that must work.
+
+`RTLD_LOCAL` keeps the disc's symbols out of the global namespace. A disc is
+compiled with `-fvisibility=hidden`, so the only two things reachable by `dlsym`
+are the ones `RV_DISC_EXPORT` planted.
+
+### The handshake happens twice, on purpose
+
+The console compares the manifest's `abi_version` to `RV_ABI_VERSION` *and* the
+factory re-checks it and returns `nullptr` on mismatch. The first check reads
+text, which anyone can edit; the second is compiled into the binary that would
+actually run. A disc that loads against the wrong contract does not fail
+cleanly — it reads structs with the wrong layout and produces garbage geometry,
+silent corruption, or a crash three minutes into play with no clue as to why.
+
+### Teardown has exactly one correct order
+
+`rv_pcloader` owns the temporary file, the `dlopen` handle and the disc object as
+**one indivisible ownership** (PATTERN: RAII), so no caller taking an early
+return can get this wrong:
+
+```
+1. disc_shutdown()          the disc's last chance to touch the facade
+2. mppc_disc_destroy(disc)  the disc's own destructor, from the disc's code
+3. dlclose(handle)          the code is unmapped only now
+4. unlink(temporary file)   the inode goes last, and only then
+```
+
+Steps 2 and 3 in that order are not a preference. `dlclose()` may unmap the
+library's text segment, and the destructor *lives in* that text segment —
+destroying after `dlclose` is a jump into an unmapped page: a segfault on
+shutdown, where nobody is looking. Step 1 precedes step 2 for the same reason:
+`disc_shutdown` is a virtual on an object step 2 is about to end. And the
+destructor must be the **disc's own**, never the console's `delete`: the disc
+allocated the object with its allocator, out of its heap, and only its code
+knows the complete type.
+
+`disc_shutdown` is owed only by a disc whose `disc_initialize` returned success,
+and the loader compares pointers rather than trusting the call — the console may
+be running a disc this loader did not produce (the built-in `rv_dmain`), and that
+one's lifecycle is none of the loader's business.
+
+---
+
+## 5. Why the gate is `extern "C"`
+
+The **C++ ABI is not stable** across compilers, compiler versions, standard
+libraries, or even optimization flags: name mangling, vtable layout, exception
+propagation and RTTI representation all differ. A C++ symbol is therefore a poor
+door between two independently built binaries. `extern "C"` has none of that
+freedom — one symbol name, one calling convention.
+
+Once the console holds the returned `rv_de*`, both sides are inside **one
+process** again and the vtable is internally consistent, which is why a C++
+*object* may cross a boundary that a C++ *function* may not.
+
+A disc writes one line at the bottom of its translation unit:
 
 ```cpp
-// in the disc (solid.cpp):
-extern "C" rv_3dmppc::Disc* mppc_create_disc(int abi_version) {
-    if (abi_version != MPPC_ABI_VERSION) return nullptr;  // handshake
-    return new SolidDisc();
-}
-extern "C" void mppc_destroy_disc(rv_3dmppc::Disc* d) { delete d; }
+class rv_dmain : public rv_pdk::rv_de { /* ... */ };
+RV_DISC_EXPORT(hello::rv_dmain)
 ```
 
-The console:
+See [`../../pdk/include/pdk/rv_abi.hpp`](../../pdk/include/pdk/rv_abi.hpp) for
+`RV_ABI_VERSION`, the two symbol names, and the macro itself.
 
-```cpp
-void* h = dlopen(extracted_so_path, RTLD_NOW | RTLD_LOCAL);
-auto create  = (create_fn)dlsym(h, "mppc_create_disc");
-Disc* disc   = create(MPPC_ABI_VERSION);      // nullptr -> incompatible, bail
-// ... console.run(*disc) ...
-destroy(disc); dlclose(h);                    // keep the .so open for the whole run
-```
+### The thickness decision, settled
 
-- `RTLD_LOCAL` (Option A) keeps the disc's symbols out of the global namespace —
-  isolation.
-- `main.cpp` no longer `#include`s `game/solid.hpp` or names `SolidDisc`; it takes
-  the **disc path from `argv[1]`**. That is what makes "console separate, game
-  separate" real rather than aspirational.
+There was a real choice here: a **thin** ABI where only the contract crosses and
+the disc carries its own drawing code, or a **shared runtime** where console and
+disc both link a common `libmppc_runtime.so`.
 
-Why a C function and not a C++ class across the boundary: the **C++ ABI is
-unstable** (name mangling, vtable layout, exception handling differ across
-compilers, versions, and flags), so a C++ class is a poor boundary between two
-*separate* binaries. `extern "C"` is a narrow, predictable gate; once the console
-holds the returned `Disc*`, both sides are inside one binary again and the vtable
-is internally consistent.
+The thin one won, and the build enforces it. A disc target links `pdk` and
+`pdklib` and nothing else, so the first `#include` of a console header fails to
+compile rather than being caught in review. The cost is that disc-side helpers
+are duplicated into every disc — they are tiny, and it buys a boundary that
+cannot rot: no "this disc needs console runtime 1.4" ever exists.
 
 ---
 
-## 4. The scripting future (Lua) — authoring vs. loading
+## 6. Still design: script discs
 
-A tempting idea is: *scripts -> generated C++ -> compiled `.so` -> loaded*. Split
-it into two questions that are easy to conflate — **when** it happens and **what
-it costs**.
+The intended shape is **one ABI, two kinds of disc behind it**:
 
-**Runtime C++ compilation is the wrong tool.** To "generate a disc at runtime"
-that way, the player's machine would need a full C++ toolchain, and every disc
-would compile for *seconds*. Huge dependency, slow, fragile. Avoid it.
+1. **Native disc** — a compiled `disc.so` exporting `mppc_disc_create`. This is
+   the only kind that exists today.
+2. **Script disc** — the archive holds Lua and assets **as data**, and the
+   console ships one built-in disc implementation that loads the Lua and calls
+   its functions from `frame_update` / `frame_render`. No compilation, no `.so`.
 
-Separate the concerns:
+Nothing of this is implemented: there is **no `kind` key** in either manifest
+model today, and adding one is the first step.
 
-| Question | Answer |
-| --- | --- |
-| How a disc is **authored** | transpiling Lua -> C++ -> `.so` is acceptable, but as a **build-time / offline** step on the developer's machine (an AOT optimization) |
-| How the console **loads** a disc at runtime | via an **interpreter inside the console**, no compilation |
+The reason it is worth the trouble: generating a disc at runtime becomes writing
+files into an archive, with no compiler anywhere. The classic split — hot code
+(the rasterizer) in C++, game logic in an interpreter — is exactly how PICO-8,
+LÖVE and TIC-80 work, and it is adequate for this genre.
 
-**The architecture: one ABI, two *kinds* of disc behind it.**
+The trap to avoid is *scripts → generated C++ → compiled `.so`* **as a loading
+mechanism**. That would need a full C++ toolchain on the player's machine and
+seconds of compilation per disc. Transpiling Lua to C++ ahead of time is fine —
+but as a build-time authoring optimization, never at load.
 
-1. **Native disc** (`kind = native`): a compiled `.so` exporting
-   `mppc_create_disc`. This is how `solid` works. Maximum speed.
-2. **Script disc** (`kind = script`): the `.mppcdisc` holds Lua scripts + assets
-   **as data**. The console ships a single built-in `ScriptDisc : public Disc`
-   that *is* the implementation — it loads the Lua and, in `update()/render()`,
-   calls the script's functions. **No compilation, no `.so` for scripted games.**
+### Open follow-ups
 
-Why this fits the "generate a disc at runtime" goal:
-
-- **Runtime disc generation becomes trivial**: a disc is just a zip of Lua text +
-  assets. Generating one = writing files into an archive. No compiler at all.
-- **Performance is adequate**: the classic split is *hot* code (the rasterizer) in
-  C++, *game logic* in Lua. Interpreted Lua handles game logic easily; if it is
-  ever too slow, LuaJIT is near-native. This is how PICO-8, LÖVE, and TIC-80 work
-  — exactly this genre.
-- **Transpile-to-C++ stays available**: if a specific scripted disc wants native
-  speed, run the same Lua through an AOT transpiler into a `.so` **at build
-  time**. That is an authoring optimization, not a loading mechanism.
-
-```
-                       +----------- Disc ABI (extern "C" create) -----------+
-console (3dmppc) ------|                                                    |
-   dlopen / read kind  |  native: disc.so   (C++ game, e.g. solid)          |
-                       |  script: ScriptDisc (built into console) -> .lua   |
-                       +----------------------------------------------------+
-   disc authoring:  Lua sources --(build-time, optional)--> transpile -> .so
-                    Lua sources --(runtime)--> just drop into the .mppcdisc as data
-```
-
----
-
-## Summary / verdict
-
-| Idea | Verdict |
-| --- | --- |
-| Game in `mppcdiscs/solid/` -> its own `.so` | OK — `add_library(... MODULE)` |
-| Archive assets + `.so` -> `.mppcdisc` | OK — `cmake -E tar --format=zip`; **but** the `.so` must be extracted to temp before `dlopen` |
-| Console at `build/3dmppc`, run `3dmppc solid.mppcdisc` | OK — `argv[1]` -> `dlopen` -> `mppc_create_disc` |
-| Thin ABI (`extern "C"` factory + POD) | Recommended — robust across compilers |
-| Runtime: scripts -> generated C++ -> compile `.so` | Not a runtime mechanism; a compiler on the player's machine is bad. For runtime, use an **embedded Lua interpreter** |
-| Transpile Lua -> C++ -> `.so` | OK, but as a **build-time** AOT optimization, not runtime |
-
-The separation instinct is right, and a `.so` disc behind a thin `extern "C"` ABI
-is a solid foundation. The one thing to relocate: "runtime = interpreter",
-"compilation = offline authoring only".
-
-## Open follow-ups
-
-- Nail down the **exact thin-ABI contract**: which POD structs and functions
-  cross the `Disc` boundary (`InputState`, framebuffer access, `DiscServices`).
-- Specify the **manifest + load procedure** (extract -> dlopen -> handshake ->
-  run) in full.
-- Design **`ScriptDisc` + Lua** so native and script discs live behind the same
-  ABI.
+- A `kind` key, and the built-in script-disc implementation behind it.
+- Whether the container version needs to move before either lands.

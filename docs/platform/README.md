@@ -5,14 +5,14 @@ implements it, and the contract a disc must satisfy to run on it.
 
 Everything here is **game-agnostic**. If a fact would still be true when a
 completely different disc is inserted, it belongs in this directory. Game
-specifics live in [`../mppcdisc/`](../mppcdisc/).
+specifics live in that game's own repository, not in this one.
 
 ## Contents
 
 | Document                      | What it covers                                          |
 | ----------------------------- | ------------------------------------------------------- |
 | [`specs.md`](specs.md)        | The target hardware spec — the console's **virtual** budget for display, memory, audio, input and save, what enforces it, and how it maps to the real PSX. |
-| [`disc-loading.md`](disc-loading.md) | How a disc is built into its own `.so`, packaged into a single `.mppcdisc`, and loaded at runtime (`3dmppc solid.mppcdisc`). Covers the thin `extern "C"` ABI and the future Lua scripting path. Design doc — not yet implemented. |
+| [`disc-loading.md`](disc-loading.md) | How a disc is burned into its own `.so`, packed into a single `.mppcdisc`, and loaded at runtime. The burner's four gates, the stored-zip container, the manifest asymmetry, the extract-then-`dlopen` rule, the thin `extern "C"` ABI and its teardown order. Implemented, except the Lua scripting path at the end. |
 
 ## Planned documents
 
@@ -23,8 +23,8 @@ document as it grows:
   produced (rasterizer → framebuffer → SDL3 presenter).
 
 The `.mppcdisc` package layout (formerly the planned `disc-format.md`) and the
-console↔disc boundary (formerly `disc-abi.md`) are now covered together in
-[`disc-loading.md`](disc-loading.md) as a single design doc.
+console↔disc boundary (formerly `disc-abi.md`) are covered together in
+[`disc-loading.md`](disc-loading.md), which documents both as built.
 
 ## Boundary with the disc
 

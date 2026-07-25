@@ -19,6 +19,13 @@ compile_commands.json
 # Reference material — keep local, never publish
 /book/
 
+# Discs that live in their own repository and are only symlinked onto the shelf
+# for local work. Committing the symlink would store an absolute path from one
+# machine, which resolves to nothing anywhere else — the disc has to be cloned
+# from its own remote, not carried by this repo.
+#   solid-maid -> github.com/vydramain/Solidmaid
+/mppcdiscs/solid-maid
+
 # --- what the tools produce ---------------------------------------------------
 # Everything below is REGENERATED from something that is tracked, which is the
 # whole test for belonging here: a burned disc comes from its directory, a baked

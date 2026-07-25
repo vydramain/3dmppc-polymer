@@ -35,7 +35,7 @@ namespace rv_3dmppc {
 // influence.
 struct rv_pcdiscinfo {
     int abi_version = 0;  // must equal RV_ABI_VERSION
-    std::string id;       // short machine name, e.g. "solidmaid"
+    std::string id;       // short machine name, e.g. "hello"
     std::string title;    // human title — UNTRUSTED, log through rv_log_escape
     std::string entry;    // archive entry holding the code (default "disc.so")
 };

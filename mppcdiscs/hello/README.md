@@ -60,6 +60,6 @@ include path on the project it generates, so reaching for one does not compile �
 the rule that a game plays *on* the console rather than links *into* it is
 enforced by the build, not by discipline.
 
-A disc may also use [`pdklib/`](../../pdklib/) — matrices, camera, `.obj` parsing,
+A disc may also use [`pdklib/`](../../pdk/lib/) — matrices, camera, `.obj` parsing,
 text — which is written against the same contract. `hello` does not, only
 because it does not need to.
