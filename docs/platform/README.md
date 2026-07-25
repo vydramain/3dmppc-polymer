@@ -11,7 +11,7 @@ specifics live in [`../mppcdisc/`](../mppcdisc/).
 
 | Document                      | What it covers                                          |
 | ----------------------------- | ------------------------------------------------------- |
-| [`specs.md`](specs.md)        | The target hardware spec (display, memory, audio, input, save) and how it maps to the real PSX. |
+| [`specs.md`](specs.md)        | The target hardware spec — the console's **virtual** budget for display, memory, audio, input and save, what enforces it, and how it maps to the real PSX. |
 | [`disc-loading.md`](disc-loading.md) | How a disc is built into its own `.so`, packaged into a single `.mppcdisc`, and loaded at runtime (`3dmppc solid.mppcdisc`). Covers the thin `extern "C"` ABI and the future Lua scripting path. Design doc — not yet implemented. |
 
 ## Planned documents

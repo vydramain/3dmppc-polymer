@@ -8,6 +8,13 @@ called a **`.mppcdisc`**.
 Games are not built into it. You burn a disc, you insert a disc, the console
 runs it — and the console never learns the game's name.
 
+That screen, those voices, and the 1 MB of video memory behind them are a
+**virtual budget the console imposes on itself** — not what the host machine
+has. The host has gigabytes; a disc gets what the fantasy machine is defined to
+have, and the pools really do answer "out of memory" at the line. See
+[`docs/platform/specs.md`](docs/platform/specs.md) for the whole budget and for
+the two places it is not yet enforced.
+
 ---
 
 ## The one-minute version
@@ -142,17 +149,17 @@ mppcburner inspect mygame.mppcdisc
 `grep` cleanly) and diagnostics to stderr.
 
 The burner refuses rather than shipping something broken: a texture larger than
-the console allows, assets that overflow VRAM, an ABI version the console does
-not speak, or two assets whose names collide once flattened. Every one of those
-is cheaper to hit on your desk than on a player's loading screen.
+the console allows, assets that overflow the virtual VRAM, an ABI version the
+console does not speak, or two assets whose names collide once flattened. Every
+one of those is cheaper to hit on your desk than on a player's loading screen.
 
 ### What a disc must contain
 
 Two things make a translation unit a disc rather than a library:
 
 ```cpp
-class rv_dmain : public rv_de { /* ... */ };   // implement the lifecycle
-RV_DISC_EXPORT(rv_3dmppc::rv_dmain)            // last line of the file
+class rv_dmain : public rv_pdk::rv_de { /* ... */ };  // implement the lifecycle
+RV_DISC_EXPORT(mygame::rv_dmain)              // last line of the file
 ```
 
 `RV_DISC_EXPORT` plants the two `extern "C"` symbols the console looks up after
@@ -183,8 +190,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 - **Contract** — closed. Video, audio, drive, memory card, I/O, plus the binary
   ABI a packaged disc is loaded through.
-- **Video** — VRAM pool, ordering table, rasterizer for lines / sprites /
-  triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
+- **Video** — virtual VRAM pool, ordering table, rasterizer for lines / sprites
+  / triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
   paletted + 15-bit direct, PSX cut-out transparency), 4×4 ordered dithering.
 - **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer on its own
   thread.
@@ -194,9 +201,34 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Packaging** — `mppcburner` compiles a disc directory into a `.mppcdisc`, and
   the console loads it with a two-stage ABI handshake.
 - **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
-  gyro and trackpads, a RAM budget, the 256×224 display mode, Lua discs.
+  gyro and trackpads, a contracted RAM budget (video and sound RAM are enforced;
+  main RAM is not), the 256×224 display mode, Lua discs.
 
 ## Conventions
+
+- **One namespace per tree, and it says who owns the code.** This matters more
+  than it looks: a game declared inside the console's namespace reads as part of
+  the console, which is exactly the confusion the whole architecture exists to
+  prevent.
+
+  | Namespace | Tree | What lives there |
+  | --- | --- | --- |
+  | `rv_pdk` | `pdk/include` | the contract — both sides depend on it, neither owns it |
+  | `rv_pdklib` | `pdk/lib` | the disc-side library |
+  | `rv_3dmppc` | `src/` | the console, and nothing else |
+  | `rv_pdktools` | `pdk/tools` | the authoring tools |
+  | the disc's own id | each packaged disc | `hello::rv_dmain`, `mygame::rv_dmain`, … |
+  | `rv_service` | `src/rv_dmain` | the built-in service test — a disc, but a linked-in one |
+
+  A packaged disc needs no prefix and cannot collide with anything: it is built
+  with `-fvisibility=hidden` and loaded with `RTLD_LOCAL`, so nothing but its
+  two `extern "C"` entry points exists outside it, and two discs may pick the
+  same namespace without ever meeting. The built-in service test is the
+  exception — it is linked into the console binary and shares its symbols, so it
+  takes the project prefix.
+
+  Headers always qualify explicitly (`rv_pdk::rv_cv`); a `using namespace rv_pdk;`
+  is allowed only inside a `.cpp`, where it cannot leak into anyone else.
 
 - Left-handed math: `+x` right, `+y` up, `+z` forward.
 - Every call across the contract returns `>= 0` on success and a negative

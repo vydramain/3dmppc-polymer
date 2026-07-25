@@ -1,227 +1,228 @@
-# `pdk/tools/` — офлайн-инструменты девкита
+# `pdk/tools/` — offline devkit tools
 
-Всё, что здесь лежит, работает **на машине разработчика во время сборки**, а не
-на консоли. Ни один инструмент не линкует `src/` и не видит заголовков консоли:
-единственная общая правда — контракт из `pdk/include/pdk/cv/rv_texture.hpp`.
+Everything here runs **on the developer's machine at build time**, not on the
+console. No tool links against `src/` or sees a console header: the only shared
+truth is the contract in `pdk/include/pdk/cv/rv_texture.hpp`.
 
 ```
 cmake -S tools -B build-tools && cmake --build build-tools
 ```
 
-(или `add_subdirectory(tools)` из корневого `CMakeLists.txt` — файл работает в
-обоих режимах).
+(or `add_subdirectory(tools)` from the top-level `CMakeLists.txt` — the file works
+in both modes).
 
 ---
 
 ## `mppcbaker` — PNG → `.mppcbaker`
 
-Консоль не декодирует форматы изображений и не будет. Диск отдаёт в
-`rv_cv::video_asset_write()` **готовые тексели**, ровно как на настоящем девките.
-Значит превращение картинки в тексели — задача этапа сборки, и делает её
-`mppcbaker`.
+The console does not decode image formats and never will. A disc hands
+`rv_cv::video_asset_write()` **finished texels**, exactly as it would on real
+devkit hardware. So turning a picture into texels is a build-step job, and
+`mppcbaker` is what does it.
 
 ```
 mppcbaker <input.png> <output.mppcbaker> --format idx4|idx8|direct15
         [--transparent-key RRGGBB]
 ```
 
-| Опция | Смысл |
+| Option | Meaning |
 | --- | --- |
-| `--format idx4` | 4-битный индекс палитры, палитра на 16 записей (`RV_TEXFMT_IDX4`) |
-| `--format idx8` | 8-битный индекс палитры, палитра на 256 записей (`RV_TEXFMT_IDX8`) |
-| `--format direct15` | 15-битный прямой цвет + STP, палитры нет (`RV_TEXFMT_DIRECT15`) |
-| `--transparent-key RRGGBB` | какой цвет исходника считать дырой (шестнадцатеричный, `#` необязателен) |
+| `--format idx4` | 4-bit palette index, 16-entry palette (`RV_TEXFMT_IDX4`) |
+| `--format idx8` | 8-bit palette index, 256-entry palette (`RV_TEXFMT_IDX8`) |
+| `--format direct15` | 15-bit direct color + STP, no palette (`RV_TEXFMT_DIRECT15`) |
+| `--transparent-key RRGGBB` | which source color counts as a hole (hexadecimal, `#` optional) |
 
-Альфа-канал PNG учитывается **всегда**, независимо от `--transparent-key`:
-`alpha < 128` → пиксель прозрачный. Если у PNG альфы нет, он весь непрозрачный.
+The PNG alpha channel is honoured **always**, regardless of `--transparent-key`:
+`alpha < 128` → the pixel is transparent. A PNG without alpha is fully opaque.
 
-Любая ошибка — понятное сообщение в `stderr` и код возврата `1`.
+Any error gets a readable message on `stderr` and exit code `1`.
 
-### Примеры
+### Examples
 
 ```sh
-# спрайт с альфой, 16 цветов
+# sprite with alpha, 16 colors
 mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppcbaker --format idx4
 
-# спрайт без альфы, где дыра размечена ярко-розовым
+# sprite without alpha, where the hole is marked with hot pink
 mppcbaker assets/hud.png build/hud.mppcbaker --format idx8 --transparent-key FF00FF
 
-# фон без прозрачности, полный цвет
+# opaque background, full color
 mppcbaker assets/sky.png build/sky.mppcbaker --format direct15
 ```
 
 ---
 
-## Раскладка файла `.mppcbaker`
+## `.mppcbaker` file layout
 
-Всё little-endian. Файл — это заголовок, затем палитра, затем тексели; и палитра,
-и тексели лежат **ровно в том виде, в каком уйдут в `video_asset_write`**, так
-что диску не нужно ничего переупаковывать.
+Everything is little-endian. The file is a header, then the palette, then the
+texels; both the palette and the texels are stored **exactly in the form they
+will be handed to `video_asset_write`**, so the disc never has to repack
+anything.
 
-### Заголовок — 16 байт
+### Header — 16 bytes
 
-| Смещение | Размер | Поле | Значение |
+| Offset | Size | Field | Value |
 | --- | --- | --- | --- |
 | `0` | 4 | `magic` | ASCII `"MPTX"` |
 | `4` | 2 | `version` | `1` |
-| `6` | 2 | `format` | значение `rv_texfmt`: `4`, `8` или `15` |
-| `8` | 2 | `width` | текселей в строке |
-| `10` | 2 | `height` | строк |
-| `12` | 2 | `palette_count` | записей в палитре: `16` для IDX4, `256` для IDX8, `0` для DIRECT15 |
-| `14` | 2 | `reserved` | `0` (проверять на равенство нулю не обязательно, но и не запрещено) |
+| `6` | 2 | `format` | an `rv_texfmt` value: `4`, `8` or `15` |
+| `8` | 2 | `width` | texels per row |
+| `10` | 2 | `height` | rows |
+| `12` | 2 | `palette_count` | palette entries: `16` for IDX4, `256` for IDX8, `0` for DIRECT15 |
+| `14` | 2 | `reserved` | `0` (checking it for zero is not required, but not forbidden either) |
 
-Заголовок именно 16 байт, чтобы палитра за ним была выровнена на 2 байта: диск
-может навести `const uint16_t*` прямо в прочитанный буфер.
+The header is 16 bytes precisely so that the palette behind it is 2-byte
+aligned: the disc can point a `const uint16_t*` straight into the buffer it read.
 
-### Палитра — `palette_count * 2` байт, со смещения `16`
+### Palette — `palette_count * 2` bytes, at offset `16`
 
-`palette_count` записей `uint16` подряд. Формат записи — тот же, что у текселя
-DIRECT15 (см. ниже). Для `direct15` секции нет вовсе (`palette_count == 0`).
+`palette_count` consecutive `uint16` entries. An entry has the same format as a
+DIRECT15 texel (see below). For `direct15` the section is absent entirely
+(`palette_count == 0`).
 
-Палитра всегда пишется **полной длины** (16 или 256 записей), даже если в
-картинке цветов меньше: диску не нужно знать, сколько из них реально занято, —
-он грузит палитру одним `rv_texture` фиксированной формы. Неиспользованный хвост
-заполнен `0000h`, то есть «не рисовать»: индекс, которого не должно быть,
-рисует дыру, а не случайный цвет.
+The palette is always written at **full length** (16 or 256 entries) even when
+the image uses fewer colors: the disc does not need to know how many are really
+occupied — it uploads the palette as a single `rv_texture` of fixed shape. The
+unused tail is filled with `0000h`, i.e. "do not draw": an index that should
+never occur draws a hole rather than a random color.
 
-Если в исходнике есть хоть один прозрачный пиксель, **запись 0 зарезервирована**
-под `0000h`, а цвета занимают записи `1..palette_count-1`. Если прозрачных
-пикселей нет, под цвета идут все `palette_count` записей.
+If the source has even one transparent pixel, **entry 0 is reserved** for
+`0000h` and the colors occupy entries `1..palette_count-1`. With no transparent
+pixels, all `palette_count` entries go to colors.
 
-### Тексели — со смещения `16 + palette_count * 2` до конца файла
+### Texels — from offset `16 + palette_count * 2` to the end of the file
 
-| Формат | Байт на строку (stride) | Всего |
+| Format | Bytes per row (stride) | Total |
 | --- | --- | --- |
 | `IDX4` | `(width + 1) / 2` | `stride * height` |
 | `IDX8` | `width` | `width * height` |
 | `DIRECT15` | `width * 2` | `width * height * 2` |
 
-Строки идут сверху вниз, тексели слева направо, никакого дополнительного
-выравнивания строк сверх указанного stride нет.
+Rows run top to bottom, texels left to right; there is no row padding beyond the
+stride given above.
 
-### 16-битное значение (тексель DIRECT15 и запись палитры)
+### The 16-bit value (DIRECT15 texel and palette entry)
 
 ```
- бит  15 14        10 9         5 4         0
+ bit  15 14        10 9         5 4         0
      ┌───┬────────────┬───────────┬───────────┐
      │STP│    blue    │   green   │    red    │
      └───┴────────────┴───────────┴───────────┘
 ```
 
-По 5 бит на канал, `0..31`. Бит 15 — флаг полупрозрачности (STP); `mppcbaker`
-всегда пишет туда `0`, потому что режимы полупрозрачного смешивания на стороне
-консоли отложены, а заранее выставленный STP молча изменит вид текстуры, когда
-они появятся.
+5 bits per channel, `0..31`. Bit 15 is the semi-transparency flag (STP);
+`mppcbaker` always writes `0` there, because the semi-transparent blending modes
+are still deferred on the console side, and an STP set in advance would silently
+change how a texture looks once they land.
 
-**`0000h` = ПОЛНОСТЬЮ ПРОЗРАЧНО**, пиксель не рисуется вообще.
+**`0000h` = FULLY TRANSPARENT**, the pixel is not drawn at all.
 
 ---
 
-## Ловушка №1: непрозрачного чёрного не существует
+## Trap #1: there is no such thing as opaque black
 
-Раз `0000h` — это признак дыры, то непрозрачный пиксель **не имеет права**
-закодироваться в `0000h`. Наивное квантование отправляет туда любой очень тёмный
-цвет — и тени на картинке превращаются в сквозные дыры. Это классическая
-PSX-ловушка: она не ловится на глаз в редакторе, она видна только когда спрайт
-уже нарисован поверх фона.
+Since `0000h` marks a hole, an opaque pixel **must never** encode to `0000h`.
+Naive quantization sends any very dark color there — and the shadows in the image
+turn into see-through holes. This is the classic PSX trap: you cannot spot it by
+eye in an editor, it only shows up once the sprite is drawn over a background.
 
-`mppcbaker` обрабатывает это явно: **любой непрозрачный цвет, упаковавшийся в
-`0000h`, сдвигается в `0001h`** — самый тёмный красный, на одну 1/31-ю ступень
-красного в сторону, то есть ниже уровня шума собственного дизеринга консоли.
-Правило применяется в одном месте (`pack_opaque`), поэтому действует и на тексели
-DIRECT15, и на записи палитры.
+`mppcbaker` handles it explicitly: **any opaque color that packs to `0000h` is
+nudged to `0001h`** — the darkest red, one 1/31 step of red away, which is below
+the noise floor of the console's own dithering. The rule lives in one place
+(`pack_opaque`), so it applies to DIRECT15 texels and palette entries alike.
 
-Практическое следствие для художника: чёрный в текстуре всегда «почти чёрный».
-Если нужен настоящий чёрный на экране — это дело фона/очистки кадра, а не
-текстуры. `8000h` — это чёрный с флагом STP, и он тоже не «непрозрачный чёрный».
+The practical consequence for an artist: black in a texture is always "almost
+black". If you need true black on screen, that is the job of the background or
+the frame clear, not of a texture. `8000h` is black with the STP flag, and it is
+not "opaque black" either.
 
-## Ловушка №2: порядок нибблов в IDX4
+## Trap #2: nibble order in IDX4
 
-В `IDX4` два текселя лежат в одном байте, и **младший ниббл — ЛЕВЫЙ тексель**:
+In `IDX4` two texels share a byte, and **the low nibble is the LEFT texel**:
 
 ```
-байт:  [ high nibble | low nibble ]
+byte:  [ high nibble | low nibble ]
                 ↑            ↑
-           тексель x+1   тексель x
+           texel x+1     texel x
 ```
 
-Это порядок PSX, и он же зафиксирован на стороне консоли. Перепутанные ниббла
-дают картинку, которая выглядит *почти* правильно (пары пикселей меняются
-местами) — худший вид ошибки, потому что её принимают за артефакт масштабирования.
+This is the PSX order, and the console side is pinned to it too. Swapped nibbles
+produce an image that looks *almost* right (pixel pairs trade places) — the worst
+kind of bug, because it gets mistaken for a scaling artifact.
 
-При нечётной `width` последний байт строки добивается нулевым старшим нибблом,
-поэтому каждая строка начинается на границе байта и stride равен `(width + 1) / 2`.
-
----
-
-## Квантование
-
-Для индексных форматов используется **median cut (Heckbert 1982)** плюс
-несколько итераций **Lloyd**. Выбор объяснён комментариями `// THEOREM:` в
-`mppcbaker.cpp`; коротко:
-
-- **Почему median cut, а не k-means.** Он детерминирован — один и тот же PNG даёт
-  побайтово одинаковый файл, иначе кэш сборки и diff закоммиченных ассетов теряют
-  смысл. У него нет проблемы инициализации, поэтому он не может потратить слот
-  палитры на пустой кластер. И деление по медиане делает его популяционным: цвет,
-  занимающий половину картинки, получает половину палитры.
-- **Почему сверху Lloyd.** Ящики median cut выровнены по осям, поэтому
-  диагональный градиент в цветовом кубе режется грубо. Фиксированное небольшое
-  число проходов Lloyd это исправляет, оставаясь детерминированным и конечным.
-- **Квантование идёт сразу в 5-битном пространстве.** Записи палитры физически не
-  хранят больше 5 бит на канал, так что считать расстояния в 8 битах — значит
-  оптимизировать точность, которую консоль тут же выбросит.
-- **Метрика — взвешенная по яркости** (`3·dr² + 6·dg² + 1·db²`): глаз различает
-  зелёный заметно лучше синего. Целочисленная, чтобы поиск был точным и
-  воспроизводимым между компиляторами.
-- Прозрачные пиксели **не участвуют** в статистике: под альфой обычно лежит
-  произвольный мусорный RGB, и он не должен тянуть палитру на себя.
-
-Если различных цветов оказалось больше, чем слотов, инструмент печатает
-предупреждение в `stderr` (но это не ошибка, код возврата остаётся `0`).
+For an odd `width` the last byte of a row is padded with a zero high nibble, so
+every row starts on a byte boundary and the stride is `(width + 1) / 2`.
 
 ---
 
-## Как диск читает `.mppcbaker`
+## Quantization
 
-Тексели и палитра лежат в файле в готовом виде, поэтому загрузчик — это чтение,
-проверка заголовка и два `video_asset_write`.
+The indexed formats use **median cut (Heckbert 1982)** followed by a few
+**Lloyd** iterations. The reasoning is spelled out in the `// THEOREM:` comments
+in `mppcbaker.cpp`; in short:
 
-1. Прочитать файл целиком в основную память (`rv_cd`).
-2. Проверить `magic == "MPTX"` и `version == 1`; иначе — ошибка, не гадать.
-3. Разобрать заголовок: `format`, `width`, `height`, `palette_count`.
-4. Посчитать смещения:
-   - палитра: `16`, длина `palette_count * 2` байт;
-   - тексели: `16 + palette_count * 2`, длина
-     `height * ((width + 1) / 2)` для IDX4, `width * height` для IDX8,
-     `width * height * 2` для DIRECT15.
-   Сумма обязана совпасть с размером файла — если нет, файл битый.
-5. Если `palette_count != 0`, залить палитру:
+- **Why median cut and not k-means.** It is deterministic — the same PNG yields a
+  byte-identical file, and without that the build cache and diffs of committed
+  assets are meaningless. It has no initialization problem, so it cannot waste a
+  palette slot on an empty cluster. And splitting at the median makes it
+  population-driven: a color covering half the image gets half the palette.
+- **Why Lloyd on top.** Median cut's boxes are axis-aligned, so a diagonal
+  gradient through the color cube gets cut coarsely. A fixed, small number of
+  Lloyd passes fixes that while staying deterministic and bounded.
+- **Quantization happens directly in 5-bit space.** Palette entries physically do
+  not hold more than 5 bits per channel, so measuring distances in 8 bits means
+  optimizing precision the console throws away immediately.
+- **The metric is luminance-weighted** (`3·dr² + 6·dg² + 1·db²`): the eye
+  resolves green markedly better than blue. It is integer, so the search is exact
+  and reproducible across compilers.
+- Transparent pixels **take no part** in the statistics: whatever RGB sits under
+  the alpha is usually junk, and it must not pull the palette towards itself.
+
+If there turn out to be more distinct colors than slots, the tool prints a
+warning on `stderr` (this is not an error — the exit code stays `0`).
+
+---
+
+## How a disc reads `.mppcbaker`
+
+Texels and palette are already in their final form in the file, so the loader is
+a read, a header check and two `video_asset_write` calls.
+
+1. Read the whole file into main memory (`rv_cd`).
+2. Check `magic == "MPTX"` and `version == 1`; otherwise fail, do not guess.
+3. Parse the header: `format`, `width`, `height`, `palette_count`.
+4. Compute the offsets:
+   - palette: `16`, length `palette_count * 2` bytes;
+   - texels: `16 + palette_count * 2`, length
+     `height * ((width + 1) / 2)` for IDX4, `width * height` for IDX8,
+     `width * height * 2` for DIRECT15.
+   The sum has to match the file size — if it does not, the file is corrupt.
+5. If `palette_count != 0`, upload the palette:
    ```cpp
    rv_texture clut{};
-   clut.format = RV_TEXFMT_DIRECT15;      // палитра описывается как DIRECT15
+   clut.format = RV_TEXFMT_DIRECT15;      // a palette is described as DIRECT15
    clut.data   = bytes + 16;
    clut.size   = palette_count * 2;
-   clut.width  = palette_count;           // 16 или 256
+   clut.width  = palette_count;           // 16 or 256
    clut.height = 1;
    const int64_t addr_palette = cv.video_asset_malloc(clut.size);
    cv.video_asset_write(addr_palette, clut);
    ```
-6. Залить тексели:
+6. Upload the texels:
    ```cpp
    rv_texture tex{};
    tex.format = static_cast<rv_texfmt>(header.format);  // 4 / 8 / 15
    tex.data   = bytes + 16 + palette_count * 2;
-   tex.size   = <длина из шага 4>;
+   tex.size   = <length from step 4>;
    tex.width  = width;
    tex.height = height;
    const int64_t addr_texture = cv.video_asset_malloc(tex.size);
    cv.video_asset_write(addr_texture, tex);
    ```
-7. Освободить свой буфер (байты копируются внутри вызова) и запомнить
-   `addr_texture` / `addr_palette` — их дальше подставлять в
-   `rv_polygon::addr_texture` и `rv_polygon::addr_palette`. Для `direct15`
-   `addr_palette` не нужен: этот формат игнорирует палитру.
+7. Free your own buffer (the bytes are copied inside the call) and keep
+   `addr_texture` / `addr_palette` — they go into `rv_polygon::addr_texture` and
+   `rv_polygon::addr_palette` from here on. For `direct15` no `addr_palette` is
+   needed: that format ignores the palette.
 
-Всё остальное — прозрачность, ловушка с чёрным, порядок нибблов — уже вшито в
-байты файла. Диску ничего доворачивать не надо.
+Everything else — transparency, the black trap, the nibble order — is already
+baked into the bytes of the file. The disc has nothing left to adjust.
