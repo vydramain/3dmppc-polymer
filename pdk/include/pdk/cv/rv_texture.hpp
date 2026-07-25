@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // How the texels of an uploaded texture are encoded. This is what decides
 // whether a palette (CLUT) is needed: the indexed formats store a palette index
@@ -53,4 +53,4 @@ struct rv_texture {
     uint64_t height;   // texel rows
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

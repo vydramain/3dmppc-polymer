@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // A 24-bit RGB colour: vertex colours (shading / modulation), flat fills, and
 // the frame clear colour. NOT a palette entry — palette entries are 16-bit texel
@@ -29,4 +29,4 @@ struct rv_vertex {
     rv_uv uv;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Controller Drive — reads entries from the mounted .mppcdisc medium (the
 // accessor is rv_pdko::drive()). The disc is the medium; the drive is what reads
@@ -67,4 +67,4 @@ class rv_cd {
     virtual int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

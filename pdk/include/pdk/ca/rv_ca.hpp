@@ -5,7 +5,7 @@
 #include "pdk/ca/rv_sample.hpp"
 #include "pdk/ca/rv_voice_conf.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Controller Audio — the low-level SPU contract (the "hardware").
 //
@@ -90,4 +90,4 @@ class rv_ca {
     virtual int64_t voice_status(int64_t voice_mask) = 0;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

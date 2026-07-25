@@ -7,7 +7,7 @@
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/rv_err.hpp"  // IWYU pragma: keep (shared error vocabulary)
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // The organizer / facade the console hands a disc at boot. It vends the console's
 // subsystem controllers by pointer (the console owns them; the disc only borrows,
@@ -27,4 +27,4 @@ class rv_pdko {
     virtual rv_cv* cv() = 0;    // GPU / rasterizer
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

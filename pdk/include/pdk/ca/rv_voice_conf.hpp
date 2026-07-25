@@ -4,7 +4,7 @@
 
 #include "pdk/ca/rv_loop.hpp"
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Everything needed to make one (or several) of the console's voices play a
 // sample: which voices, which uploaded sample, how it loops, its envelope, and
@@ -24,4 +24,4 @@ struct rv_voice_conf {
     int16_t volume, volume_l, volume_r;    // overall + per-channel (L/R) volumes
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

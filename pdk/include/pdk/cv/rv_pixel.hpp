@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // DISPLAY pixel format — how a pixel is stored in the framebuffer that is scanned
 // out to the screen. This is NOT a texture format: textures use rv_texfmt, and
@@ -23,4 +23,4 @@ struct rv_pixel {
     } dd;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

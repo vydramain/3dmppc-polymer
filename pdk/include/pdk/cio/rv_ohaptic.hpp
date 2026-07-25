@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // Haptic effect kinds. An effect is exactly ONE of these (the tag in
 // rv_oheffect::type); they are not combined.
@@ -49,4 +49,4 @@ struct rv_oheffect {
     } data;
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 // A block of sample data the game hands to rv_ca::sound_asset_write() for upload
 // into sound RAM. Plain POD: it only *borrows* the bytes (the game owns them) and
@@ -17,4 +17,4 @@ struct rv_sample {
     int64_t     size;  // length of `data`, in bytes
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk

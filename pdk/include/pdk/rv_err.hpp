@@ -12,7 +12,7 @@
 // never negative.
 //
 // These values are ABI: existing codes keep their number, new codes are appended.
-namespace rv_3dmppc {
+namespace rv_pdk {
 
 enum rv_err : int {
     RV_OK        = 0,
@@ -23,4 +23,4 @@ enum rv_err : int {
     RV_ERR_IO    = -5,  // the device failed to carry out a well-formed call
 };
 
-}  // namespace rv_3dmppc
+}  // namespace rv_pdk
