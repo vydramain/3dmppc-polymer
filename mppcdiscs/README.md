@@ -35,7 +35,7 @@ mppcdiscs/
 ## Relationship to the rest of the repo
 
 - **`src/`** — the console runtime (game-agnostic). Reads discs from here.
-- **`assets/`** (repo root) — the console's own **skeleton demo** assets (the
-  rotating cube), *not* a game. Don't confuse it with a disc.
+- **`src/rv_dmain/`** — the **skeleton disc** the console boots today. It is a
+  template, not a game, and it carries no assets at all.
 - **`docs/mppcdisc/`** — *design* documentation for discs (one subdir per disc,
   e.g. `solid/`); the actual buildable content lives here in `mppcdiscs/`.

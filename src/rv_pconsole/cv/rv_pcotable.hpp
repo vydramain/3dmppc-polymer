@@ -1,0 +1,67 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 3 — ordering table в стиле PSX (бакетная сортировка по глубине).
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The ordering table: the console's whole notion of "what is in front of what".
+// A disc files primitives in any order it likes and the table replays them
+// far-to-near at flush.
+//
+// THEOREM: bucket sort — the depth key is bounded (the console picks the window)
+// and the bucket count is fixed, so ordering N primitives costs O(N + buckets)
+// with no comparisons at all, against O(N log N) for a comparison sort. That is
+// the reason the PSX shipped this structure and not a sort: the cost of filing a
+// primitive is a multiply and two stores, payable inside the frame loop.
+//
+// PATTERN: intrusive singly-linked list. The links live in a parallel array
+// indexed by primitive index (`next_`), not in nodes of their own: no allocation
+// per primitive, one cache-friendly array, and `reset()` is O(buckets) instead of
+// O(N) frees.
+#pragma once
+
+#include <cstdint>
+#include <vector>
+
+namespace rv_3dmppc {
+
+class rv_pcotable {
+   public:
+    rv_pcotable(int64_t bucket_count, int32_t depth_min, int32_t depth_max);
+
+    // Begin a new frame. Only the bucket heads/tails are touched — the link
+    // array is meaningless once no bucket points into it.
+    void reset();
+
+    // File `primitive_index` under `depth`.
+    void insert(int32_t depth, int32_t primitive_index);
+
+    int64_t bucket_count() const { return bucket_count_; }
+
+    // Which bucket `depth` lands in. Exposed for tests and diagnostics; the
+    // disc never sees a bucket index (rv_primitives.hpp: quantization is
+    // hardware, not contract).
+    int64_t bucket_of(int32_t depth) const;
+
+    // Replay every filed primitive in draw order: bucket 0 (farthest) first,
+    // the last bucket (nearest) last, and inside a bucket in submission order.
+    // `fn` is called with the primitive index.
+    template <typename F>
+    void for_each_far_to_near(F&& fn) const {
+        for (size_t bucket = 0; bucket < head_.size(); ++bucket) {
+            for (int32_t node = head_[bucket]; node >= 0; node = next_[static_cast<size_t>(node)]) {
+                fn(node);
+            }
+        }
+    }
+
+   private:
+    int64_t bucket_count_;
+    int32_t depth_min_;
+    int32_t depth_max_;
+
+    std::vector<int32_t> head_;  // first primitive of each bucket, -1 = empty
+    std::vector<int32_t> tail_;  // last primitive, so append is O(1)
+    std::vector<int32_t> next_;  // intrusive links, indexed by primitive index
+};
+
+}  // namespace rv_3dmppc

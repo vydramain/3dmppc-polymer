@@ -20,6 +20,14 @@ struct rv_pccv_conf {
     int64_t video_memory_size = 1024 * 1024;
     int64_t frame_capacity = 4096;
     int64_t ot_bucket_count = 1024;  // hidden from the contract by design
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // The depth window the ordering table spans, also hidden from the contract:
+    // a disc hands rv_primitive::depth as a VALUE and never learns how it is
+    // quantized. Values outside clamp to the nearest bucket (rv_primitives.hpp).
+    int32_t depth_min = -32768;
+    int32_t depth_max = 32767;
+    // NEUROSLOP-END
 };
 
 struct rv_pccio_conf {
@@ -36,6 +44,13 @@ struct rv_pconsole_params {
     bool fixed_step = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Frame pacing. The presented console runs at target_fps; a headless run
+    // ignores this and goes as fast as it can (it is a smoke test, not a game).
+    // fixed_step feeds the disc exactly 1/target_fps regardless of wall clock.
+    uint64_t target_fps = 60;
+    // NEUROSLOP-END
 };
 
 // rv_cd has no entry: its contract exposes no geometry.

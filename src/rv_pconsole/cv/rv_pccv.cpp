@@ -1,21 +1,266 @@
-#include "rv_pccv.hpp"
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 3 — реализация rv_cv: валидация, ordering table, флаш кадра.
+// ──────────────────────────────────────────────────────────────────────────────
+#include "rv_pconsole/cv/rv_pccv.hpp"
 
+#include <cstddef>
+#include <limits>
+
+#include "pdk/cv/rv_pipeline.hpp"
 #include "pdk/rv_err.hpp"
+#include "rv_infra/rv_log.hpp"
+#include "rv_pconsole/cv/rv_pcraster.hpp"
 
-// Operations return RV_ERR_IO until the backend lands (stage 3).
-int64_t rv_3dmppc::rv_pccv::screen_width() { return conf_.screen_width; }
-int64_t rv_3dmppc::rv_pccv::screen_height() { return conf_.screen_height; }
-int64_t rv_3dmppc::rv_pccv::texture_max_width() { return conf_.texture_max_width; }
-int64_t rv_3dmppc::rv_pccv::texture_max_height() { return conf_.texture_max_height; }
-int64_t rv_3dmppc::rv_pccv::video_memory_size() { return conf_.video_memory_size; }
-int64_t rv_3dmppc::rv_pccv::frame_capacity() { return conf_.frame_capacity; }
-int64_t rv_3dmppc::rv_pccv::video_asset_malloc(int64_t) { return RV_ERR_IO; }
-int64_t rv_3dmppc::rv_pccv::video_asset_write(int64_t, rv_texture) {
-    return RV_ERR_IO;
+namespace rv_3dmppc {
+
+namespace {
+
+// The only bits frame_configure() accepts today. Anything else is a disc built
+// against a newer contract than this console implements, and the contract says
+// that is RV_ERR_INVAL rather than "ignore what you do not understand".
+constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS =
+    static_cast<uint64_t>(RV_PIPELINE_BUFFER_CONFIG_TYPE_Z);
+
+// The value the depth page is cleared to: the FARTHEST representable key, so
+// the first primitive to touch a pixel always passes the test
+// (rv_pcfbuf::depth_accept keeps a pixel when depth >= stored). It is
+// deliberately not conf_.depth_min — a disc may legally hand a depth below the
+// ordering table's window (those clamp to the nearest bucket), and such a
+// primitive must still be able to write a pixel.
+constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
+
+}  // namespace
+
+rv_pccv::rv_pccv(const rv_pccv_conf& conf, rv_pchost& host)
+    : conf_(conf),
+      host_(host),
+      fbuf_(conf.screen_width, conf.screen_height),
+      vram_(conf.video_memory_size),
+      otable_(conf.ot_bucket_count, conf.depth_min, conf.depth_max) {
+    // Reserve the whole frame budget up front. frame_put() runs inside the
+    // disc's frame loop, and a vector growth there would be an allocation (and
+    // a copy of every primitive filed so far) at an unpredictable frame.
+    if (conf_.frame_capacity > 0) {
+        primitives_.reserve(static_cast<size_t>(conf_.frame_capacity));
+    }
 }
-int64_t rv_3dmppc::rv_pccv::video_asset_free(int64_t) { return RV_ERR_IO; }
-int64_t rv_3dmppc::rv_pccv::frame_configure(uint64_t, rv_color) {
-    return RV_ERR_IO;
+
+// --- hardware geometry -------------------------------------------------------
+
+int64_t rv_pccv::screen_width() { return conf_.screen_width; }
+int64_t rv_pccv::screen_height() { return conf_.screen_height; }
+int64_t rv_pccv::texture_max_width() { return conf_.texture_max_width; }
+int64_t rv_pccv::texture_max_height() { return conf_.texture_max_height; }
+int64_t rv_pccv::video_memory_size() { return conf_.video_memory_size; }
+int64_t rv_pccv::frame_capacity() { return conf_.frame_capacity; }
+
+// --- video RAM ---------------------------------------------------------------
+
+// Pure delegation: the pool owns "is there room", "which address", "is this
+// address live". Reproducing any of that here would give the console two
+// answers to the same question.
+int64_t rv_pccv::video_asset_malloc(int64_t size) { return vram_.malloc(size); }
+
+int64_t rv_pccv::video_asset_free(int64_t addr) { return vram_.free(addr); }
+
+bool rv_pccv::texture_format_known(rv_texfmt format) {
+    switch (format) {
+        case RV_TEXFMT_IDX4:
+        case RV_TEXFMT_IDX8:
+        case RV_TEXFMT_DIRECT15:
+            return true;
+        default:
+            return false;
+    }
 }
-int64_t rv_3dmppc::rv_pccv::frame_put(rv_primitive) { return RV_ERR_IO; }
-int64_t rv_3dmppc::rv_pccv::frame_flush() { return RV_ERR_IO; }
+
+// The console's own limits are checked HERE, before the bytes reach the pool:
+// the pool knows how many bytes fit in a region, but the texture *shape* limit
+// is hardware geometry this class publishes (texture_max_width/height), so this
+// is the one place that can enforce it.
+int64_t rv_pccv::video_asset_write(int64_t addr, rv_texture texture) {
+    if (!texture_format_known(texture.format)) {
+        return RV_ERR_INVAL;
+    }
+
+    // The limits are int64 configuration and the dimensions are unsigned data;
+    // widen the limit into the data's domain (a non-positive limit means "no
+    // texture is acceptable") so the comparison never mixes signedness.
+    const uint64_t max_width =
+        conf_.texture_max_width > 0 ? static_cast<uint64_t>(conf_.texture_max_width) : 0;
+    const uint64_t max_height =
+        conf_.texture_max_height > 0 ? static_cast<uint64_t>(conf_.texture_max_height) : 0;
+
+    if (texture.width > max_width || texture.height > max_height) {
+        return RV_ERR_INVAL;
+    }
+
+    // Everything left — unknown address, null source, data that overruns the
+    // region — is the pool's business.
+    return vram_.write(addr, texture);
+}
+
+// --- the frame ---------------------------------------------------------------
+
+void rv_pccv::frame_reset() {
+    primitives_.clear();
+    otable_.reset();
+    texture_requests_ = 0;
+}
+
+int64_t rv_pccv::frame_configure(uint64_t config, rv_color clear_color) {
+    if ((config & ~RV_PCCV_CONFIG_KNOWN_BITS) != 0) {
+        return RV_ERR_INVAL;
+    }
+
+    clear_color_ = clear_color;
+    z_enabled_ = (config & static_cast<uint64_t>(RV_PIPELINE_BUFFER_CONFIG_TYPE_Z)) != 0;
+
+    // Configuration opens the frame, so anything a previous frame left behind
+    // (a disc that filed primitives and never flushed) dies here rather than
+    // leaking into the frame being built.
+    frame_reset();
+    return RV_OK;
+}
+
+int64_t rv_pccv::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const {
+    switch (fill_mode) {
+        case RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED:
+        case RV_PRIMITIVE_FILL_MODE_WIREFRAME:
+            // Neither mode reads an address, so an address field left at zero —
+            // the common case for a zero-initialized primitive — is not an
+            // error here and must not be validated.
+            return RV_OK;
+
+        case RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE:
+            break;
+
+        default:
+            return RV_ERR_INVAL;
+    }
+
+    // The contract is explicit: "an address the primitive names is unknown" is
+    // RV_ERR_INVAL. Checking it at PUT time and not at draw time is what makes
+    // the error reachable at all — by flush the disc has long moved on and has
+    // no error channel left to hear about it through.
+    if (!vram_.region_exists(addr_texture)) {
+        return RV_ERR_INVAL;
+    }
+
+    // A palette is required only by the indexed formats (rv_texture.hpp): the
+    // direct format carries its colour in the texel and ignores addr_palette.
+    // An unwritten region has no format yet, so nothing about its palette can
+    // be demanded — that upload is still the disc's to make.
+    const int64_t format = vram_.region_format(addr_texture);
+    if (format == RV_TEXFMT_IDX4 || format == RV_TEXFMT_IDX8) {
+        if (!vram_.region_exists(addr_palette)) {
+            return RV_ERR_INVAL;
+        }
+    }
+
+    return RV_OK;
+}
+
+int64_t rv_pccv::frame_put(rv_primitive primitive) {
+    // Validate BEFORE the capacity test, so a malformed primitive reports what
+    // is wrong with it rather than being masked by a full buffer.
+    switch (primitive.type) {
+        case RV_PRIMITIVE_LINE:
+            // A line has neither a fill mode nor an address: the segment is
+            // always drawn from its two vertex colours.
+            break;
+
+        case RV_PRIMITIVE_POLYGON: {
+            const rv_polygon& polygon = primitive.data.polygon;
+            if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
+                return RV_ERR_INVAL;
+            }
+            const int64_t fill =
+                check_fill(polygon.fill_mode, polygon.addr_texture, polygon.addr_palette);
+            if (fill < 0) {
+                return fill;
+            }
+            break;
+        }
+
+        case RV_PRIMITIVE_SPRITE: {
+            const rv_sprite& sprite = primitive.data.sprite;
+            const int64_t fill =
+                check_fill(sprite.fill_mode, sprite.addr_texture, sprite.addr_palette);
+            if (fill < 0) {
+                return fill;
+            }
+            break;
+        }
+
+        default:
+            return RV_ERR_INVAL;
+    }
+
+    if (static_cast<int64_t>(primitives_.size()) >= conf_.frame_capacity) {
+        return RV_ERR_NOMEM;
+    }
+
+    if (rv_pcraster::uses_texture_sampling(primitive)) {
+        ++texture_requests_;
+    }
+
+    // File the command and its ordering key. The index is the primitive's
+    // position in `primitives_`, which is also its submission order — that is
+    // what lets the ordering table keep ties in submission order for free.
+    const int32_t index = static_cast<int32_t>(primitives_.size());
+    primitives_.push_back(primitive);
+    otable_.insert(primitive.depth, index);
+
+    return RV_OK;
+}
+
+int64_t rv_pccv::frame_flush() {
+    // THEOREM: painter's algorithm, with the ordering table's residual
+    // ambiguity resolved by the Z buffer. Drawing far-to-near is correct
+    // BETWEEN buckets — whatever the last bucket writes covers everything the
+    // earlier ones wrote, which is what "larger depth = nearer = on top" means.
+    // It is NOT correct INSIDE a bucket: the table quantizes the depth window
+    // (65536 distinct keys on the reference console) into ot_bucket_count
+    // buckets (1024), so 64 different depths collapse into one bucket and their
+    // relative order there is submission order, not depth order. Two primitives
+    // 1 depth unit apart therefore paint in whatever order the disc happened to
+    // file them, and a nearer one filed first ends up underneath.
+    //
+    // RV_PIPELINE_BUFFER_CONFIG_TYPE_Z exists exactly for that residue: it
+    // makes each pixel carry the depth of the primitive that wrote it, so a
+    // later primitive from the SAME bucket with a smaller depth is rejected per
+    // pixel instead of overwriting. Finer buckets would shrink the ambiguity
+    // but never remove it (the key is 32-bit, the table is not), which is why
+    // the flag is a real feature and not a workaround for a small table.
+    fbuf_.clear(rv_pcraster::pack_rgb555(clear_color_), RV_PCCV_DEPTH_FARTHEST, z_enabled_);
+
+    otable_.for_each_far_to_near([this](int32_t index) {
+        rv_pcraster::draw(fbuf_, primitives_[static_cast<size_t>(index)], z_enabled_);
+    });
+
+    // Exactly one line per frame, no matter how many primitives asked. A disc
+    // that textures its whole world would otherwise emit thousands of identical
+    // warnings per frame and drown the log it was meant to inform.
+    if (texture_requests_ > 0) {
+        RV_LOG_WARN("pccv",
+                    "{} primitive(s) asked for texture sampling; drawn as flat fill "
+                    "(DEFERRED)",
+                    texture_requests_);
+    }
+
+    host_.present(fbuf_.expand_argb());
+
+    // The next frame starts empty. The clear colour and the Z flag go back to
+    // their defaults too: frame_configure is per-frame state, and a frame that
+    // never configures itself gets a black, ordering-table-only frame rather
+    // than inheriting whatever the previous frame chose.
+    frame_reset();
+    clear_color_ = rv_color{0, 0, 0};
+    z_enabled_ = false;
+
+    return RV_OK;
+}
+
+}  // namespace rv_3dmppc

@@ -18,19 +18,18 @@ This project is two distinct things that must not be confused:
 
 ## ⚠️ The game in this repo is only a skeleton
 
-The demo that currently ships in `src/` (a turntable viewer — it shows the
-Solidmaid protagonist model from `mppcdiscs/solid/`, or a textured cube as
-fallback) is **not the game**. It is a **skeleton / template disc** — the
-smallest thing that proves the console boots, uploads geometry, and presents a
-frame. It exists to:
+The disc that currently ships in `src/rv_dmain/` (a "light show" — a cycling
+background with a handful of primitives over it) is **not the game**. It is a
+**skeleton / template disc** — the smallest thing that proves the console boots,
+files primitives, and presents a frame. It exists to:
 
-- exercise the rasterizer, framebuffer, and SDL3 presenter end to end,
+- exercise the rasterizer, ordering table, and SDL3 presenter end to end,
 - serve as a reference for how a real disc is structured, and
 - give us something to run while the console's capabilities grow.
 
 The **real game** is designed separately (see `docs/mppcdisc/`) and will
 eventually be built as its own `.mppcdisc` package, loaded by the console rather
-than compiled into it. Nothing in `docs/mppcdisc/` describes the demo viewer.
+than compiled into it. Nothing in `docs/mppcdisc/` describes the skeleton disc.
 
 ## Where things live
 
