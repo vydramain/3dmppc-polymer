@@ -385,7 +385,8 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_pconsole` | the concrete console in `src/` — implements `rv_pdko`, owns the loop (`disc_load` / `disc_run`) |
 | `rv_mppcdisc` | packaging (future): POD a `.mppcdisc` module exports — `abi_version` + factory |
 
-(`rv_` is the project-wide namespace prefix, `namespace rv_3dmppc`.)
+(`rv_` is the project-wide type prefix. The contract lives in `namespace rv_pdk`;
+the console that implements it in `rv_3dmppc`; each game in its own.)
 
 Note the disc vs drive distinction: the **disc** is the read-only medium
 (`.mppcdisc`); the **drive** (`rv_cd`, `rv_pdko::drive()`) is the console hardware

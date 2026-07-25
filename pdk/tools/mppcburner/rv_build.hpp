@@ -1,0 +1,93 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 10 — движок сборки диска: globs, генерация CMake, бюджеты, прожиг.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The engine behind `mppcburner build` and `mppcburner inspect`. main.cpp does
+// nothing but turn argv into rv_build_options and call in here; everything that
+// can fail on a developer's desk lives below.
+//
+// The build is four steps, and each one is a gate rather than a stage: a disc
+// that survives all four cannot fail the console for a reason the burner could
+// have seen. Manifest (does this disc even claim our ABI), compile (does it
+// build against the PDK and NOTHING from src/), assets (do the names and the
+// texel budgets hold), burn (write the container).
+#pragma once
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "rv_manifest.hpp"
+
+namespace rv_pdktools {
+
+// Everything the command line can say about one build.
+struct rv_build_options {
+    std::string disc_dir;    // directory holding disc.toml
+    std::string output;      // -o, the .mppcdisc to write
+    std::string pdk_dir;     // --pdk, defaults to RV_BURNER_DEFAULT_PDK
+    std::string pdklib_dir;  // --pdklib, defaults to RV_BURNER_DEFAULT_PDKLIB
+    std::string baker;       // --baker, empty means "find mppcbaker yourself"
+    std::string build_dir;   // --keep-build=PATH, empty means <disc_dir>/.mppcburn
+    int jobs = 0;            // --jobs, 0 means "let cmake decide"
+    bool keep_build = false;
+};
+
+// Burn a disc directory into one .mppcdisc. Returns a process exit code: 0 on
+// success, 1 on any refusal. Progress and diagnostics go to stderr, nothing of
+// this command goes to stdout.
+int rv_build_run(const rv_build_options& options);
+
+// Print what is inside an already-burned .mppcdisc, without unpacking it and
+// without writing anything anywhere. The listing goes to stdout, errors to
+// stderr. Same exit-code contract.
+int rv_inspect_run(const std::string& archive_path);
+
+// ── Pieces exposed so a harness can exercise them without a disc directory ────
+
+// Expand `patterns` (globs relative to `root`, '/'-separated, `*`, `?` and `**`
+// understood) into a sorted, duplicate-free list of relative file paths. A
+// pattern that matches nothing is an ERROR, not an empty result: in a manifest
+// written by hand it is a typo every time, and silently building a disc without
+// the file the author listed is the worst possible reading of it.
+bool rv_glob_expand(const std::filesystem::path& root, const std::vector<std::string>& patterns,
+                    std::vector<std::string>& out, std::string& error);
+
+// The name a relative path takes inside the archive. See the THEOREM in
+// rv_build.cpp: the asset namespace is FLAT, so this is just the file name.
+std::string rv_flat_name(const std::string& relative_path);
+
+// Is `name` allowed as an archive entry at all? Rejects path separators, a
+// leading dot, empty names, and the service names the loader reserves.
+bool rv_check_asset_name(const std::string& name, std::string& error);
+
+// One planned archive entry. `source` is the file in the disc directory the
+// developer wrote — kept because a collision diagnostic is useless unless it
+// names BOTH originals, and "two .mppctex files collide" says nothing about
+// which two PNGs to rename. `payload` is where the bytes actually come from:
+// the same file for a copied asset, the baked .mppctex for a texture.
+struct rv_archive_item {
+    std::string name;
+    std::string source;
+    std::string payload;
+};
+
+// Refuse when two different originals collapse onto one flat name. See the
+// THEOREM in rv_build.cpp.
+bool rv_check_collisions(const std::vector<rv_archive_item>& items, std::string& error);
+
+// Render the CMakeLists.txt of the generated disc project. Pure text in, pure
+// text out, so the harness can read what the tool would have written.
+std::string rv_cmake_project_text(const rv_manifest& manifest,
+                                  const std::vector<std::string>& absolute_sources,
+                                  const std::string& pdk_dir, const std::string& pdklib_dir,
+                                  const std::vector<std::string>& absolute_includes);
+
+// Human size for a progress line ("1.2 MB"). Exposed only because it is easier
+// to test than to eyeball.
+std::string rv_human_size(int64_t bytes);
+
+}  // namespace rv_pdktools

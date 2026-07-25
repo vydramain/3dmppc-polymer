@@ -1,0 +1,37 @@
+# ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+# Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+# Ревизия: stage 10 — собственный корень сборки девкита.
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# The DEVKIT: tools that run on a developer's machine while a game is authored.
+# It is a separate product from the console and builds with its own command:
+#
+#   cmake -S tools -B pdk/tools/build && cmake --build pdk/tools/build
+#
+# This separation is deliberate. The console is firmware — it loads a disc and
+# runs it, and it must never look like the thing that COMPILES a disc. Building
+# the console must not build authoring tools, and a player's machine needs
+# neither these binaries nor the compiler they drive.
+#
+# What the tools share with the console is only the contract: pdk/ (and pdklib/,
+# which discs are written against). Nothing here links a single line of src/.
+
+cmake_minimum_required(VERSION 3.24)
+project(3dmppc_pdktools LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
+endif()
+
+# The repository root, one level up. The burner needs it to point a generated
+# disc project at pdk/ and pdklib/; both are overridable at run time (--pdk/--pdklib)
+# so a disc directory outside this repository builds just as well.
+get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
+
+add_subdirectory(mppcbaker)
+add_subdirectory(mppcburner)
