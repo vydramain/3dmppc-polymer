@@ -1,0 +1,419 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 3 — реализация растеризатора (краевые функции, дизеринг).
+// ──────────────────────────────────────────────────────────────────────────────
+#include "rv_pconsole/cv/rv_pcraster.hpp"
+
+#include <cmath>
+
+namespace rv_3dmppc {
+
+namespace {
+
+// THEOREM: ordered dithering, Bayer 4x4 — quantizing 8 bits to 5 throws away 3
+// bits, and plain truncation turns a smooth gradient into 32 visible bands. The
+// Bayer matrix is the recursively built threshold map whose entries are maximally
+// spread apart, so instead of banding the error becomes a fixed, non-clumping
+// 4x4 pattern the eye averages back into the original shade. Two properties
+// matter here: the threshold depends only on (x & 3, y & 3), so it costs a table
+// lookup and no state; and the 16 entries are the integers 0..15 exactly once,
+// so the mean of `threshold >> 1` is 3.5 — precisely the average error truncating
+// 3 bits introduces, which is why adding it before the shift keeps the average
+// brightness correct instead of darkening the frame.
+//
+// docs/platform/specs.md commits the console to "16-bit + dithering"; this is
+// that dithering, and it is a large part of why the output reads as PSX-era.
+constexpr int32_t RV_BAYER4[4][4] = {
+    {0, 8, 2, 10},
+    {12, 4, 14, 6},
+    {3, 11, 1, 9},
+    {15, 7, 13, 5},
+};
+
+int64_t abs64(int64_t value) { return value < 0 ? -value : value; }
+
+int64_t min64(int64_t a, int64_t b) { return a < b ? a : b; }
+int64_t max64(int64_t a, int64_t b) { return a > b ? a : b; }
+
+uint8_t clamp_channel(double value) {
+    if (value <= 0.0) {
+        return 0;
+    }
+    if (value >= 255.0) {
+        return 255;
+    }
+    return static_cast<uint8_t>(value + 0.5);
+}
+
+rv_color lerp_color(const rv_color& a, const rv_color& b, double t) {
+    rv_color out;
+    out.r = clamp_channel(static_cast<double>(a.r) + (static_cast<double>(b.r) - a.r) * t);
+    out.g = clamp_channel(static_cast<double>(a.g) + (static_cast<double>(b.g) - a.g) * t);
+    out.b = clamp_channel(static_cast<double>(a.b) + (static_cast<double>(b.b) - a.b) * t);
+    return out;
+}
+
+// One pixel, already known to be on-screen. This is the ONLY place the Z test
+// lives, so every primitive path obeys it identically.
+void emit(rv_pcfbuf& fbuf, int64_t x, int64_t y, uint16_t rgb555, int32_t depth, bool z_enabled) {
+    if (z_enabled) {
+        if (!fbuf.depth_accept(x, y, depth)) {
+            return;
+        }
+        fbuf.depth_store(x, y, depth);
+    }
+    fbuf.plot(x, y, rgb555);
+}
+
+// THEOREM: edge function (half-plane test, Pineda 1988) —
+//   E(p) = (p.x - x0) * (y1 - y0) - (p.y - y0) * (x1 - x0)
+// is the 2D cross product of the edge vector with the vector to p, i.e. twice the
+// signed area of the triangle (v0, v1, p). Its SIGN says which side of the
+// infinite line through v0->v1 the point lies on, so "inside the triangle" is
+// three sign tests and nothing else — no slopes, no division, no special case for
+// horizontal edges or for which vertex is topmost.
+//
+// The property the inner loop is built on: E is AFFINE in p. Therefore
+//   E(x + 1, y) = E(x, y) + (y1 - y0)   and   E(x, y + 1) = E(x, y) - (x1 - x0),
+// so after one setup per triangle each pixel step costs a single integer add per
+// edge. Evaluated in int64 because screen coordinates are int16 and the products
+// above reach ~2^32, which would silently overflow int32 for an off-screen vertex.
+int64_t edge_at(int64_t x0, int64_t y0, int64_t x1, int64_t y1, int64_t px, int64_t py) {
+    return (px - x0) * (y1 - y0) - (py - y0) * (x1 - x0);
+}
+
+// THEOREM: top-left fill rule — a pixel exactly ON a shared edge satisfies E == 0
+// for BOTH triangles that meet there. Accepting it in both draws it twice (a
+// visible seam once blending lands, and a wasted write now); rejecting it in both
+// leaves a one-pixel crack. The fix is a tie-break that depends only on the edge's
+// DIRECTION: accept E == 0 only on edges that are "top" (horizontal with the
+// interior below) or "left" (the interior to their right). With the winding
+// normalized (positive doubled area) the interior lies where E > 0, so the
+// interior direction is the gradient (dy, -dx): "top" is dy == 0 && dx < 0, and
+// "left" is dy > 0.
+//
+// The guarantee: a shared edge is traversed in OPPOSITE directions by the two
+// triangles, and is_top_left(d) != is_top_left(-d) for every non-degenerate d, so
+// exactly one of the two claims the boundary pixel. Critical for quads, whose two
+// halves share the (2,3) diagonal by construction.
+bool is_top_left(int64_t dx, int64_t dy) { return dy > 0 || (dy == 0 && dx < 0); }
+
+struct rv_pctri {
+    int64_t x[3];
+    int64_t y[3];
+    rv_color color[3];
+};
+
+void fill_triangle(rv_pcfbuf& fbuf, rv_pctri tri, int32_t depth, bool z_enabled) {
+    // THEOREM: signed area — area2 = E(v0, v1, v2) is twice the signed area of
+    // the triangle. Its sign is the winding; a negative area means every edge
+    // function has the opposite sense and the "all E >= 0" test would reject the
+    // whole interior. Swapping any two vertices flips the winding, so one
+    // conditional swap normalizes every input to the positive case and the inner
+    // loop needs no orientation branch.
+    //
+    // Note what this deliberately does NOT do: back-face culling. The winding is
+    // normalized, never rejected — the console draws whatever the disc hands it
+    // (the contract names no facing rule, and a disc that wants culling does it
+    // in its own transform stage where it still has a normal to test).
+    int64_t area2 = edge_at(tri.x[0], tri.y[0], tri.x[1], tri.y[1], tri.x[2], tri.y[2]);
+    if (area2 == 0) {
+        return;  // degenerate: zero-area triangles cover no pixel centre
+    }
+    if (area2 < 0) {
+        const int64_t sx = tri.x[1];
+        const int64_t sy = tri.y[1];
+        const rv_color sc = tri.color[1];
+        tri.x[1] = tri.x[2];
+        tri.y[1] = tri.y[2];
+        tri.color[1] = tri.color[2];
+        tri.x[2] = sx;
+        tri.y[2] = sy;
+        tri.color[2] = sc;
+        area2 = -area2;
+    }
+
+    // THEOREM: bounding box ∩ screen — the triangle covers no pixel outside the
+    // box spanned by its vertices, and the console has no scissor state beyond
+    // the screen itself (rv_cv: "a frame is always the whole screen"). So the
+    // intersection of the two rectangles is the complete clip: no polygon
+    // clipping against the frustum, no per-pixel bounds test in the inner loop,
+    // and an entirely off-screen primitive costs only this comparison.
+    int64_t min_x = max64(min64(tri.x[0], min64(tri.x[1], tri.x[2])), 0);
+    int64_t min_y = max64(min64(tri.y[0], min64(tri.y[1], tri.y[2])), 0);
+    int64_t max_x = min64(max64(tri.x[0], max64(tri.x[1], tri.x[2])), fbuf.width() - 1);
+    int64_t max_y = min64(max64(tri.y[0], max64(tri.y[1], tri.y[2])), fbuf.height() - 1);
+    if (min_x > max_x || min_y > max_y) {
+        return;
+    }
+
+    // Edge i runs from vertex i to vertex (i + 1) % 3; the vertex it does NOT
+    // touch is (i + 2) % 3.
+    int64_t step_x[3];
+    int64_t step_y[3];
+    int64_t bias[3];
+    int64_t row[3];
+    for (int i = 0; i < 3; ++i) {
+        const int a = i;
+        const int b = (i + 1) % 3;
+        const int64_t dx = tri.x[b] - tri.x[a];
+        const int64_t dy = tri.y[b] - tri.y[a];
+
+        step_x[i] = dy;   // dE/dx
+        step_y[i] = -dx;  // dE/dy
+        bias[i] = is_top_left(dx, dy) ? 0 : -1;
+        row[i] = edge_at(tri.x[a], tri.y[a], tri.x[b], tri.y[b], min_x, min_y);
+    }
+
+    // THEOREM: barycentric coordinates from the same edge functions — for a
+    // point p inside, E_i(p) is twice the area of the sub-triangle opposite
+    // vertex (i + 2) % 3, so w_(i+2) = E_i(p) / area2. The three weights are
+    // non-negative, sum to 1 (the three sub-areas tile the triangle), and equal
+    // (1,0,0) at v0 and so on — exactly the affine interpolation Gouraud
+    // shading needs. Reusing the numbers the inside test already computed means
+    // vertex-colour interpolation costs no extra geometry work and, since each
+    // E is stepped incrementally, NO division per pixel: only the reciprocal of
+    // area2, hoisted out of both loops.
+    const double inv_area2 = 1.0 / static_cast<double>(area2);
+
+    for (int64_t y = min_y; y <= max_y; ++y) {
+        int64_t e0 = row[0];
+        int64_t e1 = row[1];
+        int64_t e2 = row[2];
+
+        for (int64_t x = min_x; x <= max_x; ++x) {
+            if ((e0 + bias[0]) >= 0 && (e1 + bias[1]) >= 0 && (e2 + bias[2]) >= 0) {
+                const double w0 = static_cast<double>(e1) * inv_area2;  // opposite edge 1
+                const double w1 = static_cast<double>(e2) * inv_area2;  // opposite edge 2
+                const double w2 = static_cast<double>(e0) * inv_area2;  // opposite edge 0
+
+                rv_color color;
+                color.r =
+                    clamp_channel(w0 * tri.color[0].r + w1 * tri.color[1].r + w2 * tri.color[2].r);
+                color.g =
+                    clamp_channel(w0 * tri.color[0].g + w1 * tri.color[1].g + w2 * tri.color[2].g);
+                color.b =
+                    clamp_channel(w0 * tri.color[0].b + w1 * tri.color[1].b + w2 * tri.color[2].b);
+
+                emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth, z_enabled);
+            }
+
+            e0 += step_x[0];
+            e1 += step_x[1];
+            e2 += step_x[2];
+        }
+
+        row[0] += step_y[0];
+        row[1] += step_y[1];
+        row[2] += step_y[2];
+    }
+}
+
+rv_line make_edge(const rv_vertex& a, const rv_vertex& b) {
+    rv_line line;
+    line.vertexes[0] = a;
+    line.vertexes[1] = b;
+    return line;
+}
+
+}  // namespace
+
+uint16_t rv_pcraster::pack_rgb555(rv_color color) {
+    // Round-to-nearest of c8 * 31 / 255. Used for flat, position-independent
+    // conversions such as the frame clear colour, where a dither pattern would
+    // just be noise on an untextured background.
+    const uint32_t r5 = (static_cast<uint32_t>(color.r) * 31U + 127U) / 255U;
+    const uint32_t g5 = (static_cast<uint32_t>(color.g) * 31U + 127U) / 255U;
+    const uint32_t b5 = (static_cast<uint32_t>(color.b) * 31U + 127U) / 255U;
+    return static_cast<uint16_t>(r5 | (g5 << 5) | (b5 << 10));
+}
+
+uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int64_t y) {
+    // See the RV_BAYER4 theorem above. The threshold is halved because the
+    // matrix spans 0..15 while the bits being dropped span 0..7.
+    const size_t tile_y = static_cast<size_t>(y & 3);
+    const size_t tile_x = static_cast<size_t>(x & 3);
+    const int32_t threshold = RV_BAYER4[tile_y][tile_x] >> 1;
+
+    int32_t r = static_cast<int32_t>(color.r) + threshold;
+    int32_t g = static_cast<int32_t>(color.g) + threshold;
+    int32_t b = static_cast<int32_t>(color.b) + threshold;
+    if (r > 255) {
+        r = 255;
+    }
+    if (g > 255) {
+        g = 255;
+    }
+    if (b > 255) {
+        b = 255;
+    }
+
+    const uint32_t r5 = static_cast<uint32_t>(r >> 3);
+    const uint32_t g5 = static_cast<uint32_t>(g >> 3);
+    const uint32_t b5 = static_cast<uint32_t>(b >> 3);
+    return static_cast<uint16_t>(r5 | (g5 << 5) | (b5 << 10));
+}
+
+bool rv_pcraster::uses_texture_sampling(const rv_primitive& primitive) {
+    switch (primitive.type) {
+        case RV_PRIMITIVE_POLYGON:
+            return primitive.data.polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+        case RV_PRIMITIVE_SPRITE:
+            return primitive.data.sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+        default:
+            return false;  // lines are never textured (rv_primitives.hpp)
+    }
+}
+
+void rv_pcraster::draw_line(rv_pcfbuf& fbuf, const rv_line& line, int32_t depth, bool z_enabled) {
+    const rv_vertex& a = line.vertexes[0];
+    const rv_vertex& b = line.vertexes[1];
+
+    const int64_t x0 = a.x;
+    const int64_t y0 = a.y;
+    const int64_t dx = static_cast<int64_t>(b.x) - x0;
+    const int64_t dy = static_cast<int64_t>(b.y) - y0;
+
+    // THEOREM: DDA — parameterize the segment as p(t) = p0 + t * (p1 - p0) and
+    // step t in max(|dx|, |dy|) equal increments. Choosing the longer axis as
+    // the driving one is what makes the trace gapless: the fast axis advances by
+    // at most one pixel per step, so consecutive samples are always neighbours.
+    // Bresenham would avoid the floating point, but t is needed anyway to
+    // interpolate the two vertex colours along the segment, so the parametric
+    // form is the cheaper of the two here.
+    const int64_t steps = max64(abs64(dx), abs64(dy));
+    if (steps == 0) {
+        if (fbuf.inside(x0, y0)) {
+            emit(fbuf, x0, y0, pack_rgb555_dithered(a.color, x0, y0), depth, z_enabled);
+        }
+        return;
+    }
+
+    const double inv_steps = 1.0 / static_cast<double>(steps);
+    for (int64_t i = 0; i <= steps; ++i) {
+        const double t = static_cast<double>(i) * inv_steps;
+        const int64_t x = x0 + static_cast<int64_t>(std::llround(static_cast<double>(dx) * t));
+        const int64_t y = y0 + static_cast<int64_t>(std::llround(static_cast<double>(dy) * t));
+
+        // A line is a curve, not a box: clipping the endpoints would move them
+        // and shear the interpolation, so the trace is clipped per sample.
+        if (!fbuf.inside(x, y)) {
+            continue;
+        }
+        const rv_color color = lerp_color(a.color, b.color, t);
+        emit(fbuf, x, y, pack_rgb555_dithered(color, x, y), depth, z_enabled);
+    }
+}
+
+void rv_pcraster::draw_sprite(rv_pcfbuf& fbuf, const rv_sprite& sprite, int32_t depth,
+                              bool z_enabled) {
+    if (sprite.width == 0 || sprite.height == 0) {
+        return;
+    }
+
+    const int64_t x0 = sprite.x;
+    const int64_t y0 = sprite.y;
+    const int64_t x1 = x0 + static_cast<int64_t>(sprite.width);   // exclusive
+    const int64_t y1 = y0 + static_cast<int64_t>(sprite.height);  // exclusive
+
+    // Bounding box ∩ screen again — a sprite is axis-aligned by construction, so
+    // the box IS the primitive and the clip is exact rather than conservative.
+    const int64_t cx0 = max64(x0, 0);
+    const int64_t cy0 = max64(y0, 0);
+    const int64_t cx1 = min64(x1, fbuf.width());
+    const int64_t cy1 = min64(y1, fbuf.height());
+    if (cx0 >= cx1 || cy0 >= cy1) {
+        return;
+    }
+
+    // DEFERRED: SAMPLE_TEXTURE falls through to the flat fill for now.
+    const bool wireframe = sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_WIREFRAME;
+
+    for (int64_t y = cy0; y < cy1; ++y) {
+        if (wireframe && y != y0 && y != y1 - 1) {
+            // Interior row: only the two vertical sides, and only if the
+            // unclipped side actually survived the clip.
+            if (x0 >= cx0 && x0 < cx1) {
+                emit(fbuf, x0, y, pack_rgb555_dithered(sprite.color, x0, y), depth, z_enabled);
+            }
+            if (x1 - 1 >= cx0 && x1 - 1 < cx1) {
+                emit(fbuf, x1 - 1, y, pack_rgb555_dithered(sprite.color, x1 - 1, y), depth,
+                     z_enabled);
+            }
+            continue;
+        }
+
+        for (int64_t x = cx0; x < cx1; ++x) {
+            emit(fbuf, x, y, pack_rgb555_dithered(sprite.color, x, y), depth, z_enabled);
+        }
+    }
+}
+
+void rv_pcraster::draw_polygon(rv_pcfbuf& fbuf, const rv_polygon& polygon, int32_t depth,
+                               bool z_enabled) {
+    if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
+        return;  // frame_put already rejected this; nothing sane to draw
+    }
+    const bool quad = polygon.vertex_count == 4;
+
+    if (polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_WIREFRAME) {
+        // The PERIMETER only. For a quad the (2,3) diagonal is an interior edge
+        // of the triangulation, and the contract says wireframe draws "only the
+        // edges, not the interior" — so the outline follows the PSX quad vertex
+        // order 1-2-4-3 rather than the two triangles' edge sets.
+        if (quad) {
+            draw_line(fbuf, make_edge(polygon.vertexes[0], polygon.vertexes[1]), depth, z_enabled);
+            draw_line(fbuf, make_edge(polygon.vertexes[1], polygon.vertexes[3]), depth, z_enabled);
+            draw_line(fbuf, make_edge(polygon.vertexes[3], polygon.vertexes[2]), depth, z_enabled);
+            draw_line(fbuf, make_edge(polygon.vertexes[2], polygon.vertexes[0]), depth, z_enabled);
+        } else {
+            draw_line(fbuf, make_edge(polygon.vertexes[0], polygon.vertexes[1]), depth, z_enabled);
+            draw_line(fbuf, make_edge(polygon.vertexes[1], polygon.vertexes[2]), depth, z_enabled);
+            draw_line(fbuf, make_edge(polygon.vertexes[2], polygon.vertexes[0]), depth, z_enabled);
+        }
+        return;
+    }
+
+    // FLAT_COLOURED interpolates the vertex colours (equal colours = flat,
+    // different = gouraud — the contract needs no separate shading flag).
+    // DEFERRED: SAMPLE_TEXTURE takes the same path until the texturing stage.
+    //
+    // A quad is drawn as the triangles (1,2,3) and (2,3,4) — 0-based (0,1,2) and
+    // (1,2,3). The split is contract, not an implementation choice: it decides
+    // how colours and uv interpolate across the surface, so vertex ORDER is part
+    // of what the disc specifies (PSX rule, kept on purpose).
+    static const int RV_TRI_INDICES[2][3] = {{0, 1, 2}, {1, 2, 3}};
+    const int tri_count = quad ? 2 : 1;
+
+    for (int t = 0; t < tri_count; ++t) {
+        rv_pctri tri;
+        for (int i = 0; i < 3; ++i) {
+            const rv_vertex& vertex = polygon.vertexes[RV_TRI_INDICES[t][i]];
+            tri.x[i] = vertex.x;
+            tri.y[i] = vertex.y;
+            tri.color[i] = vertex.color;
+        }
+        fill_triangle(fbuf, tri, depth, z_enabled);
+    }
+}
+
+void rv_pcraster::draw(rv_pcfbuf& fbuf, const rv_primitive& primitive, bool z_enabled) {
+    // PATTERN: dispatch on the variant tag. rv_primitive is a tagged union (the
+    // PDK is a C-shaped ABI, so no std::variant), and this is the one place that
+    // reads the tag.
+    switch (primitive.type) {
+        case RV_PRIMITIVE_LINE:
+            draw_line(fbuf, primitive.data.line, primitive.depth, z_enabled);
+            break;
+        case RV_PRIMITIVE_POLYGON:
+            draw_polygon(fbuf, primitive.data.polygon, primitive.depth, z_enabled);
+            break;
+        case RV_PRIMITIVE_SPRITE:
+            draw_sprite(fbuf, primitive.data.sprite, primitive.depth, z_enabled);
+            break;
+        default:
+            break;
+    }
+}
+
+}  // namespace rv_3dmppc

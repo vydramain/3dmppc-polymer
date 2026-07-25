@@ -1,16 +1,35 @@
+// ─── NEUROSLOP ────────────────────────────────────────────────────────────────
+// Сгенерировано Claude (claude-opus-5). Не проверено человеком.
+// Ревизия: stage 3 — контроллер ввода/гаптики поверх снимков SDL-хоста.
+// ──────────────────────────────────────────────────────────────────────────────
+//
+// The console's rv_cio implementation. Deliberately THIN: every SDL→rv_isource
+// translation already happened in rv_pchost (the one place SDL is allowed to
+// exist), so what is left here is the CONTRACT's semantics on top of the host's
+// snapshots — port range clamping, "empty reads as zero, never as an error", and
+// the haptic effect-tag dispatch.
+//
+// PATTERN: adapter. rv_pchost speaks "the machine" (slots, SDL gamepads, rumble
+// calls); rv_cio speaks "the contract" (stable ports, data-not-status queries,
+// a single error channel). This class is the seam between the two vocabularies
+// and owns nothing.
 #pragma once
 
 #include "pdk/cio/rv_cio.hpp"
+#include "rv_pconsole/rv_pchost.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
-class rv_pccio : public rv_cio {
-   private:
-    rv_pccio_conf conf_;
 
+class rv_pccio : public rv_cio {
    public:
-    rv_pccio(const rv_pccio_conf conf) : conf_(conf) {}
-    ~rv_pccio() = default;
+    // `host` is borrowed: the console owns it and outlives every controller it
+    // hands to a disc.
+    rv_pccio(const rv_pccio_conf& conf, rv_pchost& host) : conf_(conf), host_(host) {}
+    ~rv_pccio() override = default;
+
+    rv_pccio(const rv_pccio&) = delete;
+    rv_pccio& operator=(const rv_pccio&) = delete;
 
     int64_t iport_count() override;
 
@@ -21,6 +40,14 @@ class rv_pccio : public rv_cio {
     rv_istate iport_state(int64_t port) override;
 
     int64_t ohaptic(int64_t port, rv_oheffect effect) override;
+
+   private:
+    // True when `port` names one of the console's fixed slots. Out of range is
+    // NOT an error for the query methods (rv_cio.hpp): they report zeroes.
+    bool port_in_range(int64_t port) const { return port >= 0 && port < conf_.iport_count; }
+
+    rv_pccio_conf conf_;
+    rv_pchost& host_;
 };
 
 }  // namespace rv_3dmppc

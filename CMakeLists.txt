@@ -29,35 +29,51 @@ if(NOT SDL3_FOUND)
   FetchContent_MakeAvailable(SDL3)
 endif()
 
-# --- stb_image (header only) --------------------------------------------------
-set(STB_DIR ${CMAKE_BINARY_DIR}/_deps/stb)
-if(NOT EXISTS ${STB_DIR}/stb_image.h)
-  message(STATUS "Downloading stb_image.h")
-  file(DOWNLOAD
-    https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
-    ${STB_DIR}/stb_image.h
-    TLS_VERIFY ON
-  )
-endif()
+# NEUROSLOP-BEGIN (claude-opus-5)
+# stb_image is gone with the demo that used it. The console never decodes an
+# image format: a game uploads raw texels through rv_cv::video_asset_write, and
+# decoding whatever a disc chose to store is the DISC's business (via rv_cd).
 
 # --- phantasy development kit -------------------------------------------------
 
 add_library(3dmppc_pdk INTERFACE)
 target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 
-# --- game ---------------------------------------------------------------------
+# --- the disc -----------------------------------------------------------------
+# rv_dmain is a GAME, not part of the machine, so it is built as its own target
+# that links 3dmppc_pdk and NOTHING else. That is what makes "a game depends on
+# PDK only" (pdk/README.md) checkable by the build instead of by discipline: the
+# console's include path is not on this target, so the first #include of a
+# console header here fails to compile.
+#
+# It is still statically linked into the executable for now — the .mppcdisc /
+# dlopen packaging is stage 5 (docs/platform/disc-loading.md).
+file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/rv_dmain/*.cpp)
+
+add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
+target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
+
+if(MSVC)
+  target_compile_options(rv_dmain PRIVATE /W4)
+else()
+  target_compile_options(rv_dmain PRIVATE -Wall -Wextra)
+endif()
+
+# --- the console --------------------------------------------------------------
 # CONFIGURE_DEPENDS: the build system re-checks the glob before each build, so
 # a newly added .cpp is picked up without re-running cmake by hand.
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 
 add_executable(3dmppc
   # console (game-agnostic)
   ${3DMPPC_CONSOLE_SOURCES}
 )
 
-target_include_directories(3dmppc PRIVATE src ${STB_DIR})
+target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
+target_link_libraries(3dmppc PRIVATE rv_dmain)
 
 if(MSVC)
   target_compile_options(3dmppc PRIVATE /W4)
@@ -65,24 +81,6 @@ else()
   target_compile_options(3dmppc PRIVATE -Wall -Wextra)
 endif()
 
-# Copy the console's own demo assets next to the binary, if present. The disc is
-# self-generating (procedural assets), so this dir is optional.
-if(EXISTS ${CMAKE_SOURCE_DIR}/assets)
-  add_custom_command(TARGET 3dmppc POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:3dmppc>/assets
-    COMMENT "Copying assets"
-  )
-endif()
-
-# Copy the runtime files of the solidmaid disc (only what the demo loads — the
-# source .glb / concept sketch stay out of the build tree).
-add_custom_command(TARGET 3dmppc POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E make_directory
-          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solidmaid/assets
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solidmaid/assets/protagonist.obj
-          ${CMAKE_SOURCE_DIR}/mppcdiscs/solidmaid/assets/protagonist_tex.png
-          $<TARGET_FILE_DIR:3dmppc>/mppcdiscs/solidmaid/assets
-  COMMENT "Copying solidmaid disc assets"
-)
+# No asset copying: nothing reads files yet. Disc assets come back when the disc
+# drive (rv_cd) lands and a disc reads them by name instead of by path.
+# NEUROSLOP-END

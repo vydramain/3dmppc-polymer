@@ -20,10 +20,9 @@ solid/
   data/       levels, tuning tables, save schema, loop flags — stub
 ```
 
-The console demo (`src/main.cpp`) loads `protagonist.obj` +
-`protagonist_tex.png` and shows the protagonist on a turntable. Only these two
-runtime files are copied into the build tree; the `.glb` source and sketch stay
-here as references.
+Nothing loads these files yet: the console reads disc content through the disc
+drive (`rv_cd`), which is still a stub, so no assets are copied into the build
+tree. The `.glb` source and the sketch stay here as references either way.
 
 ## Status
 
