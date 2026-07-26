@@ -10,7 +10,7 @@ namespace rv_3dmppc {
 
 struct rv_pcca_conf {
     int64_t voice_count = 24;
-    int64_t sound_memory_size = 512 * 1024;
+    int64_t sound_memory_size = 1024 * 1024;  // 512 * 1024; for MVP
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Silence the output stage without changing anything a disc can observe:
