@@ -2,7 +2,7 @@
 
 // Shared error convention for every PDK controller.
 //
-// Kernel-style: a call returns >= 0 on success and a negative rv_err on failure.
+// A call returns >= 0 on success and a negative rv_err on failure.
 // Calls that yield a value (e.g. rv_ca::sound_asset_malloc returns a sound-RAM
 // address, rv_cd::asset_read returns a byte count) return that value when >= 0,
 // or one of the negative codes below. Callers test uniformly with
