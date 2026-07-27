@@ -6,6 +6,7 @@
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/rv_err.hpp"  // IWYU pragma: keep (shared error vocabulary)
+#include "pdk/rv_vr.hpp"   // IWYU pragma: keep (version vocabulary)
 
 namespace rv_pdk {
 
