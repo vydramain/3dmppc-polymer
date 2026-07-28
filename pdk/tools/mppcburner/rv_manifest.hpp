@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "dpk/ve/rv_ve.hpp"
+#include "pdk/ve/rv_ve.hpp"
 
 namespace rv_pdktools {
 
@@ -37,8 +37,8 @@ struct rv_manifest {
     // [disc]
     std::string id;     // short machine name, e.g. "hello"
     std::string title;  // human title for the window and logs
-    int version_major = rv_pdk::RV_3DMPPC_VERSION_MAJOR;
-    int version_minor = rv_pdk::RV_3DMPPC_VERSION_MINOR;
+    int version_major = rv_pdk::RV_MPPC_VERSION_MAJOR;
+    int version_minor = rv_pdk::RV_MPPC_VERSION_MINOR;
 
     // [build] — globs relative to the disc directory
     std::vector<std::string> sources;
