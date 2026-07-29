@@ -48,7 +48,7 @@ namespace {
 // "did you mean" hint, so a key added to rv_manifest must be added here or it
 // stops being accepted — which is the failure mode we want, not the reverse.
 
-constexpr std::string_view kDiscKeys[] = {"id", "title", "abi_version"};
+constexpr std::string_view kDiscKeys[] = {"id", "title"};
 constexpr std::string_view kBuildKeys[] = {"sources", "defines", "include_dirs"};
 constexpr std::string_view kAssetsKeys[] = {"files"};
 constexpr std::string_view kTexturesKeys[] = {"files", "format"};
@@ -463,11 +463,6 @@ class manifest_parser {
             if (value.kind != value_kind::integer) {
                 return wrong_type(key, value, value_kind::integer);
             }
-            if (value.num < std::numeric_limits<int>::min() ||
-                value.num > std::numeric_limits<int>::max()) {
-                return fail(value.line, "abi_version is out of range");
-            }
-            manifest_.abi_version = static_cast<int>(value.num);
             return true;
         }
 
@@ -611,7 +606,6 @@ std::string rv_manifest_render(const rv_manifest& manifest) {
     out << "[disc]\n";
     out << "id = " << quote(manifest.id) << "\n";
     out << "title = " << quote(manifest.title) << "\n";
-    out << "abi_version = " << manifest.abi_version << "\n";
 
     out << "\n[build]\n";
     render_array(out, "sources", manifest.sources);
@@ -654,11 +648,6 @@ bool rv_manifest_validate(const rv_manifest& manifest, std::string& error) {
     }
     if (manifest.id.front() == '.') {  // unreachable through the loop above, kept as a guard
         error = "[disc] id must not start with '.'";
-        return false;
-    }
-
-    if (manifest.abi_version <= 0) {
-        error = "[disc] abi_version must be positive, got " + std::to_string(manifest.abi_version);
         return false;
     }
 
