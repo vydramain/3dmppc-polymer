@@ -24,12 +24,12 @@
 #include <cstring>
 #include <vector>
 
-#include "pdk/cio/rv_cio.hpp"
 #include "pdk/cd/rv_cd.hpp"
+#include "pdk/cio/rv_cio.hpp"
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/de/rv_de.hpp"
-#include "pdk/rv_abi.hpp"
 #include "pdk/rv_err.hpp"
+#include "pdk/ve/rv_ve.hpp"
 
 namespace hello {
 namespace {
@@ -213,8 +213,8 @@ void rv_dmain::frame_render() {
     // whole pipeline: PNG in the disc directory, baked by mppcbaker, packed into
     // the archive, read back through rv_pdk::rv_cd.
     if (addr_texels_ != 0) {
-        const rv_pdk::rv_texture_mapping_type modes[3] = {rv_pdk::RV_TEXWRAP_CLAMP, rv_pdk::RV_TEXWRAP_TILE,
-                                                  rv_pdk::RV_TEXWRAP_STRETCH};
+        const rv_pdk::rv_texture_mapping_type modes[3] = {
+            rv_pdk::RV_TEXWRAP_CLAMP, rv_pdk::RV_TEXWRAP_TILE, rv_pdk::RV_TEXWRAP_STRETCH};
         const float size = 48.0f;
         const float gap = 12.0f;
         const float total = 3.0f * size + 2.0f * gap;
@@ -286,4 +286,14 @@ void rv_dmain::disc_shutdown() {
 // This one line turns the translation unit into a disc: it plants
 // mppc_disc_create / mppc_disc_destroy with default visibility, and they are
 // the only symbols the console can reach. See pdk/rv_abi.hpp.
-RV_DISC_EXPORT(hello::rv_dmain)
+//
+// МИГРАЦИЯ НА НОВЫЙ КОНТРАКТ — этот диск сейчас не
+// грузится: rv_abi.hpp удалён, консоль ищет rv_mppc_disc_create /
+// rv_mppc_disc_destroy (см. rv_ve.hpp), а тут экспортируются старые имена.
+// Порядок: 1) написать наследника RV_DISC_EXPORT в pdk/include/pdk/ve/rv_ve.hpp
+// (TODO там же); 2) перевести эту строку на него — create теперь получает
+// (version_major, version_minor) консоли и должен решить, согласен ли диск
+// (несогласие = nullptr); 3) пересобрать диск mppcburner'ом и прогнать консоль:
+// dlsym обязан пройти, лог — "loaded disc 'hello'".
+
+RV_DISC_EXPORT(hello::rv_dmain);
