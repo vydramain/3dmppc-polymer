@@ -6,6 +6,7 @@
 #include "rv_pconsole/rv_pcloader.hpp"
 
 #include <dlfcn.h>
+#include <elf.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -20,6 +21,7 @@
 #include <vector>
 
 #include "pdk/rv_err.hpp"
+#include "pdk/ve/rv_ve.hpp"
 #include "rv_infra/rv_log.hpp"
 #include "rv_pconsole/cd/rv_pczip.hpp"
 
@@ -221,10 +223,7 @@ bool rv_pcmanifest_parse(const std::string& text, rv_pcdiscinfo& out) {
         const std::string_view key = trim(line.substr(0, eq));
         const std::string value = manifest_value(line.substr(eq + 1));
 
-        if (key == "abi_version") {
-            int parsed = 0;
-            if (manifest_int(value, parsed)) out.abi_version = parsed;
-        } else if (key == "id") {
+        if (key == "id") {
             out.id = value;
         } else if (key == "title") {
             out.title = value;
@@ -242,9 +241,119 @@ void rv_pcloader::notify_initialized(const rv_de* disc) {
     if (disc_ != nullptr && disc == disc_) initialized_ = true;
 }
 
+// NEUROSLOP-END
+
+template <typename O>
+bool rv_pcloader::pod_peek(std::vector<unsigned char>& buf, int64_t off, O& out) {
+    static_assert(std::is_trivially_copyable_v<O>);
+
+    if (off < 0 || off > (int64_t)buf.size() - (int64_t)sizeof(O)) return false;
+
+    std::memcpy(&out, buf.data() + off, sizeof(O));
+    return true;
+}
+
+int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry) {
+    int64_t size = zip->size(info_entry);
+    if (size <= 0) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' in '{}' is missing or empty; there is no binary "
+                   "to version-check",
+                   rv_log_escape(info_entry), rv_log_escape(zip->path().c_str()));
+        return RV_ERR_INVAL;
+    }
+
+    // One bulk read of the whole entry: the zip reader verifies the CRC over
+    // all of it, and no byte below is trusted before that verdict.
+    int64_t nread;
+    std::vector<unsigned char> buffer(size);
+    rv_zipread zipread = zip->read(info_entry, buffer.data(), size, nread);
+    if (zipread != rv_3dmppc::rv_zipread::ok || nread != size) {
+        RV_LOG_ERR("pcloader",
+                   "cannot read code entry '{}' from '{}' (zip verdict {}, {} of {} "
+                   "bytes); refusing a disc whose code cannot be inspected",
+                   rv_log_escape(info_entry), rv_log_escape(zip->path().c_str()),
+                   static_cast<int>(zipread), nread, size);
+        return RV_ERR_INVAL;
+    }
+
+    // The ELF header lives at offset 0 by definition — elf(5), "ELF header
+    // (Ehdr)". Each check below legalises exactly the fields the next step
+    // relies on; until a check has passed, the fields it covers are just bytes.
+    Elf64_Ehdr mppcdisc_ehdr;
+    if (!pod_peek(buffer, 0, mppcdisc_ehdr)) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' is only {} bytes — smaller than an ELF64 header; "
+                   "not a loadable binary",
+                   rv_log_escape(info_entry), size);
+        return RV_ERR_INVAL;
+    }
+
+    if (memcmp(mppcdisc_ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' does not start with the ELF magic; it is not an "
+                   "ELF object at all",
+                   rv_log_escape(info_entry));
+        return RV_ERR_INVAL;
+    }
+
+    // Single-byte fields, so they are readable regardless of byte order — and
+    // only their verdict makes the multi-byte fields of the struct meaningful:
+    // everything was copied under a little-endian assumption.
+    if (mppcdisc_ehdr.e_ident[EI_CLASS] != ELFCLASS64 ||
+        mppcdisc_ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' is not a 64-bit little-endian ELF (class {}, "
+                   "data {}); this console only runs ELF64 LE discs",
+                   rv_log_escape(info_entry), (int)mppcdisc_ehdr.e_ident[EI_CLASS],
+                   (int)mppcdisc_ehdr.e_ident[EI_DATA]);
+        return RV_ERR_INVAL;
+    }
+
+    if (mppcdisc_ehdr.e_type != ET_DYN || mppcdisc_ehdr.e_machine != EM_X86_64) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' is not an x86-64 shared object (e_type {}, "
+                   "e_machine {}); it cannot run on this console",
+                   rv_log_escape(info_entry), mppcdisc_ehdr.e_type, mppcdisc_ehdr.e_machine);
+        return RV_ERR_INVAL;
+    }
+
+    // The program-header walk steps by e_phentsize; if the file declares a
+    // different stride than the Elf64_Phdr we read with, every entry after the
+    // first would be read misaligned with the table.
+    if (mppcdisc_ehdr.e_phentsize != sizeof(Elf64_Phdr)) {
+        RV_LOG_ERR("pcloader",
+                   "code entry '{}' declares {}-byte program headers, elf(5) says {}; "
+                   "its segment table cannot be walked",
+                   rv_log_escape(info_entry), mppcdisc_ehdr.e_phentsize, sizeof(Elf64_Phdr));
+        return RV_ERR_INVAL;
+    }
+
+    // 1. Цикл по таблице сегментов: запись i лежит по e_phoff + i * e_phentsize,
+    //    i < e_phnum; peek Elf64_Phdr, интересуют только p_type == PT_NOTE
+    //    (их может быть несколько — build-id и прочие GNU-ноты живут там же).
+    // 2. Для каждого PT_NOTE: окно [p_offset, p_offset + p_filesz), оба числа
+    //    сверить с размером буфера ДО использования.
+    // 3. Курсор по записям нот внутри окна: Elf64_Nhdr {n_namesz, n_descsz,
+    //    n_type}, затем имя и desc, каждое дополнено нулями до кратности 4.
+    //    Шаг курсора: 12 + align4(namesz) + align4(descsz), где align4(x) =
+    //    (x + 3) & ~3u; на каждом шаге проверять, что запись не вылезает из окна.
+    // 4. Запись с нашим именем и типом (см. rv_ve.hpp) → проверить
+    //    descsz == sizeof(rv_mppc_version_info), memcpy desc в структуру,
+    //    сверить magic и version_major/minor с RV_MPPC_VERSION_MAJOR/MINOR.
+    //    Ноты нет ни в одном сегменте → отказ: диск не декларирует версию.
+    //
+    // Формат нот: elf(5), раздел "Notes (Nhdr)". Эталон для отладки:
+    // `readelf -n <so>` и `readelf -l <so>` должны сходиться с тем, что находит
+    // этот код. ВАЖНО: нота появится в диске только после того, как в PDK
+    // появится её эмиссия (см. TODO в pdk/include/pdk/ve/rv_ve.hpp) и hello
+    // будет пересобран.
+    return RV_OK;
+}
+
+// NEUROSLOP-BEGIN (claude-opus-5)
+
 int64_t rv_pcloader::load(const char* archive_path) {
-    // Loading over a live disc would leak the old one; tear it down first so the
-    // object has exactly one state machine and not two.
     unload();
 
     if (archive_path == nullptr || *archive_path == '\0') {
@@ -252,9 +361,7 @@ int64_t rv_pcloader::load(const char* archive_path) {
         return RV_ERR_INVAL;
     }
 
-    // (1) The file. Checked separately from opening the archive so that "you
-    // typed the wrong path" and "that file is not a disc" are two different
-    // sentences in the log instead of one shrug.
+    // Check the file.
     std::error_code ec;
     if (!std::filesystem::is_regular_file(std::filesystem::path(archive_path), ec)) {
         RV_LOG_ERR("pcloader", "no disc at '{}': the path does not name a readable file",
@@ -262,7 +369,7 @@ int64_t rv_pcloader::load(const char* archive_path) {
         return RV_ERR_NOENT;
     }
 
-    // (2) The container.
+    // Check the container.
     rv_zipreader zip;
     std::string zip_error;
     if (!zip.open(archive_path, zip_error)) {
@@ -271,7 +378,7 @@ int64_t rv_pcloader::load(const char* archive_path) {
         return RV_ERR_IO;
     }
 
-    // (3) The manifest.
+    // Check the manifest.
     std::vector<unsigned char> manifest_bytes;
     std::string why = read_whole_entry(zip, kManifestEntry, kManifestMaxSize, manifest_bytes);
     if (!why.empty()) {
@@ -284,19 +391,20 @@ int64_t rv_pcloader::load(const char* archive_path) {
                               manifest_bytes.size());
     rv_pcmanifest_parse(manifest_text, info_);
 
-    // PATTERN: two-stage handshake, stage one — TEXTUAL, and it happens BEFORE
-    // any of the disc's code is in this process. A disc built against a
-    // different rv_cv sees the console's structs at the wrong offsets, and that
-    // failure does not announce itself: it is garbage geometry, a silent
-    // corruption, a crash three minutes into play. Refusing here means the
-    // mismatched code is never mapped at all — the cheapest possible verdict,
-    // paid for by reading a few lines of text. Stage two (the factory's own
-    // check, below) exists because this one reads a file anybody can edit.
-    if (info_.abi_version != RV_ABI_VERSION) {
+    // PATTERN: two-stage handshake, stage one — BYTES, BEFORE dlopen. A disc
+    // built against a different PDK sees the console's structs at the wrong
+    // offsets, and that failure does not announce itself: it is garbage
+    // geometry, a silent corruption, a crash three minutes into play. dlopen
+    // would already run the disc's constructors, so the verdict here is read
+    // straight from the code entry's ELF structure (elf(5)) while it is still
+    // nothing but bytes in a buffer — the mismatched code is never mapped at
+    // all. Stage two (the factory's own answer, below) exists because a file
+    // can be edited; the reply compiled into the running code cannot.
+    if (rv_mppc_version_info_section_check(&zip, info_.entry.c_str())) {
         RV_LOG_ERR("pcloader",
-                   "disc '{}' declares ABI version {}, this console speaks {}; refusing to load "
-                   "its code",
-                   rv_log_escape(info_.id.c_str()), info_.abi_version, RV_ABI_VERSION);
+                   "disc '{}' failed the pre-load inspection of its code entry — the exact "
+                   "refusal is in the log line above; its code will not be mapped",
+                   rv_log_escape(info_.id.c_str()));
         return RV_ERR_INVAL;
     }
 
@@ -339,24 +447,28 @@ int64_t rv_pcloader::load(const char* archive_path) {
     // is not half-loadable, it is a leak with a vtable — and the only code that
     // may destroy the object is the code that made it (pdk/rv_abi.hpp).
     ::dlerror();  // clear any stale error before the lookups
-    auto create = reinterpret_cast<rv_disc_create_fn>(::dlsym(handle_, RV_ABI_SYMBOL_CREATE));
-    auto destroy = reinterpret_cast<rv_disc_destroy_fn>(::dlsym(handle_, RV_ABI_SYMBOL_DESTROY));
+    auto create =
+        reinterpret_cast<rv_mppc_disc_create_fn>(::dlsym(handle_, RV_MPPC_VERSION_SYMBOL_CREATE));
+    auto destroy =
+        reinterpret_cast<rv_mppc_disc_destroy_fn>(::dlsym(handle_, RV_MPPC_VERSION_SYMBOL_DESTROY));
     if (create == nullptr || destroy == nullptr) {
-        RV_LOG_ERR("pcloader", "disc '{}' exports no {}(); it was not built with RV_DISC_EXPORT",
-                   rv_log_escape(info_.id.c_str()),
-                   create == nullptr ? RV_ABI_SYMBOL_CREATE : RV_ABI_SYMBOL_DESTROY);
+        RV_LOG_ERR(
+            "pcloader", "disc '{}' exports no {}(); it was not built with RV_DISC_EXPORT",
+            rv_log_escape(info_.id.c_str()),
+            create == nullptr ? RV_MPPC_VERSION_SYMBOL_CREATE : RV_MPPC_VERSION_SYMBOL_DESTROY);
         unload();
         return RV_ERR_INVAL;
     }
 
-    // PATTERN: two-stage handshake, stage two — BINARY. The manifest is text and
-    // anyone can edit it to say `abi_version = 1`; this check is compiled into
-    // the object that would actually run, against the RV_ABI_VERSION its own
-    // headers had. Only the disc can answer it, and its answer is the one that
-    // counts.
+    // PATTERN: two-stage handshake, stage two — the LIVING CODE'S OWN ANSWER.
+    // Stage one read bytes a burner (or an attacker) wrote; this call hands the
+    // console's RV_MPPC_VERSION_MAJOR/MINOR to code that was compiled against
+    // the PDK headers the disc was actually built with, and that code decides
+    // whether it agrees to run. Only the disc can give that answer, and a null
+    // return is a refusal.
     rv_de* disc = nullptr;
     try {
-        disc = create(RV_ABI_VERSION);
+        disc = create(RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR);
     } catch (...) {
         // An exception escaping an extern "C" factory is not something the ABI
         // permits, so this is defence and not a contract: a badly built disc must
@@ -364,10 +476,12 @@ int64_t rv_pcloader::load(const char* archive_path) {
         disc = nullptr;
     }
     if (disc == nullptr) {
-        RV_LOG_ERR("pcloader",
-                   "disc '{}' refused ABI version {} in {}(); its binary disagrees with its "
-                   "manifest",
-                   rv_log_escape(info_.id.c_str()), RV_ABI_VERSION, RV_ABI_SYMBOL_CREATE);
+        RV_LOG_ERR(
+            "pcloader",
+            "disc '{}' rejected console version {}.{} in {}(): its code was built against an "
+            "incompatible PDK and refuses to run",
+            rv_log_escape(info_.id.c_str()), RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR,
+            RV_MPPC_VERSION_SYMBOL_CREATE);
         unload();
         return RV_ERR_INVAL;
     }
@@ -375,9 +489,9 @@ int64_t rv_pcloader::load(const char* archive_path) {
     disc_ = disc;
     destroy_ = destroy;
 
-    RV_LOG_INFO("pcloader", "loaded disc '{}' ('{}') from '{}' at ABI version {}",
+    RV_LOG_INFO("pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
                 rv_log_escape(info_.id.c_str()), rv_log_escape(info_.title.c_str()),
-                rv_log_escape(archive_path), RV_ABI_VERSION);
+                rv_log_escape(archive_path), RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR);
     return RV_OK;
 }
 
