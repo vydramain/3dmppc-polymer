@@ -329,6 +329,69 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
         return RV_ERR_INVAL;
     }
 
+    bool version_info_found_flag = false;
+    Elf64_Phdr potential_note;
+    rv_mppc_version_info version_info;
+    for (int i = 0; i < mppcdisc_ehdr.e_phnum && !version_info_found_flag; ++i) {
+        if (!pod_peek(buffer, mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize,
+                      potential_note)) {
+            RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from disc.so ");
+            continue;
+        }
+
+        if (potential_note.p_type == PT_NOTE) {
+            if (potential_note.p_offset > buffer.size() ||
+                potential_note.p_offset + potential_note.p_filesz > buffer.size()) {
+                RV_LOG_ERR("pcloader", "incorrect size of elf64_phdr in buffer; disc.so is broken");
+                return RV_ERR_INVAL;
+            }
+
+            Elf64_Nhdr note;
+            for (int note_offset = potential_note.p_offset;
+                 note_offset < static_cast<int>(potential_note.p_offset + potential_note.p_filesz);
+                 note_offset += sizeof(note.n_namesz) + sizeof(note.n_descsz) +
+                                sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u) +
+                                ((note.n_descsz + 3) & ~3u)) {
+                if (!pod_peek(buffer, note_offset, note)) {
+                    RV_LOG_ERR("pcloader", "can not peek note with version info from mppcdisc");
+                    return RV_ERR_INVAL;
+                }
+
+                if (sizeof(rv_pdk::RV_MPPC_NHDR_NAME) != note.n_namesz &&
+                    std::memcmp(rv_pdk::RV_MPPC_NHDR_NAME,
+                                buffer.data() + note_offset + sizeof(note.n_namesz) +
+                                    sizeof(note.n_descsz) + sizeof(note.n_type),
+                                sizeof(char) * note.n_namesz) != 0) {
+                    continue;
+                }
+
+                if (!pod_peek(buffer,
+                              note_offset + sizeof(note.n_namesz) + sizeof(note.n_descsz) +
+                                  sizeof(note.n_type) + note.n_namesz,
+                              version_info)) {
+                    RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from mppcdisc");
+                    continue;
+                } else {
+                    version_info_found_flag = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!version_info_found_flag) {
+        RV_LOG_ERR("pcloader", "version did not found in mppcdisc");
+        return RV_ERR_INVAL;
+    }
+
+    if (rv_pdk::RV_MPPC_VERSION_MAJOR != version_info.version_major ||
+        rv_pdk::RV_MPPC_VERSION_MINOR < version_info.version_minor) {
+        RV_LOG_ERR("pcloader", "disc version are incompatible to currect console version: ",
+                   "disc version is: {}.{}; ", version_info.version_major,
+                   version_info.version_minor);
+        return RV_ERR_INVAL;
+    }
+
     // 1. Цикл по таблице сегментов: запись i лежит по e_phoff + i * e_phentsize,
     //    i < e_phnum; peek Elf64_Phdr, интересуют только p_type == PT_NOTE
     //    (их может быть несколько — build-id и прочие GNU-ноты живут там же).

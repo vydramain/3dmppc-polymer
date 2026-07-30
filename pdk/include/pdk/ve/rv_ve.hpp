@@ -4,13 +4,15 @@
 
 namespace rv_pdk {
 
-#define RV_MPPC_VERSION_INFO_SECTION_NAME ".mppc_pdk_ver"
+#define RV_MPPC_VERSION_INFO_SECTION_DEF ".mppc_pdk_ver"
+#define RV_MPPC_NHDR_NAME_DEF "RV_MPPC_VER"
 
 inline constexpr int RV_MPPC_VERSION_MAJOR = 0;
 inline constexpr int RV_MPPC_VERSION_MINOR = 0;
 
 // отвечает за то, а какое значение смотрим
-inline constexpr const char* RV_MPPC_VERSION_INFO_SECTION = RV_MPPC_VERSION_INFO_SECTION_NAME;
+inline constexpr const char RV_MPPC_VERSION_INFO_SECTION[] = RV_MPPC_VERSION_INFO_SECTION_DEF;
+inline constexpr const char RV_MPPC_NHDR_NAME[] = RV_MPPC_NHDR_NAME_DEF;
 
 // отвечает за обозначение секции внутри библиотеки для чтения, без исполнения кода
 struct rv_mppc_version_info {
