@@ -4,14 +4,12 @@
 
 namespace rv_pdk {
 
-#define RV_MPPC_VERSION_INFO_SECTION_DEF ".mppc_pdk_ver"
 #define RV_MPPC_NHDR_NAME_DEF "RV_MPPC_VER"
 
 inline constexpr int RV_MPPC_VERSION_MAJOR = 0;
 inline constexpr int RV_MPPC_VERSION_MINOR = 0;
 
-// отвечает за то, а какое значение смотрим
-inline constexpr const char RV_MPPC_VERSION_INFO_SECTION[] = RV_MPPC_VERSION_INFO_SECTION_DEF;
+inline constexpr unsigned int RV_MPPC_NHDR_TYPE = 1;
 inline constexpr const char RV_MPPC_NHDR_NAME[] = RV_MPPC_NHDR_NAME_DEF;
 
 // отвечает за обозначение секции внутри библиотеки для чтения, без исполнения кода
@@ -23,6 +21,13 @@ struct rv_mppc_version_info {
 
 // гарантирует побайтовую иднетичность для любой реализации
 static_assert(sizeof(rv_mppc_version_info) == 16);
+
+// ---
+
+#define RV_MPPC_VERSION_INFO_SECTION_DEF ".mppc_pdk_ver"
+
+// отвечает за то, а какое значение смотрим
+inline constexpr const char RV_MPPC_VERSION_INFO_SECTION[] = RV_MPPC_VERSION_INFO_SECTION_DEF;
 
 inline constexpr const char* RV_MPPC_VERSION_SYMBOL_CREATE = "rv_mppc_disc_create";
 inline constexpr const char* RV_MPPC_VERSION_SYMBOL_DESTROY = "rv_mppc_disc_destroy";
