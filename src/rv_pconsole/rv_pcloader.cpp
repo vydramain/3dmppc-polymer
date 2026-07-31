@@ -340,15 +340,20 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
         }
 
         if (potential_note.p_type == PT_NOTE) {
-            if (potential_note.p_offset > buffer.size() ||
-                potential_note.p_offset + potential_note.p_filesz > buffer.size()) {
+            // p_offset + p_filesz — сумма двух
+            // беззнаковых 64-битных чисел из файла. Злонамеренный файл ставит оба близко к
+            // максимуму uint64 → сумма перематывается через ноль в маленькое число → маленькое >
+            // buffer.size() ложно → проверка пройдена, а дальше ты читаешь по гигантскому p_offset.
+            if (potential_note.p_filesz > buffer.size() ||
+                potential_note.p_offset >= buffer.size() - potential_note.p_filesz) {
                 RV_LOG_ERR("pcloader", "incorrect size of elf64_phdr in buffer; disc.so is broken");
                 return RV_ERR_INVAL;
             }
 
             Elf64_Nhdr note;
-            for (int note_offset = potential_note.p_offset;
-                 note_offset < static_cast<int>(potential_note.p_offset + potential_note.p_filesz);
+            for (uint64_t note_offset = potential_note.p_offset;
+                 note_offset <
+                 static_cast<uint64_t>(potential_note.p_offset + potential_note.p_filesz);
                  note_offset += sizeof(note.n_namesz) + sizeof(note.n_descsz) +
                                 sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u) +
                                 ((note.n_descsz + 3) & ~3u)) {
@@ -357,17 +362,26 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
                     return RV_ERR_INVAL;
                 }
 
-                if (sizeof(rv_pdk::RV_MPPC_NHDR_NAME) != note.n_namesz &&
+                if (note.n_namesz != sizeof(rv_pdk::RV_MPPC_NHDR_NAME) ||
+                    note.n_descsz != sizeof(rv_pdk::rv_mppc_version_info) ||
+                    note.n_type != rv_pdk::RV_MPPC_NHDR_TYPE) {
+                    RV_LOG_WARN("pcloader", "found note does not fit by size to searching one");
+                    continue;
+                }
+
+                if (sizeof(rv_pdk::RV_MPPC_NHDR_NAME) != note.n_namesz ||
                     std::memcmp(rv_pdk::RV_MPPC_NHDR_NAME,
                                 buffer.data() + note_offset + sizeof(note.n_namesz) +
                                     sizeof(note.n_descsz) + sizeof(note.n_type),
-                                sizeof(char) * note.n_namesz) != 0) {
+                                sizeof(rv_pdk::RV_MPPC_NHDR_NAME)) != 0) {
+                    RV_LOG_WARN("pcloader",
+                                "found note does not fit by Nhdr name to searching one");
                     continue;
                 }
 
                 if (!pod_peek(buffer,
                               note_offset + sizeof(note.n_namesz) + sizeof(note.n_descsz) +
-                                  sizeof(note.n_type) + note.n_namesz,
+                                  sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u),
                               version_info)) {
                     RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from mppcdisc");
                     continue;
@@ -386,31 +400,13 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
 
     if (rv_pdk::RV_MPPC_VERSION_MAJOR != version_info.version_major ||
         rv_pdk::RV_MPPC_VERSION_MINOR < version_info.version_minor) {
-        RV_LOG_ERR("pcloader", "disc version are incompatible to currect console version: ",
-                   "disc version is: {}.{}; ", version_info.version_major,
-                   version_info.version_minor);
+        RV_LOG_ERR("pcloader",
+                   "disc version are incompatible to currect console version: "
+                   "disc version is: {}.{}; ",
+                   version_info.version_major, version_info.version_minor);
         return RV_ERR_INVAL;
     }
 
-    // 1. Цикл по таблице сегментов: запись i лежит по e_phoff + i * e_phentsize,
-    //    i < e_phnum; peek Elf64_Phdr, интересуют только p_type == PT_NOTE
-    //    (их может быть несколько — build-id и прочие GNU-ноты живут там же).
-    // 2. Для каждого PT_NOTE: окно [p_offset, p_offset + p_filesz), оба числа
-    //    сверить с размером буфера ДО использования.
-    // 3. Курсор по записям нот внутри окна: Elf64_Nhdr {n_namesz, n_descsz,
-    //    n_type}, затем имя и desc, каждое дополнено нулями до кратности 4.
-    //    Шаг курсора: 12 + align4(namesz) + align4(descsz), где align4(x) =
-    //    (x + 3) & ~3u; на каждом шаге проверять, что запись не вылезает из окна.
-    // 4. Запись с нашим именем и типом (см. rv_ve.hpp) → проверить
-    //    descsz == sizeof(rv_mppc_version_info), memcpy desc в структуру,
-    //    сверить magic и version_major/minor с RV_MPPC_VERSION_MAJOR/MINOR.
-    //    Ноты нет ни в одном сегменте → отказ: диск не декларирует версию.
-    //
-    // Формат нот: elf(5), раздел "Notes (Nhdr)". Эталон для отладки:
-    // `readelf -n <so>` и `readelf -l <so>` должны сходиться с тем, что находит
-    // этот код. ВАЖНО: нота появится в диске только после того, как в PDK
-    // появится её эмиссия (см. TODO в pdk/include/pdk/ve/rv_ve.hpp) и hello
-    // будет пересобран.
     return RV_OK;
 }
 
