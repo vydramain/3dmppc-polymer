@@ -30,7 +30,7 @@
 #include <system_error>
 
 #include "pdk/cv/rv_texture.hpp"
-#include "pdk/rv_abi.hpp"
+#include "pdk/ve/rv_ve.hpp"
 #include "rv_zipwrite.hpp"
 
 namespace fs = std::filesystem;
@@ -674,6 +674,7 @@ std::string rv_cmake_project_text(const rv_manifest& manifest,
     for (const std::string& source : absolute_sources) {
         text += "  " + cmake_quote(source) + "\n";
     }
+    text += "	" + cmake_quote("custom_version_plus_hash_for_evade_collisions.cpp") + "\n";
     text += ")\n\n";
 
     // PREFIX "" + OUTPUT_NAME "disc" produce exactly `disc.so`, which is the
@@ -766,18 +767,6 @@ int rv_build_run(const rv_build_options& options) {
         say_error(manifest_path.string() + ": " + error);
         return 1;
     }
-    // The ABI gate. A disc built against a different PDK will be refused by the
-    // console at load time anyway (rv_abi.hpp), so burning it would only move
-    // the failure from a build log to a player's loading screen.
-    if (manifest.abi_version != rv_pdk::RV_ABI_VERSION) {
-        say_error("disc declares abi_version = " + std::to_string(manifest.abi_version) +
-                  ", this burner speaks ABI " + std::to_string(rv_pdk::RV_ABI_VERSION) +
-                  ". The console would refuse the result, so it is not burned. Rebuild the disc "
-                  "against a matching PDK, or fix [disc] abi_version if the sources are already "
-                  "current.");
-        return 1;
-    }
-    say_step(1, "manifest", "id=" + manifest.id + " abi=" + std::to_string(manifest.abi_version));
 
     // ── [2/4] compile ─────────────────────────────────────────────────────────
     std::vector<std::string> sources;
@@ -843,6 +832,37 @@ int rv_build_run(const rv_build_options& options) {
             return 1;
         }
     }
+
+    // NEUROSLOP ends
+
+    {
+        const std::string version_cpp_file_text{
+            "#include \"pdk/ve/rv_ve.hpp\"\n"
+            "#include \"pdklib/rv_disc_version.hpp\"\n"
+            "\n"
+            "RV_MPPC_DISC_VERSION_DEF;"};
+
+        std::ofstream out((project_dir / "custom_version_plus_hash_for_evade_collisions.cpp"),
+                          std::ios::binary | std::ios::trunc);
+        if (!out) {
+            say_error("cannot write `" +
+                      (project_dir / "custom_version_plus_hash_for_evade_collisions.cpp").string() +
+                      "'");
+            return 1;
+        }
+
+        out.write(version_cpp_file_text.data(),
+                  static_cast<std::streamsize>(version_cpp_file_text.size()));
+
+        if (!out) {
+            say_error("short wirte on '" +
+                      (project_dir / "custom_version_plus_hash_for_evade_collisions.cpp").string() +
+                      "'");
+            return 1;
+        }
+    }
+
+    // NEUROSLOP starts
 
     std::string child_output;
     const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +

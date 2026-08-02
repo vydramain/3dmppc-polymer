@@ -36,13 +36,12 @@ static_assert(sizeof(rv_mppc_note) ==
 // генерирует burner, — исходники игры про версию не знают. Значения major/minor
 // берутся из заголовков PDK, которыми идёт сборка диска: в ноту ложится
 // «версия PDK, против которой диск был скомпилирован».
-#define RV_MPPC_DISC_VERSION                                                        \
-    __attribute__((section(RV_MPPC_SECTION_NAME_DEF), used, retain)) alignas(4)     \
-    static const rv_pdklib::rv_mppc_note rv_mppc_disc_version_note = {              \
-        sizeof(RV_MPPC_NOTE_OWNER_DEF),                                             \
-        sizeof(rv_pdk::rv_mppc_note_desc),                                          \
-        rv_pdk::RV_MPPC_NOTE_TYPE,                                                  \
-        RV_MPPC_NOTE_OWNER_DEF,                                                     \
-        {RV_MPPC_NOTE_MAGIC_DEF,                                                    \
-         static_cast<uint32_t>(rv_pdk::RV_MPPC_VER_MAJOR),                          \
+#define RV_MPPC_DISC_VERSION_DEF                                                   \
+    __attribute__((section(RV_MPPC_SECTION_NAME_DEF), used, retain)) alignas(      \
+        4) static const rv_pdklib::rv_mppc_note rv_mppc_disc_version_note = {      \
+        sizeof(RV_MPPC_NOTE_OWNER_DEF),                                            \
+        sizeof(rv_pdk::rv_mppc_note_desc),                                         \
+        rv_pdk::RV_MPPC_NOTE_TYPE,                                                 \
+        RV_MPPC_NOTE_OWNER_DEF,                                                    \
+        {RV_MPPC_NOTE_MAGIC_DEF, static_cast<uint32_t>(rv_pdk::RV_MPPC_VER_MAJOR), \
          static_cast<uint32_t>(rv_pdk::RV_MPPC_VER_MINOR)}}
