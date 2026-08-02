@@ -10,8 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "pdk/ve/rv_ve.hpp"
-
 namespace rv_pdktools {
 
 // One PNG-to-texel conversion rule. `files` are globs relative to the disc
@@ -37,8 +35,6 @@ struct rv_manifest {
     // [disc]
     std::string id;     // short machine name, e.g. "hello"
     std::string title;  // human title for the window and logs
-    int version_major = rv_pdk::RV_MPPC_VER_MAJOR;
-    int version_minor = rv_pdk::RV_MPPC_VER_MINOR;
 
     // [build] — globs relative to the disc directory
     std::vector<std::string> sources;
