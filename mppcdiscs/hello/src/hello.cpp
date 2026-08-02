@@ -296,4 +296,4 @@ void rv_dmain::disc_shutdown() {
 // (несогласие = nullptr); 3) пересобрать диск mppcburner'ом и прогнать консоль:
 // dlsym обязан пройти, лог — "loaded disc 'hello'".
 
-RV_DISC_EXPORT(hello::rv_dmain);
+RV_MPPC_DISC_ENTRY_DEF(hello::rv_dmain);

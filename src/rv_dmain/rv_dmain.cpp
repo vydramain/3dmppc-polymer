@@ -277,8 +277,8 @@ void rv_dmain::build_font() {
     std::vector<uint16_t> bad(rv_pdklib::rv_text_palette_entries, 0);
     rv_pdklib::rv_text_build_palette(rv_color{240, 90, 80}, bad.data(), bad.size());
 
-    const int64_t bad_addr = cv->video_asset_malloc(
-        static_cast<int64_t>(rv_pdklib::rv_text_palette_size));
+    const int64_t bad_addr =
+        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_text_palette_size));
     if (bad_addr >= 0 &&
         cv->video_asset_write(bad_addr, rv_pdklib::rv_text_palette_texture(bad.data())) < 0) {
         cv->video_asset_free(bad_addr);
@@ -374,8 +374,7 @@ void rv_dmain::build_idx4_texture() {
     palette_idx4_[2] = 0x03E0;         // green
     palette_idx4_[3] = 0x7FFF;         // white
 
-    const int64_t texel_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(texels_idx4_.size()));
+    const int64_t texel_addr = cv->video_asset_malloc(static_cast<int64_t>(texels_idx4_.size()));
     if (texel_addr < 0) return;
 
     rv_texture texels{};
@@ -598,7 +597,7 @@ constexpr int RV_DMAIN_CELL_H = 60;
 constexpr int RV_DMAIN_CELL_ART_TOP = 11;  // below the cell's label
 
 constexpr const char* RV_DMAIN_CELL_LABEL[] = {
-    "LINE", "TRI",  "QUAD",  "WIRE",   "SPRITE", "DIRECT15",
+    "LINE", "TRI",  "QUAD",   "WIRE",  "SPRITE",  "DIRECT15",
     "TILE", "IDX4", "CUTOUT", "DEPTH", "STRETCH", "3D",
 };
 
@@ -629,10 +628,9 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h) {
     const rv_pdklib::rv_mat4 model = rv_pdklib::rv_mat4_mul(
         rv_pdklib::rv_mat4_rotate_y(spin_), rv_pdklib::rv_mat4_rotate_x(spin_ * 0.6f));
 
-    const rv_pdklib::rv_xform_conf conf =
-        rv_pdklib::rv_xform_conf_make(rv_pdklib::rv_camera_mvp(camera, model), camera, vw, vh,
-                                      RV_DMAIN_DEPTH_ART_LO, RV_DMAIN_DEPTH_ART_HI,
-                                      rv_pdklib::RV_CULL_SCREEN_CW);
+    const rv_pdklib::rv_xform_conf conf = rv_pdklib::rv_xform_conf_make(
+        rv_pdklib::rv_camera_mvp(camera, model), camera, vw, vh, RV_DMAIN_DEPTH_ART_LO,
+        RV_DMAIN_DEPTH_ART_HI, rv_pdklib::RV_CULL_SCREEN_CW);
 
     const rv_pdklib::rv_vec3 to_light{-0.4f, 0.8f, -0.5f};
 
@@ -789,9 +787,8 @@ void rv_dmain::draw_cell(int index) {
                                       RV_DMAIN_DEPTH_ART_LO};
             for (int i = 0; i < 3; ++i) {
                 cv->frame_put(make_bar(static_cast<float>(ax + i * 12),
-                                       static_cast<float>(ay + i * 8),
-                                       static_cast<float>(aw - 24), static_cast<float>(ah - 16),
-                                       tint[i], depth[i]));
+                                       static_cast<float>(ay + i * 8), static_cast<float>(aw - 24),
+                                       static_cast<float>(ah - 16), tint[i], depth[i]));
             }
             break;
         }
@@ -804,8 +801,8 @@ void rv_dmain::draw_cell(int index) {
             break;
     }
 }
-void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture,
-                             int64_t addr_palette, rv_texture_mapping_type mapping) {
+void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
+                             rv_texture_mapping_type mapping) {
     if (addr_texture == 0) return;
 
     rv_primitive primitive{};
@@ -853,12 +850,11 @@ void rv_dmain::draw_post() {
 
     // Opaque slabs, not a dim overlay: the console has no blending, and light
     // ink over lit geometry is exactly what made the first version unreadable.
-    cv->frame_put(make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab,
-                           RV_DMAIN_DEPTH_PANEL));
+    cv->frame_put(
+        make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL));
     rv_pdklib::rv_text_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
-    rv_pdklib::rv_text_draw(
-        ink, width - 4 - rv_pdklib::rv_text_measure_width(RV_DMAIN_NO_DISC, 1), 2,
-        RV_DMAIN_NO_DISC, file);
+    rv_pdklib::rv_text_draw(ink, width - 4 - rv_pdklib::rv_text_measure_width(RV_DMAIN_NO_DISC, 1),
+                            2, RV_DMAIN_NO_DISC, file);
 
     // The budget line. Saying VIRTUAL out loud matters: none of this is what the
     // host has, all of it is what the fantasy machine is defined to have, and
@@ -904,8 +900,7 @@ void rv_dmain::draw_post() {
     // fill 40 columns, and anything sharing the row lands on top of them.
     char pads[32];
     std::snprintf(pads, sizeof(pads), "%lld pad(s) boot %lu",
-                  static_cast<long long>(pads_connected_),
-                  static_cast<unsigned long>(boot_count_));
+                  static_cast<long long>(pads_connected_), static_cast<unsigned long>(boot_count_));
     rv_pdklib::rv_text_draw(ink, 4, height - 11, pads, file);
     rv_pdklib::rv_text_draw(ink, width - 4 - rv_pdklib::rv_text_measure_width(RV_DMAIN_HINTS, 1),
                             height - 11, RV_DMAIN_HINTS, file);

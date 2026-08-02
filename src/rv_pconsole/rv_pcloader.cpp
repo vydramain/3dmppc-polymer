@@ -331,7 +331,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
 
     bool version_info_found_flag = false;
     Elf64_Phdr potential_note;
-    rv_mppc_version_info version_info;
+    rv_mppc_note_desc version_info;
     for (int i = 0; i < mppcdisc_ehdr.e_phnum && !version_info_found_flag; ++i) {
         if (!pod_peek(buffer, mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize,
                       potential_note)) {
@@ -362,18 +362,18 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
                     return RV_ERR_INVAL;
                 }
 
-                if (note.n_namesz != sizeof(rv_pdk::RV_MPPC_NHDR_NAME) ||
-                    note.n_descsz != sizeof(rv_pdk::rv_mppc_version_info) ||
-                    note.n_type != rv_pdk::RV_MPPC_NHDR_TYPE) {
+                if (note.n_namesz != sizeof(rv_pdk::RV_MPPC_NOTE_OWNER) ||
+                    note.n_descsz != sizeof(rv_pdk::rv_mppc_note_desc) ||
+                    note.n_type != rv_pdk::RV_MPPC_NOTE_TYPE) {
                     RV_LOG_WARN("pcloader", "found note does not fit by size to searching one");
                     continue;
                 }
 
-                if (sizeof(rv_pdk::RV_MPPC_NHDR_NAME) != note.n_namesz ||
-                    std::memcmp(rv_pdk::RV_MPPC_NHDR_NAME,
+                if (sizeof(rv_pdk::RV_MPPC_NOTE_OWNER) != note.n_namesz ||
+                    std::memcmp(rv_pdk::RV_MPPC_NOTE_OWNER,
                                 buffer.data() + note_offset + sizeof(note.n_namesz) +
                                     sizeof(note.n_descsz) + sizeof(note.n_type),
-                                sizeof(rv_pdk::RV_MPPC_NHDR_NAME)) != 0) {
+                                sizeof(rv_pdk::RV_MPPC_NOTE_OWNER)) != 0) {
                     RV_LOG_WARN("pcloader",
                                 "found note does not fit by Nhdr name to searching one");
                     continue;
@@ -398,8 +398,8 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
         return RV_ERR_INVAL;
     }
 
-    if (rv_pdk::RV_MPPC_VERSION_MAJOR != version_info.version_major ||
-        rv_pdk::RV_MPPC_VERSION_MINOR < version_info.version_minor) {
+    if (rv_pdk::RV_MPPC_VER_MAJOR != version_info.version_major ||
+        rv_pdk::RV_MPPC_VER_MINOR < version_info.version_minor) {
         RV_LOG_ERR("pcloader",
                    "disc version are incompatible to currect console version: "
                    "disc version is: {}.{}; ",
@@ -450,16 +450,15 @@ int64_t rv_pcloader::load(const char* archive_path) {
                               manifest_bytes.size());
     rv_pcmanifest_parse(manifest_text, info_);
 
-    // PATTERN: two-stage handshake, stage one — BYTES, BEFORE dlopen. A disc
-    // built against a different PDK sees the console's structs at the wrong
-    // offsets, and that failure does not announce itself: it is garbage
-    // geometry, a silent corruption, a crash three minutes into play. dlopen
-    // would already run the disc's constructors, so the verdict here is read
-    // straight from the code entry's ELF structure (elf(5)) while it is still
-    // nothing but bytes in a buffer — the mismatched code is never mapped at
-    // all. Stage two (the factory's own answer, below) exists because a file
-    // can be edited; the reply compiled into the running code cannot.
-    if (rv_mppc_version_info_section_check(&zip, info_.entry.c_str())) {
+    // PATTERN: version verdict from BYTES, BEFORE dlopen. A disc built against
+    // a different PDK sees the console's structs at the wrong offsets, and that
+    // failure does not announce itself: it is garbage geometry, a silent
+    // corruption, a crash three minutes into play. dlopen would already run the
+    // disc's constructors, so the verdict is read straight from the code
+    // entry's ELF note (elf(5)) while it is still nothing but bytes in a buffer
+    // — the mismatched code is never mapped at all. This is the ONLY version
+    // check: the factory below creates the disc and decides nothing.
+    if (pre_dlopen_check(&zip, info_.entry.c_str()) < 0) {
         RV_LOG_ERR("pcloader",
                    "disc '{}' failed the pre-load inspection of its code entry — the exact "
                    "refusal is in the log line above; its code will not be mapped",
@@ -504,30 +503,27 @@ int64_t rv_pcloader::load(const char* archive_path) {
 
     // (6) Both symbols or neither. A disc that can be created but not destroyed
     // is not half-loadable, it is a leak with a vtable — and the only code that
-    // may destroy the object is the code that made it (pdk/rv_abi.hpp).
+    // may destroy the object is the code that made it (pdk/ve/rv_ve.hpp).
     ::dlerror();  // clear any stale error before the lookups
     auto create =
-        reinterpret_cast<rv_mppc_disc_create_fn>(::dlsym(handle_, RV_MPPC_VERSION_SYMBOL_CREATE));
+        reinterpret_cast<rv_mppc_disc_create_fn>(::dlsym(handle_, RV_MPPC_DISC_ENTRY_CREATE));
     auto destroy =
-        reinterpret_cast<rv_mppc_disc_destroy_fn>(::dlsym(handle_, RV_MPPC_VERSION_SYMBOL_DESTROY));
+        reinterpret_cast<rv_mppc_disc_destroy_fn>(::dlsym(handle_, RV_MPPC_DISC_ENTRY_DESTROY));
     if (create == nullptr || destroy == nullptr) {
-        RV_LOG_ERR(
-            "pcloader", "disc '{}' exports no {}(); it was not built with RV_DISC_EXPORT",
-            rv_log_escape(info_.id.c_str()),
-            create == nullptr ? RV_MPPC_VERSION_SYMBOL_CREATE : RV_MPPC_VERSION_SYMBOL_DESTROY);
+        RV_LOG_ERR("pcloader",
+                   "disc '{}' exports no {}(); it was not built with RV_MPPC_DISC_ENTRY_DEF",
+                   rv_log_escape(info_.id.c_str()),
+                   create == nullptr ? RV_MPPC_DISC_ENTRY_CREATE : RV_MPPC_DISC_ENTRY_DESTROY);
         unload();
         return RV_ERR_INVAL;
     }
 
-    // PATTERN: two-stage handshake, stage two — the LIVING CODE'S OWN ANSWER.
-    // Stage one read bytes a burner (or an attacker) wrote; this call hands the
-    // console's RV_MPPC_VERSION_MAJOR/MINOR to code that was compiled against
-    // the PDK headers the disc was actually built with, and that code decides
-    // whether it agrees to run. Only the disc can give that answer, and a null
-    // return is a refusal.
+    // Совместимость версии решена ДО этого места — pre_dlopen_check по ноте,
+    // ещё до dlopen. create() в решении не участвует: это чистая фабрика, и
+    // nullptr от неё — отказ диска создаться, не вердикт о версии.
     rv_de* disc = nullptr;
     try {
-        disc = create(RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR);
+        disc = create();
     } catch (...) {
         // An exception escaping an extern "C" factory is not something the ABI
         // permits, so this is defence and not a contract: a badly built disc must
@@ -535,12 +531,8 @@ int64_t rv_pcloader::load(const char* archive_path) {
         disc = nullptr;
     }
     if (disc == nullptr) {
-        RV_LOG_ERR(
-            "pcloader",
-            "disc '{}' rejected console version {}.{} in {}(): its code was built against an "
-            "incompatible PDK and refuses to run",
-            rv_log_escape(info_.id.c_str()), RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR,
-            RV_MPPC_VERSION_SYMBOL_CREATE);
+        RV_LOG_ERR("pcloader", "disc '{}' returned no object from {}(); refusing the disc",
+                   rv_log_escape(info_.id.c_str()), RV_MPPC_DISC_ENTRY_CREATE);
         unload();
         return RV_ERR_INVAL;
     }
@@ -550,7 +542,7 @@ int64_t rv_pcloader::load(const char* archive_path) {
 
     RV_LOG_INFO("pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
                 rv_log_escape(info_.id.c_str()), rv_log_escape(info_.title.c_str()),
-                rv_log_escape(archive_path), RV_MPPC_VERSION_MAJOR, RV_MPPC_VERSION_MINOR);
+                rv_log_escape(archive_path), RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
     return RV_OK;
 }
 
