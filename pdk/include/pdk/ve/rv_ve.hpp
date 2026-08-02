@@ -4,51 +4,68 @@
 
 namespace rv_pdk {
 
-#define RV_MPPC_NHDR_NAME_DEF "RV_MPPC_VER"
+// Владелец ноты — поле имени внутри записи (n_name; readelf -n показывает его
+// в колонке Owner). Писатель кладёт его в запись, читатель сверяет memcmp'ом.
+#define RV_MPPC_NOTE_OWNER_DEF "RV_MPPC_VER"
 
-inline constexpr int RV_MPPC_VERSION_MAJOR = 0;
-inline constexpr int RV_MPPC_VERSION_MINOR = 0;
+// Штамп в начале payload'а — внутренняя перестраховка поверх owner+type.
+#define RV_MPPC_NOTE_MAGIC_DEF "RV_MPPC"
 
-inline constexpr unsigned int RV_MPPC_NHDR_TYPE = 1;
-inline constexpr const char RV_MPPC_NHDR_NAME[] = RV_MPPC_NHDR_NAME_DEF;
+inline constexpr int RV_MPPC_VER_MAJOR = 0;
+inline constexpr int RV_MPPC_VER_MINOR = 0;
 
-// отвечает за обозначение секции внутри библиотеки для чтения, без исполнения кода
-struct rv_mppc_version_info {
-    char magic[8];  // marker {'R', 'V', '_', 'M', 'P', 'P', 'C', '\0'}
+inline constexpr unsigned int RV_MPPC_NOTE_TYPE = 1;
+inline constexpr const char RV_MPPC_NOTE_OWNER[] = RV_MPPC_NOTE_OWNER_DEF;
+
+// Payload (descriptor) ноты — единственный кусок записи, который обе стороны
+// трогают как C++-тип: писатель (pdklib/rv_disc_version.hpp) вкладывает его в
+// свою объемлющую структуру, читатель (rv_pcloader) вычитывает его по n_descsz.
+// Заголовок и имя записи общего типа не имеют: читатель разбирает их по байтам,
+// объемлющая структура — деталь писателя.
+struct rv_mppc_note_desc {
+    char magic[8];  // RV_MPPC_NOTE_MAGIC_DEF, побайтово
     uint32_t version_major;
     uint32_t version_minor;
 };
 
-// гарантирует побайтовую иднетичность для любой реализации
-static_assert(sizeof(rv_mppc_version_info) == 16);
+// гарантирует побайтовую идентичность для любой реализации
+static_assert(sizeof(rv_mppc_note_desc) == 16);
 
 // ---
 
-#define RV_MPPC_VERSION_INFO_SECTION_DEF ".mppc_pdk_ver"
+#define RV_MPPC_STR_DEF_(x) #x
+#define RV_MPPC_STR_DEF(x) RV_MPPC_STR_DEF_(x)
 
-// отвечает за то, а какое значение смотрим
-inline constexpr const char RV_MPPC_VERSION_INFO_SECTION[] = RV_MPPC_VERSION_INFO_SECTION_DEF;
+#define RV_MPPC_DISC_ENTRY_CREATE_DEF rv_mppc_disc_entry_create_fn
+#define RV_MPPC_DISC_ENTRY_DESTROY_DEF rv_mppc_disc_entry_destroy_fn
 
-inline constexpr const char* RV_MPPC_VERSION_SYMBOL_CREATE = "rv_mppc_disc_create";
-inline constexpr const char* RV_MPPC_VERSION_SYMBOL_DESTROY = "rv_mppc_disc_destroy";
+inline constexpr const char* RV_MPPC_DISC_ENTRY_CREATE =
+    RV_MPPC_STR_DEF(RV_MPPC_DISC_ENTRY_CREATE_DEF);
+inline constexpr const char* RV_MPPC_DISC_ENTRY_DESTROY =
+    RV_MPPC_STR_DEF(RV_MPPC_DISC_ENTRY_DESTROY_DEF);
 
-// Консоль ищет через dlsym символы с именами из констант выше; экспортировать
-// их должен сам диск. Раньше это делал макрос RV_DISC_EXPORT из удалённого
-// rv_abi.hpp — нужен наследник ЗДЕСЬ, рядом с константами имён: строка
-// "rv_mppc_disc_create" и имя функции в макросе — одно имя в двух написаниях,
-// разъедутся — dlsym молча вернёт nullptr. Наследник обязан сажать два
-// extern "C" символа с default visibility и НОВОЙ сигнатурой:
-//   rv_de* rv_mppc_disc_create(int32_t version_major, int32_t version_minor);
-//   void   rv_mppc_disc_destroy(rv_de* disc);
-// create получает версию консоли и решает, согласен ли диск работать
-// (несогласие = вернуть nullptr). Дальше по порядку:
-//   1) наследник RV_DISC_EXPORT здесь;
-//   2) миграция mppcdiscs/hello (см. TODO у RV_DISC_EXPORT в hello.cpp);
-//   3) пересборка диска mppcburner'ом, повторный запуск — dlsym обязан пройти.
+// Консоль ищет через dlsym символы с именами из констант выше; экспортирует их
+// макрос RV_MPPC_DISC_ENTRY_DEF ниже. Имя функции и строка для dlsym выводятся
+// из одного токена *_DEF, поэтому разъехаться не могут.
+//
+// В версии диск НЕ участвует: create ничего не принимает и ничего не решает.
+// Версию совместимости консоль читает из ELF-ноты (пишет её
+// pdklib/rv_disc_version.hpp, читает rv_pcloader::pre_dlopen_check) ещё до
+// dlopen — код диска к этому моменту не исполнялся.
 
 class rv_de;
 
-using rv_mppc_disc_create_fn = rv_de* (*)(int32_t version_major, int32_t version_minor);
+using rv_mppc_disc_create_fn = rv_de* (*)();
 using rv_mppc_disc_destroy_fn = void (*)(rv_de* disc);
+
+#define RV_MPPC_DISC_ENTRY_DEF(disc_class)                                                 \
+    extern "C" __attribute__((visibility("default"))) rv_pdk::rv_de*                       \
+    RV_MPPC_DISC_ENTRY_CREATE_DEF() {                                                      \
+        return new disc_class();                                                           \
+    }                                                                                      \
+    extern "C" __attribute__((visibility("default"))) void RV_MPPC_DISC_ENTRY_DESTROY_DEF( \
+        rv_pdk::rv_de* disc) {                                                             \
+        delete disc;                                                                       \
+    }
 
 }  // namespace rv_pdk
