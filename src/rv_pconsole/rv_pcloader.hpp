@@ -134,7 +134,7 @@ class rv_pcloader {
 
     // NEUROSLOP-END
     template <typename O>
-    bool pod_peek(std::vector<unsigned char>& buf, int64_t off, O& out);
+    bool pod_peek(std::vector<unsigned char>& buf, int64_t off_start, int64_t off_end, O& out);
     // NEUROSLOP-BEGIN (claude-opus-5)
 
     void* handle_ = nullptr;
