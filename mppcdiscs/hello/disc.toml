@@ -8,7 +8,6 @@
 [disc]
 id = "hello"
 title = "hello - the smallest disc"
-abi_version = 1
 
 [build]
 sources = ["src/*.cpp"]

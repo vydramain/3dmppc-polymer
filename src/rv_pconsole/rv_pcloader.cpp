@@ -244,12 +244,14 @@ void rv_pcloader::notify_initialized(const rv_de* disc) {
 // NEUROSLOP-END
 
 template <typename O>
-bool rv_pcloader::pod_peek(std::vector<unsigned char>& buf, int64_t off, O& out) {
+bool rv_pcloader::pod_peek(std::vector<unsigned char>& buf, int64_t off_start, int64_t off_end,
+                           O& out) {
     static_assert(std::is_trivially_copyable_v<O>);
 
-    if (off < 0 || off > (int64_t)buf.size() - (int64_t)sizeof(O)) return false;
+    if (off_start < 0 || off_start > (int64_t)buf.size() - (int64_t)sizeof(O)) return false;
+    if (off_end < off_start || off_end > (int64_t)buf.size()) return false;
 
-    std::memcpy(&out, buf.data() + off, sizeof(O));
+    std::memcpy(&out, buf.data() + off_start, sizeof(O));
     return true;
 }
 
@@ -281,7 +283,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
     // (Ehdr)". Each check below legalises exactly the fields the next step
     // relies on; until a check has passed, the fields it covers are just bytes.
     Elf64_Ehdr mppcdisc_ehdr;
-    if (!pod_peek(buffer, 0, mppcdisc_ehdr)) {
+    if (!pod_peek(buffer, 0, sizeof(mppcdisc_ehdr), mppcdisc_ehdr)) {
         RV_LOG_ERR("pcloader",
                    "code entry '{}' is only {} bytes — smaller than an ELF64 header; "
                    "not a loadable binary",
@@ -333,8 +335,10 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
     Elf64_Phdr potential_note;
     rv_mppc_note_desc version_info;
     for (int i = 0; i < mppcdisc_ehdr.e_phnum && !version_info_found_flag; ++i) {
-        if (!pod_peek(buffer, mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize,
-                      potential_note)) {
+        if (!pod_peek(
+                buffer, mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize,
+                (mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize) + sizeof(potential_note),
+                potential_note)) {
             RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from disc.so ");
             continue;
         }
@@ -345,7 +349,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
             // максимуму uint64 → сумма перематывается через ноль в маленькое число → маленькое >
             // buffer.size() ложно → проверка пройдена, а дальше ты читаешь по гигантскому p_offset.
             if (potential_note.p_filesz > buffer.size() ||
-                potential_note.p_offset >= buffer.size() - potential_note.p_filesz) {
+                potential_note.p_offset > buffer.size() - potential_note.p_filesz) {
                 RV_LOG_ERR("pcloader", "incorrect size of elf64_phdr in buffer; disc.so is broken");
                 return RV_ERR_INVAL;
             }
@@ -357,7 +361,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
                  note_offset += sizeof(note.n_namesz) + sizeof(note.n_descsz) +
                                 sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u) +
                                 ((note.n_descsz + 3) & ~3u)) {
-                if (!pod_peek(buffer, note_offset, note)) {
+                if (!pod_peek(buffer, note_offset, note_offset + sizeof(Elf64_Nhdr), note)) {
                     RV_LOG_ERR("pcloader", "can not peek note with version info from mppcdisc");
                     return RV_ERR_INVAL;
                 }
@@ -365,6 +369,16 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
                 if (note.n_namesz != sizeof(rv_pdk::RV_MPPC_NOTE_OWNER) ||
                     note.n_descsz != sizeof(rv_pdk::rv_mppc_note_desc) ||
                     note.n_type != rv_pdk::RV_MPPC_NOTE_TYPE) {
+                    RV_LOG_WARN("pcloader", "found note does not fit by size to searching one");
+                    continue;
+                }
+
+                uint64_t note_size = sizeof(note.n_namesz) + sizeof(note.n_descsz) +
+                                     sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u) +
+                                     ((note.n_descsz + 3) & ~3u);
+                if (0 > note_offset ||
+                    note_offset + note_size > potential_note.p_offset + potential_note.p_filesz ||
+                    note_offset + note_size > static_cast<uint64_t>(buffer.size()) - note_size) {
                     RV_LOG_WARN("pcloader", "found note does not fit by size to searching one");
                     continue;
                 }
@@ -382,7 +396,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader* zip, const char* info_entry)
                 if (!pod_peek(buffer,
                               note_offset + sizeof(note.n_namesz) + sizeof(note.n_descsz) +
                                   sizeof(note.n_type) + ((note.n_namesz + 3) & ~3u),
-                              version_info)) {
+                              potential_note.p_offset + potential_note.p_filesz, version_info)) {
                     RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from mppcdisc");
                     continue;
                 } else {
