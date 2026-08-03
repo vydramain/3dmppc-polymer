@@ -1,6 +1,65 @@
-BasedOnStyle: Google
-Standard: c++20
-ColumnLimit: 100
+# Linux-Kernel-Inspired Readable C++ Style.
+# Философия: clang-format отвечает за отступы, скобки и пробелы;
+# переносы строк (один операнд/условие на строку) — авторское решение.
+---
+Language: Cpp
+Standard: Latest
+
+# --- База: табы шириной 4 ---
+UseTab: Always
 IndentWidth: 4
-DerivePointerAlignment: false
-PointerAlignment: Left
+TabWidth: 4
+ContinuationIndentWidth: 4
+
+# 0 = clang-format не склеивает и не переразбивает строки: авторские
+# переносы сохраняются как есть, отступы при этом нормализуются.
+# Лимит 128 символов — договорённость, подсвечивается colorcolumn в nvim.
+ColumnLimit: 0
+
+# --- Скобки: стиль Linux (перенос только у функций), {} обязательны всегда ---
+BreakBeforeBraces: Linux
+InsertBraces: true
+
+# --- Продолжение строки: фиксированный один таб, без визуального выравнивания ---
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: false
+
+# --- Никаких однострочных "сжатий" ---
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Empty
+
+# --- Указатели и case как в ядре ---
+PointerAlignment: Right
+IndentCaseLabels: false
+
+# --- C++-специфика ---
+NamespaceIndentation: None
+FixNamespaceComments: true
+AccessModifierOffset: -4
+BreakTemplateDeclarations: Yes
+PackConstructorInitializers: Never
+BreakConstructorInitializers: BeforeComma
+Cpp11BracedListStyle: false
+SpaceAfterTemplateKeyword: true
+
+# --- Прочее ---
+AlignEscapedNewlines: Left
+AlignTrailingComments: false
+AlignConsecutiveMacros: Consecutive
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+SortIncludes: Never
+ReflowComments: true
+SpaceBeforeParens: ControlStatementsExceptControlMacros
+IndentPPDirectives: None
+
+# Макросы логирования — вызовы-операторы, пусть форматируются как statement'ы.
+StatementMacros:
+  - RV_MPPC_DISC_ENTRY_DEF
