@@ -1,0 +1,18 @@
+# Проверки под "Linux-Kernel-Inspired Readable C++ Style" — семантические
+# правила, которые clang-format не умеет. Подхватывается clangd (--clang-tidy)
+# для всех проектов под $HOME, если у проекта нет своего .clang-tidy.
+---
+Checks: >
+  -*,
+  readability-braces-around-statements,
+  readability-else-after-return,
+  readability-isolate-declaration,
+  misc-const-correctness,
+  readability-qualified-auto
+
+CheckOptions:
+  # else после return/break/continue — предупреждать, даже если авто-фикс невозможен
+  readability-else-after-return.WarnOnUnfixable: true
+  # const для локальных значений (правило 11)
+  misc-const-correctness.AnalyzeValues: true
+  misc-const-correctness.WarnPointersAsValues: false
