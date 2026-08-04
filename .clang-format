@@ -6,7 +6,9 @@ Language: Cpp
 Standard: Latest
 
 # --- База: табы шириной 4 ---
-UseTab: Always
+# AlignWithSpaces: отступы — табами, выравнивание (хвостовые комментарии,
+# макросы) — пробелами, чтобы столбцы не разъезжались при другом tabwidth.
+UseTab: AlignWithSpaces
 IndentWidth: 4
 TabWidth: 4
 ContinuationIndentWidth: 4
@@ -51,7 +53,11 @@ SpaceAfterTemplateKeyword: true
 
 # --- Прочее ---
 AlignEscapedNewlines: Left
-AlignTrailingComments: false
+# Хвостовые комментарии выравниваются в столбец внутри блока подряд идущих
+# строк; пустая строка разрывает группу (OverEmptyLines: 0).
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 0
 AlignConsecutiveMacros: Consecutive
 KeepEmptyLinesAtTheStartOfBlocks: false
 MaxEmptyLinesToKeep: 1
