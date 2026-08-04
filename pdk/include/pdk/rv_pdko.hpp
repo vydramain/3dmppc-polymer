@@ -5,10 +5,11 @@
 #include "pdk/cio/rv_cio.hpp"
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
-#include "pdk/rv_err.hpp"    // IWYU pragma: keep (shared error vocabulary)
-#include "pdk/ve/rv_ve.hpp"  // IWYU pragma: keep (version vocabulary)
+#include "pdk/rv_err.hpp"   // IWYU pragma: keep (shared error vocabulary)
+#include "pdk/ve/rv_ve.hpp" // IWYU pragma: keep (version vocabulary)
 
-namespace rv_pdk {
+namespace rv_pdk
+{
 
 // The organizer / facade the console hands a disc at boot. It vends the console's
 // subsystem controllers by pointer (the console owns them; the disc only borrows,
@@ -17,15 +18,16 @@ namespace rv_pdk {
 //
 // Every pointer vended here is borrowed and stays valid until the console tears
 // the disc down.
-class rv_pdko {
-   public:
-    virtual ~rv_pdko() = default;
+class rv_pdko
+{
+public:
+	virtual ~rv_pdko() = default;
 
-    virtual rv_ca* ca() = 0;    // sound chip (low-level SPU)
-    virtual rv_cd* cd() = 0;    // disc drive - reads the mounted .mppcdisc
-    virtual rv_cm* cm() = 0;    // memory card - persistent save slots
-    virtual rv_cio* cio() = 0;  // gamepads + haptic output + mouse
-    virtual rv_cv* cv() = 0;    // GPU / rasterizer
+	virtual rv_ca *ca() = 0;   // sound chip (low-level SPU)
+	virtual rv_cd *cd() = 0;   // disc drive - reads the mounted .mppcdisc
+	virtual rv_cm *cm() = 0;   // memory card - persistent save slots
+	virtual rv_cio *cio() = 0; // gamepads + haptic output + mouse
+	virtual rv_cv *cv() = 0;   // GPU / rasterizer
 };
 
-}  // namespace rv_pdk
+} // namespace rv_pdk
