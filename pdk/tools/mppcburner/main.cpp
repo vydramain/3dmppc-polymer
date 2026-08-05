@@ -25,6 +25,8 @@
 #include <vector>
 
 #include <getopt.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "rv_build.hpp"
 
@@ -92,35 +94,90 @@ bool take_value(int argc, char **argv, int &index, const char *option, std::stri
 
 int run_build(int argc, char **argv)
 {
-	rv_build_options options;
+	rv_burn_options options;
 	options.pdk_dir = RV_BURNER_DEFAULT_PDK;
 	options.pdklib_dir = RV_BURNER_DEFAULT_PDKLIB;
 
+	int c;
+	int digit_optind = 0;
 	std::vector<std::string> positionals;
-	for (int i = 0; i < argc; ++i) {
-		const std::string_view argument = argv[i];
-		if (argument == "-h" || argument == "--help") {
-			usage(stdout);
-			return 0;
-		} else if (argument == "-o" || argument == "--output") {
-			if (!take_value(argc, argv, i, "-o", options.output)) {
+
+	for (;;) {
+		int this_option_optind = optind ? optind : 1;
+		int option_index = 0;
+
+		static struct option long_burn_opts[] = {
+			{ "help", no_argument, 0, 'h' },
+			{ "output", required_argument, 0, 'o' },
+			{ "pdk", optional_argument, 0, 'p' },
+			{ "pdklib", optional_argument, 0, 'l' },
+			{ "baker", optional_argument, 0, 'b' },
+			{ "jobs", optional_argument, 0, 'j' },
+			{ "keep-build", optional_argument, 0, 'k' },
+			{ 0, 0, 0, 0 }
+		};
+
+		// [getopt] НЕДОВЕРИЕ №1: ручное чтение argv. option_index — это номер
+		// строки в массиве long_burn_opts, а НЕ индекс в argv, так что
+		// argv[option_index] читает не то слово. Но главное — сама переменная
+		// `argument` не нужна: всё, что getopt разобрал, он отдаёт через
+		// возврат (c) и через optarg. Руками в argv во время цикла не лезут.
+		const std::string_view argument = argv[option_index];
+		c = getopt_long(argc, argv, "ho:p::l::b::j::k::", long_burn_opts, &option_index);
+
+		// [getopt] НЕДОВЕРИЕ №2: -1 — это не ошибка. Это штатный сигнал
+		// «опции кончились, дальше только позиционные». Правильная реакция —
+		// выйти из цикла (break) и продолжить функцию. Ошибку getopt сообщает
+		// иначе: возвращает '?' (и сам печатает ругань в stderr) — вот для
+		// '?' и нужна отдельная ветка с return 1.
+		if (c < 0) {
+			say_error("unknown option '" + std::string(argument) + "'");
+			usage(stderr);
+			return 1;
+		}
+
+		switch (c) {
+		// [getopt] Сюда мы попали ПОТОМУ, что getopt увидел -h или --help —
+		// это уже установленный факт. Ветка должна делать то, что значит
+		// help: usage(stdout) и return 0. «unknown option» здесь — копипаста.
+		case 'h': {
+			say_error("unknown option '" + std::string(argument) + "'");
+			usage(stderr);
+			return 1;
+		}
+		// [getopt] НЕДОВЕРИЕ №3: take_value заново ищет значение в argv.
+		// getopt его уже нашёл: раз опция объявлена как required_argument
+		// (и как "o:" в короткой строке), значение лежит в optarg. Вся ветка —
+		// одно присваивание options.output = optarg. Если значения не было,
+		// сюда бы вообще не попали: getopt вернул бы '?'. take_value после
+		// этого не нужен никому — удалить целиком.
+		// [getopt] И про C++: фигурные скобки дали переменным область
+		// видимости, но провал (fallthrough) они НЕ останавливают. Выполнив
+		// case 'o', управление проваливается в 'p', 'l', 'b'... до конца
+		// switch. Каждый case обязан заканчиваться break.
+		case 'o': {
+			if (!take_value(argc, argv, option_index, "-o", options.output)) {
 				return 1;
 			}
-		} else if (argument == "--pdk") {
-			if (!take_value(argc, argv, i, "--pdk", options.pdk_dir)) {
+		}
+		case 'p': {
+			if (!take_value(argc, argv, option_index, "--pdk", options.pdk_dir)) {
 				return 1;
 			}
-		} else if (argument == "--pdklib") {
-			if (!take_value(argc, argv, i, "--pdklib", options.pdklib_dir)) {
+		}
+		case 'l': {
+			if (!take_value(argc, argv, option_index, "--pdklib", options.pdklib_dir)) {
 				return 1;
 			}
-		} else if (argument == "--baker") {
-			if (!take_value(argc, argv, i, "--baker", options.baker)) {
+		}
+		case 'b': {
+			if (!take_value(argc, argv, option_index, "--baker", options.baker)) {
 				return 1;
 			}
-		} else if (argument == "--jobs") {
+		}
+		case 'j': {
 			std::string value;
-			if (!take_value(argc, argv, i, "--jobs", value)) {
+			if (!take_value(argc, argv, option_index, "--jobs", value)) {
 				return 1;
 			}
 			options.jobs = std::atoi(value.c_str());
@@ -128,9 +185,13 @@ int run_build(int argc, char **argv)
 				say_error("--jobs wants a positive number, got '" + value + "'");
 				return 1;
 			}
-		} else if (argument == "--keep-build") {
-			options.keep_build = true;
-		} else if (argument.starts_with("--keep-build=")) {
+		}
+		// [getopt] НЕДОВЕРИЕ №4: ручной разбор «--keep-build=...» через
+		// substr. Случай optional_argument getopt тоже берёт на себя:
+		// если пользователь написал --keep-build=path, в optarg лежит "path";
+		// если написал просто --keep-build, optarg == nullptr. Проверка
+		// «optarg есть или нет» заменяет всю возню со срезанием префикса.
+		case 'k': {
 			options.keep_build = true;
 			options.build_dir =
 				std::string(argument.substr(std::string_view("--keep-build=").size()));
@@ -138,11 +199,13 @@ int run_build(int argc, char **argv)
 				say_error("--keep-build= needs a directory after the '='");
 				return 1;
 			}
-		} else if (!argument.empty() && argument.front() == '-') {
-			say_error("unknown option '" + std::string(argument) + "'");
-			usage(stderr);
-			return 1;
-		} else {
+		}
+		// [getopt] НЕДОВЕРИЕ №5: позиционные аргументы не приходят в switch
+		// вообще — getopt их переставляет в конец argv и до них цикл не
+		// доходит. Собирать их надо ПОСЛЕ цикла: всё от argv[optind] до
+		// argv[argc-1] и есть positionals. В default сюда попадёт разве что
+		// '?' (см. НЕДОВЕРИЕ №2).
+		default:
 			positionals.push_back(std::string(argument));
 		}
 	}
@@ -163,26 +226,60 @@ int run_build(int argc, char **argv)
 
 int run_inspect(int argc, char **argv)
 {
+	int c;
+	int digit_optind = 0;
 	std::vector<std::string> positionals;
-	for (int i = 0; i < argc; ++i) {
-		const std::string_view argument = argv[i];
-		if (argument == "-h" || argument == "--help") {
-			usage(stdout);
-			return 0;
-		} else if (!argument.empty() && argument.front() == '-') {
+
+	static struct option long_insp_opts[] = {
+		{ "help", no_argument, 0, 'h' },
+		{ 0, 0, 0, 0 }
+	};
+
+	for (;;) {
+		int this_option_optind = optind ? optind : 1;
+		int option_index = 0;
+
+		// [getopt] Те же недоверия №1, №2, №5, что и в run_build: ручное
+		// чтение argv, -1 как «ошибка» вместо выхода из цикла, positionals
+		// внутри switch вместо argv[optind..argc) после него.
+		const std::string_view argument = argv[option_index];
+		c = getopt_long(argc, argv, "h", long_insp_opts, &option_index);
+
+		if (c < 0) {
 			say_error("unknown option '" + std::string(argument) + "'");
 			usage(stderr);
 			return 1;
-		} else {
-			positionals.push_back(std::string(argument));
+		}
+
+		switch (c) {
+		// [getopt] НЕДОВЕРИЕ №6: перепроверка за getopt. c == 'h' УЖЕ значит,
+		// что пользователь написал -h или --help — иначе сюда не попасть.
+		// Внутренний if всегда истинен (а если бы argument читался неверно —
+		// молча падал бы в default). Телу case хватает двух строк:
+		// usage(stdout); return 0.
+		case 'h':
+			if (argument == "-h" || argument == "--help") {
+				usage(stdout);
+				return 0;
+			}
+		default:
+			if (!argument.empty() && argument.front() == '-') {
+				say_error("unknown option '" + std::string(argument) + "'");
+				usage(stderr);
+				return 1;
+			} else {
+				positionals.push_back(std::string(argument));
+			}
 		}
 	}
+
 	if (positionals.size() != 1) {
 		say_error(positionals.empty() ? "inspect needs a .mppcdisc file" : "inspect takes exactly one .mppcdisc file");
 		usage(stderr);
 		return 1;
 	}
-	return rv_inspect_run(positionals.front());
+
+	return rv_inspect_run(rv_insp_options{ .archive_path = positionals.front() });
 }
 
 } // namespace
@@ -190,22 +287,6 @@ int run_inspect(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-	static struct option long_burn_opts[] = {
-		{ "help", no_argument, 0, 'h' },
-		{ "output", required_argument, 0, 'o' },
-		{ "pdk", optional_argument, 0, 'p' },
-		{ "pdklib", optional_argument, 0, 'l' },
-		{ "baker", optional_argument, 0, 'b' },
-		{ "jobs", optional_argument, 0, 'j' },
-		{ "keep-build", optional_argument, 0, 'k' },
-		{ 0, 0, 0, 0 }
-	};
-
-	static struct option long_insp_opts[] = {
-		{ "help", no_argument, 0, 'h' },
-		{ 0, 0, 0, 0 }
-	};
-
 	if (argc < 2) {
 		rv_pdktools::usage(stderr);
 		return 1;
@@ -215,6 +296,11 @@ int main(int argc, char **argv)
 		rv_pdktools::usage(stdout);
 		return 0;
 	}
+	// [getopt] Сдвиг argv: getopt всегда пропускает argv[0], считая его
+	// именем программы. При «argv + 2» нулевым элементом станет ПЕРВЫЙ
+	// НАСТОЯЩИЙ аргумент (например, сама директория диска) — и getopt его
+	// молча съест. Сдвигать надо на 1, чтобы argv[0] == "build" играл роль
+	// имени программы: run_build(argc - 1, argv + 1).
 	if (command == "build") {
 		return rv_pdktools::run_build(argc - 2, argv + 2);
 	}
