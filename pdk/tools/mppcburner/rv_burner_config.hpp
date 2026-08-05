@@ -16,7 +16,7 @@ struct rv_burn_options {
 	bool keep_build = false;
 };
 
-struct rv_inspect_options {
+struct rv_insp_options {
 	std::string &archive_path;
 };
 
