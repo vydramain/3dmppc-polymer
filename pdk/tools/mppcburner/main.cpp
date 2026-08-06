@@ -18,6 +18,101 @@
 // and a build that printed progress into a pipe would corrupt whatever the pipe
 // was for. Every refusal, anywhere, exits non-zero.
 
+// ─── ПЛАН: ТАБЛИЧНЫЙ РАЗБОР АРГУМЕНТОВ ────────────────────────────────────────
+// ВНИМАНИЕ: код ниже это ЕЩЁ НЕ делает. Это целевая форма, к которой идём.
+//
+// Требование: main не ветвится по именам команд, help проверяется ровно один
+// раз, цикл getopt один на все подкоманды. Всё, что различается между
+// подкомандами, живёт в данных, а не в коде.
+//
+// ── 1. Данные: два массива, единственный источник правды ─────────────────────
+//
+//   OPTIONS[]   буква  длинное      арность    справка   маска команд
+//               'h'    help         no         "..."     BUILD|INSPECT
+//               'o'    output       required   "..."     BUILD
+//               'p'    pdk          required   "..."     BUILD
+//               'l'    pdklib       required   "..."     BUILD
+//               'b'    baker        required   "..."     BUILD
+//               'j'    jobs         required   "..."     BUILD
+//               'k'    keep-build   optional   "..."     BUILD
+//
+//   COMMANDS[]  имя        маска      операндов  обработчик
+//               "build"    BUILD      1          rv_build_run
+//               "inspect"  INSPECT    1          rv_inspect_run
+//               "help"     —          0          показать справку
+//               "-h"       —          0          показать справку
+//               "--help"   —          0          показать справку
+//
+// Буквы опций глобально уникальны — это условие, при котором дальше хватает
+// одного switch на весь инструмент.
+//
+// ── 2. main: диспетчер, без ветвлений по именам ──────────────────────────────
+//
+//   main(argc, argv)
+//    ├─ [1] argc < 2 ................. usage(stderr) → 1
+//    ├─ [2] cmd = поиск argv[1] в COMMANDS   ← проход по таблице, не if-цепочка
+//    ├─ [3] cmd == nullptr ........... error + usage(stderr) → 1
+//    └─ [4] return parse_and_run(cmd, argc - 1, argv + 1)
+//
+// Сдвиг argv + 1, а не + 2: getopt никогда не разбирает нулевой элемент, считая
+// его именем программы. Жертвой становится слово подкоманды, которое уже
+// отработало. При + 2 съеденной оказалась бы директория диска.
+//
+// ── 3. parse_and_run: один цикл на все команды ───────────────────────────────
+//
+//   parse_and_run(cmd, argc, argv)
+//    ├─ [1] из OPTIONS по cmd.mask собрать:
+//    │        struct option table[]   ← только строки, где маска совпала
+//    │        char optstring[]        ← буквы + ':' по арности
+//    │
+//    ├─ [2] цикл
+//    │      ╭────────────────────────────────────────────────╮
+//    │      │ c = getopt_long(argc, argv, optstring, table)  │
+//    │      │                                                │
+//    │      │  -1     ─────► break                           │
+//    │      │  '?'    ─────► usage(stderr) → 1               │
+//    │      │  'h'    ─────► usage(stdout) → 0   ← help ЗДЕСЬ │
+//    │      │  буква  ─────► store(c, optarg, options)       │
+//    │      ╰────────────────────────────────────────────────╯
+//    │
+//    ├─ [3] n = argc - optind
+//    │        n != cmd.operands ....... error + usage(stderr) → 1
+//    │        иначе .................. operand = argv[optind]
+//    │
+//    └─ [4] return cmd.handler(options, operand)
+//
+// -1 — не ошибка, а штатный сигнал «опции кончились». '?' — ошибка, и getopt
+// уже напечатал про неё в stderr сам (opterr == 1), своё сообщение писать не
+// надо. Операнды getopt переставляет в хвост argv, поэтому их диапазон —
+// argv[optind] .. argv[argc-1], и читать argv[optind] можно только после
+// проверки количества: при n == 0 там лежит терминирующий nullptr.
+//
+// ── 4. store: один switch вместо двух ────────────────────────────────────────
+//
+//   store(c, optarg, options)
+//      'o' → output      = optarg
+//      'p' → pdk_dir     = optarg
+//      'l' → pdklib_dir  = optarg
+//      'b' → baker       = optarg
+//      'j' → jobs        = strtol(optarg), с проверкой конца строки
+//      'k' → keep_build  = true; build_dir = optarg, если он есть
+//
+// Арность обязана быть required у p/l/b/j: у optional_argument значение
+// принимается ТОЛЬКО слитно (--pdk=/path), а форма --pdk /path из usage() ушла
+// бы во вторые операнды. Тогда же optarg в этих ветках гарантированно не
+// nullptr. atoi не годится: он возвращает 0 и на "abc", и на "0".
+//
+// ── 5. Что исчезает при переходе ─────────────────────────────────────────────
+//
+//   run_build / run_inspect как парсеры → только rv_build_run / rv_inspect_run
+//   два цикла getopt                    → один
+//   два switch                          → один store
+//   две проверки help                   → одна
+//   цепочка if в main                   → строки COMMANDS
+//   usage() руками                      → генерируется из OPTIONS + COMMANDS
+//   take_value, digit_optind, positionals, option_index → удаляются
+// ──────────────────────────────────────────────────────────────────────────────
+
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -79,19 +174,6 @@ void say_error(const std::string &message)
 	std::fprintf(stderr, "mppcburner: error: %s\n", message.c_str());
 }
 
-// Take the value of an option that needs one, or refuse. `index` points at the
-// option itself and is advanced onto the value.
-bool take_value(int argc, char **argv, int &index, const char *option, std::string &out)
-{
-	if (index + 1 >= argc) {
-		say_error(std::string(option) + " needs a value");
-		return false;
-	}
-	++index;
-	out = argv[index];
-	return true;
-}
-
 int run_build(int argc, char **argv)
 {
 	rv_burn_options options;
@@ -99,13 +181,7 @@ int run_build(int argc, char **argv)
 	options.pdklib_dir = RV_BURNER_DEFAULT_PDKLIB;
 
 	int c;
-	int digit_optind = 0;
-	std::vector<std::string> positionals;
-
 	for (;;) {
-		int this_option_optind = optind ? optind : 1;
-		int option_index = 0;
-
 		static struct option long_burn_opts[] = {
 			{ "help", no_argument, 0, 'h' },
 			{ "output", required_argument, 0, 'o' },
@@ -117,170 +193,107 @@ int run_build(int argc, char **argv)
 			{ 0, 0, 0, 0 }
 		};
 
-		// [getopt] НЕДОВЕРИЕ №1: ручное чтение argv. option_index — это номер
-		// строки в массиве long_burn_opts, а НЕ индекс в argv, так что
-		// argv[option_index] читает не то слово. Но главное — сама переменная
-		// `argument` не нужна: всё, что getopt разобрал, он отдаёт через
-		// возврат (c) и через optarg. Руками в argv во время цикла не лезут.
-		const std::string_view argument = argv[option_index];
-		c = getopt_long(argc, argv, "ho:p::l::b::j::k::", long_burn_opts, &option_index);
+		c = getopt_long(argc, argv, "ho:p::l::b::j::k::", long_burn_opts, nullptr);
 
-		// [getopt] НЕДОВЕРИЕ №2: -1 — это не ошибка. Это штатный сигнал
-		// «опции кончились, дальше только позиционные». Правильная реакция —
-		// выйти из цикла (break) и продолжить функцию. Ошибку getopt сообщает
-		// иначе: возвращает '?' (и сам печатает ругань в stderr) — вот для
-		// '?' и нужна отдельная ветка с return 1.
 		if (c < 0) {
-			say_error("unknown option '" + std::string(argument) + "'");
-			usage(stderr);
-			return 1;
+			break;
 		}
 
 		switch (c) {
-		// [getopt] Сюда мы попали ПОТОМУ, что getopt увидел -h или --help —
-		// это уже установленный факт. Ветка должна делать то, что значит
-		// help: usage(stdout) и return 0. «unknown option» здесь — копипаста.
 		case 'h': {
-			say_error("unknown option '" + std::string(argument) + "'");
+			rv_pdktools::usage(stdout);
+			return 0;
+		}
+		case 'o': {
+			options.output = optarg;
+			break;
+		}
+		case 'p': {
+			if (nullptr != optarg) {
+				options.pdk_dir = optarg;
+			}
+			break;
+		}
+		case 'l': {
+			if (nullptr != optarg) {
+				options.pdklib_dir = optarg;
+			}
+			break;
+		}
+		case 'b': {
+			if (nullptr != optarg) {
+				options.baker = optarg;
+			}
+			break;
+		}
+		case 'j': {
+			if (nullptr != optarg) {
+				options.jobs = std::atoi(optarg);
+			}
+
+			if (options.jobs <= 0) {
+				say_error("--jobs wants a positive number, got '" + std::string(optarg) + "'");
+				return 1;
+			}
+			break;
+		}
+		case 'k': {
+			options.keep_build = true;
+
+			if (nullptr != optarg) {
+				options.build_dir = optarg;
+			}
+			break;
+		}
+		case '?':
+		default: {
+			say_error("unknown option '" + std::string(argv[optind]) + "'");
 			usage(stderr);
 			return 1;
 		}
-		// [getopt] НЕДОВЕРИЕ №3: take_value заново ищет значение в argv.
-		// getopt его уже нашёл: раз опция объявлена как required_argument
-		// (и как "o:" в короткой строке), значение лежит в optarg. Вся ветка —
-		// одно присваивание options.output = optarg. Если значения не было,
-		// сюда бы вообще не попали: getopt вернул бы '?'. take_value после
-		// этого не нужен никому — удалить целиком.
-		// [getopt] И про C++: фигурные скобки дали переменным область
-		// видимости, но провал (fallthrough) они НЕ останавливают. Выполнив
-		// case 'o', управление проваливается в 'p', 'l', 'b'... до конца
-		// switch. Каждый case обязан заканчиваться break.
-		case 'o': {
-			if (!take_value(argc, argv, option_index, "-o", options.output)) {
-				return 1;
-			}
-		}
-		case 'p': {
-			if (!take_value(argc, argv, option_index, "--pdk", options.pdk_dir)) {
-				return 1;
-			}
-		}
-		case 'l': {
-			if (!take_value(argc, argv, option_index, "--pdklib", options.pdklib_dir)) {
-				return 1;
-			}
-		}
-		case 'b': {
-			if (!take_value(argc, argv, option_index, "--baker", options.baker)) {
-				return 1;
-			}
-		}
-		case 'j': {
-			std::string value;
-			if (!take_value(argc, argv, option_index, "--jobs", value)) {
-				return 1;
-			}
-			options.jobs = std::atoi(value.c_str());
-			if (options.jobs <= 0) {
-				say_error("--jobs wants a positive number, got '" + value + "'");
-				return 1;
-			}
-		}
-		// [getopt] НЕДОВЕРИЕ №4: ручной разбор «--keep-build=...» через
-		// substr. Случай optional_argument getopt тоже берёт на себя:
-		// если пользователь написал --keep-build=path, в optarg лежит "path";
-		// если написал просто --keep-build, optarg == nullptr. Проверка
-		// «optarg есть или нет» заменяет всю возню со срезанием префикса.
-		case 'k': {
-			options.keep_build = true;
-			options.build_dir =
-				std::string(argument.substr(std::string_view("--keep-build=").size()));
-			if (options.build_dir.empty()) {
-				say_error("--keep-build= needs a directory after the '='");
-				return 1;
-			}
-		}
-		// [getopt] НЕДОВЕРИЕ №5: позиционные аргументы не приходят в switch
-		// вообще — getopt их переставляет в конец argv и до них цикл не
-		// доходит. Собирать их надо ПОСЛЕ цикла: всё от argv[optind] до
-		// argv[argc-1] и есть positionals. В default сюда попадёт разве что
-		// '?' (см. НЕДОВЕРИЕ №2).
-		default:
-			positionals.push_back(std::string(argument));
 		}
 	}
 
-	if (positionals.size() != 1) {
-		say_error(positionals.empty() ? "build needs a disc directory" : "build takes exactly one disc directory");
-		usage(stderr);
-		return 1;
-	}
 	if (options.output.empty()) {
 		say_error("build needs an output file (-o <output.mppcdisc>)");
 		usage(stderr);
 		return 1;
 	}
-	options.disc_dir = positionals.front();
+	options.disc_dir = "";
 	return rv_build_run(options);
-}
+}; // run_build
 
 int run_inspect(int argc, char **argv)
 {
-	int c;
-	int digit_optind = 0;
-	std::vector<std::string> positionals;
-
 	static struct option long_insp_opts[] = {
 		{ "help", no_argument, 0, 'h' },
 		{ 0, 0, 0, 0 }
 	};
 
+	int c;
 	for (;;) {
-		int this_option_optind = optind ? optind : 1;
-		int option_index = 0;
-
-		// [getopt] Те же недоверия №1, №2, №5, что и в run_build: ручное
-		// чтение argv, -1 как «ошибка» вместо выхода из цикла, positionals
-		// внутри switch вместо argv[optind..argc) после него.
-		const std::string_view argument = argv[option_index];
-		c = getopt_long(argc, argv, "h", long_insp_opts, &option_index);
+		c = getopt_long(argc, argv, "h", long_insp_opts, nullptr);
 
 		if (c < 0) {
-			say_error("unknown option '" + std::string(argument) + "'");
-			usage(stderr);
-			return 1;
+			break;
 		}
 
 		switch (c) {
-		// [getopt] НЕДОВЕРИЕ №6: перепроверка за getopt. c == 'h' УЖЕ значит,
-		// что пользователь написал -h или --help — иначе сюда не попасть.
-		// Внутренний if всегда истинен (а если бы argument читался неверно —
-		// молча падал бы в default). Телу case хватает двух строк:
-		// usage(stdout); return 0.
-		case 'h':
-			if (argument == "-h" || argument == "--help") {
-				usage(stdout);
-				return 0;
-			}
-		default:
-			if (!argument.empty() && argument.front() == '-') {
-				say_error("unknown option '" + std::string(argument) + "'");
-				usage(stderr);
-				return 1;
-			} else {
-				positionals.push_back(std::string(argument));
-			}
+		case 'h': {
+			usage(stdout);
+			return 0;
+		}
+		case '?':
+		default: {
+			say_error("unknown option '" + std::string(argv[optind]) + "'");
+			usage(stderr);
+			return 1;
+		}
 		}
 	}
 
-	if (positionals.size() != 1) {
-		say_error(positionals.empty() ? "inspect needs a .mppcdisc file" : "inspect takes exactly one .mppcdisc file");
-		usage(stderr);
-		return 1;
-	}
-
 	return rv_inspect_run(rv_insp_options{ .archive_path = positionals.front() });
-}
+} // run_inspect
 
 } // namespace
 } // namespace rv_pdktools
@@ -296,16 +309,12 @@ int main(int argc, char **argv)
 		rv_pdktools::usage(stdout);
 		return 0;
 	}
-	// [getopt] Сдвиг argv: getopt всегда пропускает argv[0], считая его
-	// именем программы. При «argv + 2» нулевым элементом станет ПЕРВЫЙ
-	// НАСТОЯЩИЙ аргумент (например, сама директория диска) — и getopt его
-	// молча съест. Сдвигать надо на 1, чтобы argv[0] == "build" играл роль
-	// имени программы: run_build(argc - 1, argv + 1).
+
 	if (command == "build") {
-		return rv_pdktools::run_build(argc - 2, argv + 2);
+		return rv_pdktools::run_build(argc - 1, argv + 1);
 	}
 	if (command == "inspect") {
-		return rv_pdktools::run_inspect(argc - 2, argv + 2);
+		return rv_pdktools::run_inspect(argc - 1, argv + 1);
 	}
 	rv_pdktools::say_error("unknown subcommand '" + std::string(command) + "'");
 	rv_pdktools::usage(stderr);
