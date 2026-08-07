@@ -701,13 +701,16 @@ std::string rv_cmake_project_text(const rv_manifest& manifest,
     }
     text += ")\n\n";
 
-    if (!manifest.defines.empty()) {
-        text += "target_compile_definitions(disc PRIVATE\n";
-        for (const std::string& define : manifest.defines) {
-            text += "  " + cmake_quote(define) + "\n";
-        }
-        text += ")\n\n";
+    // RV_LOG_ORIGIN is not optional and not the manifest's to set: it is what
+    // stamps every line pdklib/rv_stdio.hpp emits as coming from a disc rather
+    // than from the console or from a tool. A disc that had to declare it would
+    // be a disc that could get it wrong.
+    text += "target_compile_definitions(disc PRIVATE\n";
+    text += "  " + cmake_quote("RV_LOG_ORIGIN=\"disc\"") + "\n";
+    for (const std::string& define : manifest.defines) {
+        text += "  " + cmake_quote(define) + "\n";
     }
+    text += ")\n\n";
 
     // -fPIC because the result is dlopen'd and must be position independent.
     // -fvisibility=hidden because a disc exports exactly TWO symbols —

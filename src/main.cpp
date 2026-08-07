@@ -27,7 +27,7 @@
 #include <cstdlib>
 
 #include "rv_dmain/rv_dmain.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -99,7 +99,11 @@ int main(int argc, char** argv) {
         rv_pdk::rv_de* disc = console.disc_load(disc_path);
         if (disc == nullptr) {
             // The loader has already said, precisely, what was wrong with it.
-            RV_LOG_ERR("main", "refusing to boot '{}'", rv_3dmppc::rv_log_escape(disc_path));
+            // TODO(rv_log_escape): the console is the only caller of this, so it
+            // does not belong in pdklib. Find it a console-side home. It must
+            // stay a call-site step either way — once the message is formatted,
+            // an injected newline is indistinguishable from one we wrote.
+            RV_LOG_ERR("main", "refusing to boot '{}'", rv_pdklib::rv_log_escape(disc_path));
             return 1;
         }
         return static_cast<int>(console.disc_run(*disc) < 0 ? 1 : 0);

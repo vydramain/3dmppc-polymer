@@ -23,7 +23,7 @@
 
 #include "pdk/rv_err.hpp"
 #include "pdk/ve/rv_ve.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/cd/rv_pczip.hpp"
 
 namespace rv_3dmppc
@@ -332,11 +332,13 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 {
 	int64_t size = zip->size(info_entry);
 	if (size <= 0) {
+		// TODO(rv_log_escape): 22 calls in this file. The console is its only
+		// caller, so it does not belong in pdklib — find it a console-side home.
 		RV_LOG_ERR(
 			"pcloader",
 			"code entry '{}' in '{}' is missing or empty; there is no binary "
 			"to version-check",
-			rv_log_escape(info_entry), rv_log_escape(zip->path().c_str()));
+			rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()));
 		return RV_ERR_INVAL;
 	}
 
@@ -350,7 +352,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 			"pcloader",
 			"cannot read code entry '{}' from '{}' (zip verdict {}, {} of {} "
 			"bytes); refusing a disc whose code cannot be inspected",
-			rv_log_escape(info_entry), rv_log_escape(zip->path().c_str()),
+			rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()),
 			static_cast<int>(zipread), nread, size);
 		return RV_ERR_INVAL;
 	}
@@ -364,7 +366,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 			"pcloader",
 			"code entry '{}' is only {} bytes — smaller than an ELF64 header; "
 			"not a loadable binary",
-			rv_log_escape(info_entry), size);
+			rv_pdklib::rv_log_escape(info_entry), size);
 		return RV_ERR_INVAL;
 	}
 
@@ -373,7 +375,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 			"pcloader",
 			"code entry '{}' does not start with the ELF magic; it is not an "
 			"ELF object at all",
-			rv_log_escape(info_entry));
+			rv_pdklib::rv_log_escape(info_entry));
 		return RV_ERR_INVAL;
 	}
 
@@ -385,7 +387,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 		RV_LOG_ERR("pcloader",
 			"code entry '{}' is not a 64-bit little-endian ELF (class {}, "
 			"data {}); this console only runs ELF64 LE discs",
-			rv_log_escape(info_entry), (int)mppcdisc_ehdr.e_ident[EI_CLASS],
+			rv_pdklib::rv_log_escape(info_entry), (int)mppcdisc_ehdr.e_ident[EI_CLASS],
 			(int)mppcdisc_ehdr.e_ident[EI_DATA]);
 		return RV_ERR_INVAL;
 	}
@@ -394,7 +396,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 		RV_LOG_ERR("pcloader",
 			"code entry '{}' is not an x86-64 shared object (e_type {}, "
 			"e_machine {}); it cannot run on this console",
-			rv_log_escape(info_entry), mppcdisc_ehdr.e_type,
+			rv_pdklib::rv_log_escape(info_entry), mppcdisc_ehdr.e_type,
 			mppcdisc_ehdr.e_machine);
 		return RV_ERR_INVAL;
 	}
@@ -407,7 +409,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 			"pcloader",
 			"code entry '{}' declares {}-byte program headers, elf(5) says {}; "
 			"its segment table cannot be walked",
-			rv_log_escape(info_entry), mppcdisc_ehdr.e_phentsize,
+			rv_pdklib::rv_log_escape(info_entry), mppcdisc_ehdr.e_phentsize,
 			sizeof(Elf64_Phdr));
 		return RV_ERR_INVAL;
 	}
@@ -553,7 +555,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 			ec)) {
 		RV_LOG_ERR("pcloader",
 			"no disc at '{}': the path does not name a readable file",
-			rv_log_escape(archive_path));
+			rv_pdklib::rv_log_escape(archive_path));
 		return RV_ERR_NOENT;
 	}
 
@@ -562,8 +564,8 @@ int64_t rv_pcloader::load(const char *archive_path)
 	std::string zip_error;
 	if (!zip.open(archive_path, zip_error)) {
 		RV_LOG_ERR("pcloader", "'{}' is not a readable .mppcdisc archive: {}",
-			rv_log_escape(archive_path),
-			rv_log_escape(zip_error.c_str(), 160));
+			rv_pdklib::rv_log_escape(archive_path),
+			rv_pdklib::rv_log_escape(zip_error.c_str(), 160));
 		return RV_ERR_IO;
 	}
 
@@ -573,7 +575,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 		read_whole_entry(zip, kManifestEntry, kManifestMaxSize, manifest_bytes);
 	if (!why.empty()) {
 		RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-			rv_log_escape(archive_path), kManifestEntry, why);
+			rv_pdklib::rv_log_escape(archive_path), kManifestEntry, why);
 		return RV_ERR_NOENT;
 	}
 
@@ -595,7 +597,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 			"disc '{}' failed the pre-load inspection of its code entry — "
 			"the exact "
 			"refusal is in the log line above; its code will not be mapped",
-			rv_log_escape(info_.id.c_str()));
+			rv_pdklib::rv_log_escape(info_.id.c_str()));
 		return RV_ERR_INVAL;
 	}
 
@@ -607,15 +609,15 @@ int64_t rv_pcloader::load(const char *archive_path)
 	if (!why.empty()) {
 		RV_LOG_ERR("pcloader",
 			"disc '{}' names its code entry '{}', which is unusable: {}",
-			rv_log_escape(info_.id.c_str()),
-			rv_log_escape(info_.entry.c_str()), why);
+			rv_pdklib::rv_log_escape(info_.id.c_str()),
+			rv_pdklib::rv_log_escape(info_.entry.c_str()), why);
 		return RV_ERR_NOENT;
 	}
 
 	why = extract_code(code, temp_path_);
 	if (!why.empty()) {
 		RV_LOG_ERR("pcloader", "cannot stage the code of disc '{}' for loading: {}",
-			rv_log_escape(info_.id.c_str()), why);
+			rv_pdklib::rv_log_escape(info_.id.c_str()), why);
 		unload();
 		return RV_ERR_IO;
 	}
@@ -632,8 +634,8 @@ int64_t rv_pcloader::load(const char *archive_path)
 		const char *dl_error = ::dlerror();
 		RV_LOG_ERR(
 			"pcloader", "dlopen of disc '{}' failed: {}",
-			rv_log_escape(info_.id.c_str()),
-			rv_log_escape(dl_error != nullptr ? dl_error : "no reason given", 160));
+			rv_pdklib::rv_log_escape(info_.id.c_str()),
+			rv_pdklib::rv_log_escape(dl_error != nullptr ? dl_error : "no reason given", 160));
 		unload();
 		return RV_ERR_IO;
 	}
@@ -650,7 +652,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 		RV_LOG_ERR("pcloader",
 			"disc '{}' exports no {}(); it was not built with "
 			"RV_MPPC_DISC_ENTRY_DEF",
-			rv_log_escape(info_.id.c_str()),
+			rv_pdklib::rv_log_escape(info_.id.c_str()),
 			create == nullptr ? RV_MPPC_DISC_ENTRY_CREATE : RV_MPPC_DISC_ENTRY_DESTROY);
 		unload();
 		return RV_ERR_INVAL;
@@ -671,7 +673,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 	if (disc == nullptr) {
 		RV_LOG_ERR("pcloader",
 			"disc '{}' returned no object from {}(); refusing the disc",
-			rv_log_escape(info_.id.c_str()), RV_MPPC_DISC_ENTRY_CREATE);
+			rv_pdklib::rv_log_escape(info_.id.c_str()), RV_MPPC_DISC_ENTRY_CREATE);
 		unload();
 		return RV_ERR_INVAL;
 	}
@@ -681,8 +683,8 @@ int64_t rv_pcloader::load(const char *archive_path)
 
 	RV_LOG_INFO(
 		"pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
-		rv_log_escape(info_.id.c_str()), rv_log_escape(info_.title.c_str()),
-		rv_log_escape(archive_path), RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+		rv_pdklib::rv_log_escape(info_.id.c_str()), rv_pdklib::rv_log_escape(info_.title.c_str()),
+		rv_pdklib::rv_log_escape(archive_path), RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
 	return RV_OK;
 }
 
@@ -709,7 +711,7 @@ void rv_pcloader::unload()
 			} catch (...) {
 				RV_LOG_ERR("pcloader",
 					"disc_shutdown() of '{}' threw; tearing down anyway",
-					rv_log_escape(info_.id.c_str()));
+					rv_pdklib::rv_log_escape(info_.id.c_str()));
 			}
 		}
 		if (destroy_ != nullptr) {

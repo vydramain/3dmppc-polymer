@@ -11,7 +11,7 @@
 #include <thread>
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
 namespace rv_3dmppc {

@@ -39,12 +39,19 @@ endif()
 add_library(3dmppc_pdk INTERFACE)
 target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 
-# --- disc-side library (pdklib) ------------------------------------------------------------
-# Header-only conveniences written AGAINST the contract, for discs only: matrix
-# math, camera, transform to screen-space vertices, format parsers. It is not
-# the contract (the console implements nothing here) and not a game, so it is
-# its own tree — and the console below deliberately does NOT link it. If the
-# console ever needs something from pdklib/, that something was misfiled.
+# --- shared helper library (pdklib) -------------------------------------------
+# Header-only implementations written AGAINST the contract: matrix math, camera,
+# transform to screen-space vertices, format parsers, diagnostic output. It is
+# not the contract (the console implements nothing here) and not a game, so it
+# is its own tree.
+#
+# It is INTERFACE because every function in it is inline and lives in a header:
+# there is no .cpp under pdk/lib/ and therefore no artifact to build. Linking it
+# delivers one thing, the include directory.
+#
+# Discs get it a different way — mppcburner writes the path into the CMakeLists
+# it generates for a disc project — so this target serves only what is built
+# from this file.
 add_library(3dmppc_pdklib INTERFACE)
 target_include_directories(3dmppc_pdklib INTERFACE ${CMAKE_SOURCE_DIR}/pdk/lib/include)
 
@@ -62,6 +69,11 @@ file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdklib)
+
+# Stamps every log line this target emits with its origin, so game lines are
+# told apart from console lines without anyone passing an argument. Four
+# characters wide; see pdklib/rv_stdio.hpp.
+target_compile_definitions(rv_dmain PRIVATE RV_LOG_ORIGIN="disc")
 
 if(MSVC)
   target_compile_options(rv_dmain PRIVATE /W4)
@@ -83,7 +95,13 @@ add_executable(3dmppc
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
+# Its own line, next to the contract and not folded into it: pdklib is a
+# separate tree with a separate purpose, and the console takes exactly one thing
+# from it — pdklib/rv_stdio.hpp.
+target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
+
+target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
 
 # NEUROSLOP-BEGIN (claude-opus-5)
 # dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
