@@ -18,16 +18,16 @@
 
 #include <getopt.h>
 
-#include "pdklib/rv_stdio.hpp"
 #include "rv_build.hpp"
 #include "rv_burner_options.hpp"
+#include "rv_burner_print.hpp"
 
 namespace rv_pdktools
 {
 namespace
 {
 
-void usage(std::FILE *stream)
+void rv_burner_print_usage(std::FILE *stream)
 {
 	std::fprintf(stream,
 		"mppcburner - burn a disc directory into a .mppcdisc image\n"
@@ -104,7 +104,7 @@ constexpr rv_burner_command_spec COMMANDS[] = {
 int main(int argc, char **argv)
 {
 	if (argc < 2) {
-		rv_pdktools::usage(stderr);
+		rv_pdktools::rv_burner_print_usage(stderr);
 		return 1;
 	}
 
@@ -119,8 +119,8 @@ int main(int argc, char **argv)
 	}
 
 	if (nullptr == cmd) {
-		RV_LOG_ERR("burner", "unknown subcommand '{}'", command_name);
-		rv_pdktools::usage(stderr);
+		rv_pdktools::rv_burner_print_error("unknown subcommand '" + std::string(command_name) + "'");
+		rv_pdktools::rv_burner_print_usage(stderr);
 		return 1;
 	}
 
@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 
 		switch (c) {
 		case 'h': {
-			rv_pdktools::usage(stdout);
+			rv_pdktools::rv_burner_print_usage(stdout);
 			return 0;
 		}
 		case 'o': {
@@ -184,7 +184,7 @@ int main(int argc, char **argv)
 			char *end = nullptr;
 			const long value = std::strtol(optarg, &end, 10);
 			if (*optarg == '\0' || *end != '\0' || value <= 0 || value > INT_MAX) {
-				RV_LOG_ERR("burner", "invalid --jobs value '{}': expected a positive integer", optarg);
+				rv_pdktools::rv_burner_print_error("invalid --jobs value '" + std::string(optarg) + "'");
 				return 1;
 			}
 			burner_options.jobs = static_cast<int>(value);
@@ -201,7 +201,7 @@ int main(int argc, char **argv)
 		case '?':
 		default: {
 			// No message here: getopt already printed one (opterr defaults to 1).
-			rv_pdktools::usage(stderr);
+			rv_pdktools::rv_burner_print_usage(stderr);
 			return 1;
 		}
 		}
