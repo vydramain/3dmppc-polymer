@@ -18,6 +18,7 @@
 
 #include <getopt.h>
 
+#include "pdklib/rv_stdio.hpp"
 #include "rv_build.hpp"
 #include "rv_burner_options.hpp"
 
@@ -97,11 +98,6 @@ constexpr rv_burner_command_spec COMMANDS[] = {
 	{ "--help", 0, 0, nullable_handler },
 };
 
-void say_error(const std::string &message)
-{
-	std::fprintf(stderr, "mppcburner: error: %s\n", message.c_str());
-}
-
 } // namespace
 } // namespace rv_pdktools
 
@@ -123,7 +119,7 @@ int main(int argc, char **argv)
 	}
 
 	if (nullptr == cmd) {
-		rv_pdktools::say_error("unknown subcommand '" + std::string(command_name) + "'");
+		RV_LOG_ERR("burner", "unknown subcommand '{}'", command_name);
 		rv_pdktools::usage(stderr);
 		return 1;
 	}
@@ -188,7 +184,7 @@ int main(int argc, char **argv)
 			char *end = nullptr;
 			const long value = std::strtol(optarg, &end, 10);
 			if (*optarg == '\0' || *end != '\0' || value <= 0 || value > INT_MAX) {
-				rv_pdktools::say_error("invalid --jobs value '" + std::string(optarg) + "': expected a positive integer");
+				RV_LOG_ERR("burner", "invalid --jobs value '{}': expected a positive integer", optarg);
 				return 1;
 			}
 			burner_options.jobs = static_cast<int>(value);

@@ -9,7 +9,7 @@
 #include <cstring>
 #include <format>
 
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 
 namespace rv_3dmppc {
 
@@ -262,20 +262,23 @@ bool rv_zipreader::parse_directory(std::string& error) {
             // a disc whose assets are compressed was not burned for this console,
             // and letting it half-mount would turn one clear message into a
             // scattering of RV_ERR_NOENT during play.
+            //
+            // TODO(rv_log_escape): 12 calls in this file. The console is its only
+            // caller, so it does not belong in pdklib — find it a console-side home.
             error = std::format(
                 "entry '{}' uses compression method {}; this container is "
                 "store-only (no decompressor on the console)",
-                rv_log_escape(name.c_str()), method);
+                rv_pdklib::rv_log_escape(name.c_str()), method);
             return false;
         }
         if (csize == kZip64Sentinel || usize == kZip64Sentinel || lho == kZip64Sentinel) {
             error = std::format("entry '{}' needs zip64, which is not supported",
-                                rv_log_escape(name.c_str()));
+                                rv_pdklib::rv_log_escape(name.c_str()));
             return false;
         }
         if (csize != usize) {
             error = std::format("entry '{}' is stored but its sizes disagree ({} vs {})",
-                                rv_log_escape(name.c_str()), csize, usize);
+                                rv_pdklib::rv_log_escape(name.c_str()), csize, usize);
             return false;
         }
         // The local header must at least FIT before its offset is ever seeked to.
@@ -283,7 +286,7 @@ bool rv_zipreader::parse_directory(std::string& error) {
         // header's own name/extra lengths — and are re-checked in read().
         if (static_cast<int64_t>(lho) > file_size_ - kLocalSize) {
             error =
-                std::format("entry '{}' points outside the archive", rv_log_escape(name.c_str()));
+                std::format("entry '{}' points outside the archive", rv_pdklib::rv_log_escape(name.c_str()));
             return false;
         }
 
@@ -297,7 +300,7 @@ bool rv_zipreader::parse_directory(std::string& error) {
             // loudly: the alternative is a disc where which texture you get
             // depends on parse order.
             RV_LOG_WARN("pczip", "archive '{}' repeats entry '{}'; the later copy is ignored",
-                        path_, rv_log_escape(name.c_str()));
+                        path_, rv_pdklib::rv_log_escape(name.c_str()));
             continue;
         }
 
@@ -369,16 +372,16 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     // a texture or a model.
     unsigned char lh[kLocalSize];
     if (!read_at(lho, lh, kLocalSize)) {
-        RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_log_escape(name));
+        RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
     if (rd32(lh) != kSigLocal) {
-        RV_LOG_ERR("pczip", "entry '{}': no local header at its offset", rv_log_escape(name));
+        RV_LOG_ERR("pczip", "entry '{}': no local header at its offset", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
     if (rd16(lh + 8) != kMethodStore) {
         RV_LOG_ERR("pczip", "entry '{}': local header claims compression method {}",
-                   rv_log_escape(name), rd16(lh + 8));
+                   rv_pdklib::rv_log_escape(name), rd16(lh + 8));
         return rv_zipread::corrupt;
     }
 
@@ -389,7 +392,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     // Bounds first, seek second — always in that order, and phrased as
     // subtraction so nothing can wrap.
     if (data_offset > file_size_ || size > file_size_ - data_offset) {
-        RV_LOG_ERR("pczip", "entry '{}': data lies outside the archive", rv_log_escape(name));
+        RV_LOG_ERR("pczip", "entry '{}': data lies outside the archive", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
 
@@ -397,7 +400,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
         // An empty entry is a legal entry. Its CRC is 0 by definition; anything
         // else means the directory is lying about it.
         if (want_crc != 0) {
-            RV_LOG_ERR("pczip", "entry '{}': empty but claims a checksum", rv_log_escape(name));
+            RV_LOG_ERR("pczip", "entry '{}': empty but claims a checksum", rv_pdklib::rv_log_escape(name));
             return rv_zipread::crc_mismatch;
         }
         return rv_zipread::ok;
@@ -405,7 +408,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
 
     if (!read_at(data_offset, baddr, size)) {
         std::memset(baddr, 0, static_cast<std::size_t>(size));
-        RV_LOG_ERR("pczip", "entry '{}': short read of {} bytes", rv_log_escape(name), size);
+        RV_LOG_ERR("pczip", "entry '{}': short read of {} bytes", rv_pdklib::rv_log_escape(name), size);
         return rv_zipread::io_error;
     }
 
@@ -424,7 +427,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     if (crc != want_crc) {
         std::memset(baddr, 0, static_cast<std::size_t>(size));
         RV_LOG_ERR("pczip", "entry '{}': checksum mismatch (have {:08x}, expected {:08x})",
-                   rv_log_escape(name), crc, want_crc);
+                   rv_pdklib::rv_log_escape(name), crc, want_crc);
         return rv_zipread::crc_mismatch;
     }
 

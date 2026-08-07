@@ -9,7 +9,7 @@
 #include <cmath>
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 
 namespace rv_3dmppc {
