@@ -6,7 +6,7 @@
 #include <utility> // IWYU pragma: TODO: write reason
 #include <vector>
 
-#include "rv_burner_config.hpp"
+#include "rv_burner_options.hpp"
 #include "rv_manifest.hpp"
 
 namespace rv_pdktools
@@ -15,12 +15,12 @@ namespace rv_pdktools
 // Burn a disc directory into one .mppcdisc. Returns a process exit code: 0 on
 // success, 1 on any refusal. Progress and diagnostics go to stderr, nothing of
 // this command goes to stdout.
-int rv_build_run(const rv_burn_options &options);
+int rv_build_run(const rv_burner_options &options);
 
 // Print what is inside an already-burned .mppcdisc, without unpacking it and
 // without writing anything anywhere. The listing goes to stdout, errors to
 // stderr. Same exit-code contract.
-int rv_inspect_run(const rv_inspect_options &options);
+int rv_inspect_run(const rv_burner_options &options);
 
 // ── Pieces exposed so a harness can exercise them without a disc directory ────
 
