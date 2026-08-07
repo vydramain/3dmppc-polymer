@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
+#include <cerrno>  // IWYU pragma: keep - program_invocation_short_name
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -310,12 +311,22 @@ struct options {
     rgb8 key;              // the colour that becomes a hole
 };
 
-[[noreturn]] void die(const std::string& message) {
-    std::fprintf(stderr, "mppcbaker: error: %s\n", message.c_str());
+// Taken from argv[0] rather than written down, so the prefix keeps matching
+// getopt's after the binary is renamed.
+inline const char* rv_baker_progname() {
+#ifdef __GLIBC__
+    return program_invocation_short_name;
+#else
+    return "mppcbaker";
+#endif
+}
+
+[[noreturn]] void rv_baker_fatal(const std::string& message) {
+    std::fprintf(stderr, "%s: %s\n", rv_baker_progname(), message.c_str());
     std::exit(1);
 }
 
-void usage(std::FILE* out) {
+void rv_baker_print_usage(std::FILE* out) {
     std::fprintf(out,
                  "usage: mppcbaker <input.png> <output.mppctex> --format idx4|idx8|direct15\n"
                  "                [--transparent-key RRGGBB]\n"
@@ -360,11 +371,11 @@ options parse_args(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "-h" || arg == "--help") {
-            usage(stdout);
+            rv_baker_print_usage(stdout);
             std::exit(0);
         } else if (arg == "--format") {
             if (++i >= argc) {
-                die("--format needs a value (idx4, idx8 or direct15)");
+                rv_baker_fatal("--format needs a value (idx4, idx8 or direct15)");
             }
             const std::string value = argv[i];
             if (value == "idx4") {
@@ -374,29 +385,29 @@ options parse_args(int argc, char** argv) {
             } else if (value == "direct15") {
                 opt.format = 15;
             } else {
-                die("unknown format '" + value + "'; expected idx4, idx8 or direct15");
+                rv_baker_fatal("unknown format '" + value + "'; expected idx4, idx8 or direct15");
             }
         } else if (arg == "--transparent-key") {
             if (++i >= argc) {
-                die("--transparent-key needs a value (six hex digits, e.g. FF00FF)");
+                rv_baker_fatal("--transparent-key needs a value (six hex digits, e.g. FF00FF)");
             }
             if (!parse_hex_rgb(argv[i], &opt.key)) {
-                die("'" + std::string(argv[i]) + "' is not six hex digits (e.g. FF00FF)");
+                rv_baker_fatal("'" + std::string(argv[i]) + "' is not six hex digits (e.g. FF00FF)");
             }
             opt.has_key = true;
         } else if (arg.size() > 1 && arg[0] == '-') {
-            die("unknown option '" + arg + "' (try --help)");
+            rv_baker_fatal("unknown option '" + arg + "' (try --help)");
         } else {
             positional.push_back(arg);
         }
     }
 
     if (positional.size() != 2) {
-        usage(stderr);
-        die("expected exactly one input and one output path");
+        rv_baker_print_usage(stderr);
+        rv_baker_fatal("expected exactly one input and one output path");
     }
     if (opt.format == 0) {
-        die("--format is required (idx4, idx8 or direct15)");
+        rv_baker_fatal("--format is required (idx4, idx8 or direct15)");
     }
     opt.input = positional[0];
     opt.output = positional[1];
@@ -426,18 +437,18 @@ int run(int argc, char** argv) {
     stbi_uc* pixels = stbi_load(opt.input.c_str(), &width, &height, &source_channels, 4);
     if (pixels == nullptr) {
         const char* reason = stbi_failure_reason();
-        die("cannot read '" + opt.input + "': " + (reason != nullptr ? reason : "unknown"));
+        rv_baker_fatal("cannot read '" + opt.input + "': " + (reason != nullptr ? reason : "unknown"));
     }
     if (width <= 0 || height <= 0) {
         stbi_image_free(pixels);
-        die("'" + opt.input + "' has a zero dimension");
+        rv_baker_fatal("'" + opt.input + "' has a zero dimension");
     }
     // The header stores the dimensions as uint16, and the console's own limit is
     // far lower still (rv_cv::texture_max_width/height, 256 on the reference
     // machine). Refuse here rather than write a file no disc can upload.
     if (width > 65535 || height > 65535) {
         stbi_image_free(pixels);
-        die("'" + opt.input + "' is larger than 65535 texels on an axis");
+        rv_baker_fatal("'" + opt.input + "' is larger than 65535 texels on an axis");
     }
 
     const size_t texel_count = static_cast<size_t>(width) * static_cast<size_t>(height);
@@ -472,7 +483,7 @@ int run(int argc, char** argv) {
         put_u16(file, 0);  // palette entry count: DIRECT15 carries no palette
         put_u16(file, 0);  // reserved
         if (file.size() != kHeaderSize) {
-            die("internal: header size drifted from the documented layout");
+            rv_baker_fatal("internal: header size drifted from the documented layout");
         }
         file.reserve(file.size() + texel_count * 2);
         for (const src_pixel& s : src) {
@@ -511,7 +522,7 @@ int run(int argc, char** argv) {
             }
         }
         if (bins.empty()) {
-            die("'" + opt.input + "' has no opaque pixel: there is nothing to put in a palette");
+            rv_baker_fatal("'" + opt.input + "' has no opaque pixel: there is nothing to put in a palette");
         }
         if (bins.size() > color_slots) {
             std::fprintf(stderr,
@@ -536,7 +547,7 @@ int run(int argc, char** argv) {
         put_u16(file, static_cast<uint16_t>(palette_size));
         put_u16(file, 0);  // reserved
         if (file.size() != kHeaderSize) {
-            die("internal: header size drifted from the documented layout");
+            rv_baker_fatal("internal: header size drifted from the documented layout");
         }
 
         // The palette is always written at full length (16 or 256 entries) so
@@ -580,12 +591,12 @@ int run(int argc, char** argv) {
 
     std::FILE* out = std::fopen(opt.output.c_str(), "wb");
     if (out == nullptr) {
-        die("cannot open '" + opt.output + "' for writing");
+        rv_baker_fatal("cannot open '" + opt.output + "' for writing");
     }
     const size_t written = std::fwrite(file.data(), 1, file.size(), out);
     const bool closed = std::fclose(out) == 0;
     if (written != file.size() || !closed) {
-        die("failed to write '" + opt.output + "' (disk full?)");
+        rv_baker_fatal("failed to write '" + opt.output + "' (disk full?)");
     }
 
     std::printf("mppcbaker: %s -> %s (%dx%d, %s, %zu bytes)\n", opt.input.c_str(),

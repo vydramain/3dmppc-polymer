@@ -11,7 +11,7 @@
 #include <thread>
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
 namespace rv_3dmppc {
@@ -109,8 +109,8 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
 
     uint64_t frames = 0;
     rv_pcclock::time_point t_prev = rv_pcclock::now();
-    rv_pcclock::time_point t_deadline = t_prev + std::chrono::duration_cast<
-                                                    rv_pcclock::duration>(frame_budget);
+    rv_pcclock::time_point t_deadline =
+        t_prev + std::chrono::duration_cast<rv_pcclock::duration>(frame_budget);
 
     for (;;) {
         // One pump per frame turns SDL's event stream into the instantaneous
@@ -161,8 +161,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
             } else {
                 // Fell behind: re-base instead of letting missed deadlines pile
                 // up into a burst of zero-length frames.
-                t_deadline = after + std::chrono::duration_cast<rv_pcclock::duration>(
-                                         frame_budget);
+                t_deadline = after + std::chrono::duration_cast<rv_pcclock::duration>(frame_budget);
             }
         }
     }

@@ -24,7 +24,8 @@
 #include <string>
 
 #include "pdk/de/rv_de.hpp"
-#include "pdk/rv_abi.hpp"
+#include "pdk/ve/rv_ve.hpp"
+#include "rv_pconsole/cd/rv_pczip.hpp"
 
 namespace rv_3dmppc {
 
@@ -34,10 +35,11 @@ namespace rv_3dmppc {
 // because every field it parses is a field an attacker-supplied archive gets to
 // influence.
 struct rv_pcdiscinfo {
-    int abi_version = 0;  // must equal RV_ABI_VERSION
-    std::string id;       // short machine name, e.g. "hello"
-    std::string title;    // human title — UNTRUSTED, log through rv_log_escape
-    std::string entry;    // archive entry holding the code (default "disc.so")
+    uint32_t disc_version_major = 0;
+    uint32_t disc_version_minor = 0;
+    std::string id;     // short mppcdisc name
+    std::string title;  // human mppcdisc title (UNTRUSTED)
+    std::string entry;  // archive entry holding the code (default "disc.so")
 };
 
 // Fill `out` from the text of a `disc.toml`, reading only the `[disc]` section
@@ -78,6 +80,21 @@ class rv_pcloader {
     rv_pcloader(rv_pcloader&&) = delete;
     rv_pcloader& operator=(rv_pcloader&&) = delete;
 
+    // NEUROSLOP-END
+
+    // Pre-dlopen inspection of the code entry `info_entry` inside the mounted
+    // archive. dlopen runs the library's constructors before returning, so any
+    // compatibility verdict must come from the FILE'S BYTES, never from loaded
+    // code: the entry is read whole (CRC-checked by the zip reader) and its ELF
+    // structure is parsed in memory, per elf(5). Today it validates the ELF64
+    // header (magic, class, byte order, e_type/e_machine, program-header
+    // stride); the walk to the RV_MPPC version note (PT_NOTE segments) is the
+    // part still to be written. Returns RV_OK or a negative rv_err, logging the
+    // exact refusal reason.
+    int64_t pre_dlopen_check(rv_zipreader* zip, const char* info_entry);
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+
     // Mount `archive_path`, check the handshake and bring the disc's code up.
     // Returns RV_OK, or a negative rv_err after logging exactly what went wrong
     // — every refusal path names itself in the log, none of them throws, and
@@ -115,9 +132,14 @@ class rv_pcloader {
     // as state precisely so the destructor can remove it on EVERY exit path.
     std::string temp_path_;
 
+    // NEUROSLOP-END
+    template <typename O>
+    bool pod_peek(std::vector<unsigned char>& buf, int64_t off_start, int64_t off_end, O& out);
+    // NEUROSLOP-BEGIN (claude-opus-5)
+
     void* handle_ = nullptr;
     rv_pdk::rv_de* disc_ = nullptr;
-    rv_pdk::rv_disc_destroy_fn destroy_ = nullptr;
+    rv_pdk::rv_mppc_disc_destroy_fn destroy_ = nullptr;
 
     // Whether disc_initialize() succeeded — see notify_initialized().
     bool initialized_ = false;

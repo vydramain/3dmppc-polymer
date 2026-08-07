@@ -30,28 +30,14 @@
 #include <system_error>
 
 #include "pdk/cv/rv_texture.hpp"
-#include "pdk/rv_abi.hpp"
+#include "pdk/ve/rv_ve.hpp"
+#include "rv_burner_print.hpp"
 #include "rv_zipwrite.hpp"
 
 namespace fs = std::filesystem;
 
 namespace rv_pdktools {
 namespace {
-
-// ── diagnostics ───────────────────────────────────────────────────────────────
-
-void say_error(const std::string& message) {
-    std::fprintf(stderr, "mppcburner: error: %s\n", message.c_str());
-}
-
-void say_warning(const std::string& message) {
-    std::fprintf(stderr, "mppcburner: warning: %s\n", message.c_str());
-}
-
-// One line of the [n/4] ladder. On stderr, like every other progress signal.
-void say_step(int step, const char* label, const std::string& detail) {
-    std::fprintf(stderr, "[%d/4] %-11s %s\n", step, label, detail.c_str());
-}
 
 // ── running other people's programs ───────────────────────────────────────────
 
@@ -674,6 +660,7 @@ std::string rv_cmake_project_text(const rv_manifest& manifest,
     for (const std::string& source : absolute_sources) {
         text += "  " + cmake_quote(source) + "\n";
     }
+    text += "	" + cmake_quote("custom_version_plus_hash_for_evade_collisions.cpp") + "\n";
     text += ")\n\n";
 
     // PREFIX "" + OUTPUT_NAME "disc" produce exactly `disc.so`, which is the
@@ -700,13 +687,16 @@ std::string rv_cmake_project_text(const rv_manifest& manifest,
     }
     text += ")\n\n";
 
-    if (!manifest.defines.empty()) {
-        text += "target_compile_definitions(disc PRIVATE\n";
-        for (const std::string& define : manifest.defines) {
-            text += "  " + cmake_quote(define) + "\n";
-        }
-        text += ")\n\n";
+    // RV_LOG_ORIGIN is not optional and not the manifest's to set: it is what
+    // stamps every line pdklib/rv_stdio.hpp emits as coming from a disc rather
+    // than from the console or from a tool. A disc that had to declare it would
+    // be a disc that could get it wrong.
+    text += "target_compile_definitions(disc PRIVATE\n";
+    text += "  " + cmake_quote("RV_LOG_ORIGIN=\"disc\"") + "\n";
+    for (const std::string& define : manifest.defines) {
+        text += "  " + cmake_quote(define) + "\n";
     }
+    text += ")\n\n";
 
     // -fPIC because the result is dlopen'd and must be position independent.
     // -fvisibility=hidden because a disc exports exactly TWO symbols —
@@ -745,12 +735,12 @@ int rv_build_run(const rv_build_options& options) {
     std::error_code ec;
     const fs::path disc_dir = fs::weakly_canonical(fs::path(options.disc_dir), ec);
     if (ec || !fs::is_directory(disc_dir, ec)) {
-        say_error("'" + options.disc_dir + "' is not a directory");
+        rv_burner_print_error("'" + options.disc_dir + "' is not a directory");
         return 1;
     }
     const fs::path output_path = fs::absolute(fs::path(options.output), ec);
     if (ec) {
-        say_error("cannot resolve output path '" + options.output + "'");
+        rv_burner_print_error("cannot resolve output path '" + options.output + "'");
         return 1;
     }
 
@@ -759,34 +749,22 @@ int rv_build_run(const rv_build_options& options) {
     rv_manifest manifest;
     std::string error;
     if (!rv_manifest_load(manifest_path.string(), manifest, error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
     if (!rv_manifest_validate(manifest, error)) {
-        say_error(manifest_path.string() + ": " + error);
+        rv_burner_print_error(manifest_path.string() + ": " + error);
         return 1;
     }
-    // The ABI gate. A disc built against a different PDK will be refused by the
-    // console at load time anyway (rv_abi.hpp), so burning it would only move
-    // the failure from a build log to a player's loading screen.
-    if (manifest.abi_version != rv_pdk::RV_ABI_VERSION) {
-        say_error("disc declares abi_version = " + std::to_string(manifest.abi_version) +
-                  ", this burner speaks ABI " + std::to_string(rv_pdk::RV_ABI_VERSION) +
-                  ". The console would refuse the result, so it is not burned. Rebuild the disc "
-                  "against a matching PDK, or fix [disc] abi_version if the sources are already "
-                  "current.");
-        return 1;
-    }
-    say_step(1, "manifest", "id=" + manifest.id + " abi=" + std::to_string(manifest.abi_version));
 
     // ── [2/4] compile ─────────────────────────────────────────────────────────
     std::vector<std::string> sources;
     if (!rv_glob_expand(disc_dir, manifest.sources, sources, error)) {
-        say_error("[build] sources: " + error);
+        rv_burner_print_error("[build] sources: " + error);
         return 1;
     }
     if (sources.empty()) {
-        say_error("[build] sources is empty: a disc with no code cannot export an entry point");
+        rv_burner_print_error("[build] sources is empty: a disc with no code cannot export an entry point");
         return 1;
     }
 
@@ -804,13 +782,13 @@ int rv_build_run(const rv_build_options& options) {
     for (const std::string& include : manifest.include_dirs) {
         const fs::path resolved = fs::weakly_canonical(disc_dir / include, ec);
         if (ec) {
-            say_error("[build] include_dirs: cannot resolve '" + include + "'");
+            rv_burner_print_error("[build] include_dirs: cannot resolve '" + include + "'");
             return 1;
         }
         const std::string resolved_text = resolved.string();
         const std::string disc_text = disc_dir.string();
         if (resolved_text.compare(0, disc_text.size(), disc_text) != 0) {
-            say_error("[build] include_dirs: '" + include +
+            rv_burner_print_error("[build] include_dirs: '" + include +
                       "' points outside the disc directory. A disc may only include its own "
                       "headers, the PDK and the SDK.");
             return 1;
@@ -825,7 +803,7 @@ int rv_build_run(const rv_build_options& options) {
     fs::create_directories(binary_dir, ec);
     fs::create_directories(texture_dir, ec);
     if (ec) {
-        say_error("cannot create build directory '" + project_dir.string() + "'");
+        rv_burner_print_error("cannot create build directory '" + project_dir.string() + "'");
         return 1;
     }
 
@@ -834,15 +812,46 @@ int rv_build_run(const rv_build_options& options) {
             manifest, absolute_sources, options.pdk_dir, options.pdklib_dir, absolute_includes);
         std::ofstream out(project_dir / "CMakeLists.txt", std::ios::binary | std::ios::trunc);
         if (!out) {
-            say_error("cannot write '" + (project_dir / "CMakeLists.txt").string() + "'");
+            rv_burner_print_error("cannot write '" + (project_dir / "CMakeLists.txt").string() + "'");
             return 1;
         }
         out.write(project_text.data(), static_cast<std::streamsize>(project_text.size()));
         if (!out) {
-            say_error("short write on '" + (project_dir / "CMakeLists.txt").string() + "'");
+            rv_burner_print_error("short write on '" + (project_dir / "CMakeLists.txt").string() + "'");
             return 1;
         }
     }
+
+    // NEUROSLOP ends
+
+    {
+        const std::string version_cpp_file_text{
+            "#include \"pdk/ve/rv_ve.hpp\"\n"
+            "#include \"pdklib/rv_disc_version.hpp\"\n"
+            "\n"
+            "RV_MPPC_DISC_VERSION_DEF;"};
+
+        std::ofstream out((project_dir / "custom_version_plus_hash_for_evade_collisions.cpp"),
+                          std::ios::binary | std::ios::trunc);
+        if (!out) {
+            rv_burner_print_error("cannot write `" +
+                      (project_dir / "custom_version_plus_hash_for_evade_collisions.cpp").string() +
+                      "'");
+            return 1;
+        }
+
+        out.write(version_cpp_file_text.data(),
+                  static_cast<std::streamsize>(version_cpp_file_text.size()));
+
+        if (!out) {
+            rv_burner_print_error("short wirte on '" +
+                      (project_dir / "custom_version_plus_hash_for_evade_collisions.cpp").string() +
+                      "'");
+            return 1;
+        }
+    }
+
+    // NEUROSLOP starts
 
     std::string child_output;
     const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +
@@ -851,7 +860,7 @@ int rv_build_run(const rv_build_options& options) {
     int status = run_capture(configure, child_output);
     if (status != 0) {
         dump_child_output(child_output);
-        say_error("cmake failed to configure the generated disc project (exit " +
+        rv_burner_print_error("cmake failed to configure the generated disc project (exit " +
                   std::to_string(status) +
                   "). cmake and ninja are run-time dependencies of mppcburner.");
         return 1;
@@ -867,17 +876,17 @@ int rv_build_run(const rv_build_options& options) {
         // about a broken disc is more useful than what the compiler already
         // said about it.
         dump_child_output(child_output);
-        say_error("compiling the disc failed (exit " + std::to_string(status) + ")");
+        rv_burner_print_error("compiling the disc failed (exit " + std::to_string(status) + ")");
         return 1;
     }
 
     const fs::path disc_so = binary_dir / "disc.so";
     if (!fs::is_regular_file(disc_so, ec)) {
         dump_child_output(child_output);
-        say_error("the build reported success but produced no '" + disc_so.string() + "'");
+        rv_burner_print_error("the build reported success but produced no '" + disc_so.string() + "'");
         return 1;
     }
-    say_step(2, "compile", std::to_string(sources.size()) + " source(s) -> disc.so");
+    rv_burner_print_step(2, "compile", std::to_string(sources.size()) + " source(s) -> disc.so");
 
     // ── [3/4] assets ──────────────────────────────────────────────────────────
     //
@@ -890,7 +899,7 @@ int rv_build_run(const rv_build_options& options) {
     std::vector<std::string> asset_files;
     if (!manifest.files.empty()) {
         if (!rv_glob_expand(disc_dir, manifest.files, asset_files, error)) {
-            say_error("[assets] files: " + error);
+            rv_burner_print_error("[assets] files: " + error);
             return 1;
         }
     }
@@ -900,7 +909,7 @@ int rv_build_run(const rv_build_options& options) {
         item.source = relative;
         item.payload = (disc_dir / relative).string();
         if (!rv_check_asset_name(item.name, error)) {
-            say_error("[assets] files: " + error + " (from '" + relative + "')");
+            rv_burner_print_error("[assets] files: " + error + " (from '" + relative + "')");
             return 1;
         }
         items.push_back(item);
@@ -909,7 +918,7 @@ int rv_build_run(const rv_build_options& options) {
     std::vector<std::string> texture_files;
     if (!manifest.textures.files.empty()) {
         if (!rv_glob_expand(disc_dir, manifest.textures.files, texture_files, error)) {
-            say_error("[textures] files: " + error);
+            rv_burner_print_error("[textures] files: " + error);
             return 1;
         }
     }
@@ -920,21 +929,21 @@ int rv_build_run(const rv_build_options& options) {
         item.source = relative;
         item.payload = (texture_dir / item.name).string();
         if (!rv_check_asset_name(item.name, error)) {
-            say_error("[textures] files: " + error + " (from '" + relative + "')");
+            rv_burner_print_error("[textures] files: " + error + " (from '" + relative + "')");
             return 1;
         }
         items.push_back(item);
     }
 
     if (!rv_check_collisions(items, error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
 
     if (!texture_files.empty()) {
         std::string baker;
         if (!find_baker(options.baker, baker, error)) {
-            say_error(error);
+            rv_burner_print_error(error);
             return 1;
         }
 
@@ -947,14 +956,14 @@ int rv_build_run(const rv_build_options& options) {
             status = run_capture(command, child_output);
             if (status != 0) {
                 dump_child_output(child_output);
-                say_error("mppcbaker failed on '" + item.source + "' (exit " +
+                rv_burner_print_error("mppcbaker failed on '" + item.source + "' (exit " +
                           std::to_string(status) + ")");
                 return 1;
             }
 
             mppctex_header header;
             if (!read_mppctex_header(item.payload, header, error)) {
-                say_error(error);
+                rv_burner_print_error(error);
                 return 1;
             }
             // Budget: one texture that does not fit the reference machine's
@@ -962,7 +971,7 @@ int rv_build_run(const rv_build_options& options) {
             // would be an RV_ERR_INVAL on a loading screen.
             if (header.width > manifest.budget.texture_max_width ||
                 header.height > manifest.budget.texture_max_height) {
-                say_error("texture '" + item.source + "' is " + std::to_string(header.width) + "x" +
+                rv_burner_print_error("texture '" + item.source + "' is " + std::to_string(header.width) + "x" +
                           std::to_string(header.height) + ", over the budget of " +
                           std::to_string(manifest.budget.texture_max_width) + "x" +
                           std::to_string(manifest.budget.texture_max_height) +
@@ -977,14 +986,14 @@ int rv_build_run(const rv_build_options& options) {
         // frees a texture before loading the next one uses less — so it is the
         // conservative check, and a disc that trips it says so with a number.
         if (video_memory_used > manifest.budget.video_memory_size) {
-            say_error("baked texels and palettes total " + std::to_string(video_memory_used) +
+            rv_burner_print_error("baked texels and palettes total " + std::to_string(video_memory_used) +
                       " bytes, over the [budget] video_memory_size of " +
                       std::to_string(manifest.budget.video_memory_size) + " bytes");
             return 1;
         }
     }
 
-    say_step(3, "assets",
+    rv_burner_print_step(3, "assets",
              std::to_string(texture_files.size()) + " png -> .mppctex, " +
                  std::to_string(asset_files.size()) + " copied");
 
@@ -992,7 +1001,7 @@ int rv_build_run(const rv_build_options& options) {
     fs::create_directories(output_path.parent_path(), ec);
     rv_zipwriter writer(output_path.string());
     if (!writer.ok()) {
-        say_error("cannot open '" + output_path.string() + "' for writing");
+        rv_burner_print_error("cannot open '" + output_path.string() + "' for writing");
         return 1;
     }
 
@@ -1002,26 +1011,26 @@ int rv_build_run(const rv_build_options& options) {
     // ride along and mislead a later reader.
     const std::string manifest_text = rv_manifest_render(manifest);
     if (!writer.add("disc.toml", manifest_text.data(), manifest_text.size(), error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
     if (!writer.add_file("disc.so", disc_so.string(), error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
     for (const rv_archive_item& item : items) {
         if (!writer.add_file(item.name, item.payload, error)) {
-            say_error(error);
+            rv_burner_print_error(error);
             return 1;
         }
     }
     if (!writer.finish(error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
 
     const int64_t burned = static_cast<int64_t>(fs::file_size(output_path, ec));
-    say_step(4, "burn",
+    rv_burner_print_step(4, "burn",
              output_path.filename().string() + " (" + rv_human_size(ec ? 0 : burned) + ")");
 
     // The build tree is scratch space and goes away — unless the developer
@@ -1031,7 +1040,7 @@ int rv_build_run(const rv_build_options& options) {
     if (!options.keep_build) {
         fs::remove_all(project_dir, ec);
         if (ec) {
-            say_warning("could not remove the build directory '" + project_dir.string() + "'");
+            rv_burner_print_warning("could not remove the build directory '" + project_dir.string() + "'");
         }
     }
     return 0;
@@ -1043,12 +1052,12 @@ int rv_inspect_run(const std::string& archive_path) {
     std::vector<unsigned char> bytes;
     std::string error;
     if (!read_whole_file(archive_path, bytes, error)) {
-        say_error(error);
+        rv_burner_print_error(error);
         return 1;
     }
     std::vector<zip_entry> entries;
     if (!zip_list(bytes, entries, error)) {
-        say_error(archive_path + ": " + error);
+        rv_burner_print_error(archive_path + ": " + error);
         return 1;
     }
 
@@ -1062,7 +1071,7 @@ int rv_inspect_run(const std::string& archive_path) {
         }
         std::string text;
         if (!zip_entry_bytes(bytes, entry, text, error)) {
-            say_error(error);
+            rv_burner_print_error(error);
             return 1;
         }
         std::fwrite(text.data(), 1, text.size(), stdout);
@@ -1073,7 +1082,7 @@ int rv_inspect_run(const std::string& archive_path) {
         break;
     }
     if (!manifest_found) {
-        say_warning(archive_path + " has no disc.toml; the console would refuse it");
+        rv_burner_print_warning(archive_path + " has no disc.toml; the console would refuse it");
     }
 
     std::printf("[entries]\n");
