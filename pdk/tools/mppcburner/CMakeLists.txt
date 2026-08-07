@@ -24,6 +24,14 @@ add_executable(mppcburner
 # version it stamps into a manifest.
 target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
 
+# pdklib, for pdklib/rv_stdio.hpp — the diagnostic output shared with the
+# console and with discs. Separate from the contract above because it is a
+# separate tree.
+target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/lib/include)
+
+# Stamps every log line with its origin; see pdklib/rv_stdio.hpp.
+target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")
+
 # Where a GENERATED disc project should look for the contract and the disc-side
 # SDK. Baked in so the tool works out of the box inside this repository, and
 # overridable at run time (--pdk / --pdklib) so a disc directory living anywhere

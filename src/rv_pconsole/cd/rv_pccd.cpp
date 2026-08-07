@@ -8,7 +8,7 @@
 #include <utility>
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_stdio.hpp"
 
 namespace rv_3dmppc {
 
@@ -34,12 +34,15 @@ int64_t rv_pccd::asset_open(const char* resname) {
     // it is refused here rather than somewhere deeper where the medium might be
     // tempted to resolve it. See rv_pcresname_valid() in rv_pcmedium.hpp.
     if (!rv_pcresname_valid(resname)) {
-        // The name goes through rv_log_escape() because it is exactly the string
+        // TODO(rv_log_escape): 3 calls in this file. The console is its only
+        // caller, so it does not belong in pdklib — find it a console-side home.
+        //
+        // The name goes through rv_pdklib::rv_log_escape() because it is exactly the string
         // an attack would put a newline or an ANSI escape into — see the note on
         // that function. Naming it matters: "an illegal name was rejected" tells
         // whoever reads the log nothing about WHICH asset the disc wanted.
         RV_LOG_WARN("pccd", "asset_open('{}') rejected: illegal resource name",
-                    rv_log_escape(resname));
+                    rv_pdklib::rv_log_escape(resname));
         return RV_ERR_INVAL;
     }
 
@@ -59,7 +62,7 @@ int64_t rv_pccd::asset_open(const char* resname) {
         // already said so once at boot. Repeating it as a warning on every
         // lookup is noise, and noise is what teaches people to stop reading
         // logs — the one thing a log cannot survive.
-        RV_LOG_DBG("pccd", "asset_open('{}') with no medium mounted", rv_log_escape(key.c_str()));
+        RV_LOG_DBG("pccd", "asset_open('{}') with no medium mounted", rv_pdklib::rv_log_escape(key.c_str()));
         return RV_ERR_NOENT;
     }
 
