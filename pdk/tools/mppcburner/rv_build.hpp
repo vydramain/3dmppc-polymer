@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
-#include <utility> // IWYU pragma: TODO: write reason
 #include <vector>
 
 #include "rv_burner_options.hpp"
@@ -34,8 +33,8 @@ bool rv_glob_expand(const std::filesystem::path &root,
 	std::vector<std::string> &out,
 	std::string &error);
 
-// The name a relative path takes inside the archive. See the THEOREM in
-// rv_build.cpp: the asset namespace is FLAT, so this is just the file name.
+// The name a relative path takes inside the archive.
+// The asset namespace is FLAT, so this is just the file name.
 std::string rv_flat_name(const std::string &relative_path);
 
 // Is `name` allowed as an archive entry at all? Rejects path separators, a
@@ -53,8 +52,7 @@ struct rv_archive_item {
 	std::string payload;
 };
 
-// Refuse when two different originals collapse onto one flat name. See the
-// THEOREM in rv_build.cpp.
+// Refuse when two different originals collapse onto one flat name.
 bool rv_check_collisions(const std::vector<rv_archive_item> &items, std::string &error);
 
 // Render the CMakeLists.txt of the generated disc project. Pure text in, pure
@@ -64,8 +62,7 @@ std::string rv_cmake_project_text(const rv_manifest &manifest,
 	const std::string &pdk_dir, const std::string &pdklib_dir,
 	const std::vector<std::string> &absolute_includes);
 
-// Human size for a progress line ("1.2 MB"). Exposed only because it is easier
-// to test than to eyeball.
+// Human size for a progress line.
 std::string rv_human_size(int64_t bytes);
 
 } // namespace rv_pdktools

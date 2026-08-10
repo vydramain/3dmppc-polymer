@@ -85,6 +85,7 @@ constexpr rv_burner_option_spec OPTIONS[] = {
 
 int nullable_handler(const rv_burner_options &)
 {
+	rv_pdktools::rv_burner_print_usage(stderr);
 	return -1;
 }
 
@@ -152,8 +153,11 @@ int main(int argc, char **argv)
 
 	rv_pdktools::rv_burner_options burner_options{};
 
-	for (int c, local_argc = argc - 1;; ++local_argc) {
-		c = getopt_long(local_argc, argv, opts_string.c_str(), opts.data(), nullptr);
+	// Input args starts from second array member. So we need to skip command name first to check options
+	const int local_argc = argc - 1;
+	char **local_argv = argv + 1;
+	for (int c;;) {
+		c = getopt_long(local_argc, local_argv, opts_string.c_str(), opts.data(), nullptr);
 
 		if (c < 0) {
 			break;
@@ -205,6 +209,18 @@ int main(int argc, char **argv)
 			return 1;
 		}
 		}
+	}
+
+	// Exactly the declared number of operands: getopt left them from optind on.
+	if (cmd->operands != local_argc - optind) {
+		rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) + " operand(s), got " + std::to_string(local_argc - optind));
+		rv_pdktools::rv_burner_print_usage(stderr);
+		return 1;
+	}
+
+	// Nothing to read for an operandless command: argv[optind] is its nullptr.
+	if (0 != local_argc - optind) {
+		burner_options.operand = local_argv[optind];
 	}
 
 	return cmd->handler(burner_options);
