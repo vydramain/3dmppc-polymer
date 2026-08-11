@@ -1,6 +1,5 @@
 #include "rv_build.hpp"
 
-#include <format>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -15,6 +14,7 @@
 #include <system_error>
 
 #include "pdk/cv/rv_texture.hpp"
+#include "pdklib/rv_stdio.hpp"
 
 #include "rv_burner_print.hpp"
 #include "rv_zipwrite.hpp"
@@ -702,7 +702,7 @@ std::string rv_cmake_project_text(const rv_manifest &manifest,
 	text += ")\n\n";
 
 	// RV_LOG_ORIGIN is not optional and not the manifest's to set: it is what
-	// stamps every line pdklib/rv_stdio.hpp emits as coming from a disc rather
+	// stamps every line pdklib/rv_logs.hpp emits as coming from a disc rather
 	// than from the console or from a tool. A disc that had to declare it would
 	// be a disc that could get it wrong.
 	text += "target_compile_definitions(disc PRIVATE\n";
@@ -1080,7 +1080,7 @@ int rv_inspect_run(const rv_burner_options &options)
 		return 1;
 	}
 
-	rv_burner_print_info("[manifest]");
+	rv_pdklib::rv_fprintf(stdout, "[manifest]\n");
 	bool manifest_found = false;
 	for (const zip_entry &entry : entries) {
 		if (entry.name != "disc.toml") {
@@ -1102,17 +1102,18 @@ int rv_inspect_run(const rv_burner_options &options)
 		rv_burner_print_warning(options.operand + " has no disc.toml; the console would refuse it");
 	}
 
-	rv_burner_print_info("[entries]");
+	rv_pdklib::rv_fprintf(stdout, "[entries]\n");
 	int64_t total = 0;
 	for (const zip_entry &entry : entries) {
-		rv_burner_print_info(entry.name + "\t" + std::format("{}", static_cast<long long>(entry.size)));
+		rv_pdklib::rv_fprintf(stdout, "%s\t%lld\n", entry.name.c_str(),
+			static_cast<long long>(entry.size));
 		total += entry.size;
 	}
 
-	rv_burner_print_info("[total]\n");
-	rv_burner_print_info("entries\t" + std::format("{}", entries.size()));
-	rv_burner_print_info("bytes\t" + std::format("{}", static_cast<long long>(total)));
-	rv_burner_print_info("file\t" + std::format("{}", static_cast<long long>(bytes.size())));
+	rv_pdklib::rv_fprintf(stdout, "[total]\n\n");
+	rv_pdklib::rv_fprintf(stdout, "entries\t%zu\n", entries.size());
+	rv_pdklib::rv_fprintf(stdout, "bytes\t%lld\n", static_cast<long long>(total));
+	rv_pdklib::rv_fprintf(stdout, "file\t%lld\n", static_cast<long long>(bytes.size()));
 	return 0;
 }
 

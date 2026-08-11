@@ -5,7 +5,7 @@
 #include "rv_pconsole/cio/rv_pccio.hpp"
 
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_logs.hpp"
 
 namespace rv_3dmppc {
 

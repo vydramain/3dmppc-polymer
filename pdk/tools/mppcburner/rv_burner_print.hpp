@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <string>
 
+#include "pdklib/rv_stdio.hpp"
+
 #ifdef __GLIBC__
 #include <cerrno> // IWYU pragma: keep - declares program_invocation_short_name
 #endif
@@ -30,24 +32,19 @@ inline const char *rv_burner_progname()
 
 inline void rv_burner_print_error(const std::string &message)
 {
-	std::fprintf(stderr, "%s: %s\n", rv_burner_progname(), message.c_str());
+	rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_burner_progname(), message.c_str());
 }
 
 inline void rv_burner_print_warning(const std::string &message)
 {
-	std::fprintf(stderr, "%s: warning: %s\n", rv_burner_progname(), message.c_str());
-}
-
-inline void rv_burner_print_info(const std::string &message)
-{
-	std::fprintf(stdout, "%s: info: %s\n", rv_burner_progname(), message.c_str());
+	rv_pdklib::rv_fprintf(stderr, "%s: warning: %s\n", rv_burner_progname(), message.c_str());
 }
 
 // One rung of the [n/4] ladder. No program prefix: this is progress, not a
 // diagnostic, and the prefix would repeat four times for nothing.
 inline void rv_burner_print_step(int step, const char *label, const std::string &detail)
 {
-	std::fprintf(stderr, "[%d/4] %-11s %s\n", step, label, detail.c_str());
+	rv_pdklib::rv_fprintf(stderr, "[%d/4] %-11s %s\n", step, label, detail.c_str());
 }
 
 } // namespace rv_pdktools

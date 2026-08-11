@@ -18,6 +18,8 @@
 
 #include <getopt.h>
 
+#include "pdklib/rv_stdio.hpp"
+
 #include "rv_build.hpp"
 #include "rv_burner_options.hpp"
 #include "rv_burner_print.hpp"
@@ -29,7 +31,7 @@ namespace
 
 void rv_burner_print_usage(std::FILE *stream)
 {
-	std::fprintf(stream,
+	rv_pdklib::rv_fprintf(stream,
 		"mppcburner - burn a disc directory into a .mppcdisc image\n"
 		"\n"
 		"Usage:\n"

@@ -29,6 +29,9 @@ add_executable(mppcbaker mppcbaker.cpp)
 # noise and leaves every warning about our own code standing.
 target_include_directories(mppcbaker SYSTEM PRIVATE ${MPPCBAKER_STB_DIR})
 
+# pdklib, for pdklib/rv_stdio.hpp — the output adapter every tool prints through.
+target_include_directories(mppcbaker PRIVATE ${RV_REPO_ROOT}/pdk/lib/include)
+
 if(MSVC)
   target_compile_options(mppcbaker PRIVATE /W4)
 else()

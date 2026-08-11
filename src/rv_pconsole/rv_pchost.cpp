@@ -9,6 +9,7 @@
 #include <cmath>
 
 #include "pdk/rv_err.hpp"
+#include "pdklib/rv_logs.hpp"
 #include "pdklib/rv_stdio.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 
@@ -445,7 +446,7 @@ void rv_pchost::dump_frame(const uint32_t* argb) const {
         return;
     }
 
-    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
+    rv_pdklib::rv_fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
                  static_cast<long long>(screen_height_));
 
     const int64_t pixels = screen_width_ * screen_height_;

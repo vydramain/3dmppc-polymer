@@ -3,31 +3,30 @@
 #include <cstdarg>
 #include <cstdio>
 
-namespace rv_pdktool
+namespace rv_pdklib
 {
 
-// rv_fprintf(stream, format, ...)
-//              |
-//              | определить FILE *
-//              |
-//              | создать va_list
-//              |
-//              | начать чтение аргументов после format
-//              |
-//              | передать FILE *, format, va_list
-//              | в printf-подобную функцию
-//              |
-//              | закончить работу с va_list
-//              |
-//              v
-//           return result
-//
-inline int
-rv_fprintf(FILE *__restrict stream, const char *__restrict format, ...)
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((format(printf, 2, 3)))
+#endif
+
+inline int rv_fprintf(std::FILE *stream, const char *format, ...)
 {
-	va_list _va_list;
+#if defined(__EMSCRIPTEN__)
+	// TODO: Browser interpretation
+	return -1;
+#elif defined(_WIN32)
+	// TODO: Windows interpretation
+	return -1;
+#elif defined(__unix__) || defined(__APPLE__)
+	std::va_list _va_list;
+	va_start(_va_list, format);
+	int res = std::vfprintf(stream, format, _va_list);
+	va_end(_va_list);
+	return res;
+#else
+#error "rv_stdio.hpp: unsupported platform, add a branch to rv_fprintf"
+#endif
+}
 
-	return vfprintf(stream, format, __va_list_tag * arg);
-};
-
-} // namespace rv_pdktool
+} // namespace rv_pdklib

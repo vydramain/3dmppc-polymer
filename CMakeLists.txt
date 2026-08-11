@@ -72,7 +72,7 @@ target_link_libraries(rv_dmain PRIVATE 3dmppc_pdklib)
 
 # Stamps every log line this target emits with its origin, so game lines are
 # told apart from console lines without anyone passing an argument. Four
-# characters wide; see pdklib/rv_stdio.hpp.
+# characters wide; see pdklib/rv_logs.hpp.
 target_compile_definitions(rv_dmain PRIVATE RV_LOG_ORIGIN="disc")
 
 if(MSVC)
@@ -96,8 +96,8 @@ target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
-# separate tree with a separate purpose, and the console takes exactly one thing
-# from it — pdklib/rv_stdio.hpp.
+# separate tree with a separate purpose, and the console takes from it only the
+# output stack — pdklib/rv_stdio.hpp and pdklib/rv_logs.hpp on top of it.
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
 
