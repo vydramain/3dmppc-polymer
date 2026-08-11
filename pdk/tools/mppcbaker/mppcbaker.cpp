@@ -26,6 +26,8 @@
 #include <utility>
 #include <vector>
 
+#include "pdklib/rv_stdio.hpp"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -322,12 +324,12 @@ inline const char* rv_baker_progname() {
 }
 
 [[noreturn]] void rv_baker_fatal(const std::string& message) {
-    std::fprintf(stderr, "%s: %s\n", rv_baker_progname(), message.c_str());
+    rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_baker_progname(), message.c_str());
     std::exit(1);
 }
 
 void rv_baker_print_usage(std::FILE* out) {
-    std::fprintf(out,
+    rv_pdklib::rv_fprintf(out,
                  "usage: mppcbaker <input.png> <output.mppctex> --format idx4|idx8|direct15\n"
                  "                [--transparent-key RRGGBB]\n"
                  "\n"
@@ -525,7 +527,7 @@ int run(int argc, char** argv) {
             rv_baker_fatal("'" + opt.input + "' has no opaque pixel: there is nothing to put in a palette");
         }
         if (bins.size() > color_slots) {
-            std::fprintf(stderr,
+            rv_pdklib::rv_fprintf(stderr,
                          "mppcbaker: note: %zu distinct colours reduced to %zu palette entries\n",
                          bins.size(), color_slots);
         }

@@ -17,6 +17,8 @@
 #include <format>
 #include <string>
 
+#include "pdklib/rv_stdio.hpp"
+
 // Who is speaking, four characters wide. Set once per build target, e.g.
 // target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc"), and never by
 // calling code: an origin nobody has to remember to pass is an origin that is
@@ -122,11 +124,11 @@ inline void rv_log_emit(rv_log_level level, const char *origin, const char *tag,
 	const char *file, int line, const std::string &message)
 {
 	if (RV_LOG_LEVEL_DBG == level) {
-		std::fprintf(stderr, "[%s][%s] %s: %s (%s:%d)\n", origin,
+		rv_fprintf(stderr, "[%s][%s] %s: %s (%s:%d)\n", origin,
 			rv_log_level_name(level), tag, message.c_str(), file, line);
 		return;
 	}
-	std::fprintf(stderr, "[%s][%s] %s: %s\n", origin, rv_log_level_name(level), tag,
+	rv_fprintf(stderr, "[%s][%s] %s: %s\n", origin, rv_log_level_name(level), tag,
 		message.c_str());
 }
 

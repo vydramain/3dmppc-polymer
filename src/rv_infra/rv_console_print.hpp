@@ -8,11 +8,13 @@
 //
 // No level, no tag, no source position: the reader is starting a console, not
 // debugging one. Everything the console says about its own work goes through
-// RV_LOG_* from pdklib/rv_stdio.hpp instead.
+// RV_LOG_* from pdklib/rv_logs.hpp instead.
 #pragma once
 
 #include <cstdio>
 #include <string>
+
+#include "pdklib/rv_stdio.hpp"
 
 #ifdef __GLIBC__
 #include <cerrno> // IWYU pragma: keep - declares program_invocation_short_name
@@ -34,12 +36,12 @@ inline const char *rv_console_progname()
 
 inline void rv_console_print_error(const std::string &message)
 {
-	std::fprintf(stderr, "%s: %s\n", rv_console_progname(), message.c_str());
+	rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_console_progname(), message.c_str());
 }
 
 inline void rv_console_print_usage(std::FILE *stream)
 {
-	std::fprintf(stream,
+	rv_pdklib::rv_fprintf(stream,
 		"3dmppc - the console: mount a disc and run it\n"
 		"\n"
 		"Usage:\n"
