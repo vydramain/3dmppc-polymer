@@ -1,0 +1,15 @@
+# Example of mppcdisc with Lua scripts
+
+[disc]
+id = "example-lua"
+title = "mppcdisc example with lua"
+
+[build]
+sources = ["src/*.cpp"]
+
+[assets]
+files = ["assets/*.txt"]
+
+[textures]
+files = ["assets/*.png"]
+format = "idx8"

@@ -29,6 +29,26 @@ if(NOT SDL3_FOUND)
   FetchContent_MakeAvailable(SDL3)
 endif()
 
+# --- LuaJIT --------------------------------------------------------------------
+# TODO: Need to make fork with CMake build system only for my project for easiest
+#       import to system
+find_package(LuaJIT QUIET)
+if(NOT LuaJIT_FOUND)
+  message(STATUS "LuaJIT not found on system - fetching from source.")
+  FetchContent_Declare(
+    LuaJIT
+    GIT_REPOSITORY https://github.com/LuaJIT/LuaJIT.git
+    GIT_TAG v2.1
+    GIT_SHALLOW TRUE
+  )
+  FetchContent_MakeAvailable(LuaJIT)
+endif()
+add_custom_command(OUTPUT ${luajit_SOURCE_DIR}/src/libluajit.a COMMAND make WORKING_DIRECTORY ${luajit_SOURCE_DIR})
+add_custom_target(libluajit_maker DEPENDS ${luajit_SOURCE_DIR}/src/libluajit.a)
+add_library(libluajit STATIC IMPORTED)
+set_target_properties(libluajit PROPERTIES IMPORTED_LOCATION ${luajit_SOURCE_DIR}/src/libluajit.a INTERFACE_INCLUDE_DIRECTORIES ${luajit_SOURCE_DIR}/src)
+add_dependencies(libluajit libluajit_maker)
+
 # NEUROSLOP-BEGIN (claude-opus-5)
 # stb_image is gone with the demo that used it. The console never decodes an
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
@@ -69,6 +89,7 @@ file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdklib)
+target_link_libraries(rv_dmain PRIVATE libluajit)
 
 # Stamps every log line this target emits with its origin, so game lines are
 # told apart from console lines without anyone passing an argument. Four
@@ -94,6 +115,7 @@ add_executable(3dmppc
 
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
+target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
 # separate tree with a separate purpose, and the console takes from it only the
