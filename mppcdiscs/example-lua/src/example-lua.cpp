@@ -1,6 +1,4 @@
 #include <cstdint>
-#include <cstring>
-#include <vector>
 
 #include "pdk/de/rv_de.hpp"
 #include "pdk/ve/rv_ve.hpp"

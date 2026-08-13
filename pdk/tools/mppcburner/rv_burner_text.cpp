@@ -1,8 +1,6 @@
 #include "rv_burner_text.hpp"
 
 #include <algorithm>
-#include <cctype>
-#include <cerrno>
 #include <cstddef>
 #include <cstdlib>
 #include <limits>

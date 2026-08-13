@@ -21,16 +21,6 @@ namespace rv_pdktools
 namespace
 {
 
-const section_spec *find_section(std::string_view name)
-{
-	for (const section_spec &s : rv_burn_sections) {
-		if (s.name == name) {
-			return &s;
-		}
-	}
-	return nullptr;
-}
-
 // --- character classes --------------------------------------------------------
 
 bool is_ident(char c)
@@ -196,7 +186,7 @@ private:
 			return fail(line, "section header '[" + name + "' is missing its closing ']'");
 		}
 		get(); // ']'
-		if (find_section(name) == nullptr) {
+		if (rv_burn_sections_get(name) == nullptr) {
 			return fail(line, "unknown section '[" + name + "]'" + suggest_section(name, rv_burn_sections, std::size(rv_burn_sections)));
 		}
 		if (!seen_sections_.insert(name).second) {
@@ -417,7 +407,7 @@ private:
 
 	bool assign(const std::string &key, const mvalue &value, int key_line)
 	{
-		const section_spec *spec = find_section(section_);
+		const section_spec *spec = rv_burn_sections_get(section_);
 		if (spec == nullptr) {
 			return fail(key_line, "internal error: unknown current section");
 		}
@@ -440,7 +430,7 @@ private:
 				if (value.kind != value_kind::string) {
 					return wrong_type(key, value, value_kind::string);
 				}
-				(key == "id" ? manifest_.id : manifest_.title) = value.str;
+				(key == "id" ? manifest_.disc_id : manifest_.disc_title) = value.str;
 				return true;
 			}
 			if (value.kind != value_kind::integer) {
@@ -455,15 +445,15 @@ private:
 				return wrong_type(key, value, value_kind::array);
 			}
 			if (key == "sources") {
-				manifest_.sources = value.arr;
+				manifest_.build_sources = value.arr;
 			} else if (key == "defines") {
-				manifest_.defines = value.arr;
+				manifest_.build_defines = value.arr;
 			} else if (key == "include_dirs") {
-				manifest_.include_dirs = value.arr;
+				manifest_.build_include_dirs = value.arr;
 			} else if (section_ == "assets") {
-				manifest_.files = value.arr;
+				manifest_.assets_files = value.arr;
 			} else {
-				manifest_.textures.files = value.arr;
+				manifest_.textures_files.files = value.arr;
 			}
 			return true;
 		}
@@ -472,7 +462,7 @@ private:
 			if (value.kind != value_kind::string) {
 				return wrong_type(key, value, value_kind::string);
 			}
-			manifest_.textures.format = value.str;
+			manifest_.textures_files.format = value.str;
 			return true;
 		}
 
@@ -602,20 +592,20 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 	// what the burner actually used rather than leaning on a default that a
 	// later version of the tool might change.
 	out << "[disc]\n";
-	out << "id = " << quote(manifest.id) << "\n";
-	out << "title = " << quote(manifest.title) << "\n";
+	out << "id = " << quote(manifest.disc_id) << "\n";
+	out << "title = " << quote(manifest.disc_title) << "\n";
 
 	out << "\n[build]\n";
-	render_array(out, "sources", manifest.sources);
-	render_array(out, "defines", manifest.defines);
-	render_array(out, "include_dirs", manifest.include_dirs);
+	render_array(out, "sources", manifest.build_sources);
+	render_array(out, "defines", manifest.build_defines);
+	render_array(out, "include_dirs", manifest.build_include_dirs);
 
 	out << "\n[assets]\n";
-	render_array(out, "files", manifest.files);
+	render_array(out, "files", manifest.assets_files);
 
 	out << "\n[textures]\n";
-	render_array(out, "files", manifest.textures.files);
-	out << "format = " << quote(manifest.textures.format) << "\n";
+	render_array(out, "files", manifest.textures_files.files);
+	out << "format = " << quote(manifest.textures_files.format) << "\n";
 
 	out << "\n[budget]\n";
 	out << "texture_max_width = " << manifest.budget.texture_max_width << "\n";
@@ -633,26 +623,26 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
 	// the directory the console unpacks into, so it is checked as a FILENAME
 	// before anything else touches it. A '/' would escape the output directory,
 	// ".." would climb out of it, and a leading '.' would hide the result.
-	if (manifest.id.empty()) {
+	if (manifest.disc_id.empty()) {
 		error = "[disc] id is empty — the disc needs a short machine name";
 		return false;
 	}
-	for (char c : manifest.id) {
+	for (char c : manifest.disc_id) {
 		const unsigned char u = static_cast<unsigned char>(c);
 		if (std::isalnum(u) == 0 && c != '-' && c != '_') {
-			error = "[disc] id '" + manifest.id +
+			error = "[disc] id '" + manifest.disc_id +
 				"' is not a safe filename — use letters, digits, '-' and '_' only";
 			return false;
 		}
 	}
-	if (manifest.id.front() == '.') { // unreachable through the loop above, kept as a guard
+	if (manifest.disc_id.front() == '.') { // unreachable through the loop above, kept as a guard
 		error = "[disc] id must not start with '.'";
 		return false;
 	}
 
 	bool format_known = false;
 	for (std::string_view f : rv_burn_approved_texture_formats) {
-		if (f == manifest.textures.format) {
+		if (f == manifest.textures_files.format) {
 			format_known = true;
 		}
 	}
@@ -664,7 +654,7 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
 			}
 			known += std::string(rv_burn_approved_texture_formats[i]);
 		}
-		error = "[textures] format '" + manifest.textures.format +
+		error = "[textures] format '" + manifest.textures_files.format +
 			"' is unknown — expected one of " + known;
 		return false;
 	}

@@ -34,19 +34,22 @@ struct rv_manifest_budget {
 
 struct rv_manifest {
 	// [disc]
-	std::string id;    // short machine name, e.g. "hello"
-	std::string title; // human title for the window and logs
+	std::string disc_id;    // short machine name, e.g. "hello"
+	std::string disc_title; // human title for the window and logs
 
 	// [build] — globs relative to the disc directory
-	std::vector<std::string> sources;
-	std::vector<std::string> defines;
-	std::vector<std::string> include_dirs;
+	std::vector<std::string> build_sources;
+	std::vector<std::string> build_defines;
+	std::vector<std::string> build_include_dirs;
+
+	// [scripts] - globs relative lua scripts to the disc directory
+	std::vector<std::string> scripts_sources;
 
 	// [assets] — globs copied into the archive verbatim
-	std::vector<std::string> files;
+	std::vector<std::string> assets_files;
 
 	// [textures] — globs baked through mppcbaker on the way in
-	rv_manifest_textures textures;
+	rv_manifest_textures textures_files;
 
 	// [budget]
 	rv_manifest_budget budget;
