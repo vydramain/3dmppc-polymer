@@ -1,7 +1,5 @@
 #pragma once
 
-#include <cctype>
-#include <cerrno>
 #include <cstddef>
 #include <cstdlib>
 #include <string>
@@ -41,3 +39,13 @@ constexpr section_spec rv_burn_sections[] = {
 // The spellings rv_manifest_validate accepts for [textures] format; they match
 // the rv_texfmt enumerators of pdk/cv/rv_texture.hpp one for one.
 constexpr std::string_view rv_burn_approved_texture_formats[] = { "idx4", "idx8", "direct15" };
+
+const section_spec *rv_burn_sections_get(std::string_view name)
+{
+	for (const section_spec &s : rv_burn_sections) {
+		if (s.name == name) {
+			return &s;
+		}
+	}
+	return nullptr;
+}

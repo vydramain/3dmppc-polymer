@@ -7,7 +7,6 @@
 //   mppcburner: expected one disc directory    <- printed by us
 #pragma once
 
-#include <cstdio>
 #include <string>
 
 #include "pdklib/rv_stdio.hpp"
