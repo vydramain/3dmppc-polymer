@@ -7,6 +7,9 @@ title = "mppcdisc example with lua"
 [build]
 sources = ["src/*.cpp"]
 
+[scripts]
+sources = ["scripts/*.lua"]
+
 [assets]
 files = ["assets/*.txt"]
 
