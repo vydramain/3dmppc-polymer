@@ -14,6 +14,9 @@
 
 add_executable(mppcburner
   main.cpp
+  rv_burner_character.cpp
+  rv_burner_manifest_parser.cpp
+  rv_burner_text.cpp
   rv_manifest.cpp
   rv_zipwrite.cpp
   rv_build.cpp
