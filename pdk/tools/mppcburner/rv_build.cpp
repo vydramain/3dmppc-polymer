@@ -655,7 +655,7 @@ std::string rv_cmake_project_text(const rv_manifest &manifest,
 	text += "# It exists so a disc is compiled by cmake+ninja rather than by a compiler\n";
 	text += "# driver written inside the burner. See rv_build.cpp for the reasoning.\n";
 	text += "cmake_minimum_required(VERSION 3.20)\n";
-	text += "project(mppcdisc_" + manifest.id + " CXX)\n\n";
+	text += "project(mppcdisc_" + manifest.disc_id + " CXX)\n\n";
 
 	text += "set(CMAKE_CXX_STANDARD 23)\n";
 	text += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n";
@@ -707,7 +707,7 @@ std::string rv_cmake_project_text(const rv_manifest &manifest,
 	// be a disc that could get it wrong.
 	text += "target_compile_definitions(disc PRIVATE\n";
 	text += "  " + cmake_quote("RV_LOG_ORIGIN=\"disc\"") + "\n";
-	for (const std::string &define : manifest.defines) {
+	for (const std::string &define : manifest.build_defines) {
 		text += "  " + cmake_quote(define) + "\n";
 	}
 	text += ")\n\n";
@@ -776,7 +776,7 @@ int rv_build_run(const rv_burner_options &options)
 
 	// ── [2/4] compile ─────────────────────────────────────────────────────────
 	std::vector<std::string> sources;
-	if (!rv_glob_expand(disc_dir, manifest.sources, sources, error)) {
+	if (!rv_glob_expand(disc_dir, manifest.build_sources, sources, error)) {
 		rv_burner_print_error("[build] sources: " + error);
 		return 1;
 	}
@@ -796,7 +796,7 @@ int rv_build_run(const rv_burner_options &options)
 	// manifest asks for: the only paths outside the disc that ever reach the
 	// generated project are the PDK and the SDK.
 	std::vector<std::string> absolute_includes;
-	for (const std::string &include : manifest.include_dirs) {
+	for (const std::string &include : manifest.build_include_dirs) {
 		const fs::path resolved = fs::weakly_canonical(disc_dir / include, ec);
 		if (ec) {
 			rv_burner_print_error("[build] include_dirs: cannot resolve '" + include + "'");
@@ -915,8 +915,8 @@ int rv_build_run(const rv_burner_options &options)
 	std::vector<rv_archive_item> items;
 
 	std::vector<std::string> asset_files;
-	if (!manifest.files.empty()) {
-		if (!rv_glob_expand(disc_dir, manifest.files, asset_files, error)) {
+	if (!manifest.assets_files.empty()) {
+		if (!rv_glob_expand(disc_dir, manifest.assets_files, asset_files, error)) {
 			rv_burner_print_error("[assets] files: " + error);
 			return 1;
 		}
@@ -934,8 +934,8 @@ int rv_build_run(const rv_burner_options &options)
 	}
 
 	std::vector<std::string> texture_files;
-	if (!manifest.textures.files.empty()) {
-		if (!rv_glob_expand(disc_dir, manifest.textures.files, texture_files, error)) {
+	if (!manifest.textures_files.files.empty()) {
+		if (!rv_glob_expand(disc_dir, manifest.textures_files.files, texture_files, error)) {
 			rv_burner_print_error("[textures] files: " + error);
 			return 1;
 		}
@@ -970,7 +970,7 @@ int rv_build_run(const rv_burner_options &options)
 			const rv_archive_item &item = items[i];
 			const std::string command =
 				shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
-				shell_quote(item.payload) + " --format " + shell_quote(manifest.textures.format);
+				shell_quote(item.payload) + " --format " + shell_quote(manifest.textures_files.format);
 			status = run_capture(command, child_output);
 			if (status != 0) {
 				dump_child_output(child_output);
