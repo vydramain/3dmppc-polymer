@@ -1,12 +1,22 @@
 #include "rv_burner_manifest_parser.hpp"
 
+#include <cerrno>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <iterator>
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "rv_burner_character.hpp"
+#include "rv_burner_manifest_assigner.hpp"
+#include "rv_burner_manifest_failer.hpp"
 #include "rv_burner_schema.hpp"
 #include "rv_burner_text.hpp"
 
 bool rv_pdktools::rv_burner_manifest_parser::run(std::string &error)
 {
-	manifest_ = rv_manifest{};
 	for (;;) {
 		skip_gaps();
 		if (eof()) {
@@ -22,8 +32,8 @@ bool rv_pdktools::rv_burner_manifest_parser::run(std::string &error)
 				break;
 			}
 		} else {
-			fail(line_,
-				std::string("expected a section header or 'key = value', found '") + c + "'");
+			rv_burner_manifest_failer::fail(line_,
+				std::string("expected a section header or 'key = value', found '") + c + "'", error_);
 			break;
 		}
 	}
@@ -86,14 +96,6 @@ void rv_pdktools::rv_burner_manifest_parser::skip_gaps()
 	}
 }
 
-bool rv_pdktools::rv_burner_manifest_parser::fail(int line, const std::string &message)
-{
-	if (error_.empty()) {
-		error_ = "line " + std::to_string(line) + ": " + message;
-	}
-	return false;
-}
-
 // --- grammar --------------------------------------------------------------
 
 bool rv_pdktools::rv_burner_manifest_parser::parse_section()
@@ -107,17 +109,17 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_section()
 	}
 	skip_inline();
 	if (name.empty()) {
-		return fail(line, "empty section header");
+		return rv_burner_manifest_failer::fail(line, "empty section header", error_);
 	}
 	if (eof() || peek() != ']') {
-		return fail(line, "section header '[" + name + "' is missing its closing ']'");
+		return rv_burner_manifest_failer::fail(line, "section header '[" + name + "' is missing its closing ']'", error_);
 	}
 	get(); // ']'
 	if (rv_burner_sections_get(name) == nullptr) {
-		return fail(line, "unknown section '[" + name + "]'" + suggest_section(name, rv_burner_sections, std::size(rv_burner_sections)));
+		return rv_burner_manifest_failer::fail(line, "unknown section '[" + name + "]'" + suggest_section(name, rv_burner_sections, std::size(rv_burner_sections)), error_);
 	}
 	if (!seen_sections_.insert(name).second) {
-		return fail(line, "section '[" + name + "]' appears twice");
+		return rv_burner_manifest_failer::fail(line, "section '[" + name + "]' appears twice", error_);
 	}
 	section_ = name;
 	return expect_line_end("section header");
@@ -132,18 +134,18 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_assignment()
 	}
 	skip_inline();
 	if (eof() || peek() != '=') {
-		return fail(line, "expected '=' after key '" + key + "'");
+		return rv_burner_manifest_failer::fail(line, "expected '=' after key '" + key + "'", error_);
 	}
 	get(); // '='
 	skip_inline();
 	if (section_.empty()) {
-		return fail(line, "key '" + key + "' appears before any section header");
+		return rv_burner_manifest_failer::fail(line, "key '" + key + "' appears before any section header", error_);
 	}
 	rv_pdktools::rv_burner_mvalue value;
 	if (!parse_value(value)) {
 		return false;
 	}
-	if (!assign(key, value, line)) {
+	if (!assigner_.assign(key, value, line)) {
 		return false;
 	}
 	return expect_line_end("value");
@@ -166,10 +168,10 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_value(rv_burner_mvalue &out)
 		return parse_integer(out.num);
 	}
 	if (eof() || c == '\n' || c == '#') {
-		return fail(out.line, "missing value after '='");
+		return rv_burner_manifest_failer::fail(out.line, "missing value after '='", error_);
 	}
 	if (c == '\'') {
-		return fail(out.line, "single-quoted strings are not supported — use double quotes");
+		return rv_burner_manifest_failer::fail(out.line, "single-quoted strings are not supported — use double quotes", error_);
 	}
 
 	std::string word;
@@ -178,12 +180,14 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_value(rv_burner_mvalue &out)
 		word += get();
 	}
 	if (word == "true" || word == "false") {
-		return fail(out.line,
+		return rv_burner_manifest_failer::fail(out.line,
 			"booleans are not supported — this manifest holds strings, "
-			"integers and arrays of strings only");
+			"integers and arrays of strings only",
+			error_);
 	}
-	return fail(out.line, "unsupported value '" + word + "' — expected a quoted string, an integer or an array of "
-														 "quoted strings");
+	return rv_burner_manifest_failer::fail(out.line, "unsupported value '" + word + "' — expected a quoted string, an integer or an array of "
+																					"quoted strings",
+		error_);
 }
 
 bool rv_pdktools::rv_burner_manifest_parser::parse_string(std::string &out)
@@ -192,10 +196,10 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_string(std::string &out)
 	get(); // opening quote
 	for (;;) {
 		if (eof()) {
-			return fail(start, "unterminated string — no closing '\"' before end of file");
+			return rv_burner_manifest_failer::fail(start, "unterminated string — no closing '\"' before end of file", error_);
 		}
 		if (peek() == '\n') {
-			return fail(start, "unterminated string — no closing '\"' before end of line");
+			return rv_burner_manifest_failer::fail(start, "unterminated string — no closing '\"' before end of line", error_);
 		}
 		const char c = get();
 		if (c == '"') {
@@ -206,7 +210,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_string(std::string &out)
 			continue;
 		}
 		if (eof() || peek() == '\n') {
-			return fail(start, "unterminated string — '\\' at end of line");
+			return rv_burner_manifest_failer::fail(start, "unterminated string — '\\' at end of line", error_);
 		}
 		const int escape_line = line_;
 		const char e = get();
@@ -227,8 +231,9 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_string(std::string &out)
 			out += '\r';
 			break;
 		default:
-			return fail(escape_line, std::string("unknown escape '\\") + e + "' in string — only \\\" \\\\ \\n \\t \\r are "
-																			 "recognised");
+			return rv_burner_manifest_failer::fail(escape_line, std::string("unknown escape '\\") + e + "' in string — only \\\" \\\\ \\n \\t \\r are "
+																										"recognised",
+				error_);
 		}
 	}
 }
@@ -240,7 +245,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_array(std::vector<std::string
 	for (;;) {
 		skip_gaps();
 		if (eof()) {
-			return fail(start, "unterminated array — no closing ']' before end of file");
+			return rv_burner_manifest_failer::fail(start, "unterminated array — no closing ']' before end of file", error_);
 		}
 		if (peek() == ']') {
 			get();
@@ -248,9 +253,9 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_array(std::vector<std::string
 		}
 		if (peek() != '"') {
 			if (peek() == ',') {
-				return fail(line_, "empty element in array — expected a quoted string");
+				return rv_burner_manifest_failer::fail(line_, "empty element in array — expected a quoted string", error_);
 			}
-			return fail(line_, "array elements must be quoted strings");
+			return rv_burner_manifest_failer::fail(line_, "array elements must be quoted strings", error_);
 		}
 		std::string element;
 		if (!parse_string(element)) {
@@ -260,7 +265,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_array(std::vector<std::string
 
 		skip_gaps();
 		if (eof()) {
-			return fail(start, "unterminated array — no closing ']' before end of file");
+			return rv_burner_manifest_failer::fail(start, "unterminated array — no closing ']' before end of file", error_);
 		}
 		if (peek() == ',') {
 			get();
@@ -270,7 +275,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_array(std::vector<std::string
 			get();
 			return true;
 		}
-		return fail(line_, std::string("expected ',' or ']' in array, found '") + peek() + "'");
+		return rv_burner_manifest_failer::fail(line_, std::string("expected ',' or ']' in array, found '") + peek() + "'", error_);
 	}
 }
 
@@ -282,7 +287,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_integer(int64_t &out)
 		get();
 	}
 	if (eof() || !rv_pdktools::rv_burner_is_digit(peek())) {
-		return fail(start, "expected a decimal integer");
+		return rv_burner_manifest_failer::fail(start, "expected a decimal integer", error_);
 	}
 	while (!eof() && rv_pdktools::rv_burner_is_digit(peek())) {
 		get();
@@ -294,7 +299,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_integer(int64_t &out)
 		while (!eof() && rv_pdktools::rv_burner_is_ident(peek())) {
 			word += get();
 		}
-		return fail(start, "'" + word + "' is not a decimal integer");
+		return rv_burner_manifest_failer::fail(start, "'" + word + "' is not a decimal integer", error_);
 	}
 
 	const std::string digits = text_.substr(begin, pos_ - begin);
@@ -302,7 +307,7 @@ bool rv_pdktools::rv_burner_manifest_parser::parse_integer(int64_t &out)
 	char *end = nullptr;
 	const long long parsed = std::strtoll(digits.c_str(), &end, 10);
 	if (errno == ERANGE || end == digits.c_str()) {
-		return fail(start, "integer '" + digits + "' does not fit in 64 bits");
+		return rv_burner_manifest_failer::fail(start, "integer '" + digits + "' does not fit in 64 bits", error_);
 	}
 	out = static_cast<int64_t>(parsed);
 	return true;
@@ -321,88 +326,6 @@ bool rv_pdktools::rv_burner_manifest_parser::expect_line_end(const char *what)
 		get();
 		return true;
 	}
-	return fail(line_,
-		std::string("unexpected text after ") + what + " — one " + what + " per line");
-}
-
-// --- binding a value to a field -------------------------------------------
-
-bool rv_pdktools::rv_burner_manifest_parser::wrong_type(const std::string &key, const rv_burner_mvalue &v, rv_burner_value_kind want)
-{
-	return fail(v.line, "key '" + key + "' in [" + section_ + "] takes " + std::string(rv_burner_kind_name(want)) + ", not " + std::string(rv_burner_kind_name(v.kind)));
-}
-
-bool rv_pdktools::rv_burner_manifest_parser::assign(const std::string &key, const rv_burner_mvalue &value, int key_line)
-{
-	const section_spec *spec = rv_burner_sections_get(section_);
-	if (spec == nullptr) {
-		return fail(key_line, "internal error: unknown current section");
-	}
-
-	bool known = false;
-	for (std::size_t i = 0; i < spec->key_count; ++i) {
-		if (spec->keys[i] == key) {
-			known = true;
-		}
-	}
-	if (!known) {
-		return fail(key_line, "unknown key '" + key + "' in [" + section_ + "]" + suggest(key, spec->keys, spec->key_count));
-	}
-	if (!seen_keys_.insert(section_ + "." + key).second) {
-		return fail(key_line, "key '" + key + "' in [" + section_ + "] is set twice");
-	}
-
-	if (section_ == "disc") {
-		if (key == "id" || key == "title") {
-			if (value.kind != rv_burner_value_kind::string) {
-				return wrong_type(key, value, rv_burner_value_kind::string);
-			}
-			(key == "id" ? manifest_.disc_id : manifest_.disc_title) = value.str;
-			return true;
-		}
-		if (value.kind != rv_burner_value_kind::integer) {
-			return wrong_type(key, value, rv_burner_value_kind::integer);
-		}
-		return true;
-	}
-
-	if (section_ == "build" || section_ == "assets" ||
-		(section_ == "textures" && key == "files")) {
-		if (value.kind != rv_burner_value_kind::array) {
-			return wrong_type(key, value, rv_burner_value_kind::array);
-		}
-		if (key == "sources") {
-			manifest_.build_sources = value.arr;
-		} else if (key == "defines") {
-			manifest_.build_defines = value.arr;
-		} else if (key == "include_dirs") {
-			manifest_.build_include_dirs = value.arr;
-		} else if (section_ == "assets") {
-			manifest_.assets_files = value.arr;
-		} else {
-			manifest_.textures_files.files = value.arr;
-		}
-		return true;
-	}
-
-	if (section_ == "textures") { // key == "format"
-		if (value.kind != rv_burner_value_kind::string) {
-			return wrong_type(key, value, rv_burner_value_kind::string);
-		}
-		manifest_.textures_files.format = value.str;
-		return true;
-	}
-
-	// [budget]
-	if (value.kind != rv_burner_value_kind::integer) {
-		return wrong_type(key, value, rv_burner_value_kind::integer);
-	}
-	if (key == "texture_max_width") {
-		manifest_.budget.texture_max_width = value.num;
-	} else if (key == "texture_max_height") {
-		manifest_.budget.texture_max_height = value.num;
-	} else {
-		manifest_.budget.video_memory_size = value.num;
-	}
-	return true;
+	return rv_burner_manifest_failer::fail(line_,
+		std::string("unexpected text after ") + what + " — one " + what + " per line", error_);
 }
