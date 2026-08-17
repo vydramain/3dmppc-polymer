@@ -10,18 +10,21 @@ namespace rv_pdktools
 {
 
 // One PNG-to-texel conversion rule. `files` are globs relative to the disc
-// directory; `format` is the rv_texfmt to bake into, spelled "idx4", "idx8" or
-// "direct15".
+// directory; `format` is the rv_texfmt to bake into. The manifest spells it as
+// text and the binder turns that text into the enumerator — the accepted
+// spellings are the rows of rv_texfmt_names (pdk/cv/rv_texture.hpp) and are not
+// restated anywhere in this tool.
 struct rv_burner_manifest_textures {
 	std::vector<std::string> files;
 	rv_pdk::rv_texfmt format;
 };
 
-// The budget the burner enforces at pack time. Defaults are the REFERENCE
-// console (docs/platform/specs.md); a disc built for a different machine states
-// its own. Checking here is the whole point: a texture that does not fit is a
-// error on the developer's desk, not a RV_ERR_INVAL on the player's loading
-// screen.
+// The budget the burner enforces at pack time. There are no defaults on
+// purpose: the numbers describe the machine the disc is built for, and a value
+// the tool invented is a guess printed on the disc as if it were a decision.
+// A manifest without a [budget] section arrives here all-zero and is refused.
+// Checking here is the whole point: a texture that does not fit is an error on
+// the developer's desk, not a RV_ERR_INVAL on the player's loading screen.
 struct rv_burner_manifest_budget {
 	int64_t texture_max_width;
 	int64_t texture_max_height;

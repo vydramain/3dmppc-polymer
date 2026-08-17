@@ -227,10 +227,33 @@ bool rv_manifest_validate(const rv_burner_manifest &manifest, std::string &error
 		{ "texture_max_height", manifest.budget.texture_max_height },
 		{ "video_memory_size", manifest.budget.video_memory_size },
 	};
+
+	// The budget has no defaults, so a manifest without the section arrives here
+	// value-initialised — every field zero. Saying "texture_max_width must be
+	// positive, got 0" about that is true and useless: nothing is wrong with the
+	// value, the whole section was never written. Complain about what is actually
+	// missing before looking at the fields one by one.
+	std::size_t unset = 0;
+	for (const budget_field &b : budgets) {
+		if (b.value == 0) {
+			++unset;
+		}
+	}
+	if (unset == std::size(budgets)) {
+		std::string keys;
+		for (const budget_field &b : budgets) {
+			if (!keys.empty()) {
+				keys += ", ";
+			}
+			keys += b.name;
+		}
+		error = std::format("[budget] section is missing — state {}", keys);
+		return false;
+	}
+
 	for (const budget_field &b : budgets) {
 		if (b.value <= 0) {
-			error = std::string("[budget] ") + b.name + " must be positive, got " +
-				std::to_string(b.value);
+			error = std::format("[budget] {} must be positive, got {}", b.name, b.value);
 			return false;
 		}
 	}
