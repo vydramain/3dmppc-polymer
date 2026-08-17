@@ -1,22 +1,24 @@
 #include "rv_manifest.hpp"
 
 #include <cctype>
-#include <cerrno>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <expected>
 #include <fstream>
 #include <iterator>
-#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "rv_burner_manifest_binder.hpp"
+#include "rv_burner_manifest_failer.hpp"
+#include "rv_burner_manifest_lexer.hpp"
 #include "rv_burner_manifest_parser.hpp"
+#include "rv_burner_manifest_semantic.hpp"
+#include "rv_burner_manifest_token.hpp"
+#include "rv_burner_manifest_tree.hpp"
 #include "rv_burner_schema.hpp"
-#include "rv_burner_text.hpp"
 
 namespace rv_pdktools
 {
@@ -86,10 +88,35 @@ void render_array(std::ostringstream &out, const std::string &key,
 
 } // namespace
 
+// The front of the pipeline, in the order of the stages. Each one hands the next
+// a whole product and its complaints to one failer; only the binder is allowed
+// to know what rv_manifest looks like.
+std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text,
+	const std::string &origin)
+{
+	rv_burner_manifest_failer failer;
+
+	const std::vector<rv_burner_token> tokens = rv_burner_manifest_lex(text);
+
+	rv_burner_manifest_parser parser(tokens, failer);
+	const rv_burner_tree tree = parser.run();
+
+	// Semantics only on a tree that parsed. After a broken line every judgement
+	// about what the author meant is a guess, and a guess printed next to a real
+	// error buries it.
+	if (failer.empty()) {
+		rv_burner_manifest_check(tree, failer);
+	}
+
+	if (!failer.empty()) {
+		return std::unexpected(failer.report(origin));
+	}
+	return rv_burner_manifest_bind(tree);
+}
+
 std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text)
 {
-	rv_burner_manifest_parser parser(text);
-	return parser.run();
+	return rv_manifest_parse(text, std::string());
 }
 
 std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path)
@@ -103,12 +130,9 @@ std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path
 	if (in.bad()) {
 		return std::unexpected("cannot read manifest '" + path + "'");
 	}
-	std::expected<rv_manifest, std::string> parsed = rv_manifest_parse(buffer.str());
-	if (!parsed) {
-		// The line number is only useful next to the file it belongs to.
-		return std::unexpected(path + ": " + parsed.error());
-	}
-	return parsed;
+	// The line number is only useful next to the file it belongs to, so the path
+	// goes in before the diagnostics are rendered.
+	return rv_manifest_parse(buffer.str(), path);
 }
 
 std::string rv_manifest_render(const rv_manifest &manifest)
@@ -127,6 +151,9 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 	render_array(out, "sources", manifest.build_sources);
 	render_array(out, "defines", manifest.build_defines);
 	render_array(out, "include_dirs", manifest.build_include_dirs);
+
+	out << "\n[scripts]\n";
+	render_array(out, "sources", manifest.scripts_sources);
 
 	out << "\n[assets]\n";
 	render_array(out, "files", manifest.assets_files);

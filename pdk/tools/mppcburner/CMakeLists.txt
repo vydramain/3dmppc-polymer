@@ -12,10 +12,17 @@
 # own build system to avoid that would be trading a dependency everyone already
 # has for a pile of code nobody wants to maintain.
 
+# The manifest front end is one stage per file, in pipeline order: lexer, parser,
+# semantic analysis, binder — plus the symbol table and the failer they share.
 add_executable(mppcburner
   main.cpp
   rv_burner_character.cpp
+  rv_burner_manifest_lexer.cpp
   rv_burner_manifest_parser.cpp
+  rv_burner_manifest_symbols.cpp
+  rv_burner_manifest_semantic.cpp
+  rv_burner_manifest_binder.cpp
+  rv_burner_manifest_failer.cpp
   rv_burner_text.cpp
   rv_manifest.cpp
   rv_zipwrite.cpp

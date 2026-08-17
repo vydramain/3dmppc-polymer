@@ -1,330 +1,254 @@
 #include "rv_burner_manifest_parser.hpp"
 
-#include <cerrno>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <iterator>
 #include <string>
 #include <utility>
-#include <vector>
 
-#include "rv_burner_character.hpp"
-#include "rv_burner_manifest_assigner.hpp"
-#include "rv_burner_manifest_failer.hpp"
-#include "rv_burner_schema.hpp"
-#include "rv_burner_text.hpp"
+#include "rv_burner_manifest_token.hpp"
+#include "rv_burner_manifest_tree.hpp"
+#include "rv_burner_manifest_value.hpp"
 
-std::expected<rv_pdktools::rv_manifest, std::string> rv_pdktools::rv_burner_manifest_parser::run()
+namespace rv_pdktools
 {
-	for (;;) {
-		skip_gaps();
-		if (eof()) {
-			break;
-		}
-		const char c = peek();
-		if (c == '[') {
-			if (!parse_section()) {
-				break;
-			}
-		} else if (rv_pdktools::rv_burner_is_ident(c)) {
-			if (!parse_assignment()) {
-				break;
-			}
-		} else {
-			rv_burner_manifest_failer::fail(line_,
-				std::string("expected a section header or 'key = value', found '") + c + "'", error_);
-			break;
-		}
-	}
-	if (!error_.empty()) {
-		return std::unexpected(error_);
-	}
-	return assigner_.take_manifest();
-}
+namespace
+{
 
-bool rv_pdktools::rv_burner_manifest_parser::eof() const
-{
-	return pos_ >= text_.size();
-}
-char rv_pdktools::rv_burner_manifest_parser::peek() const
-{
-	return pos_ < text_.size() ? text_[pos_] : '\0';
-}
+using tk = rv_burner_token_kind;
 
-char rv_pdktools::rv_burner_manifest_parser::get()
-{
-	const char c = text_[pos_++];
-	if (c == '\n') {
-		++line_;
-	}
-	return c;
-}
+} // namespace
 
-// Spaces, tabs and stray carriage returns — never a newline.
-void rv_pdktools::rv_burner_manifest_parser::skip_inline()
+rv_burner_tree rv_burner_manifest_parser::run()
 {
-	while (!eof() && (peek() == ' ' || peek() == '\t' || peek() == '\r')) {
-		get();
-	}
-}
-
-void rv_pdktools::rv_burner_manifest_parser::skip_comment()
-{
-	while (!eof() && peek() != '\n') {
-		get();
-	}
-}
-
-// Everything that may separate two meaningful tokens: whitespace, blank
-// lines and full-line comments. Also used INSIDE an array, which is what
-// makes a multi-line array work without a special case.
-void rv_pdktools::rv_burner_manifest_parser::skip_gaps()
-{
-	for (;;) {
-		skip_inline();
-		if (!eof() && peek() == '#') {
-			skip_comment();
-			continue;
-		}
-		if (!eof() && peek() == '\n') {
+	while (!at(tk::END_OF_FILE) && !failer_.exhausted()) {
+		if (at(tk::NEWLINE)) {
 			get();
 			continue;
 		}
-		return;
+		if (at(tk::INVALID)) {
+			failer_.fail(peek().line, peek().text);
+			recover();
+			continue;
+		}
+		if (at(tk::LBRACKET)) {
+			if (!parse_section()) {
+				recover();
+			}
+			continue;
+		}
+		if (at(tk::IDENT)) {
+			if (!parse_assignment()) {
+				recover();
+			}
+			continue;
+		}
+		failer_.fail(peek().line,
+			"expected a section header or 'key = value', found " + rv_burner_token_spelling(peek()));
+		recover();
 	}
+	return std::move(tree_);
 }
 
-// --- grammar --------------------------------------------------------------
+// --- cursor -------------------------------------------------------------------
 
-bool rv_pdktools::rv_burner_manifest_parser::parse_section()
+const rv_burner_token &rv_burner_manifest_parser::peek() const
 {
-	const int line = line_;
+	return tokens_[pos_];
+}
+
+// The stream ends in exactly one END_OF_FILE and the cursor parks on it, so no
+// caller can walk off the end.
+const rv_burner_token &rv_burner_manifest_parser::get()
+{
+	const rv_burner_token &token = tokens_[pos_];
+	if (token.kind != tk::END_OF_FILE) {
+		++pos_;
+	}
+	return token;
+}
+
+bool rv_burner_manifest_parser::at(rv_burner_token_kind kind) const
+{
+	return peek().kind == kind;
+}
+
+// --- grammar ------------------------------------------------------------------
+
+bool rv_burner_manifest_parser::parse_section()
+{
+	const int line = peek().line;
 	get(); // '['
-	skip_inline();
-	std::string name;
-	while (!eof() && rv_pdktools::rv_burner_is_ident(peek())) {
-		name += get();
+	if (!at(tk::IDENT)) {
+		open_section(std::string(), line, true);
+		return failer_.fail(line,
+			at(tk::RBRACKET) ? "empty section header" : "expected a section name after '['");
 	}
-	skip_inline();
-	if (name.empty()) {
-		return rv_burner_manifest_failer::fail(line, "empty section header", error_);
-	}
-	if (eof() || peek() != ']') {
-		return rv_burner_manifest_failer::fail(line, "section header '[" + name + "' is missing its closing ']'", error_);
+	std::string name = get().text;
+	if (!at(tk::RBRACKET)) {
+		open_section(name, line, true);
+		return failer_.fail(line, "section header '[" + name + "' is missing its closing ']'");
 	}
 	get(); // ']'
-	if (rv_burner_sections_get(name) == nullptr) {
-		return rv_burner_manifest_failer::fail(line, "unknown section '[" + name + "]'" + suggest_section(name, rv_burner_sections, std::size(rv_burner_sections)), error_);
-	}
-	if (!seen_sections_.insert(name).second) {
-		return rv_burner_manifest_failer::fail(line, "section '[" + name + "]' appears twice", error_);
-	}
-	section_ = name;
+	open_section(std::move(name), line, false);
 	return expect_line_end("section header");
 }
 
-bool rv_pdktools::rv_burner_manifest_parser::parse_assignment()
+bool rv_burner_manifest_parser::parse_assignment()
 {
-	const int line = line_;
-	std::string key;
-	while (!eof() && rv_pdktools::rv_burner_is_ident(peek())) {
-		key += get();
-	}
-	skip_inline();
-	if (eof() || peek() != '=') {
-		return rv_burner_manifest_failer::fail(line, "expected '=' after key '" + key + "'", error_);
+	const std::string key = peek().text;
+	const int line = get().line;
+	if (!at(tk::EQUALS)) {
+		return failer_.fail(line, "expected '=' after key '" + key + "'");
 	}
 	get(); // '='
-	skip_inline();
-	if (section_.empty()) {
-		return rv_burner_manifest_failer::fail(line, "key '" + key + "' appears before any section header", error_);
+	if (tree_.sections.empty()) {
+		failer_.fail(line, "key '" + key + "' appears before any section header");
+		// Reported once: everything before the first header lands in a section
+		// nobody will judge.
+		open_section(std::string(), line, true);
 	}
-	rv_pdktools::rv_burner_mvalue value;
-	if (!parse_value(value)) {
+
+	rv_burner_tree_entry entry;
+	entry.key = key;
+	entry.line = line;
+	if (!parse_value(entry.value)) {
 		return false;
 	}
-	if (!assigner_.assign(key, value, line)) {
-		return false;
-	}
+	current_section().entries.push_back(std::move(entry));
 	return expect_line_end("value");
 }
 
-bool rv_pdktools::rv_burner_manifest_parser::parse_value(rv_burner_mvalue &out)
+bool rv_burner_manifest_parser::parse_value(rv_burner_mvalue &out)
 {
-	out.line = line_;
-	const char c = peek();
-	if (c == '"') {
+	const rv_burner_token &token = peek();
+	out.line = token.line;
+	switch (token.kind) {
+	case tk::STRING:
 		out.kind = rv_burner_value_kind::string;
-		return parse_string(out.str);
-	}
-	if (c == '[') {
-		out.kind = rv_burner_value_kind::array;
-		return parse_array(out.arr);
-	}
-	if (c == '-' || c == '+' || rv_pdktools::rv_burner_is_digit(c)) {
+		out.str = get().text;
+		return true;
+	case tk::INTEGER:
 		out.kind = rv_burner_value_kind::integer;
-		return parse_integer(out.num);
+		out.num = get().num;
+		return true;
+	case tk::LBRACKET:
+		out.kind = rv_burner_value_kind::array;
+		return parse_array(out);
+	case tk::INVALID:
+		return failer_.fail(token.line, token.text);
+	case tk::NEWLINE:
+	case tk::END_OF_FILE:
+		return failer_.fail(token.line, "missing value after '='");
+	case tk::IDENT:
+		if (token.text == "true" || token.text == "false") {
+			return failer_.fail(token.line,
+				"booleans are not supported — this manifest holds strings, "
+				"integers and arrays of strings only");
+		}
+		break;
+	default:
+		break;
 	}
-	if (eof() || c == '\n' || c == '#') {
-		return rv_burner_manifest_failer::fail(out.line, "missing value after '='", error_);
-	}
-	if (c == '\'') {
-		return rv_burner_manifest_failer::fail(out.line, "single-quoted strings are not supported — use double quotes", error_);
-	}
-
-	std::string word;
-	while (!eof() && peek() != '\n' && peek() != '#' && peek() != ' ' && peek() != '\t' &&
-		peek() != '\r') {
-		word += get();
-	}
-	if (word == "true" || word == "false") {
-		return rv_burner_manifest_failer::fail(out.line,
-			"booleans are not supported — this manifest holds strings, "
-			"integers and arrays of strings only",
-			error_);
-	}
-	return rv_burner_manifest_failer::fail(out.line, "unsupported value '" + word + "' — expected a quoted string, an integer or an array of "
-																					"quoted strings",
-		error_);
+	return failer_.fail(token.line,
+		"unsupported value " + rv_burner_token_spelling(token) +
+			" — expected a quoted string, an integer or an array of quoted strings");
 }
 
-bool rv_pdktools::rv_burner_manifest_parser::parse_string(std::string &out)
+// Newlines inside the brackets are skipped, which is the whole of the
+// multi-line array support: both shapes parse to the same value.
+bool rv_burner_manifest_parser::parse_array(rv_burner_mvalue &out)
 {
-	const int start = line_;
-	get(); // opening quote
+	const int start = get().line; // '['
 	for (;;) {
-		if (eof()) {
-			return rv_burner_manifest_failer::fail(start, "unterminated string — no closing '\"' before end of file", error_);
+		while (at(tk::NEWLINE)) {
+			get();
 		}
-		if (peek() == '\n') {
-			return rv_burner_manifest_failer::fail(start, "unterminated string — no closing '\"' before end of line", error_);
+		if (at(tk::END_OF_FILE)) {
+			return failer_.fail(start, "unterminated array — no closing ']' before end of file");
 		}
-		const char c = get();
-		if (c == '"') {
-			return true;
-		}
-		if (c != '\\') {
-			out += c;
-			continue;
-		}
-		if (eof() || peek() == '\n') {
-			return rv_burner_manifest_failer::fail(start, "unterminated string — '\\' at end of line", error_);
-		}
-		const int escape_line = line_;
-		const char e = get();
-		switch (e) {
-		case '"':
-			out += '"';
-			break;
-		case '\\':
-			out += '\\';
-			break;
-		case 'n':
-			out += '\n';
-			break;
-		case 't':
-			out += '\t';
-			break;
-		case 'r':
-			out += '\r';
-			break;
-		default:
-			return rv_burner_manifest_failer::fail(escape_line, std::string("unknown escape '\\") + e + "' in string — only \\\" \\\\ \\n \\t \\r are "
-																										"recognised",
-				error_);
-		}
-	}
-}
-
-bool rv_pdktools::rv_burner_manifest_parser::parse_array(std::vector<std::string> &out)
-{
-	const int start = line_;
-	get(); // '['
-	for (;;) {
-		skip_gaps();
-		if (eof()) {
-			return rv_burner_manifest_failer::fail(start, "unterminated array — no closing ']' before end of file", error_);
-		}
-		if (peek() == ']') {
+		if (at(tk::RBRACKET)) {
 			get();
 			return true;
 		}
-		if (peek() != '"') {
-			if (peek() == ',') {
-				return rv_burner_manifest_failer::fail(line_, "empty element in array — expected a quoted string", error_);
-			}
-			return rv_burner_manifest_failer::fail(line_, "array elements must be quoted strings", error_);
+		if (at(tk::INVALID)) {
+			return failer_.fail(peek().line, peek().text);
 		}
-		std::string element;
-		if (!parse_string(element)) {
-			return false;
+		if (at(tk::COMMA)) {
+			return failer_.fail(peek().line, "empty element in array — expected a quoted string");
 		}
-		out.push_back(std::move(element));
+		if (!at(tk::STRING)) {
+			return failer_.fail(peek().line, "array elements must be quoted strings");
+		}
+		out.arr.push_back(get().text);
 
-		skip_gaps();
-		if (eof()) {
-			return rv_burner_manifest_failer::fail(start, "unterminated array — no closing ']' before end of file", error_);
+		while (at(tk::NEWLINE)) {
+			get();
 		}
-		if (peek() == ',') {
+		if (at(tk::COMMA)) {
 			get();
 			continue;
 		}
-		if (peek() == ']') {
+		if (at(tk::RBRACKET)) {
 			get();
 			return true;
 		}
-		return rv_burner_manifest_failer::fail(line_, std::string("expected ',' or ']' in array, found '") + peek() + "'", error_);
-	}
-}
-
-bool rv_pdktools::rv_burner_manifest_parser::parse_integer(int64_t &out)
-{
-	const int start = line_;
-	const std::size_t begin = pos_;
-	if (peek() == '-' || peek() == '+') {
-		get();
-	}
-	if (eof() || !rv_pdktools::rv_burner_is_digit(peek())) {
-		return rv_burner_manifest_failer::fail(start, "expected a decimal integer", error_);
-	}
-	while (!eof() && rv_pdktools::rv_burner_is_digit(peek())) {
-		get();
-	}
-	// A trailing word means something like `256px` or `0x20` — a value this
-	// dialect does not have, and one that must not silently become 256 or 0.
-	if (!eof() && rv_pdktools::rv_burner_is_ident(peek())) {
-		std::string word = text_.substr(begin, pos_ - begin);
-		while (!eof() && rv_pdktools::rv_burner_is_ident(peek())) {
-			word += get();
+		if (at(tk::END_OF_FILE)) {
+			return failer_.fail(start, "unterminated array — no closing ']' before end of file");
 		}
-		return rv_burner_manifest_failer::fail(start, "'" + word + "' is not a decimal integer", error_);
+		return failer_.fail(peek().line,
+			"expected ',' or ']' in array, found " + rv_burner_token_spelling(peek()));
 	}
-
-	const std::string digits = text_.substr(begin, pos_ - begin);
-	errno = 0;
-	char *end = nullptr;
-	const long long parsed = std::strtoll(digits.c_str(), &end, 10);
-	if (errno == ERANGE || end == digits.c_str()) {
-		return rv_burner_manifest_failer::fail(start, "integer '" + digits + "' does not fit in 64 bits", error_);
-	}
-	out = static_cast<int64_t>(parsed);
-	return true;
 }
 
-bool rv_pdktools::rv_burner_manifest_parser::expect_line_end(const char *what)
+bool rv_burner_manifest_parser::expect_line_end(const char *what)
 {
-	skip_inline();
-	if (!eof() && peek() == '#') {
-		skip_comment();
-	}
-	if (eof()) {
+	if (at(tk::END_OF_FILE)) {
 		return true;
 	}
-	if (peek() == '\n') {
+	if (at(tk::NEWLINE)) {
 		get();
 		return true;
 	}
-	return rv_burner_manifest_failer::fail(line_,
-		std::string("unexpected text after ") + what + " — one " + what + " per line", error_);
+	return failer_.fail(peek().line,
+		std::string("unexpected text after ") + what + " — one " + what + " per line");
 }
+
+// --- recovery -----------------------------------------------------------------
+
+void rv_burner_manifest_parser::recover()
+{
+	for (;;) {
+		while (!at(tk::END_OF_FILE) && !at(tk::NEWLINE)) {
+			get();
+		}
+		if (at(tk::END_OF_FILE)) {
+			return;
+		}
+		get(); // the newline
+		if (starts_statement()) {
+			return;
+		}
+	}
+}
+
+bool rv_burner_manifest_parser::starts_statement() const
+{
+	if (at(tk::END_OF_FILE) || at(tk::NEWLINE) || at(tk::LBRACKET)) {
+		return true;
+	}
+	return at(tk::IDENT) && tokens_[pos_ + 1].kind == tk::EQUALS;
+}
+
+void rv_burner_manifest_parser::open_section(std::string name, int line, bool poisoned)
+{
+	rv_burner_tree_section section;
+	section.name = std::move(name);
+	section.line = line;
+	section.poisoned = poisoned;
+	tree_.sections.push_back(std::move(section));
+}
+
+rv_burner_tree_section &rv_burner_manifest_parser::current_section()
+{
+	return tree_.sections.back();
+}
+
+} // namespace rv_pdktools

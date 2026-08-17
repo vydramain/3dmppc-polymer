@@ -56,12 +56,17 @@ struct rv_manifest {
 	rv_manifest_budget budget;
 };
 
-// Parse manifest text. Either a manifest or an error message — never a
-// half-filled manifest next to a flag the caller may forget to check. The
-// message NAMES THE LINE NUMBER: a manifest is written by hand, and "line 14:
-// unknown key 'source' (did you mean 'sources'?)" is the difference between a
-// fixed typo and an afternoon.
+// Parse manifest text: lexer → parser → semantic analysis → binder. Either a
+// manifest or the diagnostics — never a half-filled manifest next to a flag the
+// caller may forget to check. Every message NAMES THE LINE NUMBER, and one call
+// reports every mistake it can, one per line: a manifest is written by hand, and
+// "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
+// between a fixed typo and an afternoon.
 std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text);
+
+// Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
+std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text,
+	const std::string &origin);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
 std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path);
