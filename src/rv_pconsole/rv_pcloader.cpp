@@ -236,7 +236,7 @@ constexpr uint64_t align_elf_note_field_size(uint64_t size)
 bool rv_pcmanifest_parse(const std::string &text, rv_pcdiscinfo &out)
 {
 	// Minimal by design. The full TOML subset lives in pdk/tools/mppcburner
-	// (pdk/tools/mppcburner/rv_manifest.hpp), where a human is watching and a
+	// (pdk/tools/mppcburner/rv_burner_manifest.hpp), where a human is watching and a
 	// typo deserves a line number. Here the manifest is untrusted input and the
 	// console wants four keys out of it, so this walks lines, keeps nothing it
 	// was not asked for, and cannot fail in a way that matters: an unreadable

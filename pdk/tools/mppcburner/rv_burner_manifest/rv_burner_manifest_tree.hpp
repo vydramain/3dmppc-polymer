@@ -10,7 +10,7 @@ namespace rv_pdktools
 
 // The document as the parser leaves it: sections in file order, each with its
 // entries in file order. A key here is the word that was written, not a field
-// of rv_manifest — nothing at this level knows the structure exists.
+// of rv_burner_manifest — nothing at this level knows the structure exists.
 
 struct rv_burner_tree_entry {
 	std::string key;

@@ -647,7 +647,7 @@ bool rv_glob_expand(const fs::path &root, const std::vector<std::string> &patter
 // header and breaking on the next refactor. A boundary the build enforces is a
 // boundary; a boundary in a README is a suggestion.
 
-std::string rv_cmake_project_text(const rv_manifest &manifest,
+std::string rv_cmake_project_text(const rv_burner_manifest &manifest,
 	const std::vector<std::string> &absolute_sources,
 	const std::string &pdk_dir, const std::string &pdklib_dir,
 	const std::vector<std::string> &absolute_includes)
@@ -765,12 +765,13 @@ int rv_burn_run(const rv_burner_options &options)
 
 	// ── [1/4] manifest ────────────────────────────────────────────────────────
 	const fs::path manifest_path = disc_dir / "disc.toml";
-	std::expected<rv_manifest, std::string> loaded = rv_manifest_load(manifest_path.string());
+	std::expected<rv_burner_manifest, std::string> loaded =
+		rv_manifest_load(manifest_path.string());
 	if (!loaded) {
 		rv_burner_print_error(loaded.error());
 		return 1;
 	}
-	rv_manifest manifest = std::move(*loaded);
+	rv_burner_manifest manifest = std::move(*loaded);
 	std::string error;
 	if (!rv_manifest_validate(manifest, error)) {
 		rv_burner_print_error(manifest_path.string() + ": " + error);
@@ -968,12 +969,18 @@ int rv_burn_run(const rv_burner_options &options)
 			return 1;
 		}
 
+		// One format for the whole manifest, so the spelling mppcbaker is given is
+		// looked up once rather than per texture.
+		const rv_pdk::rv_texfmt_name *texfmt = rv_pdk::rv_texfmt_name::by_format(
+			manifest.textures_files.format);
+		const std::string texfmt_name_str = texfmt != nullptr ? texfmt->text : "";
+
 		int64_t video_memory_used = 0;
 		for (std::size_t i = first_texture; i < items.size(); ++i) {
 			const rv_archive_item &item = items[i];
 			const std::string command =
 				shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
-				shell_quote(item.payload) + " --format " + shell_quote(manifest.textures_files.format);
+				shell_quote(item.payload) + " --format " + texfmt_name_str;
 			status = run_capture(command, child_output);
 			if (status != 0) {
 				dump_child_output(child_output);

@@ -16,3 +16,8 @@ files = ["assets/*.txt"]
 [textures]
 files = ["assets/*.png"]
 format = "idx8"
+
+[budget]
+texture_max_width = 256
+texture_max_height = 256
+video_memory_size = 1048576
