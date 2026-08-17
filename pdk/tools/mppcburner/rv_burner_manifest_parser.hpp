@@ -1,5 +1,6 @@
 #pragma once
 
+#include <expected>
 #include <set>
 #include <string>
 
@@ -26,7 +27,8 @@ public:
 	{
 	}
 
-	bool run(std::string &error);
+	// The parsed manifest, or the message of the first error met on the way.
+	std::expected<rv_manifest, std::string> run();
 
 private:
 	// --- cursor ---------------------------------------------------------------

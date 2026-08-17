@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <expected>
 #include <string>
 #include <vector>
 
@@ -55,14 +56,15 @@ struct rv_manifest {
 	rv_manifest_budget budget;
 };
 
-// Parse manifest text. Returns true on success. On failure `error` gets a
-// message that NAMES THE LINE NUMBER — a manifest is written by hand, and "line
-// 14: unknown key 'source' (did you mean 'sources'?)" is the difference between
-// a fixed typo and an afternoon.
-bool rv_manifest_parse(const std::string &text, rv_manifest &out, std::string &error);
+// Parse manifest text. Either a manifest or an error message — never a
+// half-filled manifest next to a flag the caller may forget to check. The
+// message NAMES THE LINE NUMBER: a manifest is written by hand, and "line 14:
+// unknown key 'source' (did you mean 'sources'?)" is the difference between a
+// fixed typo and an afternoon.
+std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-bool rv_manifest_load(const std::string &path, rv_manifest &out, std::string &error);
+std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.
