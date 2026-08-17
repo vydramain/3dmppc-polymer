@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "rv_burner_options.hpp"
-#include "rv_manifest.hpp"
+#include "rv_burner_manifest/rv_burner_manifest.hpp"
 
 namespace rv_pdktools
 {
@@ -57,7 +57,7 @@ bool rv_check_collisions(const std::vector<rv_archive_item> &items, std::string 
 
 // Render the CMakeLists.txt of the generated disc project. Pure text in, pure
 // text out, so the harness can read what the tool would have written.
-std::string rv_cmake_project_text(const rv_manifest &manifest,
+std::string rv_cmake_project_text(const rv_burner_manifest &manifest,
 	const std::vector<std::string> &absolute_sources,
 	const std::string &pdk_dir, const std::string &pdklib_dir,
 	const std::vector<std::string> &absolute_includes);

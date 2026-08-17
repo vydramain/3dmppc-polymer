@@ -1,4 +1,4 @@
-#include "rv_manifest.hpp"
+#include "rv_burner_manifest.hpp"
 
 #include <cctype>
 #include <cstddef>
@@ -90,8 +90,8 @@ void render_array(std::ostringstream &out, const std::string &key,
 
 // The front of the pipeline, in the order of the stages. Each one hands the next
 // a whole product and its complaints to one failer; only the binder is allowed
-// to know what rv_manifest looks like.
-std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text,
+// to know what rv_burner_manifest looks like.
+std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text,
 	const std::string &origin)
 {
 	rv_burner_manifest_failer failer;
@@ -114,12 +114,12 @@ std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &tex
 	return rv_burner_manifest_bind(tree);
 }
 
-std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text)
+std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text)
 {
 	return rv_manifest_parse(text, std::string());
 }
 
-std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path)
+std::expected<rv_burner_manifest, std::string> rv_manifest_load(const std::string &path)
 {
 	std::ifstream in(path, std::ios::binary);
 	if (!in) {
@@ -135,7 +135,7 @@ std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path
 	return rv_manifest_parse(buffer.str(), path);
 }
 
-std::string rv_manifest_render(const rv_manifest &manifest)
+std::string rv_manifest_render(const rv_burner_manifest &manifest)
 {
 	std::ostringstream out;
 
@@ -158,9 +158,15 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 	out << "\n[assets]\n";
 	render_array(out, "files", manifest.assets_files);
 
+	// A manifest that reached rendering has been through the binder, so the
+	// format is one of the enumerators; the empty string is what a corrupted
+	// one would render as, and it fails to parse back rather than lying.
+	const rv_pdk::rv_texfmt_name *texfmt = rv_pdk::rv_texfmt_name::by_format(
+		manifest.textures_files.format);
+
 	out << "\n[textures]\n";
 	render_array(out, "files", manifest.textures_files.files);
-	out << "format = " << quote(manifest.textures_files.format) << "\n";
+	out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
 
 	out << "\n[budget]\n";
 	out << "texture_max_width = " << manifest.budget.texture_max_width << "\n";
@@ -170,7 +176,7 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 	return out.str();
 }
 
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
+bool rv_manifest_validate(const rv_burner_manifest &manifest, std::string &error)
 {
 	error.clear();
 
@@ -195,22 +201,20 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
 		return false;
 	}
 
-	bool format_known = false;
-	for (std::string_view f : rv_burner_approved_texture_formats) {
-		if (f == manifest.textures_files.format) {
-			format_known = true;
-		}
-	}
-	if (!format_known) {
+	// By the time a manifest reaches here the binder has already turned the
+	// spelling into an enumerator, and an unknown spelling left the field at its
+	// value-initialised zero. So this catches both a typo and a missing `format`
+	// line — but it can no longer quote what the author actually typed, because
+	// that string does not survive binding.
+	if (rv_pdk::rv_texfmt_name::by_format(manifest.textures_files.format) == nullptr) {
 		std::string known;
-		for (std::size_t i = 0; i < std::size(rv_burner_approved_texture_formats); ++i) {
-			if (i != 0) {
+		for (const rv_pdk::rv_texfmt_name &row : rv_pdk::rv_texfmt_names) {
+			if (!known.empty()) {
 				known += ", ";
 			}
-			known += std::string(rv_burner_approved_texture_formats[i]);
+			known += row.text;
 		}
-		error = "[textures] format '" + manifest.textures_files.format +
-			"' is unknown — expected one of " + known;
+		error = std::format("[textures] format is missing or unknown — expected one of {}", known);
 		return false;
 	}
 

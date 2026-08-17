@@ -17,17 +17,24 @@
 add_executable(mppcburner
   main.cpp
   rv_burner_character.cpp
-  rv_burner_manifest_lexer.cpp
-  rv_burner_manifest_parser.cpp
-  rv_burner_manifest_symbols.cpp
-  rv_burner_manifest_semantic.cpp
-  rv_burner_manifest_binder.cpp
-  rv_burner_manifest_failer.cpp
+  rv_burner_manifest/rv_burner_manifest_lexer.cpp
+  rv_burner_manifest/rv_burner_manifest_parser.cpp
+  rv_burner_manifest/rv_burner_manifest_symbols.cpp
+  rv_burner_manifest/rv_burner_manifest_semantic.cpp
+  rv_burner_manifest/rv_burner_manifest_binder.cpp
+  rv_burner_manifest/rv_burner_manifest_failer.cpp
   rv_burner_text.cpp
-  rv_manifest.cpp
+  rv_burner_manifest/rv_burner_manifest.cpp
   rv_zipwrite.cpp
   rv_build.cpp
 )
+
+# The front end lives in its own directory, and the headers it shares with the
+# rest of the tool (the schema, the text helpers, the character predicates) do
+# not. This puts the tool root on the include path so a file inside the front
+# end can name them plainly; the other direction stays explicit — code outside
+# writes rv_burner_manifest/… so the dependency reads in the include line.
+target_include_directories(mppcburner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The contract lives next door. The burner reads pdk/cv/rv_texture.hpp for the
 # texel formats it enforces budgets against, and pdk/rv_abi.hpp for the ABI

@@ -131,7 +131,7 @@ files = ["assets/*.png"]
 format = "idx8"
 ```
 
-The **burner** reads all of it (`pdk/tools/mppcburner/rv_manifest.hpp`): build
+The **burner** reads all of it (`pdk/tools/mppcburner/rv_burner_manifest.hpp`): build
 globs, defines, include dirs, assets, textures, budget.
 
 The **console** reads only `[disc]`, and only `abi_version`, `id`, `title` and

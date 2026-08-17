@@ -3,14 +3,14 @@
 #include <cstddef>
 #include <string_view>
 
-#include "rv_burner_manifest_value.hpp"
+#include "rv_burner_manifest/rv_burner_manifest_value.hpp"
 
 // --- the schema ---------------------------------------------------------------
 //
 // The static half of the symbol table: the accepted spelling of every section
 // and key, and the kind of value each key takes. Semantic analysis rejects
 // anything absent from these tables AND spells its "did you mean" out of them,
-// so a key added to rv_manifest must be added here or it stops being accepted —
+// so a key added to rv_burner_manifest must be added here or it stops being accepted —
 // which is the failure mode we want, not the reverse.
 
 namespace rv_pdktools
@@ -99,10 +99,6 @@ constexpr rv_burner_section_spec rv_burner_sections[] = {
 	{ rv_burner_section_textures, rv_burner_textures_keys, std::size(rv_burner_textures_keys) },
 	{ rv_burner_section_budget, rv_burner_budget_keys, std::size(rv_burner_budget_keys) },
 };
-
-// The spellings rv_manifest_validate accepts for [textures] format; they match
-// the rv_texfmt enumerators of pdk/cv/rv_texture.hpp one for one.
-constexpr std::string_view rv_burner_approved_texture_formats[] = { "idx4", "idx8", "direct15" };
 
 inline const rv_burner_section_spec *rv_burner_sections_get(std::string_view name)
 {
