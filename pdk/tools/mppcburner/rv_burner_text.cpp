@@ -56,12 +56,24 @@ std::string suggest(std::string_view word, const std::string_view *candidates, s
 	return " (did you mean '" + std::string(best) + "'?)";
 }
 
-std::string suggest_section(std::string_view word, const section_spec *burn_sections, std::size_t burn_sections_size)
+std::string suggest_section(std::string_view word, const rv_burner_section_spec *sections,
+	std::size_t section_count)
 {
 	std::vector<std::string_view> names;
-	names.reserve(burn_sections_size);
-	for (std::size_t i = 0; i < burn_sections_size; ++i) {
-		names.push_back(burn_sections[i].name);
+	names.reserve(section_count);
+	for (std::size_t i = 0; i < section_count; ++i) {
+		names.push_back(sections[i].name);
+	}
+	return suggest(word, names.data(), names.size());
+}
+
+std::string suggest_key(std::string_view word, const rv_burner_key_spec *keys,
+	std::size_t key_count)
+{
+	std::vector<std::string_view> names;
+	names.reserve(key_count);
+	for (std::size_t i = 0; i < key_count; ++i) {
+		names.push_back(keys[i].name);
 	}
 	return suggest(word, names.data(), names.size());
 }
