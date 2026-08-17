@@ -15,7 +15,7 @@
 #include "rv_burner_schema.hpp"
 #include "rv_burner_text.hpp"
 
-bool rv_pdktools::rv_burner_manifest_parser::run(std::string &error)
+std::expected<rv_pdktools::rv_manifest, std::string> rv_pdktools::rv_burner_manifest_parser::run()
 {
 	for (;;) {
 		skip_gaps();
@@ -38,10 +38,9 @@ bool rv_pdktools::rv_burner_manifest_parser::run(std::string &error)
 		}
 	}
 	if (!error_.empty()) {
-		error = error_;
-		return false;
+		return std::unexpected(error_);
 	}
-	return true;
+	return assigner_.take_manifest();
 }
 
 bool rv_pdktools::rv_burner_manifest_parser::eof() const

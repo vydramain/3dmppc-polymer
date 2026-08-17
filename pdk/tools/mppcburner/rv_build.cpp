@@ -9,9 +9,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <expected>
 #include <fstream>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 #include "pdk/cv/rv_texture.hpp"
 #include "pdklib/rv_stdio.hpp"
@@ -746,7 +748,7 @@ std::string rv_human_size(int64_t bytes)
 
 // ── build ─────────────────────────────────────────────────────────────────────
 
-int rv_build_run(const rv_burner_options &options)
+int rv_burn_run(const rv_burner_options &options)
 {
 	std::error_code ec;
 	const fs::path disc_dir = fs::weakly_canonical(fs::path(options.operand), ec);
@@ -763,12 +765,13 @@ int rv_build_run(const rv_burner_options &options)
 
 	// ── [1/4] manifest ────────────────────────────────────────────────────────
 	const fs::path manifest_path = disc_dir / "disc.toml";
-	rv_manifest manifest;
-	std::string error;
-	if (!rv_manifest_load(manifest_path.string(), manifest, error)) {
-		rv_burner_print_error(error);
+	std::expected<rv_manifest, std::string> loaded = rv_manifest_load(manifest_path.string());
+	if (!loaded) {
+		rv_burner_print_error(loaded.error());
 		return 1;
 	}
+	rv_manifest manifest = std::move(*loaded);
+	std::string error;
 	if (!rv_manifest_validate(manifest, error)) {
 		rv_burner_print_error(manifest_path.string() + ": " + error);
 		return 1;

@@ -94,7 +94,7 @@ int nullable_handler(const rv_burner_options &)
 // Every subcommand, plus the three spellings of help. A new command is a row
 // here, never a branch in main.
 constexpr rv_burner_command_spec COMMANDS[] = {
-	{ "build", RV_BURNER_MASK_BUILD, 1, rv_build_run },
+	{ "build", RV_BURNER_MASK_BUILD, 1, rv_burn_run },
 	{ "inspect", RV_BURNER_MASK_INSPECT, 1, rv_inspect_run },
 	{ "help", 0, 0, nullable_handler },
 	{ "-h", 0, 0, nullable_handler },

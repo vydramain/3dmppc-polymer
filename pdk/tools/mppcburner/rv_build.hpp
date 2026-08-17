@@ -14,7 +14,7 @@ namespace rv_pdktools
 // Burn a disc directory into one .mppcdisc. Returns a process exit code: 0 on
 // success, 1 on any refusal. Progress and diagnostics go to stderr, nothing of
 // this command goes to stdout.
-int rv_build_run(const rv_burner_options &options);
+int rv_burn_run(const rv_burner_options &options);
 
 // Print what is inside an already-burned .mppcdisc, without unpacking it and
 // without writing anything anywhere. The listing goes to stdout, errors to

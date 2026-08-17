@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <expected>
 #include <fstream>
 #include <iterator>
 #include <set>
@@ -85,34 +86,29 @@ void render_array(std::ostringstream &out, const std::string &key,
 
 } // namespace
 
-bool rv_manifest_parse(const std::string &text, rv_manifest &out, std::string &error)
+std::expected<rv_manifest, std::string> rv_manifest_parse(const std::string &text)
 {
-	error.clear();
-	rv_burner_manifest_parser parser(text, out);
-	return parser.run(error);
+	rv_burner_manifest_parser parser(text);
+	return parser.run();
 }
 
-bool rv_manifest_load(const std::string &path, rv_manifest &out, std::string &error)
+std::expected<rv_manifest, std::string> rv_manifest_load(const std::string &path)
 {
-	error.clear();
 	std::ifstream in(path, std::ios::binary);
 	if (!in) {
-		error = "cannot open manifest '" + path + "'";
-		return false;
+		return std::unexpected("cannot open manifest '" + path + "'");
 	}
 	std::ostringstream buffer;
 	buffer << in.rdbuf();
 	if (in.bad()) {
-		error = "cannot read manifest '" + path + "'";
-		return false;
+		return std::unexpected("cannot read manifest '" + path + "'");
 	}
-	std::string message;
-	if (!rv_manifest_parse(buffer.str(), out, message)) {
+	std::expected<rv_manifest, std::string> parsed = rv_manifest_parse(buffer.str());
+	if (!parsed) {
 		// The line number is only useful next to the file it belongs to.
-		error = path + ": " + message;
-		return false;
+		return std::unexpected(path + ": " + parsed.error());
 	}
-	return true;
+	return parsed;
 }
 
 std::string rv_manifest_render(const rv_manifest &manifest)
