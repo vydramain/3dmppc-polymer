@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "pdk/ve/rv_ve.hpp"
+#include "pdk/de/rv_dv.hpp"
 
 namespace rv_pdklib
 {

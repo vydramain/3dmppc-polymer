@@ -789,6 +789,8 @@ int rv_burn_run(const rv_burner_options &options)
 		return 1;
 	}
 
+	// --- check sources on outside disc directory ------------------
+
 	std::vector<std::string> absolute_sources;
 	absolute_sources.reserve(sources.size());
 	for (const std::string &source : sources) {
@@ -817,6 +819,8 @@ int rv_burn_run(const rv_burner_options &options)
 		absolute_includes.push_back(resolved_text);
 	}
 
+	// --- create directories --------------------------------------
+
 	const fs::path project_dir =
 		options.build_dir.empty() ? disc_dir / ".mppcburn" : fs::absolute(options.build_dir, ec);
 	const fs::path binary_dir = project_dir / "build";
@@ -827,6 +831,8 @@ int rv_burn_run(const rv_burner_options &options)
 		rv_burner_print_error("cannot create build directory '" + project_dir.string() + "'");
 		return 1;
 	}
+
+	// --- create CMakeLists ---------------------------------------
 
 	{
 		const std::string project_text = rv_cmake_project_text(
@@ -847,7 +853,7 @@ int rv_burn_run(const rv_burner_options &options)
 
 	{
 		const std::string version_cpp_file_text{
-			"#include \"pdk/ve/rv_ve.hpp\"\n"
+			"#include \"pdk/de/rv_dv.hpp\"\n"
 			"#include \"pdklib/rv_disc_version.hpp\"\n"
 			"\n"
 			"RV_MPPC_DISC_VERSION_DEF;"
@@ -875,6 +881,8 @@ int rv_burn_run(const rv_burner_options &options)
 
 	// NEUROSLOP starts
 
+	// --- prepare build configure cmake -------------------------------------------
+
 	std::string child_output;
 	const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +
 		" -B " + shell_quote(binary_dir.string()) +
@@ -887,6 +895,8 @@ int rv_burn_run(const rv_burner_options &options)
 			"). cmake and ninja are run-time dependencies of mppcburner.");
 		return 1;
 	}
+
+	// --- build sources ----------------------------------------------------------
 
 	std::string build = "cmake --build " + shell_quote(binary_dir.string());
 	if (options.jobs > 0) {
@@ -956,6 +966,30 @@ int rv_burn_run(const rv_burner_options &options)
 		}
 		items.push_back(item);
 	}
+
+	// TODO(Claude-инструкция, код твой). Между текстурами и проверкой коллизий
+	// вставь третий источник элементов архива — скрипты.
+	//
+	// Что делать, по образцу блока текстур прямо над этим комментарием:
+	//   1. rv_glob_expand(disc_dir, manifest.scripts_sources, script_files, error)
+	//      — поле scripts_sources в манифесте уже есть, парсер его уже читает,
+	//        дописывать front end не надо;
+	//   2. на каждый файл завести rv_archive_item: item.name — имя с
+	//      расширением .luac (stem() + ".luac", как у текстур), item.source —
+	//      исходный .lua, item.payload — путь в project_dir/scripts/,
+	//      куда ляжет скомпилированный байткод;
+	//   3. ПОСЛЕ rv_check_collisions — прогнать rv_compile_script() по каждому
+	//      (см. rv_burner_compile/rv_burner_compile.hpp).
+	//
+	// Порядок «сначала спланировать весь архив, потом работать» описан в шапке
+	// стадии [3/4] выше — не ломай его: коллизию имён надо поймать до того, как
+	// один .luac перезапишет другой.
+	//
+	// Каталог project_dir/scripts/ создай рядом с texture_dir, там же где
+	// fs::create_directories выше.
+	//
+	// Проверь, надо ли поправить нумерацию стадий в rv_burner_print_step:
+	// сейчас их «4», и скрипты логично считать частью стадии assets, а не пятой.
 
 	if (!rv_check_collisions(items, error)) {
 		rv_burner_print_error(error);

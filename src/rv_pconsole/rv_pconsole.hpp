@@ -31,6 +31,14 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     rv_pchost host_;
     // NEUROSLOP-END
 
+    // TODO(Claude-инструкция, код твой). Объяви здесь поле rv_pccl cl_;
+    // и включи "rv_pconsole/cl/rv_pccl.hpp" наверху.
+    //
+    // ПОРЯДОК ОБЪЯВЛЕНИЯ ВАЖЕН, как и для host_ выше. Поля разрушаются в
+    // порядке, ОБРАТНОМ объявлению, а loader_ (объявлен последним, значит
+    // умирает первым) в своём teardown зовёт disc_shutdown() — а тот имеет
+    // право трогать любой контроллер, включая этот. Значит cl_ обязан стоять
+    // ВЫШЕ loader_. Поставь его в общий ряд контроллеров, по алфавиту.
     rv_pcca ca_;
     rv_pccd cd_;
     rv_pccio cio_;
@@ -55,6 +63,10 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     rv_pdk::rv_cio* cio() override;
     rv_pdk::rv_cm* cm() override;
     rv_pdk::rv_cv* cv() override;
+
+    // TODO(Claude-инструкция, код твой). Добавь rv_pdk::rv_cl* cl() override;
+    // Тело в rv_pconsole.cpp — одна строка, возврат адреса поля. Смотри, как
+    // сделаны соседи, и повтори.
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Put a `.mppcdisc` in the machine: load the code it carries and mount the
