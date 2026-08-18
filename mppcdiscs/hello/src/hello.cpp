@@ -29,7 +29,7 @@
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/de/rv_de.hpp"
 #include "pdk/rv_err.hpp"
-#include "pdk/ve/rv_ve.hpp"
+#include "pdk/de/rv_dv.hpp"
 
 namespace hello {
 namespace {
@@ -289,8 +289,8 @@ void rv_dmain::disc_shutdown() {
 //
 // МИГРАЦИЯ НА НОВЫЙ КОНТРАКТ — этот диск сейчас не
 // грузится: rv_abi.hpp удалён, консоль ищет rv_mppc_disc_create /
-// rv_mppc_disc_destroy (см. rv_ve.hpp), а тут экспортируются старые имена.
-// Порядок: 1) написать наследника RV_DISC_EXPORT в pdk/include/pdk/ve/rv_ve.hpp
+// rv_mppc_disc_destroy (см. rv_dv.hpp), а тут экспортируются старые имена.
+// Порядок: 1) написать наследника RV_DISC_EXPORT в pdk/include/pdk/de/rv_dv.hpp
 // (TODO там же); 2) перевести эту строку на него — create теперь получает
 // (version_major, version_minor) консоли и должен решить, согласен ли диск
 // (несогласие = nullptr); 3) пересобрать диск mppcburner'ом и прогнать консоль:

@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "pdk/rv_err.hpp"
-#include "pdk/ve/rv_ve.hpp"
+#include "pdk/de/rv_dv.hpp"
 #include "pdklib/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczip.hpp"
 
@@ -642,7 +642,7 @@ int64_t rv_pcloader::load(const char *archive_path)
 
 	// (6) Both symbols or neither. A disc that can be created but not destroyed
 	// is not half-loadable, it is a leak with a vtable — and the only code that
-	// may destroy the object is the code that made it (pdk/ve/rv_ve.hpp).
+	// may destroy the object is the code that made it (pdk/de/rv_dv.hpp).
 	::dlerror(); // clear any stale error before the lookups
 	auto create = reinterpret_cast<rv_mppc_disc_create_fn>(
 		::dlsym(handle_, RV_MPPC_DISC_ENTRY_CREATE));
