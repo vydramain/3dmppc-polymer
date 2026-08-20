@@ -1,12 +1,12 @@
 #pragma once
 
-namespace rv_pdk {
+namespace rv_pdk
+{
 
-// How a voice repeats its sample once started. Set in rv_voice_conf::loop_type.
 enum class rv_loop {
-    none = 0,  // play once, then the voice goes silent (one-shot)
-    forever,   // repeat the whole sample indefinitely
-    // sustain,  // DEFERRED: loop until voice_stop, then run the release phase
+	none = 0, // play once, then the voice goes silent (one-shot)
+	forever,  // repeat the whole sample indefinitely
+	// sustain,  // DEFERRED: loop until voice_stop, then run the release phase
 };
 
-}  // namespace rv_pdk
+} // namespace rv_pdk
