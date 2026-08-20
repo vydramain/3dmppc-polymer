@@ -257,7 +257,7 @@ protection.
 
 **Deferred within the video layer**: blending (the semi-transparency modes) and
 texture-combine (raw/modulation) flags, VRAM readback, the display/output stage
-(`rv_pixel`, 24-bit video), and the PSX fixed-size sprite fast paths
+(24-bit video), and the PSX fixed-size sprite fast paths
 (1×1/8×8/16×16).
 
 **Open — an `src/` decision, not a contract one:** whether the rasterizer
@@ -456,7 +456,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   transparency rules), frame submission (`frame_configure` with clear colour and
   the optional Z flag, `frame_put`, `frame_flush`), primitives (line / triangle /
   quad / sprite) sorted by the hardware ordering table. Blending, modulation,
-  VRAM readback, the display stage (`rv_pixel`) and the sprite fixed-size fast
+  VRAM readback, the display stage and the sprite fixed-size fast
   paths are deferred. Concrete backend in `src/` still pending.
 - **`rv_cm` (memory card)** — surface defined: equally-sized slots (count and
   size queried via `card_slots()` / `card_slot_size()`), `card_size` /

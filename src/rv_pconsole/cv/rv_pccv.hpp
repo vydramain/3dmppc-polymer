@@ -73,13 +73,13 @@ class rv_pccv : public rv_pdk::rv_cv {
     // --- video RAM ---
 
     int64_t video_asset_malloc(int64_t size) override;
-    int64_t video_asset_write(int64_t addr, rv_pdk::rv_texture texture) override;
+    int64_t video_asset_write(int64_t addr, const rv_pdk::rv_texture* texture) override;
     int64_t video_asset_free(int64_t addr) override;
 
     // --- the frame ---
 
     int64_t frame_configure(uint64_t config, rv_pdk::rv_color clear_color) override;
-    int64_t frame_put(rv_pdk::rv_primitive primitive) override;
+    int64_t frame_put(const rv_pdk::rv_primitive* primitive) override;
     int64_t frame_flush() override;
 
    private:

@@ -11,6 +11,8 @@
 #include <string_view>
 #include <vector>
 
+#include "pdklib/rv_texfmt_name.hpp"
+
 #include "rv_burner_manifest_binder.hpp"
 #include "rv_burner_manifest_failer.hpp"
 #include "rv_burner_manifest_lexer.hpp"
@@ -161,7 +163,7 @@ std::string rv_manifest_render(const rv_burner_manifest &manifest)
 	// A manifest that reached rendering has been through the binder, so the
 	// format is one of the enumerators; the empty string is what a corrupted
 	// one would render as, and it fails to parse back rather than lying.
-	const rv_pdk::rv_texfmt_name *texfmt = rv_pdk::rv_texfmt_name::by_format(
+	const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(
 		manifest.textures_files.format);
 
 	out << "\n[textures]\n";
@@ -206,9 +208,9 @@ bool rv_manifest_validate(const rv_burner_manifest &manifest, std::string &error
 	// value-initialised zero. So this catches both a typo and a missing `format`
 	// line — but it can no longer quote what the author actually typed, because
 	// that string does not survive binding.
-	if (rv_pdk::rv_texfmt_name::by_format(manifest.textures_files.format) == nullptr) {
+	if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) == nullptr) {
 		std::string known;
-		for (const rv_pdk::rv_texfmt_name &row : rv_pdk::rv_texfmt_names) {
+		for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
 			if (!known.empty()) {
 				known += ", ";
 			}

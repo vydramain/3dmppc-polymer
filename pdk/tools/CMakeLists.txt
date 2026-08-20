@@ -35,5 +35,7 @@ endif()
 # so a disc directory outside this repository builds just as well.
 get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
 
+include(${RV_REPO_ROOT}/cmake/luajit.cmake)
+
 add_subdirectory(mppcbaker)
 add_subdirectory(mppcburner)

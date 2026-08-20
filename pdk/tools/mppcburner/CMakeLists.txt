@@ -27,6 +27,7 @@ add_executable(mppcburner
   rv_burner_manifest/rv_burner_manifest.cpp
   rv_zipwrite.cpp
   rv_build.cpp
+  rv_burner_compile/rv_burner_compile.cpp
 )
 
 # The front end lives in its own directory, and the headers it shares with the
@@ -45,6 +46,8 @@ target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
 # and the diagnostic layer shared with the console and with discs. Separate from
 # the contract above because it is a separate tree.
 target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/lib/include)
+
+target_link_libraries(mppcburner PRIVATE libluajit)
 
 # Stamps every log line with its origin; see pdklib/rv_logs.hpp.
 target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")

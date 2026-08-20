@@ -12,7 +12,7 @@ namespace rv_pdktools
 // One PNG-to-texel conversion rule. `files` are globs relative to the disc
 // directory; `format` is the rv_texfmt to bake into. The manifest spells it as
 // text and the binder turns that text into the enumerator — the accepted
-// spellings are the rows of rv_texfmt_names (pdk/cv/rv_texture.hpp) and are not
+// spellings are the rows of rv_texfmt_names (pdklib/rv_texfmt_name.hpp) and are not
 // restated anywhere in this tool.
 struct rv_burner_manifest_textures {
 	std::vector<std::string> files;

@@ -1,0 +1,31 @@
+# Where clangd gets the compile command for pdk/ headers.
+#
+# 3dmppc_pdk is an INTERFACE library (CMakeLists.txt:62) — no .cpp, so no
+# translation unit, so build/compile_commands.json holds no entry for anything
+# under pdk/. For a header it has no command for, clangd infers one from the
+# nearest file it does know, and 250 of that database's 271 entries are SDL3's C
+# sources under build/_deps/. pdk headers were therefore parsed as SDL3 C code:
+# no -I.../pdk/include, hence "'pdk/ca/rv_ca.hpp' file not found" and every rv_*
+# type unknown.
+#
+# The -I paths are relative to the compile command's directory, i.e. the CMake
+# build root (build/, cmake-build-debug/, ...), which sits one level under the
+# repo root.
+
+If:
+  PathMatch: pdk/.*
+
+CompileFlags:
+  Compiler: clang++
+  Add:
+    - -std=c++23
+    - -I../pdk/include
+    - -I../pdk/lib/include
+  # Whatever SDL3 entry got inferred drags its own build along. Its forced PCH
+  # is the one that actually breaks parsing; the defines just lie about being in
+  # an SDL build.
+  Remove:
+    - -include
+    - -Winvalid-pch
+    - -DSDL*
+    - -DUSING_GENERATED_CONFIG_H

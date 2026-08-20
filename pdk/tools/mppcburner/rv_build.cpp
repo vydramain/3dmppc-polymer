@@ -15,8 +15,8 @@
 #include <system_error>
 #include <utility>
 
-#include "pdk/cv/rv_texture.hpp"
 #include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_texfmt_name.hpp"
 
 #include "rv_burner_print.hpp"
 #include "rv_zipwrite.hpp"
@@ -657,6 +657,7 @@ std::string rv_cmake_project_text(const rv_burner_manifest &manifest,
 	text += "# It exists so a disc is compiled by cmake+ninja rather than by a compiler\n";
 	text += "# driver written inside the burner. See rv_build.cpp for the reasoning.\n";
 	text += "cmake_minimum_required(VERSION 3.20)\n";
+	text += "set(CMAKE_CXX_COMPILER clang++)\n";
 	text += "project(mppcdisc_" + manifest.disc_id + " CXX)\n\n";
 
 	text += "set(CMAKE_CXX_STANDARD 23)\n";
@@ -1005,7 +1006,7 @@ int rv_burn_run(const rv_burner_options &options)
 
 		// One format for the whole manifest, so the spelling mppcbaker is given is
 		// looked up once rather than per texture.
-		const rv_pdk::rv_texfmt_name *texfmt = rv_pdk::rv_texfmt_name::by_format(
+		const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(
 			manifest.textures_files.format);
 		const std::string texfmt_name_str = texfmt != nullptr ? texfmt->text : "";
 

@@ -83,7 +83,12 @@ bool rv_pccv::texture_format_known(rv_texfmt format) {
 // the pool knows how many bytes fit in a region, but the texture *shape* limit
 // is hardware geometry this class publishes (texture_max_width/height), so this
 // is the one place that can enforce it.
-int64_t rv_pccv::video_asset_write(int64_t addr, rv_texture texture) {
+int64_t rv_pccv::video_asset_write(int64_t addr, const rv_texture* texture_ptr) {
+    if (texture_ptr == nullptr) {
+        return RV_ERR_INVAL;
+    }
+    const rv_texture& texture = *texture_ptr;
+
     if (!texture_format_known(texture.format)) {
         return RV_ERR_INVAL;
     }
@@ -192,7 +197,12 @@ int64_t rv_pccv::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t ad
     return RV_OK;
 }
 
-int64_t rv_pccv::frame_put(rv_primitive primitive) {
+int64_t rv_pccv::frame_put(const rv_primitive* primitive_ptr) {
+    if (primitive_ptr == nullptr) {
+        return RV_ERR_INVAL;
+    }
+    const rv_primitive& primitive = *primitive_ptr;
+
     // Validate BEFORE the capacity test, so a malformed primitive reports what
     // is wrong with it rather than being masked by a full buffer.
     switch (primitive.type) {
