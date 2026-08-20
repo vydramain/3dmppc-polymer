@@ -32,13 +32,10 @@ bool rv_pdktools::rv_burner_compile_script(const std::string &lua_path,
 
 	int loadf_r = luaL_loadfile(L, lua_path.c_str());
 	if (loadf_r > 0) {
-		rv_pdktools::rv_burner_print_error("cannot load lua file: '" + std::atos(loadf_r) + "'");
+		rv_pdktools::rv_burner_print_error("cannot load lua file: '" + std::string(lua_tostring(L, -1)) + "'");
+		lua_close(L);
 		return false;
 	}
-
-	size_t addr_sz;
-	void *addr_p, addr_ud;
-	lua_Writer lua_writer = lua_Writer(L, addr_p, addr_sz, addr_ud);
 
 	int dmp = lua_dump(L, lua_writer, lua_buffer);
 
