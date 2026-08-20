@@ -1,5 +1,16 @@
 #pragma once
 
+#include <string>
+
+namespace rv_pdktools
+{
+
+bool rv_burner_compile_script(const std::string &lua_path,
+	const std::string &out_path,
+	std::string &error);
+
+}
+
 // ─── ЗАДАНИЕ ──────────────────────────────────────────────────────────────────
 // Комментарии написаны Claude (claude-opus-5) как учебные инструкции.
 // Код пишешь ты. Файл пустой намеренно.

@@ -515,6 +515,13 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 					continue;
 				}
 
+				if (std::memcmp(version_info.magic, RV_MPPC_NOTE_MAGIC_DEF,
+						sizeof(version_info.magic)) != 0) {
+					RV_LOG_WARN("pcloader",
+						"ELF note descriptor does not carry the mppc magic");
+					continue;
+				}
+
 				version_info_found_flag = true;
 				break;
 			}

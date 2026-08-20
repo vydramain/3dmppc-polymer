@@ -2,6 +2,8 @@
 
 #include <string_view>
 
+#include "pdklib/rv_texfmt_name.hpp"
+
 #include "rv_burner_manifest_value.hpp"
 #include "rv_burner_schema.hpp"
 
@@ -69,7 +71,7 @@ constexpr bind_rule RULES[] = {
 	{ rv_burner_section_textures, // [textures] format = "…"
 		rv_burner_key_textures_format,
 		[](rv_burner_manifest &m, const rv_burner_mvalue &v) {
-			const rv_pdk::rv_texfmt_name *row = rv_pdk::rv_texfmt_name::by_text(v.str.c_str());
+			const rv_pdklib::rv_texfmt_name *row = rv_pdklib::rv_texfmt_name::by_text(v.str.c_str());
 			if (row != nullptr) {
 				m.textures_files.format = row->format;
 			}

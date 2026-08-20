@@ -142,7 +142,7 @@ void rv_dmain::load_badge() {
         palette.size = palette_bytes;
         palette.width = header.palette_count;
         palette.height = 1;
-        if (cv->video_asset_write(addr, palette) < 0) {
+        if (cv->video_asset_write(addr, &palette) < 0) {
             cv->video_asset_free(addr);
             return;
         }
@@ -158,7 +158,7 @@ void rv_dmain::load_badge() {
     texels.size = texel_bytes;
     texels.width = header.width;
     texels.height = header.height;
-    if (cv->video_asset_write(addr, texels) < 0) {
+    if (cv->video_asset_write(addr, &texels) < 0) {
         cv->video_asset_free(addr);
         return;
     }
@@ -237,7 +237,7 @@ void rv_dmain::frame_render() {
             sprite.width = static_cast<uint16_t>(size);
             sprite.height = static_cast<uint16_t>(size);
 
-            cv->frame_put(primitive);
+            cv->frame_put(&primitive);
         }
     }
 
@@ -260,7 +260,7 @@ void rv_dmain::frame_render() {
         sprite.width = static_cast<uint16_t>(greeting_bytes_ * 4);
         sprite.height = 8;
 
-        cv->frame_put(primitive);
+        cv->frame_put(&primitive);
     }
 
     // The console does not flush for the disc (rv_pdk::rv_de::frame_render).
