@@ -5,19 +5,13 @@
 #include "pdk/cio/rv_cio.hpp"
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
+#include "pdk/cl/rv_cl.hpp"
 #include "pdk/rv_err.hpp"   // IWYU pragma: keep (shared error vocabulary)
 #include "pdk/de/rv_dv.hpp" // IWYU pragma: keep (version vocabulary)
 
 namespace rv_pdk
 {
 
-// The organizer / facade the console hands a disc at boot. It vends the console's
-// subsystem controllers by pointer (the console owns them; the disc only borrows,
-// never deletes). A disc holds one rv_pdko* and asks it for a controller rather
-// than constructing one. Pure abstract: the concrete console subclasses it.
-//
-// Every pointer vended here is borrowed and stays valid until the console tears
-// the disc down.
 class rv_pdko
 {
 public:
@@ -28,14 +22,7 @@ public:
 	virtual rv_cm *cm() = 0;   // memory card - persistent save slots
 	virtual rv_cio *cio() = 0; // gamepads + haptic output + mouse
 	virtual rv_cv *cv() = 0;   // GPU / rasterizer
-
-	// TODO(Claude-инструкция, код твой). Добавь сюда аксессор Lua-машины:
-	//   virtual rv_cl *cl() = 0;   // виртуальная машина Lua
-	// и включение "pdk/cl/rv_cl.hpp" наверху, в общий алфавитный ряд.
-	//
-	// Почему аксессор, а не «диск сам создаёт VM»: rv_pdko вендит железо,
-	// которым владеет КОНСОЛЬ, а диск только одалживает. VM — такое же железо,
-	// как растеризатор: одна на машину, живёт от включения до выключения.
+	virtual rv_cl *cl() = 0;
 };
 
 } // namespace rv_pdk
