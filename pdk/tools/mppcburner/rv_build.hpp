@@ -55,13 +55,6 @@ struct rv_archive_item {
 // Refuse when two different originals collapse onto one flat name.
 bool rv_check_collisions(const std::vector<rv_archive_item> &items, std::string &error);
 
-// Render the CMakeLists.txt of the generated disc project. Pure text in, pure
-// text out, so the harness can read what the tool would have written.
-std::string rv_cmake_project_text(const rv_burner_manifest &manifest,
-	const std::vector<std::string> &absolute_sources,
-	const std::string &pdk_dir, const std::string &pdklib_dir,
-	const std::vector<std::string> &absolute_includes);
-
 // Human size for a progress line.
 std::string rv_human_size(int64_t bytes);
 

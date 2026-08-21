@@ -27,7 +27,11 @@ add_executable(mppcburner
   rv_burner_manifest/rv_burner_manifest.cpp
   rv_zipwrite.cpp
   rv_build.cpp
-  rv_burner_compile/rv_burner_compile.cpp
+  rv_burner_compile/rv_burner_check.cpp
+  rv_burner_compile/rv_burner_common_helpers.cpp
+  rv_burner_compile/rv_burner_cmake.cpp
+  rv_burner_compile/rv_burner_compile_scripts.cpp
+  rv_burner_compile/rv_burner_compile_sources.cpp
 )
 
 # The front end lives in its own directory, and the headers it shares with the
