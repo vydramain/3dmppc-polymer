@@ -23,6 +23,7 @@
 #include "rv_build.hpp"
 #include "rv_burner_options.hpp"
 #include "rv_burner_print.hpp"
+#include "rv_inspect.hpp"
 
 namespace rv_pdktools
 {

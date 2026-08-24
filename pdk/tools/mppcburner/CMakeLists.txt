@@ -27,6 +27,7 @@ add_executable(mppcburner
   rv_burner_manifest/rv_burner_manifest.cpp
   rv_zipwrite.cpp
   rv_build.cpp
+  rv_inspect.cpp
   rv_burner_globs.cpp
   rv_burner_compile/rv_burner_check.cpp
   rv_burner_compile/rv_burner_common_helpers.cpp
