@@ -16,11 +16,6 @@ namespace rv_pdktools
 // this command goes to stdout.
 int rv_burn_run(const rv_burner_options &options);
 
-// Print what is inside an already-burned .mppcdisc, without unpacking it and
-// without writing anything anywhere. The listing goes to stdout, errors to
-// stderr. Same exit-code contract.
-int rv_inspect_run(const rv_burner_options &options);
-
 // ── Pieces exposed so a harness can exercise them without a disc directory ────
 
 // Expand `patterns` (globs relative to `root`, '/'-separated, `*`, `?` and `**`
