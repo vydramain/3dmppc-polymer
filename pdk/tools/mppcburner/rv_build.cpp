@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -23,6 +22,7 @@
 #include "rv_burner_compile/rv_burner_common_helpers.hpp"
 #include "rv_burner_compile/rv_burner_compile_scripts.hpp"
 #include "rv_burner_compile/rv_burner_compile_sources.hpp"
+#include "rv_burner_globs.hpp"
 #include "rv_burner_print.hpp"
 #include "rv_zipwrite.hpp"
 
@@ -32,130 +32,6 @@ namespace rv_pdktools
 {
 namespace
 {
-
-// ── globbing ──────────────────────────────────────────────────────────────────
-
-bool has_wildcard(std::string_view component)
-{
-	return component.find('*') != std::string_view::npos ||
-		component.find('?') != std::string_view::npos;
-}
-
-// Classic backtracking wildcard match over one path component. `*` never
-// crosses a '/' here because it is only ever applied within a component.
-bool wildcard_match(std::string_view pattern, std::string_view text)
-{
-	std::size_t p = 0;
-	std::size_t t = 0;
-	std::size_t star = std::string_view::npos;
-	std::size_t retry = 0;
-	while (t < text.size()) {
-		if (p < pattern.size() && (pattern[p] == '?' || pattern[p] == text[t])) {
-			++p;
-			++t;
-		} else if (p < pattern.size() && pattern[p] == '*') {
-			star = p;
-			retry = t;
-			++p;
-		} else if (star != std::string_view::npos) {
-			p = star + 1;
-			++retry;
-			t = retry;
-		} else {
-			return false;
-		}
-	}
-	while (p < pattern.size() && pattern[p] == '*') {
-		++p;
-	}
-	return p == pattern.size();
-}
-
-std::vector<std::string> split_components(const std::string &pattern)
-{
-	std::vector<std::string> parts;
-	std::string current;
-	for (const char c : pattern) {
-		if (c == '/') {
-			if (!current.empty()) {
-				parts.push_back(current);
-				current.clear();
-			}
-		} else {
-			current += c;
-		}
-	}
-	if (!current.empty()) {
-		parts.push_back(current);
-	}
-	return parts;
-}
-
-// Sorted listing of one directory. Sorted because a disc must burn to the same
-// bytes twice in a row: readdir order is a filesystem's private business and
-// letting it decide link order (or archive order) would make every rebuild a
-// different file.
-std::vector<fs::directory_entry> sorted_children(const fs::path &directory)
-{
-	std::vector<fs::directory_entry> children;
-	std::error_code ec;
-	for (fs::directory_iterator it(directory, ec), end; !ec && it != end; it.increment(ec)) {
-		children.push_back(*it);
-	}
-	std::sort(children.begin(), children.end(),
-		[](const fs::directory_entry &a, const fs::directory_entry &b) {
-			return a.path().filename().string() < b.path().filename().string();
-		});
-	return children;
-}
-
-void glob_descend(const fs::path &root, const fs::path &relative,
-	const std::vector<std::string> &components, std::size_t index,
-	std::vector<std::string> &out)
-{
-	const fs::path here = relative.empty() ? root : root / relative;
-	if (index == components.size()) {
-		std::error_code ec;
-		if (fs::is_regular_file(here, ec)) {
-			out.push_back(relative.generic_string());
-		}
-		return;
-	}
-
-	const std::string &component = components[index];
-
-	// `**` matches zero or more directory levels.
-	if (component == "**") {
-		glob_descend(root, relative, components, index + 1, out);
-		for (const fs::directory_entry &child : sorted_children(here)) {
-			if (child.is_symlink() || !child.is_directory()) {
-				continue;
-			}
-			glob_descend(root, relative / child.path().filename(), components, index, out);
-		}
-		return;
-	}
-
-	if (!has_wildcard(component)) {
-		std::error_code ec;
-		const fs::path next = relative / component;
-		if (fs::exists(root / next, ec)) {
-			glob_descend(root, next, components, index + 1, out);
-		}
-		return;
-	}
-
-	for (const fs::directory_entry &child : sorted_children(here)) {
-		const std::string name = child.path().filename().string();
-		if (!wildcard_match(component, name)) {
-			continue;
-		}
-		if (child.is_symlink()) {
-			continue;
-		}
-		glob_descend(root, relative / name, components, index + 1, out);
-	}
-}
 
 // ── .mppctex inspection, for the budget gate ──────────────────────────────────
 
@@ -505,41 +381,6 @@ bool rv_check_collisions(const std::vector<rv_archive_item> &items, std::string 
 	return true;
 }
 
-// ── globs ─────────────────────────────────────────────────────────────────────
-
-bool rv_glob_expand(const fs::path &root, const std::vector<std::string> &patterns,
-	std::vector<std::string> &out, std::string &error)
-{
-	out.clear();
-	for (const std::string &pattern : patterns) {
-		if (pattern.empty()) {
-			error = "empty pattern in the manifest";
-			return false;
-		}
-		if (pattern.front() == '/') {
-			error = "pattern '" + pattern +
-				"' is absolute; manifest patterns are relative to the disc directory";
-			return false;
-		}
-		if (pattern.find("..") != std::string::npos) {
-			error = "pattern '" + pattern +
-				"' contains '..'; a disc may only reach files inside its own directory";
-			return false;
-		}
-
-		std::vector<std::string> matched;
-		glob_descend(root, fs::path(), split_components(pattern), 0, matched);
-		if (matched.empty()) {
-			error = "pattern '" + pattern + "' matched no files under '" + root.string() + "'";
-			return false;
-		}
-		out.insert(out.end(), matched.begin(), matched.end());
-	}
-	std::sort(out.begin(), out.end());
-	out.erase(std::unique(out.begin(), out.end()), out.end());
-	return true;
-}
-
 // ── the generated project ─────────────────────────────────────────────────────
 //
 // PATTERN: GENERATE A BUILD SYSTEM, DO NOT BE ONE.
@@ -583,7 +424,7 @@ std::string rv_human_size(int64_t bytes)
 	return std::string(buffer);
 }
 
-// ── build ─────────────────────────────────────────────────────────────────────
+// --- build --------------------------------------------------------
 
 int rv_burn_run(const rv_burner_options &options)
 {
@@ -600,7 +441,8 @@ int rv_burn_run(const rv_burner_options &options)
 		return 1;
 	}
 
-	// ── [1/4] manifest ────────────────────────────────────────────────────────
+	// --- [1/4] manifest -------------------------------------------
+
 	const fs::path manifest_path = disc_dir / "disc.toml";
 	std::expected<rv_burner_manifest, std::string> loaded =
 		rv_manifest_load(manifest_path.string());
@@ -615,12 +457,14 @@ int rv_burn_run(const rv_burner_options &options)
 		return 1;
 	}
 
-	// ── [2/4] compile ─────────────────────────────────────────────────────────
+	// --- prepare disc structure -----------------------------------
+
 	std::vector<std::string> sources;
 	if (!rv_glob_expand(disc_dir, manifest.build_sources, sources, error)) {
 		rv_burner_print_error("[build] sources: " + error);
 		return 1;
 	}
+
 	if (sources.empty()) {
 		rv_burner_print_error("[build] sources is empty: a disc with no code cannot export an entry point");
 		return 1;
@@ -647,13 +491,17 @@ int rv_burn_run(const rv_burner_options &options)
 	const fs::path project_dir =
 		options.build_dir.empty() ? disc_dir / ".mppcburn" : fs::absolute(options.build_dir, ec);
 	const fs::path binary_dir = project_dir / "build";
+	const fs::path scripts_dir = project_dir / "scripts";
 	const fs::path texture_dir = project_dir / "textures";
 	fs::create_directories(binary_dir, ec);
+	fs::create_directories(scripts_dir, ec);
 	fs::create_directories(texture_dir, ec);
 	if (ec) {
 		rv_burner_print_error("cannot create build directory '" + project_dir.string() + "'");
 		return 1;
 	}
+
+	// --- [2/4] compile --------------------------------------------
 
 	// --- create CMakeLists ---------------------------------------
 
@@ -678,14 +526,14 @@ int rv_burn_run(const rv_burner_options &options)
 	// --- build sources ----------------------------------------------------------
 
 	if (rv_pdktools::rv_burner_compile_sources(options, binary_dir, sources.size(), er) != 0) {
-		rv_burner_print_error(er);
+		rv_pdktools::rv_burner_print_error(er);
 		return 1;
 	}
 
 	// The phase above proved this file exists; the archive stage below carries it.
 	const fs::path disc_so = binary_dir / "disc.so";
 
-	// ── [3/4] assets ──────────────────────────────────────────────────────────
+	// --- [3/4] assets ---------------------------------------------
 	//
 	// The whole archive is PLANNED first — every flat name, and the original it
 	// came from — and only then is any work done. That ordering is what makes
@@ -732,32 +580,34 @@ int rv_burn_run(const rv_burner_options &options)
 		items.push_back(item);
 	}
 
-	// TODO(Claude-инструкция, код твой). Между текстурами и проверкой коллизий
-	// вставь третий источник элементов архива — скрипты.
-	//
-	// Что делать, по образцу блока текстур прямо над этим комментарием:
-	//   1. rv_glob_expand(disc_dir, manifest.scripts_sources, script_files, error)
-	//      — поле scripts_sources в манифесте уже есть, парсер его уже читает,
-	//        дописывать front end не надо;
-	//   2. на каждый файл завести rv_archive_item: item.name — имя с
-	//      расширением .luac (stem() + ".luac", как у текстур), item.source —
-	//      исходный .lua, item.payload — путь в project_dir/scripts/,
-	//      куда ляжет скомпилированный байткод;
-	//   3. ПОСЛЕ rv_check_collisions — прогнать rv_compile_script() по каждому
-	//      (см. rv_burner_compile/rv_burner_compile.hpp).
-	//
-	// Порядок «сначала спланировать весь архив, потом работать» описан в шапке
-	// стадии [3/4] выше — не ломай его: коллизию имён надо поймать до того, как
-	// один .luac перезапишет другой.
-	//
-	// Каталог project_dir/scripts/ создай рядом с texture_dir, там же где
-	// fs::create_directories выше.
-	//
-	// Проверь, надо ли поправить нумерацию стадий в rv_burner_print_step:
-	// сейчас их «4», и скрипты логично считать частью стадии assets, а не пятой.
+	std::vector<std::string> script_files;
+	if (!manifest.scripts_sources.empty()) {
+		if (!rv_glob_expand(disc_dir, manifest.scripts_sources, script_files, error)) {
+			rv_burner_print_error("[scripts] sources: " + error);
+			return 1;
+		}
+	}
+	const std::size_t first_script = items.size();
+	for (const std::string &relative : script_files) {
+		rv_archive_item item;
+		item.name = fs::path(relative).stem().string() + ".luac";
+		item.source = relative;
+		item.payload = (scripts_dir / item.name).string();
+		if (!rv_check_asset_name(item.name, error)) {
+			rv_burner_print_error("[scripts] sources: " + error + " (from '" + relative + "')");
+			return 1;
+		}
+		items.push_back(item);
+	}
 
 	if (!rv_check_collisions(items, error)) {
 		rv_burner_print_error(error);
+		return 1;
+	}
+
+	// Past the collision check, so no .luac can overwrite another's bytecode.
+	if (rv_pdktools::rv_burner_compile_scripts(items, first_script, disc_dir, er) != 0) {
+		rv_burner_print_error(er);
 		return 1;
 	}
 
@@ -777,7 +627,9 @@ int rv_burn_run(const rv_burner_options &options)
 		std::string child_output;
 		int status = 0;
 		int64_t video_memory_used = 0;
-		for (std::size_t i = first_texture; i < items.size(); ++i) {
+		// Bounded by the texture range, not by items.size(): the scripts planned
+		// after the textures are in the same vector and are not baker input.
+		for (std::size_t i = first_texture; i < first_texture + texture_files.size(); ++i) {
 			const rv_archive_item &item = items[i];
 			const std::string command =
 				rv_pdktools::shell_quote(baker) + " " + rv_pdktools::shell_quote((disc_dir / item.source).string()) + " " +
@@ -824,9 +676,11 @@ int rv_burn_run(const rv_burner_options &options)
 
 	rv_burner_print_step(3, "assets",
 		std::to_string(texture_files.size()) + " png -> .mppctex, " +
+			std::to_string(script_files.size()) + " lua -> .luac, " +
 			std::to_string(asset_files.size()) + " copied");
 
-	// ── [4/4] burn ────────────────────────────────────────────────────────────
+	// --- [4/4] burn -----------------------------------------------
+
 	fs::create_directories(output_path.parent_path(), ec);
 	rv_zipwriter writer(output_path.string());
 	if (!writer.ok()) {
