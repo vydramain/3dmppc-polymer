@@ -6,9 +6,9 @@ Language: Cpp
 Standard: Latest
 
 # --- База: табы шириной 4 ---
-# AlignWithSpaces: отступы — табами, выравнивание (хвостовые комментарии,
+# Never: отступы — пробелами, выравнивание (хвостовые комментарии,
 # макросы) — пробелами, чтобы столбцы не разъезжались при другом tabwidth.
-UseTab: AlignWithSpaces
+UseTab: Never
 IndentWidth: 4
 TabWidth: 4
 ContinuationIndentWidth: 4

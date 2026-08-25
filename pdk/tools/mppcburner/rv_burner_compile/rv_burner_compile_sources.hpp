@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <filesystem>
 #include <string>
 
@@ -9,14 +8,20 @@
 namespace rv_pdktools
 {
 
-// [2/4] compile: drive `cmake --build` over the generated project and confirm it
-// produced disc.so. Returns 0 on success and 1 on any refusal — the exit-code
-// contract the other phase functions use. The child's own diagnostic goes to
-// stderr verbatim; `error` carries only this tool's one-line summary.
-int rv_burner_compile_sources(
-	const rv_burner_options &options,
-	const std::filesystem::path &binary_dir,
-	std::size_t source_count,
-	std::string &error);
+/// Build the generated disc project and confirm it produced disc.so.
+///
+/// The project must already be configured — see configure_cmake(). The child's
+/// own diagnostic reaches stderr verbatim on failure, because nothing this tool
+/// could say about a broken disc beats what the compiler already said. Prints
+/// nothing on success: the [n/4] ladder belongs to the caller.
+///
+/// @param options     parsed command line; only `jobs` is read here
+/// @param binary_dir  cmake binary directory to build in
+/// @param error       set with this tool's one-line summary on failure
+/// @return 0 on success, 1 on refusal
+int compile_sources(
+    const rv_burner_options &options,
+    const std::filesystem::path &binary_dir,
+    std::string &error);
 
 } // namespace rv_pdktools

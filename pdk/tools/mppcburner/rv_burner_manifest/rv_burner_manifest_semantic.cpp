@@ -11,10 +11,7 @@
 
 namespace rv_pdktools
 {
-namespace
-{
-
-void check_entry(const rv_burner_section_spec &spec, const std::string &section,
+static void check_entry(const rv_burner_section_spec &spec, const std::string &section,
 	const rv_burner_tree_entry &entry, rv_burner_manifest_symbols &symbols,
 	rv_burner_manifest_failer &failer)
 {
@@ -41,9 +38,6 @@ void check_entry(const rv_burner_section_spec &spec, const std::string &section,
 				std::string(rv_burner_kind_name(entry.value.kind)));
 	}
 }
-
-} // namespace
-
 void rv_burner_manifest_check(const rv_burner_tree &tree, rv_burner_manifest_failer &failer)
 {
 	rv_burner_manifest_symbols symbols;

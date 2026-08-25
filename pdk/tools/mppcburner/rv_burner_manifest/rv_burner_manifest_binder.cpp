@@ -9,9 +9,6 @@
 
 namespace rv_pdktools
 {
-namespace
-{
-
 // One row per field of rv_burner_manifest. Section and key come from the schema
 // constants, so a row cannot drift away from the spelling the parser accepts.
 struct bind_rule {
@@ -94,7 +91,7 @@ constexpr bind_rule RULES[] = {
 		} },
 };
 
-const bind_rule *find_rule(std::string_view section, std::string_view key)
+static const bind_rule *find_rule(std::string_view section, std::string_view key)
 {
 	for (const bind_rule &rule : RULES) {
 		if (rule.section == section && rule.key == key) {
@@ -103,9 +100,6 @@ const bind_rule *find_rule(std::string_view section, std::string_view key)
 	}
 	return nullptr;
 }
-
-} // namespace
-
 rv_burner_manifest rv_burner_manifest_bind(const rv_burner_tree &tree)
 {
 	// Whatever the manifest leaves unsaid keeps the default of the structure —

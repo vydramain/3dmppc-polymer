@@ -7,19 +7,13 @@
 
 namespace rv_pdktools
 {
-namespace
-{
-
-bool define(std::map<std::string, int> &table, const std::string &name, int line, int &first_line)
+static bool define(std::map<std::string, int> &table, const std::string &name, int line, int &first_line)
 {
 	const std::pair<std::map<std::string, int>::iterator, bool> placed =
 		table.emplace(name, line);
 	first_line = placed.first->second;
 	return placed.second;
 }
-
-} // namespace
-
 const rv_burner_section_spec *rv_burner_manifest_symbols::lookup_section(
 	std::string_view name) const
 {

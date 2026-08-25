@@ -12,12 +12,9 @@
 
 namespace rv_pdktools
 {
-namespace
-{
-
 using tk = rv_burner_token_kind;
 
-rv_burner_token token_of(tk kind, int line, std::string text = std::string())
+static rv_burner_token token_of(tk kind, int line, std::string text = std::string())
 {
 	rv_burner_token token;
 	token.kind = kind;
@@ -26,13 +23,10 @@ rv_burner_token token_of(tk kind, int line, std::string text = std::string())
 	return token;
 }
 
-rv_burner_token invalid(int line, std::string message)
+static rv_burner_token invalid(int line, std::string message)
 {
 	return token_of(tk::INVALID, line, std::move(message));
 }
-
-} // namespace
-
 bool rv_burner_manifest_lexer::eof() const
 {
 	return pos_ >= text_.size();
