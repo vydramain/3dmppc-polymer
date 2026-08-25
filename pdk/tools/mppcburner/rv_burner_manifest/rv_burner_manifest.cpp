@@ -25,15 +25,12 @@
 
 namespace rv_pdktools
 {
-namespace
-{
-
 // --- rendering ----------------------------------------------------------------
 
 // The inverse of parse_string(). Only the five escapes the parser knows are
 // ever emitted, so anything this function produces is something it can read
 // back — that is the whole round-trip contract in one sentence.
-std::string quote(const std::string &s)
+static std::string quote(const std::string &s)
 {
 	std::string out = "\"";
 	for (char c : s) {
@@ -67,7 +64,7 @@ std::string quote(const std::string &s)
 // manifest with thirty globs stays readable in a diff.
 constexpr std::size_t kArrayWrapColumn = 80;
 
-void render_array(std::ostringstream &out, const std::string &key,
+static void render_array(std::ostringstream &out, const std::string &key,
 	const std::vector<std::string> &values)
 {
 	std::string one_line = key + " = [";
@@ -88,13 +85,10 @@ void render_array(std::ostringstream &out, const std::string &key,
 	}
 	out << "]\n";
 }
-
-} // namespace
-
 // The front of the pipeline, in the order of the stages. Each one hands the next
 // a whole product and its complaints to one failer; only the binder is allowed
 // to know what rv_burner_manifest looks like.
-std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text,
+std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text,
 	const std::string &origin)
 {
 	rv_burner_manifest_failer failer;
@@ -117,12 +111,12 @@ std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::stri
 	return rv_burner_manifest_bind(tree);
 }
 
-std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text)
+std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text)
 {
-	return rv_manifest_parse(text, std::string());
+	return manifest_parse(text, std::string());
 }
 
-std::expected<rv_burner_manifest, std::string> rv_manifest_load(const std::string &path)
+std::expected<rv_burner_manifest, std::string> manifest_load(const std::string &path)
 {
 	std::ifstream in(path, std::ios::binary);
 	if (!in) {
@@ -135,10 +129,10 @@ std::expected<rv_burner_manifest, std::string> rv_manifest_load(const std::strin
 	}
 	// The line number is only useful next to the file it belongs to, so the path
 	// goes in before the diagnostics are rendered.
-	return rv_manifest_parse(buffer.str(), path);
+	return manifest_parse(buffer.str(), path);
 }
 
-std::string rv_manifest_render(const rv_burner_manifest &manifest)
+std::string manifest_render(const rv_burner_manifest &manifest)
 {
 	std::ostringstream out;
 
@@ -179,7 +173,7 @@ std::string rv_manifest_render(const rv_burner_manifest &manifest)
 	return out.str();
 }
 
-bool rv_manifest_validate(const rv_burner_manifest &manifest, std::string &error)
+bool manifest_validate(const rv_burner_manifest &manifest, std::string &error)
 {
 	error.clear();
 

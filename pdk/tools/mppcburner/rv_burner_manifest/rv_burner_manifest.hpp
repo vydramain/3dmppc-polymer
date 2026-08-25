@@ -60,22 +60,22 @@ struct rv_burner_manifest {
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
 // between a fixed typo and an afternoon.
-std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text);
+std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text);
 
 // Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
-std::expected<rv_burner_manifest, std::string> rv_manifest_parse(const std::string &text,
+std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text,
 	const std::string &origin);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-std::expected<rv_burner_manifest, std::string> rv_manifest_load(const std::string &path);
+std::expected<rv_burner_manifest, std::string> manifest_load(const std::string &path);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.
-std::string rv_manifest_render(const rv_burner_manifest &manifest);
+std::string manifest_render(const rv_burner_manifest &manifest);
 
 // Check the manifest describes a disc that can be burned at all: non-empty id,
 // an id that is a safe filename, a known texture format, a positive
 // abi_version. Returns true when sound, otherwise fills `error`.
-bool rv_manifest_validate(const rv_burner_manifest &manifest, std::string &error);
+bool manifest_validate(const rv_burner_manifest &manifest, std::string &error);
 
 } // namespace rv_pdktools
