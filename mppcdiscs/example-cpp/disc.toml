@@ -1,12 +1,9 @@
 [disc]
-id = "example-lua"
-title = "mppcdisc example with lua"
+id = "example-cpp"
+title = "mppcdisc example"
 
 [build]
 sources = ["src/*.cpp"]
-
-[scripts]
-sources = ["scripts/*.lua"]
 
 [assets]
 files = ["assets/*.txt"]
