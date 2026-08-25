@@ -15,8 +15,8 @@ namespace rv_pdktools
 // spellings are the rows of rv_texfmt_names (pdklib/rv_texfmt_name.hpp) and are not
 // restated anywhere in this tool.
 struct rv_burner_manifest_textures {
-	std::vector<std::string> files;
-	rv_pdk::rv_texfmt format;
+    std::vector<std::string> files;
+    rv_pdk::rv_texfmt format;
 };
 
 // The budget the burner enforces at pack time. There are no defaults on
@@ -26,32 +26,32 @@ struct rv_burner_manifest_textures {
 // Checking here is the whole point: a texture that does not fit is an error on
 // the developer's desk, not a RV_ERR_INVAL on the player's loading screen.
 struct rv_burner_manifest_budget {
-	int64_t texture_max_width;
-	int64_t texture_max_height;
-	int64_t video_memory_size;
+    int64_t texture_max_width;
+    int64_t texture_max_height;
+    int64_t video_memory_size;
 };
 
 struct rv_burner_manifest {
-	// [disc]
-	std::string disc_id;    // short machine name, e.g. "hello"
-	std::string disc_title; // human title for the window and logs
+    // [disc]
+    std::string disc_id;    // short machine name, e.g. "hello"
+    std::string disc_title; // human title for the window and logs
 
-	// [build] — globs relative to the disc directory
-	std::vector<std::string> build_sources;
-	std::vector<std::string> build_defines;
-	std::vector<std::string> build_include_dirs;
+    // [build] — globs relative to the disc directory
+    std::vector<std::string> build_sources;
+    std::vector<std::string> build_defines;
+    std::vector<std::string> build_include_dirs;
 
-	// [scripts] - globs relative lua scripts to the disc directory
-	std::vector<std::string> scripts_sources;
+    // [scripts] - globs relative lua scripts to the disc directory
+    std::vector<std::string> scripts_sources;
 
-	// [assets] — globs copied into the archive verbatim
-	std::vector<std::string> assets_files;
+    // [assets] — globs copied into the archive verbatim
+    std::vector<std::string> assets_files;
 
-	// [textures] — globs baked through mppcbaker on the way in
-	rv_burner_manifest_textures textures_files;
+    // [textures] — globs baked through mppcbaker on the way in
+    rv_burner_manifest_textures textures_files;
 
-	// [budget]
-	rv_burner_manifest_budget budget;
+    // [budget]
+    rv_burner_manifest_budget budget;
 };
 
 // Parse manifest text: lexer → parser → semantic analysis → binder. Either a
@@ -60,14 +60,20 @@ struct rv_burner_manifest {
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
 // between a fixed typo and an afternoon.
-std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text);
+int manifest_parse(const std::string &text,
+    rv_burner_manifest &manifest,
+    std::string &error);
 
 // Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
-std::expected<rv_burner_manifest, std::string> manifest_parse(const std::string &text,
-	const std::string &origin);
+int manifest_parse(const std::string &text,
+    const std::string &origin,
+    rv_burner_manifest &manifest,
+    std::string &error);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-std::expected<rv_burner_manifest, std::string> manifest_load(const std::string &path);
+int manifest_load(const std::string &path,
+    rv_burner_manifest &manifest,
+    std::string &error);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.

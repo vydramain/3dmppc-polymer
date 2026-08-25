@@ -61,15 +61,14 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     // --- [1/4] manifest ---
 
+    std::string er;
+    rv_burner_manifest manifest;
     const fs::path manifest_path = disc_dir / "disc.toml";
-    std::expected<rv_burner_manifest, std::string> loaded =
-        manifest_load(manifest_path.string());
-    if (!loaded) {
-        rv_burner_print_error(loaded.error());
+    if (manifest_load(manifest_path.string(), manifest, er)) {
+        rv_burner_print_error("tmp error text" + er);
         return 1;
     }
 
-    const rv_burner_manifest manifest = std::move(*loaded);
     if (!manifest_validate(manifest, error)) {
         rv_burner_print_error(manifest_path.string() + ": " + error);
         return 1;
@@ -103,9 +102,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     // --- the build tree ---
 
-    const fs::path project_dir = options.build_dir.empty()
-        ? disc_dir / k_default_build_dir_name
-        : fs::absolute(options.build_dir, ec);
+    const fs::path project_dir = options.build_dir.empty() ? disc_dir / k_default_build_dir_name : fs::absolute(options.build_dir, ec);
     const fs::path binary_dir = project_dir / k_binary_subdir;
     const fs::path scripts_dir = project_dir / k_scripts_subdir;
     const fs::path texture_dir = project_dir / k_textures_subdir;
