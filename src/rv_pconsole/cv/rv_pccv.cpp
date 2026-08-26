@@ -9,16 +9,19 @@
 
 #include "pdk/cv/rv_pipeline.hpp"
 #include "pdk/rv_err.hpp"
+#include "pdklib/rv_texfmt_name.hpp"
 #include "rv_pconsole/cv/rv_pcraster.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // The contract's vocabulary, unqualified for the bodies below only. Never in a
 // header: a using-directive there would leak into every translation unit that
 // includes it.
 using namespace rv_pdk;
 
-namespace {
+namespace
+{
 
 // The only bits frame_configure() accepts today. Anything else is a disc built
 // against a newer contract than this console implements, and the contract says
@@ -34,14 +37,15 @@ constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS =
 // primitive must still be able to write a pixel.
 constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
-}  // namespace
+} // namespace
 
-rv_pccv::rv_pccv(const rv_pccv_conf& conf, rv_pchost& host)
-    : conf_(conf),
-      host_(host),
-      fbuf_(conf.screen_width, conf.screen_height),
-      vram_(conf.video_memory_size),
-      otable_(conf.ot_bucket_count, conf.depth_min, conf.depth_max) {
+rv_pccv::rv_pccv(const rv_pccv_conf &conf, rv_pchost &host)
+    : conf_(conf)
+    , host_(host)
+    , fbuf_(conf.screen_width, conf.screen_height)
+    , vram_(conf.video_memory_size)
+    , otable_(conf.ot_bucket_count, conf.depth_min, conf.depth_max)
+{
     // Reserve the whole frame budget up front. frame_put() runs inside the
     // disc's frame loop, and a vector growth there would be an allocation (and
     // a copy of every primitive filed so far) at an unpredictable frame.
@@ -52,42 +56,64 @@ rv_pccv::rv_pccv(const rv_pccv_conf& conf, rv_pchost& host)
 
 // --- hardware geometry -------------------------------------------------------
 
-int64_t rv_pccv::screen_width() { return conf_.screen_width; }
-int64_t rv_pccv::screen_height() { return conf_.screen_height; }
-int64_t rv_pccv::texture_max_width() { return conf_.texture_max_width; }
-int64_t rv_pccv::texture_max_height() { return conf_.texture_max_height; }
-int64_t rv_pccv::video_memory_size() { return conf_.video_memory_size; }
-int64_t rv_pccv::frame_capacity() { return conf_.frame_capacity; }
+int64_t rv_pccv::screen_width()
+{
+    return conf_.screen_width;
+}
+int64_t rv_pccv::screen_height()
+{
+    return conf_.screen_height;
+}
+int64_t rv_pccv::texture_max_width()
+{
+    return conf_.texture_max_width;
+}
+int64_t rv_pccv::texture_max_height()
+{
+    return conf_.texture_max_height;
+}
+int64_t rv_pccv::video_memory_size()
+{
+    return conf_.video_memory_size;
+}
+int64_t rv_pccv::frame_capacity()
+{
+    return conf_.frame_capacity;
+}
 
 // --- video RAM ---------------------------------------------------------------
 
 // Pure delegation: the pool owns "is there room", "which address", "is this
 // address live". Reproducing any of that here would give the console two
 // answers to the same question.
-int64_t rv_pccv::video_asset_malloc(int64_t size) { return vram_.malloc(size); }
+int64_t rv_pccv::video_asset_malloc(int64_t size)
+{
+    return vram_.malloc(size);
+}
 
-int64_t rv_pccv::video_asset_free(int64_t addr) { return vram_.free(addr); }
+int64_t rv_pccv::video_asset_free(int64_t addr)
+{
+    return vram_.free(addr);
+}
 
-bool rv_pccv::texture_format_known(rv_texfmt format) {
-    switch (format) {
-        case RV_TEXFMT_IDX4:
-        case RV_TEXFMT_IDX8:
-        case RV_TEXFMT_DIRECT15:
-            return true;
-        default:
-            return false;
+bool rv_pccv::texture_format_known(rv_texfmt format)
+{
+    if (rv_pdklib::rv_texfmt_name::by_format(format) != nullptr) {
+        return true;
     }
+    return false;
 }
 
 // The console's own limits are checked HERE, before the bytes reach the pool:
 // the pool knows how many bytes fit in a region, but the texture *shape* limit
 // is hardware geometry this class publishes (texture_max_width/height), so this
 // is the one place that can enforce it.
-int64_t rv_pccv::video_asset_write(int64_t addr, const rv_texture* texture_ptr) {
+int64_t rv_pccv::video_asset_write(int64_t addr, const rv_texture *texture_ptr)
+{
     if (texture_ptr == nullptr) {
         return RV_ERR_INVAL;
     }
-    const rv_texture& texture = *texture_ptr;
+    const rv_texture &texture = *texture_ptr;
 
     if (!texture_format_known(texture.format)) {
         return RV_ERR_INVAL;
@@ -116,16 +142,16 @@ int64_t rv_pccv::video_asset_write(int64_t addr, const rv_texture* texture_ptr) 
     const uint64_t texels = texture.width * texture.height;
     uint64_t needed = 0;
     switch (texture.format) {
-        case RV_TEXFMT_IDX4:
-            // Rows stay byte-aligned, so an odd width costs a padding nibble.
-            needed = ((texture.width + 1) / 2) * texture.height;
-            break;
-        case RV_TEXFMT_IDX8:
-            needed = texels;
-            break;
-        case RV_TEXFMT_DIRECT15:
-            needed = texels * 2;
-            break;
+    case RV_TEXFMT_IDX4:
+        // Rows stay byte-aligned, so an odd width costs a padding nibble.
+        needed = ((texture.width + 1) / 2) * texture.height;
+        break;
+    case RV_TEXFMT_IDX8:
+        needed = texels;
+        break;
+    case RV_TEXFMT_DIRECT15:
+        needed = texels * 2;
+        break;
     }
     if (texture.size < needed) {
         return RV_ERR_INVAL;
@@ -139,12 +165,14 @@ int64_t rv_pccv::video_asset_write(int64_t addr, const rv_texture* texture_ptr) 
 
 // --- the frame ---------------------------------------------------------------
 
-void rv_pccv::frame_reset() {
+void rv_pccv::frame_reset()
+{
     primitives_.clear();
     otable_.reset();
 }
 
-int64_t rv_pccv::frame_configure(uint64_t config, rv_color clear_color) {
+int64_t rv_pccv::frame_configure(uint64_t config, rv_color clear_color)
+{
     if ((config & ~RV_PCCV_CONFIG_KNOWN_BITS) != 0) {
         return RV_ERR_INVAL;
     }
@@ -159,20 +187,21 @@ int64_t rv_pccv::frame_configure(uint64_t config, rv_color clear_color) {
     return RV_OK;
 }
 
-int64_t rv_pccv::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const {
+int64_t rv_pccv::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const
+{
     switch (fill_mode) {
-        case RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED:
-        case RV_PRIMITIVE_FILL_MODE_WIREFRAME:
-            // Neither mode reads an address, so an address field left at zero —
-            // the common case for a zero-initialized primitive — is not an
-            // error here and must not be validated.
-            return RV_OK;
+    case RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED:
+    case RV_PRIMITIVE_FILL_MODE_WIREFRAME:
+        // Neither mode reads an address, so an address field left at zero —
+        // the common case for a zero-initialized primitive — is not an
+        // error here and must not be validated.
+        return RV_OK;
 
-        case RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE:
-            break;
+    case RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE:
+        break;
 
-        default:
-            return RV_ERR_INVAL;
+    default:
+        return RV_ERR_INVAL;
     }
 
     // The contract is explicit: "an address the primitive names is unknown" is
@@ -197,45 +226,46 @@ int64_t rv_pccv::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t ad
     return RV_OK;
 }
 
-int64_t rv_pccv::frame_put(const rv_primitive* primitive_ptr) {
+int64_t rv_pccv::frame_put(const rv_primitive *primitive_ptr)
+{
     if (primitive_ptr == nullptr) {
         return RV_ERR_INVAL;
     }
-    const rv_primitive& primitive = *primitive_ptr;
+    const rv_primitive &primitive = *primitive_ptr;
 
     // Validate BEFORE the capacity test, so a malformed primitive reports what
     // is wrong with it rather than being masked by a full buffer.
     switch (primitive.type) {
-        case RV_PRIMITIVE_LINE:
-            // A line has neither a fill mode nor an address: the segment is
-            // always drawn from its two vertex colours.
-            break;
+    case RV_PRIMITIVE_LINE:
+        // A line has neither a fill mode nor an address: the segment is
+        // always drawn from its two vertex colours.
+        break;
 
-        case RV_PRIMITIVE_POLYGON: {
-            const rv_polygon& polygon = primitive.data.polygon;
-            if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
-                return RV_ERR_INVAL;
-            }
-            const int64_t fill =
-                check_fill(polygon.fill_mode, polygon.addr_texture, polygon.addr_palette);
-            if (fill < 0) {
-                return fill;
-            }
-            break;
-        }
-
-        case RV_PRIMITIVE_SPRITE: {
-            const rv_sprite& sprite = primitive.data.sprite;
-            const int64_t fill =
-                check_fill(sprite.fill_mode, sprite.addr_texture, sprite.addr_palette);
-            if (fill < 0) {
-                return fill;
-            }
-            break;
-        }
-
-        default:
+    case RV_PRIMITIVE_POLYGON: {
+        const rv_polygon &polygon = primitive.data.polygon;
+        if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
             return RV_ERR_INVAL;
+        }
+        const int64_t fill =
+            check_fill(polygon.fill_mode, polygon.addr_texture, polygon.addr_palette);
+        if (fill < 0) {
+            return fill;
+        }
+        break;
+    }
+
+    case RV_PRIMITIVE_SPRITE: {
+        const rv_sprite &sprite = primitive.data.sprite;
+        const int64_t fill =
+            check_fill(sprite.fill_mode, sprite.addr_texture, sprite.addr_palette);
+        if (fill < 0) {
+            return fill;
+        }
+        break;
+    }
+
+    default:
+        return RV_ERR_INVAL;
     }
 
     if (static_cast<int64_t>(primitives_.size()) >= conf_.frame_capacity) {
@@ -252,31 +282,33 @@ int64_t rv_pccv::frame_put(const rv_primitive* primitive_ptr) {
     return RV_OK;
 }
 
-void rv_pccv::texture_addresses(const rv_primitive& primitive, int64_t& addr_texture,
-                                int64_t& addr_palette) {
+void rv_pccv::texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
+    int64_t &addr_palette)
+{
     addr_texture = 0;
     addr_palette = 0;
 
     switch (primitive.type) {
-        case RV_PRIMITIVE_POLYGON:
-            if (primitive.data.polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
-                addr_texture = primitive.data.polygon.addr_texture;
-                addr_palette = primitive.data.polygon.addr_palette;
-            }
-            break;
-        case RV_PRIMITIVE_SPRITE:
-            if (primitive.data.sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
-                addr_texture = primitive.data.sprite.addr_texture;
-                addr_palette = primitive.data.sprite.addr_palette;
-            }
-            break;
-        default:
-            break;  // a line is never textured (rv_primitives.hpp)
+    case RV_PRIMITIVE_POLYGON:
+        if (primitive.data.polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
+            addr_texture = primitive.data.polygon.addr_texture;
+            addr_palette = primitive.data.polygon.addr_palette;
+        }
+        break;
+    case RV_PRIMITIVE_SPRITE:
+        if (primitive.data.sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
+            addr_texture = primitive.data.sprite.addr_texture;
+            addr_palette = primitive.data.sprite.addr_palette;
+        }
+        break;
+    default:
+        break; // a line is never textured (rv_primitives.hpp)
     }
 }
 
-rv_pctexview rv_pccv::texture_view(const rv_primitive& primitive) const {
-    rv_pctexview view;  // invalid until every piece is found
+rv_pctexview rv_pccv::texture_view(const rv_primitive &primitive) const
+{
+    rv_pctexview view; // invalid until every piece is found
 
     int64_t addr_texture = 0;
     int64_t addr_palette = 0;
@@ -296,7 +328,7 @@ rv_pctexview rv_pccv::texture_view(const rv_primitive& primitive) const {
         return view;
     }
 
-    const uint8_t* texels = vram_.region_data(addr_texture);
+    const uint8_t *texels = vram_.region_data(addr_texture);
     if (texels == nullptr) {
         return view;
     }
@@ -307,10 +339,10 @@ rv_pctexview rv_pccv::texture_view(const rv_primitive& primitive) const {
     view.height = height;
 
     if (format == RV_TEXFMT_IDX4 || format == RV_TEXFMT_IDX8) {
-        const uint8_t* entries = vram_.region_data(addr_palette);
+        const uint8_t *entries = vram_.region_data(addr_palette);
         const int64_t count = vram_.region_width(addr_palette);
         if (entries == nullptr || count <= 0) {
-            view.texels = nullptr;  // indexed without a palette is unsamplable
+            view.texels = nullptr; // indexed without a palette is unsamplable
             return view;
         }
 
@@ -320,14 +352,15 @@ rv_pctexview rv_pccv::texture_view(const rv_primitive& primitive) const {
         // sampler still bounds-checks every index against `palette_count`,
         // because a disc may legally upload a short palette and an IDX8 texel
         // can name entry 255 regardless.
-        view.palette = reinterpret_cast<const uint16_t*>(entries);
+        view.palette = reinterpret_cast<const uint16_t *>(entries);
         view.palette_count = count;
     }
 
     return view;
 }
 
-int64_t rv_pccv::frame_flush() {
+int64_t rv_pccv::frame_flush()
+{
     // THEOREM: painter's algorithm, with the ordering table's residual
     // ambiguity resolved by the Z buffer. Drawing far-to-near is correct
     // BETWEEN buckets — whatever the last bucket writes covers everything the
@@ -348,7 +381,7 @@ int64_t rv_pccv::frame_flush() {
     fbuf_.clear(rv_pcraster::pack_rgb555(clear_color_), RV_PCCV_DEPTH_FARTHEST, z_enabled_);
 
     otable_.for_each_far_to_near([this](int32_t index) {
-        const rv_primitive& primitive = primitives_[static_cast<size_t>(index)];
+        const rv_primitive &primitive = primitives_[static_cast<size_t>(index)];
 
         // The view is resolved per primitive, at DRAW time and not at put time:
         // a primitive filed early in the frame may name a region the disc
@@ -364,10 +397,10 @@ int64_t rv_pccv::frame_flush() {
     // never configures itself gets a black, ordering-table-only frame rather
     // than inheriting whatever the previous frame chose.
     frame_reset();
-    clear_color_ = rv_color{0, 0, 0};
+    clear_color_ = rv_color{ 0, 0, 0 };
     z_enabled_ = false;
 
     return RV_OK;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc
