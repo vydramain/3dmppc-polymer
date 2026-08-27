@@ -13,8 +13,8 @@ Drop as many discs as you like side by side.
 ```
 mppcdiscs/
   <disc-id>/
-    disc.toml       manifest: id, title, ABI version, what to compile/bake/copy
-    src/*.cpp       the game — implements rv_de, exports itself with RV_DISC_EXPORT
+    disc.toml       manifest: id, title, what to compile/bake/copy
+    src/*.cpp       the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
     assets/         PNGs get baked into texels; everything else is copied in
 ```
 
@@ -26,7 +26,7 @@ for how the packaged disc is loaded.
 
 | Disc                    | What it is                                             |
 | ----------------------- | ------------------------------------------------------ |
-| [`hello/`](hello/)      | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. Annotated in [`hello/README.md`](hello/README.md). |
+| [`example-cpp/`](example-cpp/) | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. |
 
 ## Real games live in their own repositories
 
