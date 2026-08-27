@@ -37,5 +37,15 @@ get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
 
 include(${RV_REPO_ROOT}/cmake/luajit.cmake)
 
+add_library(3dmppc_pdk INTERFACE)
+target_include_directories(3dmppc_pdk INTERFACE ${RV_REPO_ROOT}/pdk/include)
+
+file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_manifest/*.cpp
+)
+add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
+target_include_directories(3dmppc_pdklib PUBLIC ${RV_REPO_ROOT}/pdk/lib/include)
+target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
+
 add_subdirectory(mppcbaker)
 add_subdirectory(mppcburner)

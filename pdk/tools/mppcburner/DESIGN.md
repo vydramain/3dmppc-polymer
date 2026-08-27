@@ -5,42 +5,42 @@
     ┌──────────────────────────────────────────────┐
     │ 1. ЛЕКСЕР (scanner)                          │
     ├──────────────────────────────────────────────┤
-    │ rv_burner_manifest_lexer.cpp                 │
+    │ detail/rv_manifest_lexer.cpp                 │
     │ символы → токены, пробелы и # съедены        │
     │ NEWLINE — настоящий токен                    │
     │ мусор → INVALID, несёт свой текст            │
     └──────────────────────────────────────────────┘
-                           │ std::vector<rv_burner_token>
+                           │ std::vector<rv_manifest_token>
                            ▼
     ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────┐
     │ 2. ПАРСЕР (синтаксис)                        │       │ ОБРАБОТЧИК ОШИБОК ← стадии 2 и 3     │
     ├──────────────────────────────────────────────┤       ├──────────────────────────────────────┤
-    │ rv_burner_manifest_parser.cpp                │       │ rv_burner_manifest_failer.cpp        │
+    │ detail/rv_manifest_parser.cpp                │       │ detail/rv_manifest_failer.cpp        │
     │ токены → дерево: секция → ключ → знач.       │─────▶ │ строка + текст, порядок ввода        │
-    │ полей rv_burner_manifest НЕ знает                   │       │ все ошибки | первая (stop_at_first)  │
+    │ полей rv_pdklib::rv_manifest НЕ знает        │       │ все ошибки | первая (stop_at_first)  │
     │ recover(): до начала след. инструкции,       │       │ report(origin) →                     │
     │ битый заголовок → poisoned, без каскада      │       │   disc.toml:14: unknown key 'titel'  │
     └──────────────────────────────────────────────┘       │ suggest_key/suggest_section() →      │
-                           │ rv_burner_tree                │   did you mean 'title'?              │
-                           ▼                               │   rv_burner_text.cpp                 │
+                           │ rv_manifest_tree              │   did you mean 'title'?              │
+                           ▼                               │   rv_manifest_text.cpp               │
     ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────┐
     │ 3. СЕМАНТИКА                                 │       │ ТАБЛИЦА СИМВОЛОВ ← стадии 3 и 4      │
     ├──────────────────────────────────────────────┤       ├──────────────────────────────────────┤
-    │ rv_burner_manifest_semantic.cpp              │       │ static — rv_burner_schema.hpp        │
+    │ detail/rv_manifest_semantic.cpp              │       │ static — rv_manifest_schema.hpp      │
     │ секция известна? ключ её? тип тот?           │◀────▶ │   секции, ключи, типы значений       │
-    │ не задано дважды?                            │       │ dynamic — ..._manifest_symbols.cpp   │
+    │ не задано дважды?                            │       │ dynamic — rv_manifest_symbols.hpp    │
     │ идёт ТОЛЬКО если парсер промолчал            │       │   что встречено и на какой строке    │
     └──────────────────────────────────────────────┘       │   → 'first at line N'                │
-                           │ rv_burner_tree (одобренное)   └──────────────────────────────────────┘
+                           │ rv_manifest_tree (одобренное) └──────────────────────────────────────┘
                            ▼
     ┌──────────────────────────────────────────────┐
     │ 4. IR GEN (биндер)                           │
     ├──────────────────────────────────────────────┤
-    │ rv_burner_manifest_binder.cpp                │
+    │ detail/rv_manifest_binder.cpp                │
     │ таблица {секция, ключ, лямбда}               │
     │ ЕДИНСТВЕННЫЙ знает имена полей struct        │
     └──────────────────────────────────────────────┘
-                           │ rv_burner_manifest
+                           │ rv_pdklib::rv_manifest
                            ▼
     ┌──────────────────────────────────────────────┐
     │ BACK-END                                     │
@@ -50,3 +50,4 @@
     │ rv_manifest_render() → копия на диск         │
     └──────────────────────────────────────────────┘
 
+Пути .cpp/.hpp даны относительно pdk/lib/include/pdklib/rv_manifest/.

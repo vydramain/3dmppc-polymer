@@ -7,9 +7,9 @@
 #include <fstream>
 #include <string>
 
-#include "pdklib/rv_mppctex.hpp"
+#include "pdklib/rv_textures/rv_mppctex.hpp"
 #include "rv_burner_common/rv_burner_bytes.hpp"
-#include "pdklib/rv_texfmt_name.hpp"
+#include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_burner_assets/rv_burner_baker_path.hpp"
 #include "rv_burner_common/rv_burner_process.hpp"
 
@@ -73,7 +73,7 @@ static bool read_mppctex_header(
 
 int rv_pdktools::bake_textures(
     const std::string &baker_hint,
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const archive_plan &plan,
     std::string &error)

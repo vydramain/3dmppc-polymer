@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"

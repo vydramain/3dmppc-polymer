@@ -9,8 +9,8 @@
 #include <cmath>
 
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_logs.hpp"
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 
 namespace rv_3dmppc {

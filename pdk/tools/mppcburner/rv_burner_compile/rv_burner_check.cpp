@@ -6,7 +6,7 @@
 namespace fs = std::filesystem;
 
 int rv_pdktools::check_sources_outside_disc(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const std::vector<std::string> &sources,
     std::vector<std::string> &absolute_includes,

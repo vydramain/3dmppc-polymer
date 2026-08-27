@@ -5,7 +5,7 @@
 #include <string>
 
 #include "rv_burner_assets/rv_burner_plan.hpp"
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_pdktools
 {
@@ -34,7 +34,7 @@ namespace rv_pdktools
 /// @return 0 on success, 1 on refusal
 int burn_archive(
     const std::filesystem::path &output_path,
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_module,
     const archive_plan &plan,
     int64_t &burned_size,

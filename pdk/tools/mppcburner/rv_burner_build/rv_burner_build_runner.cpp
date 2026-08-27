@@ -16,7 +16,7 @@
 #include "rv_burner_compile/rv_burner_check.hpp"
 #include "rv_burner_compile/rv_burner_cmake.hpp"
 #include "rv_burner_compile/rv_burner_compile_sources.hpp"
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
 
 namespace fs = std::filesystem;
@@ -62,14 +62,14 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     // --- [1/4] manifest ---
 
     std::string er;
-    rv_burner_manifest manifest;
+    rv_pdklib::rv_manifest manifest;
     const fs::path manifest_path = disc_dir / "disc.toml";
-    if (manifest_load(manifest_path.string(), manifest, er)) {
+    if (rv_pdklib::rv_manifest_load(manifest_path.string(), manifest, er)) {
         rv_burner_print_error("tmp error text" + er);
         return 1;
     }
 
-    if (!manifest_validate(manifest, error)) {
+    if (!rv_pdklib::rv_manifest_validate(manifest, error)) {
         rv_burner_print_error(manifest_path.string() + ": " + error);
         return 1;
     }

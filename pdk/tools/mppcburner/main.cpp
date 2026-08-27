@@ -19,7 +19,7 @@
 
 #include <getopt.h>
 
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_build/rv_burner_build_runner.hpp"
 #include "rv_burner_options.hpp"

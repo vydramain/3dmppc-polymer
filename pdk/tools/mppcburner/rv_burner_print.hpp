@@ -9,7 +9,7 @@
 
 #include <string>
 
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #ifdef __GLIBC__
 #include <cerrno> // IWYU pragma: keep - declares program_invocation_short_name

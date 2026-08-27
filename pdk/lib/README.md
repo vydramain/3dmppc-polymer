@@ -3,8 +3,9 @@
 > Machine-generated. Every header in this tree carries a `NEUROSLOP` banner:
 > written by Claude (claude-opus-5), not reviewed by a human.
 
-Header-only helpers a disc is written *with*. `pdk/` says what the console can
-do; `pdklib/` is the arithmetic you would otherwise write again in every game.
+Disc-side helpers a disc is written *with*. `pdk/` says what the console can
+do; `pdklib/` is the arithmetic and manifest support you would otherwise write
+again in every game.
 
 ## The fourth tree
 
@@ -15,9 +16,15 @@ do; `pdklib/` is the arithmetic you would otherwise write again in every game.
 | [`mppcdiscs/`](../../mppcdiscs/) | the **discs** — games | `pdk/` + (optionally) `pdklib/` |
 | `pdklib/` | **conveniences for discs**, written *on top of* the contract | discs only, and only if they want to |
 
-`pdklib/` depends on `pdk/` and the standard library. Nothing else — no `src/`, no
-SDL. The CMake target is `INTERFACE` with `pdk/lib/include` on the path, and only
-disc targets link it.
+`pdklib/` depends on `pdk/` and the standard library. Nothing else — no `src/`,
+no SDL. The `3dmppc_pdklib` target exposes `pdk/lib/include` publicly and
+compiles the manifest parser from `pdklib/rv_manifest/`; the console tree and
+the tools tree each build that target and link it instead of carrying their own
+parser copy.
+
+A burned disc does **not** link it. mppcburner hands the generated disc project
+`pdk/lib/include` as an include directory and nothing else, so a disc gets the
+header-only modules and not `rv_manifest_*`.
 
 ## Namespaces
 
@@ -62,16 +69,23 @@ The concrete thing it buys: the console has **no 3D**. `rv_vertex` is a pair of
 screen `int16`, and projection is entirely the disc's job, exactly as the PSX's
 GTE was a coprocessor the programmer drove by hand. `pdklib/` is that hand.
 
-## Why the parsers do not read files
+## Why the disc-side parsers do not read files
 
-**Nothing in `pdklib/` opens a file.** `rv_obj_parse` takes `const void* data,
-size_t size` — bytes, never a path.
+**Nothing a disc can call opens a file.** `rv_obj_parse` takes `const void*
+data, size_t size` — bytes, never a path.
 
 Reading is the drive's privilege. A disc calls `rv_cd::asset_open` /
 `asset_size` / `asset_read` into a buffer it owns, then hands those bytes to a
 parser. A parser that took a filename would grow a second, private file system
 beside the one the console models, and a disc could then read something that is
 not on the disc at all — the whole medium abstraction would be decoration.
+
+`rv_manifest_load` is the one function here that takes a path and opens an
+`std::ifstream`, and it is the exception that shows where the line runs: it
+exists for mppcburner, on a developer's machine, where there is no drive to ask.
+A disc cannot reach it — the generated disc project links no pdklib object code
+at all. The parsing itself still takes bytes: `rv_manifest_parse` is what any
+caller with a buffer uses.
 
 Same reason there is no image loader here: decoding PNG is an **offline
 authoring** job (`pdk/tools/`), and what ships on a disc is texels the console can
@@ -81,13 +95,14 @@ upload as-is.
 
 | Header | What it holds |
 | --- | --- |
-| `pdklib/rv_math.hpp` | `rv_vec2/3/4`, `rv_mat4`; dot, cross, length, normalize; translate / rotate / scale; matrix and matrix-vector products |
-| `pdklib/rv_camera.hpp` | `rv_look_at`, `rv_perspective` (both left-handed), the `rv_camera` bundle, world → clip |
-| `pdklib/rv_xform.hpp` | geometry → `rv_primitive`: near-plane rejection, perspective divide, screen mapping with `int16` saturation, screen-space back-face culling, the ordering-table depth key |
-| `pdklib/rv_obj.hpp` | Wavefront `.obj` from a memory buffer (`v` / `vt` / `vn` / `f`, fan triangulation, negative indices) |
-| `pdklib/rv_color.hpp` | HSV→RGB, lerp / scale / modulate / add, Lambert shading into vertex colours |
-| `pdklib/rv_text.hpp` | text: builds the font atlas and palette for upload, lays a string out as one textured quad per glyph, measures it |
-| `pdklib/rv_font_data.hpp` | the bitmap font itself — 5×7 ink in an 8×8 cell, ASCII 32..126 plus a notdef block |
+| `pdklib/rv_math/rv_math.hpp` | `rv_vec2/3/4`, `rv_mat4`; dot, cross, length, normalize; translate / rotate / scale; matrix and matrix-vector products |
+| `pdklib/rv_camera/rv_camera.hpp` | `rv_look_at`, `rv_perspective` (both left-handed), the `rv_camera` bundle, world → clip |
+| `pdklib/rv_math/rv_xform.hpp` | geometry → `rv_primitive`: near-plane rejection, perspective divide, screen mapping with `int16` saturation, screen-space back-face culling, the ordering-table depth key |
+| `pdklib/rv_math/rv_obj.hpp` | Wavefront `.obj` from a memory buffer (`v` / `vt` / `vn` / `f`, fan triangulation, negative indices) |
+| `pdklib/rv_color/rv_color.hpp` | HSV→RGB, lerp / scale / modulate / add, Lambert shading into vertex colours |
+| `pdklib/rv_text/rv_text.hpp` | text: builds the font atlas and palette for upload, lays a string out as one textured quad per glyph, measures it |
+| `pdklib/rv_text/rv_font_data.hpp` | the bitmap font itself — 5×7 ink in an 8×8 cell, ASCII 32..126 plus a notdef block |
+| `pdklib/rv_manifest/rv_manifest.hpp` | manifest data model plus parse / load / render / validate entry points; the parser implementation is compiled into `3dmppc_pdklib` |
 
 Text deserves a word, because its absence from the contract is deliberate. The
 console has no text primitive and never will: on the machine this imitates a

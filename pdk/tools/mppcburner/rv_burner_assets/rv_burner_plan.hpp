@@ -5,7 +5,7 @@
 #include <string>
 
 #include "rv_burner_common/rv_burner_archive.hpp"
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_pdktools
 {
@@ -47,7 +47,7 @@ struct archive_plan {
 /// @param error        set with a message that already names its manifest section
 /// @return 0 on success, 1 on refusal
 int plan_archive(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::filesystem::path &texture_dir,
     const std::filesystem::path &scripts_dir,

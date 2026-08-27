@@ -5,7 +5,7 @@
 #include <system_error>
 
 #include "rv_burner_zip/rv_burner_zipwrite.hpp"
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace fs = std::filesystem;
 
@@ -21,7 +21,7 @@ static constexpr const char *k_entry_module = "disc.so";
 
 int rv_pdktools::burn_archive(
     const fs::path &output_path,
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
     const archive_plan &plan,
     int64_t &burned_size,
@@ -38,7 +38,7 @@ int rv_pdktools::burn_archive(
 
     // --- the manifest ---
 
-    const std::string manifest_text = manifest_render(manifest);
+    const std::string manifest_text = rv_pdklib::rv_manifest_render(manifest);
     if (!writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error)) {
         return 1;
     }

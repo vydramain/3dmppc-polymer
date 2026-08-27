@@ -7,7 +7,7 @@
 #include <vector>
 
 #include "rv_burner_common/rv_burner_process.hpp"
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace fs = std::filesystem;
 
@@ -49,7 +49,7 @@ static std::string cmake_quote(const std::string &text)
 // `ninja -v` in. Raw string literals keep each block looking like the cmake it
 // produces; the loops between them are where the manifest's own lists arrive.
 std::string rv_pdktools::cmake_project_text(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::string &pdk_dir,
     const std::string &pdklib_dir,
     const std::vector<std::string> &absolute_includes,
@@ -116,7 +116,7 @@ target_include_directories(disc PRIVATE
     // --- definitions ---
     //
     // RV_LOG_ORIGIN is not optional and not the manifest's to set: it stamps
-    // every line pdklib/rv_logs.hpp emits as coming from a disc rather than from
+    // every line pdklib/rv_logs/rv_logs.hpp emits as coming from a disc rather than from
     // the console or a tool. A disc that had to declare it could get it wrong.
     text += R"cmake(target_compile_definitions(disc PRIVATE
   "RV_LOG_ORIGIN=\"disc\""
@@ -147,7 +147,7 @@ target_include_directories(disc PRIVATE
 
 int rv_pdktools::create_cmakelists(
     const rv_burner_options &options,
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const fs::path &project_dir,
     const std::vector<std::string> &absolute_includes,
     const std::vector<std::string> &absolute_sources,
@@ -184,7 +184,7 @@ int rv_pdktools::create_cmakelists(
     const fs::path version_unit_path = project_dir / k_version_unit_name;
     const std::string version_unit_text{
         "#include \"pdk/de/rv_dv.hpp\"\n"
-        "#include \"pdklib/rv_disc_version.hpp\"\n"
+        "#include \"pdklib/rv_disc_version/rv_disc_version.hpp\"\n"
         "\n"
         "RV_MPPC_DISC_VERSION_DEF;"
     };
