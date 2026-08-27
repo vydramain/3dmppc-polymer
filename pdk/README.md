@@ -9,7 +9,7 @@ headers a game is written against, exactly like a real console ships a devkit of
 headers rather than the firmware source.
 
 > Scope: PDK defines *the boundary*. How a disc is packaged and loaded at runtime
-> (`.mppcdisc`, `dlopen`, extract-to-temp, `abi_version` handshake) is a separate
+> (`.mppcdisc`, `dlopen`, extract-to-temp, ELF-note version handshake) is a separate
 > concern documented in [`../docs/platform/disc-loading.md`](../docs/platform/disc-loading.md).
 
 ---
@@ -389,7 +389,7 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_de` | the disc-entry interface a game implements (`disc_*` / `frame_*` hooks) |
 | `rv_dmain` | convention: the name of every disc's class implementing `rv_de` |
 | `rv_pconsole` | the concrete console in `src/` — implements `rv_pdko`, owns the loop (`disc_load` / `disc_run`) |
-| `rv_mppcdisc` | packaging (future): POD a `.mppcdisc` module exports — `abi_version` + factory |
+| `rv_mppcdisc` | packaging (future): POD for a `.mppcdisc` module |
 
 (`rv_` is the project-wide type prefix. The contract lives in `namespace rv_pdk`;
 the console that implements it in `rv_3dmppc`; each game in its own.)
