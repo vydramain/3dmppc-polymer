@@ -5,7 +5,7 @@
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_logs.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
 

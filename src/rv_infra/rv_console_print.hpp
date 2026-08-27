@@ -8,13 +8,13 @@
 //
 // No level, no tag, no source position: the reader is starting a console, not
 // debugging one. Everything the console says about its own work goes through
-// RV_LOG_* from pdklib/rv_logs.hpp instead.
+// RV_LOG_* from pdklib/rv_logs/rv_logs.hpp instead.
 #pragma once
 
 #include <cstdio>
 #include <string>
 
-#include "pdklib/rv_stdio.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #ifdef __GLIBC__
 #include <cerrno> // IWYU pragma: keep - declares program_invocation_short_name

@@ -82,7 +82,7 @@ static int plan_section(
 } // namespace rv_pdktools
 
 int rv_pdktools::plan_archive(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const fs::path &texture_dir,
     const fs::path &scripts_dir,

@@ -29,20 +29,23 @@ add_library(3dmppc_pdk INTERFACE)
 target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 
 # --- shared helper library (pdklib) -------------------------------------------
-# Header-only implementations written AGAINST the contract: matrix math, camera,
-# transform to screen-space vertices, format parsers, diagnostic output. It is
-# not the contract (the console implements nothing here) and not a game, so it
-# is its own tree.
+# Disc-side helpers written AGAINST the contract: mostly header-only math,
+# camera, transform, text, and diagnostics, plus the statically linked manifest
+# parser implementation. It is not the contract (the console implements nothing
+# here) and not a game, so it is its own tree.
 #
-# It is INTERFACE because every function in it is inline and lives in a header:
-# there is no .cpp under pdk/lib/ and therefore no artifact to build. Linking it
-# delivers one thing, the include directory.
+# Linking it now delivers both things pdklib owns: the include directory and the
+# manifest parser object code built from pdk/lib/include/pdklib/rv_manifest/.
 #
 # Discs get it a different way — mppcburner writes the path into the CMakeLists
 # it generates for a disc project — so this target serves only what is built
 # from this file.
-add_library(3dmppc_pdklib INTERFACE)
-target_include_directories(3dmppc_pdklib INTERFACE ${CMAKE_SOURCE_DIR}/pdk/lib/include)
+file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
+  ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/rv_manifest/*.cpp
+)
+add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
+target_include_directories(3dmppc_pdklib PUBLIC ${CMAKE_SOURCE_DIR}/pdk/lib/include)
+target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
 
 # --- the disc -----------------------------------------------------------------
 # rv_dmain is a GAME, not part of the machine, so it is built as its own target
@@ -62,7 +65,7 @@ target_link_libraries(rv_dmain PRIVATE libluajit)
 
 # Stamps every log line this target emits with its origin, so game lines are
 # told apart from console lines without anyone passing an argument. Four
-# characters wide; see pdklib/rv_logs.hpp.
+# characters wide; see pdklib/rv_logs/rv_logs.hpp.
 target_compile_definitions(rv_dmain PRIVATE RV_LOG_ORIGIN="disc")
 
 if(MSVC)
@@ -88,7 +91,8 @@ target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
 # separate tree with a separate purpose, and the console takes from it only the
-# output stack — pdklib/rv_stdio.hpp and pdklib/rv_logs.hpp on top of it.
+# output stack — pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
+# top of it.
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
 

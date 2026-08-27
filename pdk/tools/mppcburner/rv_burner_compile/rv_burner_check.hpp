@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_pdktools
 {
@@ -30,7 +30,7 @@ namespace rv_pdktools
 /// @param error              set with a fragment the caller prefixes
 /// @return 0 on success, 1 on refusal
 int check_sources_outside_disc(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::vector<std::string> &sources,
     std::vector<std::string> &absolute_includes,

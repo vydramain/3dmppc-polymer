@@ -9,7 +9,7 @@
 
 #include "pdk/cv/rv_pipeline.hpp"
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_texfmt_name.hpp"
+#include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_pconsole/cv/rv_pcraster.hpp"
 
 namespace rv_3dmppc

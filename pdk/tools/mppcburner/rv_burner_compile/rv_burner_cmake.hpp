@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "rv_burner_manifest/rv_burner_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_options.hpp"
 
 namespace rv_pdktools
@@ -37,7 +37,7 @@ namespace rv_pdktools
 /// @param absolute_sources   the disc's .cpp files, absolute
 /// @return the complete text of a CMakeLists.txt
 std::string cmake_project_text(
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::string &pdk_dir,
     const std::string &pdklib_dir,
     const std::vector<std::string> &absolute_includes,
@@ -55,7 +55,7 @@ std::string cmake_project_text(
 /// @return 0 on success, 1 on refusal
 int create_cmakelists(
     const rv_burner_options &options,
-    const rv_burner_manifest &manifest,
+    const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &project_dir,
     const std::vector<std::string> &absolute_includes,
     const std::vector<std::string> &absolute_sources,

@@ -13,7 +13,7 @@
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_infra/rv_console_print.hpp"
-#include "pdklib/rv_logs.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 

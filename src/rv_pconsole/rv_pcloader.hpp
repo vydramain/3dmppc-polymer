@@ -30,8 +30,8 @@
 namespace rv_3dmppc {
 
 // What the console needs to know about a disc BEFORE it agrees to run its code.
-// A strict subset of the manifest the burner writes (pdk/tools/mppcburner/
-// rv_burner_manifest.hpp holds the full model): the console reads only what it must,
+// A strict subset of the manifest the burner writes (pdklib/rv_manifest/
+// rv_manifest.hpp holds the full model): the console reads only what it must,
 // because every field it parses is a field an attacker-supplied archive gets to
 // influence.
 struct rv_pcdiscinfo {

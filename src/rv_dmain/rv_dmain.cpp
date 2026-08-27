@@ -13,11 +13,11 @@
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_camera.hpp"
-#include "pdklib/rv_color.hpp"
-#include "pdklib/rv_math.hpp"
-#include "pdklib/rv_text.hpp"
-#include "pdklib/rv_xform.hpp"
+#include "pdklib/rv_camera/rv_camera.hpp"
+#include "pdklib/rv_color/rv_color.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
+#include "pdklib/rv_text/rv_text.hpp"
+#include "pdklib/rv_math/rv_xform.hpp"
 
 namespace rv_service {
 
