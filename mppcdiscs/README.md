@@ -24,9 +24,10 @@ for how the packaged disc is loaded.
 
 ## Discs here
 
-| Disc                    | What it is                                             |
-| ----------------------- | ------------------------------------------------------ |
-| [`example-cpp/`](example-cpp/) | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. |
+| Disc                             | What it is                                             |
+| -------------------------------- | ------------------------------------------------------ |
+| [`example-cpp/`](example-cpp/)   | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. |
+| [`example-lua/`](example-lua/)   | the same shape plus `scripts/`: the disc reads its `.luac` off the medium and runs it through `rv_cl`. Work in progress — the hooks are not written yet. |
 
 ## Real games live in their own repositories
 

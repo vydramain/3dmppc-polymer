@@ -40,7 +40,7 @@ private:
     //
     // lua_State здесь НЕ хранится и не создаётся: VM принадлежит консоли, диск
     // её только просит через pdk_->cl(). Тот же принцип, что с видеопамятью —
-    // hello.cpp держит адреса (addr_texels_), а не сам буфер.
+    // example-cpp.cpp держит адреса (addr_texels_), а не сам буфер.
 };
 
 // ─── ЗАДАНИЕ: тела хуков ──────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk)
 //   Порядок:
 //     pdk_ = &pdk;
 //     взять контроллеры: pdk_->cd(), pdk_->cl(); проверить оба на nullptr
-//     прочитать "example-lua.luac" с носителя — read_asset() из hello.cpp
+//     прочитать "example-lua.luac" с носителя — read_asset() из example-cpp.cpp
 //       делает ровно это (asset_open -> asset_size -> asset_read), возьми его
 //       за образец; имя файла — то, что burner положил в архив
 //     chunk_ = cl->script_load(bytes.data(), bytes.size(), "example-lua")
@@ -127,7 +127,7 @@ void rv_dmain::disc_shutdown()
 //
 // TODO(7). Последней строкой файла — RV_MPPC_DISC_ENTRY_DEF(example_lua::rv_dmain);
 //   Без неё в disc.so нет экспортируемых символов, и консоль не найдёт диск
-//   через dlsym. Смотри hello.cpp и pdk/de/rv_dv.hpp.
+//   через dlsym. Смотри example-cpp.cpp и pdk/de/rv_dv.hpp.
 //
 //
 // ПОРЯДОК РАБОТЫ. Не пиши всё сразу. Первый рубеж — увидеть в терминале

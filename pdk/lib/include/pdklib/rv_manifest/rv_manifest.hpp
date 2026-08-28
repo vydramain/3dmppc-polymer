@@ -67,7 +67,7 @@ struct rv_manifest_budget {
 
 struct rv_manifest {
     // [disc]
-    std::string disc_id;    // short machine name, e.g. "hello"
+    std::string disc_id;    // short machine name, e.g. "example-cpp"
     std::string disc_title; // human title for the window and logs
 
     // [build] — globs relative to the disc directory
