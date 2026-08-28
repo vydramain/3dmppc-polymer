@@ -5,7 +5,7 @@
 // stream of them reads as columns:
 //
 //   [tool][DBG] zipwrite: entry deflated 1200 -> 430 (rv_zipwrite.cpp:212)
-//   [mppc][ERR] pcloader: refusing to boot 'hello'
+//   [mppc][ERR] pcloader: refusing to boot 'example-cpp'
 //   [disc][INF] gameloop: level 2 reached
 //
 // Header-only on purpose: most of pdklib is still inline helpers even though

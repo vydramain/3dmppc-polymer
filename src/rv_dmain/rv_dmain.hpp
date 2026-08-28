@@ -32,13 +32,14 @@
 // the console.
 //
 // It carries the project's `rv_` prefix while a packaged disc (see
-// mppcdiscs/hello, which is simply `hello`) does not, and the difference is not
-// taste. A packaged disc is compiled with -fvisibility=hidden and loaded with
-// RTLD_LOCAL, so nothing but its two extern "C" entry points is visible outside
-// it: two discs could both pick `namespace hello` and never meet. This one is
-// STATICALLY LINKED INTO THE CONSOLE, so it shares that binary's namespace, and
-// an unprefixed common word there is a collision waiting for the first C++
-// dependency the console acquires.
+// mppcdiscs/example-cpp, whose namespace is simply `example_cpp`) does not, and
+// the difference is not taste. A packaged disc is compiled with
+// -fvisibility=hidden and loaded with RTLD_LOCAL, so nothing but its two
+// extern "C" entry points is visible outside it: two discs could both pick
+// `namespace example_cpp` and never meet. This one is STATICALLY LINKED INTO
+// THE CONSOLE, so it shares that binary's namespace, and an unprefixed common
+// word there is a collision waiting for the first C++ dependency the console
+// acquires.
 namespace rv_service {
 
 class rv_dmain : public rv_pdk::rv_de {
