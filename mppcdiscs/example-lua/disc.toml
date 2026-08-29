@@ -16,6 +16,28 @@ files = ["assets/*.png"]
 format = "idx8"
 
 [budget]
+headless = false
+fixed_step = false
+scale = 3
+max_frames = 0
+
+[budget.pcca]
+voice_count = 24
+sound_memory_size = 1024 * 1024
+
+[budget.pccv]
+screen_width = 320
+screen_height = 240
 texture_max_width = 256
 texture_max_height = 256
-video_memory_size = 1048576
+video_memory_size = 1024 * 1024
+frame_capacity = 4096
+ot_bucket_count = 1024
+
+[budget.pccio]
+iport_count = 2
+
+[budget.pccm]
+card_slots = 16
+card_slot_size = 8 * 1024
+

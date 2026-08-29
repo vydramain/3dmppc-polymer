@@ -10,7 +10,7 @@ namespace
 {
 
 struct rv_example_lua_texheader {
-	uint16_t version;
+    uint16_t version;
 };
 
 } // namespace
@@ -18,29 +18,29 @@ struct rv_example_lua_texheader {
 class rv_dmain : public rv_pdk::rv_de
 {
 public:
-	int64_t disc_initialize(rv_pdk::rv_pdko &pdk) override;
-	void frame_update(float dt) override;
-	void frame_render() override;
-	bool disc_release() const override
-	{
-		return release_;
-	}
-	void disc_shutdown() override;
-	const char *disc_tilte() const
-	{
-		return "example-lua";
-	};
+    int64_t disc_initialize(rv_pdk::rv_pdko &pdk) override;
+    void frame_update(float dt) override;
+    void frame_render() override;
+    bool disc_release() const override
+    {
+        return release_;
+    }
+    void disc_shutdown() override;
+    const char *disc_tilte() const
+    {
+        return "example-cpp";
+    };
 
 private:
-	rv_pdk::rv_pdko *pdk_ = nullptr;
-	bool release_ = false;
+    rv_pdk::rv_pdko *pdk_ = nullptr;
+    bool release_ = false;
 
-	// TODO(Claude-инструкция, код твой). Одно поле: handle чанка, который вернул
-	// cl->script_load(). Инициализируй значением «нет чанка».
-	//
-	// lua_State здесь НЕ хранится и не создаётся: VM принадлежит консоли, диск
-	// её только просит через pdk_->cl(). Тот же принцип, что с видеопамятью —
-	// hello.cpp держит адреса (addr_texels_), а не сам буфер.
+    // TODO(Claude-инструкция, код твой). Одно поле: handle чанка, который вернул
+    // cl->script_load(). Инициализируй значением «нет чанка».
+    //
+    // lua_State здесь НЕ хранится и не создаётся: VM принадлежит консоли, диск
+    // её только просит через pdk_->cl(). Тот же принцип, что с видеопамятью —
+    // hello.cpp держит адреса (addr_texels_), а не сам буфер.
 };
 
 // ─── ЗАДАНИЕ: тела хуков ──────────────────────────────────────────────────────
@@ -63,6 +63,10 @@ private:
 //   нет. Переименуй каталог.
 //
 //
+int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk)
+{
+}
+//
 // TODO(3). disc_initialize(pdk)
 //
 //   Порядок:
@@ -82,6 +86,10 @@ private:
 //   всё, что ей нужно, внутрь VM. Ровно как video_asset_write копирует текселы.
 //
 //
+void rv_dmain::frame_update(float dt)
+{
+}
+//
 // TODO(4). frame_update(dt)
 //
 //   cl->stack_push_number(dt), затем cl->script_call(chunk_, "frame_update", 1, 1).
@@ -91,6 +99,10 @@ private:
 //   Если script_call вернул ошибку — залогируй ОДИН раз и запомни флагом, что
 //   хук сломан, иначе будешь печатать одно и то же шестьдесят раз в секунду.
 //
+//
+void rv_dmain::frame_render()
+{
+}
 //
 // TODO(5). frame_render()
 //
@@ -102,6 +114,10 @@ private:
 //   Это нормально для первого шага: сначала убедись, что байткод вообще
 //   исполняется, и только потом думай про рисование из Lua.
 //
+//
+void rv_dmain::disc_shutdown()
+{
+}
 //
 // TODO(6). disc_shutdown()
 //
@@ -120,3 +136,5 @@ private:
 // шаге lua_pcall внутри script_load, до всяких хуков.
 
 } // namespace example_lua
+
+RV_MPPC_DISC_ENTRY_DEF(example_lua::rv_dmain);
