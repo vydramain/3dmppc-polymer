@@ -18,6 +18,34 @@ struct rv_manifest_textures {
     rv_pdk::rv_texfmt format;
 };
 
+struct rv_manifest_budget_pcca {
+    int64_t voice_count;
+    int64_t sound_memory_size;
+};
+
+struct rv_manifest_budget_pccv {
+    int64_t screen_width;
+    int64_t screen_height;
+    int64_t texture_max_width;
+    int64_t texture_max_height;
+    int64_t video_memory_size;
+    int64_t frame_capacity;
+    int64_t ot_bucket_count;
+};
+
+struct rv_manifest_budget_pccio {
+    int64_t iport_count;
+};
+
+struct rv_manifest_budget_pccm {
+    int64_t card_slots;
+    int64_t card_slot_size;
+};
+
+struct rv_manifest_budget_pccd {
+    std::string medium_path;
+};
+
 // The budget the burner enforces at pack time. There are no defaults on
 // purpose: the numbers describe the machine the disc is built for, and a value
 // the tool invented is a guess printed on the disc as if it were a decision.
@@ -25,9 +53,16 @@ struct rv_manifest_textures {
 // Checking here is the whole point: a texture that does not fit is an error on
 // the developer's desk, not a RV_ERR_INVAL on the player's loading screen.
 struct rv_manifest_budget {
-    int64_t texture_max_width;
-    int64_t texture_max_height;
-    int64_t video_memory_size;
+    bool headless;
+    bool fixed_step;
+    uint64_t scale;
+    uint64_t max_frames;
+
+    rv_manifest_budget_pcca pcca;
+    rv_manifest_budget_pccv pccv;
+    rv_manifest_budget_pccio pccio;
+    rv_manifest_budget_pccm pccm;
+    rv_manifest_budget_pccd pccd;
 };
 
 struct rv_manifest {
