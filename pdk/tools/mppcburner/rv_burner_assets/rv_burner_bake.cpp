@@ -123,12 +123,12 @@ int rv_pdktools::bake_textures(
 
         // --- one texture against the machine's limits ---
 
-        if (header.width > manifest.budget.texture_max_width ||
-            header.height > manifest.budget.texture_max_height) {
+        if (header.width > manifest.budget.pccv.texture_max_width ||
+            header.height > manifest.budget.pccv.texture_max_height) {
             error = "texture '" + item.source + "' is " + std::to_string(header.width) + "x" +
                 std::to_string(header.height) + ", over the budget of " +
-                std::to_string(manifest.budget.texture_max_width) + "x" +
-                std::to_string(manifest.budget.texture_max_height) + " declared in [budget]";
+                std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
+                std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
             return 1;
         }
 
@@ -138,10 +138,10 @@ int rv_pdktools::bake_textures(
 
     // --- every texture against the machine's video memory ---
 
-    if (video_memory_used > manifest.budget.video_memory_size) {
+    if (video_memory_used > manifest.budget.pccv.video_memory_size) {
         error = "baked texels and palettes total " + std::to_string(video_memory_used) +
             " bytes, over the [budget] video_memory_size of " +
-            std::to_string(manifest.budget.video_memory_size) + " bytes";
+            std::to_string(manifest.budget.pccv.video_memory_size) + " bytes";
         return 1;
     }
 

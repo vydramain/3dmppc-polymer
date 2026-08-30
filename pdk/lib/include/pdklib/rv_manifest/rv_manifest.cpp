@@ -173,10 +173,36 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     render_array(out, "files", manifest.textures_files.files);
     out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
 
+    const rv_manifest_budget &budget = manifest.budget;
+
     out << "\n[budget]\n";
-    out << "texture_max_width = " << manifest.budget.texture_max_width << "\n";
-    out << "texture_max_height = " << manifest.budget.texture_max_height << "\n";
-    out << "video_memory_size = " << manifest.budget.video_memory_size << "\n";
+    out << "headless = " << budget.headless << "\n";
+    out << "fixed_step = " << budget.fixed_step << "\n";
+    out << "scale = " << budget.scale << "\n";
+    out << "max_frames = " << budget.max_frames << "\n";
+
+    out << "\n[budget.pcca]\n";
+    out << "voice_count = " << budget.pcca.voice_count << "\n";
+    out << "sound_memory_size = " << budget.pcca.sound_memory_size << "\n";
+
+    out << "\n[budget.pccv]\n";
+    out << "screen_width = " << budget.pccv.screen_width << "\n";
+    out << "screen_height = " << budget.pccv.screen_height << "\n";
+    out << "texture_max_width = " << budget.pccv.texture_max_width << "\n";
+    out << "texture_max_height = " << budget.pccv.texture_max_height << "\n";
+    out << "video_memory_size = " << budget.pccv.video_memory_size << "\n";
+    out << "frame_capacity = " << budget.pccv.frame_capacity << "\n";
+    out << "ot_bucket_count = " << budget.pccv.ot_bucket_count << "\n";
+
+    out << "\n[budget.pccio]\n";
+    out << "iport_count = " << budget.pccio.iport_count << "\n";
+
+    out << "\n[budget.pccm]\n";
+    out << "card_slots = " << budget.pccm.card_slots << "\n";
+    out << "card_slot_size = " << budget.pccm.card_slot_size << "\n";
+
+    out << "\n[budget.pccd]\n";
+    out << "medium_path = " << quote(budget.pccd.medium_path) << "\n";
 
     return out.str();
 }
@@ -227,10 +253,23 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         const char *name;
         int64_t value;
     };
+    // Only the quotas a zero would make meaningless. `max_frames = 0` means "run
+    // until the disc stops" and `headless`/`fixed_step` are legitimately false,
+    // so neither belongs in a list whose whole rule is "must be positive".
     const budget_field budgets[] = {
-        { "texture_max_width", manifest.budget.texture_max_width },
-        { "texture_max_height", manifest.budget.texture_max_height },
-        { "video_memory_size", manifest.budget.video_memory_size },
+        { "[budget] scale", static_cast<int64_t>(manifest.budget.scale) },
+        { "[budget.pcca] voice_count", manifest.budget.pcca.voice_count },
+        { "[budget.pcca] sound_memory_size", manifest.budget.pcca.sound_memory_size },
+        { "[budget.pccv] screen_width", manifest.budget.pccv.screen_width },
+        { "[budget.pccv] screen_height", manifest.budget.pccv.screen_height },
+        { "[budget.pccv] texture_max_width", manifest.budget.pccv.texture_max_width },
+        { "[budget.pccv] texture_max_height", manifest.budget.pccv.texture_max_height },
+        { "[budget.pccv] video_memory_size", manifest.budget.pccv.video_memory_size },
+        { "[budget.pccv] frame_capacity", manifest.budget.pccv.frame_capacity },
+        { "[budget.pccv] ot_bucket_count", manifest.budget.pccv.ot_bucket_count },
+        { "[budget.pccio] iport_count", manifest.budget.pccio.iport_count },
+        { "[budget.pccm] card_slots", manifest.budget.pccm.card_slots },
+        { "[budget.pccm] card_slot_size", manifest.budget.pccm.card_slot_size },
     };
 
     // The budget has no defaults, so a manifest without the section arrives here
@@ -252,13 +291,13 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
             }
             keys += b.name;
         }
-        error = std::format("[budget] section is missing — state {}", keys);
+        error = std::format("the [budget] sections are missing — state {}", keys);
         return false;
     }
 
     for (const budget_field &b : budgets) {
         if (b.value <= 0) {
-            error = std::format("[budget] {} must be positive, got {}", b.name, b.value);
+            error = std::format("{} must be positive, got {}", b.name, b.value);
             return false;
         }
     }
