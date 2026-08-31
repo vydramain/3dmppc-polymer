@@ -94,8 +94,6 @@ int rv_pdktools::bake_textures(
         rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
     const std::string texfmt_text = texfmt != nullptr ? texfmt->text : "";
 
-    int64_t video_memory_used = 0;
-
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
         const archive_item &item = plan.items[i];
 
@@ -131,18 +129,6 @@ int rv_pdktools::bake_textures(
                 std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
             return 1;
         }
-
-        video_memory_used += rv_pdklib::rv_mppctex_texel_bytes(header) +
-            header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
-    }
-
-    // --- every texture against the machine's video memory ---
-
-    if (video_memory_used > manifest.budget.pccv.video_memory_size) {
-        error = "baked texels and palettes total " + std::to_string(video_memory_used) +
-            " bytes, over the [budget] video_memory_size of " +
-            std::to_string(manifest.budget.pccv.video_memory_size) + " bytes";
-        return 1;
     }
 
     return 0;
