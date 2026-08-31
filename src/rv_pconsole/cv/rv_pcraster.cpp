@@ -4,6 +4,8 @@
 // ──────────────────────────────────────────────────────────────────────────────
 #include "rv_pconsole/cv/rv_pcraster.hpp"
 
+#include "pdklib/rv_textures/rv_texel_pack.hpp"
+
 #include <cmath>
 
 namespace rv_3dmppc {
@@ -381,13 +383,10 @@ rv_line make_edge(const rv_vertex& a, const rv_vertex& b) {
 }  // namespace
 
 uint16_t rv_pcraster::pack_rgb555(rv_color color) {
-    // Round-to-nearest of c8 * 31 / 255. Used for flat, position-independent
-    // conversions such as the frame clear colour, where a dither pattern would
-    // just be noise on an untextured background.
-    const uint32_t r5 = (static_cast<uint32_t>(color.r) * 31U + 127U) / 255U;
-    const uint32_t g5 = (static_cast<uint32_t>(color.g) * 31U + 127U) / 255U;
-    const uint32_t b5 = (static_cast<uint32_t>(color.b) * 31U + 127U) / 255U;
-    return static_cast<uint16_t>(r5 | (g5 << 5) | (b5 << 10));
+    // Round-to-nearest. Used for flat, position-independent conversions such as
+    // the frame clear colour, where a dither pattern would just be noise on an
+    // untextured background.
+    return rv_pdklib::rv_texel_pack(rv_pdklib::rv_texel_quantize(color));
 }
 
 uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int64_t y) {
@@ -410,10 +409,11 @@ uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int64_t y)
         b = 255;
     }
 
-    const uint32_t r5 = static_cast<uint32_t>(r >> 3);
-    const uint32_t g5 = static_cast<uint32_t>(g >> 3);
-    const uint32_t b5 = static_cast<uint32_t>(b >> 3);
-    return static_cast<uint16_t>(r5 | (g5 << 5) | (b5 << 10));
+    // Truncation and not rounding: the threshold above was chosen against the
+    // bits `>> 3` drops, so rounding on top of it would cancel half the dither.
+    return rv_pdklib::rv_texel_pack(
+        rv_pdklib::rv_texel_truncate(rv_color{static_cast<uint8_t>(r), static_cast<uint8_t>(g),
+                                              static_cast<uint8_t>(b)}));
 }
 
 // THEOREM: one quantizer for every pixel, samples included — a texel takes the
