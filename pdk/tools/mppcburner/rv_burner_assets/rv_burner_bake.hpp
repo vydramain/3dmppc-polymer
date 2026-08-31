@@ -9,26 +9,32 @@
 namespace rv_pdktools
 {
 
-// --- baking, and the budget gate ---
+// --- baking, and the per-asset gate ---
 //
 // Every planned texture is handed to mppcbaker, and every .mppctex that comes
-// back is read again before it is trusted. The re-read is the point: the budget
-// has to be checked against the TEXELS that will actually be uploaded, which is
-// something only the baked file knows — the PNG says nothing about the format
-// the manifest chose, and a guess made from it would be wrong for IDX4.
+// back is read again before it is trusted. The re-read is the point: the shape
+// that is checked has to be the shape that will actually be uploaded, and only
+// the baked file states it — this burner decodes no PNG, so without the re-read
+// it would be checking a number it guessed.
 //
-// A budget is checked HERE and not by the console because a console can only
-// answer with RV_ERR_INVAL on a loading screen, in front of a player. The burner
-// can answer with a number, on the developer's terminal, before the disc exists.
+// A PER-ASSET limit is checked HERE and not by the console because a console can
+// only answer with RV_ERR_INVAL on a loading screen, in front of a player. The
+// burner can answer with a number, on the developer's terminal, before the disc
+// exists.
+//
+// What is deliberately NOT checked here is how much video memory the disc holds
+// AT ONCE. A disc reserves and releases regions while it runs, so the sum of
+// every texture the archive carries is an upper bound that never exists at
+// runtime, and refusing on it would refuse discs that run. That question belongs
+// where it actually happens: rv_cv answers RV_ERR_NOMEM when a reservation does
+// not fit.
 
-/// Bake every planned texture and refuse a disc that overruns its [budget].
+/// Bake every planned texture and refuse one that overruns its [budget].
 ///
 /// Each entry in the plan's texture range is passed to mppcbaker, whose output
-/// lands at that entry's `payload`. Two limits are enforced: each texture
-/// against `texture_max_width`/`texture_max_height`, and the sum of all texels
-/// and palettes against `video_memory_size`. The sum is an upper bound — a game
-/// that frees one texture before loading the next uses less — so it is the
-/// conservative reading, and a disc that trips it is told by how much.
+/// lands at that entry's `payload`. One limit is enforced, and it is per
+/// texture: the baked dimensions against `texture_max_width`/`texture_max_height`.
+/// Nothing is accumulated across textures.
 ///
 /// @param baker_hint  value of `--baker`; empty means find mppcbaker
 /// @param manifest    the validated manifest; `textures.format` and `budget` are read
