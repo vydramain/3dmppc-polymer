@@ -28,7 +28,7 @@ public:
     void disc_shutdown() override;
     const char *disc_tilte() const
     {
-        return "example-cpp";
+        return "example-lua";
     };
 
 private:
