@@ -128,6 +128,56 @@ std::pair<int, int> widest_axis(const std::vector<color_bin> &bins, const box &b
     return { best_axis, best_span };
 }
 
+int64_t gen_color5(box b, std::vector<color_bin> bins, rv_color5 &color5)
+{
+    uint64_t weight = 0;
+    uint64_t sr = 0;
+    uint64_t sg = 0;
+    uint64_t sb = 0;
+    for (size_t i = b.begin; i < b.end; ++i) {
+        const uint64_t w = bins[i].count;
+        weight += w;
+        sr += static_cast<uint64_t>(bins[i].color.r) * w;
+        sg += static_cast<uint64_t>(bins[i].color.g) * w;
+        sb += static_cast<uint64_t>(bins[i].color.b) * w;
+    }
+
+    if (weight == 0) {
+        return 1;
+    }
+
+    color5 = rv_color5{ static_cast<uint8_t>((sr + weight / 2) / weight),
+        static_cast<uint8_t>((sg + weight / 2) / weight),
+        static_cast<uint8_t>((sb + weight / 2) / weight) };
+
+    return 0;
+}
+
+int64_t pick_box(std::vector<box> bs, std::vector<color_bin> bins, size_t &target, int &target_span)
+{
+    uint64_t target_pop = 0;
+    for (size_t i = 0; i < bs.size(); ++i) {
+        if (bs[i].end - bs[i].begin < 2) {
+            continue; // a single colour cannot be split further
+        }
+        const int span = widest_axis(bins, bs[i]).second;
+        uint64_t pop = 0;
+        for (size_t k = bs[i].begin; k < bs[i].end; ++k) {
+            pop += bins[k].count;
+        }
+        if (span > target_span || (span == target_span && pop > target_pop)) {
+            target = i;
+            target_span = span;
+            target_pop = pop;
+        }
+    }
+    if (target == bs.size() || target_span == 0) {
+        return 1; // every box is a single colour: the image has fewer colours
+    }
+
+    return 0;
+}
+
 std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
 {
     std::vector<rv_color5> palette;
@@ -141,24 +191,8 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
         // population so a large flat area is refined before a stray gradient.
         size_t target = boxes.size();
         int target_span = 0;
-        uint64_t target_pop = 0;
-        for (size_t i = 0; i < boxes.size(); ++i) {
-            if (boxes[i].end - boxes[i].begin < 2) {
-                continue; // a single colour cannot be split further
-            }
-            const int span = widest_axis(bins, boxes[i]).second;
-            uint64_t pop = 0;
-            for (size_t k = boxes[i].begin; k < boxes[i].end; ++k) {
-                pop += bins[k].count;
-            }
-            if (span > target_span || (span == target_span && pop > target_pop)) {
-                target = i;
-                target_span = span;
-                target_pop = pop;
-            }
-        }
-        if (target == boxes.size() || target_span == 0) {
-            break; // every box is a single colour: the image has fewer colours
+        if (pick_box(boxes, bins, target, target_span) != 0) {
+            break;
         }
 
         box &b = boxes[target];
@@ -193,23 +227,11 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
     }
 
     for (const box &b : boxes) {
-        uint64_t weight = 0;
-        uint64_t sr = 0;
-        uint64_t sg = 0;
-        uint64_t sb = 0;
-        for (size_t i = b.begin; i < b.end; ++i) {
-            const uint64_t w = bins[i].count;
-            weight += w;
-            sr += static_cast<uint64_t>(bins[i].color.r) * w;
-            sg += static_cast<uint64_t>(bins[i].color.g) * w;
-            sb += static_cast<uint64_t>(bins[i].color.b) * w;
-        }
-        if (weight == 0) {
+        rv_color5 color5;
+        if (gen_color5(b, bins, color5) != 0) {
             continue;
         }
-        palette.push_back(rv_color5{ static_cast<uint8_t>((sr + weight / 2) / weight),
-            static_cast<uint8_t>((sg + weight / 2) / weight),
-            static_cast<uint8_t>((sb + weight / 2) / weight) });
+        palette.push_back(color5);
     }
     return palette;
 }
