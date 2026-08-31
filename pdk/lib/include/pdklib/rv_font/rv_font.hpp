@@ -11,9 +11,11 @@
 #include "pdk/cv/rv_primitives.hpp"
 #include "pdk/cv/rv_texture.hpp"
 #include "pdk/cv/rv_vertex.hpp"
-#include "pdklib/rv_text/rv_font_data.hpp"
+#include "pdklib/rv_font/rv_font_data.hpp"
+#include "pdklib/rv_textures/rv_texel_pack.hpp"
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
 // Text, drawn by a disc, out of the primitives the console already has.
 //
@@ -65,7 +67,14 @@ namespace rv_pdklib {
 // background is a hole: text lands on top of the picture instead of inside a
 // rectangle of its own. The trap this creates is real and is guarded below — an
 // INK colour that packs to 0000h (pure black) would make the text itself the hole
-// and the string would vanish. See rv_text_pack_rgb555.
+// and the string would vanish. See rv_font_pack_rgb555.
+
+// NAMING: rv_font_ and not rv_text_, although this renders text. The prefix
+// rv_tex belongs to TEXTURES throughout the repository — rv_texture, rv_texfmt,
+// rv_textures/, rv_texel_pack — and rv_text lands inside it letter for letter,
+// so a reader scanning names cannot tell which of the two a symbol is about.
+// The subject here is the font; naming it after the font costs nothing and
+// leaves the tex- prefix meaning one thing.
 
 // --- the atlas ----------------------------------------------------------------
 
@@ -73,32 +82,33 @@ namespace rv_pdklib {
 // the notdef block, which is the last cell). 16 across is not arbitrary: a power
 // of two makes the cell arithmetic a shift and a mask, and it makes the atlas 128
 // texels wide, which is a size any plausible texture limit accepts.
-inline constexpr int rv_text_atlas_columns = 16;
-inline constexpr int rv_text_atlas_rows = 6;
+inline constexpr int rv_font_atlas_columns = 16;
+inline constexpr int rv_font_atlas_rows = 6;
 
-inline constexpr int rv_text_atlas_width = rv_text_atlas_columns * rv_font_cell_width;  // 128
-inline constexpr int rv_text_atlas_height = rv_text_atlas_rows * rv_font_cell_height;   // 48
+inline constexpr int rv_font_atlas_width = rv_font_atlas_columns * rv_font_cell_width; // 128
+inline constexpr int rv_font_atlas_height = rv_font_atlas_rows * rv_font_cell_height;  // 48
 
 // IDX4 stores two texels per byte, so a row of 128 texels is 64 bytes.
-inline constexpr std::size_t rv_text_atlas_stride =
-    static_cast<std::size_t>(rv_text_atlas_width) / 2;
-inline constexpr std::size_t rv_text_atlas_size =
-    rv_text_atlas_stride * static_cast<std::size_t>(rv_text_atlas_height);  // 3072 bytes
+inline constexpr std::size_t rv_font_atlas_stride =
+    static_cast<std::size_t>(rv_font_atlas_width) / 2;
+inline constexpr std::size_t rv_font_atlas_size =
+    rv_font_atlas_stride * static_cast<std::size_t>(rv_font_atlas_height); // 3072 bytes
 
 // The two palette indices the atlas uses. Everything else in the 16-entry palette
 // stays 0000h, i.e. transparent, so a corrupted index draws nothing rather than a
 // stray colour.
-inline constexpr uint8_t rv_text_index_background = 0;
-inline constexpr uint8_t rv_text_index_ink = 1;
+inline constexpr uint8_t rv_font_index_background = 0;
+inline constexpr uint8_t rv_font_index_ink = 1;
 
-inline constexpr std::size_t rv_text_palette_entries = 16;                        // IDX4 palette
-inline constexpr std::size_t rv_text_palette_size = rv_text_palette_entries * 2;  // bytes
+inline constexpr std::size_t rv_font_palette_entries = 16;                       // IDX4 palette
+inline constexpr std::size_t rv_font_palette_size = rv_font_palette_entries * 2; // bytes
 
 // Map a byte to a cell index. Anything outside the printable ASCII range — a
 // control byte, a stray 0x0D from CRLF line endings, the lead byte of a UTF-8
 // sequence — lands on the notdef block on purpose: broken encoding must look
 // broken, not empty.
-inline int rv_text_glyph_index(char c) {
+inline int rv_font_glyph_index(char c)
+{
     const unsigned int code = static_cast<unsigned char>(c);
     if (code < static_cast<unsigned int>(rv_font_first_code) ||
         code > static_cast<unsigned int>(rv_font_last_code)) {
@@ -120,12 +130,14 @@ inline int rv_text_glyph_index(char c) {
 // sampled, which is what stops a glyph from smearing one column of its neighbour
 // along its edge. Cell width 8 also keeps u0 EVEN, so every cell begins on a whole
 // byte in the IDX4 packing — a glyph never straddles a nibble boundary.
-inline int rv_text_cell_u(int glyph_index) {
-    return (glyph_index % rv_text_atlas_columns) * rv_font_cell_width;
+inline int rv_font_cell_u(int glyph_index)
+{
+    return (glyph_index % rv_font_atlas_columns) * rv_font_cell_width;
 }
 
-inline int rv_text_cell_v(int glyph_index) {
-    return (glyph_index / rv_text_atlas_columns) * rv_font_cell_height;
+inline int rv_font_cell_v(int glyph_index)
+{
+    return (glyph_index / rv_font_atlas_columns) * rv_font_cell_height;
 }
 
 // Expand the bitmap font into IDX4 texels, ready for rv_cv::video_asset_write.
@@ -136,7 +148,7 @@ inline int rv_text_cell_v(int glyph_index) {
 // keeps on the stack for the length of disc_initialize and drops afterwards; the
 // bytes are copied during the upload.
 //
-// Returns false if `out` is null or `size` is under rv_text_atlas_size.
+// Returns false if `out` is null or `size` is under rv_font_atlas_size.
 //
 // THEOREM: IDX4 packing. Two texels share a byte and the LOW nibble is the LEFT
 // one — the PSX order, fixed by the console (docs/platform/specs.md, and the
@@ -147,31 +159,38 @@ inline int rv_text_cell_v(int glyph_index) {
 // uses and copying it here keeps an odd-width atlas from shearing if these numbers
 // are ever changed. Texel (u, v) therefore lives at byte v * stride + u / 2, in
 // the low nibble when u is even and the high nibble when u is odd.
-inline bool rv_text_build_atlas(uint8_t* out, std::size_t size) {
-    if (out == nullptr || size < rv_text_atlas_size) return false;
+inline bool rv_font_build_atlas(uint8_t *out, std::size_t size)
+{
+    if (out == nullptr || size < rv_font_atlas_size) {
+        return false;
+    }
 
     // Index 0 everywhere: the background, which the palette makes transparent.
-    for (std::size_t i = 0; i < rv_text_atlas_size; ++i) out[i] = 0;
+    for (std::size_t i = 0; i < rv_font_atlas_size; ++i) {
+        out[i] = 0;
+    }
 
     for (int glyph = 0; glyph < rv_font_glyph_count; ++glyph) {
-        const int cell_u = rv_text_cell_u(glyph);
-        const int cell_v = rv_text_cell_v(glyph);
+        const int cell_u = rv_font_cell_u(glyph);
+        const int cell_v = rv_font_cell_v(glyph);
 
         for (int row = 0; row < rv_font_cell_height; ++row) {
             const unsigned int bits = rv_font_bits[glyph * rv_font_cell_height + row];
-            if (bits == 0) continue;  // a blank row touches no byte
+            if (bits == 0) {
+                continue; // a blank row touches no byte
+            }
 
-            const std::size_t base = static_cast<std::size_t>(cell_v + row) * rv_text_atlas_stride;
+            const std::size_t base = static_cast<std::size_t>(cell_v + row) * rv_font_atlas_stride;
 
             for (int col = 0; col < rv_font_cell_width; ++col) {
                 // The font's high bit is the leftmost pixel (rv_font_data.hpp).
-                if ((bits & (0x80U >> col)) == 0) continue;
+                if ((bits & (0x80U >> col)) == 0) {
+                    continue;
+                }
 
                 const int u = cell_u + col;
-                uint8_t& packed = out[base + static_cast<std::size_t>(u / 2)];
-                const unsigned int nibble = (u & 1) != 0
-                                                ? static_cast<unsigned int>(rv_text_index_ink) << 4
-                                                : static_cast<unsigned int>(rv_text_index_ink);
+                uint8_t &packed = out[base + static_cast<std::size_t>(u / 2)];
+                const unsigned int nibble = (u & 1) != 0 ? static_cast<unsigned int>(rv_font_index_ink) << 4 : static_cast<unsigned int>(rv_font_index_ink);
                 packed = static_cast<uint8_t>(packed | nibble);
             }
         }
@@ -181,36 +200,30 @@ inline bool rv_text_build_atlas(uint8_t* out, std::size_t size) {
 
 // Describe an atlas buffer for rv_cv::video_asset_write. The rv_pdk::rv_texture
 // only BORROWS the bytes (pdk/cv/rv_texture.hpp), so `data` must outlive the call.
-inline rv_pdk::rv_texture rv_text_atlas_texture(const uint8_t* data) {
+inline rv_pdk::rv_texture rv_font_atlas_texture(const uint8_t *data)
+{
     rv_pdk::rv_texture texture{};
     texture.format = rv_pdk::RV_TEXFMT_IDX4;
     texture.data = data;
-    texture.size = rv_text_atlas_size;
-    texture.width = static_cast<uint64_t>(rv_text_atlas_width);
-    texture.height = static_cast<uint64_t>(rv_text_atlas_height);
+    texture.size = rv_font_atlas_size;
+    texture.width = static_cast<uint64_t>(rv_font_atlas_width);
+    texture.height = static_cast<uint64_t>(rv_font_atlas_height);
     return texture;
 }
 
 // --- the palette --------------------------------------------------------------
 
-// Pack an rv_pdk::rv_color into one palette entry: the 16-bit layout of a
-// DIRECT15 texel, bits 0-4 red, 5-9 green, 10-14 blue, bit 15 the (deferred)
-// semi-transparency flag. Eight bits per channel become five by dropping the low
-// three — the same truncation the framebuffer performs, so what a disc asks for
-// is what it gets.
+// Pack an rv_pdk::rv_color into one palette entry. Truncation and not rounding:
+// it is the same conversion the framebuffer performs, so what a disc asks for is
+// what it gets.
 //
-// THE BLACK TRAP: 0000h is not black, it is FULLY TRANSPARENT (rv_texture.hpp).
-// An ink colour of pure black would therefore punch the glyph out of the picture
-// and the string would silently disappear — the exact failure this whole header
-// exists to make impossible. So a packed 0000h is nudged to 0001h, the darkest
-// representable red, which is the substitution the hardware's own documentation
-// recommends and is indistinguishable from black on screen.
-inline uint16_t rv_text_pack_rgb555(rv_pdk::rv_color c) {
-    const unsigned int r = static_cast<unsigned int>(c.r) >> 3;
-    const unsigned int g = static_cast<unsigned int>(c.g) >> 3;
-    const unsigned int b = static_cast<unsigned int>(c.b) >> 3;
-    const unsigned int value = r | (g << 5) | (b << 10);
-    return static_cast<uint16_t>(value != 0 ? value : 0x0001U);
+// THE BLACK TRAP, and why rv_texel_opaque is not optional here: 0000h is not
+// black, it is FULLY TRANSPARENT. An ink colour of pure black would punch the
+// glyph out of the picture and the string would silently disappear — the exact
+// failure this whole header exists to make impossible.
+inline uint16_t rv_font_pack_rgb555(rv_pdk::rv_color c)
+{
+    return rv_texel_opaque(rv_texel_pack(rv_texel_truncate(c)));
 }
 
 // Build the 16-entry palette a text atlas is drawn with: entry 0 transparent
@@ -220,23 +233,29 @@ inline uint16_t rv_text_pack_rgb555(rv_pdk::rv_color c) {
 // text, a yellow highlight and a red warning uploads three palettes of 32 bytes
 // each and switches rv_pdk::rv_polygon::addr_palette — see the PATTERN at the top.
 //
-// Returns false if `out` is null or `count` is under rv_text_palette_entries.
-inline bool rv_text_build_palette(rv_pdk::rv_color ink, uint16_t* out, std::size_t count) {
-    if (out == nullptr || count < rv_text_palette_entries) return false;
-    for (std::size_t i = 0; i < rv_text_palette_entries; ++i) out[i] = 0x0000;
-    out[rv_text_index_ink] = rv_text_pack_rgb555(ink);
+// Returns false if `out` is null or `count` is under rv_font_palette_entries.
+inline bool rv_font_build_palette(rv_pdk::rv_color ink, uint16_t *out, std::size_t count)
+{
+    if (out == nullptr || count < rv_font_palette_entries) {
+        return false;
+    }
+    for (std::size_t i = 0; i < rv_font_palette_entries; ++i) {
+        out[i] = 0x0000;
+    }
+    out[rv_font_index_ink] = rv_font_pack_rgb555(ink);
     return true;
 }
 
 // Describe a palette buffer for rv_cv::video_asset_write. A palette is uploaded as
 // a DIRECT15 texture of `entries` x 1 — the contract says so explicitly, because a
 // palette entry and a DIRECT15 texel are the same 16-bit value.
-inline rv_pdk::rv_texture rv_text_palette_texture(const uint16_t* entries) {
+inline rv_pdk::rv_texture rv_font_palette_texture(const uint16_t *entries)
+{
     rv_pdk::rv_texture texture{};
     texture.format = rv_pdk::RV_TEXFMT_DIRECT15;
     texture.data = entries;
-    texture.size = rv_text_palette_size;
-    texture.width = static_cast<uint64_t>(rv_text_palette_entries);
+    texture.size = rv_font_palette_size;
+    texture.width = static_cast<uint64_t>(rv_font_palette_entries);
     texture.height = 1;
     return texture;
 }
@@ -248,9 +267,15 @@ inline rv_pdk::rv_texture rv_text_palette_texture(const uint16_t* entries) {
 // nearest-neighbour sampling gives a glyph whose stems are two pixels wide in
 // some columns and one in others, which is exactly how bad retro text looks. A
 // scale of 0 or less is treated as 1 rather than drawing nothing.
-inline int rv_text_scale_clamp(int scale) { return scale > 0 ? scale : 1; }
+inline int rv_font_scale_clamp(int scale)
+{
+    return scale > 0 ? scale : 1;
+}
 
-inline int rv_text_advance(int scale) { return rv_font_cell_width * rv_text_scale_clamp(scale); }
+inline int rv_font_advance(int scale)
+{
+    return rv_font_cell_width * rv_font_scale_clamp(scale);
+}
 
 // The step '\n' takes, in pixels: one whole cell, so consecutive lines touch. The
 // cell's single blank bottom row is the ONLY leading, which is tight — a descender
@@ -258,8 +283,9 @@ inline int rv_text_advance(int scale) { return rv_font_cell_width * rv_text_scal
 // being honest about itself, and it is what a caller wants for a dense HUD or a
 // character grid. A caller who wants air draws each line with its own call and its
 // own y step rather than putting '\n' in the string.
-inline int rv_text_line_height(int scale) {
-    return rv_font_cell_height * rv_text_scale_clamp(scale);
+inline int rv_font_line_height(int scale)
+{
+    return rv_font_cell_height * rv_font_scale_clamp(scale);
 }
 
 // Width of the longest line, in pixels. This is the ADVANCE width: it includes the
@@ -268,44 +294,56 @@ inline int rv_text_line_height(int scale) {
 // optically centred may subtract (rv_font_cell_width - rv_font_ink_width) * scale;
 // most callers should not bother, because doing so makes a right-aligned column of
 // numbers jitter.
-inline int rv_text_measure_width(std::string_view text, int scale) {
+inline int rv_font_measure_width(std::string_view text, int scale)
+{
     int longest = 0;
     int current = 0;
     for (const char c : text) {
         if (c == '\n') {
-            if (current > longest) longest = current;
+            if (current > longest) {
+                longest = current;
+            }
             current = 0;
             continue;
         }
         ++current;
     }
-    if (current > longest) longest = current;
-    return longest * rv_text_advance(scale);
+    if (current > longest) {
+        longest = current;
+    }
+    return longest * rv_font_advance(scale);
 }
 
 // Number of lines: one, plus one per '\n'. A trailing newline therefore counts a
 // final empty line, which is what a caller stacking blocks of text wants.
-inline int rv_text_line_count(std::string_view text) {
+inline int rv_font_line_count(std::string_view text)
+{
     int lines = 1;
     for (const char c : text) {
-        if (c == '\n') ++lines;
+        if (c == '\n') {
+            ++lines;
+        }
     }
     return lines;
 }
 
-inline int rv_text_measure_height(std::string_view text, int scale) {
-    return rv_text_line_count(text) * rv_text_line_height(scale);
+inline int rv_font_measure_height(std::string_view text, int scale)
+{
+    return rv_font_line_count(text) * rv_font_line_height(scale);
 }
 
-// How many primitives rv_text_draw will produce. Newlines cost nothing, and so
+// How many primitives rv_font_draw will produce. Newlines cost nothing, and so
 // does the SPACE: its cell is empty, and an empty cell of a transparent-background
 // atlas draws not one pixel. Filing it would spend a slot of rv_cv::frame_capacity
 // on nothing, so it is skipped — which makes indented or column-aligned text much
 // cheaper than its character count suggests.
-inline std::size_t rv_text_primitive_count(std::string_view text) {
+inline std::size_t rv_font_primitive_count(std::string_view text)
+{
     std::size_t count = 0;
     for (const char c : text) {
-        if (c == '\n' || c == ' ') continue;
+        if (c == '\n' || c == ' ') {
+            continue;
+        }
         ++count;
     }
     return count;
@@ -318,16 +356,17 @@ inline std::size_t rv_text_primitive_count(std::string_view text) {
 // palette; `depth` is the ordering-table key, and for a HUD it should sit at the
 // near end of whatever range the disc chose (larger = nearer = on top, per the
 // contract) so text is not eaten by the scenery.
-struct rv_text_style {
-    int64_t addr_texture;  // the IDX4 atlas in video RAM
-    int64_t addr_palette;  // the 16-entry palette that gives it its colour
-    int32_t depth;         // ordering-table key: larger = nearer
-    int32_t scale;         // integer pixel multiplier; 1 = an 8x8 cell
+struct rv_font_style {
+    int64_t addr_texture; // the IDX4 atlas in video RAM
+    int64_t addr_palette; // the 16-entry palette that gives it its colour
+    int32_t depth;        // ordering-table key: larger = nearer
+    int32_t scale;        // integer pixel multiplier; 1 = an 8x8 cell
 };
 
-inline rv_text_style rv_text_style_make(int64_t addr_texture, int64_t addr_palette, int32_t depth,
-                                        int32_t scale) {
-    rv_text_style style{};
+inline rv_font_style rv_font_style_make(int64_t addr_texture, int64_t addr_palette, int32_t depth,
+    int32_t scale)
+{
+    rv_font_style style{};
     style.addr_texture = addr_texture;
     style.addr_palette = addr_palette;
     style.depth = depth;
@@ -335,31 +374,38 @@ inline rv_text_style rv_text_style_make(int64_t addr_texture, int64_t addr_palet
     return style;
 }
 
-namespace rv_text_detail {
+namespace rv_font_detail
+{
 
 // rv_pdk::rv_vertex coordinates are int16 and a caller may legitimately place text
 // off the left edge (a scrolling credits crawl), so out-of-range values SATURATE
 // instead of wrapping — the same rule pdklib/rv_math/rv_xform.hpp applies to projected
 // geometry. A wrap would teleport a glyph to the opposite edge of the screen.
-inline int16_t to_int16(int value) {
-    if (value < -32768) return static_cast<int16_t>(-32768);
-    if (value > 32767) return static_cast<int16_t>(32767);
+inline int16_t to_int16(int value)
+{
+    if (value < -32768) {
+        return static_cast<int16_t>(-32768);
+    }
+    if (value > 32767) {
+        return static_cast<int16_t>(32767);
+    }
     return static_cast<int16_t>(value);
 }
 
-inline rv_pdk::rv_vertex corner(int x, int y, int u, int v) {
+inline rv_pdk::rv_vertex corner(int x, int y, int u, int v)
+{
     rv_pdk::rv_vertex vertex{};
     vertex.x = to_int16(x);
     vertex.y = to_int16(y);
     // Ignored by a SAMPLE_TEXTURE primitive today (see the PATTERN at the top of
     // this file); set to white so that the day texture-combine lands, a modulating
     // console multiplies by 1 and the text keeps the colour its palette gave it.
-    vertex.color = rv_pdk::rv_color{255, 255, 255};
-    vertex.uv = rv_pdk::rv_uv{static_cast<uint16_t>(u), static_cast<uint16_t>(v)};
+    vertex.color = rv_pdk::rv_color{ 255, 255, 255 };
+    vertex.uv = rv_pdk::rv_uv{ static_cast<uint16_t>(u), static_cast<uint16_t>(v) };
     return vertex;
 }
 
-}  // namespace rv_text_detail
+} // namespace rv_font_detail
 
 // Build the quad for one glyph at (x, y) — the cell's upper-left pixel.
 //
@@ -374,14 +420,15 @@ inline rv_pdk::rv_vertex corner(int x, int y, int u, int v) {
 // CLAMP is the mapping because it can never be reached: nothing here generates a
 // coordinate outside the atlas. It is the honest choice anyway — TILE would hide a
 // future arithmetic mistake by wrapping it into a plausible-looking glyph.
-inline void rv_text_glyph_quad(const rv_text_style& style, int glyph_index, int x, int y,
-                               rv_pdk::rv_primitive& out) {
-    const int scale = rv_text_scale_clamp(style.scale);
+inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int x, int y,
+    rv_pdk::rv_primitive &out)
+{
+    const int scale = rv_font_scale_clamp(style.scale);
     const int size_x = rv_font_cell_width * scale;
     const int size_y = rv_font_cell_height * scale;
 
-    const int u0 = rv_text_cell_u(glyph_index);
-    const int v0 = rv_text_cell_v(glyph_index);
+    const int u0 = rv_font_cell_u(glyph_index);
+    const int v0 = rv_font_cell_v(glyph_index);
     const int u1 = u0 + rv_font_cell_width;
     const int v1 = v0 + rv_font_cell_height;
 
@@ -389,7 +436,7 @@ inline void rv_text_glyph_quad(const rv_text_style& style, int glyph_index, int 
     out.type = rv_pdk::RV_PRIMITIVE_POLYGON;
     out.depth = style.depth;
 
-    rv_pdk::rv_polygon& polygon = out.data.polygon;
+    rv_pdk::rv_polygon &polygon = out.data.polygon;
     polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
     polygon.addr_texture = style.addr_texture;
     polygon.addr_palette = style.addr_palette;
@@ -397,10 +444,10 @@ inline void rv_text_glyph_quad(const rv_text_style& style, int glyph_index, int 
     polygon.vertex_count = 4;
 
     // Z order, not rim order: the console splits a quad into (1,2,3) and (2,3,4).
-    polygon.vertexes[0] = rv_text_detail::corner(x, y, u0, v0);                    // top-left
-    polygon.vertexes[1] = rv_text_detail::corner(x + size_x, y, u1, v0);           // top-right
-    polygon.vertexes[2] = rv_text_detail::corner(x, y + size_y, u0, v1);           // bottom-left
-    polygon.vertexes[3] = rv_text_detail::corner(x + size_x, y + size_y, u1, v1);  // bottom-right
+    polygon.vertexes[0] = rv_font_detail::corner(x, y, u0, v0);                   // top-left
+    polygon.vertexes[1] = rv_font_detail::corner(x + size_x, y, u1, v0);          // top-right
+    polygon.vertexes[2] = rv_font_detail::corner(x, y + size_y, u0, v1);          // bottom-left
+    polygon.vertexes[3] = rv_font_detail::corner(x + size_x, y + size_y, u1, v1); // bottom-right
 }
 
 // Lay out `text` starting at (x, y) — the upper-left pixel of the first cell — and
@@ -418,9 +465,10 @@ inline void rv_text_glyph_quad(const rv_text_style& style, int glyph_index, int 
 // anything outside printable ASCII — a stray '\r' from CRLF text prints a solid
 // slab, which is the file telling you about its line endings.
 template <typename Sink>
-inline std::size_t rv_text_draw(const rv_text_style& style, int x, int y, std::string_view text,
-                                Sink&& sink) {
-    const int scale = rv_text_scale_clamp(style.scale);
+inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
+    Sink &&sink)
+{
+    const int scale = rv_font_scale_clamp(style.scale);
     const int advance = rv_font_cell_width * scale;
     const int line_height = rv_font_cell_height * scale;
 
@@ -440,8 +488,8 @@ inline std::size_t rv_text_draw(const rv_text_style& style, int x, int y, std::s
         }
 
         rv_pdk::rv_primitive primitive{};
-        rv_text_glyph_quad(style, rv_text_glyph_index(c), pen_x, pen_y, primitive);
-        sink(static_cast<const rv_pdk::rv_primitive&>(primitive));
+        rv_font_glyph_quad(style, rv_font_glyph_index(c), pen_x, pen_y, primitive);
+        sink(static_cast<const rv_pdk::rv_primitive &>(primitive));
         ++emitted;
 
         pen_x += advance;
@@ -450,17 +498,22 @@ inline std::size_t rv_text_draw(const rv_text_style& style, int x, int y, std::s
 }
 
 // The same, into a caller-provided array. Writes at most `capacity` primitives and
-// returns how many it wrote; ask rv_text_primitive_count first if you need to know
+// returns how many it wrote; ask rv_font_primitive_count first if you need to know
 // whether the whole string fits. Truncation is silent by design — a HUD that runs
 // out of buffer should lose its tail, not stop the frame.
-inline std::size_t rv_text_draw(const rv_text_style& style, int x, int y, std::string_view text,
-                                rv_pdk::rv_primitive* out, std::size_t capacity) {
-    if (out == nullptr) return 0;
+inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
+    rv_pdk::rv_primitive *out, std::size_t capacity)
+{
+    if (out == nullptr) {
+        return 0;
+    }
     std::size_t written = 0;
-    rv_text_draw(style, x, y, text, [&](const rv_pdk::rv_primitive& primitive) {
-        if (written < capacity) out[written++] = primitive;
+    rv_font_draw(style, x, y, text, [&](const rv_pdk::rv_primitive &primitive) {
+        if (written < capacity) {
+            out[written++] = primitive;
+        }
     });
     return written;
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib
