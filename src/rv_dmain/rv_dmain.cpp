@@ -12,6 +12,7 @@
 #include "pdk/cio/rv_cio.hpp"
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
+#include "pdk/cv/rv_texel.hpp"
 #include "pdk/rv_err.hpp"
 #include "pdklib/rv_camera/rv_camera.hpp"
 #include "pdklib/rv_color/rv_color.hpp"
@@ -48,7 +49,6 @@ constexpr uint16_t RV_DMAIN_TEXEL_RED = 0x001F;
 constexpr uint16_t RV_DMAIN_TEXEL_GREEN = 0x03E0;
 constexpr uint16_t RV_DMAIN_TEXEL_BLUE = 0x7C00;
 constexpr uint16_t RV_DMAIN_TEXEL_WHITE = 0x7FFF;
-constexpr uint16_t RV_DMAIN_TEXEL_HOLE = 0x0000;
 
 // --- the beep ---
 
@@ -300,7 +300,7 @@ void rv_dmain::build_texture() {
     }
 
     texels_.assign(static_cast<std::size_t>(RV_DMAIN_TEX_SIZE * RV_DMAIN_TEX_SIZE),
-                   RV_DMAIN_TEXEL_HOLE);
+                   RV_TEXEL_TRANSPARENT);
 
     const int64_t half = RV_DMAIN_TEX_SIZE / 2;
     for (int64_t y = 0; y < RV_DMAIN_TEX_SIZE; ++y) {
@@ -313,7 +313,7 @@ void rv_dmain::build_texture() {
             } else if (x < half && y >= half) {
                 texel = RV_DMAIN_TEXEL_BLUE;
             } else {
-                texel = RV_DMAIN_TEXEL_HOLE;  // the cut-out quadrant
+                texel = RV_TEXEL_TRANSPARENT;  // the cut-out quadrant
             }
 
             const bool border =
@@ -369,7 +369,7 @@ void rv_dmain::build_idx4_texture() {
         }
     }
 
-    palette_idx4_.assign(16, 0x0000);  // entry 0 stays 0000h: the hole
+    palette_idx4_.assign(16, RV_TEXEL_TRANSPARENT);  // entry 0 stays the hole
     palette_idx4_[1] = 0x001F;         // red
     palette_idx4_[2] = 0x03E0;         // green
     palette_idx4_[3] = 0x7FFF;         // white

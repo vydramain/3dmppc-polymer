@@ -6,6 +6,8 @@
 
 #include <cstring>
 
+#include "pdk/cv/rv_texel.hpp"
+
 namespace rv_3dmppc {
 
 // The contract's vocabulary, unqualified for the bodies below only. Never in a
@@ -14,9 +16,6 @@ namespace rv_3dmppc {
 using namespace rv_pdk;
 
 namespace {
-
-// The fully transparent texel. Not a colour: a hole.
-constexpr uint16_t RV_TEXEL_TRANSPARENT = 0x0000;
 
 // Read one 16-bit value out of the region. std::memcpy and not a
 // reinterpret_cast: video_asset_write() copies the disc's bytes verbatim, so a

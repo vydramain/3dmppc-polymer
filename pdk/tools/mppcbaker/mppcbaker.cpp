@@ -12,8 +12,9 @@
 // is a blob the disc can read and upload almost verbatim; see pdk/tools/README.md
 // for the byte layout and for the disc-side loading recipe.
 //
-// Everything about the 16-bit value below is dictated by pdk/cv/rv_texture.hpp:
-//   bits 0-4 R, 5-9 G, 10-14 B, bit 15 STP, and 0000h == FULLY TRANSPARENT.
+// Everything about the 16-bit value below is dictated by the contract:
+//   bits 0-4 R, 5-9 G, 10-14 B, bit 15 STP (pdk/cv/rv_texture.hpp), and the
+//   fully transparent value itself (pdk/cv/rv_texel.hpp).
 
 #include <algorithm>
 #include <cctype>
@@ -26,15 +27,18 @@
 #include <utility>
 #include <vector>
 
+#include "pdk/cv/rv_texel.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 // A HOST program, not part of the machine: rv_pdktools is where the author's
-// tools live, and rv_pdk — the console contract — is not needed here at all.
-// This tool includes nothing from pdk/; it restates the handful of constants the
-// .mppctex format pins down, and the comments say which header dictates each.
+// tools live. From pdk/ it takes exactly one thing — the transparent-texel
+// value, which the console's sampler recognises and the baker must therefore
+// write byte for byte. A second spelling of that number is a bug waiting for
+// the day someone changes one of them. Everything else below describes the
+// .mppctex CONTAINER, which no console ever opens, and is stated here.
 namespace rv_pdktools {
 namespace {
 
@@ -47,9 +51,10 @@ constexpr char kMagic[4] = {'M', 'P', 'T', 'X'};
 constexpr uint16_t kVersion = 1;
 constexpr size_t kHeaderSize = 16;
 
-// The one 16-bit encoding shared by DIRECT15 texels and palette entries.
-constexpr uint16_t kTransparent = 0x0000;  // rv_texture.hpp: not drawn at all
-constexpr uint16_t kNearBlack = 0x0001;    // darkest red — the opaque stand-in
+// The opaque stand-in for a colour that would otherwise encode as the
+// transparent value: darkest red. Private to the writer — the console never
+// learns a substitution happened, it sees a texel that is simply not a hole.
+constexpr uint16_t kNearBlack = 0x0001;
 
 // --- small helpers ------------------------------------------------------------
 
@@ -91,7 +96,7 @@ uint16_t pack(rgb5 c) {
 // away — below the console's own dithering noise floor).
 uint16_t pack_opaque(rgb5 c) {
     const uint16_t v = pack(c);
-    return v == kTransparent ? kNearBlack : v;
+    return v == rv_pdk::RV_TEXEL_TRANSPARENT ? kNearBlack : v;
 }
 
 // --- source image -------------------------------------------------------------
@@ -489,7 +494,7 @@ int run(int argc, char** argv) {
         }
         file.reserve(file.size() + texel_count * 2);
         for (const src_pixel& s : src) {
-            put_u16(file, s.transparent ? kTransparent : pack_opaque(s.color));
+            put_u16(file, s.transparent ? rv_pdk::RV_TEXEL_TRANSPARENT : pack_opaque(s.color));
         }
     } else {
         const size_t palette_size = (opt.format == 4) ? 16u : 256u;
@@ -558,13 +563,13 @@ int run(int argc, char** argv) {
         // 0000h, which is the safe value: an index that should never be sampled
         // draws nothing instead of a wrong colour.
         if (needs_hole) {
-            put_u16(file, kTransparent);
+            put_u16(file, rv_pdk::RV_TEXEL_TRANSPARENT);
         }
         for (const rgb5& c : palette) {
             put_u16(file, pack_opaque(c));
         }
         for (size_t i = reserved + palette.size(); i < palette_size; ++i) {
-            put_u16(file, kTransparent);
+            put_u16(file, rv_pdk::RV_TEXEL_TRANSPARENT);
         }
 
         if (opt.format == 8) {
