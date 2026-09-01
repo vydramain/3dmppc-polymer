@@ -1,3 +1,5 @@
+#include <getopt.h>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -367,51 +369,56 @@ bool parse_hex_rgb(std::string_view text, rv_color *out)
 options parse_args(int argc, char **argv)
 {
     options opt;
-    std::vector<std::string> positional;
 
-    for (int i = 1; i < argc; ++i) {
-        const std::string arg = argv[i];
-        if (arg == "-h" || arg == "--help") {
-            rv_baker_print_usage(stdout);
-            std::exit(0);
-        } else if (arg == "--format") {
-            if (++i >= argc) {
-                rv_baker_fatal("--format needs a value (idx4, idx8 or direct15)");
+    static struct option long_opts[] = { { "help", no_argument, 0, 'h' },
+        { "format", required_argument, 0, 'f' },
+        { "transparent-key", required_argument, 0, 'k' },
+        { 0, 0, 0, 0 } };
+
+    int c;
+    while ((c = getopt_long(argc, argv, "hf:k:", long_opts, nullptr)) != -1) {
+        switch (c) {
+            case 'h':
+                rv_baker_print_usage(stdout);
+                std::exit(0);
+            case 'f': {
+                const std::string value = optarg;
+                if (value == "idx4") {
+                    opt.format = 4;
+                } else if (value == "idx8") {
+                    opt.format = 8;
+                } else if (value == "direct15") {
+                    opt.format = 15;
+                } else {
+                    rv_baker_fatal("unknown format '" + value + "'; expected idx4, idx8 or direct15");
+                }
+                break;
             }
-            const std::string value = argv[i];
-            if (value == "idx4") {
-                opt.format = 4;
-            } else if (value == "idx8") {
-                opt.format = 8;
-            } else if (value == "direct15") {
-                opt.format = 15;
-            } else {
-                rv_baker_fatal("unknown format '" + value + "'; expected idx4, idx8 or direct15");
-            }
-        } else if (arg == "--transparent-key") {
-            if (++i >= argc) {
-                rv_baker_fatal("--transparent-key needs a value (six hex digits, e.g. FF00FF)");
-            }
-            if (!parse_hex_rgb(argv[i], &opt.key)) {
-                rv_baker_fatal("'" + std::string(argv[i]) + "' is not six hex digits (e.g. FF00FF)");
-            }
-            opt.has_key = true;
-        } else if (arg.size() > 1 && arg[0] == '-') {
-            rv_baker_fatal("unknown option '" + arg + "' (try --help)");
-        } else {
-            positional.push_back(arg);
+            case 'k':
+                if (!parse_hex_rgb(optarg, &opt.key)) {
+                    rv_baker_fatal("'" + std::string(optarg) + "' is not six hex digits (e.g. FF00FF)");
+                }
+                opt.has_key = true;
+                break;
+            case '?':
+                // getopt has already named the offending option on stderr.
+                rv_baker_print_usage(stderr);
+                std::exit(2);
         }
     }
 
-    if (positional.size() != 2) {
+    // getopt_long has left optind on the first thing that was not a flag. Two
+    // positionals are expected — input then output — and any other count is a
+    // typo worth refusing rather than silently guessing.
+    if (argc - optind != 2) {
         rv_baker_print_usage(stderr);
         rv_baker_fatal("expected exactly one input and one output path");
     }
     if (opt.format == 0) {
         rv_baker_fatal("--format is required (idx4, idx8 or direct15)");
     }
-    opt.input = positional[0];
-    opt.output = positional[1];
+    opt.input = argv[optind];
+    opt.output = argv[optind + 1];
     return opt;
 }
 
