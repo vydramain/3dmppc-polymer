@@ -483,12 +483,17 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
     return RV_OK;
 }
 
-// NEUROSLOP-BEGIN (claude-opus-5)
-
 int64_t rv_pcloader::load(const char *archive_path)
 {
     unload();
 
+    // Замер машины
+    // Что нужно узнать? Я пока что предполагаю, в каком режиме мы запускаемся: Апппаратном или Софтверном
+    // Если Аппартный, то чекаем одно, если софтверный, то чекаем другое или как?
+    // Как мне для каждого из устройств поддерживать свои приколы? Тут какая-то карта нужна или что? Что сюда поставить?
+    // И как мне быть если всего памяти добпустим достаточно, но свободной нет?
+
+    // Проверка, что у меня есть путь до диска
     if (archive_path == nullptr || *archive_path == '\0') {
         RV_LOG_ERR("pcloader", "no disc path was given");
         return RV_ERR_INVAL;
@@ -528,7 +533,12 @@ int64_t rv_pcloader::load(const char *archive_path)
         reinterpret_cast<const char *>(manifest_bytes.data()),
         manifest_bytes.size());
 
-    // NEUROSLOP-END
+    // Шаг: сделать из load два входа.
+    // Первый достаёт манифест и останавливается на этом;
+    // второй, вызываемый позже, поднимает код.
+    // Никакой новой логики, чистая перестановка того, что уже написано.
+
+    // Не понимаю, что тут надо делать и что надо делать я запутался...
 
     // The origin argument is what puts `disc.toml:14:` in front of every
     // diagnostic instead of a bare `line 14:` — the report is the only thing

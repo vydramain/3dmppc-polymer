@@ -14,8 +14,10 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
-namespace rv_3dmppc {
-namespace {
+namespace rv_3dmppc
+{
+namespace
+{
 
 // NEUROSLOP-BEGIN (claude-opus-5)
 // THEOREM: dt clamping. A frame that stalls (window drag, a breakpoint, the
@@ -28,36 +30,67 @@ constexpr float RV_PCONSOLE_DT_CEILING = 0.25f;
 using rv_pcclock = std::chrono::steady_clock;
 // NEUROSLOP-END
 
-}  // namespace
-}  // namespace rv_3dmppc
+} // namespace
+} // namespace rv_3dmppc
 
 // NEUROSLOP-BEGIN (claude-opus-5)
-rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf& conf)
-    : params_(conf.params),
-      host_(conf),
-      ca_(conf.ca, host_),
-      cd_(conf.cd),
-      cio_(conf.cio, host_),
-      cm_(conf.cm),
-      cv_(conf.cv, host_) {}
+rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf)
+    : params_(conf.params)
+    , host_(conf)
+    , ca_(conf.ca, host_)
+    , cd_(conf.cd)
+    , cio_(conf.cio, host_)
+    , cm_(conf.cm)
+    , cv_(conf.cv, host_)
+{
+}
 // NEUROSLOP-END
 
 // The controllers are the CONTRACT's types (rv_pdk), the console is the
 // machine's (rv_3dmppc); these five lines are where the two meet, so both sides
 // are spelled out rather than pulled in by a using-directive.
-rv_pdk::rv_ca* rv_3dmppc::rv_pconsole::ca() { return &ca_; }
-rv_pdk::rv_cd* rv_3dmppc::rv_pconsole::cd() { return &cd_; }
-rv_pdk::rv_cm* rv_3dmppc::rv_pconsole::cm() { return &cm_; }
-rv_pdk::rv_cio* rv_3dmppc::rv_pconsole::cio() { return &cio_; }
-rv_pdk::rv_cv* rv_3dmppc::rv_pconsole::cv() { return &cv_; }
+rv_pdk::rv_ca *rv_3dmppc::rv_pconsole::ca()
+{
+    return &ca_;
+}
+rv_pdk::rv_cd *rv_3dmppc::rv_pconsole::cd()
+{
+    return &cd_;
+}
+rv_pdk::rv_cm *rv_3dmppc::rv_pconsole::cm()
+{
+    return &cm_;
+}
+rv_pdk::rv_cio *rv_3dmppc::rv_pconsole::cio()
+{
+    return &cio_;
+}
+rv_pdk::rv_cv *rv_3dmppc::rv_pconsole::cv()
+{
+    return &cv_;
+}
+
+int64_t disc_check_system_budget(rv_pdklib::rv_manifest manifest)
+{
+    // need to check system budget
+    return 0;
+}
 
 // NEUROSLOP-BEGIN (claude-opus-5)
-rv_pdk::rv_de* rv_3dmppc::rv_pconsole::disc_load(const char* path) {
+rv_pdk::rv_de *rv_3dmppc::rv_pconsole::disc_load(const char *path)
+{
     // The code first: a disc that will not load must not change what is in the
     // drive. Every refusal has already named itself in the log by the time this
     // returns, so nothing is added here beyond the verdict.
     const int64_t rc = loader_.load(path);
-    if (0 > rc) return nullptr;
+    if (0 > rc) {
+        return nullptr;
+    }
+
+    const int64_t rm = disc_check_system_budget(loader_.info());
+    if (0 > rm) {
+        return nullptr;
+    }
 
     // One archive, two roles. The bytes the disc reads through rv_cd come out of
     // the SAME file its code came out of — that is what makes a `.mppcdisc` one
@@ -70,12 +103,13 @@ rv_pdk::rv_de* rv_3dmppc::rv_pconsole::disc_load(const char* path) {
 }
 // NEUROSLOP-END
 
-int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
+int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
+{
     int64_t dir = disc.disc_initialize(*this);
     if (0 > dir) {
         RV_LOG_ERR("pconsole",
-                   "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}",
-                   dir);
+            "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}",
+            dir);
         return rv_pdk::RV_ERR_INVAL;
     }
 
@@ -95,17 +129,17 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
         const int64_t opened = host_.open(disc.disc_title(), params_.scale);
         if (0 > opened) {
             RV_LOG_ERR("pconsole", "display did not come up, refusing to run '{}'",
-                       disc.disc_title());
+                disc.disc_title());
             return opened;
         }
     }
 
     const uint64_t target_fps = params_.target_fps ? params_.target_fps : 60;
-    const std::chrono::duration<double> frame_budget{1.0 / static_cast<double>(target_fps)};
+    const std::chrono::duration<double> frame_budget{ 1.0 / static_cast<double>(target_fps) };
     const float fixed_dt = 1.0f / static_cast<float>(target_fps);
 
     RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, {} fps target)", disc.disc_title(),
-                params_.headless ? "headless" : "presented", target_fps);
+        params_.headless ? "headless" : "presented", target_fps);
 
     uint64_t frames = 0;
     rv_pcclock::time_point t_prev = rv_pcclock::now();
@@ -136,7 +170,9 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
             params_.fixed_step ? fixed_dt : std::clamp(measured, 0.0f, RV_PCONSOLE_DT_CEILING);
 
         disc.frame_update(dt);
-        if (!params_.headless) disc.frame_render();
+        if (!params_.headless) {
+            disc.frame_render();
+        }
 
         // Polled every frame, per the contract. Checked after the frame so the
         // disc gets to draw the frame on which it decided to quit.
@@ -172,7 +208,9 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de& disc) {
     // sequence precisely so it cannot be run out of order or twice. The built-in
     // rv_dmain has no loader behind it, so for that one the frame loop is the
     // only place the hook can come from.
-    if (loader_.disc() != &disc) disc.disc_shutdown();
+    if (loader_.disc() != &disc) {
+        disc.disc_shutdown();
+    }
 
     // Devkit: hand the last frame the machine produced to disk, if asked. After
     // the loop rather than inside it, so a dump costs nothing per frame.
