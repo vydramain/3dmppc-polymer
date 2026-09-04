@@ -6,6 +6,7 @@
 
 #include "pdk/de/rv_de.hpp"
 #include "pdk/rv_pdko.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
@@ -15,14 +16,16 @@
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // PATTERN: composition root. This is the single place where the concrete
 // machine is assembled — the host, the five controllers, and the geometry they
 // were built from. Nothing below constructs a subsystem: a controller receives
 // what it needs and never reaches sideways for it.
-class rv_pconsole : public rv_pdk::rv_pdko {
-   private:
+class rv_pconsole : public rv_pdk::rv_pdko
+{
+private:
     rv_pconsole_params params_;
 
     // NEUROSLOP-BEGIN (claude-opus-5)
@@ -31,6 +34,14 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     rv_pchost host_;
     // NEUROSLOP-END
 
+    // TODO(Claude-инструкция, код твой). Объяви здесь поле rv_pccl cl_;
+    // и включи "rv_pconsole/cl/rv_pccl.hpp" наверху.
+    //
+    // ПОРЯДОК ОБЪЯВЛЕНИЯ ВАЖЕН, как и для host_ выше. Поля разрушаются в
+    // порядке, ОБРАТНОМ объявлению, а loader_ (объявлен последним, значит
+    // умирает первым) в своём teardown зовёт disc_shutdown() — а тот имеет
+    // право трогать любой контроллер, включая этот. Значит cl_ обязан стоять
+    // ВЫШЕ loader_. Поставь его в общий ряд контроллеров, по алфавиту.
     rv_pcca ca_;
     rv_pccd cd_;
     rv_pccio cio_;
@@ -45,16 +56,20 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     rv_pcloader loader_;
     // NEUROSLOP-END
 
-   public:
-    explicit rv_pconsole(const rv_pconsole_conf& conf);
+public:
+    explicit rv_pconsole(const rv_pconsole_conf &conf);
 
     ~rv_pconsole() = default;
 
-    rv_pdk::rv_ca* ca() override;
-    rv_pdk::rv_cd* cd() override;
-    rv_pdk::rv_cio* cio() override;
-    rv_pdk::rv_cm* cm() override;
-    rv_pdk::rv_cv* cv() override;
+    rv_pdk::rv_ca *ca() override;
+    rv_pdk::rv_cd *cd() override;
+    rv_pdk::rv_cio *cio() override;
+    rv_pdk::rv_cm *cm() override;
+    rv_pdk::rv_cv *cv() override;
+
+    // TODO(Claude-инструкция, код твой). Добавь rv_pdk::rv_cl* cl() override;
+    // Тело в rv_pconsole.cpp — одна строка, возврат адреса поля. Смотри, как
+    // сделаны соседи, и повтори.
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Put a `.mppcdisc` in the machine: load the code it carries and mount the
@@ -67,7 +82,7 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     // missing symbol, refused handshake). The pointer is BORROWED: the console
     // owns the loaded disc and unloads it when it is destroyed, so it must not
     // outlive this console.
-    rv_pdk::rv_de* disc_load(const char* path);
+    rv_pdk::rv_de *disc_load(const char *path);
     // NEUROSLOP-END
 
     // NEUROSLOP-BEGIN (claude-opus-5)
@@ -77,8 +92,10 @@ class rv_pconsole : public rv_pdk::rv_pdko {
     // Returns RV_OK when the run ends normally (the disc asked to stop, the
     // frame budget ran out, or the user powered the machine off), or a negative
     // rv_err if the disc refused to initialize or the display would not come up.
-    int64_t disc_run(rv_pdk::rv_de& disc);
+    int64_t disc_run(rv_pdk::rv_de &disc);
     // NEUROSLOP-END
+
+    int64_t disc_check_system_budget(rv_pdklib::rv_manifest manifest);
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

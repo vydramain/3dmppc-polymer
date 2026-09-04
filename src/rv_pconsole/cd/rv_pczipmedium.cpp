@@ -5,7 +5,7 @@
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
 
@@ -59,7 +59,7 @@ rv_pczipmedium::rv_pczipmedium(const std::string& archive_path) {
         }
         if (!rv_pcresname_valid(entry.name.c_str())) {
             RV_LOG_WARN("pczipmedium", "archive entry '{}' is not a legal resource name; ignored",
-                        rv_log_escape(entry.name.c_str()));
+                        rv_pdklib::rv_log_escape(entry.name.c_str()));
             continue;
         }
         if (!assets_.insert(entry.name).second) continue;
@@ -117,7 +117,7 @@ int64_t rv_pczipmedium::entry_read(const char* resname, void* baddr, int64_t cap
             return RV_ERR_NOENT;
         case rv_zipread::short_buffer:
             RV_LOG_WARN("pczipmedium", "entry '{}' needs {} bytes, buffer holds {}",
-                        rv_log_escape(resname), zip_.size(resname), cap);
+                        rv_pdklib::rv_log_escape(resname), zip_.size(resname), cap);
             return RV_ERR_INVAL;
         case rv_zipread::corrupt:
         case rv_zipread::crc_mismatch:

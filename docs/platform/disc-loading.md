@@ -7,7 +7,7 @@ drives it through the disc ABI.
 
 This describes **what the console and the tools do today**. The native path —
 manifest, compile, bake, pack, mount, `dlopen`, handshake, teardown — is
-implemented and is what `mppcdiscs/hello` exercises end to end. The one part
+implemented and is what `mppcdiscs/example-cpp` exercises end to end. The one part
 that is still design rather than code is the **script (Lua) disc kind**, and it
 is marked as such at the bottom.
 
@@ -23,10 +23,10 @@ cmake -S . -B build -G Ninja && cmake --build build            # the console
 cmake -S pdk/tools -B pdk/tools/build -G Ninja \
   && cmake --build pdk/tools/build                             # the tools
 
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/hello \
-    -o build/hello.mppcdisc --baker pdk/tools/build/mppcbaker/mppcbaker
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp \
+    -o build/example-cpp.mppcdisc --baker pdk/tools/build/mppcbaker/mppcbaker
 
-./build/3dmppc build/hello.mppcdisc
+./build/3dmppc build/example-cpp.mppcdisc
 ```
 
 The console never names a concrete game. It takes a disc path as its first
@@ -49,7 +49,7 @@ the console for a reason the burner could have seen.
 
 | Gate | What it settles |
 | --- | --- |
-| **manifest** | does this disc claim an ABI we speak, is its `id` a safe filename, is the texture format one that exists |
+| **manifest** | is this disc's `id` a safe filename, and is the texture format one that exists |
 | **compile** | does the game build against `pdk/` and `pdklib/` and **nothing from `src/`** |
 | **assets** | do the flattened names stay unique and legal, do the texel budgets hold |
 | **burn** | write the container |
@@ -116,9 +116,8 @@ is written by hand, and *"line 14: unknown key 'source' (did you mean
 
 ```toml
 [disc]
-id = "hello"
-title = "hello - the smallest disc"
-abi_version = 1
+id = "example-cpp"
+title = "mppcdisc example"
 
 [build]
 sources = ["src/*.cpp"]
@@ -131,11 +130,11 @@ files = ["assets/*.png"]
 format = "idx8"
 ```
 
-The **burner** reads all of it (`pdk/tools/mppcburner/rv_manifest.hpp`): build
+The **burner** reads all of it (`pdk/tools/mppcburner/rv_burner_manifest.hpp`): build
 globs, defines, include dirs, assets, textures, budget.
 
-The **console** reads only `[disc]`, and only `abi_version`, `id`, `title` and
-`entry` (`src/rv_pconsole/rv_pcloader.hpp`). Unknown sections and keys are
+The **console** reads only `[disc]`, and only `id`, `title` and `entry`
+(`src/rv_pconsole/rv_pcloader.hpp`). Unknown sections and keys are
 ignored rather than refused, because the burner deliberately writes more than
 the console reads. This asymmetry is a security boundary, not an oversight:
 every field the console parses is a field an attacker-supplied archive gets to
@@ -158,12 +157,13 @@ So the code entry is extracted to a private temporary file first, and that file
 is what `dlopen` sees:
 
 ```
-console opens hello.mppcdisc (a stored zip)
- -> reads disc.toml, checks abi_version against RV_ABI_VERSION
+console opens example-cpp.mppcdisc (a stored zip)
+ -> reads disc.toml for the archive entry
+ -> reads disc.so, checks its ELF note against RV_MPPC_VER_MAJOR/MINOR
  -> extracts the `entry` (disc.so) to a private temporary file
  -> dlopen(that path, RTLD_NOW | RTLD_LOCAL)
- -> dlsym mppc_disc_create / mppc_disc_destroy
- -> create(RV_ABI_VERSION) -> rv_de*
+ -> dlsym rv_mppc_disc_entry_create_fn / rv_mppc_disc_entry_destroy_fn
+ -> create() -> rv_de*
 ```
 
 It costs one write of a few hundred kilobytes at boot, once, and nothing per
@@ -173,16 +173,15 @@ portable path is the one that must work.
 
 `RTLD_LOCAL` keeps the disc's symbols out of the global namespace. A disc is
 compiled with `-fvisibility=hidden`, so the only two things reachable by `dlsym`
-are the ones `RV_DISC_EXPORT` planted.
+are the ones `RV_MPPC_DISC_ENTRY_DEF` planted.
 
-### The handshake happens twice, on purpose
+### The handshake happens before `dlopen`
 
-The console compares the manifest's `abi_version` to `RV_ABI_VERSION` *and* the
-factory re-checks it and returns `nullptr` on mismatch. The first check reads
-text, which anyone can edit; the second is compiled into the binary that would
-actually run. A disc that loads against the wrong contract does not fail
-cleanly — it reads structs with the wrong layout and produces garbage geometry,
-silent corruption, or a crash three minutes into play with no clue as to why.
+The console reads the version note embedded in `disc.so` and compares its major
+and minor versions with `RV_MPPC_VER_MAJOR/MINOR` before loading executable
+code. A mismatched disc is rejected before its constructors can run. This keeps
+an incompatible contract from becoming garbage geometry, silent corruption, or
+a crash three minutes later with no clue as to why.
 
 ### Teardown has exactly one correct order
 
@@ -192,7 +191,7 @@ return can get this wrong:
 
 ```
 1. disc_shutdown()          the disc's last chance to touch the facade
-2. mppc_disc_destroy(disc)  the disc's own destructor, from the disc's code
+2. destroy(disc)            the disc's own destructor, from the disc's code
 3. dlclose(handle)          the code is unmapped only now
 4. unlink(temporary file)   the inode goes last, and only then
 ```
@@ -229,11 +228,11 @@ A disc writes one line at the bottom of its translation unit:
 
 ```cpp
 class rv_dmain : public rv_pdk::rv_de { /* ... */ };
-RV_DISC_EXPORT(hello::rv_dmain)
+RV_MPPC_DISC_ENTRY_DEF(example_cpp::rv_dmain)
 ```
 
-See [`../../pdk/include/pdk/rv_abi.hpp`](../../pdk/include/pdk/rv_abi.hpp) for
-`RV_ABI_VERSION`, the two symbol names, and the macro itself.
+See [`../../pdk/include/pdk/de/rv_dv.hpp`](../../pdk/include/pdk/de/rv_dv.hpp)
+for the version constants, entry-point names, and the macro itself.
 
 ### The thickness decision, settled
 
@@ -253,7 +252,8 @@ cannot rot: no "this disc needs console runtime 1.4" ever exists.
 
 The intended shape is **one ABI, two kinds of disc behind it**:
 
-1. **Native disc** — a compiled `disc.so` exporting `mppc_disc_create`. This is
+1. **Native disc** — a compiled `disc.so` exporting the entry points from
+   `RV_MPPC_DISC_ENTRY_DEF`. This is
    the only kind that exists today.
 2. **Script disc** — the archive holds Lua and assets **as data**, and the
    console ships one built-in disc implementation that loads the Lua and calls

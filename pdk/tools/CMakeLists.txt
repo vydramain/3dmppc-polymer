@@ -17,12 +17,14 @@
 # which discs are written against). Nothing here links a single line of src/.
 
 cmake_minimum_required(VERSION 3.24)
-project(3dmppc_pdktools LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+project(3dmppc_pdktools LANGUAGES CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
@@ -32,6 +34,18 @@ endif()
 # disc project at pdk/ and pdklib/; both are overridable at run time (--pdk/--pdklib)
 # so a disc directory outside this repository builds just as well.
 get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../.. ABSOLUTE)
+
+include(${RV_REPO_ROOT}/cmake/luajit.cmake)
+
+add_library(3dmppc_pdk INTERFACE)
+target_include_directories(3dmppc_pdk INTERFACE ${RV_REPO_ROOT}/pdk/include)
+
+file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_manifest/*.cpp
+)
+add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
+target_include_directories(3dmppc_pdklib PUBLIC ${RV_REPO_ROOT}/pdk/lib/include)
+target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
 
 add_subdirectory(mppcbaker)
 add_subdirectory(mppcburner)

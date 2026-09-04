@@ -9,7 +9,8 @@
 #include <cmath>
 
 #include "pdk/rv_err.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 
 namespace rv_3dmppc {
@@ -162,8 +163,7 @@ int64_t rv_pchost::open(const char* title, uint64_t scale) {
                                      SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
     texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-                                 static_cast<int>(screen_width_),
-                                 static_cast<int>(screen_height_));
+                                 static_cast<int>(screen_width_), static_cast<int>(screen_height_));
     if (!texture_) {
         RV_LOG_ERR("pchost", "SDL_CreateTexture failed: {}", SDL_GetError());
         return RV_ERR_IO;
@@ -259,8 +259,7 @@ void rv_pchost::release_gamepad(uint32_t joystick_id) {
         port.joystick_id = 0;
         port.abilities = 0;
         port.state = rv_istate{};
-        RV_LOG_INFO("pchost", "port {} emptied",
-                    static_cast<std::size_t>(&port - ports_.data()));
+        RV_LOG_INFO("pchost", "port {} emptied", static_cast<std::size_t>(&port - ports_.data()));
         return;
     }
 }
@@ -338,14 +337,14 @@ void rv_pchost::poll_gamepad(rv_pcport& port) {
     state.right_stick = stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)),
                                    -axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY)));
 
-    state.buttons |= stick_direction_bits(
-        state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH, RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
-        RV_ISOURCE_LEFT_STICK_DPAD_WEST, RV_ISOURCE_LEFT_STICK_DPAD_EAST,
-        RV_ISOURCE_LEFT_STICK_MOVE);
-    state.buttons |= stick_direction_bits(
-        state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH, RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
-        RV_ISOURCE_RIGHT_STICK_DPAD_WEST, RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
-        RV_ISOURCE_RIGHT_STICK_MOVE);
+    state.buttons |=
+        stick_direction_bits(state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
+                             RV_ISOURCE_LEFT_STICK_DPAD_SOUTH, RV_ISOURCE_LEFT_STICK_DPAD_WEST,
+                             RV_ISOURCE_LEFT_STICK_DPAD_EAST, RV_ISOURCE_LEFT_STICK_MOVE);
+    state.buttons |=
+        stick_direction_bits(state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
+                             RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
+                             RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
 
     state.left_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER));
     state.right_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
@@ -407,24 +406,28 @@ void rv_pchost::overlay_keyboard(rv_pcport& port) {
     // produce the corners of the square, so the values are ±1 with no dead zone
     // to apply — the stick helper would only rescale a magnitude that is already
     // saturated.
-    const float wasd_x = (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
-    const float wasd_y = (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
-    const float ijkl_x = (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
-    const float ijkl_y = (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
+    const float wasd_x =
+        (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
+    const float wasd_y =
+        (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
+    const float ijkl_x =
+        (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
+    const float ijkl_y =
+        (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
 
     if (wasd_x != 0.0f || wasd_y != 0.0f) {
         state.left_stick = {wasd_x, wasd_y};
-        state.buttons |= stick_direction_bits(
-            state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH, RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
-            RV_ISOURCE_LEFT_STICK_DPAD_WEST, RV_ISOURCE_LEFT_STICK_DPAD_EAST,
-            RV_ISOURCE_LEFT_STICK_MOVE);
+        state.buttons |=
+            stick_direction_bits(state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
+                                 RV_ISOURCE_LEFT_STICK_DPAD_SOUTH, RV_ISOURCE_LEFT_STICK_DPAD_WEST,
+                                 RV_ISOURCE_LEFT_STICK_DPAD_EAST, RV_ISOURCE_LEFT_STICK_MOVE);
     }
     if (ijkl_x != 0.0f || ijkl_y != 0.0f) {
         state.right_stick = {ijkl_x, ijkl_y};
         state.buttons |= stick_direction_bits(
-            state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
-            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
-            RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
+            state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH, RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_WEST, RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
+            RV_ISOURCE_RIGHT_STICK_MOVE);
     }
 }
 
@@ -443,7 +446,7 @@ void rv_pchost::dump_frame(const uint32_t* argb) const {
         return;
     }
 
-    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
+    rv_pdklib::rv_fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
                  static_cast<long long>(screen_height_));
 
     const int64_t pixels = screen_width_ * screen_height_;

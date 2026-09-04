@@ -3,31 +3,17 @@
 // The console is game-agnostic; all game logic lives behind on the Disc.
 // See docs/README.md for the console/disc relations.
 //
-// Usage:
-//   3dmppc [flags] [DISC.mppcdisc]
-//
-// The first positional argument is the disc to boot: the console mounts that
-// archive, loads the code inside it and runs it. With no disc it falls back to
-// the built-in rv_dmain — a service test of the hardware, not a game.
-//
-// Flags:
-//   --scale N     window magnification over native 320×240 (default 3)
-//   --headless    run without a window (smoke test); pair with --frames
-//   --frames N    stop after N frames (0 = run until quit)
-//   --fixed-step  use a fixed 1/60 dt (reproducible)
-//   --disc PATH   medium to mount in the drive (empty = no disc inserted).
-//                 A DIRECTORY of loose assets — the development shortcut, kept
-//                 because it needs no packaging step. A packaged .mppcdisc goes
-//                 in the positional argument instead, and brings its own medium.
-//   --memcard P   memory-card image (default: memcard.mppccard here)
-//   --mute        silence the audio output stage
-//   --dump-frame P  write the last presented frame to P as a binary PPM
+// The command line is documented in one place, rv_console_print_usage() in
+// rv_infra/rv_console_print.hpp, so the help text cannot drift away from a
+// comment nobody prints.
 #include <getopt.h>
 
 #include <cstdlib>
+#include <format>
 
 #include "rv_dmain/rv_dmain.hpp"
-#include "rv_infra/rv_log.hpp"
+#include "rv_infra/rv_console_print.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -76,6 +62,8 @@ int main(int argc, char** argv) {
                 conf.params.dump_frame_path = optarg;
                 break;
             case '?':
+                // getopt has already named the offending option on stderr.
+                rv_3dmppc::rv_console_print_usage(stderr);
                 return 2;
         }
     }
@@ -85,7 +73,9 @@ int main(int argc, char** argv) {
     // worth refusing rather than silently ignoring.
     const char* disc_path = (optind < argc) ? argv[optind] : nullptr;
     if (optind + 1 < argc) {
-        RV_LOG_ERR("main", "expected at most one disc path, got {}", argc - optind);
+        rv_3dmppc::rv_console_print_error(
+            std::format("expected at most one disc path, got {}", argc - optind));
+        rv_3dmppc::rv_console_print_usage(stderr);
         return 2;
     }
 
@@ -99,7 +89,12 @@ int main(int argc, char** argv) {
         rv_pdk::rv_de* disc = console.disc_load(disc_path);
         if (disc == nullptr) {
             // The loader has already said, precisely, what was wrong with it.
-            RV_LOG_ERR("main", "refusing to boot '{}'", rv_3dmppc::rv_log_escape(disc_path));
+            // TODO(rv_log_escape): the console is the only caller of this, so it
+            // does not belong in pdklib. Find it a console-side home. It must
+            // stay a call-site step either way — once the message is formatted,
+            // an injected newline is indistinguishable from one we wrote.
+            rv_3dmppc::rv_console_print_error(
+                std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(disc_path)));
             return 1;
         }
         return static_cast<int>(console.disc_run(*disc) < 0 ? 1 : 0);

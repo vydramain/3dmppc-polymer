@@ -24,30 +24,12 @@
 #include <string>
 
 #include "pdk/de/rv_de.hpp"
-#include "pdk/rv_abi.hpp"
+#include "pdk/de/rv_dv.hpp"
+#include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "rv_pconsole/cd/rv_pczip.hpp"
 
-namespace rv_3dmppc {
-
-// What the console needs to know about a disc BEFORE it agrees to run its code.
-// A strict subset of the manifest the burner writes (pdk/tools/mppcburner/
-// rv_manifest.hpp holds the full model): the console reads only what it must,
-// because every field it parses is a field an attacker-supplied archive gets to
-// influence.
-struct rv_pcdiscinfo {
-    int abi_version = 0;  // must equal RV_ABI_VERSION
-    std::string id;       // short machine name, e.g. "hello"
-    std::string title;    // human title — UNTRUSTED, log through rv_log_escape
-    std::string entry;    // archive entry holding the code (default "disc.so")
-};
-
-// Fill `out` from the text of a `disc.toml`, reading only the `[disc]` section
-// and only the four keys above. Returns true when the text was well-formed
-// enough to look at; unknown sections, unknown keys and blank lines are ignored
-// rather than refused, because the burner writes more than the console reads.
-//
-// It never throws and never trusts a length: a manifest arrives inside the
-// archive and may be arbitrary bytes.
-bool rv_pcmanifest_parse(const std::string& text, rv_pcdiscinfo& out);
+namespace rv_3dmppc
+{
 
 // PATTERN: RAII — one object owns the whole loaded-disc state (temporary file,
 // dlopen handle, the disc object) and its destructor is the ONLY teardown path,
@@ -65,35 +47,60 @@ bool rv_pcmanifest_parse(const std::string& text, rv_pcdiscinfo& out);
 // that points nowhere, on shutdown, where nobody is looking. Same reason step 1
 // precedes step 2: disc_shutdown is a virtual on an object the destructor is
 // about to end.
-class rv_pcloader {
-   public:
+class rv_pcloader
+{
+public:
     rv_pcloader() = default;
     ~rv_pcloader();
 
     // The handle, the disc pointer and the temporary path are one indivisible
     // ownership; copying or moving it would mean two objects racing to run the
     // teardown above.
-    rv_pcloader(const rv_pcloader&) = delete;
-    rv_pcloader& operator=(const rv_pcloader&) = delete;
-    rv_pcloader(rv_pcloader&&) = delete;
-    rv_pcloader& operator=(rv_pcloader&&) = delete;
+    rv_pcloader(const rv_pcloader &) = delete;
+    rv_pcloader &operator=(const rv_pcloader &) = delete;
+    rv_pcloader(rv_pcloader &&) = delete;
+    rv_pcloader &operator=(rv_pcloader &&) = delete;
+
+    // NEUROSLOP-END
+
+    // Pre-dlopen inspection of the code entry `info_entry` inside the mounted
+    // archive. dlopen runs the library's constructors before returning, so any
+    // compatibility verdict must come from the FILE'S BYTES, never from loaded
+    // code: the entry is read whole (CRC-checked by the zip reader) and its ELF
+    // structure is parsed in memory, per elf(5). Today it validates the ELF64
+    // header (magic, class, byte order, e_type/e_machine, program-header
+    // stride); the walk to the RV_MPPC version note (PT_NOTE segments) is the
+    // part still to be written. Returns RV_OK or a negative rv_err, logging the
+    // exact refusal reason.
+    int64_t pre_dlopen_check(rv_zipreader *zip, const char *info_entry);
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
 
     // Mount `archive_path`, check the handshake and bring the disc's code up.
     // Returns RV_OK, or a negative rv_err after logging exactly what went wrong
     // — every refusal path names itself in the log, none of them throws, and
     // none of them leaves a partially loaded disc behind.
-    int64_t load(const char* archive_path);
+    int64_t load(const char *archive_path);
 
     // The live disc, or nullptr when nothing is loaded. BORROWED: it belongs to
     // this object and dies with it, and so does everything it returns — in
     // particular disc_title(), which is a literal inside the unloaded-at-
     // teardown text segment.
-    rv_pdk::rv_de* disc() const { return disc_; }
+    rv_pdk::rv_de *disc() const
+    {
+        return disc_;
+    }
 
-    bool loaded() const { return disc_ != nullptr; }
+    bool loaded() const
+    {
+        return disc_ != nullptr;
+    }
 
     // What the manifest declared. Valid after a successful load.
-    const rv_pcdiscinfo& info() const { return info_; }
+    const rv_pdklib::rv_manifest &info() const
+    {
+        return manifest_;
+    }
 
     // Told by the console once disc_initialize() has returned success, so that
     // teardown knows whether disc_shutdown() is owed: rv_de.hpp says the hook
@@ -101,26 +108,31 @@ class rv_pcloader {
     // refused to start. The pointer is compared rather than trusted — the
     // console may be running a disc this loader did not produce (the built-in
     // rv_dmain), and that one's lifecycle is none of our business.
-    void notify_initialized(const rv_pdk::rv_de* disc);
+    void notify_initialized(const rv_pdk::rv_de *disc);
 
     // Idempotent teardown, in the order documented above. Called by the
     // destructor; public so a caller may end a disc early and see the log lines
     // in place rather than at some indeterminate point during unwinding.
     void unload();
 
-   private:
-    rv_pcdiscinfo info_;
+private:
+    rv_pdklib::rv_manifest manifest_;
 
     // Path of the extracted code file, empty when nothing was extracted. Kept
     // as state precisely so the destructor can remove it on EVERY exit path.
     std::string temp_path_;
 
-    void* handle_ = nullptr;
-    rv_pdk::rv_de* disc_ = nullptr;
-    rv_pdk::rv_disc_destroy_fn destroy_ = nullptr;
+    // NEUROSLOP-END
+    template <typename O>
+    bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out);
+    // NEUROSLOP-BEGIN (claude-opus-5)
+
+    void *handle_ = nullptr;
+    rv_pdk::rv_de *disc_ = nullptr;
+    rv_pdk::rv_mppc_disc_destroy_fn destroy_ = nullptr;
 
     // Whether disc_initialize() succeeded — see notify_initialized().
     bool initialized_ = false;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

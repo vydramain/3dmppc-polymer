@@ -12,12 +12,14 @@
 #include "pdk/cio/rv_cio.hpp"
 #include "pdk/cm/rv_cm.hpp"
 #include "pdk/cv/rv_cv.hpp"
+#include "pdk/cv/rv_texel.hpp"
 #include "pdk/rv_err.hpp"
-#include "pdklib/rv_camera.hpp"
-#include "pdklib/rv_color.hpp"
-#include "pdklib/rv_math.hpp"
-#include "pdklib/rv_text.hpp"
-#include "pdklib/rv_xform.hpp"
+#include "pdklib/rv_camera/rv_camera.hpp"
+#include "pdklib/rv_color/rv_color.hpp"
+#include "pdklib/rv_math/rv_math.hpp"
+#include "pdklib/rv_font/rv_font.hpp"
+#include "pdklib/rv_textures/rv_texel_pack.hpp"
+#include "pdklib/rv_math/rv_xform.hpp"
 
 namespace rv_service {
 
@@ -44,11 +46,10 @@ constexpr int64_t RV_DMAIN_TEX_SIZE = 16;
 // Remember the contract's rule: 0000h is a HOLE, not black (opaque black is
 // 8000h). The fourth quadrant is deliberately holes so the cut-out path is
 // visible, and the border is white so edge behaviour is unmistakable.
-constexpr uint16_t RV_DMAIN_TEXEL_RED = 0x001F;
-constexpr uint16_t RV_DMAIN_TEXEL_GREEN = 0x03E0;
-constexpr uint16_t RV_DMAIN_TEXEL_BLUE = 0x7C00;
-constexpr uint16_t RV_DMAIN_TEXEL_WHITE = 0x7FFF;
-constexpr uint16_t RV_DMAIN_TEXEL_HOLE = 0x0000;
+constexpr uint16_t RV_DMAIN_TEXEL_RED = rv_pdklib::rv_texel_pack(rv_color5{31, 0, 0});
+constexpr uint16_t RV_DMAIN_TEXEL_GREEN = rv_pdklib::rv_texel_pack(rv_color5{0, 31, 0});
+constexpr uint16_t RV_DMAIN_TEXEL_BLUE = rv_pdklib::rv_texel_pack(rv_color5{0, 0, 31});
+constexpr uint16_t RV_DMAIN_TEXEL_WHITE = rv_pdklib::rv_texel_pack(rv_color5{31, 31, 31});
 
 // --- the beep ---
 
@@ -242,13 +243,13 @@ void rv_dmain::build_font() {
     // The atlas is expanded into a buffer the DISC owns and uploaded; the buffer
     // dies at the end of this function because video_asset_write copies during
     // the call. 128x48 IDX4 is 3 KiB — cheap enough to keep resident forever.
-    std::vector<uint8_t> atlas(rv_pdklib::rv_text_atlas_size, 0);
-    if (!rv_pdklib::rv_text_build_atlas(atlas.data(), atlas.size())) return;
+    std::vector<uint8_t> atlas(rv_pdklib::rv_font_atlas_size, 0);
+    if (!rv_pdklib::rv_font_build_atlas(atlas.data(), atlas.size())) return;
 
     const int64_t atlas_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_text_atlas_size));
+        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
     if (atlas_addr < 0) return;
-    if (cv->video_asset_write(atlas_addr, rv_pdklib::rv_text_atlas_texture(atlas.data())) < 0) {
+    if (cv->video_asset_write(atlas_addr, rv_pdklib::rv_font_atlas_texture(atlas.data())) < 0) {
         cv->video_asset_free(atlas_addr);
         return;
     }
@@ -257,16 +258,16 @@ void rv_dmain::build_font() {
     // the contract yet, so recolouring means uploading another palette and
     // pointing addr_palette at it — which is exactly how the machine this
     // imitates recoloured its fonts.
-    std::vector<uint16_t> palette(rv_pdklib::rv_text_palette_entries, 0);
-    rv_pdklib::rv_text_build_palette(rv_color{220, 226, 240}, palette.data(), palette.size());
+    std::vector<uint16_t> palette(rv_pdklib::rv_font_palette_entries, 0);
+    rv_pdklib::rv_font_build_palette(rv_color{220, 226, 240}, palette.data(), palette.size());
 
     const int64_t palette_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_text_palette_size));
+        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     if (palette_addr < 0) {
         cv->video_asset_free(atlas_addr);
         return;
     }
-    if (cv->video_asset_write(palette_addr, rv_pdklib::rv_text_palette_texture(palette.data())) <
+    if (cv->video_asset_write(palette_addr, rv_pdklib::rv_font_palette_texture(palette.data())) <
         0) {
         cv->video_asset_free(palette_addr);
         cv->video_asset_free(atlas_addr);
@@ -274,13 +275,13 @@ void rv_dmain::build_font() {
     }
 
     // The failure colour, over the same atlas. Two palettes, one set of glyphs.
-    std::vector<uint16_t> bad(rv_pdklib::rv_text_palette_entries, 0);
-    rv_pdklib::rv_text_build_palette(rv_color{240, 90, 80}, bad.data(), bad.size());
+    std::vector<uint16_t> bad(rv_pdklib::rv_font_palette_entries, 0);
+    rv_pdklib::rv_font_build_palette(rv_color{240, 90, 80}, bad.data(), bad.size());
 
-    const int64_t bad_addr = cv->video_asset_malloc(
-        static_cast<int64_t>(rv_pdklib::rv_text_palette_size));
+    const int64_t bad_addr =
+        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     if (bad_addr >= 0 &&
-        cv->video_asset_write(bad_addr, rv_pdklib::rv_text_palette_texture(bad.data())) < 0) {
+        cv->video_asset_write(bad_addr, rv_pdklib::rv_font_palette_texture(bad.data())) < 0) {
         cv->video_asset_free(bad_addr);
         addr_font_palette_bad_ = 0;
     } else if (bad_addr >= 0) {
@@ -300,7 +301,7 @@ void rv_dmain::build_texture() {
     }
 
     texels_.assign(static_cast<std::size_t>(RV_DMAIN_TEX_SIZE * RV_DMAIN_TEX_SIZE),
-                   RV_DMAIN_TEXEL_HOLE);
+                   RV_TEXEL_TRANSPARENT);
 
     const int64_t half = RV_DMAIN_TEX_SIZE / 2;
     for (int64_t y = 0; y < RV_DMAIN_TEX_SIZE; ++y) {
@@ -313,7 +314,7 @@ void rv_dmain::build_texture() {
             } else if (x < half && y >= half) {
                 texel = RV_DMAIN_TEXEL_BLUE;
             } else {
-                texel = RV_DMAIN_TEXEL_HOLE;  // the cut-out quadrant
+                texel = RV_TEXEL_TRANSPARENT;  // the cut-out quadrant
             }
 
             const bool border =
@@ -369,13 +370,12 @@ void rv_dmain::build_idx4_texture() {
         }
     }
 
-    palette_idx4_.assign(16, 0x0000);  // entry 0 stays 0000h: the hole
-    palette_idx4_[1] = 0x001F;         // red
-    palette_idx4_[2] = 0x03E0;         // green
-    palette_idx4_[3] = 0x7FFF;         // white
+    palette_idx4_.assign(16, RV_TEXEL_TRANSPARENT);  // entry 0 stays the hole
+    palette_idx4_[1] = RV_DMAIN_TEXEL_RED;
+    palette_idx4_[2] = RV_DMAIN_TEXEL_GREEN;
+    palette_idx4_[3] = RV_DMAIN_TEXEL_WHITE;
 
-    const int64_t texel_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(texels_idx4_.size()));
+    const int64_t texel_addr = cv->video_asset_malloc(static_cast<int64_t>(texels_idx4_.size()));
     if (texel_addr < 0) return;
 
     rv_texture texels{};
@@ -598,7 +598,7 @@ constexpr int RV_DMAIN_CELL_H = 60;
 constexpr int RV_DMAIN_CELL_ART_TOP = 11;  // below the cell's label
 
 constexpr const char* RV_DMAIN_CELL_LABEL[] = {
-    "LINE", "TRI",  "QUAD",  "WIRE",   "SPRITE", "DIRECT15",
+    "LINE", "TRI",  "QUAD",   "WIRE",  "SPRITE",  "DIRECT15",
     "TILE", "IDX4", "CUTOUT", "DEPTH", "STRETCH", "3D",
 };
 
@@ -629,10 +629,9 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h) {
     const rv_pdklib::rv_mat4 model = rv_pdklib::rv_mat4_mul(
         rv_pdklib::rv_mat4_rotate_y(spin_), rv_pdklib::rv_mat4_rotate_x(spin_ * 0.6f));
 
-    const rv_pdklib::rv_xform_conf conf =
-        rv_pdklib::rv_xform_conf_make(rv_pdklib::rv_camera_mvp(camera, model), camera, vw, vh,
-                                      RV_DMAIN_DEPTH_ART_LO, RV_DMAIN_DEPTH_ART_HI,
-                                      rv_pdklib::RV_CULL_SCREEN_CW);
+    const rv_pdklib::rv_xform_conf conf = rv_pdklib::rv_xform_conf_make(
+        rv_pdklib::rv_camera_mvp(camera, model), camera, vw, vh, RV_DMAIN_DEPTH_ART_LO,
+        RV_DMAIN_DEPTH_ART_HI, rv_pdklib::RV_CULL_SCREEN_CW);
 
     const rv_pdklib::rv_vec3 to_light{-0.4f, 0.8f, -0.5f};
 
@@ -680,9 +679,9 @@ void rv_dmain::draw_cell(int index) {
     const int ah = RV_DMAIN_CELL_H - RV_DMAIN_CELL_ART_TOP - 5;
 
     if (addr_font_ != 0) {
-        const rv_pdklib::rv_text_style ink =
-            rv_pdklib::rv_text_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
-        rv_pdklib::rv_text_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
+        const rv_pdklib::rv_font_style ink =
+            rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+        rv_pdklib::rv_font_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
                                 [cv](const rv_primitive& p) { cv->frame_put(p); });
     }
 
@@ -789,9 +788,8 @@ void rv_dmain::draw_cell(int index) {
                                       RV_DMAIN_DEPTH_ART_LO};
             for (int i = 0; i < 3; ++i) {
                 cv->frame_put(make_bar(static_cast<float>(ax + i * 12),
-                                       static_cast<float>(ay + i * 8),
-                                       static_cast<float>(aw - 24), static_cast<float>(ah - 16),
-                                       tint[i], depth[i]));
+                                       static_cast<float>(ay + i * 8), static_cast<float>(aw - 24),
+                                       static_cast<float>(ah - 16), tint[i], depth[i]));
             }
             break;
         }
@@ -804,8 +802,8 @@ void rv_dmain::draw_cell(int index) {
             break;
     }
 }
-void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture,
-                             int64_t addr_palette, rv_texture_mapping_type mapping) {
+void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
+                             rv_texture_mapping_type mapping) {
     if (addr_texture == 0) return;
 
     rv_primitive primitive{};
@@ -846,19 +844,18 @@ void rv_dmain::draw_post() {
     const int width = static_cast<int>(screen_width_);
     const int height = static_cast<int>(screen_height_);
     const rv_color slab{12, 14, 22};
-    const rv_pdklib::rv_text_style ink =
-        rv_pdklib::rv_text_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
-    const rv_pdklib::rv_text_style bad =
-        rv_pdklib::rv_text_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
+    const rv_pdklib::rv_font_style ink =
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+    const rv_pdklib::rv_font_style bad =
+        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
 
     // Opaque slabs, not a dim overlay: the console has no blending, and light
     // ink over lit geometry is exactly what made the first version unreadable.
-    cv->frame_put(make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab,
-                           RV_DMAIN_DEPTH_PANEL));
-    rv_pdklib::rv_text_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
-    rv_pdklib::rv_text_draw(
-        ink, width - 4 - rv_pdklib::rv_text_measure_width(RV_DMAIN_NO_DISC, 1), 2,
-        RV_DMAIN_NO_DISC, file);
+    cv->frame_put(
+        make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL));
+    rv_pdklib::rv_font_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
+    rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
+                            2, RV_DMAIN_NO_DISC, file);
 
     // The budget line. Saying VIRTUAL out loud matters: none of this is what the
     // host has, all of it is what the fantasy machine is defined to have, and
@@ -871,7 +868,7 @@ void rv_dmain::draw_post() {
     std::snprintf(budget, sizeof(budget), "VIRTUAL %lldx%lld %s %lldv %s",
                   static_cast<long long>(screen_width_), static_cast<long long>(screen_height_),
                   vram, static_cast<long long>(voice_count_), sram);
-    rv_pdklib::rv_text_draw(ink, 4, 13, budget, file);
+    rv_pdklib::rv_font_draw(ink, 4, 13, budget, file);
 
     // The bottom slab: one word per subsystem, and the word is the whole report.
     cv->frame_put(make_bar(0.0f, static_cast<float>(height) - 24.0f, static_cast<float>(width),
@@ -891,23 +888,22 @@ void rv_dmain::draw_post() {
 
     int pen = 4;
     for (const rv_dmain_probe& probe : probes) {
-        rv_pdklib::rv_text_draw(ink, pen, static_cast<int>(height) - 21, probe.label, file);
-        pen += rv_pdklib::rv_text_measure_width(probe.label, 1) + 8;
+        rv_pdklib::rv_font_draw(ink, pen, static_cast<int>(height) - 21, probe.label, file);
+        pen += rv_pdklib::rv_font_measure_width(probe.label, 1) + 8;
 
         const char* mark = probe.absent ? "-" : (probe.ok ? "OK" : "FAIL");
-        rv_pdklib::rv_text_draw(probe.ok || probe.absent ? ink : bad, pen,
+        rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad, pen,
                                 static_cast<int>(height) - 21, mark, file);
-        pen += rv_pdklib::rv_text_measure_width(mark, 1) + 10;
+        pen += rv_pdklib::rv_font_measure_width(mark, 1) + 10;
     }
 
     // The probe row owns its whole line: four labels and four verdicts already
     // fill 40 columns, and anything sharing the row lands on top of them.
     char pads[32];
     std::snprintf(pads, sizeof(pads), "%lld pad(s) boot %lu",
-                  static_cast<long long>(pads_connected_),
-                  static_cast<unsigned long>(boot_count_));
-    rv_pdklib::rv_text_draw(ink, 4, height - 11, pads, file);
-    rv_pdklib::rv_text_draw(ink, width - 4 - rv_pdklib::rv_text_measure_width(RV_DMAIN_HINTS, 1),
+                  static_cast<long long>(pads_connected_), static_cast<unsigned long>(boot_count_));
+    rv_pdklib::rv_font_draw(ink, 4, height - 11, pads, file);
+    rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_HINTS, 1),
                             height - 11, RV_DMAIN_HINTS, file);
 }
 
