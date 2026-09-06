@@ -29,35 +29,35 @@ private:
     rv_pconsole_params params_;
 
     // NEUROSLOP-BEGIN (claude-opus-5)
-    // DECLARATION ORDER IS LOAD-BEARING: the host owns SDL and is borrowed by
-    // cio_ and cv_, so it must be constructed before them and torn down after.
-    rv_pchost host_;
+    // BORROWED, not owned: the host is created and prepared by the CALLER
+    // before the console can even be built (checking the disc's budget needs
+    // to know which SDL subsystems came up), so the console can no longer own
+    // it. cio_ and cv_ still borrow it in turn, which only works because the
+    // caller is guaranteed to outlive this console.
+    rv_pchost &host_;
     // NEUROSLOP-END
 
     // TODO(Claude-инструкция, код твой). Объяви здесь поле rv_pccl cl_;
     // и включи "rv_pconsole/cl/rv_pccl.hpp" наверху.
     //
     // ПОРЯДОК ОБЪЯВЛЕНИЯ ВАЖЕН, как и для host_ выше. Поля разрушаются в
-    // порядке, ОБРАТНОМ объявлению, а loader_ (объявлен последним, значит
-    // умирает первым) в своём teardown зовёт disc_shutdown() — а тот имеет
-    // право трогать любой контроллер, включая этот. Значит cl_ обязан стоять
-    // ВЫШЕ loader_. Поставь его в общий ряд контроллеров, по алфавиту.
+    // порядке, ОБРАТНОМ объявлению. Поставь cl_ в общий ряд контроллеров, по
+    // алфавиту.
     rv_pcca ca_;
     rv_pccd cd_;
     rv_pccio cio_;
     rv_pccm cm_;
     rv_pccv cv_;
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
-    // DECLARATION ORDER IS LOAD-BEARING here too: declared LAST means destroyed
-    // FIRST, and the loader's teardown runs disc_shutdown() — a hook that is
-    // allowed to touch the facade, i.e. every controller above it. A disc's last
-    // words must not be spoken to subsystems that are already gone.
-    rv_pcloader loader_;
-    // NEUROSLOP-END
+    // BORROWED, never owned. The loader reads the manifest BEFORE this console
+    // exists — the numbers it finds are what this console is built from — so it
+    // cannot live inside the thing it configures. main() owns it and must let it
+    // die FIRST: its teardown runs disc_shutdown(), a hook allowed to touch every
+    // controller above. Null when the built-in disc is running.
+    rv_pcloader *loader_ = nullptr;
 
 public:
-    explicit rv_pconsole(const rv_pconsole_conf &conf);
+    rv_pconsole(const rv_pconsole_conf &conf, rv_pchost &host, rv_pcloader *loader);
 
     ~rv_pconsole() = default;
 
@@ -70,20 +70,17 @@ public:
     // TODO(Claude-инструкция, код твой). Добавь rv_pdk::rv_cl* cl() override;
     // Тело в rv_pconsole.cpp — одна строка, возврат адреса поля. Смотри, как
     // сделаны соседи, и повтори.
-
-    // NEUROSLOP-BEGIN (claude-opus-5)
-    // Put a `.mppcdisc` in the machine: load the code it carries and mount the
-    // very same archive as the drive's medium, so the running disc reads its
-    // assets out of the file it was booted from and not from somewhere else.
     //
-    // Returns the disc to hand to disc_run(), or nullptr when the disc was
-    // refused — the reason is already in the log by then, named precisely (no
-    // such file, not an archive, no manifest, wrong ABI, no code, dlopen,
-    // missing symbol, refused handshake). The pointer is BORROWED: the console
-    // owns the loaded disc and unloads it when it is destroyed, so it must not
-    // outlive this console.
-    rv_pdk::rv_de *disc_load(const char *path);
-    // NEUROSLOP-END
+    // ЗАГЛУШКА до появления поля rv_pccl cl_: контракт rv_pdko требует cl(),
+    // иначе rv_pconsole абстрактен и не собирается. Возвращает nullptr —
+    // ни один диск в дереве его пока не дёргает. Заменить телом «return &cl_;»
+    // сразу, как поле появится.
+    rv_pdk::rv_cl *cl() override;
+
+    // The drive itself, console-side. rv_pdko::cd() hands a disc the CONTRACT's
+    // view (rv_cd, which cannot load a medium); putting a medium IN the drive is
+    // the machine operator's act, not the disc's, so it goes through here.
+    rv_pccd &drive() { return cd_; }
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // PATTERN: inversion of control. The frame loop belongs to the console; the
@@ -91,11 +88,18 @@ public:
     //
     // Returns RV_OK when the run ends normally (the disc asked to stop, the
     // frame budget ran out, or the user powered the machine off), or a negative
-    // rv_err if the disc refused to initialize or the display would not come up.
+    // rv_err if the disc refused to initialize. A display that would not come
+    // up is a warning, not a stop.
     int64_t disc_run(rv_pdk::rv_de &disc);
     // NEUROSLOP-END
 
-    int64_t disc_check_system_budget(rv_pdklib::rv_manifest manifest);
+    // Did every resource this console was built from actually come into
+    // existence? A budget the machine accepted at stage E3 can still fail to
+    // materialise at stage G — an address-space reservation is allowed to
+    // refuse. False means the machine did not provide what the disc declared,
+    // and the run must not start.
+    bool ready() const;
+
 };
 
 } // namespace rv_3dmppc

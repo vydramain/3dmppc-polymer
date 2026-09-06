@@ -71,26 +71,6 @@ constexpr bind_rule RULES[] = {
                 m.textures_files.format = row->format;
             }
         } },
-    { rv_manifest_section_budget, // [budget] headless = true|false
-        rv_manifest_key_budget_headless,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.budget.headless = static_cast<bool>(v.num);
-        } },
-    { rv_manifest_section_budget, // [budget] fixed_step = true|false
-        rv_manifest_key_budget_fixed_step,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.budget.fixed_step = static_cast<bool>(v.num);
-        } },
-    { rv_manifest_section_budget, // [budget] scale = N
-        rv_manifest_key_budget_scale,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.budget.scale = static_cast<uint64_t>(v.num);
-        } },
-    { rv_manifest_section_budget, // [budget] max_frames = N
-        rv_manifest_key_budget_max_frames,
-        [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.budget.max_frames = static_cast<uint64_t>(v.num);
-        } },
     { rv_manifest_section_budget_pcca, // [budget.pcca] voice_count = N
         rv_manifest_key_budget_pcca_voice_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
@@ -151,10 +131,10 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.budget.pccm.card_slot_size = v.num;
         } },
-    { rv_manifest_section_budget_pccd, // [budget.pccd] medium_path = "…"
-        rv_manifest_key_budget_pccd_medium_path,
+    { rv_manifest_section_budget_pccd, // [budget.pccd] code_entry = "…"
+        rv_manifest_key_budget_pccd_code_entry,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
-            m.budget.pccd.medium_path = v.str;
+            m.budget.pccd.code_entry = v.str;
         } },
 };
 

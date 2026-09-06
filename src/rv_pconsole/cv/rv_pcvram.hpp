@@ -65,6 +65,9 @@ class rv_pcvram {
 
     int64_t capacity() const { return pool_.capacity(); }
 
+    // Does the video RAM pool actually hold the space it was asked for?
+    bool valid() const { return pool_.valid(); }
+
    private:
     // Shared helper: both accessors below need "is it live AND written".
     const rv_pcvram_meta* written_meta(int64_t addr) const;

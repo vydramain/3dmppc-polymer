@@ -46,63 +46,85 @@ int64_t voices_mask(int64_t count) {
 
 }  // namespace
 
-rv_pcca::rv_pcca(const rv_pcca_conf& conf, rv_pchost& host)
-    : conf_(conf),
-      host_(host),
-      sram_(conf.sound_memory_size, RV_PCCA_ALIGN, RV_PCCA_RESERVED_HEAD),
-      mixer_(clamp_voice_count(conf.voice_count)) {
-    if (clamp_voice_count(conf_.voice_count) != conf_.voice_count) {
-        RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count,
-                    clamp_voice_count(conf_.voice_count));
-    }
+rv_pcca::rv_pcca(const rv_pcca_conf& conf, rv_pchost& host) : conf_(conf), host_(host) {
+    // The device already exists (or doesn't) by the time this constructor
+    // runs — the host brought it up at stage C, in prepare(), before any disc
+    // was loaded. This class only asks what stage C established and, when
+    // audio is on, builds the sound RAM and the mixer the device pulls from.
+    //
+    // --no-audio and "the host has no device" fall back to exactly the same
+    // shape: no sound RAM, no mixer built. Nothing is ever allocated for a
+    // console that will never make a sound.
+    sounding_ = !conf_.no_audio && host_.sounding();
 
-    mixer_.set_muted(conf_.mute);
+    if (sounding_) {
+        sram_.emplace(conf.sound_memory_size, RV_PCCA_ALIGN, RV_PCCA_RESERVED_HEAD);
+        if (!sram_->valid()) {
+            RV_LOG_ERR("pcca", "failed to reserve {} byte(s) of sound RAM", conf.sound_memory_size);
+        }
+        mixer_.emplace(clamp_voice_count(conf.voice_count));
 
-    // The device is opened HERE and not from the frame loop, because the SPU's
-    // clock IS the device: envelopes advance inside render(), which only the
-    // audio callback calls. A headless run must still get one, or a disc that
-    // waits for voice_status() to clear would wait forever.
-    sounding_ = host_.open_audio(mixer_) >= 0;
+        if (clamp_voice_count(conf_.voice_count) != conf_.voice_count) {
+            RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count,
+                        clamp_voice_count(conf_.voice_count));
+        }
 
-    if (!sounding_) {
-        // No sound card. The machine degrades to "voices retire instantly":
-        // setup and the sound-RAM calls behave exactly as they always do, but
-        // nothing is ever busy. That keeps the disc's polling loops terminating,
-        // which is the property that actually matters — silence is a fine
-        // outcome, a hang is not.
-        RV_LOG_WARN("pcca", "no audio device: voices will report themselves idle");
+        mixer_->set_muted(conf_.mute);
+        host_.attach_mixer(*mixer_);
     }
 
     // "virtual" is worth the four extra characters here: the byte count sits
     // next to a real audio device in the log, and a reader must not take it for
     // one of the host's numbers. It is this machine's self-imposed budget.
-    RV_LOG_INFO("pcca", "{} voice(s), {} byte(s) of virtual sound RAM{}", mixer_.voice_count(),
-                sram_.capacity(), conf_.mute ? ", muted" : "");
+    if (sounding_) {
+        RV_LOG_INFO("pcca", "{} voice(s), {} byte(s) of virtual sound RAM{}", mixer_->voice_count(),
+                    sram_->capacity(), conf_.mute ? ", muted" : "");
+    } else {
+        RV_LOG_INFO("pcca", "audio off ({} voice(s), {} byte(s) declared, no-op){}",
+                    conf_.voice_count, conf_.sound_memory_size,
+                    conf_.no_audio ? " [--no-audio]" : " [no device]");
+    }
 }
 
 rv_pcca::~rv_pcca() {
-    // Order is the whole point: the device thread must be gone before mixer_ —
-    // which it holds a pointer to — is destroyed, and mixer_'s voices hold
-    // pointers into sram_, which outlives them by declaration order.
-    host_.close_audio();
+    // Unbind the mixer before it (and sram_, which its voices point into) is
+    // destroyed. The device itself is NOT closed here: it belongs to the
+    // host's lifetime (stage C), not to this disc's — this disc did not open
+    // it and must not close it.
+    host_.detach_mixer();
 }
 
-int64_t rv_pcca::voice_count() { return mixer_.voice_count(); }
+int64_t rv_pcca::voice_count() {
+    // The DISC's declared count, unchanged — a no-op console still reports the
+    // hardware shape a real one would have had.
+    if (!sounding_) return conf_.voice_count;
+    return mixer_->voice_count();
+}
 
-int64_t rv_pcca::sound_memory_size() { return sram_.capacity(); }
+int64_t rv_pcca::sound_memory_size() {
+    if (!sounding_) return conf_.sound_memory_size;
+    return sram_->capacity();
+}
 
 int64_t rv_pcca::validate_mask(int64_t voice_mask) const {
     // Negative is not a mask at all (bits 0..62), zero names nobody, and a bit
     // above the last voice names hardware this console does not have. All three
     // are malformed calls rather than empty ones.
     if (voice_mask <= 0) return RV_ERR_INVAL;
-    if ((voice_mask & ~voices_mask(mixer_.voice_count())) != 0) return RV_ERR_INVAL;
+    if ((voice_mask & ~voices_mask(mixer_->voice_count())) != 0) return RV_ERR_INVAL;
     return RV_OK;
 }
 
-int64_t rv_pcca::sound_asset_malloc(int64_t size) { return sram_.malloc(size); }
+int64_t rv_pcca::sound_asset_malloc(int64_t size) {
+    // A fixed, positive, fake address: nothing is allocated, and repeats are
+    // fine — no pool exists for this to collide against.
+    if (!sounding_) return 16;
+    return sram_->malloc(size);
+}
 
 int64_t rv_pcca::sound_asset_write(int64_t addr, const rv_sample* sample) {
+    if (!sounding_) return RV_OK;
+
     if (!sample) return RV_ERR_INVAL;
 
     // THEOREM: sample pointers are stable, region contents are not. rv_pcpool
@@ -114,12 +136,12 @@ int64_t rv_pcca::sound_asset_write(int64_t addr, const rv_sample* sample) {
     // reading this instant would be a genuine data race, so the copy happens
     // under the SPU lock. The lock is the same one the mixer takes, and nothing
     // is called through it while it is held (rv_pcmixer.hpp).
-    auto guard = mixer_.acquire();
+    auto guard = mixer_->acquire();
 
-    const int64_t rc = sram_.write(addr, sample->data, sample->size);
+    const int64_t rc = sram_->write(addr, sample->data, sample->size);
     if (rc < 0) return rc;
 
-    rv_pcca_meta* meta = sram_.region_meta(addr);
+    rv_pcca_meta* meta = sram_->region_meta(addr);
     if (!meta) return RV_ERR_INVAL;
 
     // Length is recorded only after the bytes landed, so a failed upload cannot
@@ -132,38 +154,42 @@ int64_t rv_pcca::sound_asset_write(int64_t addr, const rv_sample* sample) {
 }
 
 int64_t rv_pcca::sound_asset_free(int64_t addr) {
-    auto guard = mixer_.acquire();
+    if (!sounding_) return RV_OK;
 
-    if (!sram_.region_exists(addr)) return RV_ERR_INVAL;
+    auto guard = mixer_->acquire();
+
+    if (!sram_->region_exists(addr)) return RV_ERR_INVAL;
 
     // The contract's RV_ERR_BUSY: a region cannot be released while a voice is
     // reading it. The question is asked of the VOICES, by address — each one
     // remembers the sample_address it was armed with — and it is asked under
     // the same lock the release happens under, so a tail that decays to silence
     // between the check and the free cannot make this answer stale.
-    if (mixer_.region_busy_locked(addr)) return RV_ERR_BUSY;
+    if (mixer_->region_busy_locked(addr)) return RV_ERR_BUSY;
 
-    const int64_t rc = sram_.free(addr);
+    const int64_t rc = sram_->free(addr);
     if (rc < 0) return rc;
 
     // Voices that were armed with this region but never started are disarmed
     // rather than left holding a pointer into bytes the pool may hand out
     // again: a later voice_play() then fails loudly (RV_ERR_INVAL) instead of
     // playing whatever the next upload put there.
-    mixer_.disarm_region_locked(addr);
+    mixer_->disarm_region_locked(addr);
 
     return RV_OK;
 }
 
 int64_t rv_pcca::voice_setup(const rv_voice_conf* conf) {
+    if (!sounding_) return RV_OK;
+
     if (!conf) return RV_ERR_INVAL;
 
     const int64_t mask_rc = validate_mask(conf->voice);
     if (mask_rc < 0) return mask_rc;
 
-    if (!sram_.region_exists(conf->sample_address)) return RV_ERR_INVAL;
+    if (!sram_->region_exists(conf->sample_address)) return RV_ERR_INVAL;
 
-    const rv_pcca_meta* meta = sram_.region_meta(conf->sample_address);
+    const rv_pcca_meta* meta = sram_->region_meta(conf->sample_address);
     const int64_t frames = meta && meta->written ? meta->frames : 0;
     if (frames <= 0) {
         // The address is real, so this is not RV_ERR_INVAL — the disc reserved
@@ -172,37 +198,39 @@ int64_t rv_pcca::voice_setup(const rv_voice_conf* conf) {
         RV_LOG_WARN("pcca", "voice setup on empty region {}", conf->sample_address);
     }
 
-    mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames,
-                 conf->sample_address);
+    mixer_->setup(conf->voice, *conf, sram_->region_data(conf->sample_address), frames,
+                  conf->sample_address);
     return RV_OK;
 }
 
 int64_t rv_pcca::voice_play(int64_t voice_mask) {
+    if (!sounding_) return RV_OK;
+
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) return mask_rc;
 
-    // With no device the call is still VALIDATED exactly as it would be — a
-    // silent console must reject the same calls a loud one rejects — it just
-    // does not start anything that would then never be clocked.
-    if (!sounding_) return mixer_.armed(voice_mask) ? RV_OK : RV_ERR_INVAL;
-
-    return mixer_.play(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_->play(voice_mask) ? RV_OK : RV_ERR_INVAL;
 }
 
 int64_t rv_pcca::voice_stop(int64_t voice_mask) {
+    if (!sounding_) return RV_OK;
+
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) return mask_rc;
 
-    return mixer_.stop(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_->stop(voice_mask) ? RV_OK : RV_ERR_INVAL;
 }
 
 int64_t rv_pcca::voice_status(int64_t voice_mask) {
+    // No voice is ever busy in a no-op console.
+    if (!sounding_) return 0;
+
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) return mask_rc;
 
     // Always >= 0: the mask only ever carries bits 0..62, so the contract's
     // "a valid mask is never negative" holds by construction.
-    return mixer_.status(voice_mask);
+    return mixer_->status(voice_mask);
 }
 
 }  // namespace rv_3dmppc

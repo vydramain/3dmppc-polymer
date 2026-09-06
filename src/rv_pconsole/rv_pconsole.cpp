@@ -34,14 +34,16 @@ using rv_pcclock = std::chrono::steady_clock;
 } // namespace rv_3dmppc
 
 // NEUROSLOP-BEGIN (claude-opus-5)
-rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf)
+rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
+    rv_3dmppc::rv_pchost &host, rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
-    , host_(conf)
+    , host_(host)
     , ca_(conf.ca, host_)
     , cd_(conf.cd)
     , cio_(conf.cio, host_)
     , cm_(conf.cm)
     , cv_(conf.cv, host_)
+    , loader_(loader)
 {
 }
 // NEUROSLOP-END
@@ -69,42 +71,43 @@ rv_pdk::rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
     return &cv_;
 }
-
-int64_t disc_check_system_budget(rv_pdklib::rv_manifest manifest)
+// ЗАГЛУШКА. rv_pdko::cl() чисто виртуален, без него rv_pconsole абстрактен и
+// main.cpp не компилируется. Поля rv_pccl cl_ ещё нет — файл cl/rv_pccl.hpp
+// намеренно оставлен заданием. Заменить на «return &cl_;», как только поле
+// появится.
+rv_pdk::rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
-    // need to check system budget
-    return 0;
+    return nullptr;
 }
 
-// NEUROSLOP-BEGIN (claude-opus-5)
-rv_pdk::rv_de *rv_3dmppc::rv_pconsole::disc_load(const char *path)
+bool rv_3dmppc::rv_pconsole::ready() const
 {
-    // The code first: a disc that will not load must not change what is in the
-    // drive. Every refusal has already named itself in the log by the time this
-    // returns, so nothing is added here beyond the verdict.
-    const int64_t rc = loader_.load(path);
-    if (0 > rc) {
-        return nullptr;
-    }
-
-    const int64_t rm = disc_check_system_budget(loader_.info());
-    if (0 > rm) {
-        return nullptr;
-    }
-
-    // One archive, two roles. The bytes the disc reads through rv_cd come out of
-    // the SAME file its code came out of — that is what makes a `.mppcdisc` one
-    // object rather than a program plus a loose pile of assets. The drive never
-    // learns it is now talking to a zip (PATTERN: strategy, rv_pcmedium.hpp);
-    // only this line knows.
-    cd_.medium_insert(std::make_unique<rv_pczipmedium>(std::string(path)));
-
-    return loader_.disc();
+    return ca_.valid() && cv_.valid();
 }
-// NEUROSLOP-END
+
 
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
 {
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Everything a disc needs must be ready before its code runs, so the
+    // window is opened HERE, before disc_initialize() below — never after.
+    // disc_title() is a plain accessor (pdk/de/rv_de.hpp) with no dependency
+    // on disc_initialize() having run, so it is safe to call this early.
+    //
+    // Without --headless, a failure to bring video up is a WARNING, not a
+    // stop: host_.presenting() stays false and host_.present() is a no-op,
+    // so the disc runs unpresented instead of not running at all.
+    if (!params_.headless) {
+        const int64_t opened =
+            host_.open(disc.disc_title(), cv_.screen_width(), cv_.screen_height(), params_.scale);
+        if (0 > opened) {
+            RV_LOG_WARN("pconsole",
+                "display did not come up for '{}', continuing without presentation",
+                disc.disc_title());
+        }
+    }
+    // NEUROSLOP-END
+
     int64_t dir = disc.disc_initialize(*this);
     if (0 > dir) {
         RV_LOG_ERR("pconsole",
@@ -118,22 +121,11 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
     // off an archive that debt belongs to the loader, whose teardown chain runs it
     // before unmapping the code; telling it here is what separates "started" from
     // "loaded". A disc this loader did not produce is ignored — see below.
-    loader_.notify_initialized(&disc);
-
-    // NEUROSLOP-BEGIN (claude-opus-5)
-    // A headless run never opens a display: the host stays a null object, so
-    // frame_flush() presents to nothing and the loop below needs no branch of
-    // its own beyond skipping frame_render() (which the rv_de contract already
-    // declares is skipped when there is no output).
-    if (!params_.headless) {
-        const int64_t opened = host_.open(disc.disc_title(), params_.scale);
-        if (0 > opened) {
-            RV_LOG_ERR("pconsole", "display did not come up, refusing to run '{}'",
-                disc.disc_title());
-            return opened;
-        }
+    if (loader_ != nullptr) {
+        loader_->notify_initialized(&disc);
     }
 
+    // NEUROSLOP-BEGIN (claude-opus-5)
     const uint64_t target_fps = params_.target_fps ? params_.target_fps : 60;
     const std::chrono::duration<double> frame_budget{ 1.0 / static_cast<double>(target_fps) };
     const float fixed_dt = 1.0f / static_cast<float>(target_fps);
@@ -170,6 +162,14 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
             params_.fixed_step ? fixed_dt : std::clamp(measured, 0.0f, RV_PCONSOLE_DT_CEILING);
 
         disc.frame_update(dt);
+        // --headless means no window AND no rasterization: frame_render() is
+        // simply not called, so a headless run never touches the software
+        // rasterizer, the framebuffer or the virtual VRAM (and --dump-frame
+        // is refused together with --headless at argument-parsing time,
+        // because there would be nothing rendered to dump). A run WITHOUT
+        // --headless still renders every frame even when video merely failed
+        // to come up — that run wanted a picture, it just has no screen to
+        // put it on.
         if (!params_.headless) {
             disc.frame_render();
         }
@@ -208,7 +208,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
     // sequence precisely so it cannot be run out of order or twice. The built-in
     // rv_dmain has no loader behind it, so for that one the frame loop is the
     // only place the hook can come from.
-    if (loader_.disc() != &disc) {
+    if (loader_ == nullptr || loader_->disc() != &disc) {
         disc.disc_shutdown();
     }
 

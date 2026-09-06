@@ -5,6 +5,7 @@
 #include "rv_pconsole/cv/rv_pcvram.hpp"
 
 #include "pdk/rv_err.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
 
@@ -27,7 +28,11 @@ constexpr int64_t RV_PCVRAM_RESERVED_HEAD = 16;
 
 }  // namespace
 
-rv_pcvram::rv_pcvram(int64_t size) : pool_(size, RV_PCVRAM_ALIGN, RV_PCVRAM_RESERVED_HEAD) {}
+rv_pcvram::rv_pcvram(int64_t size) : pool_(size, RV_PCVRAM_ALIGN, RV_PCVRAM_RESERVED_HEAD) {
+    if (!pool_.valid()) {
+        RV_LOG_ERR("pcvram", "failed to reserve {} byte(s) of video RAM", size);
+    }
+}
 
 int64_t rv_pcvram::malloc(int64_t size) { return pool_.malloc(size); }
 

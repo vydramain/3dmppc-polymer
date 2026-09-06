@@ -6,6 +6,7 @@
 
 #include <SDL3/SDL.h>
 
+#include <algorithm>
 #include <cmath>
 
 #include "pdk/rv_err.hpp"
@@ -101,11 +102,7 @@ constexpr int RV_PCHOST_AUDIO_FRAME_BYTES = 2 * static_cast<int>(sizeof(int16_t)
 
 }  // namespace
 
-rv_pchost::rv_pchost(const rv_pconsole_conf& conf)
-    : screen_width_(conf.cv.screen_width),
-      screen_height_(conf.cv.screen_height),
-      ports_(static_cast<std::size_t>(conf.cio.iport_count > 0 ? conf.cio.iport_count : 0)),
-      dump_path_(conf.params.dump_frame_path) {}
+rv_pchost::rv_pchost() {}
 
 rv_pchost::~rv_pchost() {
     // The device thread goes first: everything below it is state a callback in
@@ -118,28 +115,73 @@ rv_pchost::~rv_pchost() {
     if (texture_) SDL_DestroyTexture(texture_);
     if (renderer_) SDL_DestroyRenderer(renderer_);
     if (window_) SDL_DestroyWindow(window_);
-    if (sdl_ready_) SDL_Quit();
+    if (video_ready_ || gamepad_ready_ || audio_ready_) SDL_Quit();
 }
 
-bool rv_pchost::ensure_sdl(uint32_t flags) {
-    if (!SDL_InitSubSystem(flags)) return false;
+bool rv_pchost::ensure_sdl(uint32_t flags) { return SDL_InitSubSystem(flags); }
 
-    // One flag for the whole of SDL: the destructor calls SDL_Quit() once, and
-    // SDL takes down whatever subsystems are still up.
-    sdl_ready_ = true;
-    return true;
+void rv_pchost::configure(int64_t screen_width, int64_t screen_height, int64_t iport_count,
+                          const std::string& dump_frame_path) {
+    screen_width_ = screen_width;
+    screen_height_ = screen_height;
+    ports_.assign(static_cast<std::size_t>(iport_count > 0 ? iport_count : 0), rv_pcport{});
+    dump_path_ = dump_frame_path;
 }
 
-int64_t rv_pchost::open(const char* title, uint64_t scale) {
-    if (scale == 0) scale = 1;
+int64_t rv_pchost::prepare(bool want_video, bool want_gamepad, bool want_audio) {
+    if (want_video) {
+        video_ready_ = ensure_sdl(SDL_INIT_VIDEO);
+        if (!video_ready_) {
+            RV_LOG_WARN("pchost", "SDL_INIT_VIDEO failed: {}", SDL_GetError());
+        } else {
+            SDL_Rect display_bounds{};
+            SDL_DisplayID display = SDL_GetPrimaryDisplay();
+            if (display != 0 && SDL_GetDisplayBounds(display, &display_bounds)) {
+                display_width_ = display_bounds.w;
+                display_height_ = display_bounds.h;
+                RV_LOG_INFO("pchost", "display bounds measured at {}x{}", display_width_,
+                            display_height_);
+            } else {
+                RV_LOG_WARN("pchost", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
+            }
+        }
+    }
 
-    // Audio is NOT asked for here — it comes up separately in open_audio(), so
-    // a machine with no sound card still gets a window and a machine with no
-    // display still gets sound.
-    if (!ensure_sdl(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
-        RV_LOG_ERR("pchost", "SDL_Init failed: {}", SDL_GetError());
+    if (want_gamepad) {
+        gamepad_ready_ = ensure_sdl(SDL_INIT_GAMEPAD);
+        if (!gamepad_ready_) {
+            RV_LOG_WARN("pchost", "SDL_INIT_GAMEPAD failed: {}, ports will read as empty",
+                        SDL_GetError());
+        }
+    }
+
+    if (want_audio) {
+        const bool subsystem_ok = ensure_sdl(SDL_INIT_AUDIO);
+        const bool device_ok = subsystem_ok && open_audio_device();
+        audio_ready_ = subsystem_ok && device_ok;
+        if (!subsystem_ok) {
+            RV_LOG_WARN("pchost", "audio subsystem did not come up: {}", SDL_GetError());
+        } else if (!device_ok) {
+            RV_LOG_WARN("pchost", "audio device failed to open: {}", SDL_GetError());
+        }
+    }
+
+    return RV_OK;
+}
+
+int64_t rv_pchost::open(const char* title, int64_t screen_width, int64_t screen_height,
+                        uint64_t scale) {
+    // Video and gamepad already came up (or didn't) in prepare(), stage C.
+    // open() only builds the window/renderer/texture on top of that — it never
+    // retries bringing a subsystem up itself.
+    if (!video_ready_) {
+        RV_LOG_ERR("pchost", "video never came up at stage C, refusing to open a window");
         return RV_ERR_IO;
     }
+
+    screen_width_ = screen_width;
+    screen_height_ = screen_height;
+    if (scale == 0) scale = 1;
 
     const int window_w = static_cast<int>(screen_width_ * static_cast<int64_t>(scale));
     const int window_h = static_cast<int>(screen_height_ * static_cast<int64_t>(scale));
@@ -163,7 +205,8 @@ int64_t rv_pchost::open(const char* title, uint64_t scale) {
                                      SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
     texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-                                 static_cast<int>(screen_width_), static_cast<int>(screen_height_));
+                                 static_cast<int>(screen_width_),
+                                 static_cast<int>(screen_height_));
     if (!texture_) {
         RV_LOG_ERR("pchost", "SDL_CreateTexture failed: {}", SDL_GetError());
         return RV_ERR_IO;
@@ -171,15 +214,19 @@ int64_t rv_pchost::open(const char* title, uint64_t scale) {
     SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_NEAREST);
 
     // Adopt whatever is already plugged in; later arrivals come as events.
-    int pad_count = 0;
-    SDL_JoystickID* pads = SDL_GetGamepads(&pad_count);
-    if (pads) {
-        for (int i = 0; i < pad_count; ++i) adopt_gamepad(pads[i]);
-        SDL_free(pads);
+    // Skipped outright when the subsystem never came up — SDL_GetGamepads would
+    // just report nothing, so this is only saving the call.
+    if (gamepad_ready_) {
+        int pad_count = 0;
+        SDL_JoystickID* pads = SDL_GetGamepads(&pad_count);
+        if (pads) {
+            for (int i = 0; i < pad_count; ++i) adopt_gamepad(pads[i]);
+            SDL_free(pads);
+        }
     }
 
-    RV_LOG_INFO("pchost", "display {}x{} at scale {}, {} port slot(s)", screen_width_,
-                screen_height_, scale, ports_.size());
+    RV_LOG_INFO("pchost", "display {}x{} at scale {}, {} port slot(s), video={} gamepad={}",
+                screen_width_, screen_height_, scale, ports_.size(), video_ready_, gamepad_ready_);
     return RV_OK;
 }
 
@@ -259,13 +306,14 @@ void rv_pchost::release_gamepad(uint32_t joystick_id) {
         port.joystick_id = 0;
         port.abilities = 0;
         port.state = rv_istate{};
-        RV_LOG_INFO("pchost", "port {} emptied", static_cast<std::size_t>(&port - ports_.data()));
+        RV_LOG_INFO("pchost", "port {} emptied",
+                    static_cast<std::size_t>(&port - ports_.data()));
         return;
     }
 }
 
 void rv_pchost::pump() {
-    if (!sdl_ready_) return;
+    if (!video_ready_) return;
 
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
@@ -337,14 +385,14 @@ void rv_pchost::poll_gamepad(rv_pcport& port) {
     state.right_stick = stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)),
                                    -axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY)));
 
-    state.buttons |=
-        stick_direction_bits(state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
-                             RV_ISOURCE_LEFT_STICK_DPAD_SOUTH, RV_ISOURCE_LEFT_STICK_DPAD_WEST,
-                             RV_ISOURCE_LEFT_STICK_DPAD_EAST, RV_ISOURCE_LEFT_STICK_MOVE);
-    state.buttons |=
-        stick_direction_bits(state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
-                             RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
-                             RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
+    state.buttons |= stick_direction_bits(
+        state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH, RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
+        RV_ISOURCE_LEFT_STICK_DPAD_WEST, RV_ISOURCE_LEFT_STICK_DPAD_EAST,
+        RV_ISOURCE_LEFT_STICK_MOVE);
+    state.buttons |= stick_direction_bits(
+        state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH, RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
+        RV_ISOURCE_RIGHT_STICK_DPAD_WEST, RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
+        RV_ISOURCE_RIGHT_STICK_MOVE);
 
     state.left_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER));
     state.right_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
@@ -406,28 +454,24 @@ void rv_pchost::overlay_keyboard(rv_pcport& port) {
     // produce the corners of the square, so the values are ±1 with no dead zone
     // to apply — the stick helper would only rescale a magnitude that is already
     // saturated.
-    const float wasd_x =
-        (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
-    const float wasd_y =
-        (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
-    const float ijkl_x =
-        (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
-    const float ijkl_y =
-        (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
+    const float wasd_x = (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
+    const float wasd_y = (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
+    const float ijkl_x = (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
+    const float ijkl_y = (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
 
     if (wasd_x != 0.0f || wasd_y != 0.0f) {
         state.left_stick = {wasd_x, wasd_y};
-        state.buttons |=
-            stick_direction_bits(state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
-                                 RV_ISOURCE_LEFT_STICK_DPAD_SOUTH, RV_ISOURCE_LEFT_STICK_DPAD_WEST,
-                                 RV_ISOURCE_LEFT_STICK_DPAD_EAST, RV_ISOURCE_LEFT_STICK_MOVE);
+        state.buttons |= stick_direction_bits(
+            state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH, RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_LEFT_STICK_DPAD_WEST, RV_ISOURCE_LEFT_STICK_DPAD_EAST,
+            RV_ISOURCE_LEFT_STICK_MOVE);
     }
     if (ijkl_x != 0.0f || ijkl_y != 0.0f) {
         state.right_stick = {ijkl_x, ijkl_y};
         state.buttons |= stick_direction_bits(
-            state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH, RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
-            RV_ISOURCE_RIGHT_STICK_DPAD_WEST, RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
-            RV_ISOURCE_RIGHT_STICK_MOVE);
+            state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
+            RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
     }
 }
 
@@ -446,7 +490,7 @@ void rv_pchost::dump_frame(const uint32_t* argb) const {
         return;
     }
 
-    rv_pdklib::rv_fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
+    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
                  static_cast<long long>(screen_height_));
 
     const int64_t pixels = screen_width_ * screen_height_;
@@ -463,29 +507,27 @@ void rv_pchost::dump_frame(const uint32_t* argb) const {
 // NEUROSLOP-END
 
 void rv_pchost::present(const uint32_t* argb) {
-    if (!renderer_ || !texture_ || !argb) return;
+    if (!argb) return;
+
+    // NEUROSLOP-BEGIN (claude-opus-5)
+    // Recorded before the renderer/texture check so a headless run (no window,
+    // no texture) still remembers the pointer --dump-frame needs. The bytes
+    // dumped are exactly the bytes handed to the display when there is one —
+    // no second path that could drift.
+    last_frame_ = argb;
+    // NEUROSLOP-END
+
+    if (!renderer_ || !texture_) return;
 
     SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * 4));
     SDL_RenderClear(renderer_);
     SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
     SDL_RenderPresent(renderer_);
-
-    // NEUROSLOP-BEGIN (claude-opus-5)
-    // Kept here rather than in the frame loop so the bytes dumped are exactly
-    // the bytes handed to the display — no second path that could drift.
-    last_frame_ = argb;
-    // NEUROSLOP-END
 }
 
-int64_t rv_pchost::open_audio(rv_pcmixer& mixer) {
-    if (audio_stream_) return RV_OK;
+bool rv_pchost::open_audio_device() {
+    if (audio_stream_) return true;
 
-    if (!ensure_sdl(SDL_INIT_AUDIO)) {
-        RV_LOG_WARN("pchost", "audio subsystem did not come up: {}", SDL_GetError());
-        return RV_ERR_IO;
-    }
-
-    audio_mixer_ = &mixer;
     audio_block_.assign(
         static_cast<std::size_t>(RV_PCHOST_AUDIO_BLOCK_FRAMES) * RV_PCMIXER_CHANNELS, 0);
 
@@ -507,26 +549,42 @@ int64_t rv_pchost::open_audio(rv_pcmixer& mixer) {
                                               &rv_pchost::audio_stream_callback, this);
     if (!audio_stream_) {
         RV_LOG_WARN("pchost", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
-        audio_mixer_ = nullptr;
-        return RV_ERR_IO;
+        return false;
     }
 
-    // Devices open paused; from here on the callback runs on SDL's thread.
+    // Devices open paused; from here on the callback runs on SDL's thread. No
+    // mixer is attached yet — fill_audio() fills silence until attach_mixer()
+    // is called.
     if (!SDL_ResumeAudioStreamDevice(audio_stream_)) {
         RV_LOG_WARN("pchost", "SDL_ResumeAudioStreamDevice failed: {}", SDL_GetError());
         SDL_DestroyAudioStream(audio_stream_);
         audio_stream_ = nullptr;
-        audio_mixer_ = nullptr;
-        return RV_ERR_IO;
+        return false;
     }
 
-    // The rate and the channel count describe the HOST device that was just
-    // opened; the voice count does not — it is the console's own budget being
-    // mixed down into that device. Saying so keeps one line from reading as
-    // three facts about the same piece of hardware.
-    RV_LOG_INFO("pchost", "audio out at {} Hz, {} ch, {} virtual voice(s)", RV_PCA_SAMPLE_RATE,
-                RV_PCMIXER_CHANNELS, mixer.voice_count());
-    return RV_OK;
+    RV_LOG_INFO("pchost", "audio out at {} Hz, {} ch", RV_PCA_SAMPLE_RATE, RV_PCMIXER_CHANNELS);
+    return true;
+}
+
+void rv_pchost::attach_mixer(rv_pcmixer& mixer) {
+    if (!audio_stream_) return;
+
+    // Locking the stream keeps the callback, which runs on SDL's own thread,
+    // from reading audio_mixer_ mid-assignment.
+    SDL_LockAudioStream(audio_stream_);
+    audio_mixer_ = &mixer;
+    SDL_UnlockAudioStream(audio_stream_);
+}
+
+void rv_pchost::detach_mixer() {
+    if (!audio_stream_) {
+        audio_mixer_ = nullptr;
+        return;
+    }
+
+    SDL_LockAudioStream(audio_stream_);
+    audio_mixer_ = nullptr;
+    SDL_UnlockAudioStream(audio_stream_);
 }
 
 void rv_pchost::close_audio() {
@@ -550,7 +608,7 @@ void rv_pchost::audio_stream_callback(void* userdata, SDL_AudioStream* stream,
 }
 
 void rv_pchost::fill_audio(SDL_AudioStream* stream, int wanted_bytes) {
-    if (!stream || wanted_bytes <= 0 || !audio_mixer_) return;
+    if (!stream || wanted_bytes <= 0) return;
 
     // `wanted_bytes` is expressed in the DEVICE's format, which after SDL's
     // conversion need not be ours; rounding up by our own frame size only ever
@@ -562,7 +620,15 @@ void rv_pchost::fill_audio(SDL_AudioStream* stream, int wanted_bytes) {
         const int block =
             frames_left < RV_PCHOST_AUDIO_BLOCK_FRAMES ? frames_left : RV_PCHOST_AUDIO_BLOCK_FRAMES;
 
-        audio_mixer_->render(audio_block_.data(), block);
+        // No mixer attached (device came up before any disc did, or the disc
+        // runs --no-audio): the device stays alive and clocked, it just gets
+        // silence instead of the SPU's output.
+        if (audio_mixer_) {
+            audio_mixer_->render(audio_block_.data(), block);
+        } else {
+            std::fill_n(audio_block_.data(), static_cast<std::size_t>(block) * RV_PCMIXER_CHANNELS,
+                        static_cast<int16_t>(0));
+        }
         if (!SDL_PutAudioStreamData(stream, audio_block_.data(),
                                     block * RV_PCHOST_AUDIO_FRAME_BYTES)) {
             // Losing the queue mid-callback is not worth spinning over; the

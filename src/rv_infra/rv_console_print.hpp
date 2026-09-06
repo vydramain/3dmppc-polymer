@@ -55,7 +55,9 @@ inline void rv_console_print_usage(std::FILE *stream)
 		"Options:\n"
 		"  -s, --scale N        Window magnification over native 320x240.\n"
 		"                       Default: 3.\n"
-		"  -H, --headless       Run without a window. Pair with --frames.\n"
+		"  -H, --headless       Run without a window and without rasterizing any\n"
+		"                       frame. Pair with --frames. Cannot be combined\n"
+		"                       with --dump-frame.\n"
 		"  -n, --frames N       Stop after N frames. 0 runs until quit.\n"
 		"  -F, --fixed-step     Use a fixed 1/60 dt, for reproducible runs.\n"
 		"  -d, --disc PATH      Medium to mount in the drive: a DIRECTORY of\n"
@@ -65,8 +67,13 @@ inline void rv_console_print_usage(std::FILE *stream)
 		"                       brings its own medium. Empty means no disc.\n"
 		"  -m, --memcard PATH   Memory-card image. Default: memcard.mppccard.\n"
 		"  -M, --mute           Silence the audio output stage.\n"
+		"      --no-audio       Do not open the audio device at all. Stronger\n"
+		"                       than --mute: no device, voices report idle.\n"
 		"  -D, --dump-frame P   Write the last presented frame to P as a binary\n"
-		"                       PPM.\n");
+		"                       PPM. Cannot be combined with --headless.\n"
+		"      --mode=NAME      Console backend to run. Default: sdl3.\n"
+		"                       Available: sdl3.\n"
+		"      --selfcheck      Run internal self-checks and exit.\n");
 }
 
 } // namespace rv_3dmppc

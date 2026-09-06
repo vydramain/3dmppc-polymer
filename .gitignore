@@ -46,3 +46,6 @@ compile_commands.json
 # Frame dumps (--dump-frame). Keep one deliberately if it ever becomes a golden
 # reference for a test — then commit it with -f and say why in the message.
 *.ppm
+
+# Написать умный комментарий, почему исключил
+.claude/

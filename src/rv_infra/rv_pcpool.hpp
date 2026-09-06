@@ -3,12 +3,19 @@
 // Revision: stage 0 — shared console memory pool backing video and audio RAM.
 // ──────────────────────────────────────────────────────────────────────────────
 //
-// A fixed-size private memory pool the console hands out OPAQUE ADDRESSES into.
-// Both of the console's memories are this shape, word for word from the two
+// A private memory pool the console hands out OPAQUE ADDRESSES into. Both of
+// the console's memories are this shape, word for word from the two
 // contracts: video RAM (rv_cv::video_asset_malloc / _write / _free) and sound
 // RAM (rv_ca::sound_asset_malloc / _write / _free) — reserve a region, fill it,
 // release it; the address is an offset, never a pointer; exhaustion is
 // RV_ERR_NOMEM, not a host allocation.
+//
+// The backing store is an rv_pcarena: construction only RESERVES address
+// space, and physical pages are committed only for the bytes a malloc() has
+// actually handed out. The arena may round its reservation up to a page
+// boundary, but that rounding is a host implementation detail and never
+// enlarges capacity() — every block bound is measured against the size the
+// caller asked for.
 //
 // Extracted from the video pool once the audio stage needed the same thing. The
 // alternative — two near-identical allocators — would mean fixing every
@@ -24,6 +31,11 @@
 // memory — a texture's format and shape for video, a sample's length for audio —
 // so the pool carries a caller-chosen `Meta` next to each block instead of
 // knowing about either. The allocator stays ignorant of what it stores.
+//
+// A pool whose backing reservation FAILED is valid() == false. It still
+// reports the capacity() it was asked for — that is what the disc declared,
+// not what the host actually gave it — but hands out nothing: malloc() is
+// RV_ERR_NOMEM immediately, before the block list is even consulted.
 #pragma once
 
 #include <cstdint>
@@ -31,6 +43,7 @@
 #include <vector>
 
 #include "pdk/rv_err.hpp"
+#include "rv_infra/rv_pcarena.hpp"
 
 namespace rv_3dmppc {
 
@@ -40,9 +53,14 @@ class rv_pcpool {
     // `alignment` is the boundary every region starts on; `reserved_head` is a
     // prefix of the pool that is never handed out.
     rv_pcpool(int64_t size, int64_t alignment, int64_t reserved_head)
-        : pool_(static_cast<size_t>(size > 0 ? size : 0), 0),
+        : arena_(size > 0 ? size : 0),
+          capacity_(size > 0 ? size : 0),
           alignment_(alignment > 0 ? alignment : 1) {
-        const int64_t total = capacity();
+        // The block list only ever spans bytes the arena actually reserved. A
+        // failed reservation reports its declared capacity() honestly but has
+        // no usable free space to hand out: the whole pool is the (used,
+        // reserved) head block below, sized 0, and nothing else.
+        const int64_t total = arena_.valid() ? capacity() : 0;
 
         // The head block is `used` forever: allocation skips it, free() refuses
         // it, and coalescing stops at it. Keeping address 0 out of circulation
@@ -66,9 +84,17 @@ class rv_pcpool {
         }
     }
 
+    // Does this pool actually hold the space it was asked for? False when the
+    // backing arena's reservation failed — capacity() still reports what was
+    // asked for, but nothing is usable.
+    bool valid() const { return arena_.valid(); }
+
     // Reserve `size` bytes. Returns the region address (> 0), RV_ERR_INVAL when
-    // `size` is not positive, or RV_ERR_NOMEM when no free block fits.
+    // `size` is not positive, or RV_ERR_NOMEM when no free block fits (which
+    // includes a pool whose reservation failed: !valid() is checked first,
+    // before the block list is even consulted).
     int64_t malloc(int64_t size) {
+        if (!valid()) return rv_pdk::RV_ERR_NOMEM;
         if (size <= 0) return rv_pdk::RV_ERR_INVAL;
 
         const int64_t want = align_up(size);
@@ -83,19 +109,35 @@ class rv_pcpool {
             if (block.used || block.size < want) continue;
 
             const int64_t addr = block.offset;
+            const int64_t orig_size = block.size;
             const int64_t leftover = block.size - want;
 
             block.size = want;
             block.used = true;
             block.meta = Meta{};
 
+            bool inserted_tail = false;
             if (leftover > 0) {
                 rv_pcpool_block tail;
                 tail.offset = addr + want;
                 tail.size = leftover;
                 tail.used = false;
                 blocks_.insert(blocks_.begin() + static_cast<int64_t>(i) + 1, tail);
+                inserted_tail = true;
             }
+
+            // The block itself is only paperwork; the bytes it names must
+            // actually be usable before a caller can touch them.
+            if (arena_.commit(addr + want) != rv_pdk::RV_OK) {
+                if (inserted_tail) {
+                    blocks_.erase(blocks_.begin() + static_cast<int64_t>(i) + 1);
+                }
+                blocks_[i].size = orig_size;
+                blocks_[i].used = false;
+                blocks_[i].meta = Meta{};
+                return rv_pdk::RV_ERR_NOMEM;
+            }
+
             return addr;
         }
 
@@ -144,7 +186,7 @@ class rv_pcpool {
         if (bytes > 0 && data == nullptr) return rv_pdk::RV_ERR_INVAL;
 
         if (bytes > 0) {
-            std::memcpy(pool_.data() + block->offset, data, static_cast<size_t>(bytes));
+            std::memcpy(arena_.base() + block->offset, data, static_cast<size_t>(bytes));
         }
         return rv_pdk::RV_OK;
     }
@@ -162,7 +204,7 @@ class rv_pcpool {
     // Read-only view of a region's bytes, or nullptr when `addr` is not live.
     const uint8_t* region_data(int64_t addr) const {
         const rv_pcpool_block* block = live_block(addr);
-        return block ? pool_.data() + block->offset : nullptr;
+        return block ? arena_.base() + block->offset : nullptr;
     }
 
     // The caller's metadata for the region, or nullptr when `addr` is not live.
@@ -175,7 +217,7 @@ class rv_pcpool {
         return block ? &block->meta : nullptr;
     }
 
-    int64_t capacity() const { return static_cast<int64_t>(pool_.size()); }
+    int64_t capacity() const { return capacity_; }
 
    private:
     // One span of the pool. `reserved` marks the head block that exists only to
@@ -215,7 +257,8 @@ class rv_pcpool {
         return (block.used && !block.reserved) ? &block : nullptr;
     }
 
-    std::vector<uint8_t> pool_;
+    rv_pcarena arena_;
+    int64_t capacity_;
     int64_t alignment_;
     std::vector<rv_pcpool_block> blocks_;  // offset-ordered, gapless
 };

@@ -15,15 +15,9 @@ files = ["assets/*.txt"]
 files = ["assets/*.png"]
 format = "idx8"
 
-[budget]
-headless = 0
-fixed_step = 0
-scale = 3
-max_frames = 0
-
 [budget.pcca]
 voice_count = 24
-sound_memory_size = 1048576
+sound_memory_size = 524288
 
 [budget.pccv]
 screen_width = 320
