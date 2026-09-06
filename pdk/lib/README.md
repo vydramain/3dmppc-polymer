@@ -1,8 +1,5 @@
 # Software Development Kit (SDK) — the disc author's toolbox
 
-> Machine-generated. Every header in this tree carries a `NEUROSLOP` banner:
-> written by Claude (claude-opus-5), not reviewed by a human.
-
 Disc-side helpers a disc is written *with*. `pdk/` says what the console can
 do; `pdklib/` is the arithmetic and manifest support you would otherwise write
 again in every game.

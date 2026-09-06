@@ -233,8 +233,6 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   `rv_err` on failure — callers test with `if (rc < 0)`.
 - Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/ pdk/lib/ pdk/tools/`
   maps every pattern and algorithm to the line that implements it.
-- Machine-generated code carries a `NEUROSLOP` banner or `NEUROSLOP-BEGIN/END`
-  markers. It has not been reviewed by a human.
 
 ## Requirements
 

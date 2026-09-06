@@ -18,7 +18,6 @@ include(FetchContent)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
 
-# NEUROSLOP-BEGIN (claude-opus-5)
 # stb_image is gone with the demo that used it. The console never decodes an
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
 # decoding whatever a disc chose to store is the DISC's business (via rv_cd).
@@ -98,11 +97,9 @@ target_link_libraries(3dmppc PRIVATE rv_dmain)
 
 target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
 
-# NEUROSLOP-BEGIN (claude-opus-5)
 # dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
 # "-ldl" where that is a separate library and empty where it is part of libc.
 target_link_libraries(3dmppc PRIVATE ${CMAKE_DL_LIBS})
-# NEUROSLOP-END
 
 if(MSVC)
   target_compile_options(3dmppc PRIVATE /W4)
@@ -121,4 +118,3 @@ endif()
 # The console is firmware: it loads a disc and runs it. It must never look like
 # the thing that compiles one, and building it must not drag in a compiler
 # driver, an image decoder, or anything else a player's machine has no use for.
-# NEUROSLOP-END

@@ -226,6 +226,30 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         return false;
     }
 
+    // code_entry names the archive entry the burner stores the module under and
+    // the console later extracts by that same name — an empty value is legal
+    // and means "use the conventional name", but anything that IS given must be
+    // a bare entry name: no path to climb out of the archive with.
+    if (!manifest.budget.pccd.code_entry.empty()) {
+        const std::string &entry = manifest.budget.pccd.code_entry;
+        if (entry.front() == '/' || entry.find("..") != std::string::npos ||
+            entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
+            error = "[budget.pccd] code_entry '" +
+                entry +
+                "' is not a safe archive entry name — it must not be a path";
+            return false;
+        }
+        for (char c : entry) {
+            const unsigned char u = static_cast<unsigned char>(c);
+            if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
+                error = "[budget.pccd] code_entry '" +
+                    entry +
+                    "' is not a safe archive entry name — use letters, digits, '-', '_' and '.' only";
+                return false;
+            }
+        }
+    }
+
     // By the time a manifest reaches here the binder has already turned the
     // spelling into an enumerator, and an unknown spelling left the field at its
     // value-initialised zero. So this catches both a typo and a missing `format`

@@ -5,19 +5,21 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pcarena.hpp"
 
-#define RV_ARENA_CHECK(cond)                                       \
-    do {                                                           \
-        if (!(cond)) {                                             \
-            RV_LOG_ERR("pcarena", "selfcheck failed: {}", #cond);  \
-            return false;                                          \
-        }                                                          \
+#define RV_ARENA_CHECK(cond)                                      \
+    do {                                                          \
+        if (!(cond)) {                                            \
+            RV_LOG_ERR("pcarena", "selfcheck failed: {}", #cond); \
+            return false;                                         \
+        }                                                         \
     } while (0)
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-bool rv_pcarena_selfcheck() {
+bool rv_pcarena_selfcheck()
+{
     {
-        rv_pcarena arena(1 << 20);  // 1 MiB
+        rv_pcarena arena(1 << 20); // 1 MiB
         RV_ARENA_CHECK(arena.valid());
         RV_ARENA_CHECK(arena.committed() == 0);
 
@@ -47,6 +49,6 @@ bool rv_pcarena_selfcheck() {
     return true;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc
 
 #undef RV_ARENA_CHECK
