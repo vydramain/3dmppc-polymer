@@ -82,6 +82,11 @@ class rv_pccv : public rv_pdk::rv_cv {
     int64_t frame_put(const rv_pdk::rv_primitive* primitive) override;
     int64_t frame_flush() override;
 
+    // Does the memory this controller owns actually exist? Only the vram pool
+    // can fail here — the frame buffer and ordering table size from the same
+    // configuration but never reserve host memory that can be refused.
+    bool valid() const { return vram_.valid(); }
+
    private:
     // Contract validation of the fill attributes a polygon and a sprite share.
     // Returns RV_OK or RV_ERR_INVAL. Const because it only interrogates the

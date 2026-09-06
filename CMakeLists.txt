@@ -41,7 +41,7 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # it generates for a disc project — so this target serves only what is built
 # from this file.
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
-  ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/rv_manifest/*.cpp
+  ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
 )
 add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
 target_include_directories(3dmppc_pdklib PUBLIC ${CMAKE_SOURCE_DIR}/pdk/lib/include)

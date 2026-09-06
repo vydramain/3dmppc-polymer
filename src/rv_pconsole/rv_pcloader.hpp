@@ -21,6 +21,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "pdk/de/rv_de.hpp"
@@ -30,6 +31,14 @@
 
 namespace rv_3dmppc
 {
+
+// Stage C: is the staging area an extracted disc.so will need actually
+// usable? Creates and removes a probe file in the same directory
+// extract_code() would use. Returns RV_OK, or a negative rv_err after
+// logging the directory and why it cannot be used. Free function, not a
+// method: it is a precondition check main() runs before any rv_pcloader is
+// even mounted, not an operation on a loaded disc.
+int64_t rv_pcloader_probe_staging();
 
 // PATTERN: RAII — one object owns the whole loaded-disc state (temporary file,
 // dlopen handle, the disc object) and its destructor is the ONLY teardown path,
@@ -76,10 +85,28 @@ public:
 
     // NEUROSLOP-BEGIN (claude-opus-5)
 
+    // STAGE 1 of load(): check the file, open the archive as a zip, read and
+    // parse its manifest, and run the pre-dlopen version check on the code
+    // entry the manifest names — all straight from bytes, no dlopen. On
+    // success the archive is left open (owned by this object, as `zip_`) and
+    // info() becomes valid; the caller may then wait however long it likes
+    // before calling bring_up() to actually load the code. Returns RV_OK, or
+    // a negative rv_err after logging exactly what went wrong; on failure no
+    // archive is left mounted.
+    int64_t mount(const char *archive_path);
+
+    // STAGE 2 of load(): extract the code entry from the archive mount() left
+    // open, dlopen it and create() the disc. Requires a prior successful
+    // mount() — called without one, it fails with RV_ERR_INVAL and touches
+    // nothing. Returns RV_OK, or a negative rv_err after logging exactly what
+    // went wrong.
+    int64_t bring_up();
+
     // Mount `archive_path`, check the handshake and bring the disc's code up.
     // Returns RV_OK, or a negative rv_err after logging exactly what went wrong
     // — every refusal path names itself in the log, none of them throws, and
-    // none of them leaves a partially loaded disc behind.
+    // none of them leaves a partially loaded disc behind. Equivalent to
+    // mount(archive_path) followed by bring_up().
     int64_t load(const char *archive_path);
 
     // The live disc, or nullptr when nothing is loaded. BORROWED: it belongs to
@@ -117,6 +144,12 @@ public:
 
 private:
     rv_pdklib::rv_manifest manifest_;
+
+    // The archive mount() opened and bring_up() reads from. Owned via a
+    // pointer, not a plain member, because rv_zipreader has no public close():
+    // unload() drops this to reset() the archive's file handle along with
+    // everything else. Null when nothing is mounted.
+    std::unique_ptr<rv_zipreader> zip_;
 
     // Path of the extracted code file, empty when nothing was extracted. Kept
     // as state precisely so the destructor can remove it on EVERY exit path.

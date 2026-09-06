@@ -24,7 +24,6 @@ constexpr std::string_view rv_manifest_section_build = "build";
 constexpr std::string_view rv_manifest_section_scripts = "scripts";
 constexpr std::string_view rv_manifest_section_assets = "assets";
 constexpr std::string_view rv_manifest_section_textures = "textures";
-constexpr std::string_view rv_manifest_section_budget = "budget";
 constexpr std::string_view rv_manifest_section_budget_pcca = "budget.pcca";
 constexpr std::string_view rv_manifest_section_budget_pccv = "budget.pccv";
 constexpr std::string_view rv_manifest_section_budget_pccio = "budget.pccio";
@@ -51,10 +50,6 @@ constexpr std::string_view rv_manifest_key_textures_files = "files";
 constexpr std::string_view rv_manifest_key_textures_format = "format";
 
 // Section ['budget']
-constexpr std::string_view rv_manifest_key_budget_headless = "headless";
-constexpr std::string_view rv_manifest_key_budget_fixed_step = "fixed_step";
-constexpr std::string_view rv_manifest_key_budget_scale = "scale";
-constexpr std::string_view rv_manifest_key_budget_max_frames = "max_frames";
 
 // Section ['budget.pcca']
 constexpr std::string_view rv_manifest_key_budget_pcca_voice_count = "voice_count";
@@ -77,7 +72,7 @@ constexpr std::string_view rv_manifest_key_budget_pccm_card_slots = "card_slots"
 constexpr std::string_view rv_manifest_key_budget_pccm_card_slot_size = "card_slot_size";
 
 // Section ['budget.pccd']
-constexpr std::string_view rv_manifest_key_budget_pccd_medium_path = "medium_path";
+constexpr std::string_view rv_manifest_key_budget_pccd_code_entry = "code_entry";
 
 struct rv_manifest_key_spec {
     std::string_view name;
@@ -114,13 +109,6 @@ constexpr rv_manifest_key_spec rv_manifest_textures_keys[] = {
     { rv_manifest_key_textures_format, rv_manifest_value_kind::string },
 };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_keys[] = {
-    { rv_manifest_key_budget_headless, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_fixed_step, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_scale, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_max_frames, rv_manifest_value_kind::integer }
-};
-
 constexpr rv_manifest_key_spec rv_manifest_budget_pcca_keys[] = {
     { rv_manifest_key_budget_pcca_voice_count, rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pcca_sound_memory_size, rv_manifest_value_kind::integer }
@@ -146,7 +134,7 @@ constexpr rv_manifest_key_spec rv_manifest_budget_pccm_keys[] = {
 };
 
 constexpr rv_manifest_key_spec rv_manifest_budget_pccd_keys[] = {
-    { rv_manifest_key_budget_pccd_medium_path, rv_manifest_value_kind::string }
+    { rv_manifest_key_budget_pccd_code_entry, rv_manifest_value_kind::string }
 };
 
 constexpr rv_manifest_section_spec rv_manifest_sections[] = {
@@ -155,7 +143,6 @@ constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_scripts, rv_manifest_scripts_keys, std::size(rv_manifest_scripts_keys) },
     { rv_manifest_section_assets, rv_manifest_assets_keys, std::size(rv_manifest_assets_keys) },
     { rv_manifest_section_textures, rv_manifest_textures_keys, std::size(rv_manifest_textures_keys) },
-    { rv_manifest_section_budget, rv_manifest_budget_keys, std::size(rv_manifest_budget_keys) },
     { rv_manifest_section_budget_pcca, rv_manifest_budget_pcca_keys, std::size(rv_manifest_budget_pcca_keys) },
     { rv_manifest_section_budget_pccv, rv_manifest_budget_pccv_keys, std::size(rv_manifest_budget_pccv_keys) },
     { rv_manifest_section_budget_pccio, rv_manifest_budget_pccio_keys, std::size(rv_manifest_budget_pccio_keys) },

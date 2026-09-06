@@ -15,6 +15,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "pdk/ca/rv_ca.hpp"
 #include "rv_infra/rv_pcpool.hpp"
@@ -41,11 +42,14 @@ class rv_pcca : public rv_pdk::rv_ca {
 
     // DECLARATION ORDER IS LOAD-BEARING: the voices inside mixer_ hold pointers
     // into sram_, so sound RAM must be constructed first and destroyed last.
-    rv_pcpool<rv_pcca_meta> sram_;
-    rv_pcmixer mixer_;
+    // Both are empty (nullopt) whenever audio is off — a console with
+    // --no_audio or a refused device allocates neither.
+    std::optional<rv_pcpool<rv_pcca_meta>> sram_;
+    std::optional<rv_pcmixer> mixer_;
 
-    // Did the host actually give us a device? A console with no sound card is
-    // still a console, but its voices have no clock — see the constructor.
+    // Is audio on at all? False for --no-audio and for a device the host
+    // refused to open; either way every one of the nine calls below becomes a
+    // no-op that always succeeds — see the constructor.
     bool sounding_ = false;
 
     // Common guard for every mask-taking entry point: a mask must name at least
@@ -56,7 +60,9 @@ class rv_pcca : public rv_pdk::rv_ca {
    public:
     rv_pcca(const rv_pcca_conf& conf, rv_pchost& host);
 
-    // Tears the device down BEFORE the mixer it pulls from stops existing.
+    // Detaches the mixer from the host BEFORE it stops existing. Does not
+    // close the device — that belongs to the host's lifetime (stage C), not
+    // to this disc's.
     ~rv_pcca();
 
     rv_pcca(const rv_pcca&) = delete;
@@ -79,6 +85,11 @@ class rv_pcca : public rv_pdk::rv_ca {
     int64_t voice_stop(int64_t voice_mask) override;
 
     int64_t voice_status(int64_t voice_mask) override;
+
+    // Does the memory this controller owns actually exist? True when audio is
+    // off (sram_ is empty BY DESIGN, not a failure); false only when audio is
+    // on and the sound RAM pool failed to reserve.
+    bool valid() const { return !sounding_ || sram_->valid(); }
 };
 
 }  // namespace rv_3dmppc

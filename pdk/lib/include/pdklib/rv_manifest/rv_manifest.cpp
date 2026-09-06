@@ -175,12 +175,6 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 
     const rv_manifest_budget &budget = manifest.budget;
 
-    out << "\n[budget]\n";
-    out << "headless = " << budget.headless << "\n";
-    out << "fixed_step = " << budget.fixed_step << "\n";
-    out << "scale = " << budget.scale << "\n";
-    out << "max_frames = " << budget.max_frames << "\n";
-
     out << "\n[budget.pcca]\n";
     out << "voice_count = " << budget.pcca.voice_count << "\n";
     out << "sound_memory_size = " << budget.pcca.sound_memory_size << "\n";
@@ -202,7 +196,7 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     out << "card_slot_size = " << budget.pccm.card_slot_size << "\n";
 
     out << "\n[budget.pccd]\n";
-    out << "medium_path = " << quote(budget.pccd.medium_path) << "\n";
+    out << "code_entry = " << quote(budget.pccd.code_entry) << "\n";
 
     return out.str();
 }
@@ -253,11 +247,9 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         const char *name;
         int64_t value;
     };
-    // Only the quotas a zero would make meaningless. `max_frames = 0` means "run
-    // until the disc stops" and `headless`/`fixed_step` are legitimately false,
-    // so neither belongs in a list whose whole rule is "must be positive".
+    // Every resource the machine has to supply. A zero here is not a value the
+    // disc chose, it is a field nobody wrote.
     const budget_field budgets[] = {
-        { "[budget] scale", static_cast<int64_t>(manifest.budget.scale) },
         { "[budget.pcca] voice_count", manifest.budget.pcca.voice_count },
         { "[budget.pcca] sound_memory_size", manifest.budget.pcca.sound_memory_size },
         { "[budget.pccv] screen_width", manifest.budget.pccv.screen_width },

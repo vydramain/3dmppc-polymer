@@ -43,7 +43,7 @@ struct rv_manifest_budget_pccm {
 };
 
 struct rv_manifest_budget_pccd {
-    std::string medium_path;
+    std::string code_entry;
 };
 
 // The budget the burner enforces at pack time. There are no defaults on
@@ -53,10 +53,6 @@ struct rv_manifest_budget_pccd {
 // Checking here is the whole point: a texture that does not fit is an error on
 // the developer's desk, not a RV_ERR_INVAL on the player's loading screen.
 struct rv_manifest_budget {
-    bool headless;
-    bool fixed_step;
-    uint64_t scale;
-    uint64_t max_frames;
 
     rv_manifest_budget_pcca pcca;
     rv_manifest_budget_pccv pccv;

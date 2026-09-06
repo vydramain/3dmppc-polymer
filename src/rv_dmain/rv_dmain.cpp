@@ -249,7 +249,8 @@ void rv_dmain::build_font() {
     const int64_t atlas_addr =
         cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
     if (atlas_addr < 0) return;
-    if (cv->video_asset_write(atlas_addr, rv_pdklib::rv_font_atlas_texture(atlas.data())) < 0) {
+    const rv_texture atlas_texture = rv_pdklib::rv_font_atlas_texture(atlas.data());
+    if (cv->video_asset_write(atlas_addr, &atlas_texture) < 0) {
         cv->video_asset_free(atlas_addr);
         return;
     }
@@ -267,8 +268,8 @@ void rv_dmain::build_font() {
         cv->video_asset_free(atlas_addr);
         return;
     }
-    if (cv->video_asset_write(palette_addr, rv_pdklib::rv_font_palette_texture(palette.data())) <
-        0) {
+    const rv_texture palette_texture = rv_pdklib::rv_font_palette_texture(palette.data());
+    if (cv->video_asset_write(palette_addr, &palette_texture) < 0) {
         cv->video_asset_free(palette_addr);
         cv->video_asset_free(atlas_addr);
         return;
@@ -280,8 +281,9 @@ void rv_dmain::build_font() {
 
     const int64_t bad_addr =
         cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+    const rv_texture bad_texture = rv_pdklib::rv_font_palette_texture(bad.data());
     if (bad_addr >= 0 &&
-        cv->video_asset_write(bad_addr, rv_pdklib::rv_font_palette_texture(bad.data())) < 0) {
+        cv->video_asset_write(bad_addr, &bad_texture) < 0) {
         cv->video_asset_free(bad_addr);
         addr_font_palette_bad_ = 0;
     } else if (bad_addr >= 0) {
@@ -336,7 +338,7 @@ void rv_dmain::build_texture() {
     texture.width = static_cast<uint64_t>(RV_DMAIN_TEX_SIZE);
     texture.height = static_cast<uint64_t>(RV_DMAIN_TEX_SIZE);
 
-    if (cv->video_asset_write(addr, texture) < 0) {
+    if (cv->video_asset_write(addr, &texture) < 0) {
         cv->video_asset_free(addr);
         return;
     }
@@ -384,7 +386,7 @@ void rv_dmain::build_idx4_texture() {
     texels.size = texels_idx4_.size();
     texels.width = static_cast<uint64_t>(size);
     texels.height = static_cast<uint64_t>(size);
-    if (cv->video_asset_write(texel_addr, texels) < 0) {
+    if (cv->video_asset_write(texel_addr, &texels) < 0) {
         cv->video_asset_free(texel_addr);
         return;
     }
@@ -405,7 +407,7 @@ void rv_dmain::build_idx4_texture() {
     palette.size = palette_idx4_.size() * sizeof(uint16_t);
     palette.width = palette_idx4_.size();
     palette.height = 1;
-    if (cv->video_asset_write(palette_addr, palette) < 0) {
+    if (cv->video_asset_write(palette_addr, &palette) < 0) {
         cv->video_asset_free(palette_addr);
         cv->video_asset_free(texel_addr);
         return;
@@ -660,7 +662,7 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h) {
             primitive.data.polygon.vertexes[i].y =
                 to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].y + y));
         }
-        cv->frame_put(primitive);
+        cv->frame_put(&primitive);
     }
 }
 
@@ -682,7 +684,7 @@ void rv_dmain::draw_cell(int index) {
         const rv_pdklib::rv_font_style ink =
             rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
         rv_pdklib::rv_font_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
-                                [cv](const rv_primitive& p) { cv->frame_put(p); });
+                                [cv](const rv_primitive& p) { cv->frame_put(&p); });
     }
 
     const rv_color hot = rv_pdklib::rv_hsv_to_rgb(hue_, 0.85f, 1.0f);
@@ -696,7 +698,7 @@ void rv_dmain::draw_cell(int index) {
             primitive.depth = RV_DMAIN_DEPTH_ART_HI;
             primitive.data.line.vertexes[0] = make_vertex(ax, ay + ah, hot);
             primitive.data.line.vertexes[1] = make_vertex(ax + aw, ay, cold);
-            cv->frame_put(primitive);
+            cv->frame_put(&primitive);
             break;
         }
         case 1: {  // TRI — gouraud across three different vertex colours
@@ -713,7 +715,7 @@ void rv_dmain::draw_cell(int index) {
             t.vertexes[1] = make_vertex(ax, ay + ah, cold);
             t.vertexes[2] = make_vertex(ax + aw, ay + ah, mid);
             t.vertexes[3] = make_vertex(0, 0, hot);  // ignored at vertex_count 3
-            cv->frame_put(primitive);
+            cv->frame_put(&primitive);
             break;
         }
         case 2: {  // QUAD — the same fill across the (1,2,3)/(2,3,4) split
@@ -732,7 +734,7 @@ void rv_dmain::draw_cell(int index) {
             q.vertexes[1] = make_vertex(ax + aw, ay, cold);
             q.vertexes[2] = make_vertex(ax, ay + ah, mid);
             q.vertexes[3] = make_vertex(ax + aw, ay + ah, hot);
-            cv->frame_put(primitive);
+            cv->frame_put(&primitive);
             break;
         }
         case 3: {  // WIRE — edges only, so the interior must stay background
@@ -749,14 +751,16 @@ void rv_dmain::draw_cell(int index) {
             q.vertexes[1] = make_vertex(ax + aw, ay, hot);
             q.vertexes[2] = make_vertex(ax, ay + ah, cold);
             q.vertexes[3] = make_vertex(ax + aw, ay + ah, cold);
-            cv->frame_put(primitive);
+            cv->frame_put(&primitive);
             break;
         }
-        case 4:  // SPRITE — the axis-aligned fast path, one flat colour
-            cv->frame_put(make_bar(static_cast<float>(ax), static_cast<float>(ay),
+        case 4: {  // SPRITE — the axis-aligned fast path, one flat colour
+            const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
                                    static_cast<float>(aw), static_cast<float>(ah), hot,
-                                   RV_DMAIN_DEPTH_ART_HI));
+                                   RV_DMAIN_DEPTH_ART_HI);
+            cv->frame_put(&primitive);
             break;
+        }
 
         case 5:  // DIRECT15 — a texel that carries its own colour, CLAMP
             draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_CLAMP);
@@ -774,9 +778,10 @@ void rv_dmain::draw_cell(int index) {
             // The backdrop is filed FIRST and NEARER-behind: what shows through
             // the holes is this magenta, and if the hole wrote depth it would
             // not.
-            cv->frame_put(make_bar(static_cast<float>(ax), static_cast<float>(ay),
+            const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
                                    static_cast<float>(aw), static_cast<float>(ah),
-                                   rv_color{220, 60, 200}, RV_DMAIN_DEPTH_ART_LO));
+                                   rv_color{220, 60, 200}, RV_DMAIN_DEPTH_ART_LO);
+            cv->frame_put(&primitive);
             draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_STRETCH);
             break;
         }
@@ -787,9 +792,10 @@ void rv_dmain::draw_cell(int index) {
             const int32_t depth[3] = {RV_DMAIN_DEPTH_ART_HI, RV_DMAIN_DEPTH_ART_HI - 40,
                                       RV_DMAIN_DEPTH_ART_LO};
             for (int i = 0; i < 3; ++i) {
-                cv->frame_put(make_bar(static_cast<float>(ax + i * 12),
+                const rv_primitive primitive = make_bar(static_cast<float>(ax + i * 12),
                                        static_cast<float>(ay + i * 8), static_cast<float>(aw - 24),
-                                       static_cast<float>(ah - 16), tint[i], depth[i]));
+                                       static_cast<float>(ah - 16), tint[i], depth[i]);
+                cv->frame_put(&primitive);
             }
             break;
         }
@@ -821,7 +827,7 @@ void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, i
     sprite.width = static_cast<uint16_t>(w);
     sprite.height = static_cast<uint16_t>(h);
 
-    pdk_->cv()->frame_put(primitive);
+    pdk_->cv()->frame_put(&primitive);
 }
 
 // PATTERN: POST header. Two lines that say what this machine IS — the virtual
@@ -839,7 +845,7 @@ void rv_dmain::draw_post() {
     if (addr_font_ == 0) return;
 
     rv_cv* cv = pdk_->cv();
-    auto file = [cv](const rv_primitive& primitive) { cv->frame_put(primitive); };
+    auto file = [cv](const rv_primitive& primitive) { cv->frame_put(&primitive); };
 
     const int width = static_cast<int>(screen_width_);
     const int height = static_cast<int>(screen_height_);
@@ -851,8 +857,9 @@ void rv_dmain::draw_post() {
 
     // Opaque slabs, not a dim overlay: the console has no blending, and light
     // ink over lit geometry is exactly what made the first version unreadable.
-    cv->frame_put(
-        make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL));
+    const rv_primitive top_slab =
+        make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
+    cv->frame_put(&top_slab);
     rv_pdklib::rv_font_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
     rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
                             2, RV_DMAIN_NO_DISC, file);
@@ -871,8 +878,9 @@ void rv_dmain::draw_post() {
     rv_pdklib::rv_font_draw(ink, 4, 13, budget, file);
 
     // The bottom slab: one word per subsystem, and the word is the whole report.
-    cv->frame_put(make_bar(0.0f, static_cast<float>(height) - 24.0f, static_cast<float>(width),
-                           24.0f, slab, RV_DMAIN_DEPTH_PANEL));
+    const rv_primitive bottom_slab = make_bar(0.0f, static_cast<float>(height) - 24.0f,
+                           static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
+    cv->frame_put(&bottom_slab);
 
     struct rv_dmain_probe {
         const char* label;

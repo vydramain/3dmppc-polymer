@@ -10,7 +10,7 @@ namespace rv_3dmppc {
 
 struct rv_pcca_conf {
     int64_t voice_count = 24;
-    int64_t sound_memory_size = 1024 * 1024;  // 512 * 1024; for MVP
+    int64_t sound_memory_size = 512 * 1024;  // docs/platform/specs.md
 
     // NEUROSLOP-BEGIN (claude-opus-5)
     // Silence the output stage without changing anything a disc can observe:
@@ -18,6 +18,12 @@ struct rv_pcca_conf {
     // device never hears them. A muted console must not become a different
     // machine from the disc's point of view.
     bool mute = false;
+
+    // The device is never opened at all: rv_pcca::sounding_ stays false from
+    // construction, exactly the degraded state "no sound card" already leaves
+    // the machine in. Unlike mute this is visible to the disc (voice_status()
+    // never reports busy) — it is a different machine, not a quieter one.
+    bool no_audio = false;
     // NEUROSLOP-END
 };
 
