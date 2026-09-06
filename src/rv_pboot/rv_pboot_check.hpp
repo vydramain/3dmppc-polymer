@@ -3,12 +3,12 @@
 #include <cstdint>
 
 #include "pdklib/rv_manifest/rv_manifest.hpp"
-#include "rv_infra/rv_pcmachine.hpp"
+#include "rv_pboot_mode.hpp"
 
 namespace rv_3dmppc
 {
 
-// Stage E3: can THIS machine provide what the disc's [budget] declares?
+// Can this machine provide what the disc's [budget] declares?
 //
 // The budget is not measured against any console constant — a disc may ask for
 // far more than the built-in disc does. It is measured against the resources
@@ -17,8 +17,8 @@ namespace rv_3dmppc
 //
 // Returns RV_OK, or RV_ERR_INVAL after logging the resource, the amount
 // required, the amount available, and why it was refused.
-int64_t rv_compatibility_check_launch_disc(
+int64_t rv_pboot_check_budget(
     const rv_pdklib::rv_manifest_budget &budget,
-    const rv_pcmachine_info &machine);
+    const rv_pboot_mode_info &machine);
 
 }

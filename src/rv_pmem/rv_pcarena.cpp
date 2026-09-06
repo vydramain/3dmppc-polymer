@@ -13,24 +13,29 @@
 #define MADV_POPULATE_WRITE 23
 #endif
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-namespace {
+namespace
+{
 
-int64_t page_size() {
+int64_t page_size()
+{
     static const int64_t size = sysconf(_SC_PAGESIZE);
     return size > 0 ? size : 4096;
 }
 
-int64_t round_up_to_page(int64_t bytes) {
+int64_t round_up_to_page(int64_t bytes)
+{
     const int64_t page = page_size();
     const int64_t remainder = bytes % page;
     return remainder == 0 ? bytes : bytes + (page - remainder);
 }
 
-}  // namespace
+} // namespace
 
-rv_pcarena::rv_pcarena(int64_t reserve_bytes) {
+rv_pcarena::rv_pcarena(int64_t reserve_bytes)
+{
     if (reserve_bytes <= 0) {
         return;
     }
@@ -48,21 +53,35 @@ rv_pcarena::rv_pcarena(int64_t reserve_bytes) {
     reserved_ = rounded;
 }
 
-rv_pcarena::~rv_pcarena() {
+rv_pcarena::~rv_pcarena()
+{
     if (base_ != nullptr) {
         munmap(base_, static_cast<size_t>(reserved_));
     }
 }
 
-bool rv_pcarena::valid() const { return valid_; }
+bool rv_pcarena::valid() const
+{
+    return valid_;
+}
 
-int64_t rv_pcarena::reserved() const { return reserved_; }
+int64_t rv_pcarena::reserved() const
+{
+    return reserved_;
+}
 
-int64_t rv_pcarena::committed() const { return committed_; }
+int64_t rv_pcarena::committed() const
+{
+    return committed_;
+}
 
-uint8_t *rv_pcarena::base() const { return base_; }
+uint8_t *rv_pcarena::base() const
+{
+    return base_;
+}
 
-int64_t rv_pcarena::commit(int64_t bytes) {
+int64_t rv_pcarena::commit(int64_t bytes)
+{
     if (bytes < 0 || bytes > reserved_) {
         return rv_pdk::RV_ERR_INVAL;
     }
@@ -94,7 +113,8 @@ int64_t rv_pcarena::commit(int64_t bytes) {
     return rv_pdk::RV_OK;
 }
 
-int64_t rv_pcarena_probe_populate_write() {
+int64_t rv_pcarena_probe_populate_write()
+{
     const int64_t page = page_size();
     void *mapping = mmap(
         nullptr, static_cast<size_t>(page), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -104,11 +124,9 @@ int64_t rv_pcarena_probe_populate_write() {
     }
 
     const int64_t result =
-        madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0
-            ? rv_pdk::RV_OK
-            : rv_pdk::RV_ERR_NOENT;
+        madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0 ? rv_pdk::RV_OK : rv_pdk::RV_ERR_NOENT;
     munmap(mapping, static_cast<size_t>(page));
     return result;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

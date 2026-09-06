@@ -6,13 +6,13 @@
 #include <cstdint>
 #include <string>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 struct rv_pcca_conf {
     int64_t voice_count = 24;
-    int64_t sound_memory_size = 512 * 1024;  // docs/platform/specs.md
+    int64_t sound_memory_size = 512 * 1024; // docs/platform/specs.md
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
     // Silence the output stage without changing anything a disc can observe:
     // voices still play, voice_status() still reports them busy, only the
     // device never hears them. A muted console must not become a different
@@ -24,7 +24,6 @@ struct rv_pcca_conf {
     // the machine in. Unlike mute this is visible to the disc (voice_status()
     // never reports busy) — it is a different machine, not a quieter one.
     bool no_audio = false;
-    // NEUROSLOP-END
 };
 
 struct rv_pccv_conf {
@@ -34,15 +33,13 @@ struct rv_pccv_conf {
     int64_t texture_max_height = 256;
     int64_t video_memory_size = 1024 * 1024;
     int64_t frame_capacity = 4096;
-    int64_t ot_bucket_count = 1024;  // hidden from the contract by design
+    int64_t ot_bucket_count = 1024; // hidden from the contract by design
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
     // The depth window the ordering table spans, also hidden from the contract:
     // a disc hands rv_primitive::depth as a VALUE and never learns how it is
     // quantized. Values outside clamp to the nearest bucket (rv_primitives.hpp).
     int32_t depth_min = -32768;
     int32_t depth_max = 32767;
-    // NEUROSLOP-END
 };
 
 struct rv_pccio_conf {
@@ -53,15 +50,12 @@ struct rv_pccm_conf {
     int64_t card_slots = 16;
     int64_t card_slot_size = 8 * 1024;
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
     // Backing image for the card. Empty = "memcard.mppccard" in the working
     // directory. The card is ALWAYS inserted (rv_cm.hpp): where its bytes live
     // is the console's business and never an operation the disc invokes.
     std::string image_path;
-    // NEUROSLOP-END
 };
 
-// NEUROSLOP-BEGIN (claude-opus-5)
 // The drive exposes no geometry through its contract — this is not hardware
 // shape but WHICH MEDIUM IS INSERTED, which is the console's business in
 // exactly the same way the memory-card image is.
@@ -71,7 +65,6 @@ struct rv_pccd_conf {
     // legally answers RV_ERR_NOENT rather than failing.
     std::string medium_path;
 };
-// NEUROSLOP-END
 
 struct rv_pconsole_params {
     bool headless = false;
@@ -79,7 +72,6 @@ struct rv_pconsole_params {
     uint64_t scale = 3;
     uint64_t max_frames = 0;
 
-    // NEUROSLOP-BEGIN (claude-opus-5)
     // Frame pacing. The presented console runs at target_fps; a headless run
     // ignores this and goes as fast as it can (it is a smoke test, not a game).
     // fixed_step feeds the disc exactly 1/target_fps regardless of wall clock.
@@ -89,7 +81,6 @@ struct rv_pconsole_params {
     // ends. Empty = never. Devkit only — it is how "what did the console draw"
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
-    // NEUROSLOP-END
 };
 
 struct rv_pconsole_conf {
@@ -102,4 +93,4 @@ struct rv_pconsole_conf {
     rv_pconsole_params params;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

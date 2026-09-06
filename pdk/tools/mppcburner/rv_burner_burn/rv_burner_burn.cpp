@@ -6,6 +6,7 @@
 
 #include "rv_burner_zip/rv_burner_zipwrite.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "pdklib/rv_stdio/rv_stdio.hpp"
 
 namespace fs = std::filesystem;
 
@@ -15,7 +16,12 @@ namespace rv_pdktools
 // The two names the loader reads before it looks at the asset namespace. They
 // are refused as asset names by check_asset_name() for exactly this reason.
 static constexpr const char *k_entry_manifest = "disc.toml";
-static constexpr const char *k_entry_module = "disc.so";
+
+// Mirrors kDefaultCodeEntry in src/rv_pconsole/rv_pcloader.cpp — the console
+// falls back to this same literal when the manifest leaves code_entry blank.
+// Kept as a separate constant (not shared across the two trees) but named
+// identically in spirit so the pair is easy to find.
+static constexpr const char *k_default_entry_module = "disc.so";
 
 } // namespace rv_pdktools
 
@@ -44,10 +50,17 @@ int rv_pdktools::burn_archive(
     }
 
     // --- the module ---
+    //
+    // The manifest names the entry the module is stored under; a blank value
+    // means the conventional name. The file compiled to disk is always
+    // disc_module — only the name it gets inside the archive changes.
 
-    if (!writer.add_file(k_entry_module, disc_module.string(), error)) {
+    const std::string entry_module = manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
+
+    if (!writer.add_file(entry_module, disc_module.string(), error)) {
         return 1;
     }
+    rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
 
     // --- everything the plan named ---
 
