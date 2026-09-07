@@ -92,9 +92,16 @@ int64_t rv_pboot_check_budget(
         bad_field("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count, true) ||
         bad_field("budget.pccio.iport_count", budget.pccio.iport_count, true) ||
         bad_field("budget.pccm.card_slots", budget.pccm.card_slots, true) ||
-        bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true)) {
+        bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true) ||
+        bad_field("budget.pccl.script_memory_size", budget.pccl.script_memory_size, false)) {
         return rv_pdk::RV_ERR_INVAL;
     }
+
+    // The lua machine is the one subsystem a disc may legally not have at all,
+    // so it is checked with `active` false: zero passes, a negative does not.
+    // A disc that declared no [budget.pccl] runs with no VM, exactly as every
+    // disc did before scripting existed.
+    const bool scripting = budget.pccl.script_memory_size > 0;
 
     // voice_count is never silently reduced: either the mask can name every
     // requested voice, or the run is refused by name here — rv_pcca.cpp's own
@@ -190,6 +197,16 @@ int64_t rv_pboot_check_budget(
     // checks nor counts the disc's sound memory.
     if (audio_on) {
         if (add_overflow("budget.pcca.sound_memory_size", total, budget.pcca.sound_memory_size)) {
+            return rv_pdk::RV_ERR_INVAL;
+        }
+    }
+
+    // Script RAM (rv_pccl -> lua_newstate with a budgeted allocator), only when
+    // the disc declared a lua machine. Uncosted, a disc could ask for half a
+    // gigabyte of lua heap and still pass this check, then fail at the first
+    // allocation inside the VM instead of being refused here by name.
+    if (scripting) {
+        if (add_overflow("budget.pccl.script_memory_size", total, budget.pccl.script_memory_size)) {
             return rv_pdk::RV_ERR_INVAL;
         }
     }

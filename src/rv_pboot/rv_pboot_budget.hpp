@@ -22,31 +22,11 @@ class rv_pcloader;
 
 inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
 {
-    static const rv_pdklib::rv_manifest_budget kBudget = {
-        .pcca = {
-            .voice_count = 24,
-            .sound_memory_size = 512 * 1024,
-        },
-        .pccv = {
-            .screen_width = 320,
-            .screen_height = 240,
-            .texture_max_width = 256,
-            .texture_max_height = 256,
-            .video_memory_size = 1 * 1024 * 1024,
-            .frame_capacity = 4096,
-            .ot_bucket_count = 1024,
-        },
-        .pccio = {
-            .iport_count = 2,
-        },
-        .pccm = {
-            .card_slots = 16,
-            .card_slot_size = 8 * 1024,
-        },
-        .pccd = {
-            .code_entry = std::string(),
-        },
-    };
+    // A default-constructed budget IS the reference machine: pdklib carries
+    // those numbers once (rv_manifest.hpp) and a manifest that states nothing
+    // arrives holding exactly them. Restating them here would be a second list
+    // free to drift from the one the burner fills discs from.
+    static const rv_pdklib::rv_manifest_budget kBudget;
     return kBudget;
 }
 
