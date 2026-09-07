@@ -572,6 +572,42 @@ int64_t rv_pcloader::mount(const char *archive_path)
     }
 
 
+    // The lua machine, cross-checked against what this archive can actually
+    // serve. The code checksum below covers disc.so and NOTHING else: a
+    // manifest edited after burning, or a .luac taken out of the archive,
+    // moves no checksum at all. So the declaration is checked here, from the
+    // bytes, and a disagreement is a broken disc rather than a disc with less
+    // scripting in it — the console must not run something it cannot honour.
+    //
+    // Whatever that entry script pulls in afterwards is not checked and is not
+    // meant to be: the console knows the one name the disc gave it.
+    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest_.budget.pccl;
+    const bool lua_scripts = !manifest_.scripts_sources.empty();
+    const bool lua_memory = pccl.script_memory_size > 0;
+    const bool lua_entry = !pccl.script_entry.empty();
+
+    // A disc is a lua disc or a C++ disc. All three statements, or none: a
+    // manifest carrying some of them describes a machine this console cannot
+    // build, and the honest answer to that is a refusal, not a guess about
+    // which of the three the author meant.
+    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
+            "script_memory_size={}, script_entry='{}'. All three or none",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+
+    if (lua_entry && !zip->has(pccl.script_entry.c_str())) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+
     const std::string code_entry = code_entry_of(manifest_);
 
     // PATTERN: version verdict from BYTES, BEFORE dlopen. A disc built against

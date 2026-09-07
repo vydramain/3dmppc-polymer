@@ -136,6 +136,16 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.budget.pccd.code_entry = v.str;
         } },
+    { rv_manifest_section_budget_pccl, // [budget.pccl] script_memory_size = N
+        rv_manifest_key_budget_pccl_script_memory_size,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccl.script_memory_size = v.num;
+        } },
+    { rv_manifest_section_budget_pccl, // [budget.pccl] script_entry = "…"
+        rv_manifest_key_budget_pccl_script_entry,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccl.script_entry = v.str;
+        } },
 };
 
 static const bind_rule *find_rule(std::string_view section, std::string_view key)

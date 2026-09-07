@@ -147,6 +147,58 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return 1;
     }
 
+    // Scripts and the memory they run in travel together, and the plan is the
+    // first place both are known: the manifest states the budget, the glob
+    // decides whether any .lua actually exists. Bytecode burned onto a disc
+    // whose manifest declares no [budget.pccl] is dead weight — the console
+    // reads that manifest, finds no Lua machine, and the disc can never load
+    // the very files it carries. That is a mistake to catch on the author's
+    // desk, not a silent archive.
+    if (plan.script_count > 0 && manifest.budget.pccl.script_memory_size <= 0) {
+        rv_burner_print_error(std::to_string(plan.script_count) +
+            " lua script(s) to compile, but [budget.pccl] script_memory_size is not stated. "
+            "A disc that carries scripts must declare the memory its lua machine gets.");
+        return 1;
+    }
+
+    // The mirror of the refusal above, and the case that hides best: the author
+    // wrote [budget.pccl], put .lua files in the disc directory, and forgot the
+    // [scripts] section that tells the burner to look for them. The glob then
+    // matches nothing, the plan holds no scripts, and without this the disc
+    // burns with a lua machine declared and not one script aboard.
+    // Only one cause can reach here. A [scripts] glob that matches nothing is
+    // already refused by plan_archive above, by name, so an empty plan past
+    // that point means there was no [scripts] section to glob with at all.
+    if (plan.script_count == 0 && manifest.budget.pccl.script_memory_size > 0) {
+        rv_burner_print_error(
+            "[budget.pccl] declares a lua machine, but there is no [scripts] section to "
+            "put a script in it. State [scripts] sources, or drop [budget.pccl].");
+        return 1;
+    }
+
+    // The named entry must be one of the scripts actually planned. Without this
+    // the disc burns with a lua machine pointed at a name nothing on the medium
+    // answers to, and the failure surfaces on a player's machine as a missing
+    // asset instead of here as a typo.
+    if (manifest.budget.pccl.script_memory_size > 0) {
+        bool entry_planned = false;
+        std::string planned;
+        for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
+            if (!planned.empty()) {
+                planned += ", ";
+            }
+            planned += plan.items[i].name;
+            if (plan.items[i].name == manifest.budget.pccl.script_entry) {
+                entry_planned = true;
+            }
+        }
+        if (!entry_planned) {
+            rv_burner_print_error("[budget.pccl] script_entry '" + manifest.budget.pccl.script_entry +
+                "' is not among the compiled scripts (" + planned + ")");
+            return 1;
+        }
+    }
+
     if (compile_scripts(plan, disc_dir, error) != 0) {
         rv_burner_print_error(error);
         return 1;

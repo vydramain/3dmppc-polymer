@@ -1,17 +1,25 @@
-// Hardware geometry of the concrete console. Defaults = the reference machine
-// from docs/platform/specs.md. Session-stable: consumed at construction, never
-// swapped while a disc runs. Console-internal — never crosses into pdk/.
+// Hardware geometry of the concrete console. Defaults are READ from pdklib's
+// rv_manifest_budget, which holds the reference machine and is the only place
+// those numbers are written. Restating them here would be a second list free to
+// drift from the one the burner fills discs with — and a silent one, because
+// rv_pboot_conf_build overwrites every field from the disc's budget, so a wrong
+// default here would never show up in a run.
+//
+// Session-stable: consumed at construction, never swapped while a disc runs.
+// Console-internal — never crosses into pdk/.
 #pragma once
 
 #include <cstdint>
 #include <string>
 
+#include "pdklib/rv_manifest/rv_manifest.hpp"
+
 namespace rv_3dmppc
 {
 
 struct rv_pcca_conf {
-    int64_t voice_count = 24;
-    int64_t sound_memory_size = 512 * 1024; // docs/platform/specs.md
+    int64_t voice_count = rv_pdklib::rv_manifest_budget_pcca{}.voice_count;
+    int64_t sound_memory_size = rv_pdklib::rv_manifest_budget_pcca{}.sound_memory_size;
 
     // Silence the output stage without changing anything a disc can observe:
     // voices still play, voice_status() still reports them busy, only the
@@ -27,13 +35,13 @@ struct rv_pcca_conf {
 };
 
 struct rv_pccv_conf {
-    int64_t screen_width = 320;
-    int64_t screen_height = 240;
-    int64_t texture_max_width = 256;
-    int64_t texture_max_height = 256;
-    int64_t video_memory_size = 1024 * 1024;
-    int64_t frame_capacity = 4096;
-    int64_t ot_bucket_count = 1024; // hidden from the contract by design
+    int64_t screen_width = rv_pdklib::rv_manifest_budget_pccv{}.screen_width;
+    int64_t screen_height = rv_pdklib::rv_manifest_budget_pccv{}.screen_height;
+    int64_t texture_max_width = rv_pdklib::rv_manifest_budget_pccv{}.texture_max_width;
+    int64_t texture_max_height = rv_pdklib::rv_manifest_budget_pccv{}.texture_max_height;
+    int64_t video_memory_size = rv_pdklib::rv_manifest_budget_pccv{}.video_memory_size;
+    int64_t frame_capacity = rv_pdklib::rv_manifest_budget_pccv{}.frame_capacity;
+    int64_t ot_bucket_count = rv_pdklib::rv_manifest_budget_pccv{}.ot_bucket_count;
 
     // The depth window the ordering table spans, also hidden from the contract:
     // a disc hands rv_primitive::depth as a VALUE and never learns how it is
@@ -43,12 +51,12 @@ struct rv_pccv_conf {
 };
 
 struct rv_pccio_conf {
-    int64_t iport_count = 2;
+    int64_t iport_count = rv_pdklib::rv_manifest_budget_pccio{}.iport_count;
 };
 
 struct rv_pccm_conf {
-    int64_t card_slots = 16;
-    int64_t card_slot_size = 8 * 1024;
+    int64_t card_slots = rv_pdklib::rv_manifest_budget_pccm{}.card_slots;
+    int64_t card_slot_size = rv_pdklib::rv_manifest_budget_pccm{}.card_slot_size;
 
     // Backing image for the card. Empty = "memcard.mppccard" in the working
     // directory. The card is ALWAYS inserted (rv_cm.hpp): where its bytes live
@@ -64,6 +72,18 @@ struct rv_pccd_conf {
     // packaging lands. Empty = no disc in the drive, and every lookup then
     // legally answers RV_ERR_NOENT rather than failing.
     std::string medium_path;
+};
+
+// The lua machine. Unlike every other controller this one is OPTIONAL: it
+// exists for a disc that carries scripts and for no other. A disc that declared
+// no [budget.pccl] arrives here with zero, the machine brings no VM up, and the
+// console runs exactly as it did before scripting existed — C++ only.
+//
+// Zero is not a chosen value, it is the field nobody wrote. Same shape as
+// rv_pcca's no_audio: nothing is ever allocated for a console that will never
+// run a script.
+struct rv_pccl_conf {
+    int64_t script_memory_size = rv_pdklib::rv_manifest_budget_pccl{}.script_memory_size;
 };
 
 struct rv_pconsole_params {
@@ -86,6 +106,7 @@ struct rv_pconsole_params {
 struct rv_pconsole_conf {
     rv_pcca_conf ca;
     rv_pccd_conf cd;
+    rv_pccl_conf cl;
     rv_pccv_conf cv;
     rv_pccio_conf cio;
     rv_pccm_conf cm;

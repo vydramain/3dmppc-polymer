@@ -144,10 +144,16 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 {
     std::ostringstream out;
 
-    // Every key is written, including empty arrays and zero counts. A rendered
-    // manifest is also the copy that goes onto the disc, and there it has to say
-    // what the burner actually used rather than leaning on a default that a
-    // later version of the tool might change.
+    // EVERY key is written, including empty arrays and zero counts — no
+    // section is an exception and none is omitted. This is the copy that goes
+    // ONTO THE DISC, and there it has to say what the burner actually used
+    // rather than leaning on a default a later version of the tool might
+    // change.
+    //
+    // That is exactly why the manifest an author WRITES may be four sections
+    // long: what it leaves out is filled from the reference machine while it is
+    // being baked, and what lands on the disc is the complete answer. Partial
+    // going in, whole coming out.
     out << "[disc]\n";
     out << "id = " << quote(manifest.disc_id) << "\n";
     out << "title = " << quote(manifest.disc_title) << "\n";
@@ -198,7 +204,35 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     out << "\n[budget.pccd]\n";
     out << "code_entry = " << quote(budget.pccd.code_entry) << "\n";
 
+    out << "\n[budget.pccl]\n";
+    out << "script_memory_size = " << budget.pccl.script_memory_size << "\n";
+    out << "script_entry = " << quote(budget.pccl.script_entry) << "\n";
+
     return out.str();
+}
+
+// One name the drive will be asked for verbatim. Empty passes: it means the
+// key was not written, and each caller decides what that absence means.
+static bool safe_entry_name(const std::string &entry, const char *what, std::string &error)
+{
+    if (entry.empty()) {
+        return true;
+    }
+    if (entry.front() == '/' || entry.find("..") != std::string::npos ||
+        entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
+        error = std::string(what) + " '" + entry +
+            "' is not a safe entry name — it must not be a path";
+        return false;
+    }
+    for (char c : entry) {
+        const unsigned char u = static_cast<unsigned char>(c);
+        if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
+            error = std::string(what) + " '" + entry +
+                "' is not a safe entry name — use letters, digits, '-', '_' and '.' only";
+            return false;
+        }
+    }
+    return true;
 }
 
 bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
@@ -226,28 +260,34 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         return false;
     }
 
-    // code_entry names the archive entry the burner stores the module under and
-    // the console later extracts by that same name — an empty value is legal
-    // and means "use the conventional name", but anything that IS given must be
-    // a bare entry name: no path to climb out of the archive with.
-    if (!manifest.budget.pccd.code_entry.empty()) {
-        const std::string &entry = manifest.budget.pccd.code_entry;
-        if (entry.front() == '/' || entry.find("..") != std::string::npos ||
-            entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
-            error = "[budget.pccd] code_entry '" +
-                entry +
-                "' is not a safe archive entry name — it must not be a path";
-            return false;
-        }
-        for (char c : entry) {
-            const unsigned char u = static_cast<unsigned char>(c);
-            if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
-                error = "[budget.pccd] code_entry '" +
-                    entry +
-                    "' is not a safe archive entry name — use letters, digits, '-', '_' and '.' only";
-                return false;
-            }
-        }
+    // The rest of what a disc cannot be built without. Everything NOT listed
+    // here has a reference value and may be left unsaid; these five have none,
+    // because no answer the tool could invent would be the author's.
+    if (manifest.disc_title.empty()) {
+        error = "[disc] title is empty — the disc needs a human title for the window and logs";
+        return false;
+    }
+    if (manifest.build_sources.empty()) {
+        error = "[build] sources is empty — a disc is built from its own code";
+        return false;
+    }
+    if (manifest.assets_files.empty()) {
+        error = "[assets] files is empty — state the files the disc carries";
+        return false;
+    }
+    if (manifest.textures_files.files.empty()) {
+        error = "[textures] files is empty — state the images the disc carries";
+        return false;
+    }
+
+    // pccd.code_entry and pccl.script_entry both name something the drive is
+    // later asked for BY NAME
+    // — an empty value is legal and means "use the conventional name", but
+    // anything that IS given must be a bare name: no path to climb out of the
+    // medium with.
+    if (!safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error) ||
+        !safe_entry_name(manifest.budget.pccl.script_entry, "[budget.pccl] script_entry", error)) {
+        return false;
     }
 
     // By the time a manifest reaches here the binder has already turned the
@@ -288,34 +328,56 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         { "[budget.pccm] card_slot_size", manifest.budget.pccm.card_slot_size },
     };
 
-    // The budget has no defaults, so a manifest without the section arrives here
-    // value-initialised — every field zero. Saying "texture_max_width must be
-    // positive, got 0" about that is true and useless: nothing is wrong with the
-    // value, the whole section was never written. Complain about what is actually
-    // missing before looking at the fields one by one.
-    std::size_t unset = 0;
-    for (const budget_field &b : budgets) {
-        if (b.value == 0) {
-            ++unset;
-        }
-    }
-    if (unset == std::size(budgets)) {
-        std::string keys;
-        for (const budget_field &b : budgets) {
-            if (!keys.empty()) {
-                keys += ", ";
-            }
-            keys += b.name;
-        }
-        error = std::format("the [budget] sections are missing — state {}", keys);
-        return false;
-    }
-
+    // Every field here now arrives filled: absent means the reference machine,
+    // not zero. So a zero or a negative can only be something the author typed,
+    // and that is the only thing left to refuse.
     for (const budget_field &b : budgets) {
         if (b.value <= 0) {
             error = std::format("{} must be positive, got {}", b.name, b.value);
             return false;
         }
+    }
+
+    // pccl is deliberately NOT in the table above. Every other subsystem is
+    // hardware the machine always has; the Lua machine exists only for a disc
+    // that carries scripts, so an absent section is a legal statement rather
+    // than a missing one. Only a negative is nonsense — nobody asks for less
+    // than no memory.
+    if (manifest.budget.pccl.script_memory_size < 0) {
+        error = std::format("[budget.pccl] script_memory_size must not be negative, got {}",
+            manifest.budget.pccl.script_memory_size);
+        return false;
+    }
+
+    // A lua disc is declared by THREE statements that mean nothing apart:
+    // where the scripts come from, how much memory they run in, and which one
+    // starts. All three, or none of them — a disc is a lua disc or a C++ disc,
+    // and there is no state between the two. Any partial declaration is a
+    // manifest that describes a machine nobody can build.
+    const bool has_scripts = !manifest.scripts_sources.empty();
+    const bool has_memory = manifest.budget.pccl.script_memory_size > 0;
+    const bool has_entry = !manifest.budget.pccl.script_entry.empty();
+
+    if (has_scripts != has_memory || has_memory != has_entry) {
+        std::string stated;
+        std::string missing;
+        const auto note = [&](bool present, const char *what) {
+            std::string &side = present ? stated : missing;
+            if (!side.empty()) {
+                side += ", ";
+            }
+            side += what;
+        };
+        note(has_scripts, "[scripts] sources");
+        note(has_memory, "[budget.pccl] script_memory_size");
+        note(has_entry, "[budget.pccl] script_entry");
+
+        error = std::format(
+            "a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
+            "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
+            "State the rest, or drop them all and burn a C++ disc",
+            stated, missing);
+        return false;
     }
 
     return true;

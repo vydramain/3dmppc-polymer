@@ -29,6 +29,7 @@ constexpr std::string_view rv_manifest_section_budget_pccv = "budget.pccv";
 constexpr std::string_view rv_manifest_section_budget_pccio = "budget.pccio";
 constexpr std::string_view rv_manifest_section_budget_pccm = "budget.pccm";
 constexpr std::string_view rv_manifest_section_budget_pccd = "budget.pccd";
+constexpr std::string_view rv_manifest_section_budget_pccl = "budget.pccl";
 
 // Section ['disc']
 constexpr std::string_view rv_manifest_key_disc_id = "id";
@@ -73,6 +74,10 @@ constexpr std::string_view rv_manifest_key_budget_pccm_card_slot_size = "card_sl
 
 // Section ['budget.pccd']
 constexpr std::string_view rv_manifest_key_budget_pccd_code_entry = "code_entry";
+
+// Section ['budget.pccl']
+constexpr std::string_view rv_manifest_key_budget_pccl_script_memory_size = "script_memory_size";
+constexpr std::string_view rv_manifest_key_budget_pccl_script_entry = "script_entry";
 
 struct rv_manifest_key_spec {
     std::string_view name;
@@ -137,6 +142,11 @@ constexpr rv_manifest_key_spec rv_manifest_budget_pccd_keys[] = {
     { rv_manifest_key_budget_pccd_code_entry, rv_manifest_value_kind::string }
 };
 
+constexpr rv_manifest_key_spec rv_manifest_budget_pccl_keys[] = {
+    { rv_manifest_key_budget_pccl_script_memory_size, rv_manifest_value_kind::integer },
+    { rv_manifest_key_budget_pccl_script_entry, rv_manifest_value_kind::string }
+};
+
 constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_disc, rv_manifest_disc_keys, std::size(rv_manifest_disc_keys) },
     { rv_manifest_section_build, rv_manifest_build_keys, std::size(rv_manifest_build_keys) },
@@ -148,6 +158,7 @@ constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_budget_pccio, rv_manifest_budget_pccio_keys, std::size(rv_manifest_budget_pccio_keys) },
     { rv_manifest_section_budget_pccm, rv_manifest_budget_pccm_keys, std::size(rv_manifest_budget_pccm_keys) },
     { rv_manifest_section_budget_pccd, rv_manifest_budget_pccd_keys, std::size(rv_manifest_budget_pccd_keys) },
+    { rv_manifest_section_budget_pccl, rv_manifest_budget_pccl_keys, std::size(rv_manifest_budget_pccl_keys) },
 };
 
 inline const rv_manifest_section_spec *rv_manifest_sections_get(std::string_view name)
