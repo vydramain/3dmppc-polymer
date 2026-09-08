@@ -7,9 +7,12 @@ drives it through the disc ABI.
 
 This describes **what the console and the tools do today**. The native path —
 manifest, compile, bake, pack, mount, `dlopen`, handshake, teardown — is
-implemented and is what `mppcdiscs/hello` exercises end to end. The one part
-that is still design rather than code is the **script (Lua) disc kind**, and it
-is marked as such at the bottom.
+implemented and is what `mppcdiscs/example-cpp` exercises end to end. Scripting
+rides that same path rather than a second one: a disc that carries Lua still
+burns and loads exactly this way, still ships one `disc.so`, and it is that
+`disc.so` which drives a script machine the console hands out — never a
+different kind of disc the console loads differently. `mppcdiscs/example-lua`
+exercises that path end to end, and §6 covers it.
 
 > Scope: this is both documents the platform README once listed as planned —
 > the boundary (`disc-abi.md`) and the package (`disc-format.md`).
@@ -23,10 +26,10 @@ cmake -S . -B build -G Ninja && cmake --build build            # the console
 cmake -S pdk/tools -B pdk/tools/build -G Ninja \
   && cmake --build pdk/tools/build                             # the tools
 
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/hello \
-    -o build/hello.mppcdisc --baker pdk/tools/build/mppcbaker/mppcbaker
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp \
+    -o build/example-cpp.mppcdisc --baker pdk/tools/build/mppcbaker/mppcbaker
 
-./build/3dmppc build/hello.mppcdisc
+./build/3dmppc build/example-cpp.mppcdisc
 ```
 
 The console never names a concrete game. It takes a disc path as its first
@@ -49,9 +52,9 @@ the console for a reason the burner could have seen.
 
 | Gate | What it settles |
 | --- | --- |
-| **manifest** | does this disc claim an ABI we speak, is its `id` a safe filename, is the texture format one that exists |
+| **manifest** | is this disc's `id` a safe filename, and is the texture format one that exists |
 | **compile** | does the game build against `pdk/` and `pdklib/` and **nothing from `src/`** |
-| **assets** | do the flattened names stay unique and legal, do the texel budgets hold |
+| **assets** | do the flattened names stay unique and legal, do the texel budgets hold, does `[budget.pccl]` agree with what `[scripts]` actually planned, does every `.lua` compile |
 | **burn** | write the container |
 
 The compile gate generates a small CMake project — by default in
@@ -66,13 +69,28 @@ resource **by name, with no separators**, so `assets/enemies/smoke.png` becomes
 `smoke.mppctex` inside the archive. That flattening can collide, and a collision
 is refused with both originals named — "two `.mppctex` entries collide" would say
 nothing about which two PNGs to rename. Names starting with a dot are refused as
-editor and VCS bookkeeping, and the two **service names** below are reserved.
+editor and VCS bookkeeping, and the two **service names** below are reserved. A
+disc's `.lua` sources flatten the same way, into `.luac` bytecode, in the same
+namespace — a script and a texture can collide on one archive name exactly as
+two textures can.
 
 The burner also enforces the `[budget]` block — texture dimensions and the
 virtual video-memory size the *target machine* will hand out. That budget is the
 console's own invention, not a property of the workstation, which is exactly why
 it has to be checked deliberately: the host would happily pack far more than the
 console will ever accept.
+
+A disc that carries scripts is checked the same way, plus one thing textures
+are never asked: **presence must agree**. `[scripts] sources`,
+`[budget.pccl] script_memory_size` and `[budget.pccl] script_entry` are one
+declaration in three fields — a manifest stating some of them and not the rest
+describes a machine nobody can build, and the burner refuses it by name, listing
+which of the three is stated and which is missing. `script_entry` must also name
+one of the scripts the glob actually found. Only once all of that holds does the
+burner compile each `.lua` to `.luac` bytecode — with the LuaJIT it is *linked
+against*, never a `luajit` found on `$PATH`, because bytecode is version-specific
+and tying it to anything but the linked library would tie a disc's bytecode to
+whichever machine happened to burn it.
 
 `mppcburner inspect DISC.mppcdisc` prints the manifest and the entry list to
 **stdout** (so it pipes into `grep`) and diagnostics to stderr, without
@@ -116,9 +134,8 @@ is written by hand, and *"line 14: unknown key 'source' (did you mean
 
 ```toml
 [disc]
-id = "hello"
-title = "hello - the smallest disc"
-abi_version = 1
+id = "example-cpp"
+title = "mppcdisc example"
 
 [build]
 sources = ["src/*.cpp"]
@@ -131,17 +148,20 @@ files = ["assets/*.png"]
 format = "idx8"
 ```
 
-The **burner** reads all of it (`pdk/tools/mppcburner/rv_manifest.hpp`): build
+The **burner** reads all of it (`pdk/tools/mppcburner/rv_burner_manifest.hpp`): build
 globs, defines, include dirs, assets, textures, budget.
 
-The **console** reads only `[disc]`, and only `abi_version`, `id`, `title` and
-`entry` (`src/rv_pconsole/rv_pcloader.hpp`). Unknown sections and keys are
-ignored rather than refused, because the burner deliberately writes more than
-the console reads. This asymmetry is a security boundary, not an oversight:
-every field the console parses is a field an attacker-supplied archive gets to
-influence, so it parses as few as it can, never trusts a length, and treats
-`title` as untrusted text that goes through `rv_log_escape` before it reaches a
-log line.
+The **console** parses the *same* schema — burner and console share one
+`pdklib/rv_manifest` model, so an unknown section or key is refused on either
+side alike, never silently ignored (`src/rv_pconsole/rv_pcloader.cpp`) — but it
+only *acts on* part of what that parse hands back: `id`, `title`, the code
+entry's name, and the whole `[budget]` block, `[budget.pccl]` included (§6).
+`[build] sources` parses into the struct exactly like everything else, and the
+console never once reads it back out. That is still a narrower trust boundary
+than a symmetrical read would be: every field the console *acts on* is a field
+an attacker-supplied archive gets to influence, so `title` goes through
+`rv_log_escape` before it reaches a log line, and no length coming out of the
+manifest is ever trusted unchecked.
 
 ---
 
@@ -158,12 +178,13 @@ So the code entry is extracted to a private temporary file first, and that file
 is what `dlopen` sees:
 
 ```
-console opens hello.mppcdisc (a stored zip)
- -> reads disc.toml, checks abi_version against RV_ABI_VERSION
+console opens example-cpp.mppcdisc (a stored zip)
+ -> reads disc.toml for the archive entry
+ -> reads disc.so, checks its ELF note against RV_MPPC_VER_MAJOR/MINOR
  -> extracts the `entry` (disc.so) to a private temporary file
  -> dlopen(that path, RTLD_NOW | RTLD_LOCAL)
- -> dlsym mppc_disc_create / mppc_disc_destroy
- -> create(RV_ABI_VERSION) -> rv_de*
+ -> dlsym rv_mppc_disc_entry_create_fn / rv_mppc_disc_entry_destroy_fn
+ -> create() -> rv_de*
 ```
 
 It costs one write of a few hundred kilobytes at boot, once, and nothing per
@@ -173,16 +194,15 @@ portable path is the one that must work.
 
 `RTLD_LOCAL` keeps the disc's symbols out of the global namespace. A disc is
 compiled with `-fvisibility=hidden`, so the only two things reachable by `dlsym`
-are the ones `RV_DISC_EXPORT` planted.
+are the ones `RV_MPPC_DISC_ENTRY_DEF` planted.
 
-### The handshake happens twice, on purpose
+### The handshake happens before `dlopen`
 
-The console compares the manifest's `abi_version` to `RV_ABI_VERSION` *and* the
-factory re-checks it and returns `nullptr` on mismatch. The first check reads
-text, which anyone can edit; the second is compiled into the binary that would
-actually run. A disc that loads against the wrong contract does not fail
-cleanly — it reads structs with the wrong layout and produces garbage geometry,
-silent corruption, or a crash three minutes into play with no clue as to why.
+The console reads the version note embedded in `disc.so` and compares its major
+and minor versions with `RV_MPPC_VER_MAJOR/MINOR` before loading executable
+code. A mismatched disc is rejected before its constructors can run. This keeps
+an incompatible contract from becoming garbage geometry, silent corruption, or
+a crash three minutes later with no clue as to why.
 
 ### Teardown has exactly one correct order
 
@@ -192,7 +212,7 @@ return can get this wrong:
 
 ```
 1. disc_shutdown()          the disc's last chance to touch the facade
-2. mppc_disc_destroy(disc)  the disc's own destructor, from the disc's code
+2. destroy(disc)            the disc's own destructor, from the disc's code
 3. dlclose(handle)          the code is unmapped only now
 4. unlink(temporary file)   the inode goes last, and only then
 ```
@@ -229,11 +249,11 @@ A disc writes one line at the bottom of its translation unit:
 
 ```cpp
 class rv_dmain : public rv_pdk::rv_de { /* ... */ };
-RV_DISC_EXPORT(hello::rv_dmain)
+RV_MPPC_DISC_ENTRY_DEF(example_cpp::rv_dmain)
 ```
 
-See [`../../pdk/include/pdk/rv_abi.hpp`](../../pdk/include/pdk/rv_abi.hpp) for
-`RV_ABI_VERSION`, the two symbol names, and the macro itself.
+See [`../../pdk/include/pdk/de/rv_dv.h`](../../pdk/include/pdk/de/rv_dv.h)
+for the version constants, entry-point names, and the macro itself.
 
 ### The thickness decision, settled
 
@@ -249,30 +269,105 @@ cannot rot: no "this disc needs console runtime 1.4" ever exists.
 
 ---
 
-## 6. Still design: script discs
+## 6. Scripting: one more controller, not a second kind of disc
 
-The intended shape is **one ABI, two kinds of disc behind it**:
+There is **no `kind` key**, in either manifest model, and none is needed: every
+disc — Lua or not — is the exact native disc §5 describes, one compiled
+`disc.so` exporting the entry points `RV_MPPC_DISC_ENTRY_DEF` planted. There is
+no built-in disc implementation that loads Lua on a disc's behalf.
+`mppcdiscs/example-lua/src/example-lua.cpp` **is** that disc's `disc.so`; its
+own hooks do nothing but forward into a chunk of Lua the console never parses a
+line of and never learns is involved — the console only ever talks to a
+`disc.so`, and what that `disc.so` does with what it was handed is the disc's
+business.
 
-1. **Native disc** — a compiled `disc.so` exporting `mppc_disc_create`. This is
-   the only kind that exists today.
-2. **Script disc** — the archive holds Lua and assets **as data**, and the
-   console ships one built-in disc implementation that loads the Lua and calls
-   its functions from `frame_update` / `frame_render`. No compilation, no `.so`.
+What the `disc.so` is handed is a controller: `rv_cl`
+([`../../pdk/include/pdk/cl/rv_cl.h`](../../pdk/include/pdk/cl/rv_cl.h)), the
+Lua machine, opaque C like every other controller in the contract. The console
+hands it out or withholds it, the same shape `rv_pcca` withholds itself under
+`--no-audio` — a disc that states no `[budget.pccl]` gets `rv_pdko_cl() ==
+nullptr` and runs exactly as it did before scripting existed.
 
-Nothing of this is implemented: there is **no `kind` key** in either manifest
-model today, and adding one is the first step.
+### The all-or-none invariant, checked twice
 
-The reason it is worth the trouble: generating a disc at runtime becomes writing
-files into an archive, with no compiler anywhere. The classic split — hot code
-(the rasterizer) in C++, game logic in an interpreter — is exactly how PICO-8,
-LÖVE and TIC-80 work, and it is adequate for this genre.
+A manifest declares a lua disc with **three statements that mean nothing
+apart**: where the scripts come from, how much memory they run in, and which
+one starts. The burner checks this at pack time (§1 above,
+`pdk/lib/include/pdklib/rv_manifest/rv_manifest.cpp`), and the console checks
+it again at mount time, from the archive's own bytes
+(`rv_pcloader::mount`, `src/rv_pconsole/rv_pcloader.cpp`) — the manifest the
+burner validated and the manifest sitting inside this particular archive are
+not provably the same manifest, and parsing an archive's `disc.toml` never
+runs the burner's validation, so this is the only place the console enforces
+it at all:
 
-The trap to avoid is *scripts → generated C++ → compiled `.so`* **as a loading
-mechanism**. That would need a full C++ toolchain on the player's machine and
-seconds of compilation per disc. Transpiling Lua to C++ ahead of time is fine —
-but as a build-time authoring optimization, never at load.
+> `[scripts] sources` non-empty, `[budget.pccl] script_memory_size > 0`, and
+> `[budget.pccl] script_entry` non-empty must all hold, or none of them may. A
+> manifest carrying some of the three describes a machine the console cannot
+> build, and the honest answer is a refusal, not a guess at which of the three
+> the author meant.
 
-### Open follow-ups
+When `script_entry` is stated, the loader additionally confirms the archive
+actually holds an asset by that name — a disc naming an entry the drive cannot
+produce is refused before a single line of Lua runs.
 
-- A `kind` key, and the built-in script-disc implementation behind it.
-- Whether the container version needs to move before either lands.
+Only `disc.so` is checksummed against the version note the burner stamped
+(§4's handshake). A `.luac` swapped out of the archive after burning, or a
+`disc.toml` hand-edited to claim a different budget, moves no checksum at all
+— the all-or-none check above, run fresh from the bytes every time, is what
+stands between the console and a lua declaration it cannot honour, not a hash.
+Whatever the entry chunk itself pulls in afterwards is not checked and is not
+meant to be: the console knows the one name its manifest gave it, and nothing
+past that.
+
+### What the machine looks like once it is up
+
+A disc whose `[budget.pccl] script_memory_size` is `0` — the field nobody
+wrote — gets no VM at all (`rv_pccl::valid()`,
+`src/rv_pconsole/cl/rv_pccl.cpp`). A disc that does declare a budget gets a
+`lua_State` opened with a **budgeted allocator**: growth that would push the
+machine past `script_memory_size` fails the allocation rather than reaching
+the host's heap, so the number in the manifest is a ceiling the VM itself is
+held to, the same way `rv_cv`'s pool is held to `video_memory_size`. Exactly
+four stock libraries are opened — `base`, `string`, `math`, `table` — plus
+`ffi`, and `ffi` is not this console's sandbox: `pdk.cast`/`pdk.new`
+(`ffi.cast`/`ffi.new`, wired up in `RV_PCCL_PDK_BOOTSTRAP_SRC`,
+`src/rv_pconsole/cl/rv_pccl.cpp`) hand a script the same raw read/write over
+this process's memory its own `disc.so` already has. Withholding `io`, `os`
+and `require` — and never exposing `ffi.cdef` itself past bring-up, so a
+script can declare no new host function to call — closes the *accidental*
+doors instead: a script that calls `os.exit` or opens a file by name fails
+immediately. There is no boundary here for that to protect in the first
+place: a disc's scripts are written by the same author as the `disc.so`
+carrying them, and that `disc.so` already runs as native code in this same
+process, so a script is never less trusted than the code that raised it.
+
+The console's own contract is what that state gets instead. At bring-up the
+console feeds the VM two strings generated from the PDK headers themselves
+(`cmake/rv_cdef_gen.cmake`, sliced from the `RV_CDEF_BEGIN`/`RV_CDEF_END`
+regions every contract header marks): `rv_pdk_cdef`, fed straight to LuaJIT's
+`ffi.cdef`, and `rv_pdk_consts`, Lua source carrying the PDK's `#define RV_*`
+constants that `ffi.cdef` cannot express. Both become one global table, `pdk`
+— `pdk.cv_frame_put(cv, prim)`, `pdk.TEXWRAP_CLAMP` — resolved lazily against
+`ffi.C` and memoised on first use; a name matching no hardware symbol raises
+loudly instead of reading back `nil`. `pdk` is the only thing besides the four
+stock libraries this console puts in `_G`.
+
+The disc still drives its own hooks — scripting does not move
+`disc_initialize` / `frame_update` / `frame_render` / `disc_shutdown` into the
+console. `rv_cl_script_entry()` raises the one chunk the console already
+resolved and verified from the manifest, so the disc never spells the name
+again; the disc's own hooks then call into it with `rv_cl_script_call`,
+exactly the shape `mppcdiscs/example-lua` uses to forward `dt` in each frame
+and read a `release` boolean back out.
+
+### The trap this design still avoids
+
+*Scripts → generated C++ → compiled `.so`*, **as a loading mechanism**, is
+still not what happens, and still should not: it would need a full C++
+toolchain on the player's machine and seconds of compilation per disc.
+`mppcburner` compiles Lua to bytecode ahead of time, at burn time, on the
+author's own machine (§1) — the console only ever `loadbuffer`s bytes it was
+handed, the same shape a compiled `.so` and a compiled `.luac` already both
+are. Transpiling Lua to C++ ahead of time would still be fine as a build-time
+authoring optimization; it is just never a load-time one.
