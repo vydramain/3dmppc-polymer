@@ -16,7 +16,7 @@ namespace example_cpp
 namespace
 {
 
-constexpr int32_t RV_EXAMPLE_CPP_DEPTH_BADGE = 0;
+constexpr int32_t RV_EXAMPLE_CPP_DEPTH_SPRITE = 0;
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_BAR = 400;
 
 struct rv_example_cpp_texheader {
@@ -69,7 +69,7 @@ public:
 
 private:
     bool read_asset(const char *name, std::vector<uint8_t> &out);
-    void load_badge();
+    void load_sprite();
 
     rv_pdko *pdk_ = nullptr;
     int64_t screen_width_ = 0;
@@ -78,7 +78,7 @@ private:
     int64_t addr_texels_ = 0;
     int64_t addr_palette_ = 0;
 
-    int64_t greeting_bytes_ = 0;
+    int64_t text_bytes_ = 0;
     float phase_ = 0.0f;
     uint64_t prev_buttons_ = 0;
     bool release_ = false;
@@ -111,10 +111,10 @@ bool rv_dmain::read_asset(const char *name, std::vector<uint8_t> &out)
     return true;
 }
 
-void rv_dmain::load_badge()
+void rv_dmain::load_sprite()
 {
     std::vector<uint8_t> bytes;
-    if (!read_asset("badge.mppctex", bytes)) {
+    if (!read_asset("example-sprite.mppctex", bytes)) {
         return;
     }
 
@@ -193,12 +193,12 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
         return RV_ERR_INVAL;
     }
 
-    std::vector<uint8_t> greeting;
-    if (read_asset("greeting.txt", greeting)) {
-        greeting_bytes_ = static_cast<int64_t>(greeting.size());
+    std::vector<uint8_t> text;
+    if (read_asset("example-text.txt", text)) {
+        text_bytes_ = static_cast<int64_t>(text.size());
     }
 
-    load_badge();
+    load_sprite();
     return RV_OK;
 }
 
@@ -234,7 +234,7 @@ void rv_dmain::frame_render()
         for (int i = 0; i < 3; ++i) {
             rv_primitive primitive = {};
             primitive.type = RV_PRIMITIVE_SPRITE;
-            primitive.depth = RV_EXAMPLE_CPP_DEPTH_BADGE;
+            primitive.depth = RV_EXAMPLE_CPP_DEPTH_SPRITE;
 
             rv_sprite &sprite = primitive.data.sprite;
             sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
@@ -251,7 +251,7 @@ void rv_dmain::frame_render()
         }
     }
 
-    if (greeting_bytes_ > 0) {
+    if (text_bytes_ > 0) {
         rv_primitive primitive = {};
         primitive.type = RV_PRIMITIVE_SPRITE;
         primitive.depth = RV_EXAMPLE_CPP_DEPTH_BAR;
@@ -264,7 +264,7 @@ void rv_dmain::frame_render()
         sprite.mapping = RV_TEXWRAP_CLAMP;
         sprite.x = 8;
         sprite.y = static_cast<int16_t>(screen_height_ - 16);
-        sprite.width = static_cast<uint16_t>(greeting_bytes_ * 4);
+        sprite.width = static_cast<uint16_t>(text_bytes_ * 4);
         sprite.height = 8;
 
         rv_cv_frame_put(cv, &primitive);
