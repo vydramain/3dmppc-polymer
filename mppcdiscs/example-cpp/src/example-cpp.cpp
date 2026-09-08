@@ -2,12 +2,13 @@
 #include <cstring>
 #include <vector>
 
-#include "pdk/cd/rv_cd.hpp"
-#include "pdk/cio/rv_cio.hpp"
-#include "pdk/cv/rv_cv.hpp"
-#include "pdk/de/rv_de.hpp"
-#include "pdk/rv_err.hpp"
-#include "pdk/de/rv_dv.hpp"
+#include "pdk/cd/rv_cd.h"
+#include "pdk/cio/rv_cio.h"
+#include "pdk/cv/rv_cv.h"
+#include "pdk/de/rv_de.h"
+#include "pdk/rv_err.h"
+#include "pdk/de/rv_dv.h"
+#include "pdk/rv_pdko.h"
 
 namespace example_cpp
 {
@@ -50,18 +51,18 @@ bool parse_texheader(const std::vector<uint8_t> &bytes, rv_example_cpp_texheader
 
 } // namespace
 
-class rv_dmain : public rv_pdk::rv_de
+class rv_dmain
 {
 public:
-    int64_t disc_initialize(rv_pdk::rv_pdko &pdk) override;
-    void frame_update(float dt) override;
-    void frame_render() override;
-    bool disc_release() const override
+    int64_t disc_initialize(rv_pdko *pdk);
+    void frame_update(float dt);
+    void frame_render();
+    int disc_release() const
     {
         return release_;
     }
-    void disc_shutdown() override;
-    const char *disc_title() const override
+    void disc_shutdown();
+    const char *disc_title() const
     {
         return "example-cpp";
     }
@@ -70,7 +71,7 @@ private:
     bool read_asset(const char *name, std::vector<uint8_t> &out);
     void load_badge();
 
-    rv_pdk::rv_pdko *pdk_ = nullptr;
+    rv_pdko *pdk_ = nullptr;
     int64_t screen_width_ = 0;
     int64_t screen_height_ = 0;
 
@@ -85,23 +86,23 @@ private:
 
 bool rv_dmain::read_asset(const char *name, std::vector<uint8_t> &out)
 {
-    rv_pdk::rv_cd *cd = pdk_->cd();
+    rv_cd *cd = rv_pdko_cd(pdk_);
     if (!cd) {
         return false;
     }
 
-    const int64_t handle = cd->asset_open(name);
+    const int64_t handle = rv_cd_asset_open(cd, name);
     if (handle < 0) {
         return false;
     }
 
-    const int64_t size = cd->asset_size(handle);
+    const int64_t size = rv_cd_asset_size(cd, handle);
     if (size < 0) {
         return false;
     }
 
     out.assign(static_cast<std::size_t>(size), 0);
-    const int64_t read = cd->asset_read(handle, out.data(), size);
+    const int64_t read = rv_cd_asset_read(cd, handle, out.data(), size);
     if (read < 0) {
         return false;
     }
@@ -122,7 +123,7 @@ void rv_dmain::load_badge()
         return;
     }
 
-    rv_pdk::rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
     const std::size_t palette_offset = 16;
     const std::size_t palette_bytes = static_cast<std::size_t>(header.palette_count) * 2;
     const std::size_t texel_offset = palette_offset + palette_bytes;
@@ -133,63 +134,63 @@ void rv_dmain::load_badge()
     const std::size_t texel_bytes = bytes.size() - texel_offset;
 
     if (header.palette_count > 0) {
-        const int64_t addr = cv->video_asset_malloc(static_cast<int64_t>(palette_bytes));
+        const int64_t addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_bytes));
         if (addr < 0) {
             return;
         }
 
-        rv_pdk::rv_texture palette{};
-        palette.format = rv_pdk::RV_TEXFMT_DIRECT15;
+        rv_texture palette = {};
+        palette.format = RV_TEXFMT_DIRECT15;
         palette.data = bytes.data() + palette_offset;
         palette.size = palette_bytes;
         palette.width = header.palette_count;
         palette.height = 1;
-        if (cv->video_asset_write(addr, &palette) < 0) {
-            cv->video_asset_free(addr);
+        if (rv_cv_video_asset_write(cv, addr, &palette) < 0) {
+            rv_cv_video_asset_free(cv, addr);
             return;
         }
         addr_palette_ = addr;
     }
 
-    const int64_t addr = cv->video_asset_malloc(static_cast<int64_t>(texel_bytes));
+    const int64_t addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(texel_bytes));
     if (addr < 0) {
         return;
     }
 
-    rv_pdk::rv_texture texels{};
-    texels.format = static_cast<rv_pdk::rv_texfmt>(header.format);
+    rv_texture texels = {};
+    texels.format = static_cast<rv_texfmt>(header.format);
     texels.data = bytes.data() + texel_offset;
     texels.size = texel_bytes;
     texels.width = header.width;
     texels.height = header.height;
-    if (cv->video_asset_write(addr, &texels) < 0) {
-        cv->video_asset_free(addr);
+    if (rv_cv_video_asset_write(cv, addr, &texels) < 0) {
+        rv_cv_video_asset_free(cv, addr);
         return;
     }
     addr_texels_ = addr;
 }
 
-int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk)
+int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
 {
-    pdk_ = &pdk;
+    pdk_ = pdk;
 
-    rv_pdk::rv_cv *cv = pdk_->cv();
-    rv_pdk::rv_cio *cio = pdk_->cio();
+    rv_cv *cv = rv_pdko_cv(pdk_);
+    rv_cio *cio = rv_pdko_cio(pdk_);
     if (!cv || !cio) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
-    screen_width_ = cv->screen_width();
-    screen_height_ = cv->screen_height();
+    screen_width_ = rv_cv_screen_width(cv);
+    screen_height_ = rv_cv_screen_height(cv);
 
     if (screen_width_ < 64 || screen_height_ < 64) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
-    if (cv->frame_capacity() < 8) {
-        return rv_pdk::RV_ERR_INVAL;
+    if (rv_cv_frame_capacity(cv) < 8) {
+        return RV_ERR_INVAL;
     }
-    if (cio->iport_count() < 1) {
-        return rv_pdk::RV_ERR_INVAL;
+    if (rv_cio_iport_count(cio) < 1) {
+        return RV_ERR_INVAL;
     }
 
     std::vector<uint8_t> greeting;
@@ -198,7 +199,7 @@ int64_t rv_dmain::disc_initialize(rv_pdk::rv_pdko &pdk)
     }
 
     load_badge();
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 void rv_dmain::frame_update(float dt)
@@ -207,8 +208,8 @@ void rv_dmain::frame_update(float dt)
         phase_ += dt;
     }
 
-    const uint64_t now = pdk_->cio()->iport_state(0).buttons;
-    if ((now & ~prev_buttons_) & rv_pdk::RV_ISOURCE_MENU_BTTN_MENU) {
+    const uint64_t now = rv_cio_iport_state(rv_pdko_cio(pdk_), 0).buttons;
+    if ((now & ~prev_buttons_) & RV_ISOURCE_MENU_BTTN_MENU) {
         release_ = true;
     }
     prev_buttons_ = now;
@@ -216,13 +217,13 @@ void rv_dmain::frame_update(float dt)
 
 void rv_dmain::frame_render()
 {
-    rv_pdk::rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
-    cv->frame_configure(0, rv_pdk::rv_color{ 20, 24, 40 });
+    rv_cv_frame_configure(cv, 0, rv_color{ 20, 24, 40 });
 
     if (addr_texels_ != 0) {
-        const rv_pdk::rv_texture_mapping_type modes[3] = {
-            rv_pdk::RV_TEXWRAP_CLAMP, rv_pdk::RV_TEXWRAP_TILE, rv_pdk::RV_TEXWRAP_STRETCH
+        const rv_texture_mapping_type modes[3] = {
+            RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
         };
         const float size = 48.0f;
         const float gap = 12.0f;
@@ -231,45 +232,45 @@ void rv_dmain::frame_render()
         const float y0 = (static_cast<float>(screen_height_) - size) * 0.5f;
 
         for (int i = 0; i < 3; ++i) {
-            rv_pdk::rv_primitive primitive{};
-            primitive.type = rv_pdk::RV_PRIMITIVE_SPRITE;
+            rv_primitive primitive = {};
+            primitive.type = RV_PRIMITIVE_SPRITE;
             primitive.depth = RV_EXAMPLE_CPP_DEPTH_BADGE;
 
-            rv_pdk::rv_sprite &sprite = primitive.data.sprite;
-            sprite.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+            rv_sprite &sprite = primitive.data.sprite;
+            sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
             sprite.addr_texture = addr_texels_;
             sprite.addr_palette = addr_palette_;
-            sprite.color = rv_pdk::rv_color{ 255, 255, 255 };
+            sprite.color = rv_color{ 255, 255, 255 };
             sprite.mapping = modes[i];
             sprite.x = static_cast<int16_t>(x0 + static_cast<float>(i) * (size + gap));
             sprite.y = static_cast<int16_t>(y0);
             sprite.width = static_cast<uint16_t>(size);
             sprite.height = static_cast<uint16_t>(size);
 
-            cv->frame_put(&primitive);
+            rv_cv_frame_put(cv, &primitive);
         }
     }
 
     if (greeting_bytes_ > 0) {
-        rv_pdk::rv_primitive primitive{};
-        primitive.type = rv_pdk::RV_PRIMITIVE_SPRITE;
+        rv_primitive primitive = {};
+        primitive.type = RV_PRIMITIVE_SPRITE;
         primitive.depth = RV_EXAMPLE_CPP_DEPTH_BAR;
 
-        rv_pdk::rv_sprite &sprite = primitive.data.sprite;
-        sprite.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
+        rv_sprite &sprite = primitive.data.sprite;
+        sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
         sprite.addr_texture = 0;
         sprite.addr_palette = 0;
-        sprite.color = rv_pdk::rv_color{ 90, 210, 220 };
-        sprite.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+        sprite.color = rv_color{ 90, 210, 220 };
+        sprite.mapping = RV_TEXWRAP_CLAMP;
         sprite.x = 8;
         sprite.y = static_cast<int16_t>(screen_height_ - 16);
         sprite.width = static_cast<uint16_t>(greeting_bytes_ * 4);
         sprite.height = 8;
 
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
     }
 
-    cv->frame_flush();
+    rv_cv_frame_flush(cv);
 }
 
 void rv_dmain::disc_shutdown()
@@ -278,12 +279,12 @@ void rv_dmain::disc_shutdown()
         return;
     }
 
-    rv_pdk::rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
     if (addr_texels_ != 0) {
-        cv->video_asset_free(addr_texels_);
+        rv_cv_video_asset_free(cv, addr_texels_);
     }
     if (addr_palette_ != 0) {
-        cv->video_asset_free(addr_palette_);
+        rv_cv_video_asset_free(cv, addr_palette_);
     }
     addr_texels_ = 0;
     addr_palette_ = 0;

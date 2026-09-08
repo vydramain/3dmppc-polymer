@@ -196,6 +196,28 @@ work), `RV_ERR_NOENT` (the named thing does not exist — a content problem, not
 coding one), `RV_ERR_IO` (the device failed to carry out a well-formed call).
 Values are ABI: existing codes never change, new ones are appended.
 
+**`enum` vs `#define`.** The contract states a constant one of two ways, and the
+choice is not taste:
+
+* **`enum`** when the name is used as a *type* — something is declared with it.
+  `rv_err`, `rv_texfmt`, `rv_texture_mapping_type`, `rv_loop`. A field holding one
+  of these carries the enum type itself (`rv_texture::format`), so no cast is
+  needed at the point of use.
+* **`#define`** when the value only ever *lives in a field of fixed width* —
+  `uint32_t type`, `uint64_t buttons`, the `config` mask of
+  `rv_cv_frame_configure`. The enum name would then appear nowhere but a comment,
+  and C has no way to widen an enum past `int` anyway: `RV_ISOURCE_GYRO_ROLL` is
+  bit 52 and would silently become `0`.
+
+Every such `#define` states its bit index in a trailing comment (`// bit 7`),
+because a hex mask alone does not say which bit it is — the `1ULL << 7` form did.
+Values that are a sequence rather than a mask (`RV_PRIMITIVE_POLYGON`) carry no
+bit comment, and that absence is the signal that they are not combinable.
+
+These `#define`s sit OUTSIDE the `RV_CDEF_BEGIN` / `RV_CDEF_END` markers, because
+a preprocessor directive is exactly what `ffi.cdef` cannot read. A script side
+that needs the constants gets them generated as a table, not through `cdef`.
+
 **Signed vs unsigned.** Signed (`int` / `int64_t`) wherever a value shares its
 channel with an error code — every method return, and every field that
 round-trips through one (`rv_voice_conf::sample_address` holds what
@@ -275,7 +297,7 @@ PDK holds **two** interfaces, and they must not be merged — they point opposit
 | `rv_pdko` (+ controllers)| the console    | the game  | **the hardware** — GPU, SPU, I/O, drive, card; unified behind one façade |
 | `rv_de`          | the game       | the console | **the cartridge's pins** — the `disc_*` / `frame_*` hooks the console drives |
 
-`rv_de` (`pdk/de/rv_de.hpp`) is the counterpart of `rv_pdko`: the
+`rv_de` (`pdk/de/rv_de.h`) is the counterpart of `rv_pdko`: the
 console owns the frame loop and calls *into* the game each frame, so that a disc
 implements **one** PDK type and calls **one** PDK type. Its hooks (`disc_*` for
 lifecycle, `frame_*` for the per-frame pair):
@@ -409,7 +431,7 @@ Tracked here so they are chosen deliberately rather than by drift:
    hardware ordering table. See the *Video* section above.)*
 
 2. **Home of the disc-entry interface.** *(RESOLVED — `rv_de` lives in
-   `pdk/de/rv_de.hpp`, hooks `disc_initialize` / `frame_update` /
+   `pdk/de/rv_de.h`, hooks `disc_initialize` / `frame_update` /
    `frame_render` / `disc_release` / `disc_title`; every disc implements it in a
    class named `rv_dmain`. See "Two directions of the contract". The header is
    written; `rv_Disc` + `rv_DiscServices` in `src/` die with the MVP

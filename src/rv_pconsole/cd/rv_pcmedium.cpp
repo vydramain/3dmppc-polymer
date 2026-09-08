@@ -5,49 +5,60 @@
 #include <limits>
 #include <system_error>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
-
-namespace {
+namespace
+{
 
 // std::filesystem::file_size answers in uintmax_t; the contract answers in a
 // signed int64 whose negative half is reserved for rv_err. An entry too large to
 // express is not a size we may return.
 constexpr uintmax_t kMaxEntrySize = static_cast<uintmax_t>(std::numeric_limits<int64_t>::max());
 
-}  // namespace
+} // namespace
 
 // SECURITY: the gate that keeps a resource name from becoming a path. See the
 // long comment on the declaration in rv_pcmedium.hpp — everything refused here
 // is a way of naming bytes that are not on the inserted disc.
-bool rv_pcresname_valid(const char* resname) {
-    if (resname == nullptr) return false;
-    if (resname[0] == '\0') return false;
+bool rv_pcresname_valid(const char *resname)
+{
+    if (resname == nullptr) {
+        return false;
+    }
+    if (resname[0] == '\0') {
+        return false;
+    }
 
-    for (const char* p = resname; *p != '\0'; ++p) {
+    for (const char *p = resname; *p != '\0'; ++p) {
         // Directory separators: both host conventions, always.
-        if (*p == '/' || *p == '\\') return false;
+        if (*p == '/' || *p == '\\') {
+            return false;
+        }
         // Drive letters and NTFS alternate data streams ("name:stream").
-        if (*p == ':') return false;
+        if (*p == ':') {
+            return false;
+        }
         // Any run of two dots: `..`, `../x`, `a/../b` — the parent-directory
         // escape in every shape it takes.
-        if (*p == '.' && *(p + 1) == '.') return false;
+        if (*p == '.' && *(p + 1) == '.') {
+            return false;
+        }
     }
 
     // A lone "." is the directory itself, not an entry in it.
-    if (std::strcmp(resname, ".") == 0) return false;
+    if (std::strcmp(resname, ".") == 0) {
+        return false;
+    }
 
     return true;
 }
 
-rv_pcdirmedium::rv_pcdirmedium(const std::string& dir_path) {
+rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
+{
     if (dir_path.empty()) {
         // No disc in the drive. Deliberately quiet: this is how a headless smoke
         // run of the console with no game boots, and it is not a fault.
@@ -69,8 +80,11 @@ rv_pcdirmedium::rv_pcdirmedium(const std::string& dir_path) {
     RV_LOG_INFO("pcmedium", "mounted directory medium '{}'", root_.string());
 }
 
-bool rv_pcdirmedium::entry_path(const char* resname, std::filesystem::path& out) const {
-    if (!mounted_ || !rv_pcresname_valid(resname)) return false;
+bool rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out) const
+{
+    if (!mounted_ || !rv_pcresname_valid(resname)) {
+        return false;
+    }
 
     std::filesystem::path candidate = (root_ / resname).lexically_normal();
 
@@ -86,14 +100,19 @@ bool rv_pcdirmedium::entry_path(const char* resname, std::filesystem::path& out)
     return true;
 }
 
-int64_t rv_pcdirmedium::entry_size(const char* resname) const {
+int64_t rv_pcdirmedium::entry_size(const char *resname) const
+{
     std::filesystem::path path;
-    if (!entry_path(resname, path)) return RV_ERR_NOENT;
+    if (!entry_path(resname, path)) {
+        return RV_ERR_NOENT;
+    }
 
     std::error_code ec;
     // A directory, a device node or a dangling symlink is not an entry: the
     // medium holds files and nothing else, so anything else simply is not there.
-    if (!std::filesystem::is_regular_file(path, ec)) return RV_ERR_NOENT;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+        return RV_ERR_NOENT;
+    }
 
     uintmax_t size = std::filesystem::file_size(path, ec);
     if (ec) {
@@ -110,23 +129,32 @@ int64_t rv_pcdirmedium::entry_size(const char* resname) const {
     return static_cast<int64_t>(size);
 }
 
-int64_t rv_pcdirmedium::entry_read(const char* resname, void* baddr, int64_t cap) const {
-    if (baddr == nullptr || cap < 0) return RV_ERR_INVAL;
+int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap) const
+{
+    if (baddr == nullptr || cap < 0) {
+        return RV_ERR_INVAL;
+    }
 
     std::filesystem::path path;
-    if (!entry_path(resname, path)) return RV_ERR_NOENT;
+    if (!entry_path(resname, path)) {
+        return RV_ERR_NOENT;
+    }
 
     // Measure first, and refuse a short buffer BEFORE opening anything: an
     // undersized read must cost the game nothing and leave its buffer untouched.
     const int64_t size = entry_size(resname);
-    if (size < 0) return size;
+    if (size < 0) {
+        return size;
+    }
     if (cap < size) {
         RV_LOG_WARN("pcmedium", "entry '{}' needs {} bytes, buffer holds {}", resname, size, cap);
         return RV_ERR_INVAL;
     }
 
     // An empty entry is a legal entry: nothing to transfer, zero bytes written.
-    if (size == 0) return 0;
+    if (size == 0) {
+        return 0;
+    }
 
     std::ifstream in(path, std::ios::binary);
     if (!in) {
@@ -134,7 +162,7 @@ int64_t rv_pcdirmedium::entry_read(const char* resname, void* baddr, int64_t cap
         return RV_ERR_IO;
     }
 
-    in.read(static_cast<char*>(baddr), static_cast<std::streamsize>(size));
+    in.read(static_cast<char *>(baddr), static_cast<std::streamsize>(size));
     const std::streamsize got = in.gcount();
     if (got != static_cast<std::streamsize>(size)) {
         // The contract promises nothing is written to `baddr` on failure. Every
@@ -147,11 +175,11 @@ int64_t rv_pcdirmedium::entry_read(const char* resname, void* baddr, int64_t cap
         // allocate per read, which rv_cd.hpp explicitly forbids.
         std::memset(baddr, 0, static_cast<size_t>(size));
         RV_LOG_ERR("pcmedium", "short read on entry '{}': {} of {} bytes", resname,
-                   static_cast<int64_t>(got), size);
+            static_cast<int64_t>(got), size);
         return RV_ERR_IO;
     }
 
     return size;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

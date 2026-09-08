@@ -4,13 +4,12 @@
 // vocabulary — so the medium never has to know what a rv_err is.
 #pragma once
 
-#include "pdk/cm/rv_cm.hpp"
 #include "rv_pconsole/cm/rv_pccard.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
 {
-class rv_pccm : public rv_pdk::rv_cm
+class rv_pccm
 {
 private:
     // The image is the single source of truth for the geometry too: it is what
@@ -24,17 +23,17 @@ public:
     explicit rv_pccm(const rv_pccm_conf &conf);
     ~rv_pccm() = default;
 
-    int64_t card_slots() override;
+    int64_t card_slots();
 
-    int64_t card_slot_size() override;
+    int64_t card_slot_size();
 
-    int64_t card_size(int64_t slot) override;
+    int64_t card_size(int64_t slot);
 
-    int64_t card_read(int64_t slot, void *baddr, int64_t baddr_size) override;
+    int64_t card_read(int64_t slot, void *baddr, int64_t baddr_size);
 
-    int64_t card_write(int64_t slot, const void *data, int64_t data_size) override;
+    int64_t card_write(int64_t slot, const void *data, int64_t data_size);
 
-    int64_t card_erase(int64_t slot) override;
+    int64_t card_erase(int64_t slot);
 
     // Does the medium this controller owns actually exist? False when the
     // card failed to come up with the geometry it was asked for.

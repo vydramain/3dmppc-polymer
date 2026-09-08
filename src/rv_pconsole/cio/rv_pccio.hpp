@@ -10,39 +10,50 @@
 // and owns nothing.
 #pragma once
 
-#include "pdk/cio/rv_cio.hpp"
+#include "pdk/cio/rv_imouse.h"
+#include "pdk/cio/rv_isource.h"
+#include "pdk/cio/rv_ohaptic.h"
 #include "rv_pconsole/rv_pchost.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-class rv_pccio : public rv_pdk::rv_cio {
-   public:
+class rv_pccio
+{
+public:
     // `host` is borrowed: the console owns it and outlives every controller it
     // hands to a disc.
-    rv_pccio(const rv_pccio_conf& conf, rv_pchost& host) : conf_(conf), host_(host) {}
-    ~rv_pccio() override = default;
+    rv_pccio(const rv_pccio_conf &conf, rv_pchost &host)
+        : conf_(conf)
+        , host_(host)
+    {
+    }
+    ~rv_pccio() = default;
 
-    rv_pccio(const rv_pccio&) = delete;
-    rv_pccio& operator=(const rv_pccio&) = delete;
+    rv_pccio(const rv_pccio &) = delete;
+    rv_pccio &operator=(const rv_pccio &) = delete;
 
-    int64_t iport_count() override;
+    int64_t iport_count();
 
-    uint64_t iport_abilities(int64_t port) override;
+    uint64_t iport_abilities(int64_t port);
 
-    rv_pdk::rv_imouse imouse() override;
+    rv_imouse imouse();
 
-    rv_pdk::rv_istate iport_state(int64_t port) override;
+    rv_istate iport_state(int64_t port);
 
-    int64_t ohaptic(int64_t port, rv_pdk::rv_oheffect effect) override;
+    int64_t ohaptic(int64_t port, rv_oheffect effect);
 
-   private:
+private:
     // True when `port` names one of the console's fixed slots. Out of range is
     // NOT an error for the query methods (rv_cio.hpp): they report zeroes.
-    bool port_in_range(int64_t port) const { return port >= 0 && port < conf_.iport_count; }
+    bool port_in_range(int64_t port) const
+    {
+        return port >= 0 && port < conf_.iport_count;
+    }
 
     rv_pccio_conf conf_;
-    rv_pchost& host_;
+    rv_pchost &host_;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

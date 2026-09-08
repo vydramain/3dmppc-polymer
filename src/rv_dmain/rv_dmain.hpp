@@ -20,7 +20,9 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/de/rv_de.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/de/rv_de.h"
+#include "pdk/rv_pdko.h"
 
 // NAMESPACE: `rv_service`, not `rv_3dmppc` — this is a DISC, not part of the
 // machine, and a game declared inside the console's namespace reads as part of
@@ -35,21 +37,26 @@
 // THE CONSOLE, so it shares that binary's namespace, and an unprefixed common
 // word there is a collision waiting for the first C++ dependency the console
 // acquires.
-namespace rv_service {
+namespace rv_service
+{
 
-class rv_dmain : public rv_pdk::rv_de {
-   public:
+class rv_dmain
+{
+public:
     rv_dmain() = default;
-    ~rv_dmain() override = default;
+    ~rv_dmain() = default;
 
-    int64_t disc_initialize(rv_pdk::rv_pdko& pdk) override;
-    void frame_update(float dt) override;
-    void frame_render() override;
-    bool disc_release() const override { return release_; }
-    void disc_shutdown() override;
-    const char* disc_title() const override;
+    int64_t disc_initialize(rv_pdko *pdk);
+    void frame_update(float dt);
+    void frame_render();
+    int disc_release() const
+    {
+        return release_ ? 1 : 0;
+    }
+    void disc_shutdown();
+    const char *disc_title() const;
 
-   private:
+private:
     // What the disc persists. Tiny on purpose — the point is that it survives a
     // restart, not what is in it. The magic guards against reading a slot some
     // other game wrote.
@@ -75,16 +82,16 @@ class rv_dmain : public rv_pdk::rv_de {
     // A textured sprite filling the given rect. `addr_palette` is 0 for the
     // direct format, which carries its colour in the texel.
     void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
-                       rv_pdk::rv_texture_mapping_type mapping);
+        rv_texture_mapping_type mapping);
 
     // One line of the POST list: a label, what was found, and whether it
     // answered. Drawn by draw_post().
-    void draw_post_row(int row, const char* label, const char* detail, const char* status,
-                       bool good);
+    void draw_post_row(int row, const char *label, const char *detail, const char *status,
+        bool good);
 
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.
-    rv_pdk::rv_pdko* pdk_ = nullptr;
+    rv_pdko *pdk_ = nullptr;
 
     // Everything the POST list reports. Queried once and kept, because that is
     // what the contract says these are — session-stable answers — and because
@@ -100,8 +107,8 @@ class rv_dmain : public rv_pdk::rv_de {
     int64_t card_slot_size_ = 0;
 
     // --- video ---
-    std::vector<uint16_t> texels_;  // the procedural DIRECT15 test texture
-    int64_t addr_texture_ = 0;      // 0 reads as "not uploaded" by design
+    std::vector<uint16_t> texels_; // the procedural DIRECT15 test texture
+    int64_t addr_texture_ = 0;     // 0 reads as "not uploaded" by design
 
     // A second texture in the INDEXED format, because DIRECT15 alone leaves the
     // palette path — half of the contract's texel formats — untested.
@@ -126,9 +133,9 @@ class rv_dmain : public rv_pdk::rv_de {
     float hue_ = 0.0f;
 
     // --- drive ---
-    int64_t asset_bytes_ = 0;           // what we read off the medium, 0 = nothing
-    bool asset_ok_ = false;             // the read round-tripped and looked like itself
-    bool drive_rejects_paths_ = false;  // the traversal probe answered correctly
+    int64_t asset_bytes_ = 0;          // what we read off the medium, 0 = nothing
+    bool asset_ok_ = false;            // the read round-tripped and looked like itself
+    bool drive_rejects_paths_ = false; // the traversal probe answered correctly
 
     // --- memory card ---
     uint32_t boot_count_ = 0;
@@ -152,4 +159,4 @@ class rv_dmain : public rv_pdk::rv_de {
     bool release_ = false;
 };
 
-}  // namespace rv_service
+} // namespace rv_service

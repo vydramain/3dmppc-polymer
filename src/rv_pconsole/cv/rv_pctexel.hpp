@@ -16,23 +16,24 @@
 
 #include <cstdint>
 
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/cv/rv_texture.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/cv/rv_texture.h"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // A read-only view of one uploaded texture, plus its palette when the format is
 // an indexed one. Everything the sampler needs and nothing it does not: no
 // address, no pool, no ownership.
 struct rv_pctexview {
-    const uint8_t* texels = nullptr;    // region bytes, laid out per `format`
-    const uint16_t* palette = nullptr;  // CLUT entries; nullptr for DIRECT15
-    int64_t palette_count = 0;          // entries behind `palette` (bounds guard)
+    const uint8_t *texels = nullptr;   // region bytes, laid out per `format`
+    const uint16_t *palette = nullptr; // CLUT entries; nullptr for DIRECT15
+    int64_t palette_count = 0;         // entries behind `palette` (bounds guard)
 
-    rv_pdk::rv_texfmt format = rv_pdk::RV_TEXFMT_DIRECT15;
+    rv_texfmt format = RV_TEXFMT_DIRECT15;
 
-    int64_t width = 0;   // texel columns
-    int64_t height = 0;  // texel rows
+    int64_t width = 0;  // texel columns
+    int64_t height = 0; // texel rows
 
     // Can this view be sampled at all? An invalid view is the console's way of
     // saying "this primitive asked to sample, but there is nothing to sample" —
@@ -45,22 +46,23 @@ struct rv_pctexview {
 // must be skipped ENTIRELY — no colour write and no depth write; see the
 // transparency theorem in rv_pctexel.cpp.
 struct rv_pctexel_sample {
-    uint16_t value = 0;  // RGB555 + STP, exactly as the framebuffer stores it
+    uint16_t value = 0; // RGB555 + STP, exactly as the framebuffer stores it
     bool drawn = false;
 };
 
-class rv_pctexel {
-   public:
+class rv_pctexel
+{
+public:
     // Fetch the texel at (u, v). Coordinates outside the texture are resolved by
     // `mapping`; STRETCH arrives here already rescaled by the rasterizer and is
     // therefore treated as CLAMP.
-    static rv_pctexel_sample sample(const rv_pctexview& view, int64_t u, int64_t v,
-                                    rv_pdk::rv_texture_mapping_type mapping);
+    static rv_pctexel_sample sample(const rv_pctexview &view, int64_t u, int64_t v,
+        rv_texture_mapping_type mapping);
 
     // Bring one axis coordinate into [0, size). `size` must be positive (a valid
     // view guarantees it). Exposed because the rasterizer's STRETCH path wants
     // the same rounding rules, and because it is the piece worth testing alone.
-    static int64_t wrap(int64_t coord, int64_t size, rv_pdk::rv_texture_mapping_type mapping);
+    static int64_t wrap(int64_t coord, int64_t size, rv_texture_mapping_type mapping);
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

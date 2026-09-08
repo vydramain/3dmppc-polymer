@@ -2,49 +2,51 @@
 
 #include <cstring>
 
-#include "pdk/cv/rv_texel.hpp"
+#include "pdk/cv/rv_texel.h"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
-
-namespace {
+namespace
+{
 
 // Read one 16-bit value out of the region. std::memcpy and not a
 // reinterpret_cast: video_asset_write() copies the disc's bytes verbatim, so a
 // DIRECT15 region holds uint16_t values in HOST byte order, and memcpy is the
 // only spelling of "reinterpret these two bytes as the uint16_t they were" that
 // is neither an aliasing violation nor an assumption about endianness.
-uint16_t load_u16(const uint8_t* at) {
+uint16_t load_u16(const uint8_t *at)
+{
     uint16_t value = 0;
     std::memcpy(&value, at, sizeof(value));
     return value;
 }
 
 // Is `size` a power of two? Only used to pick the fast wrap path.
-bool is_pow2(int64_t size) { return size > 0 && (size & (size - 1)) == 0; }
+bool is_pow2(int64_t size)
+{
+    return size > 0 && (size & (size - 1)) == 0;
+}
 
-}  // namespace
+} // namespace
 
-bool rv_pctexview::valid() const {
+bool rv_pctexview::valid() const
+{
     if (texels == nullptr || width <= 0 || height <= 0) {
         return false;
     }
     switch (format) {
-        case RV_TEXFMT_IDX4:
-        case RV_TEXFMT_IDX8:
-            // An indexed texture without a palette is not a texture, it is a
-            // pile of indices. rv_cv::frame_put already rejects the primitive
-            // that names no palette region; this catches the region that exists
-            // but was never uploaded into.
-            return palette != nullptr && palette_count > 0;
-        case RV_TEXFMT_DIRECT15:
-            return true;
-        default:
-            return false;
+    case RV_TEXFMT_IDX4:
+    case RV_TEXFMT_IDX8:
+        // An indexed texture without a palette is not a texture, it is a
+        // pile of indices. rv_cv::frame_put already rejects the primitive
+        // that names no palette region; this catches the region that exists
+        // but was never uploaded into.
+        return palette != nullptr && palette_count > 0;
+    case RV_TEXFMT_DIRECT15:
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -57,7 +59,8 @@ bool rv_pctexview::valid() const {
 // only a fast path: for w == 2^k, c & (w - 1) equals the corrected modulo for
 // every c (two's complement makes the low k bits of a negative number exactly
 // its residue), so the common case pays one AND and the odd sizes still work.
-int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type mapping) {
+int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type mapping)
+{
     if (size <= 0) {
         return 0;
     }
@@ -82,11 +85,12 @@ int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type ma
     return coord;
 }
 
-rv_pctexel_sample rv_pctexel::sample(const rv_pctexview& view, int64_t u, int64_t v,
-                                     rv_texture_mapping_type mapping) {
+rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_t v,
+    rv_texture_mapping_type mapping)
+{
     rv_pctexel_sample out;
     if (!view.valid()) {
-        return out;  // nothing to sample: drawn == false
+        return out; // nothing to sample: drawn == false
     }
 
     const int64_t tu = wrap(u, view.width, mapping);
@@ -95,43 +99,42 @@ rv_pctexel_sample rv_pctexel::sample(const rv_pctexview& view, int64_t u, int64_
     uint16_t value = RV_TEXEL_TRANSPARENT;
 
     switch (view.format) {
-        case RV_TEXFMT_IDX4: {
-            // Two texels per byte. The row stride is rounded UP to a whole byte,
-            // so every row starts on a byte boundary and an odd-width texture
-            // wastes one nibble per row instead of shearing the rows apart.
-            //
-            // Nibble order is the PSX one and is fixed here for good: the LOW
-            // nibble is the LEFT texel of the pair. A disc's texture converter
-            // has to agree with exactly one convention, so it is stated in the
-            // code rather than derived from anything.
-            const int64_t stride = (view.width + 1) / 2;
-            const uint8_t packed = view.texels[tv * stride + (tu >> 1)];
-            const uint8_t index = (tu & 1) != 0 ? static_cast<uint8_t>(packed >> 4)
-                                                : static_cast<uint8_t>(packed & 0x0FU);
-            if (static_cast<int64_t>(index) >= view.palette_count) {
-                return out;  // short palette: nothing sane to draw
-            }
-            value = view.palette[index];
-            break;
+    case RV_TEXFMT_IDX4: {
+        // Two texels per byte. The row stride is rounded UP to a whole byte,
+        // so every row starts on a byte boundary and an odd-width texture
+        // wastes one nibble per row instead of shearing the rows apart.
+        //
+        // Nibble order is the PSX one and is fixed here for good: the LOW
+        // nibble is the LEFT texel of the pair. A disc's texture converter
+        // has to agree with exactly one convention, so it is stated in the
+        // code rather than derived from anything.
+        const int64_t stride = (view.width + 1) / 2;
+        const uint8_t packed = view.texels[tv * stride + (tu >> 1)];
+        const uint8_t index = (tu & 1) != 0 ? static_cast<uint8_t>(packed >> 4) : static_cast<uint8_t>(packed & 0x0FU);
+        if (static_cast<int64_t>(index) >= view.palette_count) {
+            return out; // short palette: nothing sane to draw
         }
+        value = view.palette[index];
+        break;
+    }
 
-        case RV_TEXFMT_IDX8: {
-            const uint8_t index = view.texels[tv * view.width + tu];
-            if (static_cast<int64_t>(index) >= view.palette_count) {
-                return out;
-            }
-            value = view.palette[index];
-            break;
+    case RV_TEXFMT_IDX8: {
+        const uint8_t index = view.texels[tv * view.width + tu];
+        if (static_cast<int64_t>(index) >= view.palette_count) {
+            return out;
         }
+        value = view.palette[index];
+        break;
+    }
 
-        case RV_TEXFMT_DIRECT15:
-            // The texel IS the framebuffer word — same bit layout (0-4 R, 5-9 G,
-            // 10-14 B, 15 STP), so no conversion happens anywhere on this path.
-            value = load_u16(view.texels + (tv * view.width + tu) * 2);
-            break;
+    case RV_TEXFMT_DIRECT15:
+        // The texel IS the framebuffer word — same bit layout (0-4 R, 5-9 G,
+        // 10-14 B, 15 STP), so no conversion happens anywhere on this path.
+        value = load_u16(view.texels + (tv * view.width + tu) * 2);
+        break;
 
-        default:
-            return out;  // an rv_texfmt this console does not implement
+    default:
+        return out; // an rv_texfmt this console does not implement
     }
 
     // THEOREM: transparency is decided AFTER the palette lookup — the 0000h rule
@@ -156,4 +159,4 @@ rv_pctexel_sample rv_pctexel::sample(const rv_pctexview& view, int64_t u, int64_
     return out;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

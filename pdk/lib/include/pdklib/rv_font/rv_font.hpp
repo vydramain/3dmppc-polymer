@@ -4,9 +4,9 @@
 #include <cstdint>
 #include <string_view>
 
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/cv/rv_texture.hpp"
-#include "pdk/cv/rv_vertex.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/cv/rv_texture.h"
+#include "pdk/cv/rv_vertex.h"
 #include "pdklib/rv_font/rv_font_data.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 
@@ -19,16 +19,16 @@ namespace rv_pdklib
 // imitates, a font was an asset the game shipped and drew with the ordinary
 // textured primitives; a "draw string" opcode would be a piece of the standard
 // library soldered onto a GPU. So this header lives in pdklib/, above the contract,
-// and produces nothing but rv_pdk::rv_primitive values the disc files with
+// and produces nothing but rv_primitive values the disc files with
 // frame_put.
 //
-// WHY A QUAD AND NOT A SPRITE. rv_pdk::rv_sprite is the cheaper entity and looks
+// WHY A QUAD AND NOT A SPRITE. rv_sprite is the cheaper entity and looks
 // like the obvious answer — an axis-aligned rectangle is exactly what a character
-// is. It cannot be used: rv_sprite carries NO uv (pdk/cv/rv_primitives.hpp), so a
+// is. It cannot be used: rv_sprite carries NO uv (pdk/cv/rv_primitives.h), so a
 // textured sprite always lays the texture down from its UPPER-LEFT CORNER. It can
 // therefore show the whole atlas, or the atlas tiled, but never one chosen cell
 // out of it. Selecting a glyph means naming texture coordinates, and the only
-// entity with per-vertex uv is rv_pdk::rv_polygon. Hence one four-vertex polygon
+// entity with per-vertex uv is rv_polygon. Hence one four-vertex polygon
 // per character, in the PDK's Z order (v0 top-left, v1 top-right, v2 bottom-left,
 // v3 bottom-right) so the console's (1,2,3)/(2,3,4) split lands on the two halves
 // of the rectangle instead of folding it into an hourglass.
@@ -42,10 +42,10 @@ namespace rv_pdklib
 // This is the part that surprises people, so it is stated here rather than
 // discovered later. The obvious modern move — draw a white glyph and tint it with
 // the vertex colour — needs texture-combine (modulate), and the contract marks
-// that DEFERRED (rv_pdk::rv_polygon: "DEFERRED: blending ... and texture-combine
+// that DEFERRED (rv_polygon: "DEFERRED: blending ... and texture-combine
 // (raw/modulation) flags"). Today a SAMPLE_TEXTURE primitive shows the texel and
 // nothing else; the vertex colours it carries are ignored. Setting
-// rv_pdk::rv_vertex colours here would change exactly nothing on screen.
+// rv_vertex colours here would change exactly nothing on screen.
 //
 // The era's own answer, and ours: the atlas is uploaded ONCE as RV_TEXFMT_IDX4
 // with only two indices in use — 0 for the background, 1 for the ink — and the
@@ -57,7 +57,7 @@ namespace rv_pdklib
 // an ADDITION to this, not a replacement — a per-glyph fade over a palette that
 // already picked the hue.
 //
-// TRANSPARENCY FALLS OUT OF THE SAME PALETTE. Per pdk/cv/rv_texture.hpp the value
+// TRANSPARENCY FALLS OUT OF THE SAME PALETTE. Per pdk/cv/rv_texture.h the value
 // 0000h is fully transparent and, for the indexed formats, transparency is decided
 // AFTER the palette lookup. So palette entry 0 is written as 0000h and the glyph
 // background is a hole: text lands on top of the picture instead of inside a
@@ -136,7 +136,7 @@ inline int rv_font_cell_v(int glyph_index)
     return (glyph_index / rv_font_atlas_columns) * rv_font_cell_height;
 }
 
-// Expand the bitmap font into IDX4 texels, ready for rv_cv::video_asset_write.
+// Expand the bitmap font into IDX4 texels, ready for rv_cv_video_asset_write.
 //
 // The buffer belongs to the CALLER — this header never allocates and never talks
 // to the console. pdklib/ has no rv_cv to talk to: it is built over the contract, and
@@ -194,12 +194,12 @@ inline bool rv_font_build_atlas(uint8_t *out, std::size_t size)
     return true;
 }
 
-// Describe an atlas buffer for rv_cv::video_asset_write. The rv_pdk::rv_texture
-// only BORROWS the bytes (pdk/cv/rv_texture.hpp), so `data` must outlive the call.
-inline rv_pdk::rv_texture rv_font_atlas_texture(const uint8_t *data)
+// Describe an atlas buffer for rv_cv_video_asset_write. The rv_texture
+// only BORROWS the bytes (pdk/cv/rv_texture.h), so `data` must outlive the call.
+inline rv_texture rv_font_atlas_texture(const uint8_t *data)
 {
-    rv_pdk::rv_texture texture{};
-    texture.format = rv_pdk::RV_TEXFMT_IDX4;
+    rv_texture texture{};
+    texture.format = RV_TEXFMT_IDX4;
     texture.data = data;
     texture.size = rv_font_atlas_size;
     texture.width = static_cast<uint64_t>(rv_font_atlas_width);
@@ -209,7 +209,7 @@ inline rv_pdk::rv_texture rv_font_atlas_texture(const uint8_t *data)
 
 // --- the palette --------------------------------------------------------------
 
-// Pack an rv_pdk::rv_color into one palette entry. Truncation and not rounding:
+// Pack an rv_color into one palette entry. Truncation and not rounding:
 // it is the same conversion the framebuffer performs, so what a disc asks for is
 // what it gets.
 //
@@ -217,7 +217,7 @@ inline rv_pdk::rv_texture rv_font_atlas_texture(const uint8_t *data)
 // black, it is FULLY TRANSPARENT. An ink colour of pure black would punch the
 // glyph out of the picture and the string would silently disappear — the exact
 // failure this whole header exists to make impossible.
-inline uint16_t rv_font_pack_rgb555(rv_pdk::rv_color c)
+inline uint16_t rv_font_pack_rgb555(rv_color c)
 {
     return rv_texel_opaque(rv_texel_pack(rv_texel_truncate(c)));
 }
@@ -227,10 +227,10 @@ inline uint16_t rv_font_pack_rgb555(rv_pdk::rv_color c)
 //
 // One colour of text = one of these, uploaded once. A disc that wants white body
 // text, a yellow highlight and a red warning uploads three palettes of 32 bytes
-// each and switches rv_pdk::rv_polygon::addr_palette — see the PATTERN at the top.
+// each and switches rv_polygon::addr_palette — see the PATTERN at the top.
 //
 // Returns false if `out` is null or `count` is under rv_font_palette_entries.
-inline bool rv_font_build_palette(rv_pdk::rv_color ink, uint16_t *out, std::size_t count)
+inline bool rv_font_build_palette(rv_color ink, uint16_t *out, std::size_t count)
 {
     if (out == nullptr || count < rv_font_palette_entries) {
         return false;
@@ -242,13 +242,13 @@ inline bool rv_font_build_palette(rv_pdk::rv_color ink, uint16_t *out, std::size
     return true;
 }
 
-// Describe a palette buffer for rv_cv::video_asset_write. A palette is uploaded as
+// Describe a palette buffer for rv_cv_video_asset_write. A palette is uploaded as
 // a DIRECT15 texture of `entries` x 1 — the contract says so explicitly, because a
 // palette entry and a DIRECT15 texel are the same 16-bit value.
-inline rv_pdk::rv_texture rv_font_palette_texture(const uint16_t *entries)
+inline rv_texture rv_font_palette_texture(const uint16_t *entries)
 {
-    rv_pdk::rv_texture texture{};
-    texture.format = rv_pdk::RV_TEXFMT_DIRECT15;
+    rv_texture texture{};
+    texture.format = RV_TEXFMT_DIRECT15;
     texture.data = entries;
     texture.size = rv_font_palette_size;
     texture.width = static_cast<uint64_t>(rv_font_palette_entries);
@@ -348,7 +348,7 @@ inline std::size_t rv_font_primitive_count(std::string_view text)
 // --- drawing ------------------------------------------------------------------
 
 // Everything a run of text needs beyond its position and its characters. The two
-// addresses are what rv_cv::video_asset_malloc returned for the atlas and for the
+// addresses are what rv_cv_video_asset_malloc returned for the atlas and for the
 // palette; `depth` is the ordering-table key, and for a HUD it should sit at the
 // near end of whatever range the disc chose (larger = nearer = on top, per the
 // contract) so text is not eaten by the scenery.
@@ -373,7 +373,7 @@ inline rv_font_style rv_font_style_make(int64_t addr_texture, int64_t addr_palet
 namespace rv_font_detail
 {
 
-// rv_pdk::rv_vertex coordinates are int16 and a caller may legitimately place text
+// rv_vertex coordinates are int16 and a caller may legitimately place text
 // off the left edge (a scrolling credits crawl), so out-of-range values SATURATE
 // instead of wrapping — the same rule pdklib/rv_math/rv_xform.hpp applies to projected
 // geometry. A wrap would teleport a glyph to the opposite edge of the screen.
@@ -388,16 +388,16 @@ inline int16_t to_int16(int value)
     return static_cast<int16_t>(value);
 }
 
-inline rv_pdk::rv_vertex corner(int x, int y, int u, int v)
+inline rv_vertex corner(int x, int y, int u, int v)
 {
-    rv_pdk::rv_vertex vertex{};
+    rv_vertex vertex{};
     vertex.x = to_int16(x);
     vertex.y = to_int16(y);
     // Ignored by a SAMPLE_TEXTURE primitive today (see the PATTERN at the top of
     // this file); set to white so that the day texture-combine lands, a modulating
     // console multiplies by 1 and the text keeps the colour its palette gave it.
-    vertex.color = rv_pdk::rv_color{ 255, 255, 255 };
-    vertex.uv = rv_pdk::rv_uv{ static_cast<uint16_t>(u), static_cast<uint16_t>(v) };
+    vertex.color = rv_color{ 255, 255, 255 };
+    vertex.uv = rv_uv{ static_cast<uint16_t>(u), static_cast<uint16_t>(v) };
     return vertex;
 }
 
@@ -417,7 +417,7 @@ inline rv_pdk::rv_vertex corner(int x, int y, int u, int v)
 // coordinate outside the atlas. It is the honest choice anyway — TILE would hide a
 // future arithmetic mistake by wrapping it into a plausible-looking glyph.
 inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int x, int y,
-    rv_pdk::rv_primitive &out)
+    rv_primitive &out)
 {
     const int scale = rv_font_scale_clamp(style.scale);
     const int size_x = rv_font_cell_width * scale;
@@ -428,15 +428,15 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
     const int u1 = u0 + rv_font_cell_width;
     const int v1 = v0 + rv_font_cell_height;
 
-    out = rv_pdk::rv_primitive{};
-    out.type = rv_pdk::RV_PRIMITIVE_POLYGON;
+    out = rv_primitive{};
+    out.type = RV_PRIMITIVE_POLYGON;
     out.depth = style.depth;
 
-    rv_pdk::rv_polygon &polygon = out.data.polygon;
-    polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
+    rv_polygon &polygon = out.data.polygon;
+    polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
     polygon.addr_texture = style.addr_texture;
     polygon.addr_palette = style.addr_palette;
-    polygon.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+    polygon.mapping = RV_TEXWRAP_CLAMP;
     polygon.vertex_count = 4;
 
     // Z order, not rim order: the console splits a quad into (1,2,3) and (2,3,4).
@@ -448,12 +448,12 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
 
 // Lay out `text` starting at (x, y) — the upper-left pixel of the first cell — and
 // hand every glyph's primitive to `sink`, which is called as sink(const
-// rv_pdk::rv_primitive&). Returns how many primitives were produced.
+// rv_primitive&). Returns how many primitives were produced.
 //
 // NOTHING IS ALLOCATED. This runs once per string per frame; a std::vector here
 // would put a heap allocation in the frame loop of a machine that is pretending to
 // be a 1994 console. The caller either files each primitive straight into
-// rv_cv::frame_put from the sink, or writes into a buffer it already owns (see the
+// rv_cv_frame_put from the sink, or writes into a buffer it already owns (see the
 // overload below).
 //
 // '\n' returns the pen to `x` and drops it one line. Spaces advance without
@@ -483,9 +483,9 @@ inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::s
             continue;
         }
 
-        rv_pdk::rv_primitive primitive{};
+        rv_primitive primitive{};
         rv_font_glyph_quad(style, rv_font_glyph_index(c), pen_x, pen_y, primitive);
-        sink(static_cast<const rv_pdk::rv_primitive &>(primitive));
+        sink(static_cast<const rv_primitive &>(primitive));
         ++emitted;
 
         pen_x += advance;
@@ -498,13 +498,13 @@ inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::s
 // whether the whole string fits. Truncation is silent by design — a HUD that runs
 // out of buffer should lose its tail, not stop the frame.
 inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
-    rv_pdk::rv_primitive *out, std::size_t capacity)
+    rv_primitive *out, std::size_t capacity)
 {
     if (out == nullptr) {
         return 0;
     }
     std::size_t written = 0;
-    rv_font_draw(style, x, y, text, [&](const rv_pdk::rv_primitive &primitive) {
+    rv_font_draw(style, x, y, text, [&](const rv_primitive &primitive) {
         if (written < capacity) {
             out[written++] = primitive;
         }

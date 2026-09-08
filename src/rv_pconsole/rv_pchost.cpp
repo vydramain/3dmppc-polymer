@@ -5,17 +5,12 @@
 #include <algorithm>
 #include <cmath>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 
 namespace rv_3dmppc
 {
-
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
 
 namespace
 {

@@ -3,14 +3,15 @@
 #include <cmath>
 #include <cstdint>
 
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/cv/rv_vertex.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/cv/rv_vertex.h"
 #include "pdklib/rv_camera/rv_camera.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
-// The bridge: 3D geometry in, rv_pdk::rv_primitive out. This is the file that
+// The bridge: 3D geometry in, rv_primitive out. This is the file that
 // makes the rest of pdklib/ worth having, because the console's contract stops at
 // int16 screen coordinates and a depth SORT KEY — every step between a
 // world-space triangle and those numbers is the disc's own work.
@@ -40,8 +41,8 @@ namespace rv_pdklib {
 // upright in the first place), so the faces to discard are SCREEN_CW.
 enum rv_cull_mode {
     RV_CULL_NONE = 0,
-    RV_CULL_SCREEN_CW = 1,   // discard faces wound clockwise on screen
-    RV_CULL_SCREEN_CCW = 2,  // discard faces wound counter-clockwise on screen
+    RV_CULL_SCREEN_CW = 1,  // discard faces wound clockwise on screen
+    RV_CULL_SCREEN_CCW = 2, // discard faces wound counter-clockwise on screen
 };
 
 // Everything the per-triangle stage needs, built once per frame per object.
@@ -51,19 +52,20 @@ enum rv_cull_mode {
 // the disc how many buckets there are, so the disc picks a range and stays in it.
 // Remember the contract's direction: LARGER depth = NEARER = drawn on top.
 struct rv_xform_conf {
-    rv_mat4 mvp;          // projection * view * model
-    float screen_width;   // rv_cv::screen_width(), as a float
-    float screen_height;  // rv_cv::screen_height(), as a float
-    float near_plane;     // the camera's near plane; w below it is rejected
-    float far_plane;      // the camera's far plane; the depth key's far end
-    int32_t depth_min;    // ordering-table key at the far plane
-    int32_t depth_max;    // ordering-table key at the near plane
-    uint32_t cull;        // rv_cull_mode
+    rv_mat4 mvp;         // projection * view * model
+    float screen_width;  // rv_cv::screen_width(), as a float
+    float screen_height; // rv_cv::screen_height(), as a float
+    float near_plane;    // the camera's near plane; w below it is rejected
+    float far_plane;     // the camera's far plane; the depth key's far end
+    int32_t depth_min;   // ordering-table key at the far plane
+    int32_t depth_max;   // ordering-table key at the near plane
+    uint32_t cull;       // rv_cull_mode
 };
 
-inline rv_xform_conf rv_xform_conf_make(const rv_mat4& mvp, const rv_camera& camera,
-                                        float screen_width, float screen_height, int32_t depth_min,
-                                        int32_t depth_max, uint32_t cull) {
+inline rv_xform_conf rv_xform_conf_make(const rv_mat4 &mvp, const rv_camera &camera,
+    float screen_width, float screen_height, int32_t depth_min,
+    int32_t depth_max, uint32_t cull)
+{
     rv_xform_conf conf{};
     conf.mvp = mvp;
     conf.screen_width = screen_width;
@@ -79,9 +81,9 @@ inline rv_xform_conf rv_xform_conf_make(const rv_mat4& mvp, const rv_camera& cam
 // A vertex on its way through the pipeline: the clip-space position plus the
 // attributes that ride along untouched.
 struct rv_xform_vertex {
-    rv_vec3 position;  // world space (model space if the mvp includes the model)
-    rv_pdk::rv_color color;
-    rv_pdk::rv_uv uv;
+    rv_vec3 position; // world space (model space if the mvp includes the model)
+    rv_color color;
+    rv_uv uv;
 };
 
 // --- stage 2: the near plane --------------------------------------------------
@@ -101,12 +103,15 @@ struct rv_xform_vertex {
 // the moment one corner passes the eye — noticeable on walls and floors, which is
 // why discs that use them should tessellate. Nothing here is unsound, it is
 // merely conservative: everything kept is guaranteed safe to divide.
-inline bool rv_xform_near_reject(const rv_vec4* clip, int count, float near_plane) {
+inline bool rv_xform_near_reject(const rv_vec4 *clip, int count, float near_plane)
+{
     // A hair of slack: at exactly w == near the divide is defined but the
     // reciprocal is already the largest it will legitimately get.
     const float limit = near_plane * 0.999f;
     for (int i = 0; i < count; ++i) {
-        if (!(clip[i].w > limit)) return true;  // NaN-safe: NaN fails the test
+        if (!(clip[i].w > limit)) {
+            return true; // NaN-safe: NaN fails the test
+        }
     }
     return false;
 }
@@ -115,9 +120,10 @@ inline bool rv_xform_near_reject(const rv_vec4* clip, int count, float near_plan
 
 // Perspective divide. The caller must have passed rv_xform_near_reject first;
 // w > 0 is a precondition, not something re-checked per vertex.
-inline rv_vec3 rv_xform_divide(rv_vec4 clip) {
+inline rv_vec3 rv_xform_divide(rv_vec4 clip)
+{
     const float inv_w = 1.0f / clip.w;
-    return rv_vec3{clip.x * inv_w, clip.y * inv_w, clip.z * inv_w};
+    return rv_vec3{ clip.x * inv_w, clip.y * inv_w, clip.z * inv_w };
 }
 
 // NDC -> framebuffer pixels. Two things happen: the [-1, +1] box is stretched
@@ -125,23 +131,30 @@ inline rv_vec3 rv_xform_divide(rv_vec4 clip) {
 // framebuffer's y grows down. The flip keeps the picture upright; what it does
 // change is the SIGN of every signed area computed downstream, which is why the
 // culling THEOREM is stated in screen space and not in world space.
-inline rv_vec2 rv_xform_to_screen(rv_vec3 ndc, float screen_width, float screen_height) {
-    return rv_vec2{(ndc.x * 0.5f + 0.5f) * screen_width, (0.5f - ndc.y * 0.5f) * screen_height};
+inline rv_vec2 rv_xform_to_screen(rv_vec3 ndc, float screen_width, float screen_height)
+{
+    return rv_vec2{ (ndc.x * 0.5f + 0.5f) * screen_width, (0.5f - ndc.y * 0.5f) * screen_height };
 }
 
 // Round to the nearest pixel and SATURATE into int16. Saturation, not wrap: a
-// vertex far off-screen is legal (rv_pdk::rv_vertex is signed precisely so a
+// vertex far off-screen is legal (rv_vertex is signed precisely so a
 // clipped corner can be expressed), but a wrapped coordinate would teleport it to
 // the opposite edge and drag the whole polygon with it.
-inline int16_t rv_xform_saturate(float value) {
-    if (!(value > -32768.0f)) return -32768;  // also catches NaN
-    if (value >= 32767.0f) return 32767;
+inline int16_t rv_xform_saturate(float value)
+{
+    if (!(value > -32768.0f)) {
+        return -32768; // also catches NaN
+    }
+    if (value >= 32767.0f) {
+        return 32767;
+    }
     return static_cast<int16_t>(std::floor(value + 0.5f));
 }
 
-inline rv_pdk::rv_vertex rv_xform_vertex_make(rv_vec2 screen, rv_pdk::rv_color color,
-                                              rv_pdk::rv_uv uv) {
-    rv_pdk::rv_vertex vertex{};
+inline rv_vertex rv_xform_vertex_make(rv_vec2 screen, rv_color color,
+    rv_uv uv)
+{
+    rv_vertex vertex{};
     vertex.x = rv_xform_saturate(screen.x);
     vertex.y = rv_xform_saturate(screen.y);
     vertex.color = color;
@@ -166,15 +179,23 @@ inline rv_pdk::rv_vertex rv_xform_vertex_make(rv_vec2 screen, rv_pdk::rv_color c
 //
 // area2 == 0 is a triangle seen edge-on (zero pixels); it is reported as culled
 // for either cull mode, so the caller never files a primitive that draws nothing.
-inline float rv_xform_signed_area2(rv_vec2 a, rv_vec2 b, rv_vec2 c) {
+inline float rv_xform_signed_area2(rv_vec2 a, rv_vec2 b, rv_vec2 c)
+{
     return rv_cross(b - a, c - a);
 }
 
-inline bool rv_xform_culled(rv_vec2 a, rv_vec2 b, rv_vec2 c, uint32_t cull) {
-    if (cull == RV_CULL_NONE) return false;
+inline bool rv_xform_culled(rv_vec2 a, rv_vec2 b, rv_vec2 c, uint32_t cull)
+{
+    if (cull == RV_CULL_NONE) {
+        return false;
+    }
     const float area2 = rv_xform_signed_area2(a, b, c);
-    if (area2 == 0.0f) return true;
-    if (cull == RV_CULL_SCREEN_CW) return area2 > 0.0f;
+    if (area2 == 0.0f) {
+        return true;
+    }
+    if (cull == RV_CULL_SCREEN_CW) {
+        return area2 > 0.0f;
+    }
     return area2 < 0.0f;
 }
 
@@ -198,15 +219,22 @@ inline bool rv_xform_culled(rv_vec2 a, rv_vec2 b, rv_vec2 c, uint32_t cull) {
 // The mean is used rather than the nearest or farthest vertex because it is the
 // only choice that is stable under the vertex ORDER of the polygon; min/max jump
 // when a long polygon rotates.
-inline int32_t rv_xform_depth_key(const rv_vec4* clip, int count, const rv_xform_conf& conf) {
+inline int32_t rv_xform_depth_key(const rv_vec4 *clip, int count, const rv_xform_conf &conf)
+{
     float sum = 0.0f;
-    for (int i = 0; i < count; ++i) sum += clip[i].w;
+    for (int i = 0; i < count; ++i) {
+        sum += clip[i].w;
+    }
     const float mean_z = sum / static_cast<float>(count);
 
     const float range = conf.far_plane - conf.near_plane;
     float t = (range > 0.0f) ? (mean_z - conf.near_plane) / range : 0.0f;
-    if (!(t > 0.0f)) t = 0.0f;  // NaN-safe
-    if (t > 1.0f) t = 1.0f;
+    if (!(t > 0.0f)) {
+        t = 0.0f; // NaN-safe
+    }
+    if (t > 1.0f) {
+        t = 1.0f;
+    }
 
     const float near_key = static_cast<float>(conf.depth_max);
     const float far_key = static_cast<float>(conf.depth_min);
@@ -229,62 +257,78 @@ inline int32_t rv_xform_depth_key(const rv_vec4* clip, int count, const rv_xform
 //
 // Returns false when the polygon was rejected (behind the near plane, culled, or
 // a bad vertex count); `out` is then untouched and nothing should be filed.
-inline bool rv_xform_polygon(const rv_xform_conf& conf, const rv_xform_vertex* vertexes, int count,
-                             rv_pdk::rv_primitive& out) {
-    if (count != 3 && count != 4) return false;
+inline bool rv_xform_polygon(const rv_xform_conf &conf, const rv_xform_vertex *vertexes, int count,
+    rv_primitive &out)
+{
+    if (count != 3 && count != 4) {
+        return false;
+    }
 
     rv_vec4 clip[4];
     rv_vec2 screen[4];
-    for (int i = 0; i < count; ++i) clip[i] = rv_world_to_clip(conf.mvp, vertexes[i].position);
+    for (int i = 0; i < count; ++i) {
+        clip[i] = rv_world_to_clip(conf.mvp, vertexes[i].position);
+    }
 
-    if (rv_xform_near_reject(clip, count, conf.near_plane)) return false;
+    if (rv_xform_near_reject(clip, count, conf.near_plane)) {
+        return false;
+    }
 
     for (int i = 0; i < count; ++i) {
         screen[i] =
             rv_xform_to_screen(rv_xform_divide(clip[i]), conf.screen_width, conf.screen_height);
     }
 
-    if (rv_xform_culled(screen[0], screen[1], screen[2], conf.cull)) return false;
+    if (rv_xform_culled(screen[0], screen[1], screen[2], conf.cull)) {
+        return false;
+    }
 
-    out = rv_pdk::rv_primitive{};
-    out.type = rv_pdk::RV_PRIMITIVE_POLYGON;
+    out = rv_primitive{};
+    out.type = RV_PRIMITIVE_POLYGON;
     out.depth = rv_xform_depth_key(clip, count, conf);
 
-    rv_pdk::rv_polygon& polygon = out.data.polygon;
-    polygon.fill_mode = rv_pdk::RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;  // caller may override
+    rv_polygon &polygon = out.data.polygon;
+    polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED; // caller may override
     polygon.addr_texture = 0;
     polygon.addr_palette = 0;
-    polygon.mapping = rv_pdk::RV_TEXWRAP_CLAMP;
+    polygon.mapping = RV_TEXWRAP_CLAMP;
     polygon.vertex_count = static_cast<uint32_t>(count);
     for (int i = 0; i < count; ++i) {
         polygon.vertexes[i] = rv_xform_vertex_make(screen[i], vertexes[i].color, vertexes[i].uv);
     }
     // vertexes[3] is ignored at vertex_count == 3, but no byte of a submitted
     // primitive may be indeterminate (it is a union member).
-    for (int i = count; i < 4; ++i) polygon.vertexes[i] = rv_pdk::rv_vertex{};
+    for (int i = count; i < 4; ++i) {
+        polygon.vertexes[i] = rv_vertex{};
+    }
     return true;
 }
 
-inline bool rv_xform_triangle(const rv_xform_conf& conf, const rv_xform_vertex* vertexes,
-                              rv_pdk::rv_primitive& out) {
+inline bool rv_xform_triangle(const rv_xform_conf &conf, const rv_xform_vertex *vertexes,
+    rv_primitive &out)
+{
     return rv_xform_polygon(conf, vertexes, 3, out);
 }
 
-inline bool rv_xform_quad(const rv_xform_conf& conf, const rv_xform_vertex* vertexes,
-                          rv_pdk::rv_primitive& out) {
+inline bool rv_xform_quad(const rv_xform_conf &conf, const rv_xform_vertex *vertexes,
+    rv_primitive &out)
+{
     return rv_xform_polygon(conf, vertexes, 4, out);
 }
 
 // One world point to one screen point, for the cases that are not polygons at all
 // — a billboard's corner, a HUD marker pinned to an object, a debug cross.
 // Returns false if the point is behind the near plane.
-inline bool rv_xform_point(const rv_xform_conf& conf, rv_vec3 world, rv_vec2& out_screen,
-                           int32_t& out_depth) {
+inline bool rv_xform_point(const rv_xform_conf &conf, rv_vec3 world, rv_vec2 &out_screen,
+    int32_t &out_depth)
+{
     const rv_vec4 clip = rv_world_to_clip(conf.mvp, world);
-    if (rv_xform_near_reject(&clip, 1, conf.near_plane)) return false;
+    if (rv_xform_near_reject(&clip, 1, conf.near_plane)) {
+        return false;
+    }
     out_screen = rv_xform_to_screen(rv_xform_divide(clip), conf.screen_width, conf.screen_height);
     out_depth = rv_xform_depth_key(&clip, 1, conf);
     return true;
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

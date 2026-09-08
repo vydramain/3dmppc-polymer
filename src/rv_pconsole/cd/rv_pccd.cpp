@@ -3,15 +3,11 @@
 #include <new>
 #include <utility>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/cd/rv_cd.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
-
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
 
 rv_pccd::rv_pccd(const rv_pccd_conf& conf)
     : conf_(conf), medium_(std::make_unique<rv_pcdirmedium>(conf.medium_path)) {}
@@ -142,3 +138,22 @@ int64_t rv_pccd::asset_read(int64_t handle, void* baddr, int64_t baddr_size) {
 }
 
 }  // namespace rv_3dmppc
+
+// --- C contract (pdk/cd/rv_cd.h) ---------------------------------------------
+// An rv_cd* handle and the address of an rv_pccd are the same address: exactly
+// one implementation of each controller lives in the process.
+
+extern "C" int64_t rv_cd_asset_open(rv_cd *cd, const char *resname)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->asset_open(resname);
+}
+
+extern "C" int64_t rv_cd_asset_size(rv_cd *cd, int64_t handle)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->asset_size(handle);
+}
+
+extern "C" int64_t rv_cd_asset_read(rv_cd *cd, int64_t handle, void *baddr, int64_t baddr_size)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->asset_read(handle, baddr, baddr_size);
+}

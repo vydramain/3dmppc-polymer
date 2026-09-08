@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <limits>
 
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cm/rv_pccard.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
@@ -27,7 +27,7 @@ constexpr int64_t RV_PCFBUF_BYTES_PER_PIXEL = 2 + 4 + 4;
 constexpr int64_t RV_PCCARD_HEADER_BYTES = 32;
 constexpr int64_t RV_PCCARD_LENGTH_ENTRY_BYTES = 8;
 
-// A voice mask is an int64_t carrying bits 0..62 (pdk/ca/rv_ca.hpp), so 63 is
+// A voice mask is an int64_t carrying bits 0..62 (pdk/ca/rv_ca.h), so 63 is
 // the most voices any console can ever name — see RV_PCCA_MAX_VOICES in
 // rv_pcca.cpp, whose clamp to this same limit is the unreachable backstop.
 constexpr int64_t RV_PCCA_MAX_VOICES = 63;
@@ -94,7 +94,7 @@ int64_t rv_pboot_check_budget(
         bad_field("budget.pccm.card_slots", budget.pccm.card_slots, true) ||
         bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true) ||
         bad_field("budget.pccl.script_memory_size", budget.pccl.script_memory_size, false)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // The lua machine is the one subsystem a disc may legally not have at all,
@@ -111,7 +111,7 @@ int64_t rv_pboot_check_budget(
             "'budget.pcca.voice_count' asks for {}, over the {} this console can name "
             "(a voice mask carries bits 0..62)",
             budget.pcca.voice_count, RV_PCCA_MAX_VOICES);
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     int64_t total = 0;
@@ -119,7 +119,7 @@ int64_t rv_pboot_check_budget(
     // Video RAM pool (rv_pccv::rv_pccv -> rv_pcvram(video_memory_size)):
     // the pool is exactly video_memory_size bytes, no product involved.
     if (add_overflow("budget.pccv.video_memory_size", total, budget.pccv.video_memory_size)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Framebuffer (rv_pcfbuf): width * height * (color + depth + argb).
@@ -131,7 +131,7 @@ int64_t rv_pboot_check_budget(
             RV_PCFBUF_BYTES_PER_PIXEL, fbuf_bytes) ||
         add_overflow("budget.pccv.screen_width * screen_height * bytes_per_pixel", total,
             fbuf_bytes)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Ordering table (rv_pcotable): ot_bucket_count * (head_ + tail_).
@@ -139,16 +139,16 @@ int64_t rv_pboot_check_budget(
     if (mul_overflow("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count,
             RV_PCOTABLE_BYTES_PER_BUCKET, otable_bytes) ||
         add_overflow("budget.pccv.ot_bucket_count", total, otable_bytes)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Primitive buffer (rv_pccv::rv_pccv -> primitives_.reserve(frame_capacity)):
     // frame_capacity * sizeof(rv_primitive).
     int64_t primitives_bytes = 0;
     if (mul_overflow("budget.pccv.frame_capacity", budget.pccv.frame_capacity,
-            static_cast<int64_t>(sizeof(rv_pdk::rv_primitive)), primitives_bytes) ||
+            static_cast<int64_t>(sizeof(rv_primitive)), primitives_bytes) ||
         add_overflow("budget.pccv.frame_capacity", total, primitives_bytes)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Memory-card image (rv_pccard): header + one length entry per slot, plus
@@ -162,7 +162,7 @@ int64_t rv_pboot_check_budget(
         add_overflow("budget.pccm.card_slots * card_slot_size", total, card_payload_bytes) ||
         add_overflow("budget.pccm.card_slots", total, card_table_bytes) ||
         add_overflow("budget.pccm.card_slots", total, RV_PCCARD_HEADER_BYTES)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // rv_pccard refuses at construction to hold an image above its own
@@ -177,7 +177,7 @@ int64_t rv_pboot_check_budget(
             "byte(s) card image, over the {} byte(s) this console's memory card can hold",
             budget.pccm.card_slots, budget.pccm.card_slot_size, card_image_bytes,
             rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES);
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Port slots (rv_pchost::configure -> ports_.assign(iport_count, ...)):
@@ -189,7 +189,7 @@ int64_t rv_pboot_check_budget(
     if (mul_overflow("budget.pccio.iport_count", budget.pccio.iport_count,
             rv_pchost::port_bytes(), iports_bytes) ||
         add_overflow("budget.pccio.iport_count", total, iports_bytes)) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // Sound RAM (rv_pcca::rv_pcca -> sram_.emplace(sound_memory_size, ...)),
@@ -197,7 +197,7 @@ int64_t rv_pboot_check_budget(
     // checks nor counts the disc's sound memory.
     if (audio_on) {
         if (add_overflow("budget.pcca.sound_memory_size", total, budget.pcca.sound_memory_size)) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
     }
 
@@ -207,7 +207,7 @@ int64_t rv_pboot_check_budget(
     // allocation inside the VM instead of being refused here by name.
     if (scripting) {
         if (add_overflow("budget.pccl.script_memory_size", total, budget.pccl.script_memory_size)) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
     }
 
@@ -215,16 +215,16 @@ int64_t rv_pboot_check_budget(
     if (machine.ram_available < 0) {
         RV_LOG_ERR("pccheck",
             "machine RAM unknown, cannot show disc's {} byte(s) fit", total);
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     if (total > machine.ram_available) {
         RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total,
             machine.ram_available);
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

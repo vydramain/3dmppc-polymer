@@ -2,8 +2,8 @@
 
 #include <cstdint>
 
-#include "pdk/cv/rv_texel.hpp"
-#include "pdk/cv/rv_vertex.hpp"
+#include "pdk/cv/rv_texel.h"
+#include "pdk/cv/rv_vertex.h"
 
 namespace rv_pdklib
 {
@@ -26,15 +26,15 @@ namespace rv_pdklib
 // the choice of quantiser stays with the caller.
 
 /// Pack a 5-bit colour into the value a framebuffer or a palette entry stores.
-inline constexpr uint16_t rv_texel_pack(rv_pdk::rv_color5 c)
+inline constexpr uint16_t rv_texel_pack(rv_color5 c)
 {
     return static_cast<uint16_t>((c.r & 0x1F) | ((c.g & 0x1F) << 5) | ((c.b & 0x1F) << 10));
 }
 
 /// Take one apart again — the inverse of rv_texel_pack. STP is dropped.
-inline constexpr rv_pdk::rv_color5 rv_texel_unpack(uint16_t value)
+inline constexpr rv_color5 rv_texel_unpack(uint16_t value)
 {
-    return rv_pdk::rv_color5{ static_cast<uint8_t>(value & 0x1F),
+    return rv_color5{ static_cast<uint8_t>(value & 0x1F),
         static_cast<uint8_t>((value >> 5) & 0x1F),
         static_cast<uint8_t>((value >> 10) & 0x1F) };
 }
@@ -50,9 +50,9 @@ inline constexpr uint8_t rv_texel_channel5(uint8_t value)
 }
 
 /// A whole colour, rounded to the nearest representable one.
-inline constexpr rv_pdk::rv_color5 rv_texel_quantize(rv_pdk::rv_color c)
+inline constexpr rv_color5 rv_texel_quantize(rv_color c)
 {
-    return rv_pdk::rv_color5{ rv_texel_channel5(c.r), rv_texel_channel5(c.g),
+    return rv_color5{ rv_texel_channel5(c.r), rv_texel_channel5(c.g),
         rv_texel_channel5(c.b) };
 }
 
@@ -61,9 +61,9 @@ inline constexpr rv_pdk::rv_color5 rv_texel_quantize(rv_pdk::rv_color c)
 /// The cheap conversion, and the correct one when the caller has ALREADY added a
 /// dither threshold: truncation is what that threshold was chosen against, so
 /// rounding on top of it would cancel half the dither.
-inline constexpr rv_pdk::rv_color5 rv_texel_truncate(rv_pdk::rv_color c)
+inline constexpr rv_color5 rv_texel_truncate(rv_color c)
 {
-    return rv_pdk::rv_color5{ static_cast<uint8_t>(c.r >> 3), static_cast<uint8_t>(c.g >> 3),
+    return rv_color5{ static_cast<uint8_t>(c.r >> 3), static_cast<uint8_t>(c.g >> 3),
         static_cast<uint8_t>(c.b >> 3) };
 }
 
@@ -73,7 +73,7 @@ inline constexpr uint16_t rv_texel_near_black = 0x0001;
 /// Keep an opaque colour opaque.
 ///
 /// A colour that packs to 0000h is not black on this machine, it is a HOLE
-/// (pdk/cv/rv_texel.hpp). Anything that meant to be drawn must therefore be
+/// (pdk/cv/rv_texel.h). Anything that meant to be drawn must therefore be
 /// nudged off that value, and 0001h is the nearest place to put it: one level of
 /// red, below the console's own dithering noise floor and indistinguishable from
 /// black on screen.
@@ -82,7 +82,7 @@ inline constexpr uint16_t rv_texel_near_black = 0x0001;
 /// happened — it sees a texel that is simply not a hole.
 inline constexpr uint16_t rv_texel_opaque(uint16_t value)
 {
-    return value == rv_pdk::RV_TEXEL_TRANSPARENT ? rv_texel_near_black : value;
+    return value == RV_TEXEL_TRANSPARENT ? rv_texel_near_black : value;
 }
 
 } // namespace rv_pdklib

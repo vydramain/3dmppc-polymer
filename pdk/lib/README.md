@@ -34,12 +34,12 @@ One tree, one namespace, and the boundary is visible in every signature:
 | `rv_3dmppc` | the **console**, and only the console | `src/**` |
 
 Everything in these headers is in `rv_pdklib`. Contract types are always written
-out — `rv_pdk::rv_primitive`, `rv_pdk::rv_color`, `rv_pdk::rv_texture` — so a
+out — `rv_primitive`, `rv_color`, `rv_texture` — so a
 signature says on its face which side of the boundary each type comes from:
 
 ```cpp
-rv_pdk::rv_primitive out{};
-if (rv_pdklib::rv_xform_triangle(conf, vertexes, out)) cv->frame_put(out);
+rv_primitive out{};
+if (rv_pdklib::rv_xform_triangle(conf, vertexes, out)) rv_cv_frame_put(cv, out);
 ```
 
 **No header here contains a `using namespace`.** A using-directive in a header

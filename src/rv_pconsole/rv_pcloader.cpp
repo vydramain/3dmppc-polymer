@@ -14,8 +14,8 @@
 #include <system_error>
 #include <vector>
 
-#include "pdk/rv_err.hpp"
-#include "pdk/de/rv_dv.hpp"
+#include "pdk/rv_err.h"
+#include "pdk/de/rv_dv.h"
 #include "pdklib/rv_disc_hash/rv_disc_hash.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
@@ -23,11 +23,6 @@
 
 namespace rv_3dmppc
 {
-
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
 
 namespace
 {
@@ -213,7 +208,7 @@ int64_t rv_pcloader_probe_staging()
         RV_LOG_ERR("pcloader",
             "staging directory '{}' cannot be used to extract a disc's code: {}",
             dir, std::strerror(errno));
-        return rv_pdk::RV_ERR_IO;
+        return RV_ERR_IO;
     }
     ::close(fd);
 
@@ -221,9 +216,9 @@ int64_t rv_pcloader_probe_staging()
         RV_LOG_ERR("pcloader",
             "staging directory '{}' accepted a probe file but would not remove it: {}",
             dir, std::strerror(errno));
-        return rv_pdk::RV_ERR_IO;
+        return RV_ERR_IO;
     }
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 rv_pcloader::~rv_pcloader()
@@ -371,8 +366,8 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
             const uint64_t segment_end = segment_offset + segment_size;
 
             constexpr uint64_t expected_owner_size =
-                sizeof(rv_pdk::RV_MPPC_NOTE_OWNER);
-            constexpr uint64_t expected_desc_size = sizeof(rv_pdk::rv_mppc_note_desc);
+                sizeof(RV_MPPC_NOTE_OWNER);
+            constexpr uint64_t expected_desc_size = sizeof(rv_mppc_note_desc);
 
             Elf64_Nhdr note{};
 
@@ -415,7 +410,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 
                 const bool header_matches = owner_size == expected_owner_size &&
                     desc_size == expected_desc_size &&
-                    note.n_type == rv_pdk::RV_MPPC_NOTE_TYPE;
+                    note.n_type == RV_MPPC_NOTE_TYPE;
 
                 if (!header_matches) {
                     // .so files carry notes from the toolchain (e.g. .note.gnu.build-id,
@@ -431,7 +426,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 
                 const auto *owner = buffer.data() + owner_offset;
 
-                if (std::memcmp(owner, rv_pdk::RV_MPPC_NOTE_OWNER,
+                if (std::memcmp(owner, RV_MPPC_NOTE_OWNER,
                         expected_owner_size) != 0) {
                     continue;
                 }
@@ -480,8 +475,8 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
         return RV_ERR_INVAL;
     }
 
-    if (rv_pdk::RV_MPPC_VER_MAJOR != version_info.version_major ||
-        rv_pdk::RV_MPPC_VER_MINOR < version_info.version_minor) {
+    if (RV_MPPC_VER_MAJOR != version_info.version_major ||
+        RV_MPPC_VER_MINOR < version_info.version_minor) {
         RV_LOG_ERR("pcloader",
             "disc version are incompatible to currect console version: "
             "disc version is: {}.{}; ",
@@ -505,7 +500,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
 {
     unload();
 
-    // Проверка, что у меня есть путь до диска
+    // Check that a disc path was given at all
     if (archive_path == nullptr || *archive_path == '\0') {
         RV_LOG_ERR("pcloader", "no disc path was given");
         return RV_ERR_INVAL;
@@ -683,7 +678,7 @@ int64_t rv_pcloader::bring_up()
 
     // (6) Both symbols or neither. A disc that can be created but not destroyed
     // is not half-loadable, it is a leak with a vtable — and the only code that
-    // may destroy the object is the code that made it (pdk/de/rv_dv.hpp).
+    // may destroy the object is the code that made it (pdk/de/rv_dv.h).
     ::dlerror(); // clear any stale error before the lookups
     auto create = reinterpret_cast<rv_mppc_disc_create_fn>(
         ::dlsym(handle_, RV_MPPC_DISC_ENTRY_CREATE));
@@ -699,9 +694,10 @@ int64_t rv_pcloader::bring_up()
         return RV_ERR_INVAL;
     }
 
-    // Совместимость версии решена ДО этого места — pre_dlopen_check по ноте,
-    // ещё до dlopen. create() в решении не участвует: это чистая фабрика, и
-    // nullptr от неё — отказ диска создаться, не вердикт о версии.
+    // Version compatibility was settled BEFORE this point: pre_dlopen_check reads
+    // the note, ahead of dlopen. create() takes no part in that decision — it is a
+    // pure factory, and a nullptr from it means the disc refused to be created,
+    // not a verdict about the version.
     rv_de *disc = nullptr;
     try {
         disc = create();
@@ -726,7 +722,7 @@ int64_t rv_pcloader::bring_up()
         "pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
         rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
         rv_pdklib::rv_log_escape(manifest_.disc_title.c_str()),
-        rv_pdklib::rv_log_escape(zip_->path().c_str()), RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        rv_pdklib::rv_log_escape(zip_->path().c_str()), (int)RV_MPPC_VER_MAJOR, (int)RV_MPPC_VER_MINOR);
     return RV_OK;
 }
 
@@ -753,12 +749,12 @@ int64_t rv_pcloader::load(const char *archive_path)
 void rv_pcloader::unload()
 {
     if (disc_ != nullptr) {
-        // rv_de.hpp: the hook runs after the last frame and NOT for a disc that
+        // rv_de.h: the hook runs after the last frame and NOT for a disc that
         // refused to start. The facade is still valid at this point — that is
         // precisely why it runs before destroy and before dlclose.
         if (initialized_) {
             try {
-                disc_->disc_shutdown();
+                disc_->disc_shutdown(disc_->self);
             } catch (...) {
                 RV_LOG_ERR("pcloader",
                     "disc_shutdown() of '{}' threw; tearing down anyway",

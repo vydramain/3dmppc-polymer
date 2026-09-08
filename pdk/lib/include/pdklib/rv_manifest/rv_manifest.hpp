@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pdk/cv/rv_texture.hpp"
+#include "pdk/cv/rv_texture.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -15,7 +15,7 @@ namespace rv_pdklib
 // restated anywhere in this tool.
 struct rv_manifest_textures {
     std::vector<std::string> files;
-    rv_pdk::rv_texfmt format;
+    rv_texfmt format;
 };
 
 // --- the defaults -------------------------------------------------------------
@@ -107,7 +107,6 @@ struct rv_manifest_budget_pccl {
 // error on the developer's desk, not a RV_ERR_INVAL on the player's loading
 // screen.
 struct rv_manifest_budget {
-
     rv_manifest_budget_pcca pcca;
     rv_manifest_budget_pccv pccv;
     rv_manifest_budget_pccio pccio;

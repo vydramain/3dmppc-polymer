@@ -1,94 +1,112 @@
-// ─── ЗАДАНИЕ ──────────────────────────────────────────────────────────────────
-// Комментарии написаны Claude (claude-opus-5) как учебные инструкции.
-// Код пишешь ты. Файл пустой намеренно.
+// ─── TASK ──────────────────────────────────────────────────────────────────
+// Comments written by Claude (claude-opus-5) as teaching instructions.
+// You write the code. The file is empty on purpose.
 // ──────────────────────────────────────────────────────────────────────────────
 //
-// ЕДИНСТВЕННЫЙ файл во всём проекте, который включает "lua.hpp".
-// Если он появится где-то ещё — граница PDK протекла.
+// THE ONLY file in the whole project that includes "lua.hpp".
+// If it shows up anywhere else, the PDK boundary has leaked.
 //
 //
-// TODO(1). КОНСТРУКТОР
+// TODO(1). CONSTRUCTOR
 //
-//   luaL_newstate() — создать VM. Вернуть может nullptr (нет памяти); консоль
-//   должна это пережить, а не разыменовать.
+//   luaL_newstate() — create the VM. It can return nullptr (out of memory);
+//   the console must survive that, not dereference it.
 //
-//   Дальше открыть библиотеки. luaL_openlibs() открывает ВСЁ, включая io и os,
-//   то есть даёт скрипту диска доступ к файловой системе и os.exit(). Для
-//   фантазийной консоли это дыра: диск обязан ходить в мир только через
-//   контроллеры (rv_cd, rv_cm). Открывай библиотеки по одной —
-//   luaopen_base / luaopen_string / luaopen_math / luaopen_table — и io/os не
-//   открывай. Решение осознанное, запиши его в комментарий рядом.
+//   Next, open the libraries. luaL_openlibs() opens EVERYTHING, including io
+//   and os, that is, it gives the disc script access to the filesystem and to
+//   os.exit(). For a fantasy console this is a hole: the disc must only reach
+//   the outside world through controllers (rv_cd, rv_cm). Open the libraries
+//   one at a time — luaopen_base / luaopen_string / luaopen_math /
+//   luaopen_table — and do not open io/os. This is a deliberate decision,
+//   write it down in a comment nearby.
 //
-//   lua_atpanic(L_, ...) — поставь свой обработчик. По умолчанию, если ошибка
-//   случится ВНЕ pcall, Lua вызывает abort() и консоль умирает без единой
-//   строчки в логе.
+//   lua_atpanic(L_, ...) — install your own handler. By default, if an error
+//   happens OUTSIDE a pcall, Lua calls abort() and the console dies without a
+//   single line in the log.
 //
-// TODO(2). ДЕСТРУКТОР
+// TODO(2). DESTRUCTOR
 //
-//   lua_close(L_) — гасит VM и запускает финализаторы. Проверь на nullptr:
-//   конструктор мог не справиться.
+//   lua_close(L_) — shuts down the VM and runs the finalizers. Check for
+//   nullptr: the constructor might have failed.
 //
 //
 // TODO(3). script_load(bytecode, size, name)
 //
-//   Порядок и что на стеке после каждого шага (стек в начале пуст):
+//   Order, and what is on the stack after each step (the stack starts
+//   empty):
 //
-//     проверить аргументы          -> RV_ERR_INVAL, если nullptr / size <= 0
-//     luaL_loadbuffer(L_, ...)     -> [chunk_fn]   либо 0 и [errmsg] при ошибке
-//     lua_pcall(L_, 0, 0, 0)       -> []           тело выполнилось, глобалы есть
-//     lua_getglobal("frame_update")-> [fn или nil]
-//     lua_isfunction(L_, -1)       -> запомнить, есть ли хук
-//     luaL_ref(L_, LUA_REGISTRYINDEX) -> []        снимает со стека, отдаёт int
-//     ... то же для остальных хуков
-//     вернуть handle
+//     validate the arguments        -> RV_ERR_INVAL if nullptr / size <= 0
+//     luaL_loadbuffer(L_, ...)      -> [chunk_fn]   or 0 and [errmsg] on error
+//     lua_pcall(L_, 0, 0, 0)        -> []           the body has run, globals exist
+//     lua_getglobal("frame_update") -> [fn or nil]
+//     lua_isfunction(L_, -1)        -> remember whether the hook is present
+//     luaL_ref(L_, LUA_REGISTRYINDEX) -> []         pops off the stack, returns an int
+//     ... same for the remaining hooks
+//     return the handle
 //
-//   ТРЕТЬЯ строка — самая важная и единственная неочевидная. luaL_loadbuffer
-//   только КОМПИЛИРУЕТ чанк в функцию, тело файла при этом не исполняется.
-//   Глобалы frame_update / frame_render создаются как ПОБОЧНЫЙ ЭФФЕКТ
-//   исполнения тела — вот чем Lua отличается от .so, где символы просто лежат
-//   в таблице и находятся поиском.
+//   The THIRD line is the most important and the only non-obvious one.
+//   luaL_loadbuffer only COMPILES the chunk into a function, the file's body
+//   is not executed at that point. The globals frame_update / frame_render
+//   are created as a SIDE EFFECT of executing the body — that is exactly how
+//   Lua differs from a .so, where symbols simply sit in a table and are found
+//   by lookup.
 //
-//   Проверь себя: lua_gettop(L_) на входе и на выходе обязан быть одинаковым.
+//   Check yourself: lua_gettop(L_) on entry and on exit must be equal.
 //
-//   Ошибки luaL_loadbuffer и lua_pcall возвращают ненулевой код и кладут текст
-//   на вершину стека. Залогируй его (pdklib/rv_logs/rv_logs.hpp), сними lua_pop и
-//   верни RV_ERR_IO. Ронять консоль из-за кривого скрипта нельзя.
+//   Errors from luaL_loadbuffer and lua_pcall return a nonzero code and put
+//   the text on top of the stack. Log it (pdklib/rv_logs/rv_logs.hpp), pop it
+//   with lua_pop and return RV_ERR_IO. The console must not be allowed to
+//   crash because of a broken script.
 //
 //
 // TODO(4). script_call(chunk, fname, argc, retc)
 //
-//   Здесь ловушка, которую видно только если нарисовать стек.
+//   Here is a trap that is only visible if you draw the stack.
 //
-//   argc аргументов диск УЖЕ положил, они лежат на вершине. А lua_pcall требует
-//   порядок [функция][арг1][арг2]. То есть функцию надо вставить ПОД уже
-//   лежащие аргументы, а не поверх них.
+//   The disc has ALREADY pushed argc arguments, they sit on top. But
+//   lua_pcall requires the order [function][arg1][arg2]. That is, the
+//   function has to be inserted UNDER the arguments already there, not on top
+//   of them.
 //
-//   Делается так: lua_rawgeti кладёт функцию на вершину, а lua_insert(L_, -argc-1)
-//   перемещает её вниз, под аргументы. Разберись с этим индексом на бумаге,
-//   прежде чем писать — ошибка здесь даёт «attempt to call a number value» и
-//   выглядит необъяснимо.
+//   It is done like this: lua_rawgeti puts the function on top, and
+//   lua_insert(L_, -argc-1) moves it down, under the arguments. Work this
+//   index out on paper before you write the code — a mistake here produces
+//   "attempt to call a number value" and looks inexplicable.
 //
-//   Альтернатива, которая эту ловушку убирает совсем: пусть диск не толкает
-//   аргументы заранее, а script_call сам берёт их из своих параметров. Тогда
-//   группа B в контракте не нужна вовсе. Подумай, чего ты хочешь, и запиши
-//   выбор в комментарии здесь.
+//   An alternative that removes this trap entirely: let the disc not push the
+//   arguments beforehand, and have script_call take them from its own
+//   parameters instead. Then group B in the contract is not needed at all.
+//   Think about what you want and write the choice down in a comment here.
 //
-//   На ошибку: RV_ERR_IO, текст ошибки ОСТАВИТЬ на стеке (диск прочитает его
-//   value_string). Учти, что это ломает баланс стека — задокументируй, что
-//   после ошибки диск обязан позвать stack_drop.
-//
-//
-// TODO(5). value_* и stack_push_*
-//
-//   Прямые обёртки: lua_pushnumber, lua_tonumber, lua_toboolean, lua_tolstring.
-//
-//   Одно место требует внимания — value_string. lua_tolstring отдаёт указатель
-//   ВНУТРЬ строки, которой владеет сборщик мусора Lua. Наружу его отдавать
-//   нельзя: memcpy в буфер диска, вернуть число записанных байт. Если буфер
-//   короче — RV_ERR_INVAL, а не молчаливое обрезание.
+//   On error: RV_ERR_IO, LEAVE the error text on the stack (the disc will
+//   read it via value_string). Note that this breaks the stack balance —
+//   document that after an error the disc must call stack_drop.
 //
 //
-// TODO(6). СБОРКА
+// TODO(5). value_* and stack_push_*
 //
-//   Корневой CMakeLists.txt уже линкует libluajit к цели 3dmppc, а .cpp
-//   подхватывается глобом — трогать сборку не надо.
+//   Direct wrappers: lua_pushnumber, lua_tonumber, lua_toboolean,
+//   lua_tolstring.
+//
+//   One spot needs attention — value_string. lua_tolstring returns a pointer
+//   INTO a string owned by the Lua garbage collector. It must not be handed
+//   out: memcpy into the disc's buffer, return the number of bytes written.
+//   If the buffer is too short — RV_ERR_INVAL, not a silent truncation.
+//
+//
+// TODO(6). BUILD
+//
+//   The root CMakeLists.txt already links libluajit into the 3dmppc target,
+//   and the .cpp is picked up by the glob — no need to touch the build.
+//
+//
+// TODO(7). BOUNDARY WITH THE CONTRACT
+//
+//   The contract has become plain C, so besides the class methods you need a
+//   tail section in the file with fifteen extern "C" definitions of rv_cl_* —
+//   they are what the disc actually sees. Reference — the end of
+//   rv_pccv.cpp. Casting the handle to rv_pccl* is legitimate for the same
+//   reason as with its neighbors: exactly one implementation of each
+//   controller lives in the process.
+//
+//   And one line in rv_pconsole.cpp: rv_pdko_cl() returns nullptr for now.

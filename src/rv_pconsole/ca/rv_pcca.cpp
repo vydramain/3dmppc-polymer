@@ -1,15 +1,11 @@
 #include "rv_pconsole/ca/rv_pcca.hpp"
 
-#include "pdk/rv_err.hpp"
+#include "pdk/ca/rv_ca.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc
 {
-
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
 
 namespace
 {
@@ -24,7 +20,7 @@ constexpr int64_t RV_PCCA_ALIGN = RV_PCA_FRAME_BYTES;
 // "sample_address not set" rather than as a real region. See rv_pcpool.hpp.
 constexpr int64_t RV_PCCA_RESERVED_HEAD = 16;
 
-// A voice mask uses bits 0..62 (pdk/rv_err.hpp), so 63 voices is the most any
+// A voice mask uses bits 0..62 (pdk/rv_err.h), so 63 voices is the most any
 // console can express no matter what its conf asks for.
 constexpr int64_t RV_PCCA_MAX_VOICES = 63;
 
@@ -300,3 +296,52 @@ int64_t rv_pcca::voice_status(int64_t voice_mask)
 }
 
 } // namespace rv_3dmppc
+
+// --- C contract (pdk/ca/rv_ca.h) ---------------------------------------------
+// An rv_ca* handle and the address of an rv_pcca are the same address: exactly
+// one implementation of each controller lives in the process.
+
+extern "C" int64_t rv_ca_voice_count(rv_ca *ca)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_count();
+}
+
+extern "C" int64_t rv_ca_sound_memory_size(rv_ca *ca)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->sound_memory_size();
+}
+
+extern "C" int64_t rv_ca_sound_asset_malloc(rv_ca *ca, int64_t size)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->sound_asset_malloc(size);
+}
+
+extern "C" int64_t rv_ca_sound_asset_write(rv_ca *ca, int64_t addr, const rv_sample *sample)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->sound_asset_write(addr, sample);
+}
+
+extern "C" int64_t rv_ca_sound_asset_free(rv_ca *ca, int64_t addr)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->sound_asset_free(addr);
+}
+
+extern "C" int64_t rv_ca_voice_setup(rv_ca *ca, const rv_voice_conf *conf)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_setup(conf);
+}
+
+extern "C" int64_t rv_ca_voice_play(rv_ca *ca, int64_t voice_mask)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_play(voice_mask);
+}
+
+extern "C" int64_t rv_ca_voice_stop(rv_ca *ca, int64_t voice_mask)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_stop(voice_mask);
+}
+
+extern "C" int64_t rv_ca_voice_status(rv_ca *ca, int64_t voice_mask)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_status(voice_mask);
+}

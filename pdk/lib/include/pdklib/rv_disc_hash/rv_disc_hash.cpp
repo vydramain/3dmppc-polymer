@@ -4,7 +4,7 @@
 #include <cstring>
 #include <elf.h>
 
-#include "pdk/de/rv_dv.hpp"
+#include "pdk/de/rv_dv.h"
 
 namespace rv_pdklib
 {
@@ -416,7 +416,7 @@ bool rv_disc_hash_magic_offset(
     std::memcpy(&nhdr, elf + sh_offset, sizeof(nhdr));
 
     constexpr uint64_t kOwnerSize = sizeof(RV_MPPC_NOTE_OWNER_DEF);
-    constexpr uint64_t kDescSize = sizeof(rv_pdk::rv_mppc_note_desc);
+    constexpr uint64_t kDescSize = sizeof(rv_mppc_note_desc);
 
     if (nhdr.n_namesz != kOwnerSize) {
         error = "Version note owner size does not match RV_MPPC_NOTE_OWNER_DEF.";
@@ -426,7 +426,7 @@ bool rv_disc_hash_magic_offset(
         error = "Version note descriptor size does not match rv_mppc_note_desc.";
         return false;
     }
-    if (nhdr.n_type != rv_pdk::RV_MPPC_NOTE_TYPE) {
+    if (nhdr.n_type != RV_MPPC_NOTE_TYPE) {
         error = "Version note type does not match RV_MPPC_NOTE_TYPE.";
         return false;
     }

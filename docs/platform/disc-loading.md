@@ -231,7 +231,7 @@ class rv_dmain : public rv_pdk::rv_de { /* ... */ };
 RV_MPPC_DISC_ENTRY_DEF(example_cpp::rv_dmain)
 ```
 
-See [`../../pdk/include/pdk/de/rv_dv.hpp`](../../pdk/include/pdk/de/rv_dv.hpp)
+See [`../../pdk/include/pdk/de/rv_dv.h`](../../pdk/include/pdk/de/rv_dv.h)
 for the version constants, entry-point names, and the macro itself.
 
 ### The thickness decision, settled

@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-#include "pdk/cv/rv_texture.hpp"
+#include "pdk/cv/rv_texture.h"
 #include "rv_pmem/rv_pcpool.hpp"
 
 namespace rv_3dmppc
@@ -19,7 +19,7 @@ namespace rv_3dmppc
 // What a video region remembers about its last upload.
 struct rv_pcvram_meta {
     bool written = false;
-    rv_pdk::rv_texfmt format = rv_pdk::RV_TEXFMT_DIRECT15;
+    rv_texfmt format = RV_TEXFMT_DIRECT15;
     int64_t width = 0;
     int64_t height = 0;
 };
@@ -40,7 +40,7 @@ public:
     // remember the texture's shape for the sampler. Returns RV_OK, or
     // RV_ERR_INVAL for an unknown address, a null source, or data that does not
     // fit the region.
-    int64_t write(int64_t addr, const rv_pdk::rv_texture &texture);
+    int64_t write(int64_t addr, const rv_texture &texture);
 
     // Is `addr` a live region? This is what rv_pccv::frame_put uses to reject a
     // primitive naming an address that was never handed out (or was freed).

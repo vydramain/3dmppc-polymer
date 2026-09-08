@@ -18,6 +18,13 @@
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
+// The built-in disc never goes through dlopen, so it has no entry points — but
+// it needs the same rv_de table of hooks as any other. The macro expands the
+// same thunks and hands back a function that wraps an ALREADY created object:
+// the built-in disc's lifetime belongs to the stack frame below, not to a
+// new/delete inside a disc.so.
+RV_MPPC_DISC_TABLE_DEF(rv_service::rv_dmain, rv_dmain_table)
+
 namespace rv_3dmppc
 {
 
@@ -88,7 +95,7 @@ int rv_pboot_run(int argc, char **argv)
     rv_pboot_conf_build(*budget, args, conf);
 
     host.configure(conf.cv.screen_width, conf.cv.screen_height, conf.cio.iport_count,
-                   conf.params.dump_frame_path);
+        conf.params.dump_frame_path);
 
     // Reserve and prepare memory. The resource check above only compared
     // MemAvailable against the declared budget, which is a forecast, not a
@@ -132,7 +139,7 @@ int rv_pboot_run(int argc, char **argv)
         console->drive().medium_insert(
             std::make_unique<rv_pczipmedium>(std::string(args.disc_path)));
 
-        return static_cast<int>(console->disc_run(*loader.disc()) < 0 ? 1 : 0);
+        return static_cast<int>(console->disc_run(loader.disc()) < 0 ? 1 : 0);
     }
 
     // No disc in the machine: the built-in service test of the hardware. It
@@ -140,7 +147,8 @@ int rv_pboot_run(int argc, char **argv)
     // itself. `service` is a disc's namespace, not the machine's, and this
     // is the only line in the console that names a disc.
     rv_service::rv_dmain disc;
-    return static_cast<int>(console->disc_run(disc) < 0 ? 1 : 0);
+    rv_de de = rv_dmain_table(&disc);
+    return static_cast<int>(console->disc_run(&de) < 0 ? 1 : 0);
 }
 
 } // namespace rv_3dmppc

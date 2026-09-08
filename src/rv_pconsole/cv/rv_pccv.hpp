@@ -5,7 +5,7 @@
 // PATTERN: retained-mode command buffer. frame_put() does not draw: it validates
 // the primitive, COPIES it into a frame-owned vector and files its index in the
 // ordering table. Nothing is rasterized until frame_flush(). That is forced by
-// the contract (pdk/cv/rv_cv.hpp): the console re-orders primitives by depth, so
+// the contract (pdk/cv/rv_cv.h): the console re-orders primitives by depth, so
 // it cannot know a primitive's turn to draw until every primitive has arrived.
 // The copy is what makes each command self-contained — the disc may free or
 // overwrite its own primitive struct the moment frame_put() returns, exactly as
@@ -29,10 +29,10 @@
 #include <cstdint>
 #include <vector>
 
-#include "pdk/cv/rv_cv.hpp"
-#include "pdk/cv/rv_primitives.hpp"
-#include "pdk/cv/rv_texture.hpp"
-#include "pdk/cv/rv_vertex.hpp"
+#include "pdk/cv/rv_primitives.h"
+#include "pdk/cv/rv_vertex.h"
+#include "pdk/cv/rv_texture.h"
+#include "pdk/cv/rv_vertex.h"
 #include "rv_pconsole/cv/rv_pcfbuf.hpp"
 #include "rv_pconsole/cv/rv_pcotable.hpp"
 #include "rv_pconsole/cv/rv_pctexel.hpp"
@@ -43,14 +43,14 @@
 namespace rv_3dmppc
 {
 
-class rv_pccv : public rv_pdk::rv_cv
+class rv_pccv
 {
 public:
     // `host` is borrowed: the console owns it, constructs it before every
     // controller and tears it down after them (see rv_pconsole.hpp — the
     // declaration order there is load-bearing).
     rv_pccv(const rv_pccv_conf &conf, rv_pchost &host);
-    ~rv_pccv() override = default;
+    ~rv_pccv() = default;
 
     // The frame buffers below are screen-sized pages and the vram pool is a
     // megabyte: copying a console's GPU is never meaningful, and `host_` is a
@@ -60,24 +60,24 @@ public:
 
     // --- hardware geometry: straight out of the configuration ---
 
-    int64_t screen_width() override;
-    int64_t screen_height() override;
-    int64_t texture_max_width() override;
-    int64_t texture_max_height() override;
-    int64_t video_memory_size() override;
-    int64_t frame_capacity() override;
+    int64_t screen_width();
+    int64_t screen_height();
+    int64_t texture_max_width();
+    int64_t texture_max_height();
+    int64_t video_memory_size();
+    int64_t frame_capacity();
 
     // --- video RAM ---
 
-    int64_t video_asset_malloc(int64_t size) override;
-    int64_t video_asset_write(int64_t addr, const rv_pdk::rv_texture *texture) override;
-    int64_t video_asset_free(int64_t addr) override;
+    int64_t video_asset_malloc(int64_t size);
+    int64_t video_asset_write(int64_t addr, const rv_texture *texture);
+    int64_t video_asset_free(int64_t addr);
 
     // --- the frame ---
 
-    int64_t frame_configure(uint64_t config, rv_pdk::rv_color clear_color) override;
-    int64_t frame_put(const rv_pdk::rv_primitive *primitive) override;
-    int64_t frame_flush() override;
+    int64_t frame_configure(uint64_t config, rv_color clear_color);
+    int64_t frame_put(const rv_primitive *primitive);
+    int64_t frame_flush();
 
     // Does the memory this controller owns actually exist? Only the vram pool
     // can fail here — the frame buffer and ordering table size from the same
@@ -94,7 +94,7 @@ private:
     int64_t check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const;
 
     // Is `format` one of the rv_texfmt enumerators this console knows?
-    static bool texture_format_known(rv_pdk::rv_texfmt format);
+    static bool texture_format_known(rv_texfmt format);
 
     // Resolve the addresses a primitive names into a view the rasterizer can
     // sample. Returns an INVALID view when the primitive does not sample, when
@@ -105,12 +105,12 @@ private:
     // The view borrows pointers into the pool. They are valid only for the
     // duration of the draw call: the disc cannot free a region mid-flush (it is
     // not running), so the shortest possible lifetime is also a safe one.
-    rv_pctexview texture_view(const rv_pdk::rv_primitive &primitive) const;
+    rv_pctexview texture_view(const rv_primitive &primitive) const;
 
     // The texture / palette pair a primitive samples, or (0, 0) when it does not
     // sample at all. Shared by polygons and sprites, which name their assets
     // identically.
-    static void texture_addresses(const rv_pdk::rv_primitive &primitive, int64_t &addr_texture,
+    static void texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
         int64_t &addr_palette);
 
     // Drop the frame's commands and their ordering. Does NOT touch the clear
@@ -126,12 +126,12 @@ private:
 
     // The frame's commands, in submission order. The ordering table stores
     // indexes into this vector, so it must not be reordered mid-frame.
-    std::vector<rv_pdk::rv_primitive> primitives_;
+    std::vector<rv_primitive> primitives_;
 
     // --- frame state, valid between frame_configure and frame_flush ---
 
-    rv_pdk::rv_color clear_color_{ 0, 0, 0 }; // default: a black frame
-    bool z_enabled_ = false;                  // default: ordering table only
+    rv_color clear_color_{ 0, 0, 0 }; // default: a black frame
+    bool z_enabled_ = false;          // default: ordering table only
 };
 
 } // namespace rv_3dmppc

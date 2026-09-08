@@ -1,19 +1,40 @@
-# Where clangd gets the compile command for pdk/ headers.
+# Where clangd gets the compile command for pdk/.
 #
-# 3dmppc_pdk is an INTERFACE library (CMakeLists.txt:62) — no .cpp, so no
-# translation unit, so build/compile_commands.json holds no entry for anything
-# under pdk/. For a header it has no command for, clangd infers one from the
-# nearest file it does know, and 250 of that database's 271 entries are SDL3's C
-# sources under build/_deps/. pdk headers were therefore parsed as SDL3 C code:
-# no -I.../pdk/include, hence "'pdk/ca/rv_ca.hpp' file not found" and every rv_*
-# type unknown.
+# Two fragments, because pdk/ is not one language. The contract (pdk/include) is
+# plain C; pdklib and the authoring tools are C++. A single `PathMatch: pdk/.*`
+# rule forcing clang++ onto all of them made clangd parse the C contract as
+# C++23, which hides exactly the mistakes that only C rejects.
 #
 # The -I paths are relative to the compile command's directory, i.e. the CMake
 # build root (build/, cmake-build-debug/, ...), which sits one level under the
-# repo root.
+# repo root. They matter because 3dmppc_pdk is an INTERFACE library: nothing
+# under pdk/include has a translation unit of its own, so clangd has to infer a
+# command from some other entry in the database.
 
 If:
-  PathMatch: pdk/.*
+  PathMatch: pdk/include/.*\.h
+
+CompileFlags:
+  Compiler: clang
+  Add:
+    - -std=c11
+    - -I../pdk/include
+  Remove:
+    - -std=c++*
+    - -std=gnu++*
+    # Whatever entry got inferred may drag its own build along. A forced PCH is
+    # what actually breaks parsing; the defines merely lie about being in an
+    # SDL build.
+    - -include
+    - -Winvalid-pch
+    - -DSDL*
+    - -DUSING_GENERATED_CONFIG_H
+
+---
+
+# pdklib (disc-side helpers) and pdk/tools (mppcburner, mppcbaker) stay C++.
+If:
+  PathMatch: pdk/(lib|tools)/.*
 
 CompileFlags:
   Compiler: clang++
@@ -21,9 +42,6 @@ CompileFlags:
     - -std=c++23
     - -I../pdk/include
     - -I../pdk/lib/include
-  # Whatever SDL3 entry got inferred drags its own build along. Its forced PCH
-  # is the one that actually breaks parsing; the defines just lie about being in
-  # an SDL build.
   Remove:
     - -include
     - -Winvalid-pch

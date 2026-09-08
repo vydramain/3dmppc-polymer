@@ -19,8 +19,8 @@
 #include <memory>
 #include <string>
 
-#include "pdk/de/rv_de.hpp"
-#include "pdk/de/rv_dv.hpp"
+#include "pdk/de/rv_de.h"
+#include "pdk/de/rv_dv.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_pconsole/cd/rv_pczip.hpp"
 
@@ -49,7 +49,7 @@ int64_t rv_pcloader_probe_staging();
 // destroy after dlclose is calling a function whose instructions are no longer
 // mapped — a jump into an unmapped page, i.e. a segfault with a stack trace
 // that points nowhere, on shutdown, where nobody is looking. Same reason step 1
-// precedes step 2: disc_shutdown is a virtual on an object the destructor is
+// precedes step 2: disc_shutdown is a hook on an object the destructor is
 // about to end.
 class rv_pcloader
 {
@@ -65,7 +65,6 @@ public:
     rv_pcloader(rv_pcloader &&) = delete;
     rv_pcloader &operator=(rv_pcloader &&) = delete;
 
-
     // Pre-dlopen inspection of the code entry `info_entry` inside the mounted
     // archive. dlopen runs the library's constructors before returning, so any
     // compatibility verdict must come from the FILE'S BYTES, never from loaded
@@ -76,7 +75,6 @@ public:
     // part still to be written. Returns RV_OK or a negative rv_err, logging the
     // exact refusal reason.
     int64_t pre_dlopen_check(rv_zipreader *zip, const char *info_entry);
-
 
     // STAGE 1 of load(): check the file, open the archive as a zip, read and
     // parse its manifest, and run the pre-dlopen version check on the code
@@ -106,7 +104,7 @@ public:
     // this object and dies with it, and so does everything it returns — in
     // particular disc_title(), which is a literal inside the unloaded-at-
     // teardown text segment.
-    rv_pdk::rv_de *disc() const
+    rv_de *disc() const
     {
         return disc_;
     }
@@ -123,12 +121,12 @@ public:
     }
 
     // Told by the console once disc_initialize() has returned success, so that
-    // teardown knows whether disc_shutdown() is owed: rv_de.hpp says the hook
+    // teardown knows whether disc_shutdown() is owed: rv_de.h says the hook
     // runs on every path out of the frame loop but NEVER for a disc that
     // refused to start. The pointer is compared rather than trusted — the
     // console may be running a disc this loader did not produce (the built-in
     // rv_dmain), and that one's lifecycle is none of our business.
-    void notify_initialized(const rv_pdk::rv_de *disc);
+    void notify_initialized(const rv_de *disc);
 
     // Idempotent teardown, in the order documented above. Called by the
     // destructor; public so a caller may end a disc early and see the log lines
@@ -152,8 +150,8 @@ private:
     bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out);
 
     void *handle_ = nullptr;
-    rv_pdk::rv_de *disc_ = nullptr;
-    rv_pdk::rv_mppc_disc_destroy_fn destroy_ = nullptr;
+    rv_de *disc_ = nullptr;
+    rv_mppc_disc_destroy_fn destroy_ = nullptr;
 
     // Whether disc_initialize() succeeded — see notify_initialized().
     bool initialized_ = false;

@@ -12,7 +12,9 @@
 #include <cstdint>
 #include <optional>
 
-#include "pdk/ca/rv_ca.hpp"
+#include "pdk/ca/rv_sample.h"
+#include "pdk/ca/rv_voice_conf.h"
+
 #include "rv_pmem/rv_pcpool.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
@@ -29,7 +31,7 @@ struct rv_pcca_meta {
     int64_t frames = 0; // uploaded frames, i.e. bytes / RV_PCA_FRAME_BYTES
 };
 
-class rv_pcca : public rv_pdk::rv_ca
+class rv_pcca
 {
 private:
     rv_pcca_conf conf_;
@@ -65,23 +67,23 @@ public:
     rv_pcca(const rv_pcca &) = delete;
     rv_pcca &operator=(const rv_pcca &) = delete;
 
-    int64_t voice_count() override;
+    int64_t voice_count();
 
-    int64_t sound_memory_size() override;
+    int64_t sound_memory_size();
 
-    int64_t sound_asset_malloc(int64_t size) override;
+    int64_t sound_asset_malloc(int64_t size);
 
-    int64_t sound_asset_write(int64_t addr, const rv_pdk::rv_sample *sample) override;
+    int64_t sound_asset_write(int64_t addr, const rv_sample *sample);
 
-    int64_t sound_asset_free(int64_t addr) override;
+    int64_t sound_asset_free(int64_t addr);
 
-    int64_t voice_setup(const rv_pdk::rv_voice_conf *conf) override;
+    int64_t voice_setup(const rv_voice_conf *conf);
 
-    int64_t voice_play(int64_t voice_mask) override;
+    int64_t voice_play(int64_t voice_mask);
 
-    int64_t voice_stop(int64_t voice_mask) override;
+    int64_t voice_stop(int64_t voice_mask);
 
-    int64_t voice_status(int64_t voice_mask) override;
+    int64_t voice_status(int64_t voice_mask);
 
     // Does the memory this controller owns actually exist? True when audio is
     // off (sram_ is empty BY DESIGN, not a failure); false only when audio is

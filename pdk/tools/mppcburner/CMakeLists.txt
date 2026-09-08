@@ -46,7 +46,7 @@ add_executable(mppcburner
 # one directory still include each other by bare name.
 target_include_directories(mppcburner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# The contract lives next door. The burner reads pdk/cv/rv_texture.hpp for the
+# The contract lives next door. The burner reads pdk/cv/rv_texture.h for the
 # texel formats it enforces budgets against.
 target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
 

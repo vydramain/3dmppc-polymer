@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 
@@ -40,34 +40,34 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
 {
 }
 
-// The controllers are the CONTRACT's types (rv_pdk), the console is the
-// machine's (rv_3dmppc); these five lines are where the two meet, so both sides
-// are spelled out rather than pulled in by a using-directive.
-rv_pdk::rv_ca *rv_3dmppc::rv_pconsole::ca()
+// This is where the contract meets the machine. Every line casts the address of
+// a concrete controller to the contract's opaque type; that is legal for exactly
+// one reason — a single implementation of each controller lives in the process,
+// and the reverse cast in rv_pcXX.cpp hands back that very same address.
+rv_ca *rv_3dmppc::rv_pconsole::ca()
 {
-    return &ca_;
+    return reinterpret_cast<rv_ca *>(&ca_);
 }
-rv_pdk::rv_cd *rv_3dmppc::rv_pconsole::cd()
+rv_cd *rv_3dmppc::rv_pconsole::cd()
 {
-    return &cd_;
+    return reinterpret_cast<rv_cd *>(&cd_);
 }
-rv_pdk::rv_cm *rv_3dmppc::rv_pconsole::cm()
+rv_cm *rv_3dmppc::rv_pconsole::cm()
 {
-    return &cm_;
+    return reinterpret_cast<rv_cm *>(&cm_);
 }
-rv_pdk::rv_cio *rv_3dmppc::rv_pconsole::cio()
+rv_cio *rv_3dmppc::rv_pconsole::cio()
 {
-    return &cio_;
+    return reinterpret_cast<rv_cio *>(&cio_);
 }
-rv_pdk::rv_cv *rv_3dmppc::rv_pconsole::cv()
+rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
-    return &cv_;
+    return reinterpret_cast<rv_cv *>(&cv_);
 }
-// ЗАГЛУШКА. rv_pdko::cl() чисто виртуален, без него rv_pconsole абстрактен и
-// main.cpp не компилируется. Поля rv_pccl cl_ ещё нет — файл cl/rv_pccl.hpp
-// намеренно оставлен заданием. Заменить на «return &cl_;», как только поле
-// появится.
-rv_pdk::rv_cl *rv_3dmppc::rv_pconsole::cl()
+// A STUB. There is no rv_pccl cl_ field yet — cl/rv_pccl.hpp is deliberately
+// left as an exercise. Replace this with `return reinterpret_cast<rv_cl *>(&cl_);`
+// as soon as the field appears.
+rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
     return nullptr;
 }
@@ -77,11 +77,11 @@ bool rv_3dmppc::rv_pconsole::ready() const
     return ca_.valid() && cv_.valid() && cm_.valid();
 }
 
-int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
+int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
 {
     // Everything a disc needs must be ready before its code runs, so the
     // window is opened HERE, before disc_initialize() below — never after.
-    // disc_title() is a plain accessor (pdk/de/rv_de.hpp) with no dependency
+    // disc_title() is a plain accessor (pdk/de/rv_de.h) with no dependency
     // on disc_initialize() having run, so it is safe to call this early.
     //
     // Without --headless, a failure to bring video up is a WARNING, not a
@@ -89,20 +89,20 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
     // so the disc runs unpresented instead of not running at all.
     if (!params_.headless) {
         const int64_t opened =
-            host_.open(disc.disc_title(), cv_.screen_width(), cv_.screen_height(), params_.scale);
+            host_.open(disc->disc_title(disc->self), cv_.screen_width(), cv_.screen_height(), params_.scale);
         if (0 > opened) {
             RV_LOG_WARN("pconsole",
                 "display did not come up for '{}', continuing without presentation",
-                disc.disc_title());
+                disc->disc_title(disc->self));
         }
     }
 
-    int64_t dir = disc.disc_initialize(*this);
+    int64_t dir = disc->disc_initialize(disc->self, reinterpret_cast<rv_pdko *>(this));
     if (0 > dir) {
         RV_LOG_ERR("pconsole",
             "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}",
             dir);
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // The disc has started, so it is now owed a disc_shutdown() (rv_de.hpp says
@@ -111,14 +111,14 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
     // before unmapping the code; telling it here is what separates "started" from
     // "loaded". A disc this loader did not produce is ignored — see below.
     if (loader_ != nullptr) {
-        loader_->notify_initialized(&disc);
+        loader_->notify_initialized(disc);
     }
 
     const uint64_t target_fps = params_.target_fps ? params_.target_fps : 60;
     const std::chrono::duration<double> frame_budget{ 1.0 / static_cast<double>(target_fps) };
     const float fixed_dt = 1.0f / static_cast<float>(target_fps);
 
-    RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, {} fps target)", disc.disc_title(),
+    RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, {} fps target)", disc->disc_title(disc->self),
         params_.headless ? "headless" : "presented", target_fps);
 
     uint64_t frames = 0;
@@ -149,7 +149,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
         const float dt =
             params_.fixed_step ? fixed_dt : std::clamp(measured, 0.0f, RV_PCONSOLE_DT_CEILING);
 
-        disc.frame_update(dt);
+        disc->frame_update(disc->self, dt);
         // --headless means no window AND no rasterization: frame_render() is
         // simply not called, so a headless run never touches the software
         // rasterizer, the framebuffer or the virtual VRAM (and --dump-frame
@@ -159,12 +159,12 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
         // to come up — that run wanted a picture, it just has no screen to
         // put it on.
         if (!params_.headless) {
-            disc.frame_render();
+            disc->frame_render(disc->self);
         }
 
         // Polled every frame, per the contract. Checked after the frame so the
         // disc gets to draw the frame on which it decided to quit.
-        if (disc.disc_release()) {
+        if (disc->disc_release(disc->self)) {
             RV_LOG_INFO("pconsole", "mppcdisc released after {} frame(s)", frames + 1);
             break;
         }
@@ -196,13 +196,47 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_pdk::rv_de &disc)
     // sequence precisely so it cannot be run out of order or twice. The built-in
     // rv_dmain has no loader behind it, so for that one the frame loop is the
     // only place the hook can come from.
-    if (loader_ == nullptr || loader_->disc() != &disc) {
-        disc.disc_shutdown();
+    if (loader_ == nullptr || loader_->disc() != disc) {
+        disc->disc_shutdown(disc->self);
     }
 
     // Devkit: hand the last frame the machine produced to disk, if asked. After
     // the loop rather than inside it, so a dump costs nothing per frame.
     host_.dump_last_frame();
 
-    return rv_pdk::RV_OK;
+    return RV_OK;
+}
+
+// --- C contract (pdk/rv_pdko.h) ----------------------------------------------
+// The facade through which a disc sees the machine. An rv_pdko* handle is the
+// address of an rv_pconsole: there is one console in the process, and it is the
+// only implementation of the facade.
+//
+// Each of these returns the address of a controller field cast to the contract's
+// opaque type. The reverse cast lives in rv_pcXX.cpp next to the controller
+// itself, so both ends of every pair are visible in their own file.
+
+extern "C" rv_ca *rv_pdko_ca(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->ca();
+}
+extern "C" rv_cd *rv_pdko_cd(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cd();
+}
+extern "C" rv_cio *rv_pdko_cio(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cio();
+}
+extern "C" rv_cl *rv_pdko_cl(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cl();
+}
+extern "C" rv_cm *rv_pdko_cm(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cm();
+}
+extern "C" rv_cv *rv_pdko_cv(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cv();
 }
