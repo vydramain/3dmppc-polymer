@@ -11,8 +11,8 @@ specifics live in that game's own repository, not in this one.
 
 | Document                      | What it covers                                          |
 | ----------------------------- | ------------------------------------------------------- |
-| [`specs.md`](specs.md)        | The target hardware spec — the console's **virtual** budget for display, memory, audio, input and save, what enforces it, and how it maps to the real PSX. |
-| [`disc-loading.md`](disc-loading.md) | How a disc is burned into its own `.so`, packed into a single `.mppcdisc`, and loaded at runtime. The burner's four gates, the stored-zip container, the manifest asymmetry, the extract-then-`dlopen` rule, the thin `extern "C"` ABI and its teardown order. Implemented, except the Lua scripting path at the end. |
+| [`specs.md`](specs.md)        | The target hardware spec — the console's **virtual** budget for display, memory, audio, input, save and script, what enforces it, and how it maps to the real PSX. |
+| [`disc-loading.md`](disc-loading.md) | How a disc is burned into its own `.so`, packed into a single `.mppcdisc`, and loaded at runtime. The burner's four gates, the stored-zip container, the manifest asymmetry, the extract-then-`dlopen` rule, the thin `extern "C"` ABI and its teardown order, and the lua machine a script disc's own `disc.so` drives. Implemented. |
 
 ## Planned documents
 

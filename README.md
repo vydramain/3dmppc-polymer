@@ -27,14 +27,19 @@ cmake -S . -B build -G Ninja && cmake --build build
 cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 # 3. burn the sample game into a disc
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/hello -o build/hello.mppcdisc \
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp -o build/example-cpp.mppcdisc \
     --baker pdk/tools/build/mppcbaker/mppcbaker
 
 # 4. run it
-./build/3dmppc build/hello.mppcdisc
+./build/3dmppc build/example-cpp.mppcdisc
 ```
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
+
+The same three commands work unchanged against
+[`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) — swap the directory in
+steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
+compiled C++.
 
 Running `./build/3dmppc` with no disc gives you the built-in **service test** — a
 diagnostics screen that exercises every subsystem and explains itself on screen.
@@ -112,11 +117,11 @@ them while the program's own output stays on stdout.
 ```
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
-  src/*.cpp        the game — implements rv_de, exports itself with RV_DISC_EXPORT
+  src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
   assets/          PNGs get baked into texels; everything else is copied in
 ```
 
-Start by copying [`mppcdiscs/hello/`](mppcdiscs/hello/) — it is the smallest
+Start by copying [`mppcdiscs/example-cpp/`](mppcdiscs/example-cpp/) — it is the smallest
 complete disc and its README walks through what each piece is for.
 
 ### disc.toml
@@ -125,7 +130,6 @@ complete disc and its README walks through what each piece is for.
 [disc]
 id = "mygame"
 title = "My Game"
-abi_version = 1
 
 [build]
 sources = ["src/*.cpp"]
@@ -149,9 +153,9 @@ mppcburner inspect mygame.mppcdisc
 `grep` cleanly) and diagnostics to stderr.
 
 The burner refuses rather than shipping something broken: a texture larger than
-the console allows, assets that overflow the virtual VRAM, an ABI version the
-console does not speak, or two assets whose names collide once flattened. Every
-one of those is cheaper to hit on your desk than on a player's loading screen.
+the console allows, assets that overflow the virtual VRAM, or two assets whose
+names collide once flattened. Every one of those is cheaper to hit on your desk
+than on a player's loading screen.
 
 ### What a disc must contain
 
@@ -159,10 +163,10 @@ Two things make a translation unit a disc rather than a library:
 
 ```cpp
 class rv_dmain : public rv_pdk::rv_de { /* ... */ };  // implement the lifecycle
-RV_DISC_EXPORT(mygame::rv_dmain)              // last line of the file
+RV_MPPC_DISC_ENTRY_DEF(mygame::rv_dmain)      // last line of the file
 ```
 
-`RV_DISC_EXPORT` plants the two `extern "C"` symbols the console looks up after
+`RV_MPPC_DISC_ENTRY_DEF` plants the two `extern "C"` symbols the console looks up after
 `dlopen`; everything else in the disc is hidden. Release what you acquired in
 `disc_shutdown()`, not in a destructor — after that hook returns the console may
 unload your code, and a destructor belonging to unmapped code cannot run.
@@ -180,7 +184,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md) | how a disc is packaged and loaded |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
-| [`mppcdiscs/hello/README.md`](mppcdiscs/hello/README.md) | the sample disc, annotated |
+| [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
+| [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
 
 ---
@@ -199,9 +204,12 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Input** — gamepads through SDL, keyboard overlaid on port 0.
 - **Packaging** — `mppcburner` compiles a disc directory into a `.mppcdisc`, and
   the console loads it with a two-stage ABI handshake.
+- **Scripting** — a disc can declare `[budget.pccl]` and raise Lua chunks
+  through `rv_cl`; a script calls the same exported console functions a C++
+  disc calls, with no wrapper layer and a LuaJIT heap budget of its own.
 - **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
   gyro and trackpads, a contracted RAM budget (video and sound RAM are enforced;
-  main RAM is not), the 256×224 display mode, Lua discs.
+  main RAM is not), the 256×224 display mode.
 
 ## Conventions
 
@@ -216,7 +224,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   | `rv_pdklib` | `pdk/lib` | the disc-side library |
   | `rv_3dmppc` | `src/` | the console, and nothing else |
   | `rv_pdktools` | `pdk/tools` | the authoring tools |
-  | the disc's own id | each packaged disc | `hello::rv_dmain`, `mygame::rv_dmain`, … |
+  | the disc's own id | each packaged disc | `example_cpp::rv_dmain`, `mygame::rv_dmain`, … |
   | `rv_service` | `src/rv_dmain` | the built-in service test — a disc, but a linked-in one |
 
   A packaged disc needs no prefix and cannot collide with anything: it is built
@@ -234,12 +242,10 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   `rv_err` on failure — callers test with `if (rc < 0)`.
 - Design decisions are tagged in the source: `grep -rn "PATTERN:\|THEOREM:" src/ pdk/lib/ pdk/tools/`
   maps every pattern and algorithm to the line that implements it.
-- Machine-generated code carries a `NEUROSLOP` banner or `NEUROSLOP-BEGIN/END`
-  markers. It has not been reviewed by a human.
 
 ## Requirements
 
-SDL3 (used from the system if installed, otherwise built from source on the
-first configure), CMake 3.24+, Ninja, and a C++23 compiler. The tools
-additionally shells out to `cmake` and `ninja` at run time to compile a disc,
-and downloads `stb_image.h` into its own build directory.
+SDL3 and LuaJIT (both used from the system if installed, otherwise built from
+source on the first configure), CMake 3.24+, Ninja, and a C++23 compiler. The
+tools additionally shells out to `cmake` and `ninja` at run time to compile a
+disc, and downloads `stb_image.h` into its own build directory.
