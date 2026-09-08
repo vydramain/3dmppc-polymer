@@ -8,7 +8,7 @@
 // contract subsystem:
 //   * the window / renderer / streaming texture that a finished frame lands in;
 //   * the event pump, which turns SDL's event stream into the instantaneous
-//     controller SNAPSHOTS rv_cio promises (see pdk/cio/rv_cio.hpp);
+//     controller SNAPSHOTS rv_cio promises (see pdk/cio/rv_cio.h);
 //   * the audio device, which pulls finished stereo frames out of the SPU's
 //     mixer from a thread of SDL's own.
 //
@@ -30,8 +30,8 @@
 #include <string>
 #include <vector>
 
-#include "pdk/cio/rv_imouse.hpp"
-#include "pdk/cio/rv_isource.hpp"
+#include "pdk/cio/rv_imouse.h"
+#include "pdk/cio/rv_isource.h"
 
 // No dependency on rv_pconsole_conf.hpp any more: the host is built and
 // prepared BEFORE the console's configuration exists (it is the console that
@@ -188,7 +188,7 @@ public:
 
     // Snapshot of `port`, already mapped into the rv_isource vocabulary. An
     // out-of-range index yields the zeroed state the contract mandates.
-    const rv_pdk::rv_istate &port_state(int64_t port) const;
+    const rv_istate &port_state(int64_t port) const;
 
     // Static capability mask of `port`: which sources this concrete device can
     // report at all. Zero for an empty or out-of-range slot.
@@ -196,7 +196,7 @@ public:
 
     // Relative mouse motion accumulated since the previous call; clears the
     // accumulator (rv_cio::imouse semantics).
-    rv_pdk::rv_imouse consume_mouse();
+    rv_imouse consume_mouse();
 
     // Drive `port`'s rumble motors for `duration_ms`. Returns RV_OK, or
     // RV_ERR_INVAL when the slot holds no gamepad, RV_ERR_IO if SDL refuses.
@@ -206,12 +206,12 @@ public:
 private:
     // One controller port slot. Slots are STABLE: index N is always the same
     // player, an unplugged pad leaves its slot empty rather than renumbering
-    // the others (pdk/cio/rv_cio.hpp).
+    // the others (pdk/cio/rv_cio.h).
     struct rv_pcport {
         SDL_Gamepad *pad = nullptr;
         uint32_t joystick_id = 0;
         uint64_t abilities = 0;
-        rv_pdk::rv_istate state{};
+        rv_istate state{};
     };
 
     void dump_frame(const uint32_t *argb) const;
@@ -263,7 +263,7 @@ private:
     int64_t display_height_ = 0;
 
     std::vector<rv_pcport> ports_;
-    rv_pdk::rv_istate empty_state_{}; // what an out-of-range port reads as
+    rv_istate empty_state_{}; // what an out-of-range port reads as
 
     // Frame dumping. `last_frame_` is BORROWED from rv_pccv's framebuffer, which
     // outlives the host's use of it: the pointer is only ever read inside

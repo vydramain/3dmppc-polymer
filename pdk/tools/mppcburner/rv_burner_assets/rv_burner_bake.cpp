@@ -56,13 +56,13 @@ static bool read_mppctex_header(
     }
 
     const uint16_t format = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_FORMAT);
-    if (rv_pdklib::rv_texfmt_name::by_format(static_cast<rv_pdk::rv_texfmt>(format)) == nullptr) {
+    if (rv_pdklib::rv_texfmt_name::by_format(static_cast<rv_texfmt>(format)) == nullptr) {
         error = "baked texture '" + path.string() + "' claims unknown format " +
             std::to_string(format);
         return false;
     }
 
-    out.format = static_cast<rv_pdk::rv_texfmt>(format);
+    out.format = static_cast<rv_texfmt>(format);
     out.width = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_WIDTH);
     out.height = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_HEIGHT);
     out.palette_count = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_PALETTE_COUNT);

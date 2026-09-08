@@ -84,6 +84,12 @@ add_executable(3dmppc
   ${3DMPPC_CONSOLE_SOURCES}
 )
 
+# A disc looks the contract's functions up in the executable through dlsym, and
+# the LuaJIT FFI will look for them in the same place. Without ENABLE_EXPORTS
+# (which is -rdynamic) the executable's dynamic symbol table is empty and neither
+# side finds anything.
+set_target_properties(3dmppc PROPERTIES ENABLE_EXPORTS ON)
+
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE libluajit)

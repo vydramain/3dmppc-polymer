@@ -11,10 +11,10 @@
 #include <string_view>
 #include <vector>
 
-#include "pdk/cv/rv_texel.hpp"
-#include "pdk/cv/rv_texture.hpp"
-#include "pdk/cv/rv_vertex.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/cv/rv_texel.h"
+#include "pdk/cv/rv_texture.h"
+#include "pdk/cv/rv_vertex.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
@@ -51,7 +51,7 @@ constexpr size_t kPaletteSizeIdx4 = 16;
 constexpr size_t kPaletteSizeIdx8 = 256;
 
 // PATTERN: reserved slot — index 0 is the hole whenever the image has one.
-// Transparency in an indexed format lives in the PALETTE (rv_texture.hpp:
+// Transparency in an indexed format lives in the PALETTE (rv_texture.h:
 // "transparency is decided AFTER the palette lookup"), so a cut-out sprite
 // indexes a fixed 0000h entry. It costs one colour, hence it is only reserved
 // when the image actually has transparent pixels.
@@ -78,16 +78,6 @@ constexpr int kExitUsage = 2;
 // triple a PNG pixel becomes, rv_color5 the 5-bit one everything downstream
 // measures in, and rv_texel_* the layout and the quantiser both ends agree on.
 // Named here so the bodies below read as they did when the tool owned them.
-using rv_pdk::rv_color;
-using rv_pdk::rv_color5;
-using rv_pdk::rv_err;
-using rv_pdk::RV_ERR_INVAL;
-using rv_pdk::RV_ERR_IO;
-using rv_pdk::RV_OK;
-using rv_pdk::rv_texfmt;
-using rv_pdk::RV_TEXFMT_DIRECT15;
-using rv_pdk::RV_TEXFMT_IDX4;
-using rv_pdk::RV_TEXFMT_IDX8;
 using rv_pdklib::rv_texel_opaque;
 using rv_pdklib::rv_texel_pack;
 using rv_pdklib::rv_texel_quantize;
@@ -128,7 +118,7 @@ struct src_pixel {
 
 // --- median cut ---------------------------------------------------------------
 
-// A channel of rv_color5 is five bits, so 0..31 (pdk/cv/rv_texel.hpp).
+// A channel of rv_color5 is five bits, so 0..31 (pdk/cv/rv_texel.h).
 constexpr int kChannel5Max = 31;
 
 // Every colour the console can express: three channels of five bits. 32768
@@ -351,7 +341,7 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
     }
 
     for (const box &b : boxes) {
-        rv_color5 color5;
+        rv_color5 color5 = {};
         if (gen_color5(b, bins, &color5) != RV_OK) {
             continue;
         }
@@ -707,7 +697,7 @@ void encode_direct15(const source_image &src, std::vector<uint8_t> *out)
     out->reserve(out->size() + src.pixels.size() * 2);
     for (const src_pixel &s : src.pixels) {
         put_u16(*out,
-            s.transparent ? rv_pdk::RV_TEXEL_TRANSPARENT : rv_texel_opaque(rv_texel_pack(s.color)));
+            s.transparent ? RV_TEXEL_TRANSPARENT : rv_texel_opaque(rv_texel_pack(s.color)));
     }
 }
 
@@ -791,13 +781,13 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
     // Full length always; the unused tail is 0000h, so an index that should
     // never be sampled draws nothing rather than a wrong colour.
     if (needs_hole) {
-        put_u16(*out, rv_pdk::RV_TEXEL_TRANSPARENT);
+        put_u16(*out, RV_TEXEL_TRANSPARENT);
     }
     for (const rv_color5 &c : palette) {
         put_u16(*out, rv_texel_opaque(rv_texel_pack(c)));
     }
     for (size_t i = reserved + palette.size(); i < palette_size; ++i) {
-        put_u16(*out, rv_pdk::RV_TEXEL_TRANSPARENT);
+        put_u16(*out, RV_TEXEL_TRANSPARENT);
     }
 
     if (*opt.format == RV_TEXFMT_IDX8) {

@@ -2,7 +2,7 @@
 
 #include <cstdint>
 
-#include "pdk/cv/rv_texture.hpp"
+#include "pdk/cv/rv_texture.h"
 
 namespace rv_pdklib
 {
@@ -43,7 +43,7 @@ inline constexpr char rv_mppctex_magic[4] = { 'M', 'P', 'T', 'X' };
 
 /// One header, already decoded.
 struct rv_mppctex_header {
-    rv_pdk::rv_texfmt format = rv_pdk::RV_TEXFMT_DIRECT15;
+    rv_texfmt format = RV_TEXFMT_DIRECT15;
     int64_t width = 0;
     int64_t height = 0;
     int64_t palette_count = 0;
@@ -59,9 +59,9 @@ struct rv_mppctex_header {
 inline int64_t rv_mppctex_texel_bytes(const rv_mppctex_header &header)
 {
     switch (header.format) {
-    case rv_pdk::RV_TEXFMT_IDX4:
+    case RV_TEXFMT_IDX4:
         return ((header.width + 1) / 2) * header.height;
-    case rv_pdk::RV_TEXFMT_IDX8:
+    case RV_TEXFMT_IDX8:
         return header.width * header.height;
     default:
         return header.width * header.height * 2;

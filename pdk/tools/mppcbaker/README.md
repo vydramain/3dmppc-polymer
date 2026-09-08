@@ -2,7 +2,7 @@
 
 Everything here runs **on the developer's machine at build time**, not on the
 console. No tool links against `src/` or sees a console header: the only shared
-truth is the contract in `pdk/include/pdk/cv/rv_texture.hpp`.
+truth is the contract in `pdk/include/pdk/cv/rv_texture.h`.
 
 ```
 cmake -S tools -B build-tools && cmake --build build-tools

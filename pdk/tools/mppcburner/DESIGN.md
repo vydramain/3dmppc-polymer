@@ -1,53 +1,57 @@
 
                        disc.toml
-                           │ символы
+                           │ characters
                            ▼
     ┌──────────────────────────────────────────────┐
-    │ 1. ЛЕКСЕР (scanner)                          │
+    │ 1. LEXER (scanner)                           │
     ├──────────────────────────────────────────────┤
     │ detail/rv_manifest_lexer.cpp                 │
-    │ символы → токены, пробелы и # съедены        │
-    │ NEWLINE — настоящий токен                    │
-    │ мусор → INVALID, несёт свой текст            │
+    │ characters → tokens, whitespace and # eaten  │
+    │ NEWLINE — a real token                       │
+    │ garbage → INVALID, carries its own text      │
     └──────────────────────────────────────────────┘
                            │ std::vector<rv_manifest_token>
                            ▼
     ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────┐
-    │ 2. ПАРСЕР (синтаксис)                        │       │ ОБРАБОТЧИК ОШИБОК ← стадии 2 и 3     │
+    │ 2. PARSER (syntax)                           │       │ ERROR HANDLER ← stages 2 and 3       │
     ├──────────────────────────────────────────────┤       ├──────────────────────────────────────┤
     │ detail/rv_manifest_parser.cpp                │       │ detail/rv_manifest_failer.cpp        │
-    │ токены → дерево: секция → ключ → знач.       │─────▶ │ строка + текст, порядок ввода        │
-    │ полей rv_pdklib::rv_manifest НЕ знает        │       │ все ошибки | первая (stop_at_first)  │
-    │ recover(): до начала след. инструкции,       │       │ report(origin) →                     │
-    │ битый заголовок → poisoned, без каскада      │       │   disc.toml:14: unknown key 'titel'  │
-    └──────────────────────────────────────────────┘       │ suggest_key/suggest_section() →      │
-                           │ rv_manifest_tree              │   did you mean 'title'?              │
-                           ▼                               │   rv_manifest_text.cpp               │
+    │ tokens → tree: section → key → value         │─────▶ │ line + text, input order              │
+    │ knows NOTHING of rv_pdklib::rv_manifest's    │       │ all errors | first one (stop_at_first)│
+    │ fields                                       │       │ report(origin) →                     │
+    │ recover(): to the start of the next          │       │   disc.toml:14: unknown key 'titel'  │
+    │ statement, a broken header → poisoned,       │       │ suggest_key/suggest_section() →      │
+    │ no cascade                                   │       │   did you mean 'title'?              │
+    │                                               │       │   rv_manifest_text.cpp               │
+    └──────────────────────────────────────────────┘       └──────────────────────────────────────┘
+                           │ rv_manifest_tree              │
+                           ▼                               │
     ┌──────────────────────────────────────────────┐       ┌──────────────────────────────────────┐
-    │ 3. СЕМАНТИКА                                 │       │ ТАБЛИЦА СИМВОЛОВ ← стадии 3 и 4      │
+    │ 3. SEMANTICS                                 │       │ SYMBOL TABLE ← stages 3 and 4        │
     ├──────────────────────────────────────────────┤       ├──────────────────────────────────────┤
     │ detail/rv_manifest_semantic.cpp              │       │ static — rv_manifest_schema.hpp      │
-    │ секция известна? ключ её? тип тот?           │◀────▶ │   секции, ключи, типы значений       │
-    │ не задано дважды?                            │       │ dynamic — rv_manifest_symbols.hpp    │
-    │ идёт ТОЛЬКО если парсер промолчал            │       │   что встречено и на какой строке    │
-    └──────────────────────────────────────────────┘       │   → 'first at line N'                │
-                           │ rv_manifest_tree (одобренное) └──────────────────────────────────────┘
+    │ is the section known? is the key its own?    │◀────▶ │   sections, keys, value types         │
+    │ is the type right?                           │       │ dynamic — rv_manifest_symbols.hpp    │
+    │ not set twice?                               │       │   what was seen and on which line     │
+    │ runs ONLY if the parser stayed silent        │       │   → 'first at line N'                │
+    └──────────────────────────────────────────────┘       └──────────────────────────────────────┘
+                           │ rv_manifest_tree (approved)
                            ▼
     ┌──────────────────────────────────────────────┐
-    │ 4. IR GEN (биндер)                           │
+    │ 4. IR GEN (binder)                           │
     ├──────────────────────────────────────────────┤
     │ detail/rv_manifest_binder.cpp                │
-    │ таблица {секция, ключ, лямбда}               │
-    │ ЕДИНСТВЕННЫЙ знает имена полей struct        │
+    │ table {section, key, lambda}                 │
+    │ the ONLY one that knows the struct field names│
     └──────────────────────────────────────────────┘
                            │ rv_pdklib::rv_manifest
                            ▼
     ┌──────────────────────────────────────────────┐
     │ BACK-END                                     │
     ├──────────────────────────────────────────────┤
-    │ rv_manifest_validate() — id, формат, бюджеты │
+    │ rv_manifest_validate() — id, format, budgets │
     │ rv_burn_run() → textures, scripts, zip       │
-    │ rv_manifest_render() → копия на диск         │
+    │ rv_manifest_render() → copy to disc          │
     └──────────────────────────────────────────────┘
 
-Пути .cpp/.hpp даны относительно pdk/lib/include/pdklib/rv_manifest/.
+Paths of .cpp/.hpp are given relative to pdk/lib/include/pdklib/rv_manifest/.

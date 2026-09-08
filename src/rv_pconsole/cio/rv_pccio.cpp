@@ -1,34 +1,43 @@
 #include "rv_pconsole/cio/rv_pccio.hpp"
 
-#include "pdk/rv_err.hpp"
+#include "pdk/cio/rv_cio.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-// The contract's vocabulary, unqualified for the bodies below only. Never in a
-// header: a using-directive there would leak into every translation unit that
-// includes it.
-using namespace rv_pdk;
-
-int64_t rv_pccio::iport_count() { return conf_.iport_count; }
+int64_t rv_pccio::iport_count()
+{
+    return conf_.iport_count;
+}
 
 // Static capability mask. An empty or out-of-range slot reads as 0 — the
 // contract's "the query methods report data, not status": there is no error
 // channel here to report a bad index through, and a disc that probes port 7 on
 // a two-port machine legally gets "this port can do nothing".
-uint64_t rv_pccio::iport_abilities(int64_t port) {
-    if (!port_in_range(port)) return 0;
+uint64_t rv_pccio::iport_abilities(int64_t port)
+{
+    if (!port_in_range(port)) {
+        return 0;
+    }
     return host_.port_abilities(port);
 }
 
 // Relative motion since the previous call; the host owns the accumulator and
 // clears it here (rv_cio::imouse is a CONSUMING read).
-rv_imouse rv_pccio::imouse() { return host_.consume_mouse(); }
+rv_imouse rv_pccio::imouse()
+{
+    return host_.consume_mouse();
+}
 
 // Instantaneous snapshot. Note the contract gives a LEVEL, never an edge: a disc
 // that wants "just pressed" diffs successive snapshots itself.
-rv_istate rv_pccio::iport_state(int64_t port) {
-    if (!port_in_range(port)) return rv_istate{};
+rv_istate rv_pccio::iport_state(int64_t port)
+{
+    if (!port_in_range(port)) {
+        return rv_istate{};
+    }
     return host_.port_state(port);
 }
 
@@ -38,46 +47,76 @@ rv_istate rv_pccio::iport_state(int64_t port) {
 //
 // This is the only method in rv_cio with an error channel, so it is also the
 // only place a bad port index is a failure rather than a zero read.
-int64_t rv_pccio::ohaptic(int64_t port, rv_oheffect effect) {
+int64_t rv_pccio::ohaptic(int64_t port, rv_oheffect effect)
+{
     if (!port_in_range(port)) {
         RV_LOG_WARN("pccio", "ohaptic on out-of-range port {} (count {})", port, conf_.iport_count);
         return RV_ERR_INVAL;
     }
 
     switch (effect.type) {
-        case RV_HAPTIC_EFFECT_BASIC_RUMBLE:
-            // Body actuators: constant strength per side, held for a duration.
-            // The host reports RV_ERR_INVAL for an empty slot, which is exactly
-            // the code the contract asks for.
-            return host_.rumble(port, effect.data.rumble.strength_left,
-                                effect.data.rumble.strength_right, effect.data.rumble.duration_ms);
+    case RV_HAPTIC_EFFECT_BASIC_RUMBLE:
+        // Body actuators: constant strength per side, held for a duration.
+        // The host reports RV_ERR_INVAL for an empty slot, which is exactly
+        // the code the contract asks for.
+        return host_.rumble(port, effect.data.rumble.strength_left,
+            effect.data.rumble.strength_right, effect.data.rumble.duration_ms);
 
-        case RV_HAPTIC_EFFECT_TRIGGER_RUMBLE:
-            // Same payload, different actuators (the trigger motors of a
-            // DualSense / Steam Deck style pad).
-            return host_.rumble_triggers(port, effect.data.rumble.strength_left,
-                                         effect.data.rumble.strength_right,
-                                         effect.data.rumble.duration_ms);
+    case RV_HAPTIC_EFFECT_TRIGGER_RUMBLE:
+        // Same payload, different actuators (the trigger motors of a
+        // DualSense / Steam Deck style pad).
+        return host_.rumble_triggers(port, effect.data.rumble.strength_left,
+            effect.data.rumble.strength_right,
+            effect.data.rumble.duration_ms);
 
-        case RV_HAPTIC_EFFECT_LEFT_RIGHT_PULSE:
-            // DEFERRED. The payload is a TIMED pulse train (on_time_us /
-            // off_time_us / repeat_count), i.e. a small effect that has to be
-            // stepped across frames — the host currently offers only fire-and-
-            // forget rumble with a duration, and there is no effect scheduler to
-            // hang the train on. Rejecting is honest; faking it with one long
-            // buzz would lie about what the machine did.
-            return RV_ERR_INVAL;
+    case RV_HAPTIC_EFFECT_LEFT_RIGHT_PULSE:
+        // DEFERRED. The payload is a TIMED pulse train (on_time_us /
+        // off_time_us / repeat_count), i.e. a small effect that has to be
+        // stepped across frames — the host currently offers only fire-and-
+        // forget rumble with a duration, and there is no effect scheduler to
+        // hang the train on. Rejecting is honest; faking it with one long
+        // buzz would lie about what the machine did.
+        return RV_ERR_INVAL;
 
-        case RV_HAPTIC_EFFECT_WAVEFORM:
-            // DEFERRED in the contract itself: rv_ohaptic.hpp defines no payload
-            // for this tag yet, so there is nothing to forward.
-            return RV_ERR_INVAL;
+    case RV_HAPTIC_EFFECT_WAVEFORM:
+        // DEFERRED in the contract itself: rv_ohaptic.hpp defines no payload
+        // for this tag yet, so there is nothing to forward.
+        return RV_ERR_INVAL;
 
-        default:
-            RV_LOG_WARN("pccio", "ohaptic with unknown effect tag {} on port {}", effect.type,
-                        port);
-            return RV_ERR_INVAL;
+    default:
+        RV_LOG_WARN("pccio", "ohaptic with unknown effect tag {} on port {}", effect.type,
+            port);
+        return RV_ERR_INVAL;
     }
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc
+
+// --- C contract (pdk/cio/rv_cio.h) -------------------------------------------
+// An rv_cio* handle and the address of an rv_pccio are the same address: exactly
+// one implementation of each controller lives in the process.
+
+extern "C" int64_t rv_cio_iport_count(rv_cio *cio)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccio *>(cio)->iport_count();
+}
+
+extern "C" rv_istate rv_cio_iport_state(rv_cio *cio, int64_t port)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccio *>(cio)->iport_state(port);
+}
+
+extern "C" uint64_t rv_cio_iport_abilities(rv_cio *cio, int64_t port)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccio *>(cio)->iport_abilities(port);
+}
+
+extern "C" rv_imouse rv_cio_imouse(rv_cio *cio)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccio *>(cio)->imouse();
+}
+
+extern "C" int64_t rv_cio_ohaptic(rv_cio *cio, int64_t port, rv_oheffect effect)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccio *>(cio)->ohaptic(port, effect);
+}

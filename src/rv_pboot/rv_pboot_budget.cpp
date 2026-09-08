@@ -2,7 +2,7 @@
 
 #include <format>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 
@@ -16,13 +16,13 @@ int64_t rv_pboot_budget_select(const rv_pboot_args &args, rv_pcloader &loader,
         if (loader.mount(args.disc_path) < 0) {
             rv_console_print_error(std::format(
                 "refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
         out = &loader.info().budget;
     } else {
         out = &rv_pboot_budget_builtin();
     }
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

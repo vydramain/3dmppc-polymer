@@ -12,12 +12,11 @@
 #include <utility>
 #include <vector>
 
-#include "pdk/cd/rv_cd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
-class rv_pccd : public rv_pdk::rv_cd {
+class rv_pccd {
    private:
     rv_pccd_conf conf_;
 
@@ -40,16 +39,16 @@ class rv_pccd : public rv_pdk::rv_cd {
 
    public:
     explicit rv_pccd(const rv_pccd_conf& conf);
-    ~rv_pccd() override = default;
+    ~rv_pccd() = default;
 
     rv_pccd(const rv_pccd&) = delete;
     rv_pccd& operator=(const rv_pccd&) = delete;
 
-    int64_t asset_open(const char* resname) override;
+    int64_t asset_open(const char* resname);
 
-    int64_t asset_size(int64_t handle) override;
+    int64_t asset_size(int64_t handle);
 
-    int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
+    int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size);
 
     // stage 10: swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which

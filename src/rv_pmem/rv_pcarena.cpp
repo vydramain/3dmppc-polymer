@@ -6,7 +6,7 @@
 #include <cerrno>
 #include <cstring>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 #ifndef MADV_POPULATE_WRITE
@@ -83,12 +83,12 @@ uint8_t *rv_pcarena::base() const
 int64_t rv_pcarena::commit(int64_t bytes)
 {
     if (bytes < 0 || bytes > reserved_) {
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     const int64_t target = round_up_to_page(bytes);
     if (target <= committed_) {
-        return rv_pdk::RV_OK;
+        return RV_OK;
     }
 
     // Rounding must never hand out more than was reserved.
@@ -98,7 +98,7 @@ int64_t rv_pcarena::commit(int64_t bytes)
 
     if (mprotect(region, static_cast<size_t>(delta), PROT_READ | PROT_WRITE) != 0) {
         RV_LOG_ERR("pcarena", "mprotect of {} bytes failed: {}", delta, strerror(errno));
-        return rv_pdk::RV_ERR_NOMEM;
+        return RV_ERR_NOMEM;
     }
 
     if (madvise(region, static_cast<size_t>(delta), MADV_POPULATE_WRITE) != 0) {
@@ -106,11 +106,11 @@ int64_t rv_pcarena::commit(int64_t bytes)
             strerror(errno));
         // Undo the mprotect so nothing new is handed out on failure.
         mprotect(region, static_cast<size_t>(delta), PROT_NONE);
-        return rv_pdk::RV_ERR_NOMEM;
+        return RV_ERR_NOMEM;
     }
 
     committed_ = clamped_target;
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 int64_t rv_pcarena_probe_populate_write()
@@ -120,11 +120,11 @@ int64_t rv_pcarena_probe_populate_write()
         nullptr, static_cast<size_t>(page), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mapping == MAP_FAILED) {
         RV_LOG_ERR("pcarena", "probe mmap failed: {}", strerror(errno));
-        return rv_pdk::RV_ERR_NOMEM;
+        return RV_ERR_NOMEM;
     }
 
     const int64_t result =
-        madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0 ? rv_pdk::RV_OK : rv_pdk::RV_ERR_NOENT;
+        madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0 ? RV_OK : RV_ERR_NOENT;
     munmap(mapping, static_cast<size_t>(page));
     return result;
 }

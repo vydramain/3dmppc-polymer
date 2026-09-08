@@ -1,7 +1,7 @@
 #pragma once
 
-#include "pdk/de/rv_de.hpp"
-#include "pdk/rv_pdko.hpp"
+#include "pdk/de/rv_de.h"
+#include "pdk/rv_pdko.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
@@ -19,7 +19,11 @@ namespace rv_3dmppc
 // machine is assembled — the host, the five controllers, and the geometry they
 // were built from. Nothing below constructs a subsystem: a controller receives
 // what it needs and never reaches sideways for it.
-class rv_pconsole : public rv_pdk::rv_pdko
+// There is nothing left to inherit: rv_pdko is an opaque C type now, and "this
+// console IS the facade" is expressed not by a base class but by the free
+// rv_pdko_* functions at the end of rv_pconsole.cpp casting the handle to
+// exactly this class.
+class rv_pconsole
 {
 private:
     rv_pconsole_params params_;
@@ -31,12 +35,12 @@ private:
     // caller is guaranteed to outlive this console.
     rv_pchost &host_;
 
-    // TODO(Claude-инструкция, код твой). Объяви здесь поле rv_pccl cl_;
-    // и включи "rv_pconsole/cl/rv_pccl.hpp" наверху.
+    // TODO(Claude's instruction, the code is yours). Declare an rv_pccl cl_ field
+    // here and include "rv_pconsole/cl/rv_pccl.hpp" at the top.
     //
-    // ПОРЯДОК ОБЪЯВЛЕНИЯ ВАЖЕН, как и для host_ выше. Поля разрушаются в
-    // порядке, ОБРАТНОМ объявлению. Поставь cl_ в общий ряд контроллеров, по
-    // алфавиту.
+    // DECLARATION ORDER MATTERS, exactly as it does for host_ above. Fields are
+    // destroyed in the REVERSE order of their declaration. Put cl_ in the common
+    // row of controllers, alphabetically.
     rv_pcca ca_;
     rv_pccd cd_;
     rv_pccio cio_;
@@ -55,21 +59,20 @@ public:
 
     ~rv_pconsole() = default;
 
-    rv_pdk::rv_ca *ca() override;
-    rv_pdk::rv_cd *cd() override;
-    rv_pdk::rv_cio *cio() override;
-    rv_pdk::rv_cm *cm() override;
-    rv_pdk::rv_cv *cv() override;
+    rv_ca *ca();
+    rv_cd *cd();
+    rv_cio *cio();
+    rv_cm *cm();
+    rv_cv *cv();
 
-    // TODO(Claude-инструкция, код твой). Добавь rv_pdk::rv_cl* cl() override;
-    // Тело в rv_pconsole.cpp — одна строка, возврат адреса поля. Смотри, как
-    // сделаны соседи, и повтори.
+    // TODO(Claude's instruction, the code is yours). The body of cl() in
+    // rv_pconsole.cpp is one line: reinterpret_cast the field's address to
+    // rv_cl*, the way its neighbours do.
     //
-    // ЗАГЛУШКА до появления поля rv_pccl cl_: контракт rv_pdko требует cl(),
-    // иначе rv_pconsole абстрактен и не собирается. Возвращает nullptr —
-    // ни один диск в дереве его пока не дёргает. Заменить телом «return &cl_;»
-    // сразу, как поле появится.
-    rv_pdk::rv_cl *cl() override;
+    // A STUB until the rv_pccl cl_ field exists: rv_pdko_cl() has to answer with
+    // something. It returns nullptr — no disc in this tree calls it yet. Replace
+    // the body with `return &cl_;` the moment the field appears.
+    rv_cl *cl();
 
     // The drive itself, console-side. rv_pdko::cd() hands a disc the CONTRACT's
     // view (rv_cd, which cannot load a medium); putting a medium IN the drive is
@@ -86,7 +89,7 @@ public:
     // frame budget ran out, or the user powered the machine off), or a negative
     // rv_err if the disc refused to initialize. A display that would not come
     // up is a warning, not a stop.
-    int64_t disc_run(rv_pdk::rv_de &disc);
+    int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
     // existence? Covers audio (ca_), video (cv_) and the memory card (cm_). A

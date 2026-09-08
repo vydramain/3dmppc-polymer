@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <limits>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pboot_args.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
@@ -53,7 +53,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pchost &host, rv_pbo
     if (rv_pcarena_probe_populate_write() < 0) {
         rv_console_print_error(
             "this console requires a Linux kernel that implements MADV_POPULATE_WRITE");
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     // An external disc will need its code extracted to a staging directory
@@ -62,7 +62,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pchost &host, rv_pbo
     // directory is unusable deep inside bring_up().
     if (args.disc_path != nullptr && rv_pcloader_probe_staging() < 0) {
         rv_console_print_error("no usable staging directory for the disc's code");
-        return rv_pdk::RV_ERR_INVAL;
+        return RV_ERR_INVAL;
     }
 
     host.prepare(!args.headless, true, !args.no_audio);
@@ -73,7 +73,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pchost &host, rv_pbo
     out.video_enabled = !args.headless && host.video_ready();
     out.audio_enabled = !args.no_audio && host.audio_ready();
 
-    return rv_pdk::RV_OK;
+    return RV_OK;
 }
 
 void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pchost &host, const rv_pboot_mode_info &machine)

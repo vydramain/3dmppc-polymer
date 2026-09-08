@@ -183,7 +183,7 @@ int rv_pdktools::create_cmakelists(
     // applies.
     const fs::path version_unit_path = project_dir / k_version_unit_name;
     const std::string version_unit_text{
-        "#include \"pdk/de/rv_dv.hpp\"\n"
+        "#include \"pdk/de/rv_dv.h\"\n"
         "#include \"pdklib/rv_disc_version/rv_disc_version.hpp\"\n"
         "\n"
         "RV_MPPC_DISC_VERSION_DEF;"

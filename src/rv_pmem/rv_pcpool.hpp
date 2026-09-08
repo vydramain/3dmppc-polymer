@@ -37,7 +37,7 @@
 #include <cstring>
 #include <vector>
 
-#include "pdk/rv_err.hpp"
+#include "pdk/rv_err.h"
 #include "rv_pmem/rv_pcarena.hpp"
 
 namespace rv_3dmppc
@@ -97,10 +97,10 @@ public:
     int64_t malloc(int64_t size)
     {
         if (!valid()) {
-            return rv_pdk::RV_ERR_NOMEM;
+            return RV_ERR_NOMEM;
         }
         if (size <= 0) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
 
         const int64_t want = align_up(size);
@@ -136,20 +136,20 @@ public:
 
             // The block itself is only paperwork; the bytes it names must
             // actually be usable before a caller can touch them.
-            if (arena_.commit(addr + want) != rv_pdk::RV_OK) {
+            if (arena_.commit(addr + want) != RV_OK) {
                 if (inserted_tail) {
                     blocks_.erase(blocks_.begin() + static_cast<int64_t>(i) + 1);
                 }
                 blocks_[i].size = orig_size;
                 blocks_[i].used = false;
                 blocks_[i].meta = Meta{};
-                return rv_pdk::RV_ERR_NOMEM;
+                return RV_ERR_NOMEM;
             }
 
             return addr;
         }
 
-        return rv_pdk::RV_ERR_NOMEM;
+        return RV_ERR_NOMEM;
     }
 
     // Release the region at `addr`. Returns RV_OK, or RV_ERR_INVAL for an
@@ -158,12 +158,12 @@ public:
     {
         const int64_t at = find_block(addr);
         if (at < 0) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
 
         const size_t index = static_cast<size_t>(at);
         if (!blocks_[index].used || blocks_[index].reserved) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
 
         blocks_[index].used = false;
@@ -184,7 +184,7 @@ public:
             blocks_.erase(blocks_.begin() + static_cast<int64_t>(index));
         }
 
-        return rv_pdk::RV_OK;
+        return RV_OK;
     }
 
     // Copy `bytes` of `data` into the region at `addr`. Returns RV_OK, or
@@ -195,20 +195,20 @@ public:
     {
         rv_pcpool_block *block = live_block(addr);
         if (!block) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
 
         if (bytes < 0 || bytes > block->size) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
         if (bytes > 0 && data == nullptr) {
-            return rv_pdk::RV_ERR_INVAL;
+            return RV_ERR_INVAL;
         }
 
         if (bytes > 0) {
             std::memcpy(arena_.base() + block->offset, data, static_cast<size_t>(bytes));
         }
-        return rv_pdk::RV_OK;
+        return RV_OK;
     }
 
     // Is `addr` a live region? This is what a caller uses to reject a primitive
@@ -222,7 +222,7 @@ public:
     int64_t region_size(int64_t addr) const
     {
         const rv_pcpool_block *block = live_block(addr);
-        return block ? block->size : rv_pdk::RV_ERR_INVAL;
+        return block ? block->size : RV_ERR_INVAL;
     }
 
     // Read-only view of a region's bytes, or nullptr when `addr` is not live.

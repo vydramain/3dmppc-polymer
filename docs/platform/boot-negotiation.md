@@ -1,190 +1,202 @@
-# Запуск диска — согласование ресурсов
+# Disc boot — resource negotiation
 
-**Статус: проект. В коде этого нет.** Документ фиксирует принятые решения по
-тому, как консоль решает, может ли эта машина запустить вставленный диск, и
-чем она себя при этом ограничит. Реализованный путь загрузки описан в
-[`disc-loading.md`](disc-loading.md); здесь — то, что должно встать между
-монтированием архива и подъёмом кода.
-
----
-
-## Задача
-
-Диск объявляет, сколько ресурсов ему нужно. Консоль перед запуском смотрит на
-машину, на которой она сама запущена, и отвечает: обеспечу или нет. Не
-обеспечила — диск не стартует. Требование одно и то же и для нынешнего
-software-режима, и для будущего hardware-режима.
+**Status: draft. Not in the code yet.** The document records the decisions made
+about how the console decides whether the machine it runs on can boot the
+inserted disc, and what it will limit itself to while doing so. The implemented
+boot path is described in [`disc-loading.md`](disc-loading.md); this is what
+should sit between mounting the archive and bringing up the code.
 
 ---
 
-## Три величины вместо одного конфига
+## The problem
 
-Сегодня `rv_pconsole_conf` играет все три роли сразу, и поэтому ни одну.
-
-| Величина       | Что это                                | Откуда берётся                     |
-| -------------- | -------------------------------------- | ---------------------------------- |
-| **request**    | чего диск хочет                        | `[budget.*]` манифеста; нет диска — значения по умолчанию |
-| **capability** | что машина реально даёт                | замер хоста при включении          |
-| **grant**      | чем консоль себя ограничит на сессию   | результат согласования             |
-
-Контроллеры строятся **из grant**, и только из него. `conf` перестаёт быть
-входом консоли и становится результатом.
-
-## Единицы: диск просит у консоли, консоль торгуется с машиной
-
-`request` целиком в единицах **консоли** — VRAM консоли, голоса, экран,
-`frame_capacity`. Хостовых чисел в манифесте нет.
-
-Это то, что делает диск единым для любой машины. Число «1 МБ VRAM консоли»
-означает одно и то же везде, и каждый бэкенд знает, во что этот мегабайт
-обходится именно у него. Хостовое число такого свойства не имеет: 32 ГБ
-хостовой RAM на аппаратном бэкенде не описывают ни того, что диску нужно, ни
-того, что консоль потратит, — проверять их бессмысленно.
-
-Обратная сторона: «работает одинаково» держится не на ресурсах, а на
-**правилах вычислений**. Спецификация консоли должна фиксировать растеризацию,
-округление, порядок при равной глубине и смешивание звука, иначе два бэкенда
-при полностью удовлетворённом бюджете дадут разную картинку.
-
-## Бэкенд даёт маршруты, а не формулу
-
-Бэкенд приписывает каждый класс консольной памяти к пулу хоста и называет
-коэффициент. Дальше операция всегда одна: сложить всё, что попало в один пул, и
-сравнить с ёмкостью этого пула.
-
-- **software** — все классы маршрутизированы в один пул (хостовая RAM), поэтому
-  складываются;
-- **hardware** — классы разведены по своим пулам, поэтому каждый сравнивается
-  сам с собой.
-
-Ветки `if (software)` в согласовании нет: есть таблица маршрутов, которую
-подставил бэкенд. Таблица выбирается **после замера**, а не зашита в бэкенд, —
-на интегрированной видеокарте VRAM физически и есть хостовая RAM, и аппаратный
-бэкенд маршрутизирует её в тот же пул, что и RAM, где она снова складывается.
-
-## Где проходит граница памяти диска и памяти консоли
-
-По владению адресами, а не по манифесту.
-
-- **Память диска** — то, на что диск получает адрес и чем распоряжается сам:
-  VRAM-пул (`video_asset_malloc`) и sound-пул. Изоляция настоящая: диск
-  получает offset, а не указатель, и хостового аллокатора через контракт у него
-  нет.
-- **Память консоли** — всё остальное, включая структуры, размер которых диктует
-  диск, но адресов в которых он не видит: фреймбуфер, ordering table, список
-  примитивов кадра, метаданные блоков пула, распакованный `.so`, SDL, Lua VM.
-
-Отсюда: собственное потребление консоли — **не константа**. Константна только
-база (процесс, SDL, VM, буферы фиксированного размера), остальное — функция от
-grant. С capability сравнивается
-
-```
-база_консоли + накладные(grant) + пулы_диска
-```
-
-иначе консоль на машине с 32 ГБ честно пообещает диску 32 ГБ и умрёт сама.
-
-Наружу, в общий объём процесса, идёт вся сумма; диску видны только его пулы.
-
-## Бронь, а не оценка
-
-Раз консоль при загрузке отвечает «машина это обеспечит», число обязано быть
-настоящей бронью: память забирается у хоста на старте целиком, до первого
-кадра. Иначе отказ при загрузке ничего не гарантирует — сказали «да», а на
-сороковой минуте хост отдал память кому-то другому.
-
-Следствие: «приблизительно» в манифесте не выживает. Число — потолок, точный
-сверху. Диск вправе взять меньше, но не больше ни на байт; превышение —
-`RV_ERR_NOMEM` от консоли, и хост при этом не трогается.
-
-Любая настройка, которую можно крутить в рантайме (например разрешение),
-входит в бюджет **худшим случаем**. Консоль бронирует фреймбуфер по максимуму
-один раз, а смена разрешения в игре — переезд внутри уже забронированного
-объёма. `RV_ERR_NOMEM` в середине партии становится невозможным по построению.
-
-## Авто-даунгрейда нет
-
-Настройки графики не должны быть функцией того, сколько машина смогла дать.
-Соблазн «машина слабая, тихо понизим разрешение и запустим» ломает ровно то,
-ради чего всё затевалось: диск начинает выглядеть по-разному на разных машинах
-по железу, а не по выбору игрока. Порядок только такой: диск объявил потолок →
-машина обеспечивает его целиком либо получает отказ.
-
-Игрок настройки крутить может, но внутри объявленного диском, и его выбор ни на
-grant, ни на бронь не влияет — память уже взята по максимуму.
+A disc declares how much resources it needs. Before booting, the console looks
+at the machine it is running on and answers: can it provide this or not. If it
+can't — the disc doesn't start. The requirement is the same both for the
+current software mode and for the future hardware mode.
 
 ---
 
-## Схема
+## Three quantities instead of one config
+
+Today `rv_pconsole_conf` plays all three roles at once, and therefore none of
+them properly.
+
+| Quantity       | What it is                             | Where it comes from                |
+| -------------- | --------------------------------------- | ----------------------------------- |
+| **request**    | what the disc wants                     | manifest `[budget.*]`; no disc — default values |
+| **capability** | what the machine actually gives         | host measurement at startup         |
+| **grant**      | what the console limits itself to for the session | result of negotiation      |
+
+Controllers are built **from grant**, and only from it. `conf` stops being an
+input to the console and becomes a result.
+
+## Units: the disc asks the console, the console bargains with the machine
+
+`request` is entirely in **console** units — console VRAM, voices, screen,
+`frame_capacity`. There are no host numbers in the manifest.
+
+This is what makes a disc uniform across any machine. The number "1 MB of
+console VRAM" means the same thing everywhere, and each backend knows exactly
+what that megabyte costs on it. A host number has no such property: 32 GB of
+host RAM on a hardware backend describes neither what the disc needs nor what
+the console will spend — checking it makes no sense.
+
+The other side of the coin: "works the same" rests not on resources but on
+**computation rules**. The console specification must fix rasterization,
+rounding, ordering at equal depth, and sound mixing, or two backends with a
+fully satisfied budget will produce different pictures.
+
+## A backend supplies routes, not a formula
+
+A backend assigns each console memory class to a host pool and names a
+coefficient. After that the operation is always the same: sum everything that
+lands in one pool and compare it against that pool's capacity.
+
+- **software** — all classes are routed to a single pool (host RAM), so they
+  are summed;
+- **hardware** — classes are routed to their own pools, so each is compared
+  against itself.
+
+There is no `if (software)` branch in the negotiation: there is a routing
+table supplied by the backend. The table is chosen **after measurement**, not
+hardcoded into the backend — on an integrated GPU, VRAM physically *is* host
+RAM, and the hardware backend routes it into the same pool as RAM, where it is
+summed again.
+
+## Where the boundary between disc memory and console memory runs
+
+By address ownership, not by the manifest.
+
+- **Disc memory** — what the disc gets an address for and manages itself: the
+  VRAM pool (`video_asset_malloc`) and the sound pool. Isolation is real: the
+  disc receives an offset, not a pointer, and has no host allocator through
+  the contract.
+- **Console memory** — everything else, including structures whose size is
+  dictated by the disc but whose addresses it never sees: framebuffer,
+  ordering table, frame primitive list, pool block metadata, the unpacked
+  `.so`, SDL, the Lua VM.
+
+Hence: the console's own consumption is **not a constant**. Only the base is
+constant (the process, SDL, the VM, fixed-size buffers); the rest is a
+function of grant. What is compared against capability is
 
 ```
-                        ВКЛЮЧЕНИЕ
+console_base + overhead(grant) + disc_pools
+```
+
+otherwise the console on a machine with 32 GB would honestly promise the disc
+32 GB and die itself.
+
+The whole sum goes out into the total process footprint; the disc only sees
+its own pools.
+
+## A reservation, not an estimate
+
+Since the console answers "the machine will provide this" at boot time, the
+number has to be a real reservation: memory is taken from the host at startup,
+in full, before the first frame. Otherwise a boot-time refusal guarantees
+nothing — it said "yes", and at the fortieth minute the host handed the memory
+to someone else.
+
+Consequence: "approximately" doesn't survive in the manifest. The number is a
+ceiling, exact from above. The disc is entitled to take less, but not one byte
+more; exceeding it is `RV_ERR_NOMEM` from the console, and the host is not
+touched in that case.
+
+Any setting that can be adjusted at runtime (resolution, for example) enters
+the budget as the **worst case**. The console reserves the framebuffer at its
+maximum once, and a resolution change in-game is a move within the space
+already reserved. `RV_ERR_NOMEM` in the middle of a session becomes impossible
+by construction.
+
+## No auto-downgrade
+
+Graphics settings must not be a function of how much the machine managed to
+give. The temptation of "the machine is weak, quietly lower the resolution and
+launch" breaks exactly what the whole thing was built for: the disc starts
+looking different on different machines because of hardware, not because of
+the player's choice. The order is only this: the disc declares a ceiling →
+the machine provides it in full, or gets a refusal.
+
+The player can adjust settings, but within what the disc declared, and their
+choice affects neither the grant nor the reservation — the memory is already
+taken at the maximum.
+
+---
+
+## Diagram
+
+```
+                          STARTUP
                             |
                             v
-              ЗАМЕР МАШИНЫ -> capability
-              пулы хоста в единицах хоста: RAM, GPU-mem, ...
+             MEASURE MACHINE -> capability
+             host pools in host units: RAM, GPU-mem, ...
                             |
                             v
-                       есть диск?
+                       is there a disc?
                      /             \
-                   нет              да
+                   no               yes
                     |                |
                     v                v
-            default request   читать ТОЛЬКО манифест
-                    |         (код не поднимать)
+            default request   read ONLY the manifest
+                    |         (do not bring up code)
                     \                /
                      v              v
-                 REQUEST в единицах КОНСОЛИ
-                 VRAM, AUDIORAM, экран(max), frame_capacity, ...
+                 REQUEST in CONSOLE units
+                 VRAM, AUDIORAM, screen(max), frame_capacity, ...
                             |
                             v
-              БЭКЕНД: маршруты класс -> пул хоста
-              software: все классы в один пул
-              hardware: каждый в свой
+              BACKEND: class -> host pool routes
+              software: all classes into one pool
+              hardware: each into its own
                             |
                             v
-              СТОИМОСТЬ = база консоли
-                        + накладные(request)   фреймбуфер, OT, список
-                        + пулы диска
+              COST = console base
+                   + overhead(request)   framebuffer, OT, list
+                   + disc pools
                             |
                             v
-                 СРАВНЕНИЕ ПО КАЖДОМУ ПУЛУ
+                 COMPARISON PER POOL
                      /              \
-              не хватает           хватает
+              not enough          enough
                     |                 |
                     v                 v
-         ОТКАЗ: "пулу X нужно      GRANT = request
-         N, машина даёт M"              |
-         диск не запускается            v
-                                 БРОНЬ: выделить всё
-                                 и сразу, до первого кадра
+         REFUSAL: "pool X needs     GRANT = request
+         N, machine gives M"              |
+         disc does not start              v
+                                 RESERVATION: allocate everything
+                                 at once, before the first frame
                                         |
                                         v
-                                 СБОРКА КОНТРОЛЛЕРОВ
-                                 размеры только из grant
+                                 BUILD CONTROLLERS
+                                 sizes only from grant
                                         |
                                         v
-                                 ПОДЪЁМ КОДА (dlopen)
+                                 BRING UP CODE (dlopen)
                                         |
                                         v
                                       RUN
                                         |
-                        диск просит сверх своего пула
+                        disc asks beyond its pool
                                         |
                                         v
                                   RV_ERR_NOMEM
-                            (хост при этом не трогается)
+                            (the host is not touched)
 ```
 
-Отказ всегда называет конкретный пул: на software это «хостовой RAM не хватает
-на сумму трёх классов», на hardware — «не хватает именно видеопамяти».
+A refusal always names a concrete pool: on software it is "host RAM is not
+enough for the sum of three classes", on hardware — "video memory specifically
+is not enough".
 
 ---
 
-## Что ещё не решено
+## What is not yet decided
 
-Между «замером» и «сборкой контроллеров» консоль уже существует, но железа у
-неё ещё нет. Нынешняя форма этого не переживает: конструктор `rv_pconsole`
-строит все пять контроллеров сразу, а `rv_pcpool` выделяет весь буфер в своём
-конструкторе — то есть память роздана раньше, чем прочитан манифест. Нужно
-решить, кто кого конструирует и в каких состояниях живёт консоль.
+Between "measurement" and "building controllers" the console already exists,
+but has no hardware yet. The current form does not survive this: the
+`rv_pconsole` constructor builds all five controllers at once, and `rv_pcpool`
+allocates its whole buffer in its own constructor — that is, memory is handed
+out before the manifest is read. It needs to be decided who constructs whom
+and in which states the console lives.

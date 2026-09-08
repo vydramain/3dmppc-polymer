@@ -2,9 +2,10 @@
 
 #include <cmath>
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
-// Linear algebra for discs. The console has NO 3D: rv_pdk::rv_vertex is a pair of
+// Linear algebra for discs. The console has NO 3D: rv_vertex is a pair of
 // screen int16, and everything above that line is the game's job (exactly as the
 // GTE was a coprocessor the PSX programmer drove by hand). This header is that
 // job's toolbox, and nothing here ever crosses the PDK boundary.
@@ -54,66 +55,135 @@ struct rv_vec4 {
 
 // --- rv_vec2 ------------------------------------------------------------------
 
-inline rv_vec2 operator+(rv_vec2 a, rv_vec2 b) { return rv_vec2{a.x + b.x, a.y + b.y}; }
-inline rv_vec2 operator-(rv_vec2 a, rv_vec2 b) { return rv_vec2{a.x - b.x, a.y - b.y}; }
-inline rv_vec2 operator-(rv_vec2 a) { return rv_vec2{-a.x, -a.y}; }
-inline rv_vec2 operator*(rv_vec2 a, float k) { return rv_vec2{a.x * k, a.y * k}; }
-inline rv_vec2 operator*(float k, rv_vec2 a) { return a * k; }
+inline rv_vec2 operator+(rv_vec2 a, rv_vec2 b)
+{
+    return rv_vec2{ a.x + b.x, a.y + b.y };
+}
+inline rv_vec2 operator-(rv_vec2 a, rv_vec2 b)
+{
+    return rv_vec2{ a.x - b.x, a.y - b.y };
+}
+inline rv_vec2 operator-(rv_vec2 a)
+{
+    return rv_vec2{ -a.x, -a.y };
+}
+inline rv_vec2 operator*(rv_vec2 a, float k)
+{
+    return rv_vec2{ a.x * k, a.y * k };
+}
+inline rv_vec2 operator*(float k, rv_vec2 a)
+{
+    return a * k;
+}
 
-inline float rv_dot(rv_vec2 a, rv_vec2 b) { return a.x * b.x + a.y * b.y; }
-inline float rv_length(rv_vec2 a) { return std::sqrt(rv_dot(a, a)); }
+inline float rv_dot(rv_vec2 a, rv_vec2 b)
+{
+    return a.x * b.x + a.y * b.y;
+}
+inline float rv_length(rv_vec2 a)
+{
+    return std::sqrt(rv_dot(a, a));
+}
 
 // The 2D "cross product": the z of the 3D cross of the two vectors lifted into
 // the plane. It is the SIGNED AREA of the parallelogram they span — the whole
 // basis of screen-space back-face culling (see pdklib/rv_math/rv_xform.hpp).
-inline float rv_cross(rv_vec2 a, rv_vec2 b) { return a.x * b.y - a.y * b.x; }
+inline float rv_cross(rv_vec2 a, rv_vec2 b)
+{
+    return a.x * b.y - a.y * b.x;
+}
 
 // --- rv_vec3 ------------------------------------------------------------------
 
-inline rv_vec3 operator+(rv_vec3 a, rv_vec3 b) { return rv_vec3{a.x + b.x, a.y + b.y, a.z + b.z}; }
-inline rv_vec3 operator-(rv_vec3 a, rv_vec3 b) { return rv_vec3{a.x - b.x, a.y - b.y, a.z - b.z}; }
-inline rv_vec3 operator-(rv_vec3 a) { return rv_vec3{-a.x, -a.y, -a.z}; }
-inline rv_vec3 operator*(rv_vec3 a, float k) { return rv_vec3{a.x * k, a.y * k, a.z * k}; }
-inline rv_vec3 operator*(float k, rv_vec3 a) { return a * k; }
+inline rv_vec3 operator+(rv_vec3 a, rv_vec3 b)
+{
+    return rv_vec3{ a.x + b.x, a.y + b.y, a.z + b.z };
+}
+inline rv_vec3 operator-(rv_vec3 a, rv_vec3 b)
+{
+    return rv_vec3{ a.x - b.x, a.y - b.y, a.z - b.z };
+}
+inline rv_vec3 operator-(rv_vec3 a)
+{
+    return rv_vec3{ -a.x, -a.y, -a.z };
+}
+inline rv_vec3 operator*(rv_vec3 a, float k)
+{
+    return rv_vec3{ a.x * k, a.y * k, a.z * k };
+}
+inline rv_vec3 operator*(float k, rv_vec3 a)
+{
+    return a * k;
+}
 
-inline float rv_dot(rv_vec3 a, rv_vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+inline float rv_dot(rv_vec3 a, rv_vec3 b)
+{
+    return a.x * b.x + a.y * b.y + a.z * b.z;
+}
 
 // Cross product. With the left-handed basis above this obeys cross(x, y) = +z,
 // cross(y, z) = +x, cross(z, x) = +y — the same cyclic rule the rotations use.
-inline rv_vec3 rv_cross(rv_vec3 a, rv_vec3 b) {
-    return rv_vec3{a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+inline rv_vec3 rv_cross(rv_vec3 a, rv_vec3 b)
+{
+    return rv_vec3{ a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
 }
 
-inline float rv_length(rv_vec3 a) { return std::sqrt(rv_dot(a, a)); }
+inline float rv_length(rv_vec3 a)
+{
+    return std::sqrt(rv_dot(a, a));
+}
 
 // Normalize, returning the zero vector for a degenerate input. A silent zero is
 // deliberate: a disc runs inside a frame hook with nowhere to report an error to,
 // and a NaN that spreads through the transform chain is far harder to see than a
 // polygon that collapses.
-inline rv_vec3 rv_normalize(rv_vec3 a) {
+inline rv_vec3 rv_normalize(rv_vec3 a)
+{
     const float len = rv_length(a);
-    if (len <= 1e-20f) return rv_vec3{0.0f, 0.0f, 0.0f};
+    if (len <= 1e-20f) {
+        return rv_vec3{ 0.0f, 0.0f, 0.0f };
+    }
     return a * (1.0f / len);
 }
 
 // --- rv_vec4 ------------------------------------------------------------------
 
-inline rv_vec4 operator+(rv_vec4 a, rv_vec4 b) {
-    return rv_vec4{a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w};
+inline rv_vec4 operator+(rv_vec4 a, rv_vec4 b)
+{
+    return rv_vec4{ a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w };
 }
-inline rv_vec4 operator-(rv_vec4 a, rv_vec4 b) {
-    return rv_vec4{a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w};
+inline rv_vec4 operator-(rv_vec4 a, rv_vec4 b)
+{
+    return rv_vec4{ a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w };
 }
-inline rv_vec4 operator*(rv_vec4 a, float k) { return rv_vec4{a.x * k, a.y * k, a.z * k, a.w * k}; }
-inline rv_vec4 operator*(float k, rv_vec4 a) { return a * k; }
+inline rv_vec4 operator*(rv_vec4 a, float k)
+{
+    return rv_vec4{ a.x * k, a.y * k, a.z * k, a.w * k };
+}
+inline rv_vec4 operator*(float k, rv_vec4 a)
+{
+    return a * k;
+}
 
-inline float rv_dot(rv_vec4 a, rv_vec4 b) { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+inline float rv_dot(rv_vec4 a, rv_vec4 b)
+{
+    return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+}
 
 // A point (w = 1) is affected by translation; a direction (w = 0) is not. Keeping
 // the two constructions named is what stops a normal from being translated.
-inline rv_vec4 rv_point4(rv_vec3 v) { return rv_vec4{v.x, v.y, v.z, 1.0f}; }
-inline rv_vec4 rv_direction4(rv_vec3 v) { return rv_vec4{v.x, v.y, v.z, 0.0f}; }
-inline rv_vec3 rv_xyz(rv_vec4 v) { return rv_vec3{v.x, v.y, v.z}; }
+inline rv_vec4 rv_point4(rv_vec3 v)
+{
+    return rv_vec4{ v.x, v.y, v.z, 1.0f };
+}
+inline rv_vec4 rv_direction4(rv_vec3 v)
+{
+    return rv_vec4{ v.x, v.y, v.z, 0.0f };
+}
+inline rv_vec3 rv_xyz(rv_vec4 v)
+{
+    return rv_vec3{ v.x, v.y, v.z };
+}
 
 // --- rv_mat4 ------------------------------------------------------------------
 
@@ -123,7 +193,8 @@ struct rv_mat4 {
     float m[4][4];
 };
 
-inline rv_mat4 rv_mat4_identity() {
+inline rv_mat4 rv_mat4_identity()
+{
     rv_mat4 r{};
     r.m[0][0] = 1.0f;
     r.m[1][1] = 1.0f;
@@ -133,49 +204,59 @@ inline rv_mat4 rv_mat4_identity() {
 }
 
 // r = a * b. Applied to a vector this means b FIRST, then a: (a*b)*v == a*(b*v).
-inline rv_mat4 rv_mat4_mul(const rv_mat4& a, const rv_mat4& b) {
+inline rv_mat4 rv_mat4_mul(const rv_mat4 &a, const rv_mat4 &b)
+{
     rv_mat4 r{};
     for (int row = 0; row < 4; ++row) {
         for (int col = 0; col < 4; ++col) {
             float sum = 0.0f;
-            for (int k = 0; k < 4; ++k) sum += a.m[row][k] * b.m[k][col];
+            for (int k = 0; k < 4; ++k) {
+                sum += a.m[row][k] * b.m[k][col];
+            }
             r.m[row][col] = sum;
         }
     }
     return r;
 }
 
-inline rv_vec4 rv_mat4_mul_vec4(const rv_mat4& a, rv_vec4 v) {
-    return rv_vec4{a.m[0][0] * v.x + a.m[0][1] * v.y + a.m[0][2] * v.z + a.m[0][3] * v.w,
-                   a.m[1][0] * v.x + a.m[1][1] * v.y + a.m[1][2] * v.z + a.m[1][3] * v.w,
-                   a.m[2][0] * v.x + a.m[2][1] * v.y + a.m[2][2] * v.z + a.m[2][3] * v.w,
-                   a.m[3][0] * v.x + a.m[3][1] * v.y + a.m[3][2] * v.z + a.m[3][3] * v.w};
+inline rv_vec4 rv_mat4_mul_vec4(const rv_mat4 &a, rv_vec4 v)
+{
+    return rv_vec4{ a.m[0][0] * v.x + a.m[0][1] * v.y + a.m[0][2] * v.z + a.m[0][3] * v.w,
+        a.m[1][0] * v.x + a.m[1][1] * v.y + a.m[1][2] * v.z + a.m[1][3] * v.w,
+        a.m[2][0] * v.x + a.m[2][1] * v.y + a.m[2][2] * v.z + a.m[2][3] * v.w,
+        a.m[3][0] * v.x + a.m[3][1] * v.y + a.m[3][2] * v.z + a.m[3][3] * v.w };
 }
 
 // Transform a POSITION, discarding w. Correct only for affine matrices (model,
 // view, and their products) — a projection matrix produces a w that MUST be kept,
 // so project through rv_mat4_mul_vec4 instead.
-inline rv_vec3 rv_mat4_mul_point(const rv_mat4& a, rv_vec3 v) {
+inline rv_vec3 rv_mat4_mul_point(const rv_mat4 &a, rv_vec3 v)
+{
     return rv_xyz(rv_mat4_mul_vec4(a, rv_point4(v)));
 }
 
 // Transform a DIRECTION: w = 0, so translation drops out. Exact for rotations;
 // under non-uniform scale a normal needs the inverse-transpose, which this is not
 // (DEFERRED — no disc needs it until non-uniform scale meets lighting).
-inline rv_vec3 rv_mat4_mul_direction(const rv_mat4& a, rv_vec3 v) {
+inline rv_vec3 rv_mat4_mul_direction(const rv_mat4 &a, rv_vec3 v)
+{
     return rv_xyz(rv_mat4_mul_vec4(a, rv_direction4(v)));
 }
 
-inline rv_mat4 rv_mat4_transpose(const rv_mat4& a) {
+inline rv_mat4 rv_mat4_transpose(const rv_mat4 &a)
+{
     rv_mat4 r{};
     for (int row = 0; row < 4; ++row) {
-        for (int col = 0; col < 4; ++col) r.m[row][col] = a.m[col][row];
+        for (int col = 0; col < 4; ++col) {
+            r.m[row][col] = a.m[col][row];
+        }
     }
     return r;
 }
 
 // Translation occupies the last COLUMN — the column-vector convention.
-inline rv_mat4 rv_mat4_translate(rv_vec3 t) {
+inline rv_mat4 rv_mat4_translate(rv_vec3 t)
+{
     rv_mat4 r = rv_mat4_identity();
     r.m[0][3] = t.x;
     r.m[1][3] = t.y;
@@ -183,7 +264,8 @@ inline rv_mat4 rv_mat4_translate(rv_vec3 t) {
     return r;
 }
 
-inline rv_mat4 rv_mat4_scale(rv_vec3 s) {
+inline rv_mat4 rv_mat4_scale(rv_vec3 s)
+{
     rv_mat4 r{};
     r.m[0][0] = s.x;
     r.m[1][1] = s.y;
@@ -192,10 +274,14 @@ inline rv_mat4 rv_mat4_scale(rv_vec3 s) {
     return r;
 }
 
-inline rv_mat4 rv_mat4_scale_uniform(float s) { return rv_mat4_scale(rv_vec3{s, s, s}); }
+inline rv_mat4 rv_mat4_scale_uniform(float s)
+{
+    return rv_mat4_scale(rv_vec3{ s, s, s });
+}
 
 // Left-handed rotation about +x: +y turns towards +z.
-inline rv_mat4 rv_mat4_rotate_x(float radians) {
+inline rv_mat4 rv_mat4_rotate_x(float radians)
+{
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     rv_mat4 r = rv_mat4_identity();
@@ -207,7 +293,8 @@ inline rv_mat4 rv_mat4_rotate_x(float radians) {
 }
 
 // Left-handed rotation about +y: +z turns towards +x (a character turning right).
-inline rv_mat4 rv_mat4_rotate_y(float radians) {
+inline rv_mat4 rv_mat4_rotate_y(float radians)
+{
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     rv_mat4 r = rv_mat4_identity();
@@ -219,7 +306,8 @@ inline rv_mat4 rv_mat4_rotate_y(float radians) {
 }
 
 // Left-handed rotation about +z: +x turns towards +y.
-inline rv_mat4 rv_mat4_rotate_z(float radians) {
+inline rv_mat4 rv_mat4_rotate_z(float radians)
+{
     const float c = std::cos(radians);
     const float s = std::sin(radians);
     rv_mat4 r = rv_mat4_identity();
@@ -236,7 +324,8 @@ inline rv_mat4 rv_mat4_rotate_z(float radians) {
 // the rotation leaves alone, and the part across it, which spins inside the plane
 // perpendicular to the axis: R = cos(t)*I + sin(t)*[axis]x + (1-cos t)*axis*axisT.
 // Written out as a matrix that is exactly the three terms summed entry by entry.
-inline rv_mat4 rv_mat4_rotate_axis(rv_vec3 axis, float radians) {
+inline rv_mat4 rv_mat4_rotate_axis(rv_vec3 axis, float radians)
+{
     const rv_vec3 a = rv_normalize(axis);
     const float c = std::cos(radians);
     const float s = std::sin(radians);
@@ -255,4 +344,4 @@ inline rv_mat4 rv_mat4_rotate_axis(rv_vec3 axis, float radians) {
     return r;
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

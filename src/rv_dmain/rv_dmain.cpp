@@ -3,13 +3,13 @@
 #include <cmath>
 #include <cstdio>
 
-#include "pdk/ca/rv_ca.hpp"
-#include "pdk/cd/rv_cd.hpp"
-#include "pdk/cio/rv_cio.hpp"
-#include "pdk/cm/rv_cm.hpp"
-#include "pdk/cv/rv_cv.hpp"
-#include "pdk/cv/rv_texel.hpp"
-#include "pdk/rv_err.hpp"
+#include "pdk/ca/rv_ca.h"
+#include "pdk/cd/rv_cd.h"
+#include "pdk/cio/rv_cio.h"
+#include "pdk/cm/rv_cm.h"
+#include "pdk/cv/rv_cv.h"
+#include "pdk/cv/rv_texel.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_camera/rv_camera.hpp"
 #include "pdklib/rv_color/rv_color.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
@@ -19,12 +19,6 @@
 
 namespace rv_service
 {
-
-// The contract's vocabulary, unqualified for the bodies below only — never in a
-// header, where a using-directive would leak into everything that includes it.
-// The disc-side library (rv_pdklib) is NOT pulled in this way: it is a separate
-// tree from the contract and stays visibly spelled out at every call.
-using namespace rv_pdk;
 
 namespace
 {
@@ -170,37 +164,37 @@ rv_vertex make_vertex(int x, int y, rv_color color)
 
 // --- initialization ----------------------------------------------------------
 
-int64_t rv_dmain::disc_initialize(rv_pdko &pdk)
+int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
 {
-    pdk_ = &pdk;
+    pdk_ = pdk;
 
-    rv_cv *cv = pdk_->cv();
-    rv_cio *cio = pdk_->cio();
+    rv_cv *cv = rv_pdko_cv(pdk_);
+    rv_cio *cio = rv_pdko_cio(pdk_);
     if (!cv || !cio) {
         return RV_ERR_INVAL;
     }
 
-    screen_width_ = cv->screen_width();
-    screen_height_ = cv->screen_height();
-    frame_capacity_ = cv->frame_capacity();
-    iport_count_ = cio->iport_count();
-    video_memory_size_ = cv->video_memory_size();
+    screen_width_ = rv_cv_screen_width(cv);
+    screen_height_ = rv_cv_screen_height(cv);
+    frame_capacity_ = rv_cv_frame_capacity(cv);
+    iport_count_ = rv_cio_iport_count(cio);
+    video_memory_size_ = rv_cv_video_memory_size(cv);
 
-    rv_ca *ca = pdk_->ca();
+    rv_ca *ca = rv_pdko_ca(pdk_);
     if (ca) {
-        voice_count_ = ca->voice_count();
-        sound_memory_size_ = ca->sound_memory_size();
+        voice_count_ = rv_ca_voice_count(ca);
+        sound_memory_size_ = rv_ca_sound_memory_size(ca);
     }
 
-    rv_cm *cm = pdk_->cm();
+    rv_cm *cm = rv_pdko_cm(pdk_);
     if (cm) {
-        card_slots_ = cm->card_slots();
-        card_slot_size_ = cm->card_slot_size();
+        card_slots_ = rv_cm_card_slots(cm);
+        card_slot_size_ = rv_cm_card_slot_size(cm);
     }
 
     // A populated slot advertises what it can report; an empty one answers 0.
     for (int64_t port = 0; port < iport_count_; ++port) {
-        if (cio->iport_abilities(port) != 0) {
+        if (rv_cio_iport_abilities(cio, port) != 0) {
             ++pads_connected_;
         }
     }
@@ -234,7 +228,7 @@ int64_t rv_dmain::disc_initialize(rv_pdko &pdk)
 
 void rv_dmain::build_font()
 {
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
     // The atlas is expanded into a buffer the DISC owns and uploaded; the buffer
     // dies at the end of this function because video_asset_write copies during
@@ -245,13 +239,13 @@ void rv_dmain::build_font()
     }
 
     const int64_t atlas_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
+        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
     if (atlas_addr < 0) {
         return;
     }
     const rv_texture atlas_texture = rv_pdklib::rv_font_atlas_texture(atlas.data());
-    if (cv->video_asset_write(atlas_addr, &atlas_texture) < 0) {
-        cv->video_asset_free(atlas_addr);
+    if (rv_cv_video_asset_write(cv, atlas_addr, &atlas_texture) < 0) {
+        rv_cv_video_asset_free(cv, atlas_addr);
         return;
     }
 
@@ -263,15 +257,15 @@ void rv_dmain::build_font()
     rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(), palette.size());
 
     const int64_t palette_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     if (palette_addr < 0) {
-        cv->video_asset_free(atlas_addr);
+        rv_cv_video_asset_free(cv, atlas_addr);
         return;
     }
     const rv_texture palette_texture = rv_pdklib::rv_font_palette_texture(palette.data());
-    if (cv->video_asset_write(palette_addr, &palette_texture) < 0) {
-        cv->video_asset_free(palette_addr);
-        cv->video_asset_free(atlas_addr);
+    if (rv_cv_video_asset_write(cv, palette_addr, &palette_texture) < 0) {
+        rv_cv_video_asset_free(cv, palette_addr);
+        rv_cv_video_asset_free(cv, atlas_addr);
         return;
     }
 
@@ -280,11 +274,11 @@ void rv_dmain::build_font()
     rv_pdklib::rv_font_build_palette(rv_color{ 240, 90, 80 }, bad.data(), bad.size());
 
     const int64_t bad_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     const rv_texture bad_texture = rv_pdklib::rv_font_palette_texture(bad.data());
     if (bad_addr >= 0 &&
-        cv->video_asset_write(bad_addr, &bad_texture) < 0) {
-        cv->video_asset_free(bad_addr);
+        rv_cv_video_asset_write(cv, bad_addr, &bad_texture) < 0) {
+        rv_cv_video_asset_free(cv, bad_addr);
         addr_font_palette_bad_ = 0;
     } else if (bad_addr >= 0) {
         addr_font_palette_bad_ = bad_addr;
@@ -296,10 +290,10 @@ void rv_dmain::build_font()
 
 void rv_dmain::build_texture()
 {
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
-    if (RV_DMAIN_TEX_SIZE > cv->texture_max_width() ||
-        RV_DMAIN_TEX_SIZE > cv->texture_max_height()) {
+    if (RV_DMAIN_TEX_SIZE > rv_cv_texture_max_width(cv) ||
+        RV_DMAIN_TEX_SIZE > rv_cv_texture_max_height(cv)) {
         return; // the machine is smaller than this disc assumed; skip, do not lie
     }
 
@@ -331,7 +325,7 @@ void rv_dmain::build_texture()
     }
 
     const int64_t bytes = static_cast<int64_t>(texels_.size() * sizeof(uint16_t));
-    const int64_t addr = cv->video_asset_malloc(bytes);
+    const int64_t addr = rv_cv_video_asset_malloc(cv, bytes);
     if (addr < 0) {
         return;
     }
@@ -343,8 +337,8 @@ void rv_dmain::build_texture()
     texture.width = static_cast<uint64_t>(RV_DMAIN_TEX_SIZE);
     texture.height = static_cast<uint64_t>(RV_DMAIN_TEX_SIZE);
 
-    if (cv->video_asset_write(addr, &texture) < 0) {
-        cv->video_asset_free(addr);
+    if (rv_cv_video_asset_write(cv, addr, &texture) < 0) {
+        rv_cv_video_asset_free(cv, addr);
         return;
     }
     addr_texture_ = addr;
@@ -356,7 +350,7 @@ void rv_dmain::build_texture()
 // AFTER the lookup, so an opaque index can become a hole by palette alone.
 void rv_dmain::build_idx4_texture()
 {
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
     constexpr int64_t size = 8;
 
     // THEOREM: IDX4 packing. Two texels share a byte, LOW nibble first, and rows
@@ -383,7 +377,7 @@ void rv_dmain::build_idx4_texture()
     palette_idx4_[2] = RV_DMAIN_TEXEL_GREEN;
     palette_idx4_[3] = RV_DMAIN_TEXEL_WHITE;
 
-    const int64_t texel_addr = cv->video_asset_malloc(static_cast<int64_t>(texels_idx4_.size()));
+    const int64_t texel_addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(texels_idx4_.size()));
     if (texel_addr < 0) {
         return;
     }
@@ -394,15 +388,15 @@ void rv_dmain::build_idx4_texture()
     texels.size = texels_idx4_.size();
     texels.width = static_cast<uint64_t>(size);
     texels.height = static_cast<uint64_t>(size);
-    if (cv->video_asset_write(texel_addr, &texels) < 0) {
-        cv->video_asset_free(texel_addr);
+    if (rv_cv_video_asset_write(cv, texel_addr, &texels) < 0) {
+        rv_cv_video_asset_free(cv, texel_addr);
         return;
     }
 
     const int64_t palette_addr =
-        cv->video_asset_malloc(static_cast<int64_t>(palette_idx4_.size() * sizeof(uint16_t)));
+        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_idx4_.size() * sizeof(uint16_t)));
     if (palette_addr < 0) {
-        cv->video_asset_free(texel_addr);
+        rv_cv_video_asset_free(cv, texel_addr);
         return;
     }
 
@@ -415,9 +409,9 @@ void rv_dmain::build_idx4_texture()
     palette.size = palette_idx4_.size() * sizeof(uint16_t);
     palette.width = palette_idx4_.size();
     palette.height = 1;
-    if (cv->video_asset_write(palette_addr, &palette) < 0) {
-        cv->video_asset_free(palette_addr);
-        cv->video_asset_free(texel_addr);
+    if (rv_cv_video_asset_write(cv, palette_addr, &palette) < 0) {
+        rv_cv_video_asset_free(cv, palette_addr);
+        rv_cv_video_asset_free(cv, texel_addr);
         return;
     }
 
@@ -427,7 +421,7 @@ void rv_dmain::build_idx4_texture()
 
 void rv_dmain::probe_drive()
 {
-    rv_cd *cd = pdk_->cd();
+    rv_cd *cd = rv_pdko_cd(pdk_);
     if (!cd) {
         return;
     }
@@ -435,15 +429,15 @@ void rv_dmain::probe_drive()
     // A name carrying path separators must be refused before anything touches
     // the medium — it is an attempt to leave the disc, not a spelling mistake.
     // This probe asserts the drive answers INVAL rather than merely NOENT.
-    drive_rejects_paths_ = cd->asset_open("../../etc/passwd") == RV_ERR_INVAL &&
-        cd->asset_open("assets/thing.obj") == RV_ERR_INVAL;
+    drive_rejects_paths_ = rv_cd_asset_open(cd, "../../etc/passwd") == RV_ERR_INVAL &&
+        rv_cd_asset_open(cd, "assets/thing.obj") == RV_ERR_INVAL;
 
-    const int64_t handle = cd->asset_open("protagonist.obj");
+    const int64_t handle = rv_cd_asset_open(cd, "protagonist.obj");
     if (handle < 0) {
         return; // no medium inserted is a legal, quiet outcome
     }
 
-    const int64_t size = cd->asset_size(handle);
+    const int64_t size = rv_cd_asset_size(cd, handle);
     if (size <= 0) {
         return;
     }
@@ -451,7 +445,7 @@ void rv_dmain::probe_drive()
     std::vector<uint8_t> buffer(static_cast<std::size_t>(size));
     // AUTHORITATIVE is what asset_read returns, not what asset_size promised:
     // the contract calls the size a hint that may go stale between the calls.
-    const int64_t read = cd->asset_read(handle, buffer.data(), size);
+    const int64_t read = rv_cd_asset_read(cd, handle, buffer.data(), size);
     if (read < 0) {
         return;
     }
@@ -460,28 +454,28 @@ void rv_dmain::probe_drive()
     asset_ok_ = read > 0 && buffer[0] == '#'; // a Wavefront .obj opens with a comment
 
     // The same name must resolve to the same handle, forever.
-    if (cd->asset_open("protagonist.obj") != handle) {
+    if (rv_cd_asset_open(cd, "protagonist.obj") != handle) {
         asset_ok_ = false;
     }
 }
 
 void rv_dmain::load_save()
 {
-    rv_cm *cm = pdk_->cm();
+    rv_cm *cm = rv_pdko_cm(pdk_);
     if (!cm) {
         return;
     }
 
-    if (cm->card_slot_size() < static_cast<int64_t>(sizeof(rv_dmain_save))) {
+    if (rv_cm_card_slot_size(cm) < static_cast<int64_t>(sizeof(rv_dmain_save))) {
         return; // this machine's slots cannot hold our blob
     }
 
     rv_dmain_save blob{ RV_DMAIN_SAVE_MAGIC, 0 };
 
-    const int64_t size = cm->card_size(0);
+    const int64_t size = rv_cm_card_size(cm, 0);
     if (size >= 0) {
         rv_dmain_save stored{};
-        if (cm->card_read(0, &stored, static_cast<int64_t>(sizeof(stored))) >= 0 &&
+        if (rv_cm_card_read(cm, 0, &stored, static_cast<int64_t>(sizeof(stored))) >= 0 &&
             stored.magic == RV_DMAIN_SAVE_MAGIC) {
             blob.boot_count = stored.boot_count;
         }
@@ -492,7 +486,7 @@ void rv_dmain::load_save()
     }
 
     ++blob.boot_count;
-    if (cm->card_write(0, &blob, static_cast<int64_t>(sizeof(blob))) == RV_OK) {
+    if (rv_cm_card_write(cm, 0, &blob, static_cast<int64_t>(sizeof(blob))) == RV_OK) {
         boot_count_ = blob.boot_count;
         card_ok_ = true;
     }
@@ -500,8 +494,8 @@ void rv_dmain::load_save()
 
 void rv_dmain::build_beep()
 {
-    rv_ca *ca = pdk_->ca();
-    if (!ca || ca->voice_count() < 1) {
+    rv_ca *ca = rv_pdko_ca(pdk_);
+    if (!ca || rv_ca_voice_count(ca) < 1) {
         return;
     }
 
@@ -520,7 +514,7 @@ void rv_dmain::build_beep()
     }
 
     const int64_t bytes = static_cast<int64_t>(pcm.size() * sizeof(int16_t));
-    const int64_t addr = ca->sound_asset_malloc(bytes);
+    const int64_t addr = rv_ca_sound_asset_malloc(ca, bytes);
     if (addr < 0) {
         return;
     }
@@ -528,14 +522,14 @@ void rv_dmain::build_beep()
     rv_sample sample{};
     sample.data = pcm.data();
     sample.size = bytes;
-    if (ca->sound_asset_write(addr, &sample) < 0) {
-        ca->sound_asset_free(addr);
+    if (rv_ca_sound_asset_write(ca, addr, &sample) < 0) {
+        rv_ca_sound_asset_free(ca, addr);
         return;
     }
 
     rv_voice_conf conf{};
     conf.voice = 1; // voice 0
-    conf.loop_type = rv_loop::none;
+    conf.loop_type = RV_LOOP_NONE;
     conf.sample_address = addr;
     conf.ar = 5;
     conf.dr = 40;
@@ -545,7 +539,7 @@ void rv_dmain::build_beep()
     conf.volume = 32767;
     conf.volume_l = 32767;
     conf.volume_r = 32767;
-    if (ca->voice_setup(&conf) < 0) {
+    if (rv_ca_voice_setup(ca, &conf) < 0) {
         return;
     }
 
@@ -568,8 +562,8 @@ void rv_dmain::frame_update(float dt)
     hue_ -= std::floor(hue_);
     spin_ += dt * RV_DMAIN_SPIN_RATE;
 
-    rv_cio *cio = pdk_->cio();
-    rv_ca *ca = pdk_->ca();
+    rv_cio *cio = rv_pdko_cio(pdk_);
+    rv_ca *ca = rv_pdko_ca(pdk_);
 
     // THEOREM: edge detection by snapshot diff. rv_cio reports the CURRENT level
     // of every source and never a press/release event, so "was it pressed THIS
@@ -577,7 +571,7 @@ void rv_dmain::frame_update(float dt)
     // would fire the beep sixty times a second for as long as the key is held;
     // only the rising edge is an intent.
     for (int64_t port = 0; port < iport_count_; ++port) {
-        const uint64_t now = cio->iport_state(port).buttons;
+        const uint64_t now = rv_cio_iport_state(cio, port).buttons;
         uint64_t &was = prev_buttons_[static_cast<std::size_t>(port)];
         const uint64_t pressed = now & ~was;
         was = now;
@@ -588,7 +582,7 @@ void rv_dmain::frame_update(float dt)
         }
 
         if ((pressed & RV_ISOURCE_FRONT_BTTN_SOUTH) && beep_ok_ && ca) {
-            ca->voice_play(1);
+            rv_ca_voice_play(ca, 1);
         }
     }
 }
@@ -603,12 +597,12 @@ void rv_dmain::frame_render()
 
     // No simulation lives here: a headless run never calls frame_render(), and
     // the show must advance identically either way (rv_de::frame_render).
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
     // The Z flag is on because the cut-out row depends on it: a hole must write
     // neither colour nor depth, and that is only observable when per-pixel depth
     // resolves primitives sharing an ordering-table bucket.
-    cv->frame_configure(RV_PIPELINE_BUFFER_CONFIG_TYPE_Z,
+    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z,
         rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
 
     draw_test_grid();
@@ -616,7 +610,7 @@ void rv_dmain::frame_render()
 
     // The console does NOT flush for the disc (rv_de::frame_render). Nothing
     // filed above reaches the screen without this call.
-    cv->frame_flush();
+    rv_cv_frame_flush(cv);
 }
 
 // --- the test card -----------------------------------------------------------
@@ -627,7 +621,7 @@ void rv_dmain::frame_render()
 // picture that is subtly off in a way nobody can localise.
 //
 // The set below is the console's whole drawing vocabulary, from
-// pdk/cv/rv_primitives.hpp: three primitive kinds, three fill modes, three wrap
+// pdk/cv/rv_primitives.h: three primitive kinds, three fill modes, three wrap
 // modes, both texel families, the cut-out rule, and the ordering table.
 namespace
 {
@@ -665,7 +659,7 @@ void rv_dmain::draw_test_grid()
 
 void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
 {
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
     // The viewport is the CELL, not the screen: the transform maps normalized
     // coordinates onto the width and height it is handed, anchored at the upper
@@ -718,13 +712,13 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
             primitive.data.polygon.vertexes[i].y =
                 to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].y + y));
         }
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
     }
 }
 
 void rv_dmain::draw_cell(int index)
 {
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
     const int col = index % RV_DMAIN_GRID_COLS;
     const int row = index / RV_DMAIN_GRID_COLS;
@@ -742,7 +736,7 @@ void rv_dmain::draw_cell(int index)
             rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
         rv_pdklib::rv_font_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
             [cv](const rv_primitive &p) {
-                cv->frame_put(&p);
+                rv_cv_frame_put(cv, &p);
             });
     }
 
@@ -757,7 +751,7 @@ void rv_dmain::draw_cell(int index)
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
         primitive.data.line.vertexes[0] = make_vertex(ax, ay + ah, hot);
         primitive.data.line.vertexes[1] = make_vertex(ax + aw, ay, cold);
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         break;
     }
     case 1: { // TRI — gouraud across three different vertex colours
@@ -774,7 +768,7 @@ void rv_dmain::draw_cell(int index)
         t.vertexes[1] = make_vertex(ax, ay + ah, cold);
         t.vertexes[2] = make_vertex(ax + aw, ay + ah, mid);
         t.vertexes[3] = make_vertex(0, 0, hot); // ignored at vertex_count 3
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         break;
     }
     case 2: { // QUAD — the same fill across the (1,2,3)/(2,3,4) split
@@ -793,7 +787,7 @@ void rv_dmain::draw_cell(int index)
         q.vertexes[1] = make_vertex(ax + aw, ay, cold);
         q.vertexes[2] = make_vertex(ax, ay + ah, mid);
         q.vertexes[3] = make_vertex(ax + aw, ay + ah, hot);
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         break;
     }
     case 3: { // WIRE — edges only, so the interior must stay background
@@ -810,14 +804,14 @@ void rv_dmain::draw_cell(int index)
         q.vertexes[1] = make_vertex(ax + aw, ay, hot);
         q.vertexes[2] = make_vertex(ax, ay + ah, cold);
         q.vertexes[3] = make_vertex(ax + aw, ay + ah, cold);
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         break;
     }
     case 4: { // SPRITE — the axis-aligned fast path, one flat colour
         const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
             static_cast<float>(aw), static_cast<float>(ah), hot,
             RV_DMAIN_DEPTH_ART_HI);
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         break;
     }
 
@@ -840,7 +834,7 @@ void rv_dmain::draw_cell(int index)
         const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
             static_cast<float>(aw), static_cast<float>(ah),
             rv_color{ 220, 60, 200 }, RV_DMAIN_DEPTH_ART_LO);
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_STRETCH);
         break;
     }
@@ -854,7 +848,7 @@ void rv_dmain::draw_cell(int index)
             const rv_primitive primitive = make_bar(static_cast<float>(ax + i * 12),
                 static_cast<float>(ay + i * 8), static_cast<float>(aw - 24),
                 static_cast<float>(ah - 16), tint[i], depth[i]);
-            cv->frame_put(&primitive);
+            rv_cv_frame_put(cv, &primitive);
         }
         break;
     }
@@ -889,7 +883,7 @@ void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, i
     sprite.width = static_cast<uint16_t>(w);
     sprite.height = static_cast<uint16_t>(h);
 
-    pdk_->cv()->frame_put(&primitive);
+    rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);
 }
 
 // PATTERN: POST header. Two lines that say what this machine IS — the virtual
@@ -911,9 +905,9 @@ void rv_dmain::draw_post()
         return;
     }
 
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
     auto file = [cv](const rv_primitive &primitive) {
-        cv->frame_put(&primitive);
+        rv_cv_frame_put(cv, &primitive);
     };
 
     const int width = static_cast<int>(screen_width_);
@@ -928,7 +922,7 @@ void rv_dmain::draw_post()
     // ink over lit geometry is exactly what made the first version unreadable.
     const rv_primitive top_slab =
         make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
-    cv->frame_put(&top_slab);
+    rv_cv_frame_put(cv, &top_slab);
     rv_pdklib::rv_font_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
     rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
         2, RV_DMAIN_NO_DISC, file);
@@ -949,7 +943,7 @@ void rv_dmain::draw_post()
     // The bottom slab: one word per subsystem, and the word is the whole report.
     const rv_primitive bottom_slab = make_bar(0.0f, static_cast<float>(height) - 24.0f,
         static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
-    cv->frame_put(&bottom_slab);
+    rv_cv_frame_put(cv, &bottom_slab);
 
     struct rv_dmain_probe {
         const char *label;
@@ -994,24 +988,24 @@ void rv_dmain::disc_shutdown()
         return;
     }
 
-    rv_cv *cv = pdk_->cv();
+    rv_cv *cv = rv_pdko_cv(pdk_);
     if (addr_texture_ != 0) {
-        cv->video_asset_free(addr_texture_);
+        rv_cv_video_asset_free(cv, addr_texture_);
     }
     if (addr_font_ != 0) {
-        cv->video_asset_free(addr_font_);
+        rv_cv_video_asset_free(cv, addr_font_);
     }
     if (addr_font_palette_ != 0) {
-        cv->video_asset_free(addr_font_palette_);
+        rv_cv_video_asset_free(cv, addr_font_palette_);
     }
     if (addr_font_palette_bad_ != 0) {
-        cv->video_asset_free(addr_font_palette_bad_);
+        rv_cv_video_asset_free(cv, addr_font_palette_bad_);
     }
     if (addr_idx4_ != 0) {
-        cv->video_asset_free(addr_idx4_);
+        rv_cv_video_asset_free(cv, addr_idx4_);
     }
     if (addr_idx4_palette_ != 0) {
-        cv->video_asset_free(addr_idx4_palette_);
+        rv_cv_video_asset_free(cv, addr_idx4_palette_);
     }
     addr_texture_ = 0;
     addr_font_ = 0;
@@ -1020,12 +1014,12 @@ void rv_dmain::disc_shutdown()
     addr_idx4_ = 0;
     addr_idx4_palette_ = 0;
 
-    rv_ca *ca = pdk_->ca();
+    rv_ca *ca = rv_pdko_ca(pdk_);
     if (ca && addr_beep_ != 0) {
         // Stop first: the contract makes sound_asset_free() answer RV_ERR_BUSY
         // while a voice is still reading out of the region.
-        ca->voice_stop(1);
-        ca->sound_asset_free(addr_beep_);
+        rv_ca_voice_stop(ca, 1);
+        rv_ca_sound_asset_free(ca, addr_beep_);
         addr_beep_ = 0;
     }
 }
