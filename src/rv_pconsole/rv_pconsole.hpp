@@ -6,6 +6,7 @@
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
+#include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pchost.hpp"
@@ -16,7 +17,7 @@ namespace rv_3dmppc
 {
 
 // PATTERN: composition root. This is the single place where the concrete
-// machine is assembled — the host, the five controllers, and the geometry they
+// machine is assembled — the host, the six controllers, and the geometry they
 // were built from. Nothing below constructs a subsystem: a controller receives
 // what it needs and never reaches sideways for it.
 // There is nothing left to inherit: rv_pdko is an opaque C type now, and "this
@@ -35,17 +36,19 @@ private:
     // caller is guaranteed to outlive this console.
     rv_pchost &host_;
 
-    // TODO(Claude's instruction, the code is yours). Declare an rv_pccl cl_ field
-    // here and include "rv_pconsole/cl/rv_pccl.hpp" at the top.
-    //
-    // DECLARATION ORDER MATTERS, exactly as it does for host_ above. Fields are
-    // destroyed in the REVERSE order of their declaration. Put cl_ in the common
-    // row of controllers, alphabetically.
+    // DECLARATION ORDER MATTERS, exactly as it does for host_ above. Fields
+    // are destroyed in the REVERSE order of their declaration, and cl_ is
+    // deliberately LAST — not alphabetical — in this row: a Lua finaliser can
+    // call back into rv_cv_*/rv_ca_* through FFI while the machine shuts
+    // down, so lua_close() must run BEFORE any controller it might reach is
+    // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
+    // destruction order, which is a use-after-free.
     rv_pcca ca_;
     rv_pccd cd_;
     rv_pccio cio_;
     rv_pccm cm_;
     rv_pccv cv_;
+    rv_pccl cl_;
 
     // BORROWED, never owned. The loader reads the manifest BEFORE this console
     // exists — the numbers it finds are what this console is built from — so it
@@ -65,13 +68,9 @@ public:
     rv_cm *cm();
     rv_cv *cv();
 
-    // TODO(Claude's instruction, the code is yours). The body of cl() in
-    // rv_pconsole.cpp is one line: reinterpret_cast the field's address to
-    // rv_cl*, the way its neighbours do.
-    //
-    // A STUB until the rv_pccl cl_ field exists: rv_pdko_cl() has to answer with
-    // something. It returns nullptr — no disc in this tree calls it yet. Replace
-    // the body with `return &cl_;` the moment the field appears.
+    // Unlike its neighbours above, this one can answer nullptr: a disc that
+    // declared no [budget.pccl] gets no cl at all rather than a live-looking
+    // handle whose every call answers RV_ERR_INVAL.
     rv_cl *cl();
 
     // The drive itself, console-side. rv_pdko::cd() hands a disc the CONTRACT's
@@ -92,11 +91,14 @@ public:
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
-    // existence? Covers audio (ca_), video (cv_) and the memory card (cm_). A
-    // budget the machine accepted at stage E3 can still fail to materialise at
-    // stage G — an address-space reservation is allowed to refuse, and so is
-    // the card's backing image. False means the machine did not provide what
-    // the disc declared, and the run must not start.
+    // existence? Covers audio (ca_), video (cv_), the memory card (cm_) and
+    // scripting (cl_). A budget the machine accepted at stage E3 can still
+    // fail to materialise at stage G — an address-space reservation is
+    // allowed to refuse, and so is the card's backing image. cl_ needs no
+    // special-casing: rv_pccl::valid() already treats "scripting was never
+    // asked for" as true, so this stays a plain conjunction. False means the
+    // machine did not provide what the disc declared, and the run must not
+    // start.
     bool ready() const;
 };
 

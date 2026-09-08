@@ -1,80 +1,106 @@
+// The console's rv_cl implementation: the script machine. Counterpart of
+// rv_pccv for rv_cv and rv_pcca for rv_ca — the contract is opaque C, the
+// concrete class lives here and nothing above it inherits anything.
+//
+// lua.hpp is the PDK boundary and is included by exactly ONE file in the
+// whole project: rv_pccl.cpp. A pointer to an incomplete type needs nothing
+// more than the forward declaration below, so nothing here pulls it in.
 #pragma once
 
-// ─── TASK ──────────────────────────────────────────────────────────────────
-// Comments written by Claude (claude-opus-5) as teaching instructions.
-// You write the code. The file is empty on purpose.
-// ──────────────────────────────────────────────────────────────────────────────
-//
-// This is the CONSOLE SIDE of the pdk/cl/rv_cl.h contract — the same "machine
-// 2 + 3" inside the hardware. The counterpart of rv_pccv for rv_cv: the
-// contract is opaque, the concrete implementation lives here.
-//
-// ATTENTION: the contract is now PLAIN C. rv_cl is not an abstract class but
-// an opaque type plus fifteen free functions rv_cl_*. Nothing to inherit and
-// nothing to override: rv_pccl is an ordinary class, and the link to the
-// contract is made by the rv_cl_* definitions at the end of rv_pccl.cpp, which
-// cast the handle to rv_pccl*.
-// Look at how this is done at the end of rv_pccv.cpp, and repeat it.
-//
-//
-// WHAT TO INCLUDE
-//
-//   "pdk/cl/rv_cl.h" — contract declarations, mandatory.
-//   <cstdint>, <vector>, <string> — as needed.
-//
-//   lua.hpp is NOT needed here, even though the class holds a lua_State*. It
-//   is enough to forward-declare at the top of the file:  struct lua_State;
-//   Declaring a pointer to an incomplete type is fine; the full definition is
-//   only required where it is dereferenced — that is, in the .cpp. The rule
-//   is simple: lua.hpp is included by exactly one file in the whole project,
-//   rv_pccl.cpp.
-//
-//
-// WHAT TO DECLARE
-//
-// TODO(1). class rv_pccl — WITHOUT inheritance, the contract is no longer a
-//   class.
-//
-// TODO(2). Field lua_State *L_ = nullptr — THE WHOLE virtual machine.
-//   The constructor creates it, the destructor shuts it down. There must be
-//   no "turn on the VM" methods in the contract, and there never should be:
-//   hardware is not switched on, it is already on.
-//
-// TODO(3). Forbid copying: rv_pccl(const rv_pccl &) = delete and the
-//   assignment operator too. Otherwise a copy would close someone else's
-//   lua_State in its destructor, while the original keeps using it — a
-//   double free.
-//   Look at how this is done in rv_pchost, and repeat it.
-//
-// TODO(4). The chunk table — the thing that turns a handle into something
-//   Lua-ish. Inside Lua a function does not live at an address, it lives by a
-//   REFERENCE IN THE REGISTRY: luaL_ref puts the value into the service
-//   table LUA_REGISTRYINDEX and returns an int. As long as the reference is
-//   alive, the garbage collector will not take the function away — that is
-//   "ownership" from the C++ side.
-//
-//   So one chunk corresponds to several references: the chunk function
-//   itself plus one reference per hook found. Set up a struct for this and
-//   keep them in std::vector — the handle is then simply an index into it.
-//   Decide for yourself whether handle == index (then 0 is a valid chunk) or
-//   index + 1 (then 0 is free for "no chunk", like the video memory
-//   addresses in example-cpp.cpp).
-//
-// TODO(5). Declare a method for each function of the contract — the same
-//   names without the rv_cl_ prefix (script_load, script_call,
-//   stack_push_number, ...). No override: there is nothing left to override.
-//
-//   Not a single extra PUBLIC method: anything not in the contract, the disc
-//   will never see anyway — it only holds an rv_cl*, which does not even
-//   have a type definition.
-//
-// TODO(6). At the end of rv_pccl.cpp — fifteen definitions of the form
-//
-//     extern "C" int64_t rv_cl_stack_push_number(rv_cl *cl, double value)
-//     {
-//         return reinterpret_cast<rv_3dmppc::rv_pccl *>(cl)->stack_push_number(value);
-//     }
-//
-//   Take the signatures verbatim from pdk/cl/rv_cl.h. Until they exist, these
-//   fifteen symbols are absent from the executable — checked via
-//   `nm -D build/3dmppc | grep rv_cl_`.
+#include <cstddef>
+#include <cstdint>
+#include <vector>
+
+#include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/rv_pconsole_conf.hpp"
+
+struct lua_State;
+
+namespace rv_3dmppc
+{
+
+// The lua machine. OPTIONAL, unlike every other controller: a disc that
+// declared no [budget.pccl] (rv_pccl_conf.hpp: script_memory_size == 0) gets
+// no VM at all, and every contract call below then fails cleanly instead of
+// touching a machine that was never asked for. Same shape as rv_pcca's
+// --no-audio.
+class rv_pccl
+{
+private:
+    rv_pccl_conf conf_;
+    rv_pccd &cd_; // BORROWED. Reads the entry asset out of the archive.
+
+    lua_State *L_ = nullptr; // the whole machine; null means scripting is off
+
+    int64_t budget_ = 0; // conf_.script_memory_size, cached for the allocator
+    int64_t used_ = 0;   // bytes the allocator currently has outstanding
+
+    // PATTERN: handle table, the same idea as rv_pccd's resource table — a
+    // handle is an index into chunks_, and it is NEVER reused: LUA_NOREF
+    // marks a slot script_free() emptied, so a stale handle finds nothing
+    // rather than landing on somebody else's chunk.
+    std::vector<int> chunks_;
+
+    int64_t entry_ = -1; // memoised script_entry() handle; -1 = not raised yet
+
+    // lua_Alloc for this machine: a realloc that refuses to push used_ past
+    // budget_. `ud` is the rv_pccl the state was created with (lua_newstate).
+    static void *rv_alloc(void *ud, void *ptr, size_t osize, size_t nsize);
+
+    // Installed via lua_atpanic: by default an error raised outside every
+    // pcall calls abort() and the console dies with nothing in the log.
+    static int panic(lua_State *L);
+
+    // Builds the console<->script vocabulary: opens ffi, feeds it
+    // rv_pdk_cdef, and turns rv_pdk_consts into the global `pdk` table (see
+    // rv_pccl.cpp for the whole recipe and why it is not inlined in the
+    // constructor). Returns false on ANY failure - a bad cdef, a symbol the
+    // build never exported - and touches nothing that survives that: the
+    // constructor closes L_ down on a false return, same as a failed
+    // lua_newstate.
+    bool bootstrap_pdk();
+
+public:
+    rv_pccl(const rv_pccl_conf &conf, rv_pccd &cd);
+    ~rv_pccl();
+
+    rv_pccl(const rv_pccl &) = delete;
+    rv_pccl &operator=(const rv_pccl &) = delete;
+
+    // True when the machine is in the state it was asked to be in: scripting
+    // off is TRUE (it was never asked for), scripting on and no VM is the
+    // only FALSE — the distinction rv_pcca::valid() draws for --no-audio.
+    bool valid() const;
+
+    // True only when a lua_State actually exists. NOT the same question as
+    // valid(): scripting off is TRUE for valid() (that state was asked for)
+    // but FALSE here — this is what cl() asks to decide whether the disc
+    // gets a handle to this machine at all.
+    bool scripting() const
+    {
+        return L_ != nullptr;
+    }
+
+    int64_t script_load(const void *bytecode, int64_t size, const char *name);
+    int64_t script_free(int64_t handle);
+    int64_t script_entry();
+
+    int64_t stack_push_nil();
+    int64_t stack_push_boolean(bool value);
+    int64_t stack_push_integer(int64_t value);
+    int64_t stack_push_number(double value);
+    int64_t stack_push_string(const char *text, int64_t length);
+    int64_t stack_push_pointer(void *p);
+    int64_t stack_drop(int64_t count);
+    int64_t stack_count();
+
+    int64_t value_type(int64_t index);
+    int64_t value_boolean(int64_t index, bool *out);
+    int64_t value_integer(int64_t index, int64_t *out);
+    int64_t value_number(int64_t index, double *out);
+    int64_t value_string(int64_t index, char *baddr, int64_t baddr_size);
+
+    int64_t script_call(int64_t handle, const char *fname, int64_t argc, int64_t retc);
+};
+
+} // namespace rv_3dmppc

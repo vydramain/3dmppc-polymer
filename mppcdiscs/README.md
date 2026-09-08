@@ -27,7 +27,7 @@ for how the packaged disc is loaded.
 | Disc                             | What it is                                             |
 | -------------------------------- | ------------------------------------------------------ |
 | [`example-cpp/`](example-cpp/)   | the **example disc** — the smallest complete one, and the thing you copy when starting a real game. |
-| [`example-lua/`](example-lua/)   | the same shape plus `scripts/`: the disc reads its `.luac` off the medium and runs it through `rv_cl`. Work in progress — the hooks are not written yet. |
+| [`example-lua/`](example-lua/)   | the same shape plus `scripts/`: all four lifecycle hooks (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) forward one-to-one into a Lua chunk through `rv_cl`, and the script reaches `rv_cv`/`rv_ca`/`rv_cio` through the same exported console functions a C++ disc calls — no wrapper layer. |
 
 ## Real games live in their own repositories
 

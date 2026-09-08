@@ -36,6 +36,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     , cio_(conf.cio, host_)
     , cm_(conf.cm)
     , cv_(conf.cv, host_)
+    , cl_(conf.cl, cd_)
     , loader_(loader)
 {
 }
@@ -64,17 +65,17 @@ rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
     return reinterpret_cast<rv_cv *>(&cv_);
 }
-// A STUB. There is no rv_pccl cl_ field yet — cl/rv_pccl.hpp is deliberately
-// left as an exercise. Replace this with `return reinterpret_cast<rv_cl *>(&cl_);`
-// as soon as the field appears.
 rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
-    return nullptr;
+    // Absent, not present-and-reporting-absent: a disc that never declared
+    // [budget.pccl] gets no handle at all, the same way its own manifest
+    // omits that section rather than writing it as zeros.
+    return cl_.scripting() ? reinterpret_cast<rv_cl *>(&cl_) : nullptr;
 }
 
 bool rv_3dmppc::rv_pconsole::ready() const
 {
-    return ca_.valid() && cv_.valid() && cm_.valid();
+    return ca_.valid() && cv_.valid() && cm_.valid() && cl_.valid();
 }
 
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
