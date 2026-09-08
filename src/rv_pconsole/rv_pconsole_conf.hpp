@@ -84,6 +84,13 @@ struct rv_pccd_conf {
 // run a script.
 struct rv_pccl_conf {
     int64_t script_memory_size = rv_pdklib::rv_manifest_budget_pccl{}.script_memory_size;
+
+    // The console is the only party that parsed the manifest, so it is the
+    // only party that knows the entry chunk's name — the disc never spells
+    // it, it just asks the machine to raise the entry the console already
+    // knows. Empty means the same thing script_memory_size == 0 means: this
+    // disc carries no scripts.
+    std::string script_entry = rv_pdklib::rv_manifest_budget_pccl{}.script_entry;
 };
 
 struct rv_pconsole_params {

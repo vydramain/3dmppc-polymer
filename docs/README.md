@@ -42,7 +42,7 @@ machine. Anything that is true regardless of which game runs belongs in
 `docs/platform/`; anything specific to a game belongs in **that game's own
 repository**, next to its assets and code — not here.
 
-Two games in this repo is [`../mppcdiscs/example-cpp/`](../mppcdiscs/example-cpp/)
-and [`../mppcdiscs/example-lua/`](../mppcdiscs/example-lua/). There are worked 
-**examples** of how a disc is put together, not as a gameanyone is designing.
+Two games live in this repo: [`../mppcdiscs/example-cpp/`](../mppcdiscs/example-cpp/)
+and [`../mppcdiscs/example-lua/`](../mppcdiscs/example-lua/). They are worked
+**examples** of how a disc is put together, not a game anyone is designing.
 

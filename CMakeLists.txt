@@ -17,6 +17,7 @@ include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
 
 # stb_image is gone with the demo that used it. The console never decodes an
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
@@ -79,9 +80,38 @@ endif()
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 
+# --- PDK -> LuaJIT ffi.cdef bridge ---------------------------------------------
+# ffi.cdef() takes a STRING of C declarations - it cannot follow #include and it
+# cannot expand #define - so the PDK's contract is carried into the executable
+# as two generated string literals (rv_pdk_cdef, rv_pdk_consts). See
+# cmake/rv_cdef_gen.cmake for how, and for the single place the header
+# concatenation order (RV_CDEF_ORDERED_HEADERS) lives.
+#
+# CONFIGURE_DEPENDS here (not just on the ordered list): rv_pdk_consts scrapes
+# #define constants from every PDK header, not only the ones that carry a cdef
+# region, so any header change must be able to invalidate the generated file.
+file(GLOB_RECURSE RV_PDK_ALL_HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/pdk/include/pdk/*.h)
+
+set(RV_PDK_CDEF_OUTPUT ${CMAKE_BINARY_DIR}/rv_pdk_cdef.cpp)
+
+add_custom_command(
+  OUTPUT ${RV_PDK_CDEF_OUTPUT}
+  COMMAND ${CMAKE_COMMAND}
+          -DRV_PDK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/pdk/include
+          -DRV_CDEF_OUTPUT=${RV_PDK_CDEF_OUTPUT}
+          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
+  DEPENDS ${RV_PDK_ALL_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
+  COMMENT "Generating LuaJIT ffi.cdef declarations from the PDK headers"
+  VERBATIM
+)
+
 add_executable(3dmppc
   # console (game-agnostic)
   ${3DMPPC_CONSOLE_SOURCES}
+  # generated: not part of the glob above on purpose, so it can never leak
+  # into rv_dmain or 3dmppc_pdklib - only the console links against LuaJIT's
+  # ffi that way.
+  ${RV_PDK_CDEF_OUTPUT}
 )
 
 # A disc looks the contract's functions up in the executable through dlsym, and

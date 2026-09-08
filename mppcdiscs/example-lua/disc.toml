@@ -35,3 +35,14 @@ iport_count = 2
 card_slots = 16
 card_slot_size = 8192
 
+[budget.pccl]
+# 256 KiB. The whole script is one module table with a handful of tiny
+# closures and a few numeric locals - LuaJIT's own bootstrap (the base,
+# string, math and table libraries opened by rv_pccl) plus that module easily
+# fit in a few tens of KiB. 262144 leaves comfortable headroom over what this
+# example could ever allocate without reserving memory nobody here needs; same
+# order of magnitude as [budget.pcca] sound_memory_size above, for the same
+# reason - honest for what this disc actually does, not a guess at a "real"
+# budget.
+script_memory_size = 262144
+script_entry = "example-lua.luac"

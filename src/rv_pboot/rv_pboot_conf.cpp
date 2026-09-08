@@ -9,6 +9,7 @@ void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget, const rv_p
     conf.ca.voice_count = budget.pcca.voice_count;
     conf.ca.sound_memory_size = budget.pcca.sound_memory_size;
     conf.cl.script_memory_size = budget.pccl.script_memory_size;
+    conf.cl.script_entry = budget.pccl.script_entry;
     conf.cv.screen_width = budget.pccv.screen_width;
     conf.cv.screen_height = budget.pccv.screen_height;
     conf.cv.texture_max_width = budget.pccv.texture_max_width;

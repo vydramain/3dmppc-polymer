@@ -27,6 +27,9 @@ it rather than merely on it:
   texture over `texture_max_width/height` is refused at upload
   (`src/rv_pconsole/cv/rv_pccv.cpp`);
 - `card_write` refuses a blob larger than one slot;
+- a disc that declared a lua machine has its `script_memory_size` held by the
+  VM's own allocator: a script asking for more than the budget fails that
+  allocation rather than reaching the host's heap (`src/rv_pconsole/cl/rv_pccl.cpp`);
 - `mppcburner` re-checks the same texture and video-memory budget at pack time,
   so an overflow is caught on the author's desk instead of on a loading screen.
 
@@ -107,6 +110,28 @@ why `rv_sample` carries no format fields at all.
 - `card_write` is atomic: the new image goes to a temporary file in the same
   directory, is `fsync`ed, and replaces the old one with `rename`. That is what
   backs the contract's promise that a failed write leaves the old slot intact.
+
+### Script (`rv_cl`)
+| Query | Reference answer |
+| --- | --- |
+| *(not queryable — see below)* | absent: `script_memory_size` 0, no `script_entry` |
+
+- **Absent as a pointer, not present-and-reporting-absent.** `rv_pdko_ca()`,
+  `rv_pdko_cv()`, `rv_pdko_cio()` and `rv_pdko_cm()` all hand back a live
+  controller unconditionally — `--no-audio` still returns a real `rv_ca*`,
+  it just leaves the machine reporting nothing to do (`voice_status()` never
+  claims busy, `src/rv_pconsole/rv_pconsole_conf.hpp`). `rv_pdko_cl()` is the
+  one exception in the whole contract: a disc that states no `[budget.pccl]`
+  gets `nullptr` back, not a controller answering "no scripting" — there is
+  no controller (`src/rv_pconsole/rv_pconsole.cpp`, `ca()` vs `cl()`).
+- That is also why this number is not something a disc queries the contract
+  for the way it queries `screen_width` or `voice_count` — there is no
+  `rv_cl_script_memory_size()`. A disc does not need one: it learns whether it
+  has a script machine from the one thing every other controller here never
+  makes it check — whether the pointer itself is null.
+- A disc that does declare `[budget.pccl]` gets exactly the budget it stated,
+  held by the VM's own allocator (`src/rv_pconsole/cl/rv_pccl.cpp`) — same
+  enforcement shape as `video_memory_size` and `sound_memory_size` above.
 
 ### Disc medium (`rv_cd`)
 

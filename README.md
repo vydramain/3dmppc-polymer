@@ -36,6 +36,11 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
 
+The same three commands work unchanged against
+[`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) — swap the directory in
+steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
+compiled C++.
+
 Running `./build/3dmppc` with no disc gives you the built-in **service test** — a
 diagnostics screen that exercises every subsystem and explains itself on screen.
 It is how you tell a broken console from a broken disc.
@@ -180,6 +185,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
+| [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
 
 ---
@@ -198,9 +204,12 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Input** — gamepads through SDL, keyboard overlaid on port 0.
 - **Packaging** — `mppcburner` compiles a disc directory into a `.mppcdisc`, and
   the console loads it with a two-stage ABI handshake.
+- **Scripting** — a disc can declare `[budget.pccl]` and raise Lua chunks
+  through `rv_cl`; a script calls the same exported console functions a C++
+  disc calls, with no wrapper layer and a LuaJIT heap budget of its own.
 - **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
   gyro and trackpads, a contracted RAM budget (video and sound RAM are enforced;
-  main RAM is not), the 256×224 display mode, Lua discs.
+  main RAM is not), the 256×224 display mode.
 
 ## Conventions
 
@@ -236,7 +245,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 ## Requirements
 
-SDL3 (used from the system if installed, otherwise built from source on the
-first configure), CMake 3.24+, Ninja, and a C++23 compiler. The tools
-additionally shells out to `cmake` and `ninja` at run time to compile a disc,
-and downloads `stb_image.h` into its own build directory.
+SDL3 and LuaJIT (both used from the system if installed, otherwise built from
+source on the first configure), CMake 3.24+, Ninja, and a C++23 compiler. The
+tools additionally shells out to `cmake` and `ninja` at run time to compile a
+disc, and downloads `stb_image.h` into its own build directory.
