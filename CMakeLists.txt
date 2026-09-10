@@ -54,8 +54,9 @@ target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
 # console's include path is not on this target, so the first #include of a
 # console header here fails to compile.
 #
-# It is still statically linked into the executable for now — the .mppcdisc /
-# dlopen packaging is stage 5 (docs/platform/disc-loading.md).
+# rv_dmain is the console's built-in disc and is linked into the executable
+# statically; external .mppcdisc packages come in through rv_pcloader instead
+# (src/rv_pconsole/rv_pcloader.cpp).
 file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/rv_dmain/*.cpp)
 
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})

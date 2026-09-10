@@ -48,6 +48,10 @@ int rv_pdktools::compile_simple_script(
     // Fresh per script and never run: the burner compiles, it does not execute.
     // No standard library is opened, so a script cannot reach the burner's
     // filesystem while being turned into bytecode.
+    //
+    // This is the LuaJIT the burner links, never a host `luajit` off $PATH:
+    // LuaJIT bytecode is version-specific, so it must match the runtime that
+    // will load it — the console.
     lua_State *L = luaL_newstate();
     if (L == nullptr) {
         error = "cannot initialize a local lua vm";

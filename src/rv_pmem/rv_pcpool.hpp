@@ -5,9 +5,9 @@
 // release it; the address is an offset, never a pointer; exhaustion is
 // RV_ERR_NOMEM, not a host allocation.
 //
-// The backing store is an rv_pcarena: construction only RESERVES address
+// The backing store is an rv_pcvmem: construction only RESERVES address
 // space, and physical pages are committed only for the bytes a malloc() has
-// actually handed out. The arena may round its reservation up to a page
+// actually handed out. The vmem may round its reservation up to a page
 // boundary, but that rounding is a host implementation detail and never
 // enlarges capacity() — every block bound is measured against the size the
 // caller asked for.
@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "rv_pmem/rv_pcarena.hpp"
+#include "rv_pmem/rv_pcvmem.hpp"
 
 namespace rv_3dmppc
 {
@@ -50,15 +50,15 @@ public:
     // `alignment` is the boundary every region starts on; `reserved_head` is a
     // prefix of the pool that is never handed out.
     rv_pcpool(int64_t size, int64_t alignment, int64_t reserved_head)
-        : arena_(size > 0 ? size : 0)
+        : vmem_(size > 0 ? size : 0)
         , capacity_(size > 0 ? size : 0)
         , alignment_(alignment > 0 ? alignment : 1)
     {
-        // The block list only ever spans bytes the arena actually reserved. A
+        // The block list only ever spans bytes the vmem actually reserved. A
         // failed reservation reports its declared capacity() honestly but has
         // no usable free space to hand out: the whole pool is the (used,
         // reserved) head block below, sized 0, and nothing else.
-        const int64_t total = arena_.valid() ? capacity() : 0;
+        const int64_t total = vmem_.valid() ? capacity() : 0;
 
         // The head block is `used` forever: allocation skips it, free() refuses
         // it, and coalescing stops at it. Keeping address 0 out of circulation
@@ -83,11 +83,11 @@ public:
     }
 
     // Does this pool actually hold the space it was asked for? False when the
-    // backing arena's reservation failed — capacity() still reports what was
+    // backing vmem's reservation failed — capacity() still reports what was
     // asked for, but nothing is usable.
     bool valid() const
     {
-        return arena_.valid();
+        return vmem_.valid();
     }
 
     // Reserve `size` bytes. Returns the region address (> 0), RV_ERR_INVAL when
@@ -136,7 +136,7 @@ public:
 
             // The block itself is only paperwork; the bytes it names must
             // actually be usable before a caller can touch them.
-            if (arena_.commit(addr + want) != RV_OK) {
+            if (vmem_.ensure(addr + want) != RV_OK) {
                 if (inserted_tail) {
                     blocks_.erase(blocks_.begin() + static_cast<int64_t>(i) + 1);
                 }
@@ -206,7 +206,7 @@ public:
         }
 
         if (bytes > 0) {
-            std::memcpy(arena_.base() + block->offset, data, static_cast<size_t>(bytes));
+            std::memcpy(vmem_.base() + block->offset, data, static_cast<size_t>(bytes));
         }
         return RV_OK;
     }
@@ -229,7 +229,7 @@ public:
     const uint8_t *region_data(int64_t addr) const
     {
         const rv_pcpool_block *block = live_block(addr);
-        return block ? arena_.base() + block->offset : nullptr;
+        return block ? vmem_.base() + block->offset : nullptr;
     }
 
     // The caller's metadata for the region, or nullptr when `addr` is not live.
@@ -297,7 +297,7 @@ private:
         return (block.used && !block.reserved) ? &block : nullptr;
     }
 
-    rv_pcarena arena_;
+    rv_pcvmem vmem_;
     int64_t capacity_;
     int64_t alignment_;
     std::vector<rv_pcpool_block> blocks_; // offset-ordered, gapless

@@ -10,7 +10,7 @@ headers rather than the firmware source.
 
 > Scope: PDK defines *the boundary*. How a disc is packaged and loaded at runtime
 > (`.mppcdisc`, `dlopen`, extract-to-temp, ELF-note version handshake) is a separate
-> concern documented in [`../docs/platform/disc-loading.md`](../docs/platform/disc-loading.md).
+> concern implemented in [`../src/rv_pconsole/rv_pcloader.hpp`](../src/rv_pconsole/rv_pcloader.hpp).
 
 ---
 
@@ -128,8 +128,8 @@ Subsystem split, PSX-faithful:
   entirely: `[budget.pccl]` in the manifest (`script_memory_size`,
   `script_entry`) is what brings a VM into existence at all, on the same terms
   `[budget.pcca]`/`[budget.pccv]` size sound and video RAM, and
-  `rv_pdko_cl()` answers `nullptr` — not a live-looking handle that always
-  fails — for a disc that never asked for one
+  `rv_pdko_cl()` never answers `nullptr` — a disc that never asked for one
+  gets a handle whose every `rv_cl_*` call answers `RV_ERR_INVAL`
   (`src/rv_pconsole/rv_pconsole.cpp`). The console itself never executes a
   line of Lua and never dispatches through `rv_cl`: it sizes and hands out the
   machine exactly as it hands out VRAM, and the DISC is the one that decides
@@ -151,29 +151,29 @@ contract is one ABI, not two:
   ╔══════════════════════════ pdk/  (PHANTASY DEV KIT) ══════════════════════════╗
   ║  OPAQUE C11 types + free functions. No inheritance, nothing virtual.         ║
   ║                                                                              ║
-  ║                     rv_pdko *o;  // opaque handle, one per console          ║
-  ║        rv_pdko_ca(o)->rv_ca*   rv_pdko_cd(o)->rv_cd*   rv_pdko_cm(o)->rv_cm*║
-  ║        rv_pdko_cio(o)->rv_cio* rv_pdko_cv(o)->rv_cv*   rv_pdko_cl(o)->rv_cl*║
-  ║                                                        (rv_cl* may be NULL) ║
+  ║                     rv_pdko *o;  // opaque handle, one per console           ║
+  ║        rv_pdko_ca(o)->rv_ca*   rv_pdko_cd(o)->rv_cd*   rv_pdko_cm(o)->rv_cm* ║
+  ║        rv_pdko_cio(o)->rv_cio* rv_pdko_cv(o)->rv_cv*   rv_pdko_cl(o)->rv_cl* ║
+  ║                                        (rv_cl* is never NULL; may be inert)  ║
   ║                                                                              ║
-  ║  ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐      ║
-  ║  │ rv_ca │   │ rv_cv │   │ rv_cio│   │ rv_cd │   │ rv_cm │   │ rv_cl │      ║
-  ║  │malloc │   │frame_*│   │iport_*│   │asset_*│   │card_* │   │script_*      ║
-  ║  │voice_*│   └───────┘   └───────┘   └───────┘   └───────┘   │stack_*      ║
-  ║  └───────┘                                                   │value_*│     ║
-  ║                                                               └───────┘     ║
+  ║  ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐       ║
+  ║  │ rv_ca │   │ rv_cv │   │ rv_cio│   │ rv_cd │   │ rv_cm │   │ rv_cl │       ║
+  ║  │malloc │   │frame_*│   │iport_*│   │asset_*│   │card_* │   │script_*       ║
+  ║  │voice_*│   └───────┘   └───────┘   └───────┘   └───────┘   │stack_*        ║
+  ║  └───────┘                                                   │value_*│       ║
+  ║                                                               └───────┘      ║
   ║   POD: audio in ca/, i/o in cio/, video in cv/ · rv_err (shared)             ║
-  ║   + the disc-entry table the game builds (see "Three paths")                ║
+  ║   + the disc-entry table the game builds (see "Three paths")                 ║
   ╚══════════════════════════════════════════════════════════════════════════════╝
                       △  casts the handle                    △  builds the table
         ┌─────────────┴─────────────────┐        ┌───────────┴────────────────┐
         │  src/  (THE CONSOLE)          │        │  mppcdiscs/<game>/         │
         │                               │        │                            │
         │  class rv_pconsole            │        │  class rv_dmain            │
-        │   owns the loop + six members:│        │   (no base class — its      │
-        │   ├ (video)    : rv_pccv      │        │    methods just match       │
-        │   │   └ rv_Rasterizer,        │        │    what RV_MPPC_DISC_       │
-        │   │     rv_Framebuffer  (priv)│        │    ENTRY_DEF thunks call)   │
+        │   owns the loop + six members:│        │   (no base class — its     │
+        │   ├ (video)    : rv_pccv      │        │    methods just match      │
+        │   │   └ rv_Rasterizer,        │        │    what RV_MPPC_DISC_      │
+        │   │     rv_Framebuffer  (priv)│        │    ENTRY_DEF thunks call)  │
         │   ├ (audio)    : rv_pcca      │        │    rv_pdko* pdk_;          │
         │   ├ (input)    : rv_pccio     │        │    // disc_initialize:     │
         │   ├ (drive)    : rv_pccd      │        │    //   pdk_ = pdk         │
@@ -295,7 +295,8 @@ all. The devkit only gives a game the means to ASK: `screen_width/height`,
 (memory card); `iport_count`, `iport_abilities` (input). A disc queries these in
 `disc_initialize`, validates the assumptions its assets were built against, and
 returns a negative `rv_err` on a mismatch — the console then refuses to run it.
-The reference console's defaults live in `docs/platform/specs.md`.
+The reference console's defaults live in `rv_manifest_budget_*` in
+`pdklib/rv_manifest/rv_manifest.hpp`.
 
 One number stays hidden on purpose: the ordering-table bucket count. The game
 hands depth VALUES, never bucket indices — how finely the console quantizes is
@@ -367,8 +368,8 @@ function-pointer struct is. `rv_Disc` + `rv_DiscServices` from the old
   `rv_cio_*`. Do one frame's worth of work and RETURN — the console cannot
   preempt a hook.
 - `frame_render(self)` — build the frame (`rv_cv_frame_configure` →
-  `rv_cv_frame_put`s) and end it with `rv_cv_frame_flush`. Skipped in
-  headless runs.
+  `rv_cv_frame_put`s) and end it with `rv_cv_frame_flush`. Still called with
+  `--mode_cv=null`; the calls land on a no-op.
 - `disc_release(self)` — a QUERY, polled every frame: "does the disc ask the
   console to power off?" It releases nothing itself.
 - `disc_shutdown(self)` — the teardown hook: BUILT, not deferred. For the
@@ -457,7 +458,7 @@ never as isolation a reader could rely on.
 ```
   rv_pconsole (src/) — the built-in disc runs statically linked; a .mppcdisc
     │        runs via dlopen (packaging/loading mechanics are a separate
-    │        concern — see ../docs/platform/disc-loading.md)
+    │        concern)
     │
     │ 1. build the CONCRETE console (it constructs its own six controllers)
     ├──────────►  rv_pconsole console;   // owns ca_/cd_/cio_/cl_/cm_/cv_
@@ -485,7 +486,7 @@ never as isolation a reader could rely on.
     │
     │ 5. teardown: disc_release() == true → leave loop, disc->disc_shutdown(self)
     └──────────►  (a loaded disc's teardown then continues into the loader's
-                   own chain — see ../docs/platform/disc-loading.md)
+                   own chain)
 ```
 
 ---
@@ -506,9 +507,9 @@ never as isolation a reader could rely on.
   concrete `rv_pconsole` and return the address of a member, cast to the
   opaque type. The pointer is **borrowed**: raw, non-owning.
 - A disc holds **only** a `rv_pdko*` / controller pointers. It never owns, copies,
-  or destroys them. `rv_pdko_cl()` is the one accessor that may hand back
-  `nullptr` instead of a pointer — a disc that declared no `[budget.pccl]`
-  gets no script machine at all.
+  or destroys them. Every accessor, including `rv_pdko_cl()`, always hands back
+  a live pointer — a disc that declared no `[budget.pccl]` gets a handle whose
+  every `rv_cl_*` call answers `RV_ERR_INVAL`, not a null pointer.
 
 ---
 
@@ -547,14 +548,14 @@ bug: the boundary is checked by the toolchain every build.
 | Symbol    | Expansion                                    |
 | --------- | -------------------------------------------- |
 | 3DMPPC    | 3D Math Prime Phantasy Console               |
-| PDK       | Phantasy Development Kit                      |
+| PDK       | Phantasy Development Kit                     |
 | `rv_pdko` | Phantasy Development Kit **O**rganizer       |
 | `rv_ca`   | **C**ontroller **A**udio                     |
 | `rv_cv`   | **C**ontroller **V**ideo                     |
 | `rv_cio`  | **C**ontroller **I**nput/**O**utput          |
 | `rv_cd`   | **C**ontroller **D**isk (accessor `rv_pdko_cd()`) |
 | `rv_cm`   | **C**ontroller **M**emory card (accessor `rv_pdko_cm()`) |
-| `rv_cl`   | **C**ontroller **L**ua — the script machine (accessor `rv_pdko_cl()`, may be `NULL`) |
+| `rv_cl`   | **C**ontroller **L**ua — the script machine (accessor `rv_pdko_cl()`, never `NULL`) |
 | `rv_de` | console → disc: a POD table of hook function pointers (`disc_*` / `frame_*`) a `.mppcdisc` builds |
 | `rv_dmain` | convention: the name of the plain C++ class a disc writes its hooks in; not a base of `rv_de` |
 | `rv_pconsole` | the concrete console in `src/` — the object behind the `rv_pdko*` handle, owns the loop (`rv_pconsole::disc_run`) |
@@ -649,7 +650,8 @@ Tracked here so they are chosen deliberately rather than by drift:
   VM as the single global `pdk`, generated from the real headers by
   `cmake/rv_cdef_gen.cmake` (see "Three paths across the boundary"). The
   controller is OPTIONAL per disc — no `[budget.pccl]` means no VM and
-  `rv_pdko_cl()` answers `nullptr` — and its `pdk.cast`/`pdk.new` are raw
+  `rv_pdko_cl()` answers a handle whose calls all return `RV_ERR_INVAL` — and
+  its `pdk.cast`/`pdk.new` are raw
   `ffi.cast`/`ffi.new`: hygiene against an accidental `io`/`os` reach, not a
   security sandbox. Deferred: nothing named yet — this is the newest
   controller and no gaps have surfaced.

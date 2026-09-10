@@ -9,6 +9,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
 
 namespace rv_3dmppc
 {
@@ -28,26 +29,28 @@ using rv_pcclock = std::chrono::steady_clock;
 } // namespace rv_3dmppc
 
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
-    rv_3dmppc::rv_pchost &host, rv_3dmppc::rv_pcloader *loader)
+    rv_3dmppc::rv_pchost_sdl3 &host, rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , host_(host)
-    , ca_(conf.ca, host_)
+    , ca_(rv_pcca_make(conf.slots.ca, conf.ca, host_))
     , cd_(conf.cd)
-    , cio_(conf.cio, host_)
+    , cio_(rv_pccio_make(conf.slots.cio, conf.cio, host_))
     , cm_(conf.cm)
-    , cv_(conf.cv, host_)
-    , cl_(conf.cl, cd_)
+    , cv_(rv_pccv_make(conf.slots.cv, conf.cv, host_))
+    , cl_(rv_pccl_make(conf.slots.cl, conf.cl, cd_))
     , loader_(loader)
 {
 }
 
-// This is where the contract meets the machine. Every line casts the address of
-// a concrete controller to the contract's opaque type; that is legal for exactly
-// one reason — a single implementation of each controller lives in the process,
-// and the reverse cast in rv_pcXX.cpp hands back that very same address.
+// This is where the contract meets the machine. reinterpret_cast is mandatory
+// here, not a style choice: rv_ca/rv_cv/... are incomplete to C++, so
+// static_cast from or to them cannot compile. Every line hands out the slot's
+// BASE address (ca_.get(), &cd_, ...); the extern "C" block in each
+// XX/rv_pcXX.cpp casts back to that same base (one of several such cast
+// sites, not the only one — see the block below).
 rv_ca *rv_3dmppc::rv_pconsole::ca()
 {
-    return reinterpret_cast<rv_ca *>(&ca_);
+    return reinterpret_cast<rv_ca *>(ca_.get());
 }
 rv_cd *rv_3dmppc::rv_pconsole::cd()
 {
@@ -59,23 +62,20 @@ rv_cm *rv_3dmppc::rv_pconsole::cm()
 }
 rv_cio *rv_3dmppc::rv_pconsole::cio()
 {
-    return reinterpret_cast<rv_cio *>(&cio_);
+    return reinterpret_cast<rv_cio *>(cio_.get());
 }
 rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
-    return reinterpret_cast<rv_cv *>(&cv_);
+    return reinterpret_cast<rv_cv *>(cv_.get());
 }
 rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
-    // Absent, not present-and-reporting-absent: a disc that never declared
-    // [budget.pccl] gets no handle at all, the same way its own manifest
-    // omits that section rather than writing it as zeros.
-    return cl_.scripting() ? reinterpret_cast<rv_cl *>(&cl_) : nullptr;
+    return reinterpret_cast<rv_cl *>(cl_.get());
 }
 
 bool rv_3dmppc::rv_pconsole::ready() const
 {
-    return ca_.valid() && cv_.valid() && cm_.valid() && cl_.valid();
+    return ca_->valid() && cio_->valid() && cv_->valid() && cm_.valid() && cl_->valid();
 }
 
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
@@ -85,17 +85,15 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     // disc_title() is a plain accessor (pdk/de/rv_de.h) with no dependency
     // on disc_initialize() having run, so it is safe to call this early.
     //
-    // Without --headless, a failure to bring video up is a WARNING, not a
-    // stop: host_.presenting() stays false and host_.present() is a no-op,
-    // so the disc runs unpresented instead of not running at all.
-    if (!params_.headless) {
-        const int64_t opened =
-            host_.open(disc->disc_title(disc->self), cv_.screen_width(), cv_.screen_height(), params_.scale);
-        if (0 > opened) {
-            RV_LOG_WARN("pconsole",
-                "display did not come up for '{}', continuing without presentation",
-                disc->disc_title(disc->self));
-        }
+    // A failure to bring video up is a WARNING, not a stop: cv_->presenting()
+    // stays false and its present() is a no-op, so the disc runs unpresented
+    // instead of not running at all. With cv null this call itself is a
+    // no-op that answers success.
+    const int64_t opened = cv_->screen_open(disc->disc_title(disc->self), params_.scale);
+    if (0 > opened) {
+        RV_LOG_WARN("pconsole",
+            "display did not come up for '{}', continuing without presentation",
+            disc->disc_title(disc->self));
     }
 
     int64_t dir = disc->disc_initialize(disc->self, reinterpret_cast<rv_pdko *>(this));
@@ -120,7 +118,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     const float fixed_dt = 1.0f / static_cast<float>(target_fps);
 
     RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, {} fps target)", disc->disc_title(disc->self),
-        params_.headless ? "headless" : "presented", target_fps);
+        cv_->presenting() ? "presented" : "unpresented", target_fps);
 
     uint64_t frames = 0;
     rv_pcclock::time_point t_prev = rv_pcclock::now();
@@ -146,22 +144,17 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         t_prev = t_now;
 
         // fixed_step feeds the disc exactly one tick regardless of wall clock,
-        // which is what makes a headless run reproducible frame for frame.
+        // which is what makes a run with cv null reproducible frame for frame.
         const float dt =
             params_.fixed_step ? fixed_dt : std::clamp(measured, 0.0f, RV_PCONSOLE_DT_CEILING);
 
         disc->frame_update(disc->self, dt);
-        // --headless means no window AND no rasterization: frame_render() is
-        // simply not called, so a headless run never touches the software
-        // rasterizer, the framebuffer or the virtual VRAM (and --dump-frame
-        // is refused together with --headless at argument-parsing time,
-        // because there would be nothing rendered to dump). A run WITHOUT
-        // --headless still renders every frame even when video merely failed
-        // to come up — that run wanted a picture, it just has no screen to
-        // put it on.
-        if (!params_.headless) {
-            disc->frame_render(disc->self);
-        }
+        // frame_render() is always called: with cv null the calls it makes
+        // land on rv_pccv_null, which touches no rasterizer, no framebuffer
+        // and no virtual VRAM. A run whose video merely failed to come up
+        // still renders every frame — that run wanted a picture, it just has
+        // no screen to put it on.
+        disc->frame_render(disc->self);
 
         // Polled every frame, per the contract. Checked after the frame so the
         // disc gets to draw the frame on which it decided to quit.
@@ -177,8 +170,8 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         }
 
         // Pacing exists to stop a presented console from burning a core to draw
-        // frames nobody sees. A headless run is a smoke test — it goes flat out.
-        if (host_.presenting()) {
+        // frames nobody sees. A run with cv null is a smoke test — it goes flat out.
+        if (cv_->presenting()) {
             const rv_pcclock::time_point after = rv_pcclock::now();
             if (after < t_deadline) {
                 std::this_thread::sleep_until(t_deadline);
@@ -203,7 +196,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
 
     // Devkit: hand the last frame the machine produced to disk, if asked. After
     // the loop rather than inside it, so a dump costs nothing per frame.
-    host_.dump_last_frame();
+    cv_->dump_last_frame(params_.dump_frame_path);
 
     return RV_OK;
 }

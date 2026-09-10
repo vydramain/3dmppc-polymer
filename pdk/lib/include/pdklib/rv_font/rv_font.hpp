@@ -147,7 +147,7 @@ inline int rv_font_cell_v(int glyph_index)
 // Returns false if `out` is null or `size` is under rv_font_atlas_size.
 //
 // THEOREM: IDX4 packing. Two texels share a byte and the LOW nibble is the LEFT
-// one — the PSX order, fixed by the console (docs/platform/specs.md, and the
+// one — the PSX order, fixed by the console (the
 // sampler in src/.../rv_pctexel.cpp reads it as `(u & 1) ? packed >> 4 : packed &
 // 0x0F`). A converter has to agree with exactly one convention and this is it.
 // Rows are padded to a whole byte, so the row stride is (width + 1) / 2 rather

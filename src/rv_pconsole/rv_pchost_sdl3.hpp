@@ -1,23 +1,26 @@
-// The console's host layer: the ONLY place in the tree that knows SDL exists.
+// The console's host layer: the ONLY place in the tree that knows SDL exists
+// (rv_pccv.cpp temporarily also does, for presentation — see its header).
 // Everything above it — the controllers, the frame loop, the disc — speaks PDK
 // types and console-internal types, never SDL ones. That is why this header
 // forward-declares the SDL handles instead of including <SDL3/SDL.h>: the
-// dependency stops at rv_pchost.cpp.
+// dependency stops at rv_pchost_sdl3.cpp.
 //
-// Three responsibilities, all of which are "the machine's shell" rather than a
-// contract subsystem:
-//   * the window / renderer / streaming texture that a finished frame lands in;
-//   * the event pump, which turns SDL's event stream into the instantaneous
-//     controller SNAPSHOTS rv_cio promises (see pdk/cio/rv_cio.h);
+// Two responsibilities, both "the machine's shell" rather than a contract
+// subsystem:
+//   * the window and the event pump, which turns SDL's event stream into the
+//     instantaneous controller SNAPSHOTS rv_cio promises (see
+//     pdk/cio/rv_cio.h) — input does not depend on a window ever opening;
 //   * the audio device, which pulls finished stereo frames out of the SPU's
 //     mixer from a thread of SDL's own.
+// The renderer and streaming texture a finished frame lands in live in
+// rv_pccv now; this class only owns the window they draw into.
 //
-// PATTERN: null object. A headless run never calls open(), so the host stays in
+// PATTERN: null object. With cv=null, nobody calls open(), so the host stays in
 // its "no window, no input, never powers off" state and every call below is a
-// no-op that returns zeroes. The callers have no headless branch.
+// no-op that returns zeroes. The callers have no conditional branch for this.
 //
 // The audio device is deliberately NOT part of open(): prepare() brings it up
-// (stage C), whether or not a window was ever asked for. A headless run is a
+// (stage C), whether or not a window was ever asked for. With cv=null, this is a
 // smoke test of the whole machine, and a machine whose voices never retire
 // because nothing is clocking them is a different machine — the SPU's
 // envelopes advance on the device thread, so the device has to exist even when
@@ -27,7 +30,6 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
 #include "pdk/cio/rv_imouse.h"
@@ -49,17 +51,17 @@ namespace rv_3dmppc
 
 class rv_pcmixer;
 
-class rv_pchost
+class rv_pchost_sdl3
 {
 public:
-    rv_pchost();
+    rv_pchost_sdl3();
 
-    // PATTERN: RAII. The destructor is the only teardown path for the window,
-    // the renderer, the streaming texture and every opened gamepad.
-    ~rv_pchost();
+    // PATTERN: RAII. The destructor is the only teardown path for the window
+    // and every opened gamepad.
+    ~rv_pchost_sdl3();
 
-    rv_pchost(const rv_pchost &) = delete;
-    rv_pchost &operator=(const rv_pchost &) = delete;
+    rv_pchost_sdl3(const rv_pchost_sdl3 &) = delete;
+    rv_pchost_sdl3 &operator=(const rv_pchost_sdl3 &) = delete;
 
     // Bytes of one port slot (rv_pcport, private below). Out of line in the
     // .cpp so the resource check at stage E3 (rv_pboot_check.cpp) can cost
@@ -77,29 +79,28 @@ public:
     // failure of this call: always returns RV_OK.
     int64_t prepare(bool want_video, bool want_gamepad, bool want_audio);
 
-    // Size the port slots, remember the screen geometry (for a headless
-    // --dump-frame, which never calls open()) and remember where to dump the
-    // last frame. Call once the console's configuration exists.
-    void configure(int64_t screen_width, int64_t screen_height, int64_t iport_count,
-        const std::string &dump_frame_path);
+    // Size the port slots. Call once the console's configuration exists. Also
+    // adopts whatever gamepads are already plugged in (guarded by
+    // gamepad_ready_) — input must not depend on a window ever opening, so
+    // that adoption does not wait for open().
+    void configure(int64_t iport_count);
 
-    // Create the window, the renderer and the streaming texture at the given
-    // geometry. configure() is the normal path for
-    // screen_width_/screen_height_; open() merely confirms them (and still
-    // wins if a caller passes different numbers here). Video and gamepad were
-    // already brought up by prepare() — this refuses immediately with
-    // RV_ERR_IO if video never came up there, it does not retry bringing it
-    // up itself. Not called in headless.
+    // Create the window at the given geometry. Video and gamepad were already
+    // brought up by prepare() — this refuses immediately with RV_ERR_IO if
+    // video never came up there, it does not retry bringing it up itself. Not
+    // called when cv=null. rv_pccv::screen_open() calls this and then builds
+    // the renderer and streaming texture on top of window().
     int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale);
 
-    // True once the machine has a surface to present to.
-    bool presenting() const
+    // The window a caller may build a renderer on top of. Null until open()
+    // succeeds.
+    SDL_Window *window() const
     {
-        return renderer_ != nullptr;
+        return window_;
     }
 
-    // Did SDL's video subsystem come up? Distinct from presenting(), which asks
-    // whether there is actually a window to draw into.
+    // Did SDL's video subsystem come up? Distinct from rv_pccv::presenting(),
+    // which asks whether there is actually a window to draw into.
     bool video_ready() const
     {
         return video_ready_;
@@ -117,7 +118,7 @@ public:
     }
 
     // The physical display's bounds, measured once right after SDL_VIDEO comes
-    // up. Zero/zero when video never came up (headless, or SDL_GetDisplayBounds
+    // up. Zero/zero when video never came up (cv=null, or SDL_GetDisplayBounds
     // itself failed) — nothing downstream reads these yet.
     void display_bounds(int64_t &width, int64_t &height) const
     {
@@ -136,20 +137,6 @@ public:
     bool power_off() const
     {
         return power_off_;
-    }
-
-    // Hand a finished frame to the display. `argb` is width*height pixels in
-    // 0xAARRGGBB, produced by rv_pcfbuf::expand_argb().
-    void present(const uint32_t *argb);
-
-    // Write the most recently presented frame to the path given by
-    // rv_pconsole_params::dump_frame_path, as a binary PPM. A developer
-    // convenience: it makes "what did the console actually draw" a file that
-    // can be diffed, instead of a screen capture that cannot. No-op when no
-    // path was configured or nothing was ever presented.
-    void dump_last_frame() const
-    {
-        dump_frame(last_frame_);
     }
 
     // --- the audio device ---
@@ -214,8 +201,6 @@ private:
         rv_istate state{};
     };
 
-    void dump_frame(const uint32_t *argb) const;
-
     void adopt_gamepad(uint32_t joystick_id);
     void release_gamepad(uint32_t joystick_id);
     void poll_gamepad(rv_pcport &port);
@@ -240,18 +225,13 @@ private:
         int additional_amount, int total_amount);
     void fill_audio(SDL_AudioStream *stream, int wanted_bytes);
 
-    int64_t screen_width_ = 0;
-    int64_t screen_height_ = 0;
-
     SDL_Window *window_ = nullptr;
-    SDL_Renderer *renderer_ = nullptr;
-    SDL_Texture *texture_ = nullptr;
 
     // Per-subsystem outcome, kept apart so a caller can tell WHAT came up
-    // rather than just "some of SDL did". video_ready_ gates the event pump
-    // and the presentation path; gamepad_ready_ failing is not an open()
-    // failure — the port slots just stay empty, as they already do at zero
-    // gamepads; audio_ready_ mirrors what open_audio() managed.
+    // rather than just "some of SDL did". video_ready_ gates the presentation
+    // path; gamepad_ready_ failing is not an open() failure — the port slots
+    // just stay empty, as they already do at zero gamepads; audio_ready_
+    // mirrors what open_audio() managed.
     bool video_ready_ = false;
     bool gamepad_ready_ = false;
     bool audio_ready_ = false;
@@ -264,13 +244,6 @@ private:
 
     std::vector<rv_pcport> ports_;
     rv_istate empty_state_{}; // what an out-of-range port reads as
-
-    // Frame dumping. `last_frame_` is BORROWED from rv_pccv's framebuffer, which
-    // outlives the host's use of it: the pointer is only ever read inside
-    // dump_last_frame(), which the frame loop calls while the disc is still
-    // alive. Nothing is copied per frame — presenting must stay cheap.
-    std::string dump_path_;
-    const uint32_t *last_frame_ = nullptr;
 
     // The device side. `audio_mixer_` is borrowed from rv_pcca; `audio_block_`
     // is the staging buffer the callback fills, allocated once at open_audio()

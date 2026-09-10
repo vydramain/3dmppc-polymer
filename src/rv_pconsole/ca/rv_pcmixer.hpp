@@ -16,7 +16,7 @@
 // smaller critical section, not a redesign.
 //
 // Knows nothing about SDL: it fills an int16 buffer and never learns where it
-// goes. SDL is confined to rv_pchost.cpp by house rule.
+// goes. SDL is confined to rv_pchost_sdl3.cpp by house rule.
 #pragma once
 
 #include <cstdint>

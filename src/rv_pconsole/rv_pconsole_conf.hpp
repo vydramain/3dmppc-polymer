@@ -26,12 +26,6 @@ struct rv_pcca_conf {
     // device never hears them. A muted console must not become a different
     // machine from the disc's point of view.
     bool mute = false;
-
-    // The device is never opened at all: rv_pcca::sounding_ stays false from
-    // construction, exactly the degraded state "no sound card" already leaves
-    // the machine in. Unlike mute this is visible to the disc (voice_status()
-    // never reports busy) — it is a different machine, not a quieter one.
-    bool no_audio = false;
 };
 
 struct rv_pccv_conf {
@@ -79,9 +73,8 @@ struct rv_pccd_conf {
 // no [budget.pccl] arrives here with zero, the machine brings no VM up, and the
 // console runs exactly as it did before scripting existed — C++ only.
 //
-// Zero is not a chosen value, it is the field nobody wrote. Same shape as
-// rv_pcca's no_audio: nothing is ever allocated for a console that will never
-// run a script.
+// Zero is not a chosen value, it is the field nobody wrote: nothing is ever
+// allocated for a console that will never run a script.
 struct rv_pccl_conf {
     int64_t script_memory_size = rv_pdklib::rv_manifest_budget_pccl{}.script_memory_size;
 
@@ -93,15 +86,31 @@ struct rv_pccl_conf {
     std::string script_entry = rv_pdklib::rv_manifest_budget_pccl{}.script_entry;
 };
 
+// Which concrete class backs each swappable slot. Default-constructed ==
+// the built-in preset "sdl3" (one copy of it, the same idiom as
+// rv_manifest_budget's defaults being the reference machine). Chosen at boot
+// (rv_pboot_modes.hpp) and branched on nowhere but rv_pcslots.cpp.
+enum class rv_pcca_impl { null, sdl3 };
+enum class rv_pccv_impl { null, sdl3 };
+enum class rv_pccio_impl { null, sdl3 };
+enum class rv_pccl_impl { null, luajit };
+
+struct rv_pcslots {
+    rv_pcca_impl ca = rv_pcca_impl::sdl3;
+    rv_pccv_impl cv = rv_pccv_impl::sdl3;
+    rv_pccio_impl cio = rv_pccio_impl::sdl3;
+    rv_pccl_impl cl = rv_pccl_impl::luajit;
+};
+
 struct rv_pconsole_params {
-    bool headless = false;
     bool fixed_step = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
 
-    // Frame pacing. The presented console runs at target_fps; a headless run
-    // ignores this and goes as fast as it can (it is a smoke test, not a game).
-    // fixed_step feeds the disc exactly 1/target_fps regardless of wall clock.
+    // Frame pacing. The presented console runs at target_fps; a run whose cv
+    // slot is null ignores this and goes as fast as it can (it is a smoke
+    // test, not a game). fixed_step feeds the disc exactly 1/target_fps
+    // regardless of wall clock.
     uint64_t target_fps = 60;
 
     // Where to write the last presented frame as a binary PPM when the run
@@ -118,6 +127,7 @@ struct rv_pconsole_conf {
     rv_pccio_conf cio;
     rv_pccm_conf cm;
 
+    rv_pcslots slots;
     rv_pconsole_params params;
 };
 

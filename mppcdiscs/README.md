@@ -3,8 +3,8 @@
 This is where **games live**. Each subdirectory is one `.mppcdisc` game (a
 "disc") in its unpacked, development form: its manifest, sources, and assets.
 `mppcburner` compiles a directory from here into a single `.mppcdisc` file, and
-the console loads that file at runtime (see
-[`../docs/platform/`](../docs/platform/)).
+the console loads that file at runtime
+(see [`../src/rv_pconsole/rv_pcloader.hpp`](../src/rv_pconsole/rv_pcloader.hpp)).
 
 Think of this directory as the **shelf of discs**. The console
 (`../src/`) is game-agnostic; anything game-specific lives in a disc under here.
@@ -19,7 +19,7 @@ mppcdiscs/
 ```
 
 See [`../README.md`](../README.md#authoring-a-game) for the manifest fields and
-the burn command, and [`../docs/platform/disc-loading.md`](../docs/platform/disc-loading.md)
+the burn command, and [`../src/rv_pconsole/rv_pcloader.hpp`](../src/rv_pconsole/rv_pcloader.hpp)
 for how the packaged disc is loaded.
 
 ## Discs here

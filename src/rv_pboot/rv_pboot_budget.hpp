@@ -4,7 +4,7 @@
 // is what it gets: the numbers become the machine it runs on. The built-in
 // service test carries no manifest, so its requirements live here instead:
 // the reference console's own answers, copied verbatim from
-// docs/platform/specs.md, "Target Spec".
+// rv_manifest_budget's defaults (pdklib/rv_manifest/rv_manifest.hpp).
 //
 // This is not a ceiling on what other discs may ask for. What a disc may ask
 // for is bounded by the machine it is asked to run on, and by nothing else.
