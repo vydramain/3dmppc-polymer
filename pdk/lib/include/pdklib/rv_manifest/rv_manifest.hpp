@@ -20,8 +20,9 @@ struct rv_manifest_textures {
 
 // --- the defaults -------------------------------------------------------------
 //
-// Every number below is the REFERENCE MACHINE, copied from
-// docs/platform/specs.md. A manifest states only what it wants to differ from;
+// Every number below IS the reference machine — there is no other copy of
+// these numbers, this struct's defaults are the specification. A manifest
+// states only what it wants to differ from;
 // everything it leaves out is filled in from here, and what it gets is exactly
 // the machine the built-in disc runs on. There is one copy of these numbers and
 // this is it — the console's built-in budget is a default-constructed
@@ -91,8 +92,10 @@ struct rv_manifest_budget_pccl {
     // machine. Whatever that script pulls in afterwards is between it and the
     // drive; the console neither knows nor counts it.
     //
-    // This name and script_memory_size are ONE declaration in two fields. Half
-    // of it is not a smaller lua machine, it is a broken disc.
+    // This name and script_memory_size are ONE declaration in two fields —
+    // together with [scripts] sources it is one declaration in three: all
+    // three present or all three absent. Checked at burn and again at mount.
+    // Half of it is not a smaller lua machine, it is a broken disc.
     std::string script_entry;
 
     bool operator==(const rv_manifest_budget_pccl &) const = default;

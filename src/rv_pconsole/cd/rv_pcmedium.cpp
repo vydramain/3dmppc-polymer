@@ -60,8 +60,8 @@ bool rv_pcresname_valid(const char *resname)
 rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
 {
     if (dir_path.empty()) {
-        // No disc in the drive. Deliberately quiet: this is how a headless smoke
-        // run of the console with no game boots, and it is not a fault.
+        // No disc in the drive. Deliberately quiet: this is how a smoke run
+        // with cv=null of the console with no game boots, and it is not a fault.
         RV_LOG_INFO("pcmedium", "no medium path configured; drive is empty");
         return;
     }

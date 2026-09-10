@@ -11,7 +11,8 @@
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
 #include "rv_pboot_mode.hpp"
-#include "rv_pmem/rv_pcarena.hpp"
+#include "rv_pboot_modes.hpp"
+#include "rv_pmem/rv_pcvmem.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
@@ -42,25 +43,43 @@ int rv_pboot_run(int argc, char **argv)
     // --selfcheck runs before anything else is brought up, and exits: it does
     // not boot a disc, does not touch SDL, does not need a mode.
     if (args.selfcheck) {
-        return rv_pcarena_selfcheck() ? 0 : 1;
+        return rv_pcvmem_selfcheck() ? 0 : 1;
+    }
+
+    // Resolve the preset and its per-slot overrides into the concrete choice
+    // this run boots with. Nothing is brought up yet: a bad --mode or
+    // --mode_<slot> must still cost a diagnostic, not a machine.
+    rv_pcslots slots;
+    if (!rv_pboot_modes_resolve(args, slots, exit_code)) {
+        return exit_code;
+    }
+
+    // A run whose cv slot is null never presents a frame, so a dump would
+    // only ever be an empty frame. Refuse the combination here, before the
+    // host or anything else is brought up, rather than write a useless file
+    // — reached the same way whether cv=null came from the preset or from
+    // --mode_cv.
+    if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
+        rv_console_print_error("cv is null, nothing to dump");
+        return 2;
     }
 
     // The host owns SDL and is borrowed by the console, so it must outlive
     // both the loader and the console below, hence it is declared before
     // either. Brought up right after the mode name is validated, before the
     // disc's budget is even read.
-    rv_pchost host;
+    rv_pchost_sdl3 host;
 
     // Prepare the mode and learn the machine before any disc code, any
     // archive and any allocation.
     rv_pboot_mode_info machine;
-    if (rv_pboot_mode_prepare(args, host, machine) < 0) {
+    if (rv_pboot_mode_prepare(args, slots, host, machine) < 0) {
         return 1;
     }
 
     // Report the preparation. This states what the mode is ready to offer;
     // it must not be read as any disc having been found compatible yet.
-    rv_pboot_mode_report(args, host, machine);
+    rv_pboot_mode_report(args, slots, host, machine);
 
     // The loader's teardown runs disc_shutdown(), a hook allowed to touch
     // every controller, so the loader must die before the console. Locals die
@@ -92,10 +111,9 @@ int rv_pboot_run(int argc, char **argv)
     // The disc's numbers become the machine's. Only the parameters that
     // belong to this run rather than to the disc come from the command line.
     rv_pconsole_conf conf;
-    rv_pboot_conf_build(*budget, args, conf);
+    rv_pboot_conf_build(*budget, args, slots, conf);
 
-    host.configure(conf.cv.screen_width, conf.cv.screen_height, conf.cio.iport_count,
-        conf.params.dump_frame_path);
+    host.configure(conf.cio.iport_count);
 
     // Reserve and prepare memory. The resource check above only compared
     // MemAvailable against the declared budget, which is a forecast, not a
@@ -104,7 +122,7 @@ int rv_pboot_run(int argc, char **argv)
     // std::vectors, so a budget that passed that check can still fail here,
     // and it fails by throwing rather than by returning an error. Catching
     // std::exception here turns that throw into the same ordinary refusal
-    // the ready() check below produces for the arena's error path: a
+    // the ready() check below produces for the vmem's error path: a
     // diagnostic and exit code, not std::terminate/SIGABRT.
     try {
         console.emplace(conf, host, args.disc_path != nullptr ? &loader : nullptr);

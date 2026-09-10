@@ -1,4 +1,4 @@
-#include "rv_pconsole/rv_pchost.hpp"
+#include "rv_pconsole/rv_pchost_sdl3.hpp"
 
 #include <SDL3/SDL.h>
 
@@ -106,16 +106,16 @@ constexpr int RV_PCHOST_AUDIO_FRAME_BYTES = 2 * static_cast<int>(sizeof(int16_t)
 
 // Out of line because rv_pcport is private — this is the only way stage E3's
 // resource check can cost configure()'s ports_.assign(iport_count, ...).
-int64_t rv_pchost::port_bytes()
+int64_t rv_pchost_sdl3::port_bytes()
 {
     return static_cast<int64_t>(sizeof(rv_pcport));
 }
 
-rv_pchost::rv_pchost()
+rv_pchost_sdl3::rv_pchost_sdl3()
 {
 }
 
-rv_pchost::~rv_pchost()
+rv_pchost_sdl3::~rv_pchost_sdl3()
 {
     // The device thread goes first: everything below it is state a callback in
     // flight would be reading.
@@ -126,12 +126,6 @@ rv_pchost::~rv_pchost()
             SDL_CloseGamepad(port.pad);
         }
     }
-    if (texture_) {
-        SDL_DestroyTexture(texture_);
-    }
-    if (renderer_) {
-        SDL_DestroyRenderer(renderer_);
-    }
     if (window_) {
         SDL_DestroyWindow(window_);
     }
@@ -140,21 +134,33 @@ rv_pchost::~rv_pchost()
     }
 }
 
-bool rv_pchost::ensure_sdl(uint32_t flags)
+bool rv_pchost_sdl3::ensure_sdl(uint32_t flags)
 {
     return SDL_InitSubSystem(flags);
 }
 
-void rv_pchost::configure(int64_t screen_width, int64_t screen_height, int64_t iport_count,
-    const std::string &dump_frame_path)
+void rv_pchost_sdl3::configure(int64_t iport_count)
 {
-    screen_width_ = screen_width;
-    screen_height_ = screen_height;
     ports_.assign(static_cast<std::size_t>(iport_count > 0 ? iport_count : 0), rv_pcport{});
-    dump_path_ = dump_frame_path;
+
+    // Adopt whatever is already plugged in; later arrivals come as events.
+    // Skipped outright when the subsystem never came up — SDL_GetGamepads
+    // would just report nothing, so this is only saving the call. Done here
+    // rather than in open() because input must not depend on a window ever
+    // opening.
+    if (gamepad_ready_) {
+        int pad_count = 0;
+        SDL_JoystickID *pads = SDL_GetGamepads(&pad_count);
+        if (pads) {
+            for (int i = 0; i < pad_count; ++i) {
+                adopt_gamepad(pads[i]);
+            }
+            SDL_free(pads);
+        }
+    }
 }
 
-int64_t rv_pchost::prepare(bool want_video, bool want_gamepad, bool want_audio)
+int64_t rv_pchost_sdl3::prepare(bool want_video, bool want_gamepad, bool want_audio)
 {
     if (want_video) {
         video_ready_ = ensure_sdl(SDL_INIT_VIDEO);
@@ -196,73 +202,36 @@ int64_t rv_pchost::prepare(bool want_video, bool want_gamepad, bool want_audio)
     return RV_OK;
 }
 
-int64_t rv_pchost::open(const char *title, int64_t screen_width, int64_t screen_height,
+int64_t rv_pchost_sdl3::open(const char *title, int64_t screen_width, int64_t screen_height,
     uint64_t scale)
 {
-    // Video and gamepad already came up (or didn't) in prepare(), stage C.
-    // open() only builds the window/renderer/texture on top of that — it never
-    // retries bringing a subsystem up itself.
+    // Video already came up (or didn't) in prepare(), stage C. open() only
+    // builds the window on top of that — it never retries bringing video up
+    // itself. Gamepad adoption already happened in configure(), independent
+    // of a window.
     if (!video_ready_) {
         RV_LOG_ERR("pchost", "video never came up at stage C, refusing to open a window");
         return RV_ERR_IO;
     }
 
-    screen_width_ = screen_width;
-    screen_height_ = screen_height;
     if (scale == 0) {
         scale = 1;
     }
 
-    const int window_w = static_cast<int>(screen_width_ * static_cast<int64_t>(scale));
-    const int window_h = static_cast<int>(screen_height_ * static_cast<int64_t>(scale));
+    const int window_w = static_cast<int>(screen_width * static_cast<int64_t>(scale));
+    const int window_h = static_cast<int>(screen_height * static_cast<int64_t>(scale));
     window_ = SDL_CreateWindow(title, window_w, window_h, SDL_WINDOW_RESIZABLE);
     if (!window_) {
         RV_LOG_ERR("pchost", "SDL_CreateWindow failed: {}", SDL_GetError());
         return RV_ERR_IO;
     }
 
-    renderer_ = SDL_CreateRenderer(window_, nullptr);
-    if (!renderer_) {
-        RV_LOG_ERR("pchost", "SDL_CreateRenderer failed: {}", SDL_GetError());
-        return RV_ERR_IO;
-    }
-
-    // The frame is always the native console resolution; the window is just a
-    // magnifying glass over it. Integer scaling keeps the pixels square and
-    // crisp instead of smearing them across a non-multiple window size.
-    SDL_SetRenderLogicalPresentation(renderer_, static_cast<int>(screen_width_),
-        static_cast<int>(screen_height_),
-        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
-
-    texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-        static_cast<int>(screen_width_),
-        static_cast<int>(screen_height_));
-    if (!texture_) {
-        RV_LOG_ERR("pchost", "SDL_CreateTexture failed: {}", SDL_GetError());
-        return RV_ERR_IO;
-    }
-    SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_NEAREST);
-
-    // Adopt whatever is already plugged in; later arrivals come as events.
-    // Skipped outright when the subsystem never came up — SDL_GetGamepads would
-    // just report nothing, so this is only saving the call.
-    if (gamepad_ready_) {
-        int pad_count = 0;
-        SDL_JoystickID *pads = SDL_GetGamepads(&pad_count);
-        if (pads) {
-            for (int i = 0; i < pad_count; ++i) {
-                adopt_gamepad(pads[i]);
-            }
-            SDL_free(pads);
-        }
-    }
-
-    RV_LOG_INFO("pchost", "display {}x{} at scale {}, {} port slot(s), video={} gamepad={}",
-        screen_width_, screen_height_, scale, ports_.size(), video_ready_, gamepad_ready_);
+    RV_LOG_INFO("pchost", "window {}x{} at scale {}, {} port slot(s), video={} gamepad={}",
+        screen_width, screen_height, scale, ports_.size(), video_ready_, gamepad_ready_);
     return RV_OK;
 }
 
-void rv_pchost::adopt_gamepad(uint32_t joystick_id)
+void rv_pchost_sdl3::adopt_gamepad(uint32_t joystick_id)
 {
     for (rv_pcport &port : ports_) {
         if (port.pad) {
@@ -333,7 +302,7 @@ void rv_pchost::adopt_gamepad(uint32_t joystick_id)
     RV_LOG_WARN("pchost", "every port slot is occupied, gamepad {} ignored", joystick_id);
 }
 
-void rv_pchost::release_gamepad(uint32_t joystick_id)
+void rv_pchost_sdl3::release_gamepad(uint32_t joystick_id)
 {
     for (rv_pcport &port : ports_) {
         if (!port.pad || port.joystick_id != joystick_id) {
@@ -352,9 +321,12 @@ void rv_pchost::release_gamepad(uint32_t joystick_id)
     }
 }
 
-void rv_pchost::pump()
+void rv_pchost_sdl3::pump()
 {
-    if (!video_ready_) {
+    // SDL_INIT_GAMEPAD implies the events subsystem, so the queue exists (and
+    // is worth draining for arrival/departure and power-off events) even when
+    // video never came up — input must not depend on a window.
+    if (!video_ready_ && !gamepad_ready_) {
         return;
     }
 
@@ -394,7 +366,7 @@ void rv_pchost::pump()
     }
 }
 
-void rv_pchost::poll_gamepad(rv_pcport &port)
+void rv_pchost_sdl3::poll_gamepad(rv_pcport &port)
 {
     SDL_Gamepad *pad = port.pad;
     if (!pad) {
@@ -465,7 +437,7 @@ void rv_pchost::poll_gamepad(rv_pcport &port)
     // zeroes rather than a lie.
 }
 
-void rv_pchost::overlay_keyboard(rv_pcport &port)
+void rv_pchost_sdl3::overlay_keyboard(rv_pcport &port)
 {
     const bool *keys = SDL_GetKeyboardState(nullptr);
     if (!keys) {
@@ -530,61 +502,7 @@ void rv_pchost::overlay_keyboard(rv_pcport &port)
     }
 }
 
-// Write the presented frame out as a binary PPM. A developer-tooling convenience: it lets
-// the exact pixels the console produced be inspected or diffed without a screen
-// capture, which is the difference between "looks right to me" and a repeatable
-// check. Deliberately the LAST frame rather than the first — an animated disc
-// has usually settled by then.
-void rv_pchost::dump_frame(const uint32_t *argb) const
-{
-    if (dump_path_.empty() || !argb) {
-        return;
-    }
-
-    std::FILE *file = std::fopen(dump_path_.c_str(), "wb");
-    if (!file) {
-        RV_LOG_ERR("pchost", "cannot open frame dump '{}'", dump_path_);
-        return;
-    }
-
-    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(screen_width_),
-        static_cast<long long>(screen_height_));
-
-    const int64_t pixels = screen_width_ * screen_height_;
-    for (int64_t i = 0; i < pixels; ++i) {
-        const uint32_t c = argb[i];
-        const unsigned char rgb[3] = { static_cast<unsigned char>((c >> 16) & 0xFF),
-            static_cast<unsigned char>((c >> 8) & 0xFF),
-            static_cast<unsigned char>(c & 0xFF) };
-        std::fwrite(rgb, 1, sizeof(rgb), file);
-    }
-    std::fclose(file);
-    RV_LOG_INFO("pchost", "frame written to '{}'", dump_path_);
-}
-
-void rv_pchost::present(const uint32_t *argb)
-{
-    if (!argb) {
-        return;
-    }
-
-    // Recorded before the renderer/texture check so a headless run (no window,
-    // no texture) still remembers the pointer --dump-frame needs. The bytes
-    // dumped are exactly the bytes handed to the display when there is one —
-    // no second path that could drift.
-    last_frame_ = argb;
-
-    if (!renderer_ || !texture_) {
-        return;
-    }
-
-    SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * 4));
-    SDL_RenderClear(renderer_);
-    SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
-    SDL_RenderPresent(renderer_);
-}
-
-bool rv_pchost::open_audio_device()
+bool rv_pchost_sdl3::open_audio_device()
 {
     if (audio_stream_) {
         return true;
@@ -608,7 +526,7 @@ bool rv_pchost::open_audio_device()
     spec.freq = static_cast<int>(RV_PCA_SAMPLE_RATE);
 
     audio_stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec,
-        &rv_pchost::audio_stream_callback, this);
+        &rv_pchost_sdl3::audio_stream_callback, this);
     if (!audio_stream_) {
         RV_LOG_WARN("pchost", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
         return false;
@@ -628,7 +546,7 @@ bool rv_pchost::open_audio_device()
     return true;
 }
 
-void rv_pchost::attach_mixer(rv_pcmixer &mixer)
+void rv_pchost_sdl3::attach_mixer(rv_pcmixer &mixer)
 {
     if (!audio_stream_) {
         return;
@@ -641,7 +559,7 @@ void rv_pchost::attach_mixer(rv_pcmixer &mixer)
     SDL_UnlockAudioStream(audio_stream_);
 }
 
-void rv_pchost::detach_mixer()
+void rv_pchost_sdl3::detach_mixer()
 {
     if (!audio_stream_) {
         audio_mixer_ = nullptr;
@@ -653,7 +571,7 @@ void rv_pchost::detach_mixer()
     SDL_UnlockAudioStream(audio_stream_);
 }
 
-void rv_pchost::close_audio()
+void rv_pchost_sdl3::close_audio()
 {
     if (!audio_stream_) {
         audio_mixer_ = nullptr;
@@ -668,16 +586,16 @@ void rv_pchost::close_audio()
     audio_mixer_ = nullptr;
 }
 
-void rv_pchost::audio_stream_callback(void *userdata, SDL_AudioStream *stream,
+void rv_pchost_sdl3::audio_stream_callback(void *userdata, SDL_AudioStream *stream,
     int additional_amount, int /*total_amount*/)
 {
-    rv_pchost *host = static_cast<rv_pchost *>(userdata);
+    rv_pchost_sdl3 *host = static_cast<rv_pchost_sdl3 *>(userdata);
     if (host) {
         host->fill_audio(stream, additional_amount);
     }
 }
 
-void rv_pchost::fill_audio(SDL_AudioStream *stream, int wanted_bytes)
+void rv_pchost_sdl3::fill_audio(SDL_AudioStream *stream, int wanted_bytes)
 {
     if (!stream || wanted_bytes <= 0) {
         return;
@@ -694,7 +612,7 @@ void rv_pchost::fill_audio(SDL_AudioStream *stream, int wanted_bytes)
             frames_left < RV_PCHOST_AUDIO_BLOCK_FRAMES ? frames_left : RV_PCHOST_AUDIO_BLOCK_FRAMES;
 
         // No mixer attached (device came up before any disc did, or the disc
-        // runs --no-audio): the device stays alive and clocked, it just gets
+        // runs with ca=null): the device stays alive and clocked, it just gets
         // silence instead of the SPU's output.
         if (audio_mixer_) {
             audio_mixer_->render(audio_block_.data(), block);
@@ -713,7 +631,7 @@ void rv_pchost::fill_audio(SDL_AudioStream *stream, int wanted_bytes)
     }
 }
 
-const rv_istate &rv_pchost::port_state(int64_t port) const
+const rv_istate &rv_pchost_sdl3::port_state(int64_t port) const
 {
     if (port < 0 || static_cast<std::size_t>(port) >= ports_.size()) {
         return empty_state_;
@@ -721,7 +639,7 @@ const rv_istate &rv_pchost::port_state(int64_t port) const
     return ports_[static_cast<std::size_t>(port)].state;
 }
 
-uint64_t rv_pchost::port_abilities(int64_t port) const
+uint64_t rv_pchost_sdl3::port_abilities(int64_t port) const
 {
     if (port < 0 || static_cast<std::size_t>(port) >= ports_.size()) {
         return 0;
@@ -729,7 +647,7 @@ uint64_t rv_pchost::port_abilities(int64_t port) const
     return ports_[static_cast<std::size_t>(port)].abilities;
 }
 
-rv_imouse rv_pchost::consume_mouse()
+rv_imouse rv_pchost_sdl3::consume_mouse()
 {
     const rv_imouse motion{ static_cast<int>(mouse_dx_), static_cast<int>(mouse_dy_) };
     mouse_dx_ = 0.0f;
@@ -737,7 +655,7 @@ rv_imouse rv_pchost::consume_mouse()
     return motion;
 }
 
-int64_t rv_pchost::rumble(int64_t port, uint16_t left, uint16_t right, uint16_t duration_ms)
+int64_t rv_pchost_sdl3::rumble(int64_t port, uint16_t left, uint16_t right, uint16_t duration_ms)
 {
     if (port < 0 || static_cast<std::size_t>(port) >= ports_.size()) {
         return RV_ERR_INVAL;
@@ -751,7 +669,7 @@ int64_t rv_pchost::rumble(int64_t port, uint16_t left, uint16_t right, uint16_t 
     return SDL_RumbleGamepad(pad, left, right, duration_ms) ? RV_OK : RV_ERR_IO;
 }
 
-int64_t rv_pchost::rumble_triggers(int64_t port, uint16_t left, uint16_t right,
+int64_t rv_pchost_sdl3::rumble_triggers(int64_t port, uint16_t left, uint16_t right,
     uint16_t duration_ms)
 {
     if (port < 0 || static_cast<std::size_t>(port) >= ports_.size()) {

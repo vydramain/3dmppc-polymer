@@ -57,9 +57,6 @@ inline void rv_console_print_usage(std::FILE *stream)
         "Options:\n"
         "  -s, --scale N        Window magnification over native 320x240.\n"
         "                       Default: 3.\n"
-        "  -H, --headless       Run without a window and without rasterizing any\n"
-        "                       frame. Pair with --frames. Cannot be combined\n"
-        "                       with --dump-frame.\n"
         "  -n, --frames N       Stop after N frames. 0 runs until quit.\n"
         "  -F, --fixed-step     Use a fixed 1/60 dt, for reproducible runs.\n"
         "  -d, --disc PATH      Medium to mount in the drive: a DIRECTORY of\n"
@@ -69,12 +66,19 @@ inline void rv_console_print_usage(std::FILE *stream)
         "                       brings its own medium. Empty means no disc.\n"
         "  -m, --memcard PATH   Memory-card image. Default: memcard.mppccard.\n"
         "  -M, --mute           Silence the audio output stage.\n"
-        "      --no-audio       Do not open the audio device at all. Stronger\n"
-        "                       than --mute: no device, voices report idle.\n"
         "  -D, --dump-frame P   Write the last presented frame to P as a binary\n"
-        "                       PPM. Cannot be combined with --headless.\n"
-        "      --mode=NAME      Console backend to run. Default: sdl3.\n"
-        "                       Available: sdl3.\n"
+        "                       PPM. Refused when cv is null.\n"
+        "      --mode=NAME      Preset: one implementation per slot. Default:\n"
+        "                       sdl3.\n"
+        "      --mode_ca=IMPL   Override the ca slot of the preset. IMPL is\n"
+        "                       null or sdl3.\n"
+        "      --mode_cv=IMPL   Override the cv slot of the preset. IMPL is\n"
+        "                       null or sdl3. A run with cv=null needs\n"
+        "                       --frames to end.\n"
+        "      --mode_cio=IMPL  Override the cio slot of the preset. IMPL is\n"
+        "                       null or sdl3.\n"
+        "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
+        "                       null or luajit.\n"
         "      --selfcheck      Run internal self-checks and exit.\n");
 }
 
@@ -82,10 +86,8 @@ inline void rv_console_print_usage(std::FILE *stream)
 // rv_pconsole_conf, no allocation beyond the strings themselves. Building the
 // real conf is a separate step, after the whole command line has been read.
 struct rv_pboot_args {
-    bool headless = false;
     bool fixed_step = false;
     bool mute = false;
-    bool no_audio = false;
     bool selfcheck = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
@@ -93,6 +95,13 @@ struct rv_pboot_args {
     std::string memcard_path;
     std::string dump_frame_path;
     std::string mode = "sdl3";
+
+    // Per-slot overrides of the preset named by `mode`. Empty = not given.
+    std::string mode_ca;
+    std::string mode_cv;
+    std::string mode_cio;
+    std::string mode_cl;
+
     const char *disc_path = nullptr;
 };
 

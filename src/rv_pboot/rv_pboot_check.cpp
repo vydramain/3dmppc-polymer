@@ -7,7 +7,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cm/rv_pccard.hpp"
-#include "rv_pconsole/rv_pchost.hpp"
+#include "rv_pconsole/rv_pchost_sdl3.hpp"
 
 namespace rv_3dmppc
 {
@@ -72,6 +72,12 @@ bool bad_field(const char *field, int64_t value, bool active)
 
 } // namespace
 
+// The budget is stated in console units (a disc must look the same on every
+// backend), while the machine below is measured in host bytes. The total
+// therefore counts both the disc's own pools (video memory, sound memory,
+// script heap) and the buffers the console itself needs to realise that
+// budget (framebuffer, ordering table, primitive buffer, card image, port
+// slots).
 int64_t rv_pboot_check_budget(
     const rv_pdklib::rv_manifest_budget &budget,
     const rv_pboot_mode_info &machine)
@@ -79,7 +85,7 @@ int64_t rv_pboot_check_budget(
     const bool audio_on = machine.audio_enabled;
 
     // Sanity of the declared numbers. The rasterizer's own memory (cv.*) is
-    // required headless or not (nothing here looks at display bounds), so
+    // required whether cv=null or not (nothing here looks at display bounds), so
     // those fields are always active. pccio has no on/off switch.
     if (bad_field("budget.pcca.voice_count", budget.pcca.voice_count, audio_on) ||
         bad_field("budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, audio_on) ||
@@ -180,14 +186,14 @@ int64_t rv_pboot_check_budget(
         return RV_ERR_INVAL;
     }
 
-    // Port slots (rv_pchost::configure -> ports_.assign(iport_count, ...)):
+    // Port slots (rv_pchost_sdl3::configure -> ports_.assign(iport_count, ...)):
     // iport_count * sizeof(rv_pcport). Uncosted, this is how an absurd
     // iport_count reaches configure()'s std::vector::assign() and aborts the
     // process with an unhandled std::length_error instead of being refused
     // here by name.
     int64_t iports_bytes = 0;
     if (mul_overflow("budget.pccio.iport_count", budget.pccio.iport_count,
-            rv_pchost::port_bytes(), iports_bytes) ||
+            rv_pchost_sdl3::port_bytes(), iports_bytes) ||
         add_overflow("budget.pccio.iport_count", total, iports_bytes)) {
         return RV_ERR_INVAL;
     }

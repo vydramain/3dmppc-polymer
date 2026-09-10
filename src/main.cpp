@@ -1,7 +1,6 @@
 // 3dmppc entry point
 //
 // The console is game-agnostic; all game logic lives behind on the Disc.
-// See docs/README.md for the console/disc relations.
 //
 // The startup sequence lives in rv_pboot/: stages A through I, one file per
 // stage's name. The command line is documented in one place,

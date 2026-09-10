@@ -595,8 +595,9 @@ void rv_dmain::frame_render()
         return;
     }
 
-    // No simulation lives here: a headless run never calls frame_render(), and
-    // the show must advance identically either way (rv_de::frame_render).
+    // No simulation lives here: frame_render() is now always called, and with
+    // cv null the calls it makes land on a no-op, so the show must advance
+    // identically either way (rv_de::frame_render).
     rv_cv *cv = rv_pdko_cv(pdk_);
 
     // The Z flag is on because the cut-out row depends on it: a hole must write

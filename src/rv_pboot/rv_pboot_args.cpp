@@ -14,18 +14,6 @@ namespace rv_3dmppc
 namespace
 {
 
-// The only backend this console knows how to boot. A name outside this list
-// is a bad argument (exit 2, usage printed), not a machine failure, the same
-// kind of mistake as an unrecognized flag.
-constexpr const char* kKnownModes[] = {"sdl3"};
-
-bool is_known_mode(const std::string& mode) {
-    for (const char* known : kKnownModes) {
-        if (mode == known) return true;
-    }
-    return false;
-}
-
 // Strict non-negative decimal. Anything else, empty, a sign, letters, trailing
 // junk, a value too large for the type, is a bad argument, not a zero.
 bool parse_u64(const char* text, uint64_t& out) {
@@ -41,8 +29,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
     // There is no game's name here. The console mounts whatever medium it is
     // pointed at and boots the disc it is handed on the command line; with
     // nothing at all it runs the built-in skeleton against an empty drive.
-    static struct option long_opts[] = {{"headless", no_argument, 0, 'H'},
-                                        {"fixed-step", no_argument, 0, 'F'},
+    static struct option long_opts[] = {{"fixed-step", no_argument, 0, 'F'},
                                         {"scale", required_argument, 0, 's'},
                                         {"frames", required_argument, 0, 'n'},
                                         {"disc", required_argument, 0, 'd'},
@@ -50,24 +37,33 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mute", no_argument, 0, 'M'},
                                         {"dump-frame", required_argument, 0, 'D'},
                                         {"mode", required_argument, 0, 'o'},
-                                        {"no-audio", no_argument, 0, 'A'},
+                                        {"mode_ca", required_argument, 0, 'a'},
+                                        {"mode_cv", required_argument, 0, 'v'},
+                                        {"mode_cio", required_argument, 0, 'i'},
+                                        {"mode_cl", required_argument, 0, 'l'},
                                         {"selfcheck", no_argument, 0, 'Y'},
                                         {0, 0, 0, 0}};
 
     int c;
-    while ((c = getopt_long(argc, argv, "HFMs:n:d:m:D:", long_opts, NULL)) != -1) {
+    while ((c = getopt_long(argc, argv, "FMs:n:d:m:D:", long_opts, NULL)) != -1) {
         switch (c) {
-            case 'H':
-                args.headless = true;
-                break;
             case 'F':
                 args.fixed_step = true;
                 break;
             case 'M':
                 args.mute = true;
                 break;
-            case 'A':
-                args.no_audio = true;
+            case 'a':
+                args.mode_ca = optarg;
+                break;
+            case 'v':
+                args.mode_cv = optarg;
+                break;
+            case 'i':
+                args.mode_cio = optarg;
+                break;
+            case 'l':
+                args.mode_cl = optarg;
                 break;
             case 's':
                 if (!parse_u64(optarg, args.scale) || args.scale == 0) {
@@ -110,30 +106,16 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
         }
     }
 
-    // --headless means no window and no rasterization (rv_pconsole::disc_run
-    // skips frame_render() entirely), so a frame dump would only ever be an
-    // empty frame. Refuse the combination here rather than write a useless
-    // file.
-    if (args.headless && !args.dump_frame_path.empty()) {
-        rv_3dmppc::rv_console_print_error("--headless and --dump-frame cannot be combined");
-        rv_3dmppc::rv_console_print_usage(stderr);
-        exit_code = 2;
-        return false;
-    }
-
     // --selfcheck is only recorded here; it is acted on by the caller, so this
     // file gains no dependency on rv_pmem.
     if (args.selfcheck) {
         return true;
     }
 
-    if (!is_known_mode(args.mode)) {
-        rv_3dmppc::rv_console_print_error(
-            std::format("unknown --mode '{}', available: sdl3", rv_pdklib::rv_log_escape(args.mode.c_str())));
-        rv_3dmppc::rv_console_print_usage(stderr);
-        exit_code = 2;
-        return false;
-    }
+    // Which slot's implementation actually resolves --mode/--mode_<slot> to,
+    // and whether cv ends up null (so --dump-frame must be refused), is not
+    // known until rv_pboot_modes_resolve runs — this file only collects the
+    // raw strings.
 
     // getopt_long has left optind on the first thing that was not a flag. One
     // positional argument is expected — the disc — and more than one is a typo

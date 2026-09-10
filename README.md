@@ -11,9 +11,10 @@ runs it — and the console never learns the game's name.
 That screen, those voices, and the 1 MB of video memory behind them are a
 **virtual budget the console imposes on itself** — not what the host machine
 has. The host has gigabytes; a disc gets what the fantasy machine is defined to
-have, and the pools really do answer "out of memory" at the line. See
-[`docs/platform/specs.md`](docs/platform/specs.md) for the whole budget and for
-the two places it is not yet enforced.
+have, and the pools really do answer "out of memory" at the line. See the
+`rv_manifest_budget_*` defaults in
+[`pdk/lib/include/pdklib/rv_manifest/rv_manifest.hpp`](pdk/lib/include/pdklib/rv_manifest/rv_manifest.hpp)
+for the whole budget.
 
 ---
 
@@ -93,7 +94,8 @@ the compiler they drive.
 | Flag | What it does |
 | --- | --- |
 | `--scale N` | window magnification over the native 320×240 (default 3) |
-| `--headless` | no window; pair with `--frames` for a smoke test |
+| `--mode_cv=null` | no window; pair with `--frames` for a smoke test |
+| `--mode=NAME` / `--mode_ca=`/`--mode_cv=`/`--mode_cio=`/`--mode_cl=` | pick a preset or override one slot (`null`\|`sdl3`, `cl` also `luajit`) |
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | feed the disc a fixed 1/60 dt — reproducible runs |
 | `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
@@ -177,11 +179,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 | Document | What it covers |
 | --- | --- |
-| [`docs/README.md`](docs/README.md) | **console vs disc** — read this first |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
 | [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
-| [`docs/platform/specs.md`](docs/platform/specs.md) | the hardware spec, and every place it deliberately differs from a real PSX |
-| [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md) | how a disc is packaged and loaded |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |

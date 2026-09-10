@@ -545,6 +545,11 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // diagnostic instead of a bare `line 14:` — the report is the only thing
     // the console can say about a manifest it could not read, so it says it in
     // the shape the burner's own messages have.
+    // The console parses the whole manifest with the burner's own parser (one
+    // shared schema, rv_pdklib::rv_manifest) but ACTS only on the disc's
+    // identity/title, the code entry and [budget.*]; [scripts] sources is read
+    // only for the all-or-none check below, and [build], [assets], [textures]
+    // are never read back out here.
     std::string merror;
     const int64_t mres =
         rv_pdklib::rv_manifest_parse(manifest_text, kManifestEntry, manifest_, merror);

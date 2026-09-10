@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "pdk/de/rv_de.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
@@ -9,7 +11,7 @@
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
-#include "rv_pconsole/rv_pchost.hpp"
+#include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -34,7 +36,7 @@ private:
     // to know which SDL subsystems came up), so the console can no longer own
     // it. cio_ and cv_ still borrow it in turn, which only works because the
     // caller is guaranteed to outlive this console.
-    rv_pchost &host_;
+    rv_pchost_sdl3 &host_;
 
     // DECLARATION ORDER MATTERS, exactly as it does for host_ above. Fields
     // are destroyed in the REVERSE order of their declaration, and cl_ is
@@ -43,12 +45,12 @@ private:
     // down, so lua_close() must run BEFORE any controller it might reach is
     // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
     // destruction order, which is a use-after-free.
-    rv_pcca ca_;
+    std::unique_ptr<rv_pcca> ca_;
     rv_pccd cd_;
-    rv_pccio cio_;
+    std::unique_ptr<rv_pccio> cio_;
     rv_pccm cm_;
-    rv_pccv cv_;
-    rv_pccl cl_;
+    std::unique_ptr<rv_pccv> cv_;
+    std::unique_ptr<rv_pccl> cl_;
 
     // BORROWED, never owned. The loader reads the manifest BEFORE this console
     // exists — the numbers it finds are what this console is built from — so it
@@ -58,7 +60,7 @@ private:
     rv_pcloader *loader_ = nullptr;
 
 public:
-    rv_pconsole(const rv_pconsole_conf &conf, rv_pchost &host, rv_pcloader *loader);
+    rv_pconsole(const rv_pconsole_conf &conf, rv_pchost_sdl3 &host, rv_pcloader *loader);
 
     ~rv_pconsole() = default;
 
@@ -67,10 +69,6 @@ public:
     rv_cio *cio();
     rv_cm *cm();
     rv_cv *cv();
-
-    // Unlike its neighbours above, this one can answer nullptr: a disc that
-    // declared no [budget.pccl] gets no cl at all rather than a live-looking
-    // handle whose every call answers RV_ERR_INVAL.
     rv_cl *cl();
 
     // The drive itself, console-side. rv_pdko::cd() hands a disc the CONTRACT's
@@ -91,10 +89,10 @@ public:
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
-    // existence? Covers audio (ca_), video (cv_), the memory card (cm_) and
-    // scripting (cl_). A budget the machine accepted at stage E3 can still
-    // fail to materialise at stage G — an address-space reservation is
-    // allowed to refuse, and so is the card's backing image. cl_ needs no
+    // existence? Covers every slot (ca_, cio_, cv_, cl_) and the memory card
+    // (cm_). A budget the machine accepted at stage E3 can still fail to
+    // materialise at stage G — an address-space reservation is allowed to
+    // refuse, and so is the card's backing image. cl_ needs no
     // special-casing: rv_pccl::valid() already treats "scripting was never
     // asked for" as true, so this stays a plain conjunction. False means the
     // machine did not provide what the disc declared, and the run must not

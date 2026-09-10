@@ -21,7 +21,7 @@ namespace
 // 3 bits introduces, which is why adding it before the shift keeps the average
 // brightness correct instead of darkening the frame.
 //
-// docs/platform/specs.md commits the console to "16-bit + dithering"; this is
+// The console is committed to "16-bit + dithering"; this is
 // that dithering, and it is a large part of why the output reads as PSX-era.
 constexpr int32_t RV_BAYER4[4][4] = {
     { 0, 8, 2, 10 },
