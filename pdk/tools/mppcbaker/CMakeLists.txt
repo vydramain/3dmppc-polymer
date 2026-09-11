@@ -16,7 +16,7 @@ if(NOT EXISTS ${MPPCBAKER_STB_DIR}/stb_image.h)
     "downloaded — restore it from the repository rather than fetching it.")
 endif()
 
-add_executable(mppcbaker mppcbaker.cpp)
+add_executable(mppcbaker mppcbaker.cpp rv_baker_encode.cpp rv_baker_quantize.cpp)
 
 # SYSTEM: stb_image.h is third-party and not warning-clean under -Wextra. Its
 # implementation is textually part of mppcbaker.cpp, but the diagnostics still

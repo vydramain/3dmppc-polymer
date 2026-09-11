@@ -159,7 +159,7 @@ every row starts on a byte boundary and the stride is `(width + 1) / 2`.
 
 The indexed formats use **median cut (Heckbert 1982)** followed by a few
 **Lloyd** iterations. The reasoning is spelled out in the `// THEOREM:` comments
-in `mppcbaker.cpp`; in short:
+in `rv_baker_encode.cpp` and `rv_baker_quantize.cpp`; in short:
 
 - **Why median cut and not k-means.** It is deterministic — the same PNG yields a
   byte-identical file, and without that the build cache and diffs of committed

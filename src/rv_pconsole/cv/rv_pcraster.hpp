@@ -61,7 +61,7 @@ public:
 
     // The same dither, applied to a texel that is already RGB555. Every pixel
     // this class writes goes through one of these three, so the quantizer lives
-    // in exactly one place — see the theorem in rv_pcraster.cpp for why this one
+    // in exactly one place — see the theorem in rv_pcraster_pixel.hpp for why this one
     // is currently an identity and why it is still the right call to make.
     static uint16_t dither_rgb555(uint16_t texel, int64_t x, int64_t y);
 };

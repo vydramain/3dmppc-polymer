@@ -3,7 +3,7 @@
 // Everything above it — the controllers, the frame loop, the disc — speaks PDK
 // types and console-internal types, never SDL ones. That is why this header
 // forward-declares the SDL handles instead of including <SDL3/SDL.h>: the
-// dependency stops at rv_pchost_sdl3.cpp.
+// dependency stops at the rv_pchost_sdl3*.cpp files.
 //
 // Two responsibilities, both "the machine's shell" rather than a contract
 // subsystem:

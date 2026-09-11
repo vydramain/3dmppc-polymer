@@ -536,7 +536,7 @@ bug: the boundary is checked by the toolchain every build.
 
 ### File conventions
 
-- A source file stays under 255 lines.
+- A source file stays under 512 lines.
 - PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.hpp`
   holds line / polygon / sprite and the `rv_primitive` union); otherwise one type
   per file, as in `ca/`.
