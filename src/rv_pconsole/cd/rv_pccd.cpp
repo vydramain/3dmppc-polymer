@@ -5,7 +5,7 @@
 // --- C contract (pdk/cd/rv_cd.h) ---------------------------------------------
 // An rv_cd* handle and the address of an rv_pccd are the same address: which
 // concrete class actually lives there is a console construction-time choice
-// (rv_pccd_fs), reached here through a virtual call.
+// (rv_pccd_fs or rv_pccd_null), reached here through a virtual call.
 
 extern "C" int64_t rv_cd_asset_open(rv_cd *cd, const char *resname)
 {

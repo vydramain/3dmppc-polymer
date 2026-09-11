@@ -54,9 +54,11 @@ constexpr struct { const char *name; rv_pccl_impl impl; } kPccl[] = {
     { "luajit", rv_pccl_impl::luajit },
 };
 constexpr struct { const char *name; rv_pccd_impl impl; } kPccd[] = {
+    { "null", rv_pccd_impl::null },
     { "fs", rv_pccd_impl::fs },
 };
 constexpr struct { const char *name; rv_pccm_impl impl; } kPccm[] = {
+    { "null", rv_pccm_impl::null },
     { "posix", rv_pccm_impl::posix },
 };
 

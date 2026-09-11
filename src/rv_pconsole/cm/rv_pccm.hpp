@@ -1,5 +1,5 @@
 // The rv_cm contract made abstract. Where a save's bytes live is the concrete
-// card's business (rv_pccm_posix).
+// card's business (rv_pccm_posix or rv_pccm_null).
 #pragma once
 
 #include <cstdint>

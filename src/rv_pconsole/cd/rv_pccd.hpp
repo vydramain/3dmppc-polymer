@@ -1,5 +1,5 @@
 // The rv_cd contract made abstract. Which drive answers a name is the
-// console's construction-time choice (rv_pccd_fs).
+// console's construction-time choice (rv_pccd_fs or rv_pccd_null).
 #pragma once
 
 #include <cstdint>

@@ -80,9 +80,9 @@ inline void rv_console_print_usage(std::FILE *stream)
         "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
         "                       null or luajit.\n"
         "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"
-        "                       fs.\n"
+        "                       null or fs.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
-        "                       posix.\n"
+        "                       null or posix.\n"
         "      --selfcheck      Run internal self-checks and exit.\n");
 }
 

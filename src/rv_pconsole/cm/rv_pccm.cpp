@@ -5,7 +5,7 @@
 // --- C contract (pdk/cm/rv_cm.h) ---------------------------------------------
 // An rv_cm* handle and the address of an rv_pccm are the same address: which
 // concrete class actually lives there is a console construction-time choice
-// (rv_pccm_posix), reached here through a virtual call.
+// (rv_pccm_posix or rv_pccm_null), reached here through a virtual call.
 
 extern "C" int64_t rv_cm_card_slots(rv_cm *cm)
 {
