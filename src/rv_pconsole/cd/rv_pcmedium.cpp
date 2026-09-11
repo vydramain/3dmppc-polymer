@@ -17,7 +17,7 @@ namespace
 // std::filesystem::file_size answers in uintmax_t; the contract answers in a
 // signed int64 whose negative half is reserved for rv_err. An entry too large to
 // express is not a size we may return.
-constexpr uintmax_t kMaxEntrySize = static_cast<uintmax_t>(std::numeric_limits<int64_t>::max());
+constexpr uintmax_t RV_PCMEDIUM_MAX_ENTRY_SIZE = static_cast<uintmax_t>(std::numeric_limits<int64_t>::max());
 
 } // namespace
 
@@ -121,7 +121,7 @@ int64_t rv_pcdirmedium::entry_size(const char *resname) const
         RV_LOG_ERR("pcmedium", "cannot measure entry '{}': {}", resname, ec.message());
         return RV_ERR_IO;
     }
-    if (size > kMaxEntrySize) {
+    if (size > RV_PCMEDIUM_MAX_ENTRY_SIZE) {
         RV_LOG_ERR("pcmedium", "entry '{}' is too large to address", resname);
         return RV_ERR_IO;
     }

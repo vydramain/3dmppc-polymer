@@ -32,8 +32,8 @@ namespace rv_3dmppc {
 
 // Entries the console owns. They live in the same archive as the assets but not
 // in the same namespace: a disc does not read itself as data.
-inline constexpr const char* kDiscManifestEntry = "disc.toml";
-inline constexpr const char* kDiscCodeEntry = "disc.so";
+inline constexpr const char* RV_PCZIPMEDIUM_DISC_MANIFEST_ENTRY = "disc.toml";
+inline constexpr const char* RV_PCZIPMEDIUM_DISC_CODE_ENTRY = "disc.so";
 
 class rv_pczipmedium : public rv_pcmedium {  // PATTERN: strategy
    public:

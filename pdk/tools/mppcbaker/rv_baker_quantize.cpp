@@ -11,16 +11,16 @@ namespace {
 // --- median cut ---------------------------------------------------------------
 
 // A channel of rv_color5 is five bits, so 0..31 (pdk/cv/rv_texel.h).
-constexpr int kChannel5Max = 31;
+constexpr int RV_BAKER_CHANNEL5_MAX = 31;
 
 // Luma coefficients of ITU-R BT.601 (Y' = 0.299 R' + 0.587 G' + 0.114 B') taken
 // ×10 and rounded: 2.99 -> 3, 5.87 -> 6, 1.14 -> 1. They weight the colour
 // metric below so that palette accuracy is spent on green, which the eye
 // resolves far better than blue. Integers keep every comparison exact and
 // therefore reproducible across compilers.
-constexpr int kLumaWeightR = 3;
-constexpr int kLumaWeightG = 6;
-constexpr int kLumaWeightB = 1;
+constexpr int RV_BAKER_LUMA_WEIGHT_R = 3;
+constexpr int RV_BAKER_LUMA_WEIGHT_G = 6;
+constexpr int RV_BAKER_LUMA_WEIGHT_B = 1;
 
 // A box is a half-open SLICE of the bin array, not a geometric volume. It
 // behaves like an axis-aligned box only because the slice is sorted along the
@@ -38,7 +38,7 @@ enum color_axis {
     COLOR_AXIS_B,
 };
 
-constexpr color_axis kColorAxes[] = { COLOR_AXIS_R, COLOR_AXIS_G, COLOR_AXIS_B };
+constexpr color_axis RV_BAKER_COLOR_AXES[] = { COLOR_AXIS_R, COLOR_AXIS_G, COLOR_AXIS_B };
 
 uint8_t channel_of(const rv_color5 &c, color_axis axis)
 {
@@ -63,13 +63,13 @@ struct axis_span {
 // Longest edge of a box and the channel it runs along. The span is the crude
 // measure of how badly one colour can stand in for the whole box: colours
 // differing by 2 are already described by their mean, colours spanning 25 are
-// not. Measured UNWEIGHTED — kLumaWeight* applies to distance2, not here.
+// not. Measured UNWEIGHTED — RV_BAKER_LUMA_WEIGHT_* applies to distance2, not here.
 axis_span widest_axis(const std::vector<color_bin> &bins, const box &b)
 {
     axis_span best{ COLOR_AXIS_R, -1 };
-    for (const color_axis axis : kColorAxes) {
+    for (const color_axis axis : RV_BAKER_COLOR_AXES) {
         // Seeded at the ends of the channel range, so the first colour takes both.
-        int lo = kChannel5Max;
+        int lo = RV_BAKER_CHANNEL5_MAX;
         int hi = 0;
         for (size_t i = b.begin; i < b.end; ++i) {
             const int v = channel_of(bins[i].color, axis);
@@ -153,7 +153,7 @@ bool pick_box(const std::vector<box> &bs, const std::vector<color_bin> &bins, si
     return true;
 }
 
-// SQUARED distance between two colours under the kLumaWeight* metric. Squared
+// SQUARED distance between two colours under the RV_BAKER_LUMA_WEIGHT_* metric. Squared
 // because every caller only compares results and sqrt is monotone: the ordering
 // survives, while the arithmetic stays integer and therefore identical on every
 // compiler — two near-equal candidates can never swap places on someone else's
@@ -170,7 +170,7 @@ uint32_t distance2(const rv_color5 &a, const rv_color5 &b)
     const int dg = static_cast<int>(a.g) - static_cast<int>(b.g);
     const int db = static_cast<int>(a.b) - static_cast<int>(b.b);
     return static_cast<uint32_t>(
-        kLumaWeightR * dr * dr + kLumaWeightG * dg * dg + kLumaWeightB * db * db);
+        RV_BAKER_LUMA_WEIGHT_R * dr * dr + RV_BAKER_LUMA_WEIGHT_G * dg * dg + RV_BAKER_LUMA_WEIGHT_B * db * db);
 }
 
 } // namespace
@@ -279,7 +279,7 @@ size_t nearest(const std::vector<rv_color5> &palette, const rv_color5 &c)
 // A pass cannot increase total error, and the weighted mean really is the
 // minimiser under this metric: the weights are a constant factor in the
 // derivative and cancel, which is why the mean needs no knowledge of
-// kLumaWeight*. Passes are counted, not run to convergence — see kLloydPasses.
+// RV_BAKER_LUMA_WEIGHT_*. Passes are counted, not run to convergence — see RV_BAKER_LLOYD_PASSES.
 void refine(const std::vector<color_bin> &bins, std::vector<rv_color5> &palette, int passes)
 {
     if (palette.empty()) {

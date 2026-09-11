@@ -415,14 +415,14 @@ bool rv_disc_hash_magic_offset(
     Elf64_Nhdr nhdr;
     std::memcpy(&nhdr, elf + sh_offset, sizeof(nhdr));
 
-    constexpr uint64_t kOwnerSize = sizeof(RV_MPPC_NOTE_OWNER_DEF);
-    constexpr uint64_t kDescSize = sizeof(rv_mppc_note_desc);
+    constexpr uint64_t RV_DISC_HASH_OWNER_SIZE = sizeof(RV_MPPC_NOTE_OWNER_DEF);
+    constexpr uint64_t RV_DISC_HASH_DESC_SIZE = sizeof(rv_mppc_note_desc);
 
-    if (nhdr.n_namesz != kOwnerSize) {
+    if (nhdr.n_namesz != RV_DISC_HASH_OWNER_SIZE) {
         error = "Version note owner size does not match RV_MPPC_NOTE_OWNER_DEF.";
         return false;
     }
-    if (nhdr.n_descsz != kDescSize) {
+    if (nhdr.n_descsz != RV_DISC_HASH_DESC_SIZE) {
         error = "Version note descriptor size does not match rv_mppc_note_desc.";
         return false;
     }
@@ -448,7 +448,7 @@ bool rv_disc_hash_magic_offset(
         return false;
     }
 
-    if (std::memcmp(elf + owner_offset, RV_MPPC_NOTE_OWNER_DEF, kOwnerSize) != 0) {
+    if (std::memcmp(elf + owner_offset, RV_MPPC_NOTE_OWNER_DEF, RV_DISC_HASH_OWNER_SIZE) != 0) {
         error = "Version note owner does not match RV_MPPC_NOTE_OWNER_DEF.";
         return false;
     }

@@ -61,7 +61,7 @@ static std::string quote(const std::string &s)
 // Arrays go on one line while they fit comfortably, and one element per line
 // once they do not. Both shapes parse back identically; the split exists so a
 // manifest with thirty globs stays readable in a diff.
-constexpr std::size_t kArrayWrapColumn = 80;
+constexpr std::size_t RV_MANIFEST_ARRAY_WRAP_COLUMN = 80;
 
 static void render_array(std::ostringstream &out, const std::string &key,
     const std::vector<std::string> &values)
@@ -74,7 +74,7 @@ static void render_array(std::ostringstream &out, const std::string &key,
         one_line += quote(values[i]);
     }
     one_line += "]";
-    if (one_line.size() <= kArrayWrapColumn) {
+    if (one_line.size() <= RV_MANIFEST_ARRAY_WRAP_COLUMN) {
         out << one_line << "\n";
         return;
     }

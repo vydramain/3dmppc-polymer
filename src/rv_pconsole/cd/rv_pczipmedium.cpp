@@ -16,7 +16,7 @@ bool has_separator(const std::string &name)
 
 bool is_service_entry(const std::string &name)
 {
-    return name == kDiscManifestEntry || name == kDiscCodeEntry;
+    return name == RV_PCZIPMEDIUM_DISC_MANIFEST_ENTRY || name == RV_PCZIPMEDIUM_DISC_CODE_ENTRY;
 }
 
 } // namespace

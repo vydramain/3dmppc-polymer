@@ -68,7 +68,7 @@ class rv_pccd_fs final : public rv_pccd {
     // The upper bound on distinct names one disc may resolve. It exists so that
     // RV_ERR_NOMEM is a real, testable answer ("the resource table cannot grow")
     // instead of a code that only ever appears when the host is already dying.
-    static constexpr int64_t kResourceTableMax = 4096;
+    static constexpr int64_t RV_PCCD_FS_RESOURCE_TABLE_MAX = 4096;
 
     // Name behind a handle, or nullptr when the handle was never issued.
     const char* handle_name(int64_t handle) const;

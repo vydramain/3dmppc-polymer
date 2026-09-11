@@ -67,9 +67,9 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
         return RV_ERR_NOENT;
     }
 
-    if (static_cast<int64_t>(resnames_.size()) >= kResourceTableMax) {
+    if (static_cast<int64_t>(resnames_.size()) >= RV_PCCD_FS_RESOURCE_TABLE_MAX) {
         RV_LOG_ERR("pccd", "resource table full ({} entries); cannot resolve '{}'",
-                   kResourceTableMax, key);
+                   RV_PCCD_FS_RESOURCE_TABLE_MAX, key);
         return RV_ERR_NOMEM;
     }
 

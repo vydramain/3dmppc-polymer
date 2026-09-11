@@ -32,16 +32,16 @@ namespace
 // The two service entries. They live in the archive next to the assets but are
 // NOT part of the disc's resource namespace: the console reads them, the game
 // never asks for them.
-constexpr const char *kManifestEntry = "disc.toml";
-constexpr const char *kDefaultCodeEntry = "disc.so";
+constexpr const char *RV_PCLOADER_MANIFEST_ENTRY = "disc.toml";
+constexpr const char *RV_PCLOADER_DEFAULT_CODE_ENTRY = "disc.so";
 
 // Ceilings on what the console will allocate on the say-so of an archive. Every
 // size below comes out of a file that may have been downloaded from anywhere,
 // so none of them may become a malloc argument unchecked: a two-line header
 // claiming a four-gigabyte manifest must cost a log line, not the machine's
 // memory.
-constexpr int64_t kManifestMaxSize = 1 << 20; // 1 MiB of text is already absurd
-constexpr int64_t kCodeMaxSize = 128 << 20;   // 128 MiB of code likewise
+constexpr int64_t RV_PCLOADER_MANIFEST_MAX_SIZE = 1 << 20; // 1 MiB of text is already absurd
+constexpr int64_t RV_PCLOADER_CODE_MAX_SIZE = 128 << 20;   // 128 MiB of code likewise
 
 } // namespace
 
@@ -113,7 +113,7 @@ void rv_pcloader::notify_initialized(const rv_de *disc)
 // entry the extraction later maps.
 static std::string code_entry_of(const rv_pdklib::rv_manifest &manifest)
 {
-    return manifest.budget.pccd.code_entry.empty() ? kDefaultCodeEntry : manifest.budget.pccd.code_entry;
+    return manifest.budget.pccd.code_entry.empty() ? RV_PCLOADER_DEFAULT_CODE_ENTRY : manifest.budget.pccd.code_entry;
 }
 
 int64_t rv_pcloader::mount(const char *archive_path)
@@ -150,10 +150,10 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // Check the manifest.
     std::vector<unsigned char> manifest_bytes;
     std::string why =
-        read_whole_entry(*zip, kManifestEntry, kManifestMaxSize, manifest_bytes);
+        read_whole_entry(*zip, RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
     if (!why.empty()) {
         RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-            rv_pdklib::rv_log_escape(archive_path), kManifestEntry, why);
+            rv_pdklib::rv_log_escape(archive_path), RV_PCLOADER_MANIFEST_ENTRY, why);
         return RV_ERR_NOENT;
     }
 
@@ -172,7 +172,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // are never read back out here.
     std::string merror;
     const int64_t mres =
-        rv_pdklib::rv_manifest_parse(manifest_text, kManifestEntry, manifest_, merror);
+        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror);
 
     if (mres != 0) {
         // The disc has no name yet: the manifest that would have given it one
@@ -186,7 +186,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
         // down to its first one.
         RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
             rv_pdklib::rv_log_escape(archive_path),
-            kManifestEntry,
+            RV_PCLOADER_MANIFEST_ENTRY,
             rv_pdklib::rv_log_escape(merror.c_str(), 512));
         return RV_ERR_INVAL;
     }
@@ -266,7 +266,7 @@ int64_t rv_pcloader::bring_up()
     // the THEOREM at the top of rv_pcloader.hpp: dlopen maps a file, so the code
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
-    std::string why = read_whole_entry(*zip_, code_entry.c_str(), kCodeMaxSize, code);
+    std::string why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
     if (!why.empty()) {
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",

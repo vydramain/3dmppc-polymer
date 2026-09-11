@@ -36,27 +36,27 @@ const char *impl_name(const Table &table, Impl impl)
 
 const char *rv_pcslots_name(rv_pcca_impl impl)
 {
-    return impl_name(kPcca, impl);
+    return impl_name(RV_PCSLOTS_CA, impl);
 }
 const char *rv_pcslots_name(rv_pccv_impl impl)
 {
-    return impl_name(kPccv, impl);
+    return impl_name(RV_PCSLOTS_CV, impl);
 }
 const char *rv_pcslots_name(rv_pccio_impl impl)
 {
-    return impl_name(kPccio, impl);
+    return impl_name(RV_PCSLOTS_CIO, impl);
 }
 const char *rv_pcslots_name(rv_pccl_impl impl)
 {
-    return impl_name(kPccl, impl);
+    return impl_name(RV_PCSLOTS_CL, impl);
 }
 const char *rv_pcslots_name(rv_pccd_impl impl)
 {
-    return impl_name(kPccd, impl);
+    return impl_name(RV_PCSLOTS_CD, impl);
 }
 const char *rv_pcslots_name(rv_pccm_impl impl)
 {
-    return impl_name(kPccm, impl);
+    return impl_name(RV_PCSLOTS_CM, impl);
 }
 
 std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf, rv_pchost_sdl3 &host)

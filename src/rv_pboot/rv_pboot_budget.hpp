@@ -26,8 +26,8 @@ inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
     // those numbers once (rv_manifest.hpp) and a manifest that states nothing
     // arrives holding exactly them. Restating them here would be a second list
     // free to drift from the one the burner fills discs from.
-    static const rv_pdklib::rv_manifest_budget kBudget;
-    return kBudget;
+    static const rv_pdklib::rv_manifest_budget RV_PBOOT_REFERENCE_BUDGET;
+    return RV_PBOOT_REFERENCE_BUDGET;
 }
 
 // What the machine is going to be. A disc declares its requirements in its

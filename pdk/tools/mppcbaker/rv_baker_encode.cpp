@@ -14,29 +14,37 @@ namespace {
 // Header, little-endian, 16 bytes. Kept at 16 so the palette that follows it is
 // 2-byte aligned in the file and a disc may point a `const uint16_t*` straight
 // at it after a single read.
-constexpr char kMagic[4] = { 'M', 'P', 'T', 'X' };
-constexpr uint16_t kVersion = 1;
-constexpr size_t kHeaderSize = 16;
+constexpr char RV_BAKER_MAGIC[4] = { 'M', 'P', 'T', 'X' };
+constexpr uint16_t RV_BAKER_VERSION = 1;
+constexpr size_t RV_BAKER_HEADER_SIZE = 16;
 
 // A palette is written at FULL length whatever the image needed — 16 entries for
 // IDX4, 256 for IDX8 — so the disc uploads one fixed-shape rv_texture without
 // caring how many colours the artwork used. The two sizes are what 4 and 8 index
 // bits can address.
-constexpr size_t kPaletteSizeIdx4 = 16;
-constexpr size_t kPaletteSizeIdx8 = 256;
+constexpr size_t RV_BAKER_PALETTE_SIZE_IDX4 = 16;
+constexpr size_t RV_BAKER_PALETTE_SIZE_IDX8 = 256;
+
+// PSX nibble order for IDX4: the LOW nibble holds the LEFT texel. The console
+// samples it the same way, and getting this backwards produces an image that
+// looks almost right — the worst kind of wrong. Rows stay byte-aligned, so an
+// odd width pads its last byte with a zero high nibble and the disc's stride is
+// (width + 1) / 2.
+constexpr int RV_BAKER_IDX4_NIBBLE_BITS = 4;
+constexpr uint8_t RV_BAKER_IDX4_NIBBLE_MASK = 0x0F;
 
 // PATTERN: reserved slot — index 0 is the hole whenever the image has one.
 // Transparency in an indexed format lives in the PALETTE (rv_texture.h:
 // "transparency is decided AFTER the palette lookup"), so a cut-out sprite
 // indexes a fixed 0000h entry. It costs one colour, hence it is only reserved
 // when the image actually has transparent pixels.
-constexpr uint8_t kHoleIndex = 0;
+constexpr uint8_t RV_BAKER_HOLE_INDEX = 0;
 
 // How many Lloyd passes run after median cut. A fixed count, not "until
 // convergence": the gain collapses after the first few passes, and a fixed
 // number keeps the tool terminating in bounded time with identical output run
 // after run.
-constexpr int kLloydPasses = 4;
+constexpr int RV_BAKER_LLOYD_PASSES = 4;
 
 // --- small helpers ------------------------------------------------------------
 
@@ -57,7 +65,7 @@ using rv_pdklib::rv_texel_unpack;
 // Every colour the console can express: three channels of five bits. 32768
 // counters is small enough to histogram by direct indexing, which is why this
 // tool needs no hash map and has no ordering ambiguity to resolve.
-constexpr size_t kColor5Codes = 1u << 15;
+constexpr size_t RV_BAKER_COLOR5_CODES = 1u << 15;
 
 // --- output -------------------------------------------------------------------
 
@@ -69,19 +77,19 @@ void put_u16(std::vector<uint8_t> &out, uint16_t v)
 }
 
 // The 16 fixed bytes every .mppctex opens with. RV_ERR_INVAL here is an
-// invariant violation, not a user error: the layout is documented at kHeaderSize
+// invariant violation, not a user error: the layout is documented at RV_BAKER_HEADER_SIZE
 // and a mismatch means this function and that constant have drifted apart.
 rv_err write_header(rv_texfmt format, const source_image &src, uint16_t palette_entries,
     std::vector<uint8_t> *out, baker_error *error)
 {
-    out->insert(out->end(), kMagic, kMagic + sizeof(kMagic));
-    put_u16(*out, kVersion);
+    out->insert(out->end(), RV_BAKER_MAGIC, RV_BAKER_MAGIC + sizeof(RV_BAKER_MAGIC));
+    put_u16(*out, RV_BAKER_VERSION);
     put_u16(*out, static_cast<uint16_t>(format));
     put_u16(*out, static_cast<uint16_t>(src.width));
     put_u16(*out, static_cast<uint16_t>(src.height));
     put_u16(*out, palette_entries);
     put_u16(*out, 0); // reserved
-    if (out->size() != kHeaderSize) {
+    if (out->size() != RV_BAKER_HEADER_SIZE) {
         error->message = "internal: header size drifted from the documented layout";
         return RV_ERR_INVAL;
     }
@@ -103,8 +111,8 @@ void encode_direct15(const source_image &src, std::vector<uint8_t> *out)
 // must not drag the palette towards it.
 void histogram(const source_image &src, std::vector<color_bin> *out)
 {
-    // Bucketed directly, one counter per code — see kColor5Codes.
-    std::vector<uint32_t> counts(kColor5Codes, 0);
+    // Bucketed directly, one counter per code — see RV_BAKER_COLOR5_CODES.
+    std::vector<uint32_t> counts(RV_BAKER_COLOR5_CODES, 0);
     for (const src_pixel &s : src.pixels) {
         if (!s.transparent) {
             ++counts[rv_texel_pack(s.color)];
@@ -117,7 +125,7 @@ void histogram(const source_image &src, std::vector<color_bin> *out)
     }
 }
 
-// IDX4 rows, two texels to a byte — see kNibbleBits.
+// IDX4 rows, two texels to a byte — see RV_BAKER_IDX4_NIBBLE_BITS.
 void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
     std::vector<uint8_t> *out)
 {
@@ -128,9 +136,9 @@ void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
     for (int y = 0; y < src.height; ++y) {
         const size_t row = static_cast<size_t>(y) * width;
         for (size_t x = 0; x < width; x += 2) {
-            const uint8_t low = static_cast<uint8_t>(indices[row + x] & kNibbleMask);
-            const uint8_t high = (x + 1 < width) ? static_cast<uint8_t>(indices[row + x + 1] & kNibbleMask) : uint8_t{ 0 };
-            out->push_back(static_cast<uint8_t>(low | (high << kNibbleBits)));
+            const uint8_t low = static_cast<uint8_t>(indices[row + x] & RV_BAKER_IDX4_NIBBLE_MASK);
+            const uint8_t high = (x + 1 < width) ? static_cast<uint8_t>(indices[row + x + 1] & RV_BAKER_IDX4_NIBBLE_MASK) : uint8_t{ 0 };
+            out->push_back(static_cast<uint8_t>(low | (high << RV_BAKER_IDX4_NIBBLE_BITS)));
         }
     }
 }
@@ -140,8 +148,8 @@ void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
 rv_err encode_indexed(const options &opt, const source_image &src, std::vector<uint8_t> *out,
     baker_error *error)
 {
-    const size_t palette_size = (*opt.format == RV_TEXFMT_IDX4) ? kPaletteSizeIdx4 : kPaletteSizeIdx8;
-    // One slot spent on kHoleIndex, and only when the image needs a hole.
+    const size_t palette_size = (*opt.format == RV_TEXFMT_IDX4) ? RV_BAKER_PALETTE_SIZE_IDX4 : RV_BAKER_PALETTE_SIZE_IDX8;
+    // One slot spent on RV_BAKER_HOLE_INDEX, and only when the image needs a hole.
     const bool needs_hole = src.transparent_count > 0;
     const size_t reserved = needs_hole ? 1u : 0u;
     const size_t color_slots = palette_size - reserved;
@@ -159,13 +167,13 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
     }
 
     std::vector<rv_color5> palette = median_cut(bins, color_slots);
-    refine(bins, palette, kLloydPasses);
+    refine(bins, palette, RV_BAKER_LLOYD_PASSES);
 
     // After refinement, so the indices match the palette actually written.
-    std::vector<uint8_t> indices(src.pixels.size(), kHoleIndex);
+    std::vector<uint8_t> indices(src.pixels.size(), RV_BAKER_HOLE_INDEX);
     for (size_t i = 0; i < src.pixels.size(); ++i) {
         if (src.pixels[i].transparent) {
-            continue; // already kHoleIndex; `reserved` is 1 whenever this is reached
+            continue; // already RV_BAKER_HOLE_INDEX; `reserved` is 1 whenever this is reached
         }
         indices[i] = static_cast<uint8_t>(nearest(palette, src.pixels[i].color) + reserved);
     }

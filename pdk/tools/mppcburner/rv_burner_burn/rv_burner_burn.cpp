@@ -17,7 +17,7 @@ namespace rv_pdktools
 // are refused as asset names by check_asset_name() for exactly this reason.
 static constexpr const char *k_entry_manifest = "disc.toml";
 
-// Mirrors kDefaultCodeEntry in src/rv_pconsole/rv_pcloader.cpp — the console
+// Mirrors RV_PCLOADER_DEFAULT_CODE_ENTRY in src/rv_pconsole/rv_pcloader.cpp — the console
 // falls back to this same literal when the manifest leaves code_entry blank.
 // Kept as a separate constant (not shared across the two trees) but named
 // identically in spirit so the pair is easy to find.

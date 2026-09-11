@@ -34,12 +34,12 @@ namespace rv_pdktools
 // 2.0 — the version that introduced the deflate method and the folder entry.
 // Nothing here needs more, and claiming more would refuse readers that could
 // have coped perfectly well.
-constexpr uint16_t kVersion = 20;
+constexpr uint16_t RV_BURNER_ZIP_VERSION = 20;
 
 // Bit 11 of the general-purpose flags: the entry name (and comment) are UTF-8.
 // Without it a name is officially CP437 and any reader is entitled to mangle
 // every byte above 0x7F — including the ones in a non-ASCII asset name.
-constexpr uint16_t kFlagUtf8 = 0x0800;
+constexpr uint16_t RV_BURNER_ZIP_FLAG_UTF8 = 0x0800;
 
 // "Version made by": the low byte is the zip version (2.0), the HIGH byte is the
 // host filesystem the archive was made on — 3 is Unix, 0 would be MS-DOS/FAT.
@@ -47,7 +47,7 @@ constexpr uint16_t kFlagUtf8 = 0x0800;
 // FAT-hosted entry through a CP437 -> local charset translation *before* it
 // consults the UTF-8 flag above, so a host byte of 0 turns "café.txt" into
 // mojibake on extraction even though bit 11 is set. Verified against unzip 6.0.
-constexpr uint16_t kVersionMadeBy = (3 << 8) | kVersion;
+constexpr uint16_t RV_BURNER_ZIP_VERSION_MADE_BY = (3 << 8) | RV_BURNER_ZIP_VERSION;
 
 // External file attributes, in the layout the Unix host implies: the high 16
 // bits are the st_mode of the entry. 0100644 — a regular file, rw-r--r--.
@@ -56,7 +56,7 @@ constexpr uint16_t kVersionMadeBy = (3 << 8) | kVersion;
 // and a developer's umask is not part of its content. (A host byte of 3 with
 // zero attributes would extract as a file with no permission bits at all, which
 // is the trap this constant exists to avoid.)
-constexpr uint32_t kExternalAttrs = 0100644u << 16;
+constexpr uint32_t RV_BURNER_ZIP_EXTERNAL_ATTRS = 0100644u << 16;
 
 
 // PATTERN: deterministic timestamp. The MS-DOS date/time in every header is a
@@ -71,15 +71,15 @@ constexpr uint32_t kExternalAttrs = 0100644u << 16;
 // is unmistakably a sentinel rather than a plausible wall-clock time.
 //   time: hh<<11 | mm<<5 | (ss/2)     -> 00:00:00
 //   date: (yyyy-1980)<<9 | mm<<5 | dd -> 1980-01-01
-constexpr uint16_t kDosTime = 0;
-constexpr uint16_t kDosDate = (0 << 9) | (1 << 5) | 1; // 0x0021
+constexpr uint16_t RV_BURNER_ZIP_DOS_TIME = 0;
+constexpr uint16_t RV_BURNER_ZIP_DOS_DATE = (0 << 9) | (1 << 5) | 1; // 0x0021
 
 // Neither the sizes nor the entry count may leave the 32/16-bit fields of the
 // classic format: zip64 is a second format, and half-writing it would produce
 // an archive that some readers accept and others silently truncate.
-constexpr uint64_t kMaxSize = 0xFFFFFFFFull;
-constexpr std::size_t kMaxEntries = 0xFFFFu;
-constexpr std::size_t kMaxNameLength = 0xFFFFu;
+constexpr uint64_t RV_BURNER_ZIP_MAX_SIZE = 0xFFFFFFFFull;
+constexpr std::size_t RV_BURNER_ZIP_MAX_ENTRIES = 0xFFFFu;
+constexpr std::size_t RV_BURNER_ZIP_MAX_NAME_LENGTH = 0xFFFFu;
 
 // --- THEOREM: CRC32 -----------------------------------------------------------
 //
@@ -110,7 +110,7 @@ constexpr std::size_t kMaxNameLength = 0xFFFFu;
 // standard: they are what makes leading zero bytes and trailing zero bytes
 // change the result, so a truncation to zeros — the exact shape of an
 // interrupted burn — cannot pass unnoticed.
-constexpr uint32_t kCrcPolynomial = 0xEDB88320u;
+constexpr uint32_t RV_BURNER_ZIP_CRC_POLYNOMIAL = 0xEDB88320u;
 
 struct crc32_table {
 	uint32_t entry[256] = {};
@@ -120,21 +120,21 @@ struct crc32_table {
 		for (uint32_t i = 0; i < 256; ++i) {
 			uint32_t c = i;
 			for (int bit = 0; bit < 8; ++bit) {
-				c = (c & 1u) ? (kCrcPolynomial ^ (c >> 1)) : (c >> 1);
+				c = (c & 1u) ? (RV_BURNER_ZIP_CRC_POLYNOMIAL ^ (c >> 1)) : (c >> 1);
 			}
 			entry[i] = c;
 		}
 	}
 };
 
-constexpr crc32_table kCrcTable{};
+constexpr crc32_table RV_BURNER_ZIP_CRC_TABLE{};
 
 static uint32_t crc32_of(const void *data, std::size_t size)
 {
 	const uint8_t *p = static_cast<const uint8_t *>(data);
 	uint32_t crc = 0xFFFFFFFFu;
 	for (std::size_t i = 0; i < size; ++i) {
-		crc = kCrcTable.entry[(crc ^ p[i]) & 0xFFu] ^ (crc >> 8);
+		crc = RV_BURNER_ZIP_CRC_TABLE.entry[(crc ^ p[i]) & 0xFFu] ^ (crc >> 8);
 	}
 	return crc ^ 0xFFFFFFFFu;
 }
@@ -249,7 +249,7 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
 		error = "entry name is empty";
 		return false;
 	}
-	if (name.size() > kMaxNameLength) {
+	if (name.size() > RV_BURNER_ZIP_MAX_NAME_LENGTH) {
 		error = "entry name is longer than 65535 bytes";
 		return false;
 	}
@@ -264,17 +264,17 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
 		return false;
 	}
 
-	if (impl_->entries.size() >= kMaxEntries) {
+	if (impl_->entries.size() >= RV_BURNER_ZIP_MAX_ENTRIES) {
 		error = "too many entries for a classic zip (limit 65535)";
 		return false;
 	}
-	if (static_cast<uint64_t>(size) > kMaxSize) {
+	if (static_cast<uint64_t>(size) > RV_BURNER_ZIP_MAX_SIZE) {
 		error = "entry '" + name + "' is larger than 4 GiB, which needs zip64";
 		return false;
 	}
 	// Local header + name + data must also stay inside a 32-bit offset, because
 	// that is the width of the field the central directory points back with.
-	if (impl_->offset + 30 + name.size() + size > kMaxSize) {
+	if (impl_->offset + 30 + name.size() + size > RV_BURNER_ZIP_MAX_SIZE) {
 		error = "archive would exceed 4 GiB, which needs zip64";
 		return false;
 	}
@@ -290,11 +290,11 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
 	std::vector<uint8_t> header;
 	header.reserve(30 + name.size());
 	put_le_u32(header, k_sig_local);
-	put_le_u16(header, kVersion);     // version needed to extract
-	put_le_u16(header, kFlagUtf8);    // general purpose flags
+	put_le_u16(header, RV_BURNER_ZIP_VERSION);     // version needed to extract
+	put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);    // general purpose flags
 	put_le_u16(header, k_method_store); // compression method
-	put_le_u16(header, kDosTime);
-	put_le_u16(header, kDosDate);
+	put_le_u16(header, RV_BURNER_ZIP_DOS_TIME);
+	put_le_u16(header, RV_BURNER_ZIP_DOS_DATE);
 	put_le_u32(header, entry.crc);
 	put_le_u32(header, entry.size); // compressed size
 	put_le_u32(header, entry.size); // uncompressed size
@@ -353,12 +353,12 @@ bool rv_zipwriter::finish(std::string &error)
 	for (const zip_write_entry &e : impl_->entries) {
 		// Central directory file header, 46 bytes plus the name.
 		put_le_u32(directory, k_sig_central);
-		put_le_u16(directory, kVersionMadeBy);
-		put_le_u16(directory, kVersion); // version needed to extract
-		put_le_u16(directory, kFlagUtf8);
+		put_le_u16(directory, RV_BURNER_ZIP_VERSION_MADE_BY);
+		put_le_u16(directory, RV_BURNER_ZIP_VERSION); // version needed to extract
+		put_le_u16(directory, RV_BURNER_ZIP_FLAG_UTF8);
 		put_le_u16(directory, k_method_store);
-		put_le_u16(directory, kDosTime);
-		put_le_u16(directory, kDosDate);
+		put_le_u16(directory, RV_BURNER_ZIP_DOS_TIME);
+		put_le_u16(directory, RV_BURNER_ZIP_DOS_DATE);
 		put_le_u32(directory, e.crc);
 		put_le_u32(directory, e.size); // compressed size
 		put_le_u32(directory, e.size); // uncompressed size
@@ -367,12 +367,12 @@ bool rv_zipwriter::finish(std::string &error)
 		put_le_u16(directory, 0);              // file comment length
 		put_le_u16(directory, 0);              // disk number start
 		put_le_u16(directory, 0);              // internal file attributes
-		put_le_u32(directory, kExternalAttrs); // external file attributes
+		put_le_u32(directory, RV_BURNER_ZIP_EXTERNAL_ATTRS); // external file attributes
 		put_le_u32(directory, e.local_offset);
 		put_bytes(directory, e.name);
 	}
 
-	if (directory_offset + directory.size() > kMaxSize) {
+	if (directory_offset + directory.size() > RV_BURNER_ZIP_MAX_SIZE) {
 		error = "archive would exceed 4 GiB, which needs zip64";
 		impl_->discard();
 		impl_->finished = true;

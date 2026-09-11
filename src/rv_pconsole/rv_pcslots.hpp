@@ -37,27 +37,27 @@ struct rv_pcslots_row {
     Impl impl;
 };
 
-inline constexpr rv_pcslots_row<rv_pcca_impl> kPcca[] = {
+inline constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA[] = {
     { "null", rv_pcca_impl::null },
     { "sdl3", rv_pcca_impl::sdl3 },
 };
-inline constexpr rv_pcslots_row<rv_pccv_impl> kPccv[] = {
+inline constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV[] = {
     { "null", rv_pccv_impl::null },
     { "sdl3", rv_pccv_impl::sdl3 },
 };
-inline constexpr rv_pcslots_row<rv_pccio_impl> kPccio[] = {
+inline constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO[] = {
     { "null", rv_pccio_impl::null },
     { "sdl3", rv_pccio_impl::sdl3 },
 };
-inline constexpr rv_pcslots_row<rv_pccl_impl> kPccl[] = {
+inline constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL[] = {
     { "null", rv_pccl_impl::null },
     { "luajit", rv_pccl_impl::luajit },
 };
-inline constexpr rv_pcslots_row<rv_pccd_impl> kPccd[] = {
+inline constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD[] = {
     { "null", rv_pccd_impl::null },
     { "fs", rv_pccd_impl::fs },
 };
-inline constexpr rv_pcslots_row<rv_pccm_impl> kPccm[] = {
+inline constexpr rv_pcslots_row<rv_pccm_impl> RV_PCSLOTS_CM[] = {
     { "null", rv_pccm_impl::null },
     { "posix", rv_pccm_impl::posix },
 };

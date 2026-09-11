@@ -12,13 +12,6 @@
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
 
-// PSX nibble order for IDX4: the LOW nibble holds the LEFT texel. The console
-// samples it the same way, and getting this backwards produces an image that
-// looks almost right — the worst kind of wrong. Rows stay byte-aligned, so an
-// odd width pads its last byte with a zero high nibble and the disc's stride is
-// (width + 1) / 2.
-inline constexpr int kNibbleBits = 4;
-inline constexpr uint8_t kNibbleMask = 0x0F;
 // One decoded pixel of the source, already reduced to console precision, plus
 // the verdict on whether it is a hole.
 struct src_pixel {

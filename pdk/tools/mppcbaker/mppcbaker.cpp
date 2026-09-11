@@ -37,9 +37,9 @@ namespace
 // Exit codes, kept apart so a build script can tell a bad invocation from a bad
 // asset: 1 is a job that could not be done, 2 a command line not understood.
 // These belong to the process, so only the CLI boundary ever produces them.
-constexpr int kExitSuccess = 0;
-constexpr int kExitFailure = 1;
-constexpr int kExitUsage = 2;
+constexpr int RV_BAKER_EXIT_SUCCESS = 0;
+constexpr int RV_BAKER_EXIT_FAILURE = 1;
+constexpr int RV_BAKER_EXIT_USAGE = 2;
 
 using rv_pdklib::rv_texel_quantize;
 
@@ -48,12 +48,12 @@ using rv_pdklib::rv_texel_quantize;
 // stb_image is asked for this many channels whatever the PNG holds, so a source
 // without alpha comes back fully opaque and every "does this file have alpha"
 // branch disappears from the code below.
-constexpr int kSourceChannels = 4;
+constexpr int RV_BAKER_SOURCE_CHANNELS = 4;
 
 // The console does not blend: a texel is either drawn or it is a hole. Anything
 // below half opacity becomes a hole. The exact cut is arbitrary — it only has to
 // be fixed, so the same PNG always bakes the same way.
-constexpr uint8_t kAlphaTransparentBelow = 128;
+constexpr uint8_t RV_BAKER_ALPHA_TRANSPARENT_BELOW = 128;
 
 // Width and height are stored as uint16 in the header, so nothing larger can be
 // described by the container at all. This is the CONTAINER's limit, not the
@@ -62,7 +62,7 @@ constexpr uint8_t kAlphaTransparentBelow = 128;
 // only when the texture is uploaded — rv_pccv::video_asset_write returns
 // RV_ERR_INVAL there. A texture between the two limits therefore bakes and burns
 // and is refused at run time.
-constexpr int kMaxAxis = 65535;
+constexpr int RV_BAKER_MAX_AXIS = 65535;
 
 // --- command line -------------------------------------------------------------
 
@@ -121,13 +121,16 @@ int report(const baker_error &error)
     if (!error.message.empty()) {
         rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_baker_progname(), error.message.c_str());
     }
-    return error.message.empty() ? kExitUsage : kExitFailure;
+    return error.message.empty() ? RV_BAKER_EXIT_USAGE : RV_BAKER_EXIT_FAILURE;
 }
 
 // Digits in an RRGGBB argument. Fixed rather than lenient: three-digit CSS
 // shorthand and an alpha suffix would both parse into something plausible and
 // wrong, and a mistyped key silently punches holes in the wrong colour.
-constexpr size_t kHexRgbDigits = 6;
+constexpr size_t RV_BAKER_HEX_RGB_DIGITS = 6;
+
+// Bits in one hex digit of RRGGBB.
+constexpr int RV_BAKER_HEX_DIGIT_BITS = 4;
 
 // Parses RRGGBB, with an optional leading '#', into an 8-bit colour.
 bool parse_hex_rgb(std::string_view text, rv_color *out)
@@ -135,7 +138,7 @@ bool parse_hex_rgb(std::string_view text, rv_color *out)
     if (!text.empty() && text.front() == '#') {
         text.remove_prefix(1);
     }
-    if (text.size() != kHexRgbDigits) {
+    if (text.size() != RV_BAKER_HEX_RGB_DIGITS) {
         return false;
     }
     uint32_t value = 0;
@@ -149,7 +152,7 @@ bool parse_hex_rgb(std::string_view text, rv_color *out)
         } else {
             return false;
         }
-        value = (value << kNibbleBits) | static_cast<uint32_t>(digit);
+        value = (value << RV_BAKER_HEX_DIGIT_BITS) | static_cast<uint32_t>(digit);
     }
     out->r = static_cast<uint8_t>((value >> 16) & 0xFF);
     out->g = static_cast<uint8_t>((value >> 8) & 0xFF);
@@ -233,7 +236,7 @@ rv_err load_source(const options &opt, source_image *out, baker_error *error)
     int height = 0;
     int source_channels = 0;
     const stbi_pixels pixels(
-        stbi_load(opt.input.c_str(), &width, &height, &source_channels, kSourceChannels));
+        stbi_load(opt.input.c_str(), &width, &height, &source_channels, RV_BAKER_SOURCE_CHANNELS));
     if (pixels == nullptr) {
         const char *reason = stbi_failure_reason();
         error->message = "cannot read '" + opt.input + "': " + (reason != nullptr ? reason : "unknown");
@@ -244,8 +247,8 @@ rv_err load_source(const options &opt, source_image *out, baker_error *error)
         return RV_ERR_INVAL;
     }
     // Refuse here rather than write a file the container cannot describe.
-    if (width > kMaxAxis || height > kMaxAxis) {
-        error->message = "'" + opt.input + "' is larger than " + std::to_string(kMaxAxis) + " texels on an axis";
+    if (width > RV_BAKER_MAX_AXIS || height > RV_BAKER_MAX_AXIS) {
+        error->message = "'" + opt.input + "' is larger than " + std::to_string(RV_BAKER_MAX_AXIS) + " texels on an axis";
         return RV_ERR_INVAL;
     }
 
@@ -254,9 +257,9 @@ rv_err load_source(const options &opt, source_image *out, baker_error *error)
     out->height = height;
     out->pixels.assign(texel_count, src_pixel{});
     for (size_t i = 0; i < texel_count; ++i) {
-        const stbi_uc *p = pixels.get() + i * kSourceChannels;
+        const stbi_uc *p = pixels.get() + i * RV_BAKER_SOURCE_CHANNELS;
         const rv_color c{ p[0], p[1], p[2] };
-        const bool by_alpha = p[3] < kAlphaTransparentBelow;
+        const bool by_alpha = p[3] < RV_BAKER_ALPHA_TRANSPARENT_BELOW;
         const bool by_key = opt.key.has_value() && c.r == opt.key->r && c.g == opt.key->g && c.b == opt.key->b;
         out->pixels[i].transparent = by_alpha || by_key;
         out->pixels[i].color = rv_texel_quantize(c);
@@ -302,7 +305,7 @@ int run(int argc, char **argv)
     }
     if (opt.help) {
         rv_baker_print_usage(stdout);
-        return kExitSuccess;
+        return RV_BAKER_EXIT_SUCCESS;
     }
 
     source_image src;
@@ -326,7 +329,7 @@ int run(int argc, char **argv)
         src.height,
         rv_pdklib::rv_texfmt_name::by_format(*opt.format)->text,
         file.size());
-    return kExitSuccess;
+    return RV_BAKER_EXIT_SUCCESS;
 }
 
 } // namespace

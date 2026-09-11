@@ -28,7 +28,7 @@ struct rv_pboot_preset {
 
 // Built-in preset table, compiled in and mandatory: the console always has
 // at least "sdl3" to fall back to, even before any preset FILE exists.
-constexpr rv_pboot_preset kBuiltinPresets[] = { { "sdl3", rv_pcslots{} } };
+constexpr rv_pboot_preset RV_PBOOT_BUILTIN_PRESETS[] = { { "sdl3", rv_pcslots{} } };
 
 // The runtime table a run actually resolves against: the built-in table,
 // with a preset FILE's `[mode.NAME]` sections merged in on top (same name
@@ -153,17 +153,17 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
             seen_keys.push_back(entry.key);
 
             if (entry.key == "ca") {
-                lookup_slot_value(kPcca, entry, slots.ca, failer);
+                lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
             } else if (entry.key == "cv") {
-                lookup_slot_value(kPccv, entry, slots.cv, failer);
+                lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
             } else if (entry.key == "cio") {
-                lookup_slot_value(kPccio, entry, slots.cio, failer);
+                lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
             } else if (entry.key == "cl") {
-                lookup_slot_value(kPccl, entry, slots.cl, failer);
+                lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
             } else if (entry.key == "cd") {
-                lookup_slot_value(kPccd, entry, slots.cd, failer);
+                lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
             } else if (entry.key == "cm") {
-                lookup_slot_value(kPccm, entry, slots.cm, failer);
+                lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
             } else {
                 failer.fail(entry.line, std::format("unknown key '{}'", entry.key));
             }
@@ -259,7 +259,7 @@ bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code
 bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code)
 {
     std::vector<rv_pboot_runtime_preset> table;
-    for (const rv_pboot_preset &preset : kBuiltinPresets) {
+    for (const rv_pboot_preset &preset : RV_PBOOT_BUILTIN_PRESETS) {
         table.push_back({ preset.name, preset.slots });
     }
 
@@ -284,12 +284,12 @@ bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exi
         return false;
     }
 
-    if (!apply_override(kPcca, "ca", args.mode_ca, slots.ca, exit_code) ||
-        !apply_override(kPccv, "cv", args.mode_cv, slots.cv, exit_code) ||
-        !apply_override(kPccio, "cio", args.mode_cio, slots.cio, exit_code) ||
-        !apply_override(kPccl, "cl", args.mode_cl, slots.cl, exit_code) ||
-        !apply_override(kPccd, "cd", args.mode_cd, slots.cd, exit_code) ||
-        !apply_override(kPccm, "cm", args.mode_cm, slots.cm, exit_code)) {
+    if (!apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code) ||
+        !apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code) ||
+        !apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code) ||
+        !apply_override(RV_PCSLOTS_CL, "cl", args.mode_cl, slots.cl, exit_code) ||
+        !apply_override(RV_PCSLOTS_CD, "cd", args.mode_cd, slots.cd, exit_code) ||
+        !apply_override(RV_PCSLOTS_CM, "cm", args.mode_cm, slots.cm, exit_code)) {
         return false;
     }
 
