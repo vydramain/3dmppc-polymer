@@ -6,9 +6,9 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pboot_args.hpp"
-#include "rv_pboot_modes.hpp"
 #include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
 #include "rv_pmem/rv_pcvmem.hpp"
 
 namespace rv_3dmppc
@@ -81,9 +81,9 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, const rv_pcslots &slots
 void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pcslots &slots, const rv_pchost_sdl3 &host,
     const rv_pboot_mode_info &machine)
 {
-    RV_LOG_INFO("main", "mode '{}' prepared: ca={} cv={} cio={} cl={}", args.mode,
-        rv_pboot_impl_name(slots.ca), rv_pboot_impl_name(slots.cv), rv_pboot_impl_name(slots.cio),
-        rv_pboot_impl_name(slots.cl));
+    RV_LOG_INFO("main", "mode '{}' requested: ca={} cv={} cio={} cl={} cd={} cm={}", args.mode,
+        rv_pcslots_name(slots.ca), rv_pcslots_name(slots.cv), rv_pcslots_name(slots.cio),
+        rv_pcslots_name(slots.cl), rv_pcslots_name(slots.cd), rv_pcslots_name(slots.cm));
     if (slots.cv != rv_pccv_impl::sdl3) {
         RV_LOG_INFO("main", "video: off (cv is null)");
     } else if (!host.video_ready()) {

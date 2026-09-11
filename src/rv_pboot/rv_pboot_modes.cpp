@@ -12,6 +12,7 @@
 #include "pdklib/rv_manifest/detail/rv_manifest_failer.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_lexer.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_parser.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
 
 namespace rv_3dmppc
 {
@@ -35,43 +36,6 @@ struct rv_pboot_runtime_preset {
     std::string name;
     rv_pcslots slots;
 };
-
-// One row per rv_pcca_impl value.
-constexpr struct { const char *name; rv_pcca_impl impl; } kPcca[] = {
-    { "null", rv_pcca_impl::null },
-    { "sdl3", rv_pcca_impl::sdl3 },
-};
-constexpr struct { const char *name; rv_pccv_impl impl; } kPccv[] = {
-    { "null", rv_pccv_impl::null },
-    { "sdl3", rv_pccv_impl::sdl3 },
-};
-constexpr struct { const char *name; rv_pccio_impl impl; } kPccio[] = {
-    { "null", rv_pccio_impl::null },
-    { "sdl3", rv_pccio_impl::sdl3 },
-};
-constexpr struct { const char *name; rv_pccl_impl impl; } kPccl[] = {
-    { "null", rv_pccl_impl::null },
-    { "luajit", rv_pccl_impl::luajit },
-};
-constexpr struct { const char *name; rv_pccd_impl impl; } kPccd[] = {
-    { "null", rv_pccd_impl::null },
-    { "fs", rv_pccd_impl::fs },
-};
-constexpr struct { const char *name; rv_pccm_impl impl; } kPccm[] = {
-    { "null", rv_pccm_impl::null },
-    { "posix", rv_pccm_impl::posix },
-};
-
-template <typename Table, typename Impl>
-const char *impl_name(const Table &table, Impl impl)
-{
-    for (const auto &row : table) {
-        if (row.impl == impl) {
-            return row.name;
-        }
-    }
-    return "null";
-}
 
 bool find_preset(const std::vector<rv_pboot_runtime_preset> &table, const std::string &name, rv_pcslots &out)
 {
@@ -330,31 +294,6 @@ bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exi
 
     out = slots;
     return true;
-}
-
-const char *rv_pboot_impl_name(rv_pcca_impl impl)
-{
-    return impl_name(kPcca, impl);
-}
-const char *rv_pboot_impl_name(rv_pccv_impl impl)
-{
-    return impl_name(kPccv, impl);
-}
-const char *rv_pboot_impl_name(rv_pccio_impl impl)
-{
-    return impl_name(kPccio, impl);
-}
-const char *rv_pboot_impl_name(rv_pccl_impl impl)
-{
-    return impl_name(kPccl, impl);
-}
-const char *rv_pboot_impl_name(rv_pccd_impl impl)
-{
-    return impl_name(kPccd, impl);
-}
-const char *rv_pboot_impl_name(rv_pccm_impl impl)
-{
-    return impl_name(kPccm, impl);
 }
 
 } // namespace rv_3dmppc

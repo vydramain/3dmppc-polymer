@@ -9,6 +9,10 @@
 // on rv_pconsole's NAMED unique_ptr members: cl_ is declared last so it dies
 // first, because a lua finaliser may call back through the FFI into a
 // controller that must still exist.
+//
+// Each factory logs one line per slot: `requested X, got Y`, plus the reason
+// in parentheses when they differ. X and Y come from the tables below, the
+// same words --mode_<slot> and [mode.*] accept.
 #pragma once
 
 #include <memory>
@@ -26,9 +30,47 @@ namespace rv_3dmppc
 
 class rv_pchost_sdl3;
 
-// sdl3 AND host.sounding() -> rv_pcca_sdl3. sdl3 without a device -> a
-// warning and rv_pcca_null (today's "[no device]" behaviour). null ->
-// rv_pcca_null.
+// Implementation names, one row per enum value.
+template <typename Impl>
+struct rv_pcslots_row {
+    const char *name;
+    Impl impl;
+};
+
+inline constexpr rv_pcslots_row<rv_pcca_impl> kPcca[] = {
+    { "null", rv_pcca_impl::null },
+    { "sdl3", rv_pcca_impl::sdl3 },
+};
+inline constexpr rv_pcslots_row<rv_pccv_impl> kPccv[] = {
+    { "null", rv_pccv_impl::null },
+    { "sdl3", rv_pccv_impl::sdl3 },
+};
+inline constexpr rv_pcslots_row<rv_pccio_impl> kPccio[] = {
+    { "null", rv_pccio_impl::null },
+    { "sdl3", rv_pccio_impl::sdl3 },
+};
+inline constexpr rv_pcslots_row<rv_pccl_impl> kPccl[] = {
+    { "null", rv_pccl_impl::null },
+    { "luajit", rv_pccl_impl::luajit },
+};
+inline constexpr rv_pcslots_row<rv_pccd_impl> kPccd[] = {
+    { "null", rv_pccd_impl::null },
+    { "fs", rv_pccd_impl::fs },
+};
+inline constexpr rv_pcslots_row<rv_pccm_impl> kPccm[] = {
+    { "null", rv_pccm_impl::null },
+    { "posix", rv_pccm_impl::posix },
+};
+
+const char *rv_pcslots_name(rv_pcca_impl impl);
+const char *rv_pcslots_name(rv_pccv_impl impl);
+const char *rv_pcslots_name(rv_pccio_impl impl);
+const char *rv_pcslots_name(rv_pccl_impl impl);
+const char *rv_pcslots_name(rv_pccd_impl impl);
+const char *rv_pcslots_name(rv_pccm_impl impl);
+
+// sdl3 AND host.sounding() -> rv_pcca_sdl3; sdl3 without a device ->
+// rv_pcca_null, logged as a warning with the reason. null -> rv_pcca_null.
 std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf, rv_pchost_sdl3 &host);
 
 // Straight mapping.
