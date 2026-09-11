@@ -238,7 +238,11 @@ int64_t rv_pccl_luajit::script_load(const void *bytecode, int64_t size, const ch
     if (bytecode == nullptr || size <= 0 || name == nullptr) {
         return RV_ERR_INVAL;
     }
-    const int top = lua_gettop(L_); // balance invariant, held on every return below
+    // Stack height on entry. Used only in builds without NDEBUG, where the
+    // assert()s below compare it on every return to prove the stack is left
+    // as it was found. With NDEBUG the asserts expand to nothing and top is
+    // never read, so -Wall -Wextra would flag it: hence [[maybe_unused]].
+    [[maybe_unused]] const int top = lua_gettop(L_);
     // Shared exit for a lua-level failure: log, pop, confirm the balance.
     auto fail = [&](int64_t code) {
         RV_LOG_ERR("pccl", "script_load('{}'): {}", name, lua_tostring(L_, -1));
@@ -438,7 +442,12 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     if (ref == LUA_NOREF) {
         return RV_ERR_INVAL; // handle names a freed chunk
     }
-    const int top = lua_gettop(L_);          // invariant: top-argc on failure, top-argc+retc on success
+    // Stack height on entry, args included. Used only in builds without
+    // NDEBUG, where the assert()s below prove the stack ends at top-argc after
+    // a failure and at top-argc+retc after a success. With NDEBUG they expand
+    // to nothing and top is never read, so -Wall -Wextra would flag it: hence
+    // [[maybe_unused]].
+    [[maybe_unused]] const int top = lua_gettop(L_);
     lua_rawgeti(L_, LUA_REGISTRYINDEX, ref); // [args..., T]
     lua_getfield(L_, -1, fname);             // [args..., T, fn?]
     const bool callable = lua_isfunction(L_, -1);
