@@ -1,73 +1,36 @@
-// The console's rv_cd implementation: the DRIVE, not the disc. It owns the
-// contract's semantics — legal names, stable handles, which rv_err a situation
-// deserves — and delegates every actual byte to an rv_pcmedium (rv_pcmedium.hpp),
-// so it has no idea whether the disc it is reading is a directory today or a
-// `.mppcdisc` archive after stage 10.
+// The rv_cd contract made abstract. Which drive answers a name is the
+// console's construction-time choice (rv_pccd_fs).
 #pragma once
 
 #include <cstdint>
 #include <memory>
-#include <string>
-#include <unordered_map>
-#include <utility>
-#include <vector>
 
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
-#include "rv_pconsole/rv_pconsole_conf.hpp"
 
-namespace rv_3dmppc {
-class rv_pccd {
-   private:
-    rv_pccd_conf conf_;
+namespace rv_3dmppc
+{
 
-    // What is inserted. Held by pointer purely so the medium KIND can change
-    // without this class changing (PATTERN: strategy); it is never null, an
-    // empty drive is a mounted-less medium rather than a missing one.
-    std::unique_ptr<rv_pcmedium> medium_;
+class rv_pccd
+{
+public:
+    virtual ~rv_pccd() = default;
 
-    // PATTERN: handle table — a handle is simply an index into `resnames_`, and
-    // `by_name_` makes the resolution idempotent. Two properties fall out, and
-    // both are contract requirements rather than conveniences:
-    //   * the same name always yields the same handle, because a name resolved
-    //     once is found in `by_name_` and its index returned again;
-    //   * a handle needs no release and can never dangle, because the table only
-    //     ever grows — nothing is erased, reordered or reused for a later name.
-    // The cost is one std::string per DISTINCT name ever opened, which is
-    // bounded by the disc's asset set and is why no eviction policy is needed.
-    std::vector<std::string> resnames_;
-    std::unordered_map<std::string, int64_t> by_name_;
+    rv_pccd(const rv_pccd &) = delete;
+    rv_pccd &operator=(const rv_pccd &) = delete;
 
-   public:
-    explicit rv_pccd(const rv_pccd_conf& conf);
-    ~rv_pccd() = default;
+    virtual int64_t asset_open(const char *resname) = 0;
 
-    rv_pccd(const rv_pccd&) = delete;
-    rv_pccd& operator=(const rv_pccd&) = delete;
+    virtual int64_t asset_size(int64_t handle) = 0;
 
-    int64_t asset_open(const char* resname);
+    virtual int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) = 0;
 
-    int64_t asset_size(int64_t handle);
+    // Console-side only - neither is reached through the extern "C" block.
+    virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
-    int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size);
+    virtual bool valid() const = 0;
 
-    // stage 10: swap the inserted medium after construction. The console learns
-    // WHICH archive to mount only when it has loaded the disc out of it, which
-    // is later than this object is built; the conf-built directory medium (the
-    // catalogue path) is untouched and stays the default. PATTERN: strategy —
-    // this is the one seam where the strategy is chosen, and it is deliberately
-    // the only one.
-    void medium_insert(std::unique_ptr<rv_pcmedium> medium) {
-        if (medium) medium_ = std::move(medium);
-    }
-
-   private:
-    // The upper bound on distinct names one disc may resolve. It exists so that
-    // RV_ERR_NOMEM is a real, testable answer ("the resource table cannot grow")
-    // instead of a code that only ever appears when the host is already dying.
-    static constexpr int64_t kResourceTableMax = 4096;
-
-    // Name behind a handle, or nullptr when the handle was never issued.
-    const char* handle_name(int64_t handle) const;
+protected:
+    rv_pccd() = default;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

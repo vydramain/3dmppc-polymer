@@ -53,6 +53,12 @@ constexpr struct { const char *name; rv_pccl_impl impl; } kPccl[] = {
     { "null", rv_pccl_impl::null },
     { "luajit", rv_pccl_impl::luajit },
 };
+constexpr struct { const char *name; rv_pccd_impl impl; } kPccd[] = {
+    { "fs", rv_pccd_impl::fs },
+};
+constexpr struct { const char *name; rv_pccm_impl impl; } kPccm[] = {
+    { "posix", rv_pccm_impl::posix },
+};
 
 template <typename Table, typename Impl>
 const char *impl_name(const Table &table, Impl impl)
@@ -187,6 +193,10 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
                 lookup_slot_value(kPccio, entry, slots.cio, failer);
             } else if (entry.key == "cl") {
                 lookup_slot_value(kPccl, entry, slots.cl, failer);
+            } else if (entry.key == "cd") {
+                lookup_slot_value(kPccd, entry, slots.cd, failer);
+            } else if (entry.key == "cm") {
+                lookup_slot_value(kPccm, entry, slots.cm, failer);
             } else {
                 failer.fail(entry.line, std::format("unknown key '{}'", entry.key));
             }
@@ -310,7 +320,9 @@ bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exi
     if (!apply_override(kPcca, "ca", args.mode_ca, slots.ca, exit_code) ||
         !apply_override(kPccv, "cv", args.mode_cv, slots.cv, exit_code) ||
         !apply_override(kPccio, "cio", args.mode_cio, slots.cio, exit_code) ||
-        !apply_override(kPccl, "cl", args.mode_cl, slots.cl, exit_code)) {
+        !apply_override(kPccl, "cl", args.mode_cl, slots.cl, exit_code) ||
+        !apply_override(kPccd, "cd", args.mode_cd, slots.cd, exit_code) ||
+        !apply_override(kPccm, "cm", args.mode_cm, slots.cm, exit_code)) {
         return false;
     }
 
@@ -333,6 +345,14 @@ const char *rv_pboot_impl_name(rv_pccio_impl impl)
 const char *rv_pboot_impl_name(rv_pccl_impl impl)
 {
     return impl_name(kPccl, impl);
+}
+const char *rv_pboot_impl_name(rv_pccd_impl impl)
+{
+    return impl_name(kPccd, impl);
+}
+const char *rv_pboot_impl_name(rv_pccm_impl impl)
+{
+    return impl_name(kPccm, impl);
 }
 
 } // namespace rv_3dmppc

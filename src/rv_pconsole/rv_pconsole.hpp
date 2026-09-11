@@ -46,9 +46,9 @@ private:
     // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
     // destruction order, which is a use-after-free.
     std::unique_ptr<rv_pcca> ca_;
-    rv_pccd cd_;
+    std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccio> cio_;
-    rv_pccm cm_;
+    std::unique_ptr<rv_pccm> cm_;
     std::unique_ptr<rv_pccv> cv_;
     std::unique_ptr<rv_pccl> cl_;
 
@@ -76,7 +76,7 @@ public:
     // the machine operator's act, not the disc's, so it goes through here.
     rv_pccd &drive()
     {
-        return cd_;
+        return *cd_;
     }
 
     // PATTERN: inversion of control. The frame loop belongs to the console; the
@@ -89,8 +89,8 @@ public:
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
-    // existence? Covers every slot (ca_, cio_, cv_, cl_) and the memory card
-    // (cm_). A budget the machine accepted at stage E3 can still fail to
+    // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and
+    // cl_. A budget the machine accepted at stage E3 can still fail to
     // materialise at stage G — an address-space reservation is allowed to
     // refuse, and so is the card's backing image. cl_ needs no
     // special-casing: rv_pccl::valid() already treats "scripting was never

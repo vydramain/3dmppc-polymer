@@ -3,10 +3,12 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
 #include "rv_pconsole/ca/rv_pcca_sdl3.hpp"
+#include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_sdl3.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 #include "rv_pconsole/cl/rv_pccl_null.hpp"
+#include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv_null.hpp"
 #include "rv_pconsole/cv/rv_pccv_sdl3.hpp"
 #include "rv_pconsole/rv_pchost_sdl3.hpp"
@@ -47,6 +49,16 @@ std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &con
         return std::make_unique<rv_pccl_luajit>(conf, cd);
     }
     return std::make_unique<rv_pccl_null>();
+}
+
+std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl /*impl*/, const rv_pccd_conf &conf)
+{
+    return std::make_unique<rv_pccd_fs>(conf);
+}
+
+std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl /*impl*/, const rv_pccm_conf &conf)
+{
+    return std::make_unique<rv_pccm_posix>(conf);
 }
 
 } // namespace rv_3dmppc

@@ -79,6 +79,10 @@ inline void rv_console_print_usage(std::FILE *stream)
         "                       null or sdl3.\n"
         "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
         "                       null or luajit.\n"
+        "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"
+        "                       fs.\n"
+        "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
+        "                       posix.\n"
         "      --selfcheck      Run internal self-checks and exit.\n");
 }
 
@@ -101,6 +105,8 @@ struct rv_pboot_args {
     std::string mode_cv;
     std::string mode_cio;
     std::string mode_cl;
+    std::string mode_cd;
+    std::string mode_cm;
 
     const char *disc_path = nullptr;
 };

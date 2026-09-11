@@ -41,6 +41,8 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cv", required_argument, 0, 'v'},
                                         {"mode_cio", required_argument, 0, 'i'},
                                         {"mode_cl", required_argument, 0, 'l'},
+                                        {"mode_cd", required_argument, 0, 'c'},
+                                        {"mode_cm", required_argument, 0, 'k'},
                                         {"selfcheck", no_argument, 0, 'Y'},
                                         {0, 0, 0, 0}};
 
@@ -64,6 +66,12 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 break;
             case 'l':
                 args.mode_cl = optarg;
+                break;
+            case 'c':
+                args.mode_cd = optarg;
+                break;
+            case 'k':
+                args.mode_cm = optarg;
                 break;
             case 's':
                 if (!parse_u64(optarg, args.scale) || args.scale == 0) {

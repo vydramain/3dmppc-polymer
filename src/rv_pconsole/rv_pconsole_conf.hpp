@@ -94,12 +94,16 @@ enum class rv_pcca_impl { null, sdl3 };
 enum class rv_pccv_impl { null, sdl3 };
 enum class rv_pccio_impl { null, sdl3 };
 enum class rv_pccl_impl { null, luajit };
+enum class rv_pccd_impl { null, fs };
+enum class rv_pccm_impl { null, posix };
 
 struct rv_pcslots {
     rv_pcca_impl ca = rv_pcca_impl::sdl3;
     rv_pccv_impl cv = rv_pccv_impl::sdl3;
     rv_pccio_impl cio = rv_pccio_impl::sdl3;
     rv_pccl_impl cl = rv_pccl_impl::luajit;
+    rv_pccd_impl cd = rv_pccd_impl::fs;
+    rv_pccm_impl cm = rv_pccm_impl::posix;
 };
 
 struct rv_pconsole_params {

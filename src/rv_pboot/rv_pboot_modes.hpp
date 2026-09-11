@@ -19,5 +19,7 @@ const char *rv_pboot_impl_name(rv_pcca_impl impl);
 const char *rv_pboot_impl_name(rv_pccv_impl impl);
 const char *rv_pboot_impl_name(rv_pccio_impl impl);
 const char *rv_pboot_impl_name(rv_pccl_impl impl);
+const char *rv_pboot_impl_name(rv_pccd_impl impl);
+const char *rv_pboot_impl_name(rv_pccm_impl impl);
 
 } // namespace rv_3dmppc

@@ -33,11 +33,11 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     : params_(conf.params)
     , host_(host)
     , ca_(rv_pcca_make(conf.slots.ca, conf.ca, host_))
-    , cd_(conf.cd)
+    , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cio_(rv_pccio_make(conf.slots.cio, conf.cio, host_))
-    , cm_(conf.cm)
+    , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
     , cv_(rv_pccv_make(conf.slots.cv, conf.cv, host_))
-    , cl_(rv_pccl_make(conf.slots.cl, conf.cl, cd_))
+    , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
 {
 }
@@ -45,7 +45,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
 // This is where the contract meets the machine. reinterpret_cast is mandatory
 // here, not a style choice: rv_ca/rv_cv/... are incomplete to C++, so
 // static_cast from or to them cannot compile. Every line hands out the slot's
-// BASE address (ca_.get(), &cd_, ...); the extern "C" block in each
+// BASE address (ca_.get(), cd_.get(), ...); the extern "C" block in each
 // XX/rv_pcXX.cpp casts back to that same base (one of several such cast
 // sites, not the only one — see the block below).
 rv_ca *rv_3dmppc::rv_pconsole::ca()
@@ -54,11 +54,11 @@ rv_ca *rv_3dmppc::rv_pconsole::ca()
 }
 rv_cd *rv_3dmppc::rv_pconsole::cd()
 {
-    return reinterpret_cast<rv_cd *>(&cd_);
+    return reinterpret_cast<rv_cd *>(cd_.get());
 }
 rv_cm *rv_3dmppc::rv_pconsole::cm()
 {
-    return reinterpret_cast<rv_cm *>(&cm_);
+    return reinterpret_cast<rv_cm *>(cm_.get());
 }
 rv_cio *rv_3dmppc::rv_pconsole::cio()
 {
@@ -75,7 +75,7 @@ rv_cl *rv_3dmppc::rv_pconsole::cl()
 
 bool rv_3dmppc::rv_pconsole::ready() const
 {
-    return ca_->valid() && cio_->valid() && cv_->valid() && cm_.valid() && cl_->valid();
+    return ca_->valid() && cd_->valid() && cio_->valid() && cm_->valid() && cv_->valid() && cl_->valid();
 }
 
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)

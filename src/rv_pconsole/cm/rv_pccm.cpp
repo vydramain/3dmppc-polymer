@@ -1,109 +1,11 @@
-#include "rv_pccm.hpp"
-
-#include <cstring>
+#include "rv_pconsole/cm/rv_pccm.hpp"
 
 #include "pdk/cm/rv_cm.h"
-#include "pdk/rv_err.h"
-
-namespace rv_3dmppc
-{
-
-rv_pccm::rv_pccm(const rv_pccm_conf &conf)
-    : card_(conf.image_path, conf.card_slots, conf.card_slot_size)
-{
-}
-
-bool rv_pccm::slot_in_range(int64_t slot) const
-{
-    return slot >= 0 && slot < card_.slot_count();
-}
-
-// The geometry a disc validates its save blob against at disc_initialize. It is
-// taken from the card rather than straight from the conf so a configuration the
-// medium rejected reports 0 instead of a shape no slot actually has — and never
-// a negative number, which a caller would read as an error.
-int64_t rv_pccm::card_slots()
-{
-    return card_.slot_count();
-}
-
-int64_t rv_pccm::card_slot_size()
-{
-    return card_.slot_size();
-}
-
-int64_t rv_pccm::card_size(int64_t slot)
-{
-    if (!slot_in_range(slot)) {
-        return RV_ERR_INVAL;
-    }
-    // The contract enumerates only INVAL/NOENT here, but an unreadable medium
-    // is neither: answering NOENT would state "no save yet" about a card that
-    // may well hold one, and a disc would happily start a new game over it.
-    // RV_ERR_IO is the honest answer, and callers test rc < 0 uniformly.
-    if (!card_.medium_ok()) {
-        return RV_ERR_IO;
-    }
-    const int64_t length = card_.slot_length(slot);
-    if (length < 0) {
-        return RV_ERR_NOENT;
-    }
-    return length;
-}
-
-int64_t rv_pccm::card_read(int64_t slot, void *baddr, int64_t baddr_size)
-{
-    if (!slot_in_range(slot) || baddr == nullptr || baddr_size < 0) {
-        return RV_ERR_INVAL;
-    }
-    if (!card_.medium_ok()) {
-        return RV_ERR_IO;
-    }
-    const int64_t length = card_.slot_length(slot);
-    // An empty slot is reported before the buffer is measured: "there is no
-    // save" is a different fact from "your buffer is too small", and a disc
-    // probing a fresh card must hear the first one.
-    if (length < 0) {
-        return RV_ERR_NOENT;
-    }
-    if (baddr_size < length) {
-        return RV_ERR_INVAL;
-    }
-    if (length > 0) {
-        std::memcpy(baddr, card_.slot_data(slot), static_cast<size_t>(length));
-    }
-    return length;
-}
-
-int64_t rv_pccm::card_write(int64_t slot, const void *data, int64_t data_size)
-{
-    if (!slot_in_range(slot) || data == nullptr || data_size < 0 || data_size > card_.slot_size()) {
-        return RV_ERR_INVAL;
-    }
-    // Atomicity lives one layer down, in rv_pccard::flush: when this returns
-    // false the slot still holds its previous bytes, in RAM and on disk alike.
-    if (!card_.slot_write(slot, data, data_size)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
-}
-
-int64_t rv_pccm::card_erase(int64_t slot)
-{
-    if (!slot_in_range(slot)) {
-        return RV_ERR_INVAL;
-    }
-    if (!card_.slot_erase(slot)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
-}
-
-} // namespace rv_3dmppc
 
 // --- C contract (pdk/cm/rv_cm.h) ---------------------------------------------
-// An rv_cm* handle and the address of an rv_pccm are the same address: exactly
-// one implementation of each controller lives in the process.
+// An rv_cm* handle and the address of an rv_pccm are the same address: which
+// concrete class actually lives there is a console construction-time choice
+// (rv_pccm_posix), reached here through a virtual call.
 
 extern "C" int64_t rv_cm_card_slots(rv_cm *cm)
 {

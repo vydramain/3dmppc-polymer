@@ -638,7 +638,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   `card_read` / `card_write` / `card_erase`, whole-slot and **atomic** — a failed
   write leaves the old save intact. The card is always inserted; the file-backed
   image is console business. Concrete backend built in
-  `src/rv_pconsole/cm/rv_pccm.cpp`.
+  `src/rv_pconsole/cm/rv_pccm_posix.cpp`.
 - **`rv_cl` (script machine, Lua)** — surface defined and built: chunk
   lifecycle (`script_load`/`script_free`/`script_entry`), a shared value
   stack (`stack_push_*`/`stack_drop`/`stack_count`/`value_*`), and one call
