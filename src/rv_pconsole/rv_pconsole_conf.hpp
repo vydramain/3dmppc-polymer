@@ -52,9 +52,10 @@ struct rv_pccm_conf {
     int64_t card_slots = rv_pdklib::rv_manifest_budget_pccm{}.card_slots;
     int64_t card_slot_size = rv_pdklib::rv_manifest_budget_pccm{}.card_slot_size;
 
-    // Backing image for the card. Empty = "memcard.mppccard" in the working
-    // directory. The card is ALWAYS inserted (rv_cm.hpp): where its bytes live
-    // is the console's business and never an operation the disc invokes.
+    // Backing image for the card. Never empty: boot defaults it to
+    // memcard.mppccard next to the binary. The card is ALWAYS inserted
+    // (rv_cm.hpp): where its bytes live is the console's business and never
+    // an operation the disc invokes.
     std::string image_path;
 };
 

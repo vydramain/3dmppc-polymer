@@ -1,5 +1,7 @@
 #include "rv_pboot_conf.hpp"
 
+#include "rv_pboot.hpp"
+
 namespace rv_3dmppc
 {
 
@@ -30,7 +32,9 @@ void rv_pboot_conf_build(
     conf.params.dump_frame_path = args.dump_frame_path;
     conf.ca.mute = args.mute;
     conf.cd.medium_path = args.medium_path;
-    conf.cm.image_path = args.memcard_path;
+    // No --memcard: the card next to the binary, never in the start directory.
+    conf.cm.image_path =
+        args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
     conf.slots = slots;
 }
 

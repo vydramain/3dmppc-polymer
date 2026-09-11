@@ -16,7 +16,6 @@ namespace
 {
 
 constexpr const char *kTag = "pccard";
-constexpr const char *kDefaultImage = "memcard.mppccard";
 
 constexpr int64_t kHeaderSize = 32;
 constexpr int64_t kLengthEntry = 8;
@@ -68,7 +67,7 @@ std::string errno_text(int e)
 } // namespace
 
 rv_pccard::rv_pccard(const std::string &image_path, int64_t slot_count, int64_t slot_size)
-    : image_path_(image_path.empty() ? std::string(kDefaultImage) : image_path)
+    : image_path_(image_path)
     , slot_count_(slot_count)
     , slot_size_(slot_size)
 {
@@ -118,7 +117,7 @@ bool rv_pccard::load()
     if (!present) {
         // Lazy creation: an absent image is a brand-new card, not a fault. The
         // file appears the first time a disc actually saves something, so a
-        // console that is only ever run never litters the working directory.
+        // console that is only ever run never leaves a file behind.
         format_empty();
         RV_LOG_INFO(kTag, "no image at '{}', card starts empty ({} slot(s) of {} byte(s))",
             image_path_, slot_count_, slot_size_);

@@ -12,6 +12,7 @@
 #include "pdklib/rv_manifest/detail/rv_manifest_failer.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_lexer.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_parser.hpp"
+#include "rv_pboot.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
 namespace rv_3dmppc
@@ -191,18 +192,18 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
     return static_cast<int>(pendings.size());
 }
 
-// Merges `build/modes.toml` (next to the running executable) into `table`.
+// Merges modes.toml from the executable's directory (build/pconsole/) into
+// `table`.
 // Absent file: nothing happens. Present but unreadable, or present with a
 // schema/parse problem: a diagnostic and false. `table` is left untouched on
 // failure.
 bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
 {
-    std::error_code ec;
-    const std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
-    if (ec) {
+    const std::filesystem::path dir = rv_pboot_exe_dir();
+    if (dir.empty()) {
         return true;
     }
-    const std::filesystem::path path = exe.parent_path() / "modes.toml";
+    const std::filesystem::path path = dir / "modes.toml";
 
     std::error_code exists_ec;
     if (!std::filesystem::exists(path, exists_ec)) {

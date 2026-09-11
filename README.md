@@ -32,7 +32,7 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
     --baker pdk/tools/build/mppcbaker/mppcbaker
 
 # 4. run it
-./build/3dmppc build/example-cpp.mppcdisc
+./build/pconsole/3dmppc build/example-cpp.mppcdisc
 ```
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
@@ -42,7 +42,7 @@ The same three commands work unchanged against
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
 compiled C++.
 
-Running `./build/3dmppc` with no disc gives you the built-in **service test** — a
+Running `./build/pconsole/3dmppc` with no disc gives you the built-in **service test** — a
 diagnostics screen that exercises every subsystem and explains itself on screen.
 It is how you tell a broken console from a broken disc.
 
@@ -88,7 +88,7 @@ the compiler they drive.
 ## Running the console
 
 ```sh
-./build/3dmppc [flags] [DISC.mppcdisc]
+./build/pconsole/3dmppc [flags] [DISC.mppcdisc]
 ```
 
 | Flag | What it does |
@@ -99,7 +99,7 @@ the compiler they drive.
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | feed the disc a fixed 1/60 dt — reproducible runs |
 | `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
-| `--memcard PATH` | memory-card image (default `memcard.mppccard` in the working directory) |
+| `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last presented frame as a binary PPM |
 

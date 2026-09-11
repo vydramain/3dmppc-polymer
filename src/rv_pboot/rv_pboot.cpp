@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_pboot_args.hpp"
@@ -28,6 +29,13 @@ RV_MPPC_DISC_TABLE_DEF(rv_service::rv_dmain, rv_dmain_table)
 
 namespace rv_3dmppc
 {
+
+std::filesystem::path rv_pboot_exe_dir()
+{
+    std::error_code ec;
+    const std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    return ec ? std::filesystem::path() : exe.parent_path();
+}
 
 int rv_pboot_run(int argc, char **argv)
 {

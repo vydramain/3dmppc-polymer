@@ -37,7 +37,7 @@ public:
     // after the disc is already running — the two must never drift apart.
     static constexpr int64_t RV_PCCARD_MAX_IMAGE_BYTES = 64 * 1024 * 1024;
 
-    // Loads `image_path` (empty = "memcard.mppccard" in the working directory).
+    // Loads `image_path`; boot always passes one (rv_pboot_conf.cpp).
     // A missing file is NOT an error: the card simply reads as all-empty and
     // the file is created by the first successful write. A file that exists but
     // does not match the requested geometry — or is corrupt — leaves the card

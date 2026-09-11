@@ -119,7 +119,12 @@ add_executable(3dmppc
 # the LuaJIT FFI will look for them in the same place. Without ENABLE_EXPORTS
 # (which is -rdynamic) the executable's dynamic symbol table is empty and neither
 # side finds anything.
-set_target_properties(3dmppc PROPERTIES ENABLE_EXPORTS ON)
+#
+# The binary lands in build/pconsole/, next to its modes.toml and its default
+# memory card.
+set_target_properties(3dmppc PROPERTIES
+  ENABLE_EXPORTS ON
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
 
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)

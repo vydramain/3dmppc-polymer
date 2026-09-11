@@ -47,7 +47,7 @@ the exact same exported symbol `example-cpp.cpp` calls as a plain C function.
 Confirm it yourself:
 
 ```sh
-$ nm -D --defined-only build/3dmppc | grep rv_cv_frame_put
+$ nm -D --defined-only build/pconsole/3dmppc | grep rv_cv_frame_put
 00000000000f64b0 T rv_cv_frame_put
 ```
 
@@ -76,7 +76,7 @@ itself, only asks for "the one you already checked".
 ```sh
 ./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-lua -o build/example-lua.mppcdisc \
     --baker pdk/tools/build/mppcbaker/mppcbaker
-./build/3dmppc build/example-lua.mppcdisc
+./build/pconsole/3dmppc build/example-lua.mppcdisc
 ```
 
 Watch stderr for `pccl: lua machine up, 262144 byte(s) budgeted` on load, and
