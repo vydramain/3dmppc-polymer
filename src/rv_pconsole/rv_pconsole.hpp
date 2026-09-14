@@ -61,7 +61,7 @@ private:
     rv_pcloader *loader_ = nullptr;
 
     // The per-frame PCM scratch buffer, sized once at construction to the
-    // largest a single frame can ever need: (RV_PCA_SAMPLE_RATE /
+    // largest a single frame can ever need: (RV_PCCA_PCM_RATE /
     // target_fps + 1) stereo frames, so a fractional-remainder frame from the
     // Bresenham accumulator in disc_run never overruns it.
     std::vector<int16_t> pcm_;

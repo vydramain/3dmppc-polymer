@@ -13,6 +13,11 @@
 namespace rv_3dmppc
 {
 
+// Format advance() writes: interleaved S16 frames of RV_PCCA_PCM_CHANNELS
+// samples at RV_PCCA_PCM_RATE. Every ca implementation produces this.
+constexpr int64_t RV_PCCA_PCM_RATE = 44100;
+constexpr int64_t RV_PCCA_PCM_CHANNELS = 2;
+
 class rv_pcca
 {
 public:

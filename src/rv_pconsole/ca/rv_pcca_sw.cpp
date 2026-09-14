@@ -4,6 +4,10 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
+static_assert(rv_3dmppc::RV_PCA_SAMPLE_RATE == rv_3dmppc::RV_PCCA_PCM_RATE, "sw SPU mixes at the ca contract rate");
+static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCCA_PCM_CHANNELS,
+    "sw SPU mixes the ca contract channel count");
+
 namespace rv_3dmppc
 {
 

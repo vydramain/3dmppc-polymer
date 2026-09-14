@@ -8,9 +8,6 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "rv_pconsole/ca/rv_pcmixer.hpp"
-#include "rv_pconsole/ca/rv_pcvoice.hpp"
-#include "rv_pconsole/cd/rv_pczipmedium.hpp"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
@@ -18,9 +15,9 @@
 // construction (both are fixed, not negotiated), but they are declared in
 // two different files for two different reasons, so a silent drift between
 // them must fail the build rather than the ear.
-static_assert(rv_3dmppc::RV_PCA_SAMPLE_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
+static_assert(rv_3dmppc::RV_PCCA_PCM_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
     "the SPU's sample rate and the platform's PCM sink must agree");
-static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
+static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
     "the mixer's channel count and the platform's PCM sink must agree");
 
 namespace rv_3dmppc
@@ -74,8 +71,8 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
-          (RV_PCA_SAMPLE_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : 60) + 1) *
-          RV_PCMIXER_CHANNELS))
+          (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : 60) + 1) *
+          RV_PCCA_PCM_CHANNELS))
 {
 }
 
@@ -166,7 +163,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     rv_pcpacing pacing =
         params_.fixed_step ? rv_pcpacing::none : (platform_.audio().available() ? rv_pcpacing::audio : rv_pcpacing::clock);
     const int64_t queue_target =
-        RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES * (RV_PCA_SAMPLE_RATE / static_cast<int64_t>(target_fps));
+        RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES * (RV_PCCA_PCM_RATE / static_cast<int64_t>(target_fps));
 
     RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, dt 1/{} s, paced by {})", disc->disc_title(disc->self),
         platform_.window().presenting() ? "presented" : "unpresented", target_fps, rv_pcpacing_name(pacing));
@@ -211,7 +208,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         // THEOREM: Bresenham accumulator. N frames give exactly
         // floor(N * rate / fps) samples, with zero drift, because the
         // remainder of every division is carried forward instead of dropped.
-        audio_phase += RV_PCA_SAMPLE_RATE;
+        audio_phase += RV_PCCA_PCM_RATE;
         const int64_t samples = audio_phase / static_cast<int64_t>(target_fps);
         audio_phase %= static_cast<int64_t>(target_fps);
         ca_->advance(pcm_.data(), samples);
