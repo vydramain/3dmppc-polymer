@@ -85,7 +85,7 @@ inline void rv_console_print_usage(std::FILE *stream)
         "                       null or sw. A run without a window ends by\n"
         "                       --frames, by the disc, or by Ctrl+C.\n"
         "      --mode_cio=IMPL  Override the cio slot of the preset. IMPL is\n"
-        "                       null or standard.\n"
+        "                       null or std.\n"
         "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
         "                       null or luajit.\n"
         "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"

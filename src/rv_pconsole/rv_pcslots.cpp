@@ -32,7 +32,7 @@ constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
 };
 constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
-    { "standard", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
+    { "std", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
 };
 constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL_ROWS[] = {
     { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },

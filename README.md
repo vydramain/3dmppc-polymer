@@ -97,7 +97,7 @@ the compiler they drive.
 | --- | --- |
 | `--scale N` | window magnification over the native 320×240 (default 3) |
 | `--mode=NAME` | preset: `default` (SDL3 window, pads, sound) or `headless` (no window, no pads, no audio device — the same virtual machine) |
-| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`standard`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
+| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`std`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
 | `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | run unpaced with a fixed 1/60 dt — reproducible runs; the audio output is not fed |
