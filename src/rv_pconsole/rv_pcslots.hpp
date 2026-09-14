@@ -16,25 +16,14 @@
 #pragma once
 
 #include <memory>
+#include <span>
 
 #include "rv_pconsole/ca/rv_pcca.hpp"
-#include "rv_pconsole/ca/rv_pcca_null.hpp"
-#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
-#include "rv_pconsole/cd/rv_pccd_fs.hpp"
-#include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
-#include "rv_pconsole/cio/rv_pccio_null.hpp"
-#include "rv_pconsole/cio/rv_pccio_std.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
-#include "rv_pconsole/cl/rv_pccl_luajit.hpp"
-#include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
-#include "rv_pconsole/cm/rv_pccm_null.hpp"
-#include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
-#include "rv_pconsole/cv/rv_pccv_null.hpp"
-#include "rv_pconsole/cv/rv_pccv_sw.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -43,8 +32,8 @@ namespace rv_3dmppc
 {
 
 // Implementation names, one row per enum value, plus the class's own budget
-// evaluation (rv_pcbudget.hpp) — the one function boot stage E3 calls before
-// this class is ever constructed.
+// evaluation (rv_pcbudget.hpp), called by boot before the class is ever
+// constructed. Defined in rv_pcslots.cpp so no caller sees a concrete class.
 template <typename Impl>
 struct rv_pcslots_row {
     const char *name;
@@ -52,30 +41,12 @@ struct rv_pcslots_row {
     rv_pcbudget_evaluate_fn evaluate;
 };
 
-inline constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA[] = {
-    { "null", rv_pcca_impl::null, &rv_pcca_null::evaluate },
-    { "sw", rv_pcca_impl::sw, &rv_pcca_sw::evaluate },
-};
-inline constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV[] = {
-    { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
-    { "sw", rv_pccv_impl::sw, &rv_pccv_sw::evaluate },
-};
-inline constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO[] = {
-    { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
-    { "standard", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
-};
-inline constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL[] = {
-    { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
-    { "luajit", rv_pccl_impl::luajit, &rv_pccl_luajit::evaluate },
-};
-inline constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD[] = {
-    { "null", rv_pccd_impl::null, &rv_pccd_null::evaluate },
-    { "fs", rv_pccd_impl::fs, &rv_pccd_fs::evaluate },
-};
-inline constexpr rv_pcslots_row<rv_pccm_impl> RV_PCSLOTS_CM[] = {
-    { "null", rv_pccm_impl::null, &rv_pccm_null::evaluate },
-    { "posix", rv_pccm_impl::posix, &rv_pccm_posix::evaluate },
-};
+extern const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA;
+extern const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV;
+extern const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO;
+extern const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL;
+extern const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD;
+extern const std::span<const rv_pcslots_row<rv_pccm_impl>> RV_PCSLOTS_CM;
 
 const char *rv_pcslots_name(rv_pcca_impl impl);
 const char *rv_pcslots_name(rv_pccv_impl impl);

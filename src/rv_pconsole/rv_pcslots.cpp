@@ -22,6 +22,31 @@ namespace rv_3dmppc
 namespace
 {
 
+constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA_ROWS[] = {
+    { "null", rv_pcca_impl::null, &rv_pcca_null::evaluate },
+    { "sw", rv_pcca_impl::sw, &rv_pcca_sw::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
+    { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
+    { "sw", rv_pccv_impl::sw, &rv_pccv_sw::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
+    { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
+    { "standard", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL_ROWS[] = {
+    { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
+    { "luajit", rv_pccl_impl::luajit, &rv_pccl_luajit::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD_ROWS[] = {
+    { "null", rv_pccd_impl::null, &rv_pccd_null::evaluate },
+    { "fs", rv_pccd_impl::fs, &rv_pccd_fs::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccm_impl> RV_PCSLOTS_CM_ROWS[] = {
+    { "null", rv_pccm_impl::null, &rv_pccm_null::evaluate },
+    { "posix", rv_pccm_impl::posix, &rv_pccm_posix::evaluate },
+};
+
 template <typename Table, typename Impl>
 const char *impl_name(const Table &table, Impl impl)
 {
@@ -34,6 +59,13 @@ const char *impl_name(const Table &table, Impl impl)
 }
 
 } // namespace
+
+const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA = RV_PCSLOTS_CA_ROWS;
+const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV = RV_PCSLOTS_CV_ROWS;
+const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO = RV_PCSLOTS_CIO_ROWS;
+const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL = RV_PCSLOTS_CL_ROWS;
+const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD = RV_PCSLOTS_CD_ROWS;
+const std::span<const rv_pcslots_row<rv_pccm_impl>> RV_PCSLOTS_CM = RV_PCSLOTS_CM_ROWS;
 
 const char *rv_pcslots_name(rv_pcca_impl impl)
 {
