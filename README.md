@@ -100,11 +100,13 @@ the compiler they drive.
 | `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`std`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
 | `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
-| `--fixed-step` | run unpaced with a fixed 1/60 dt - reproducible runs; the audio output is not fed |
+| `--fixed-step` | fast run: no real-time wait and no audio output; every mode steps 1/60 s per frame, so runs stay reproducible |
 | `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
 | `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
+
+Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
 
 `--dump-frame` is how you check what the machine actually drew without taking a
 screenshot: `magick frame.ppm frame.png` and look at it, or diff it against a
