@@ -60,11 +60,9 @@ private:
         uint32_t pad = 0;
     };
 
-    // Reassign ports to connected pads when the platform's pad set changed
-    // since the last call. Slots never renumber: a pad keeps its port until it
-    // disconnects, and a freed port is given to the oldest connected pad that
-    // has no port yet — including a pad that was ignored earlier because
-    // every port was full.
+    // Apply pad arrivals and departures since the last call. A pad keeps its
+    // port until it disconnects; a new pad takes the first empty port or is
+    // ignored until it reconnects.
     void reconcile();
 
     // What the keyboard layout can report, in rv_isource bits — 0 while no
@@ -76,6 +74,9 @@ private:
     rv_pcgamepads &gamepads_;
 
     std::vector<rv_pccio_std_port> ports_;
+
+    // Pads connected at the last reconcile; any other id is an arrival.
+    std::vector<uint32_t> seen_pads_;
 
     // Forces the first query to reconcile: rv_pcgamepads::generation() is
     // never guaranteed to start away from this value otherwise.

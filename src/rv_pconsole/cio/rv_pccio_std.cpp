@@ -1,5 +1,7 @@
 #include "rv_pconsole/cio/rv_pccio_std.hpp"
 
+#include <algorithm>
+
 #include "pdk/cio/rv_cio.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -24,9 +26,9 @@ int64_t rv_pccio_std::iport_count()
     return conf_.iport_count;
 }
 
-// Release every port whose pad disconnected, then hand every unassigned
-// connected pad to the first empty port. Slots never renumber: a pad keeps
-// its port for as long as it stays connected.
+// Release ports of departed pads, then give each arrived pad the first empty
+// port. A pad that arrives while every port is full stays ignored until it
+// reconnects; a reconnect is a new arrival and takes the first empty port.
 void rv_pccio_std::reconcile()
 {
     if (gamepads_.generation() == seen_generation_) {
@@ -53,14 +55,7 @@ void rv_pccio_std::reconcile()
     }
 
     for (uint32_t id : connected) {
-        bool assigned = false;
-        for (const auto &port : ports_) {
-            if (port.pad == id) {
-                assigned = true;
-                break;
-            }
-        }
-        if (assigned) {
+        if (std::find(seen_pads_.begin(), seen_pads_.end(), id) != seen_pads_.end()) {
             continue;
         }
 
@@ -79,6 +74,7 @@ void rv_pccio_std::reconcile()
         }
     }
 
+    seen_pads_ = connected;
     seen_generation_ = gamepads_.generation();
 }
 
