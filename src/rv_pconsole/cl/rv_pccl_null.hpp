@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "rv_pconsole/cl/rv_pccl.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 
 namespace rv_3dmppc
 {
@@ -17,6 +18,9 @@ class rv_pccl_null final : public rv_pccl
 {
 public:
     rv_pccl_null();
+
+    // No VM: always RV_OK, 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t script_load(const void *bytecode, int64_t size, const char *name) override;
     int64_t script_free(int64_t handle) override;

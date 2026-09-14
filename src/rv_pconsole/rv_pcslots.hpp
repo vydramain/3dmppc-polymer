@@ -18,11 +18,24 @@
 #include <memory>
 
 #include "rv_pconsole/ca/rv_pcca.hpp"
+#include "rv_pconsole/ca/rv_pcca_null.hpp"
+#include "rv_pconsole/ca/rv_pcca_sdl3.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/cd/rv_pccd_fs.hpp"
+#include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
+#include "rv_pconsole/cio/rv_pccio_null.hpp"
+#include "rv_pconsole/cio/rv_pccio_sdl3.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
+#include "rv_pconsole/cl/rv_pccl_luajit.hpp"
+#include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
+#include "rv_pconsole/cm/rv_pccm_null.hpp"
+#include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
+#include "rv_pconsole/cv/rv_pccv_null.hpp"
+#include "rv_pconsole/cv/rv_pccv_sdl3.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -30,36 +43,39 @@ namespace rv_3dmppc
 
 class rv_pchost_sdl3;
 
-// Implementation names, one row per enum value.
+// Implementation names, one row per enum value, plus the class's own budget
+// evaluation (rv_pcbudget.hpp) — the one function boot stage E3 calls before
+// this class is ever constructed.
 template <typename Impl>
 struct rv_pcslots_row {
     const char *name;
     Impl impl;
+    rv_pcbudget_evaluate_fn evaluate;
 };
 
 inline constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA[] = {
-    { "null", rv_pcca_impl::null },
-    { "sdl3", rv_pcca_impl::sdl3 },
+    { "null", rv_pcca_impl::null, &rv_pcca_null::evaluate },
+    { "sdl3", rv_pcca_impl::sdl3, &rv_pcca_sdl3::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV[] = {
-    { "null", rv_pccv_impl::null },
-    { "sdl3", rv_pccv_impl::sdl3 },
+    { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
+    { "sdl3", rv_pccv_impl::sdl3, &rv_pccv_sdl3::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO[] = {
-    { "null", rv_pccio_impl::null },
-    { "sdl3", rv_pccio_impl::sdl3 },
+    { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
+    { "sdl3", rv_pccio_impl::sdl3, &rv_pccio_sdl3::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL[] = {
-    { "null", rv_pccl_impl::null },
-    { "luajit", rv_pccl_impl::luajit },
+    { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
+    { "luajit", rv_pccl_impl::luajit, &rv_pccl_luajit::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD[] = {
-    { "null", rv_pccd_impl::null },
-    { "fs", rv_pccd_impl::fs },
+    { "null", rv_pccd_impl::null, &rv_pccd_null::evaluate },
+    { "fs", rv_pccd_impl::fs, &rv_pccd_fs::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccm_impl> RV_PCSLOTS_CM[] = {
-    { "null", rv_pccm_impl::null },
-    { "posix", rv_pccm_impl::posix },
+    { "null", rv_pccm_impl::null, &rv_pccm_null::evaluate },
+    { "posix", rv_pccm_impl::posix, &rv_pccm_posix::evaluate },
 };
 
 const char *rv_pcslots_name(rv_pcca_impl impl);
@@ -84,5 +100,12 @@ std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &con
 // preset; the disc refuses for itself when it needed scripts and did not
 // get them.
 std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd);
+
+// Asserts the invariants the six tables above and their evaluate() functions
+// must hold (every row has a non-null evaluate, every null class costs 0,
+// rv_pccm_posix actually refuses an oversized card). Returns true and logs one
+// line, or false after RV_LOG_ERR on the first failed assertion. Run by
+// --selfcheck, alongside rv_pcvmem_selfcheck().
+bool rv_pcslots_selfcheck();
 
 } // namespace rv_3dmppc

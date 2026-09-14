@@ -70,10 +70,11 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, const rv_pcslots &slots
     host.prepare(slots.cv == rv_pccv_impl::sdl3, slots.cio == rv_pccio_impl::sdl3,
         slots.ca == rv_pcca_impl::sdl3);
 
-    // What this run's machine actually is: which subsystems came up (or were
-    // never asked for) and how much RAM the kernel says is available.
+    // What this run's machine actually is: how much RAM the kernel says is
+    // available. Whether a physical device actually came up never changes
+    // the budget (rv_pboot_check_budget) — only what rv_pboot_mode_report
+    // below prints.
     out.ram_available = rv_pboot_mode_available_ram();
-    out.audio_enabled = slots.ca == rv_pcca_impl::sdl3 && host.audio_ready();
 
     return RV_OK;
 }

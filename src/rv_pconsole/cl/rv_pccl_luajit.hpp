@@ -13,6 +13,7 @@
 
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 struct lua_State;
@@ -66,6 +67,11 @@ public:
 
     rv_pccl_luajit(const rv_pccl_luajit &) = delete;
     rv_pccl_luajit &operator=(const rv_pccl_luajit &) = delete;
+
+    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // budget_ (script_memory_size), the lua_Alloc ceiling this class enforces
+    // on the VM's own heap.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     // A VM that failed to come up is the only FALSE: the console refuses to
     // boot on that, so no contract method below is ever reached with L_ null

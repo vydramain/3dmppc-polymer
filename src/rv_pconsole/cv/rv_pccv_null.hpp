@@ -8,6 +8,7 @@
 
 #include "pdk/cv/rv_texture.h"
 #include "rv_pconsole/cv/rv_pccv.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -17,6 +18,9 @@ class rv_pccv_null final : public rv_pccv
 {
 public:
     explicit rv_pccv_null(const rv_pccv_conf &conf);
+
+    // No pool, no framebuffer, no ordering table: always RV_OK, 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     // --- hardware geometry: straight out of the configuration ---
 

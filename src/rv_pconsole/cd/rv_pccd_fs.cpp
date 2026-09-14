@@ -8,6 +8,11 @@
 
 namespace rv_3dmppc {
 
+int64_t rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget& /*budget*/, int64_t& bytes) {
+    bytes = 0;
+    return RV_OK;
+}
+
 rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf& conf)
     : conf_(conf), medium_(std::make_unique<rv_pcdirmedium>(conf.medium_path)) {}
 

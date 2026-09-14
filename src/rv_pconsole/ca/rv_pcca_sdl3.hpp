@@ -20,6 +20,7 @@
 #include "rv_pmem/rv_pcpool.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -62,6 +63,12 @@ public:
 
     rv_pcca_sdl3(const rv_pcca_sdl3 &) = delete;
     rv_pcca_sdl3 &operator=(const rv_pcca_sdl3 &) = delete;
+
+    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // sram_ (sound_memory_size) + mixer_'s voices (one rv_pcvoice each) and
+    // its fixed render accumulator. Never fails — every field it reads was
+    // already validated as non-negative by boot stage E3's contract check.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t voice_count() override;
 

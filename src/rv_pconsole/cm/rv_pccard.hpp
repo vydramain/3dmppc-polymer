@@ -37,6 +37,15 @@ public:
     // after the disc is already running — the two must never drift apart.
     static constexpr int64_t RV_PCCARD_MAX_IMAGE_BYTES = 64 * 1024 * 1024;
 
+    // The on-disk header (magic[8] + version u32 + reserved u32 + slot_count
+    // i64 + slot_size i64) and one length entry (i64) per slot, ahead of the
+    // slot payloads. Public so boot stage E3's budget check
+    // (rv_pccm_posix::evaluate) can cost a card image before one is built.
+    static constexpr int64_t RV_PCCARD_HEADER_BYTES =
+        8 /* magic */ + sizeof(uint32_t) /* version */ + sizeof(uint32_t) /* reserved */ +
+        sizeof(int64_t) /* slot_count */ + sizeof(int64_t) /* slot_size */;
+    static constexpr int64_t RV_PCCARD_LENGTH_ENTRY_BYTES = sizeof(int64_t);
+
     // Loads `image_path`; boot always passes one (rv_pboot_conf.cpp).
     // A missing file is NOT an error: the card simply reads as all-empty and
     // the file is created by the first successful write. A file that exists but

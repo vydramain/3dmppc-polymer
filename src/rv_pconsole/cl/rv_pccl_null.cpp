@@ -6,6 +6,12 @@
 namespace rv_3dmppc
 {
 
+int64_t rv_pccl_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes)
+{
+    bytes = 0;
+    return RV_OK;
+}
+
 rv_pccl_null::rv_pccl_null()
 {
     RV_LOG_INFO("pccl", "scripting off, no lua machine (every call answers RV_ERR_INVAL)");

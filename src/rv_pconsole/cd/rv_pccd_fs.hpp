@@ -14,6 +14,7 @@
 
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc {
@@ -44,6 +45,10 @@ class rv_pccd_fs final : public rv_pccd {
 
     rv_pccd_fs(const rv_pccd_fs&) = delete;
     rv_pccd_fs& operator=(const rv_pccd_fs&) = delete;
+
+    // The drive reads assets out of the disc's own archive, not out of a
+    // budgeted pool: always RV_OK, 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget& budget, int64_t& bytes);
 
     int64_t asset_open(const char* resname) override;
 

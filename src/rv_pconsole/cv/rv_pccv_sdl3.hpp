@@ -39,6 +39,7 @@
 #include "rv_pconsole/cv/rv_pcotable.hpp"
 #include "rv_pconsole/cv/rv_pctexel.hpp"
 #include "rv_pconsole/cv/rv_pcvram.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -70,6 +71,12 @@ public:
     // reference, so let the compiler say so instead of silently slicing.
     rv_pccv_sdl3(const rv_pccv_sdl3 &) = delete;
     rv_pccv_sdl3 &operator=(const rv_pccv_sdl3 &) = delete;
+
+    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // vram_ (video_memory_size) + fbuf_ (screen_width * screen_height *
+    // bytes-per-pixel) + otable_ (bucket links plus one next_ link per
+    // primitive up to frame_capacity) + primitives_.reserve(frame_capacity).
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     // --- hardware geometry: straight out of the configuration ---
 

@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 
 namespace rv_3dmppc
 {
@@ -14,6 +15,9 @@ class rv_pccd_null final : public rv_pccd
 {
 public:
     rv_pccd_null() = default;
+
+    // No drive: always RV_OK, 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t asset_open(const char *resname) override;
 

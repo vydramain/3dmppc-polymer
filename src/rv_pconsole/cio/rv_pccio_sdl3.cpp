@@ -8,6 +8,19 @@
 namespace rv_3dmppc
 {
 
+int64_t rv_pccio_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+{
+    // Ports still live in the host (rv_pchost_sdl3::configure ->
+    // ports_.assign(iport_count, ...)), not in this class — see the header.
+    int64_t total = 0;
+    if (rv_pcbudget_mul("budget.pccio.iport_count", budget.pccio.iport_count,
+            rv_pchost_sdl3::port_bytes(), total)) {
+        return RV_ERR_INVAL;
+    }
+    bytes = total;
+    return RV_OK;
+}
+
 int64_t rv_pccio_sdl3::iport_count()
 {
     return conf_.iport_count;

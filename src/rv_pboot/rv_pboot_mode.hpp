@@ -23,8 +23,6 @@ int64_t rv_pboot_mode_available_ram();
 struct rv_pboot_mode_info {
     // rv_pboot_mode_available_ram(), or -1 when it could not be determined.
     int64_t ram_available = -1;
-    // False when ca is null, or when no device could be opened.
-    bool audio_enabled = true;
 };
 
 // Runs the MADV_POPULATE_WRITE probe, host.prepare(...), the staging probe

@@ -6,6 +6,7 @@
 
 #include "rv_pconsole/cm/rv_pccard.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -23,6 +24,13 @@ private:
 public:
     explicit rv_pccm_posix(const rv_pccm_conf &conf);
     ~rv_pccm_posix() = default;
+
+    // RV_OK plus the peak host bytes card_ (rv_pccard's image_) allocates for
+    // `budget`: header + one length entry per slot + the slot payloads
+    // themselves — or RV_ERR_INVAL when that image would be over
+    // rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES, the same refusal rv_pccard would
+    // otherwise only log after construction.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t card_slots() override;
 

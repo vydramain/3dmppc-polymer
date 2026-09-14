@@ -4,6 +4,7 @@
 #include "pdk/cio/rv_isource.h"
 #include "pdk/cio/rv_ohaptic.h"
 #include "rv_pconsole/cio/rv_pccio.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -21,6 +22,12 @@ public:
         , host_(host)
     {
     }
+
+    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // iport_count * rv_pchost_sdl3::port_bytes() — the ports themselves still
+    // live in the host (rv_pchost_sdl3::configure), not in this class,
+    // until the platform split moves them here.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t iport_count() override;
 

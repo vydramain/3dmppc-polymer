@@ -21,6 +21,12 @@ namespace rv_3dmppc {
 
 class rv_pcotable {
    public:
+    // head_ + tail_ per bucket, and one next_ link per filed primitive (up to
+    // frame_capacity — see insert()). Public so boot stage E3's budget check
+    // (rv_pccv_sdl3::evaluate) can cost a table before one is built.
+    static constexpr int64_t RV_PCOTABLE_BYTES_PER_BUCKET = 2 * sizeof(int32_t);
+    static constexpr int64_t RV_PCOTABLE_BYTES_PER_PRIMITIVE = sizeof(int32_t);
+
     rv_pcotable(int64_t bucket_count, int32_t depth_min, int32_t depth_max);
 
     // Begin a new frame. Only the bucket heads/tails are touched — the link

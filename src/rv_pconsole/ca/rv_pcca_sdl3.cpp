@@ -48,6 +48,32 @@ int64_t voices_mask(int64_t count)
 
 } // namespace
 
+int64_t rv_pcca_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+{
+    int64_t total = 0;
+
+    // sram_ (rv_pcpool<rv_pcca_meta>): the pool is exactly sound_memory_size
+    // bytes, no product involved.
+    if (rv_pcbudget_add("budget.pcca.sound_memory_size", total, budget.pcca.sound_memory_size)) {
+        return RV_ERR_INVAL;
+    }
+
+    // mixer_ (rv_pcmixer): one rv_pcvoice per voice, plus its fixed render
+    // accumulator (RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS int32_t).
+    int64_t voices_bytes = 0;
+    const int64_t accumulator_bytes =
+        RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
+    if (rv_pcbudget_mul("budget.pcca.voice_count", budget.pcca.voice_count,
+            static_cast<int64_t>(sizeof(rv_pcvoice)), voices_bytes) ||
+        rv_pcbudget_add("budget.pcca.voice_count", total, voices_bytes) ||
+        rv_pcbudget_add("budget.pcca.voice_count", total, accumulator_bytes)) {
+        return RV_ERR_INVAL;
+    }
+
+    bytes = total;
+    return RV_OK;
+}
+
 rv_pcca_sdl3::rv_pcca_sdl3(const rv_pcca_conf &conf, rv_pchost_sdl3 &host)
     : conf_(conf)
     , host_(host)

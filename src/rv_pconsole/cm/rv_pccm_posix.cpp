@@ -3,9 +3,44 @@
 #include <cstring>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc
 {
+
+int64_t rv_pccm_posix::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+{
+    // card_ (rv_pccard's image_): header + one length entry per slot + the
+    // slot payloads themselves.
+    int64_t card_payload_bytes = 0;
+    int64_t card_table_bytes = 0;
+    if (rv_pcbudget_mul("budget.pccm.card_slots * card_slot_size", budget.pccm.card_slots,
+            budget.pccm.card_slot_size, card_payload_bytes) ||
+        rv_pcbudget_mul("budget.pccm.card_slots", budget.pccm.card_slots,
+            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES, card_table_bytes)) {
+        return RV_ERR_INVAL;
+    }
+
+    int64_t total = rv_pccard::RV_PCCARD_HEADER_BYTES;
+    if (rv_pcbudget_add("budget.pccm.card_slots", total, card_table_bytes) ||
+        rv_pcbudget_add("budget.pccm.card_slots * card_slot_size", total, card_payload_bytes)) {
+        return RV_ERR_INVAL;
+    }
+
+    // rv_pccard refuses at construction to hold an image above its own
+    // ceiling; refuse it here by name instead, before any disc code loads.
+    if (total > rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES) {
+        RV_LOG_ERR("pccheck",
+            "'budget.pccm.card_slots' ({}) * 'budget.pccm.card_slot_size' ({}) needs a {} "
+            "byte(s) card image, over the {} byte(s) this console's memory card can hold",
+            budget.pccm.card_slots, budget.pccm.card_slot_size, total,
+            rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES);
+        return RV_ERR_INVAL;
+    }
+
+    bytes = total;
+    return RV_OK;
+}
 
 rv_pccm_posix::rv_pccm_posix(const rv_pccm_conf &conf)
     : card_(conf.image_path, conf.card_slots, conf.card_slot_size)

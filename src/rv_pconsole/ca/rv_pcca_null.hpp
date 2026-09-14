@@ -10,6 +10,7 @@
 #include "pdk/ca/rv_voice_conf.h"
 
 #include "rv_pconsole/ca/rv_pcca.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -22,6 +23,9 @@ private:
 
 public:
     explicit rv_pcca_null(const rv_pcca_conf &conf);
+
+    // No pool, no mixer: always RV_OK, always 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t voice_count() override;
 

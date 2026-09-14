@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "rv_pconsole/cm/rv_pccm.hpp"
+#include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -17,6 +18,9 @@ private:
 
 public:
     explicit rv_pccm_null(const rv_pccm_conf &conf);
+
+    // No card image: always RV_OK, 0 bytes.
+    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
 
     int64_t card_slots() override;
 

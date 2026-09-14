@@ -19,6 +19,7 @@
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
 
 // The built-in disc never goes through dlopen, so it has no entry points — but
 // it needs the same rv_de table of hooks as any other. The macro expands the
@@ -51,7 +52,7 @@ int rv_pboot_run(int argc, char **argv)
     // --selfcheck runs before anything else is brought up, and exits: it does
     // not boot a disc, does not touch SDL, does not need a mode.
     if (args.selfcheck) {
-        return rv_pcvmem_selfcheck() ? 0 : 1;
+        return rv_pcvmem_selfcheck() && rv_pcslots_selfcheck() ? 0 : 1;
     }
 
     // Resolve the preset and its per-slot overrides into the concrete choice
@@ -109,7 +110,7 @@ int rv_pboot_run(int argc, char **argv)
     // Check the budget against the machine before any of the disc's code is
     // loaded. rv_pboot_check_budget() has already logged the specific reason;
     // this only names what is being refused.
-    if (rv_pboot_check_budget(*budget, machine) < 0) {
+    if (rv_pboot_check_budget(*budget, slots, machine) < 0) {
         rv_console_print_error(std::format(
             "refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
