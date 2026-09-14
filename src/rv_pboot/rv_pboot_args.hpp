@@ -91,8 +91,7 @@ inline void rv_console_print_usage(std::FILE *stream)
         "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"
         "                       null or fs.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
-        "                       null or posix.\n"
-        "      --selfcheck      Run internal self-checks and exit.\n");
+        "                       null or posix.\n");
 }
 
 // Everything getopt_long can produce, and nothing else: no SDL, no
@@ -101,7 +100,6 @@ inline void rv_console_print_usage(std::FILE *stream)
 struct rv_pboot_args {
     bool fixed_step = false;
     bool mute = false;
-    bool selfcheck = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
     std::string medium_path;

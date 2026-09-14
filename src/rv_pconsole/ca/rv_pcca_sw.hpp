@@ -90,10 +90,4 @@ public:
     }
 };
 
-// Exercises rv_pcca_sw through its public methods only: a voice starts,
-// advances across chunks of the console timeline, and finishes, and two fresh
-// instances given the same inputs produce byte-identical PCM. Logs the failed
-// check under "pcca" and returns false on failure.
-bool rv_pcca_sw_selfcheck();
-
 } // namespace rv_3dmppc

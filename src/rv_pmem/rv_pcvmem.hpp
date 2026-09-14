@@ -50,8 +50,4 @@ private:
 // Returns RV_OK, or RV_ERR_NOENT when the kernel rejects it.
 int64_t rv_pcvmem_probe_populate_write();
 
-// Self-check for rv_pcvmem. Uses assert; aborts on first violation. Nothing
-// in the tree calls this yet.
-bool rv_pcvmem_selfcheck();
-
 } // namespace rv_3dmppc

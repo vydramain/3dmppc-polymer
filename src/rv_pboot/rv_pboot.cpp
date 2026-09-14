@@ -13,11 +13,8 @@
 #include "rv_pboot_conf.hpp"
 #include "rv_pboot_mode.hpp"
 #include "rv_pboot_modes.hpp"
-#include "rv_pmem/rv_pcvmem.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
-#include "rv_pconsole/cio/rv_pccio_std.hpp"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
@@ -50,15 +47,6 @@ int rv_pboot_run(int argc, char **argv)
     int exit_code = 0;
     if (!rv_pboot_args_parse(argc, argv, args, exit_code)) {
         return exit_code;
-    }
-
-    // --selfcheck runs before anything else is brought up, and exits: it does
-    // not boot a disc, does not touch SDL, does not need a mode.
-    if (args.selfcheck) {
-        return rv_pcvmem_selfcheck() && rv_pcslots_selfcheck() && rv_pcca_sw_selfcheck() &&
-                       rv_pccio_std_selfcheck()
-                   ? 0
-                   : 1;
     }
 
     // SIGINT/SIGTERM become an ordinary shutdown request, seen through

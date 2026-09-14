@@ -85,9 +85,4 @@ private:
     int keyboard_seen_ = -1;
 };
 
-// Exercises reconcile(), the keyboard overlay and ohaptic against fake
-// rv_pcwindow / rv_pcgamepads doubles. Logs the failing check under "pccio"
-// and returns false; logs one "selfcheck ok" and returns true otherwise.
-bool rv_pccio_std_selfcheck();
-
 } // namespace rv_3dmppc

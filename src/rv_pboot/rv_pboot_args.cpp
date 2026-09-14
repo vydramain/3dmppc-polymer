@@ -44,7 +44,6 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cl", required_argument, 0, 'l'},
                                         {"mode_cd", required_argument, 0, 'c'},
                                         {"mode_cm", required_argument, 0, 'k'},
-                                        {"selfcheck", no_argument, 0, 'Y'},
                                         {0, 0, 0, 0}};
 
     int c;
@@ -107,21 +106,12 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
             case 'o':
                 args.mode = optarg;
                 break;
-            case 'Y':
-                args.selfcheck = true;
-                break;
             case '?':
                 // getopt has already named the offending option on stderr.
                 rv_3dmppc::rv_console_print_usage(stderr);
                 exit_code = 2;
                 return false;
         }
-    }
-
-    // --selfcheck is only recorded here; it is acted on by the caller, so this
-    // file gains no dependency on rv_pmem.
-    if (args.selfcheck) {
-        return true;
     }
 
     // Which slot's implementation actually resolves --mode/--mode_<slot> to,

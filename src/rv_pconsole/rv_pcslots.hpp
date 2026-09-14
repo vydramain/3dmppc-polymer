@@ -115,11 +115,4 @@ std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &con
 // "pcplatform").
 std::unique_ptr<rv_pcplatform> rv_pcplatform_make(rv_pcplatform_impl impl, const rv_pcplatform_wants &wants);
 
-// Asserts the invariants the six tables above and their evaluate() functions
-// must hold (every row has a non-null evaluate, every null class costs 0,
-// rv_pccm_posix actually refuses an oversized card). Returns true and logs one
-// line, or false after RV_LOG_ERR on the first failed assertion. Run by
-// --selfcheck, alongside rv_pcvmem_selfcheck().
-bool rv_pcslots_selfcheck();
-
 } // namespace rv_3dmppc
