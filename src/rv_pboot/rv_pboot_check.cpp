@@ -60,7 +60,7 @@ int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
         return RV_OK;
     }
 
-    // Every rv_pcslots field is one of that table's enumerators — there is no
+    // Every rv_pcslots field is one of that table's enumerators - there is no
     // impl a row does not name.
     return RV_ERR_INVAL;
 }
@@ -79,7 +79,7 @@ int64_t rv_pboot_check_budget(
     // Sanity of the declared numbers, identical for every mode and backend:
     // the rasterizer's own memory (cv.*) is required whether cv=null or not
     // (nothing here looks at display bounds), pccio has no on/off switch, and
-    // pcca is always active — a run with no audio device still declares (and
+    // pcca is always active - a run with no audio device still declares (and
     // is charged for) the sound RAM and voices its disc asked for.
     if (bad_field("budget.pcca.voice_count", budget.pcca.voice_count, true) ||
         bad_field("budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, true) ||

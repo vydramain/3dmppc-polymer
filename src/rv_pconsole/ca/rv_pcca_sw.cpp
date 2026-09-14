@@ -20,7 +20,7 @@ namespace
 constexpr int64_t RV_PCCA_ALIGN = RV_PCA_FRAME_BYTES;
 
 // The pool's first bytes are never handed out, so no live region can have
-// address 0 — which is what lets a zero-initialized rv_voice_conf read as
+// address 0 - which is what lets a zero-initialized rv_voice_conf read as
 // "sample_address not set" rather than as a real region. See rv_pcpool.hpp.
 constexpr int64_t RV_PCCA_RESERVED_HEAD = 16;
 
@@ -144,8 +144,8 @@ int64_t rv_pcca_sw::sound_asset_write(int64_t addr, const rv_sample *sample)
         return RV_ERR_INVAL;
     }
 
-    // THEOREM: sample pointers are stable, region contents are not. rv_pcpool
-    // sizes its backing vector once, in its constructor, and never grows it —
+    // sample pointers are stable, region contents are not. rv_pcpool
+    // sizes its backing vector once, in its constructor, and never grows it -
     // malloc only splits BLOCKS, which live in a separate list. So the byte
     // pointer a playing voice holds stays valid for the whole life of the pool,
     // and the voices need no address-to-pointer resolution per frame. What is
@@ -183,8 +183,8 @@ int64_t rv_pcca_sw::sound_asset_free(int64_t addr)
     }
 
     // The contract's RV_ERR_BUSY: a region cannot be released while a voice is
-    // reading it. The question is asked of the VOICES, by address — each one
-    // remembers the sample_address it was armed with — and it is asked under
+    // reading it. The question is asked of the VOICES, by address - each one
+    // remembers the sample_address it was armed with - and it is asked under
     // the same lock the release happens under, so a tail that decays to silence
     // between the check and the free cannot make this answer stale.
     if (mixer_.region_busy_locked(addr)) {
@@ -223,7 +223,7 @@ int64_t rv_pcca_sw::voice_setup(const rv_voice_conf *conf)
     const rv_pcca_meta *meta = sram_.region_meta(conf->sample_address);
     const int64_t frames = meta && meta->written ? meta->frames : 0;
     if (frames <= 0) {
-        // The address is real, so this is not RV_ERR_INVAL — the disc reserved
+        // The address is real, so this is not RV_ERR_INVAL - the disc reserved
         // a region and armed a voice at it before uploading anything. The voice
         // arms and plays nothing.
         RV_LOG_WARN("pcca", "voice setup on empty region {}", conf->sample_address);

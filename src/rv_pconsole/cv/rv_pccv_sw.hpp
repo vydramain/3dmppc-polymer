@@ -1,25 +1,25 @@
 // The console's rv_cv implementation: the "GPU". It owns the four pieces a frame
-// needs — the video RAM pool, the ordering table, the framebuffer and the
-// per-frame primitive buffer — and keeps the finished page for whoever presents
+// needs - the video RAM pool, the ordering table, the framebuffer and the
+// per-frame primitive buffer - and keeps the finished page for whoever presents
 // it (the console hands it to the platform window).
 //
-// PATTERN: retained-mode command buffer. frame_put() does not draw: it validates
+// retained-mode command buffer. frame_put() does not draw: it validates
 // the primitive, COPIES it into a frame-owned vector and files its index in the
 // ordering table. Nothing is rasterized until frame_flush(). That is forced by
 // the contract (pdk/cv/rv_cv.h): the console re-orders primitives by depth, so
 // it cannot know a primitive's turn to draw until every primitive has arrived.
-// The copy is what makes each command self-contained — the disc may free or
+// The copy is what makes each command self-contained - the disc may free or
 // overwrite its own primitive struct the moment frame_put() returns, exactly as
 // with video_asset_write().
 //
-// PATTERN: facade. Every method here is contract semantics (validation, error
+// facade. Every method here is contract semantics (validation, error
 // codes, frame lifecycle) layered over a delegation to one of the four workers;
-// none of the mechanism — first-fit allocation, bucket sort, RGB555 packing,
-// scanline filling — lives in this class. rv_cv is the vocabulary a disc speaks;
+// none of the mechanism - first-fit allocation, bucket sort, RGB555 packing,
+// scanline filling - lives in this class. rv_cv is the vocabulary a disc speaks;
 // rv_pcvram / rv_pcotable / rv_pcfbuf / rv_pcraster are the machine's parts, and
 // they never learn about each other.
 //
-// PATTERN: address resolution at the boundary. This class is the ONLY one that
+// address resolution at the boundary. This class is the ONLY one that
 // knows an rv_polygon::addr_texture is a video RAM address: at flush it turns
 // the addresses into an rv_pctexview (borrowed pointers plus a shape) and hands
 // that down. The rasterizer and the sampler below it stay pool-free, and the
@@ -101,7 +101,7 @@ public:
     }
 
     // Does the memory this controller owns actually exist? Only the vram pool
-    // can fail here — the frame buffer and ordering table size from the same
+    // can fail here - the frame buffer and ordering table size from the same
     // configuration but never reserve host memory that can be refused.
     bool valid() const override
     {
@@ -111,7 +111,7 @@ public:
 private:
     // Contract validation of the fill attributes a polygon and a sprite share.
     // Returns RV_OK or RV_ERR_INVAL. Const because it only interrogates the
-    // vram pool — filing the primitive is the caller's job.
+    // vram pool - filing the primitive is the caller's job.
     int64_t check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const;
 
     // Is `format` one of the rv_texfmt enumerators this console knows?
@@ -120,7 +120,7 @@ private:
     // Resolve the addresses a primitive names into a view the rasterizer can
     // sample. Returns an INVALID view when the primitive does not sample, when
     // the region was never uploaded into, or when an indexed format's palette is
-    // missing — never an error, because frame_put already reported everything
+    // missing - never an error, because frame_put already reported everything
     // the disc can still act on and a flush has no error channel back to it.
     //
     // The view borrows pointers into the pool. They are valid only for the
@@ -135,7 +135,7 @@ private:
         int64_t &addr_palette);
 
     // Drop the frame's commands and their ordering. Does NOT touch the clear
-    // colour or the Z flag — frame_configure sets those and then calls this.
+    // colour or the Z flag - frame_configure sets those and then calls this.
     void frame_reset();
 
     rv_pccv_conf conf_;

@@ -20,7 +20,7 @@ namespace rv_3dmppc
 {
 
 // PATTERN: composition root. This is the single place where the concrete
-// machine is assembled — the platform it is served by, the six controllers,
+// machine is assembled - the platform it is served by, the six controllers,
 // and the geometry they were built from. Nothing below constructs a
 // subsystem: a controller receives what it needs and never reaches sideways
 // for it. There is no host: the console talks only to rv_pcplatform.
@@ -33,8 +33,8 @@ class rv_pconsole
 private:
     rv_pconsole_params params_;
 
-    // BORROWED. Boot creates the platform after the budget check — nothing in
-    // the budget depends on it — and it outlives this console. cio_ borrows
+    // BORROWED. Boot creates the platform after the budget check - nothing in
+    // the budget depends on it - and it outlives this console. cio_ borrows
     // its window and gamepads in turn, which only works because the caller
     // is guaranteed to outlive this console.
     rv_pcplatform &platform_;

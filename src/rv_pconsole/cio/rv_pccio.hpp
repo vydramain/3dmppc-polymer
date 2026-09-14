@@ -1,6 +1,6 @@
 // The console's rv_cio contract. Pure virtual interface.
 //
-// PATTERN: adapter. The platform speaks "devices" (a window's keyboard and
+// adapter. The platform speaks "devices" (a window's keyboard and
 // mouse, physical pads by id); rv_cio speaks "the contract" (stable ports,
 // data-not-status queries, a single error channel). rv_pccio_std is the seam
 // between the two vocabularies.

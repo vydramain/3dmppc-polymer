@@ -1,4 +1,4 @@
-// PATTERN: null object. A run that wants nothing (or a build with no platform
+// null object. A run that wants nothing (or a build with no platform
 // library) still gets an rv_pcplatform: every call below is a no-op that
 // returns the zeroed/absent answer, so callers never branch on "is there a
 // platform".

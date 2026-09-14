@@ -1,6 +1,6 @@
 // The rv_cv contract made abstract: argument validation, the error vocabulary,
 // and addresses in and out. Exactly what "video" means underneath is a choice
-// made by whichever concrete class the console picks — the software GPU
+// made by whichever concrete class the console picks - the software GPU
 // (rv_pccv_sw) or a no-op that still reports the hardware shape the disc
 // declared (rv_pccv_null).
 #pragma once

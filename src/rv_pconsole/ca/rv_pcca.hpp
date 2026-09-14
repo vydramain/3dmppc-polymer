@@ -1,6 +1,6 @@
 // The rv_ca contract made abstract: argument validation, the error vocabulary,
 // and addresses in and out. Exactly what "sound" means underneath is a choice
-// made by whichever concrete class the console picks — the software SPU
+// made by whichever concrete class the console picks - the software SPU
 // (rv_pcca_sw) or a no-op that still reports the hardware shape the disc
 // declared (rv_pcca_null).
 #pragma once

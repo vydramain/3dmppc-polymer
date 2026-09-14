@@ -67,7 +67,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
 
     // What this run's machine actually is: how much RAM the kernel says is
     // available. Whether a physical device actually came up never changes
-    // the budget (rv_pboot_check_budget) — only what the platform itself
+    // the budget (rv_pboot_check_budget) - only what the platform itself
     // logs once it is brought up.
     out.ram_available = rv_pboot_mode_available_ram();
 

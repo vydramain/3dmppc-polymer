@@ -1,6 +1,6 @@
 // The SDL3 audio sink. PUSH model: the platform never advances audio, it only
 // queues what the console already produced onto a device-bound stream. No
-// callback and no mixer pointer live here — that is the opposite direction
+// callback and no mixer pointer live here - that is the opposite direction
 // from the old design, which pulled from the mixer on the device's own
 // thread.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"

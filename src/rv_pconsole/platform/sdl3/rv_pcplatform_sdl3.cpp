@@ -1,5 +1,5 @@
 // The SDL3 platform: bring-up per subsystem, the event pump, and teardown
-// order. Window, gamepad and audio bring-up are independent of one another —
+// order. Window, gamepad and audio bring-up are independent of one another -
 // SDL's own subsystem init is reference counted, so a machine with no sound
 // card still gets its window, a machine with no gamepad driver still gets its
 // window and sound.
@@ -14,7 +14,7 @@ namespace rv_3dmppc
 {
 
 // Destructor order: audio stream, pads, then the window's texture/renderer/
-// window, then SDL_Quit(). Nothing runs in this body — members are destroyed
+// window, then SDL_Quit(). Nothing runs in this body - members are destroyed
 // in reverse declaration order (audio_, gamepads_, window_, quit_guard_ last),
 // each one's own destructor tearing down its SDL handles first, and only once
 // all of them are gone does quit_guard_ call SDL_Quit(). See the member order
@@ -25,7 +25,7 @@ void rv_pcplatform_sdl3::pump()
 {
     // SDL_INIT_GAMEPAD implies the events subsystem, so the queue exists (and
     // is worth draining for arrival/departure and power-off events) even when
-    // video never came up — input must not depend on a window.
+    // video never came up - input must not depend on a window.
     if (!video_up_ && !gamepad_up_) {
         return;
     }
@@ -51,9 +51,9 @@ void rv_pcplatform_sdl3::pump()
         }
     }
 
-    // PATTERN: snapshot polling. The event stream above only tracks device
+    // snapshot polling. The event stream above only tracks device
     // arrival/departure and mouse motion; every device's STATE is re-read
-    // wholesale every frame, which is exactly what rv_cio promises — an
+    // wholesale every frame, which is exactly what rv_cio promises - an
     // instantaneous level, never an edge.
     gamepads_.poll_all();
     if (video_up_) {

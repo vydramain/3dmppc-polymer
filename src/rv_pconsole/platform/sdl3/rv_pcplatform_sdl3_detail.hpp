@@ -1,5 +1,5 @@
 // The SDL3 platform's concrete classes. Included only by the .cpp files under
-// this directory — this is where <SDL3/SDL.h> is allowed to appear in a
+// this directory - this is where <SDL3/SDL.h> is allowed to appear in a
 // header, because nothing outside platform/sdl3/ ever includes this file.
 #pragma once
 

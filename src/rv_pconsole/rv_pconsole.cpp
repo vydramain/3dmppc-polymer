@@ -121,7 +121,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     //
     // A window that was not wanted (rv_pcplatform_wants::window == false)
     // opens nothing and answers RV_OK; a window that was wanted and refused
-    // to come up is a WARNING, not a stop — the disc runs unpresented instead
+    // to come up is a WARNING, not a stop - the disc runs unpresented instead
     // of not running at all.
     const int64_t opened = platform_.window().open(
         disc->disc_title(disc->self), cv_->screen_width(), cv_->screen_height(), params_.scale);
@@ -151,10 +151,10 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     const uint64_t target_fps = params_.target_fps ? params_.target_fps : 60;
     const std::chrono::duration<double> frame_budget{ 1.0 / static_cast<double>(target_fps) };
 
-    // THEOREM: one timeline. Frame N is exactly N/target_fps of machine time
+    // one timeline. Frame N is exactly N/target_fps of machine time
     // in every mode: dt never varies with wall clock or with the audio
     // device. The wall clock and the audio device only decide WHEN the next
-    // tick runs, never how long it is — a host too slow gets slow motion,
+    // tick runs, never how long it is - a host too slow gets slow motion,
     // never a jump, and -F is reproducible frame for frame.
     const float dt = 1.0f / static_cast<float>(target_fps);
 
@@ -185,7 +185,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         platform_.pump();
 
         // The power switch. A closed window or SIGINT/SIGTERM is the
-        // console's own shutdown path — rv_de::disc_release() is the disc
+        // console's own shutdown path - rv_de::disc_release() is the disc
         // ASKING to stop, and pulling the plug was never the disc's decision.
         if (platform_.quit_requested()) {
             RV_LOG_INFO("pconsole", "shutdown requested (window closed or SIGINT/SIGTERM) after {} frame(s)",
@@ -205,7 +205,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
             platform_.window().present(argb);
         }
 
-        // THEOREM: Bresenham accumulator. N frames give exactly
+        // Bresenham accumulator. N frames give exactly
         // floor(N * rate / fps) samples, with zero drift, because the
         // remainder of every division is carried forward instead of dropped.
         audio_phase += RV_PCCA_PCM_RATE;
@@ -262,7 +262,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
             }
             if (stalled) {
                 // Switch pacing for every following frame; the run itself
-                // keeps going — only the wait ABOVE is abandoned. The next
+                // keeps going - only the wait ABOVE is abandoned. The next
                 // frame's quit_requested() check is what ends the run if the
                 // stall was actually a closed window or a signal.
                 pacing = rv_pcpacing::clock;

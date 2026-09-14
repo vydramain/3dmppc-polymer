@@ -27,7 +27,7 @@ struct rv_pboot_preset {
 };
 
 // "headless": the same virtual machine as "default", just with no platform
-// underneath it — nothing about the disc's machine changes, only whether a
+// underneath it - nothing about the disc's machine changes, only whether a
 // real window/pads/audio device serve it.
 constexpr rv_pcslots rv_pboot_headless_slots()
 {

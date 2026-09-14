@@ -16,7 +16,7 @@ namespace
 
 // What the keyboard overlay on port 0 is able to report. A keyboard has no
 // analog anything, but the layout below drives the sticks digitally, so the
-// stick sources are advertised honestly — a disc that asks "can port 0 give me
+// stick sources are advertised honestly - a disc that asks "can port 0 give me
 // a left stick?" gets yes, and gets +-1 values.
 constexpr uint64_t RV_PCWINDOW_SDL3_KEYBOARD_ABILITIES =
     RV_ISOURCE_FRONT_BTTN_SOUTH | RV_ISOURCE_FRONT_BTTN_EAST | RV_ISOURCE_FRONT_BTTN_WEST |
@@ -29,7 +29,7 @@ constexpr uint64_t RV_PCWINDOW_SDL3_KEYBOARD_ABILITIES =
     RV_ISOURCE_RIGHT_STICK_DPAD_NORTH | RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH |
     RV_ISOURCE_RIGHT_STICK_DPAD_WEST | RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
 
-// THEOREM: sectorization. An analog stick becomes four digital directions by
+// sectorization. An analog stick becomes four digital directions by
 // comparing |x| against |y|: the dominant axis picks the sector, its sign
 // picks the side. This is the diagonal-free 4-way reading; a disc that wants
 // the diagonals reads the raw axes instead.
@@ -70,8 +70,8 @@ rv_pcwindow_sdl3::~rv_pcwindow_sdl3()
 int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t screen_height,
     uint64_t scale)
 {
-    // PATTERN: null object. cv=null means no window was ever wanted, and that
-    // is a successful no-op, not a failure — RV_ERR_IO is reserved for a
+    // null object. cv=null means no window was ever wanted, and that
+    // is a successful no-op, not a failure - RV_ERR_IO is reserved for a
     // window that WAS wanted and could not be made.
     if (!wanted_) {
         return RV_OK;
@@ -168,7 +168,7 @@ void rv_pcwindow_sdl3::note_close()
 
 void rv_pcwindow_sdl3::add_mouse(float dx, float dy)
 {
-    // rv_cio::imouse is variant B — motion relative to the previous poll — so
+    // rv_cio::imouse is variant B - motion relative to the previous poll - so
     // the deltas accumulate here and are drained on read.
     mouse_dx_ += dx;
     mouse_dy_ += dy;
@@ -217,7 +217,7 @@ void rv_pcwindow_sdl3::snapshot_keyboard()
 
     // WASD drives the left stick, IJKL the right one. Digital keys can only
     // produce the corners of the square, so the values are +-1 with no dead
-    // zone to apply — the stick helper would only rescale a magnitude that is
+    // zone to apply - the stick helper would only rescale a magnitude that is
     // already saturated.
     const float wasd_x =
         (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);

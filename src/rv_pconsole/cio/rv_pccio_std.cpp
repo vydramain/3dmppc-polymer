@@ -97,7 +97,7 @@ uint64_t rv_pccio_std::keyboard_abilities()
     return abilities;
 }
 
-// Static capability mask. An empty or out-of-range slot reads as 0 — the
+// Static capability mask. An empty or out-of-range slot reads as 0 - the
 // contract's "the query methods report data, not status": there is no error
 // channel here to report a bad index through, and a disc that probes port 7 on
 // a two-port machine legally gets "this port can do nothing".
@@ -149,9 +149,9 @@ rv_istate rv_pccio_std::iport_state(int64_t port)
     return state;
 }
 
-// PATTERN: tagged-union dispatch. rv_oheffect::type is a TAG (exactly one kind
+// tagged-union dispatch. rv_oheffect::type is a TAG (exactly one kind
 // per call), not a combinable mask, so this is a switch that selects both the
-// active `data` member and the gamepads call — never a loop over set bits.
+// active `data` member and the gamepads call - never a loop over set bits.
 //
 // This is the only method in rv_cio with an error channel, so it is also the
 // only place a bad port index is a failure rather than a zero read.
@@ -187,7 +187,7 @@ int64_t rv_pccio_std::ohaptic(int64_t port, rv_oheffect effect)
     case RV_HAPTIC_EFFECT_LEFT_RIGHT_PULSE:
         // DEFERRED. The payload is a TIMED pulse train (on_time_us /
         // off_time_us / repeat_count), i.e. a small effect that has to be
-        // stepped across frames — the platform currently offers only fire-
+        // stepped across frames - the platform currently offers only fire-
         // and-forget rumble with a duration, and there is no effect scheduler
         // to hang the train on. Rejecting is honest; faking it with one long
         // buzz would lie about what the machine did.

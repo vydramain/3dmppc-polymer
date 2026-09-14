@@ -2,11 +2,11 @@
 // voices reading out of it, and a mixer summing them into the PCM the console
 // timeline asks for.
 //
-// The split is the usual one for this tree — this class is the CONTRACT SURFACE
+// The split is the usual one for this tree - this class is the CONTRACT SURFACE
 // (argument validation, the error vocabulary, addresses in and out) and owns
 // nothing that makes noise; rv_pcmixer owns the voices; rv_pcvoice owns the
 // arithmetic. Sound RAM is the same rv_pcpool the video side uses, with a
-// different Meta — see rv_pconsole/cv/rv_pcvram.hpp, which is the same idea for
+// different Meta - see rv_pconsole/cv/rv_pcvram.hpp, which is the same idea for
 // textures.
 //
 // Built whenever ca=sw. Needs no audio device: the console timeline advances it

@@ -9,7 +9,7 @@
 // same sample from opposite sides at once.
 //
 // Knows nothing about any platform, about the mixer that owns it, or about the
-// pool the bytes live in — it borrows a pointer and a frame count and does
+// pool the bytes live in - it borrows a pointer and a frame count and does
 // arithmetic.
 #pragma once
 

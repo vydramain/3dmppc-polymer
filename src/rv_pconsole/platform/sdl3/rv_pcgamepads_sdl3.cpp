@@ -1,6 +1,6 @@
 // The SDL3 gamepads: which pads are connected, their static abilities, and
 // the per-frame live snapshot. Which virtual port a pad drives is cio's job,
-// not this class's — every pad SDL reports is opened here.
+// not this class's - every pad SDL reports is opened here.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
 #include <cmath>
@@ -20,7 +20,7 @@ namespace
 constexpr float RV_PCGAMEPADS_SDL3_STICK_DEADZONE = 0.25f;
 
 // A trigger past SOFT is "being pulled" (the liveness bit), past FULL is
-// bottomed out — the two-stage pull the rv_isource vocabulary asks for.
+// bottomed out - the two-stage pull the rv_isource vocabulary asks for.
 constexpr float RV_PCGAMEPADS_SDL3_TRIGGER_SOFT = 0.15f;
 constexpr float RV_PCGAMEPADS_SDL3_TRIGGER_FULL = 0.90f;
 

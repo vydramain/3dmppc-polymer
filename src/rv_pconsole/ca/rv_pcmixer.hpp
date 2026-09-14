@@ -2,12 +2,12 @@
 // stream the console timeline asks for.
 //
 // render() is called on the console thread by rv_pcca::advance() once per
-// frame; nothing reaches the mixer from a second thread any more — the
+// frame; nothing reaches the mixer from a second thread any more - the
 // platform only plays PCM this already produced, queued.
 //
 // DECISION (do not re-litigate): setup/play/stop/status and render() still go
 // through ONE MUTEX, not a lock-free command queue. The critical section is a
-// few dozen microseconds of arithmetic over 24 fixed-size voice structs — it
+// few dozen microseconds of arithmetic over 24 fixed-size voice structs - it
 // does not allocate, it does not block, it cannot recurse, and it holds no
 // lock while calling anything else.
 //

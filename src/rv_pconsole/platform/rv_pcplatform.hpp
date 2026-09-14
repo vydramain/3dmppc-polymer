@@ -10,7 +10,7 @@
 // console timeline (rv_pconsole::disc_run) is the only thing that moves the
 // machine.
 //
-// PATTERN: null object. A service the run did not ask for (rv_pcplatform_wants)
+// null object. A service the run did not ask for (rv_pcplatform_wants)
 // or that refused to come up behaves as absent: open() is a successful no-op,
 // abilities read 0, the sink is unavailable. Callers never branch on "is there
 // a platform".

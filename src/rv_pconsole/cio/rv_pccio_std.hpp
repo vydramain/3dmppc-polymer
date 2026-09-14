@@ -30,7 +30,7 @@ public:
     }
 
     // The peak host bytes this class allocates for `budget`:
-    // iport_count * sizeof(rv_pccio_std_port) — ports_, one rv_pccio_std_port
+    // iport_count * sizeof(rv_pccio_std_port) - ports_, one rv_pccio_std_port
     // per port.
     static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
@@ -65,7 +65,7 @@ private:
     // ignored until it reconnects.
     void reconcile();
 
-    // What the keyboard layout can report, in rv_isource bits — 0 while no
+    // What the keyboard layout can report, in rv_isource bits - 0 while no
     // window exists, logged whenever it changes.
     uint64_t keyboard_abilities();
 
