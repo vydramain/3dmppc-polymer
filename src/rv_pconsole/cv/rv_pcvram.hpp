@@ -27,6 +27,10 @@ struct rv_pcvram_meta {
 class rv_pcvram
 {
 public:
+    // Every region starts on a 4-byte boundary: the pool holds 16-bit texels
+    // and palette entries, and an unaligned region costs byte-wise reads.
+    static constexpr int64_t RV_PCVRAM_ALIGN = 4;
+
     explicit rv_pcvram(int64_t size);
 
     // Reserve `size` bytes. Returns the region address (> 0), or RV_ERR_INVAL

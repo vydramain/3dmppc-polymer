@@ -56,9 +56,18 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
 {
     rv_pcbudget_cost cost;
 
-    // sram_ (rv_pcpool<rv_pcca_meta>): the pool is exactly sound_memory_size
-    // bytes, no product involved.
+    // sram_ (rv_pcpool<rv_pcca_meta>): the pool region is exactly sound_memory_size
+    // bytes.
     if (rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size)) {
+        return cost;
+    }
+
+    // sram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
+    int64_t sram_blocks_bytes = 0;
+    if (rv_pcbudget_mul(cost, "budget.pcca.sound_memory_size",
+            rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
+            rv_pcpool<rv_pcca_meta>::block_bytes(), sram_blocks_bytes) ||
+        rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes)) {
         return cost;
     }
 

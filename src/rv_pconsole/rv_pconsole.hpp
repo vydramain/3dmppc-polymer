@@ -64,6 +64,7 @@ private:
     // largest a single frame can ever need: (RV_PCCA_PCM_RATE /
     // target_fps + 1) stereo frames, so a fractional-remainder frame from the
     // Bresenham accumulator in disc_run never overruns it.
+    // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
 
 public:

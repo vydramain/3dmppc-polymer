@@ -47,6 +47,17 @@ template <typename Meta>
 class rv_pcpool
 {
 public:
+    // Most blocks a pool of `size` bytes can ever hold: every block except the
+    // reserved head and an unaligned tail spans at least `alignment` bytes.
+    static constexpr int64_t max_blocks(int64_t size, int64_t alignment)
+    {
+        return size / (alignment > 0 ? alignment : 1) + 2;
+    }
+    static constexpr int64_t block_bytes()
+    {
+        return static_cast<int64_t>(sizeof(rv_pcpool_block));
+    }
+
     // `alignment` is the boundary every region starts on; `reserved_head` is a
     // prefix of the pool that is never handed out.
     rv_pcpool(int64_t size, int64_t alignment, int64_t reserved_head)
@@ -54,6 +65,11 @@ public:
         , capacity_(size > 0 ? size : 0)
         , alignment_(alignment > 0 ? alignment : 1)
     {
+        // Reserved once: blocks_ never reallocates, so its cost is exactly max_blocks() * block_bytes().
+        if (size > 0) {
+            blocks_.reserve(static_cast<size_t>(max_blocks(size, alignment)));
+        }
+
         // The block list only ever spans bytes the vmem actually reserved. A
         // failed reservation reports its declared capacity() honestly but has
         // no usable free space to hand out: the whole pool is the (used,

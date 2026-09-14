@@ -42,6 +42,15 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
         return cost;
     }
 
+    // vram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
+    int64_t vram_blocks_bytes = 0;
+    if (rv_pcbudget_mul(cost, "budget.pccv.video_memory_size",
+            rv_pcpool<rv_pcvram_meta>::max_blocks(budget.pccv.video_memory_size, rv_pcvram::RV_PCVRAM_ALIGN),
+            rv_pcpool<rv_pcvram_meta>::block_bytes(), vram_blocks_bytes) ||
+        rv_pcbudget_add(cost, "budget.pccv.video_memory_size", vram_blocks_bytes)) {
+        return cost;
+    }
+
     // fbuf_ (rv_pcfbuf): width * height * bytes-per-pixel.
     int64_t pixels = 0;
     int64_t fbuf_bytes = 0;
