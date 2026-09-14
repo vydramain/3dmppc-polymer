@@ -80,6 +80,27 @@ endif()
 # a newly added .cpp is picked up without re-running cmake by hand.
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
+
+# --- the SDL3 platform ----------------------------------------------------------
+# The only code that may see SDL. It is its own library with SDL linked PRIVATE,
+# so SDL's include path never reaches the console: an #include <SDL3/SDL.h>
+# anywhere outside src/rv_pconsole/platform/sdl3/ fails to compile instead of
+# being caught in review. The console reaches it only through rv_pcplatform
+# (src/rv_pconsole/platform/rv_pcplatform.hpp).
+file(GLOB_RECURSE 3DMPPC_PLATFORM_SDL3_SOURCES CONFIGURE_DEPENDS
+  ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/sdl3/*.cpp
+)
+add_library(3dmppc_platform_sdl3 STATIC ${3DMPPC_PLATFORM_SDL3_SOURCES})
+target_include_directories(3dmppc_platform_sdl3 PRIVATE src)
+target_link_libraries(3dmppc_platform_sdl3 PRIVATE SDL3::SDL3 3dmppc_pdk 3dmppc_pdklib)
+target_compile_definitions(3dmppc_platform_sdl3 PRIVATE RV_LOG_ORIGIN="mppc")
+
+if(MSVC)
+  target_compile_options(3dmppc_platform_sdl3 PRIVATE /W4)
+else()
+  target_compile_options(3dmppc_platform_sdl3 PRIVATE -Wall -Wextra)
+endif()
 
 # --- PDK -> LuaJIT ffi.cdef bridge ---------------------------------------------
 # ffi.cdef() takes a STRING of C declarations - it cannot follow #include and it
@@ -128,6 +149,7 @@ set_target_properties(3dmppc PROPERTIES
 
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
+target_link_libraries(3dmppc PRIVATE 3dmppc_platform_sdl3)
 target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
