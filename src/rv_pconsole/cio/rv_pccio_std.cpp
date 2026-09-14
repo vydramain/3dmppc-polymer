@@ -10,15 +10,16 @@
 namespace rv_3dmppc
 {
 
-int64_t rv_pccio_std::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+rv_pcbudget_cost rv_pccio_std::evaluate(const rv_pdklib::rv_manifest_budget &budget)
 {
+    rv_pcbudget_cost cost;
     int64_t total = 0;
-    if (rv_pcbudget_mul("budget.pccio.iport_count", budget.pccio.iport_count,
-            static_cast<int64_t>(sizeof(rv_pccio_std_port)), total)) {
-        return RV_ERR_INVAL;
+    if (rv_pcbudget_mul(cost, "budget.pccio.iport_count", budget.pccio.iport_count,
+            static_cast<int64_t>(sizeof(rv_pccio_std_port)), total) ||
+        rv_pcbudget_add(cost, "budget.pccio.iport_count", total)) {
+        return cost;
     }
-    bytes = total;
-    return RV_OK;
+    return cost;
 }
 
 int64_t rv_pccio_std::iport_count()

@@ -5,10 +5,9 @@
 namespace rv_3dmppc
 {
 
-int64_t rv_pccd_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes)
+rv_pcbudget_cost rv_pccd_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/)
 {
-    bytes = 0;
-    return RV_OK;
+    return {};
 }
 
 int64_t rv_pccd_null::asset_open(const char * /*resname*/)

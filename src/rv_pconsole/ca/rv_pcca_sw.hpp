@@ -56,11 +56,11 @@ public:
     rv_pcca_sw(const rv_pcca_sw &) = delete;
     rv_pcca_sw &operator=(const rv_pcca_sw &) = delete;
 
-    // RV_OK plus the peak host bytes this class allocates for `budget`:
-    // sram_ (sound_memory_size) + mixer_'s voices (one rv_pcvoice each) and
+    // The peak host bytes this class allocates for `budget`: sram_
+    // (sound_memory_size) + mixer_'s voices (one rv_pcvoice each) and
     // its fixed render accumulator. Never fails — every field it reads was
     // already validated as non-negative by boot stage E3's contract check.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t voice_count() override;
 

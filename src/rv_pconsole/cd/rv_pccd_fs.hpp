@@ -47,8 +47,8 @@ class rv_pccd_fs final : public rv_pccd {
     rv_pccd_fs& operator=(const rv_pccd_fs&) = delete;
 
     // The drive reads assets out of the disc's own archive, not out of a
-    // budgeted pool: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget& budget, int64_t& bytes);
+    // budgeted pool: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget& budget);
 
     int64_t asset_open(const char* resname) override;
 

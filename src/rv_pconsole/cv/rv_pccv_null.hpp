@@ -19,8 +19,8 @@ class rv_pccv_null final : public rv_pccv
 public:
     explicit rv_pccv_null(const rv_pccv_conf &conf);
 
-    // No pool, no framebuffer, no ordering table: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No pool, no framebuffer, no ordering table: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     // --- hardware geometry: straight out of the configuration ---
 

@@ -8,10 +8,9 @@
 namespace rv_3dmppc
 {
 
-int64_t rv_pcca_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes)
+rv_pcbudget_cost rv_pcca_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/)
 {
-    bytes = 0;
-    return RV_OK;
+    return {};
 }
 
 rv_pcca_null::rv_pcca_null(const rv_pcca_conf &conf)

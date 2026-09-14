@@ -19,8 +19,8 @@ class rv_pccl_null final : public rv_pccl
 public:
     rv_pccl_null();
 
-    // No VM: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No VM: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t script_load(const void *bytecode, int64_t size, const char *name) override;
     int64_t script_free(int64_t handle) override;

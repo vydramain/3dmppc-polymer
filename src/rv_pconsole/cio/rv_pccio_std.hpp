@@ -29,10 +29,10 @@ public:
     {
     }
 
-    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // The peak host bytes this class allocates for `budget`:
     // iport_count * sizeof(rv_pccio_std_port) — ports_, one rv_pccio_std_port
     // per port.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t iport_count() override;
 

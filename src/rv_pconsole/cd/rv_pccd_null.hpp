@@ -16,8 +16,8 @@ class rv_pccd_null final : public rv_pccd
 public:
     rv_pccd_null() = default;
 
-    // No drive: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No drive: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t asset_open(const char *resname) override;
 

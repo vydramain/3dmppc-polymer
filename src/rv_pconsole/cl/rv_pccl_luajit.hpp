@@ -68,10 +68,10 @@ public:
     rv_pccl_luajit(const rv_pccl_luajit &) = delete;
     rv_pccl_luajit &operator=(const rv_pccl_luajit &) = delete;
 
-    // RV_OK plus the peak host bytes this class allocates for `budget`:
+    // The peak host bytes this class allocates for `budget`:
     // budget_ (script_memory_size), the lua_Alloc ceiling this class enforces
     // on the VM's own heap.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     // A VM that failed to come up is the only FALSE: the console refuses to
     // boot on that, so no contract method below is ever reached with L_ null

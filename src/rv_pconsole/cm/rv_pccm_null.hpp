@@ -19,8 +19,8 @@ private:
 public:
     explicit rv_pccm_null(const rv_pccm_conf &conf);
 
-    // No card image: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No card image: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t card_slots() override;
 

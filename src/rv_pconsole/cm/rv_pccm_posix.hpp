@@ -25,12 +25,12 @@ public:
     explicit rv_pccm_posix(const rv_pccm_conf &conf);
     ~rv_pccm_posix() = default;
 
-    // RV_OK plus the peak host bytes card_ (rv_pccard's image_) allocates for
-    // `budget`: header + one length entry per slot + the slot payloads
-    // themselves — or RV_ERR_INVAL when that image would be over
+    // The peak host bytes card_ (rv_pccard's image_) allocates for `budget`:
+    // header + one length entry per slot + the slot payloads themselves,
+    // or a refusal when that image would be over
     // rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES, the same refusal rv_pccard would
     // otherwise only log after construction.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t card_slots() override;
 

@@ -33,50 +33,49 @@ constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
 } // namespace
 
-int64_t rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget)
 {
-    int64_t total = 0;
+    rv_pcbudget_cost cost;
 
     // vram_ (rv_pcvram pool): exactly video_memory_size bytes.
-    if (rv_pcbudget_add("budget.pccv.video_memory_size", total, budget.pccv.video_memory_size)) {
-        return RV_ERR_INVAL;
+    if (rv_pcbudget_add(cost, "budget.pccv.video_memory_size", budget.pccv.video_memory_size)) {
+        return cost;
     }
 
     // fbuf_ (rv_pcfbuf): width * height * bytes-per-pixel.
     int64_t pixels = 0;
     int64_t fbuf_bytes = 0;
-    if (rv_pcbudget_mul("budget.pccv.screen_width * screen_height", budget.pccv.screen_width,
+    if (rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height", budget.pccv.screen_width,
             budget.pccv.screen_height, pixels) ||
-        rv_pcbudget_mul("budget.pccv.screen_width * screen_height * bytes_per_pixel", pixels,
+        rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel", pixels,
             rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL, fbuf_bytes) ||
-        rv_pcbudget_add("budget.pccv.screen_width * screen_height * bytes_per_pixel", total,
+        rv_pcbudget_add(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel",
             fbuf_bytes)) {
-        return RV_ERR_INVAL;
+        return cost;
     }
 
     // otable_ (rv_pcotable): head_/tail_ per bucket, plus one next_ link per
     // primitive up to frame_capacity.
     int64_t otable_bucket_bytes = 0;
     int64_t otable_next_bytes = 0;
-    if (rv_pcbudget_mul("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count,
+    if (rv_pcbudget_mul(cost, "budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count,
             rv_pcotable::RV_PCOTABLE_BYTES_PER_BUCKET, otable_bucket_bytes) ||
-        rv_pcbudget_add("budget.pccv.ot_bucket_count", total, otable_bucket_bytes) ||
-        rv_pcbudget_mul("budget.pccv.frame_capacity", budget.pccv.frame_capacity,
+        rv_pcbudget_add(cost, "budget.pccv.ot_bucket_count", otable_bucket_bytes) ||
+        rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
             rv_pcotable::RV_PCOTABLE_BYTES_PER_PRIMITIVE, otable_next_bytes) ||
-        rv_pcbudget_add("budget.pccv.frame_capacity", total, otable_next_bytes)) {
-        return RV_ERR_INVAL;
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", otable_next_bytes)) {
+        return cost;
     }
 
     // primitives_ (primitives_.reserve(frame_capacity)): frame_capacity * sizeof(rv_primitive).
     int64_t primitives_bytes = 0;
-    if (rv_pcbudget_mul("budget.pccv.frame_capacity", budget.pccv.frame_capacity,
+    if (rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
             static_cast<int64_t>(sizeof(rv_primitive)), primitives_bytes) ||
-        rv_pcbudget_add("budget.pccv.frame_capacity", total, primitives_bytes)) {
-        return RV_ERR_INVAL;
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", primitives_bytes)) {
+        return cost;
     }
 
-    bytes = total;
-    return RV_OK;
+    return cost;
 }
 
 rv_pccv_sw::rv_pccv_sw(const rv_pccv_conf &conf)

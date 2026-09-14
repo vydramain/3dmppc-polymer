@@ -24,8 +24,8 @@ private:
 public:
     explicit rv_pcca_null(const rv_pcca_conf &conf);
 
-    // No pool, no mixer: always RV_OK, always 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No pool, no mixer: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t voice_count() override;
 

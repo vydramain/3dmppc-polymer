@@ -83,11 +83,10 @@ local _ = pdk.cv_screen_width -- boot-time proof the wiring actually resolves
 )lua";
 } // namespace
 
-int64_t rv_pccl_luajit::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+rv_pcbudget_cost rv_pccl_luajit::evaluate(const rv_pdklib::rv_manifest_budget &budget)
 {
     // budget_ (this class's own lua_Alloc ceiling): exactly script_memory_size.
-    bytes = budget.pccl.script_memory_size;
-    return RV_OK;
+    return { budget.pccl.script_memory_size, {} };
 }
 
 rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)

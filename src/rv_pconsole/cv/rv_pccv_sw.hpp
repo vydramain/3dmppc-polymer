@@ -57,11 +57,11 @@ public:
     rv_pccv_sw(const rv_pccv_sw &) = delete;
     rv_pccv_sw &operator=(const rv_pccv_sw &) = delete;
 
-    // RV_OK plus the peak host bytes this class allocates for `budget`:
-    // vram_ (video_memory_size) + fbuf_ (screen_width * screen_height *
+    // The peak host bytes this class allocates for `budget`: vram_
+    // (video_memory_size) + fbuf_ (screen_width * screen_height *
     // bytes-per-pixel) + otable_ (bucket links plus one next_ link per
     // primitive up to frame_capacity) + primitives_.reserve(frame_capacity).
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     // --- hardware geometry: straight out of the configuration ---
 

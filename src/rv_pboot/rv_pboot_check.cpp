@@ -35,25 +35,29 @@ bool bad_field(const char *field, int64_t value, bool active)
 }
 
 // Find the row in `table` whose impl matches `impl`, call its evaluate(),
-// log the answer, and fold it into `total`. Returns RV_OK or RV_ERR_INVAL —
-// from the class's own refusal, or from an overflowing sum.
+// report a refusal with the slot and implementation, and fold the cost into
+// `total`. Returns RV_OK or RV_ERR_INVAL.
 template <typename Table, typename Impl>
 int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
-    const rv_pdklib::rv_manifest_budget &budget, int64_t &total)
+    const rv_pdklib::rv_manifest_budget &budget, rv_pcbudget_cost &total)
 {
     for (const auto &row : table) {
         if (row.impl != impl) {
             continue;
         }
 
-        int64_t bytes = 0;
-        const int64_t rc = row.evaluate(budget, bytes);
-        if (rc != RV_OK) {
-            return rc;
+        const rv_pcbudget_cost cost = row.evaluate(budget);
+        if (!cost.reason.empty()) {
+            RV_LOG_ERR("pccheck", "{}={} refuses this budget: {}", slot, row.name, cost.reason);
+            return RV_ERR_INVAL;
         }
 
-        RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, bytes);
-        return rv_pcbudget_add(slot, total, bytes) ? RV_ERR_INVAL : RV_OK;
+        RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, cost.bytes);
+        if (rv_pcbudget_add(total, slot, cost.bytes)) {
+            RV_LOG_ERR("pccheck", "{}={}: {}", slot, row.name, total.reason);
+            return RV_ERR_INVAL;
+        }
+        return RV_OK;
     }
 
     // Every rv_pcslots field is one of that table's enumerators — there is no
@@ -106,7 +110,7 @@ int64_t rv_pboot_check_budget(
 
     // Every field above is now known non-negative (and positive where
     // required), so every evaluate() below may assume that too.
-    int64_t total = 0;
+    rv_pcbudget_cost total;
     int64_t rc = RV_OK;
     if ((rc = evaluate_slot(RV_PCSLOTS_CA, slots.ca, "ca", budget, total)) < 0 ||
         (rc = evaluate_slot(RV_PCSLOTS_CV, slots.cv, "cv", budget, total)) < 0 ||
@@ -120,12 +124,12 @@ int64_t rv_pboot_check_budget(
     // Compare against what the machine actually has.
     if (machine.ram_available < 0) {
         RV_LOG_ERR("pccheck",
-            "machine RAM unknown, cannot show disc's {} byte(s) fit", total);
+            "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
         return RV_ERR_INVAL;
     }
 
-    if (total > machine.ram_available) {
-        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total,
+    if (total.bytes > machine.ram_available) {
+        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes,
             machine.ram_available);
         return RV_ERR_INVAL;
     }

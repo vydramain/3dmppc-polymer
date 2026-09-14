@@ -15,8 +15,8 @@ class rv_pccio_null final : public rv_pccio
 public:
     explicit rv_pccio_null(const rv_pccio_conf &conf);
 
-    // No ports: always RV_OK, 0 bytes.
-    static int64_t evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes);
+    // No ports: always 0 bytes.
+    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
     int64_t iport_count() override;
 
