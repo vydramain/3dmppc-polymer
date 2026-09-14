@@ -26,9 +26,22 @@ struct rv_pboot_preset {
     rv_pcslots slots;
 };
 
+// "headless": the same virtual machine as "default", just with no platform
+// underneath it — nothing about the disc's machine changes, only whether a
+// real window/pads/audio device serve it.
+constexpr rv_pcslots rv_pboot_headless_slots()
+{
+    rv_pcslots slots;
+    slots.platform = rv_pcplatform_impl::null;
+    return slots;
+}
+
 // Built-in preset table, compiled in and mandatory: the console always has
-// at least "sdl3" to fall back to, even before any preset FILE exists.
-constexpr rv_pboot_preset RV_PBOOT_BUILTIN_PRESETS[] = { { "sdl3", rv_pcslots{} } };
+// at least "default" to fall back to, even before any preset FILE exists.
+constexpr rv_pboot_preset RV_PBOOT_BUILTIN_PRESETS[] = {
+    { "default", rv_pcslots{} },
+    { "headless", rv_pboot_headless_slots() },
+};
 
 // The runtime table a run actually resolves against: the built-in table,
 // with a preset FILE's `[mode.NAME]` sections merged in on top (same name
@@ -152,7 +165,9 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
             }
             seen_keys.push_back(entry.key);
 
-            if (entry.key == "ca") {
+            if (entry.key == "platform") {
+                lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
+            } else if (entry.key == "ca") {
                 lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
             } else if (entry.key == "cv") {
                 lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
@@ -284,7 +299,8 @@ bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exi
         return false;
     }
 
-    if (!apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code) ||
+    if (!apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform, slots.platform, exit_code) ||
+        !apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code) ||
         !apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code) ||
         !apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code) ||
         !apply_override(RV_PCSLOTS_CL, "cl", args.mode_cl, slots.cl, exit_code) ||

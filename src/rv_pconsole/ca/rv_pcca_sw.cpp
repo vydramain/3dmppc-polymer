@@ -1,4 +1,4 @@
-#include "rv_pconsole/ca/rv_pcca_sdl3.hpp"
+#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/rv_err.h"
@@ -48,7 +48,7 @@ int64_t voices_mask(int64_t count)
 
 } // namespace
 
-int64_t rv_pcca_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+int64_t rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
 {
     int64_t total = 0;
 
@@ -74,15 +74,11 @@ int64_t rv_pcca_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int6
     return RV_OK;
 }
 
-rv_pcca_sdl3::rv_pcca_sdl3(const rv_pcca_conf &conf, rv_pchost_sdl3 &host)
+rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
     : conf_(conf)
-    , host_(host)
     , sram_(conf.sound_memory_size, RV_PCCA_ALIGN, RV_PCCA_RESERVED_HEAD)
     , mixer_(clamp_voice_count(conf.voice_count))
 {
-    // The device already exists by the time this constructor runs — the host
-    // brought it up at stage C, in prepare(), before any disc was loaded. This
-    // class only builds the sound RAM and the mixer the device pulls from.
     if (!sram_.valid()) {
         RV_LOG_ERR("pcca", "failed to reserve {} byte(s) of sound RAM", conf.sound_memory_size);
     }
@@ -93,7 +89,6 @@ rv_pcca_sdl3::rv_pcca_sdl3(const rv_pcca_conf &conf, rv_pchost_sdl3 &host)
     }
 
     mixer_.set_muted(conf_.mute);
-    host_.attach_mixer(mixer_);
 
     // "virtual" is worth the four extra characters here: the byte count sits
     // next to a real audio device in the log, and a reader must not take it for
@@ -102,26 +97,17 @@ rv_pcca_sdl3::rv_pcca_sdl3(const rv_pcca_conf &conf, rv_pchost_sdl3 &host)
         sram_.capacity(), conf_.mute ? ", muted" : "");
 }
 
-rv_pcca_sdl3::~rv_pcca_sdl3()
-{
-    // Unbind the mixer before it (and sram_, which its voices point into) is
-    // destroyed. The device itself is NOT closed here: it belongs to the
-    // host's lifetime (stage C), not to this disc's — this disc did not open
-    // it and must not close it.
-    host_.detach_mixer();
-}
-
-int64_t rv_pcca_sdl3::voice_count()
+int64_t rv_pcca_sw::voice_count()
 {
     return mixer_.voice_count();
 }
 
-int64_t rv_pcca_sdl3::sound_memory_size()
+int64_t rv_pcca_sw::sound_memory_size()
 {
     return sram_.capacity();
 }
 
-int64_t rv_pcca_sdl3::validate_mask(int64_t voice_mask) const
+int64_t rv_pcca_sw::validate_mask(int64_t voice_mask) const
 {
     // Negative is not a mask at all (bits 0..62), zero names nobody, and a bit
     // above the last voice names hardware this console does not have. All three
@@ -135,12 +121,12 @@ int64_t rv_pcca_sdl3::validate_mask(int64_t voice_mask) const
     return RV_OK;
 }
 
-int64_t rv_pcca_sdl3::sound_asset_malloc(int64_t size)
+int64_t rv_pcca_sw::sound_asset_malloc(int64_t size)
 {
     return sram_.malloc(size);
 }
 
-int64_t rv_pcca_sdl3::sound_asset_write(int64_t addr, const rv_sample *sample)
+int64_t rv_pcca_sw::sound_asset_write(int64_t addr, const rv_sample *sample)
 {
     if (!sample) {
         return RV_ERR_INVAL;
@@ -176,7 +162,7 @@ int64_t rv_pcca_sdl3::sound_asset_write(int64_t addr, const rv_sample *sample)
     return RV_OK;
 }
 
-int64_t rv_pcca_sdl3::sound_asset_free(int64_t addr)
+int64_t rv_pcca_sw::sound_asset_free(int64_t addr)
 {
     auto guard = mixer_.acquire();
 
@@ -207,7 +193,7 @@ int64_t rv_pcca_sdl3::sound_asset_free(int64_t addr)
     return RV_OK;
 }
 
-int64_t rv_pcca_sdl3::voice_setup(const rv_voice_conf *conf)
+int64_t rv_pcca_sw::voice_setup(const rv_voice_conf *conf)
 {
     if (!conf) {
         return RV_ERR_INVAL;
@@ -236,7 +222,7 @@ int64_t rv_pcca_sdl3::voice_setup(const rv_voice_conf *conf)
     return RV_OK;
 }
 
-int64_t rv_pcca_sdl3::voice_play(int64_t voice_mask)
+int64_t rv_pcca_sw::voice_play(int64_t voice_mask)
 {
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) {
@@ -246,7 +232,7 @@ int64_t rv_pcca_sdl3::voice_play(int64_t voice_mask)
     return mixer_.play(voice_mask) ? RV_OK : RV_ERR_INVAL;
 }
 
-int64_t rv_pcca_sdl3::voice_stop(int64_t voice_mask)
+int64_t rv_pcca_sw::voice_stop(int64_t voice_mask)
 {
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) {
@@ -256,7 +242,7 @@ int64_t rv_pcca_sdl3::voice_stop(int64_t voice_mask)
     return mixer_.stop(voice_mask) ? RV_OK : RV_ERR_INVAL;
 }
 
-int64_t rv_pcca_sdl3::voice_status(int64_t voice_mask)
+int64_t rv_pcca_sw::voice_status(int64_t voice_mask)
 {
     const int64_t mask_rc = validate_mask(voice_mask);
     if (mask_rc < 0) {
@@ -266,6 +252,11 @@ int64_t rv_pcca_sdl3::voice_status(int64_t voice_mask)
     // Always >= 0: the mask only ever carries bits 0..62, so the contract's
     // "a valid mask is never negative" holds by construction.
     return mixer_.status(voice_mask);
+}
+
+void rv_pcca_sw::advance(int16_t *out, int64_t frames)
+{
+    mixer_.render(out, frames);
 }
 
 } // namespace rv_3dmppc

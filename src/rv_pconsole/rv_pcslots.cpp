@@ -2,18 +2,19 @@
 
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
-#include "rv_pconsole/ca/rv_pcca_sdl3.hpp"
+#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
-#include "rv_pconsole/cio/rv_pccio_sdl3.hpp"
+#include "rv_pconsole/cio/rv_pccio_std.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 #include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv_null.hpp"
-#include "rv_pconsole/cv/rv_pccv_sdl3.hpp"
-#include "rv_pconsole/rv_pchost_sdl3.hpp"
+#include "rv_pconsole/cv/rv_pccv_sw.hpp"
+#include "rv_pconsole/platform/null/rv_pcplatform_null.hpp"
+#include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3.hpp"
 
 namespace rv_3dmppc
 {
@@ -58,36 +59,34 @@ const char *rv_pcslots_name(rv_pccm_impl impl)
 {
     return impl_name(RV_PCSLOTS_CM, impl);
 }
-
-std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf, rv_pchost_sdl3 &host)
+const char *rv_pcslots_name(rv_pcplatform_impl impl)
 {
-    if (impl == rv_pcca_impl::sdl3) {
-        if (host.sounding()) {
-            RV_LOG_INFO("pcca", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(rv_pcca_impl::sdl3));
-            return std::make_unique<rv_pcca_sdl3>(conf, host);
-        }
-        RV_LOG_WARN("pcca", "requested {}, got {} (no audio device)", rv_pcslots_name(impl),
-            rv_pcslots_name(rv_pcca_impl::null));
-        return std::make_unique<rv_pcca_null>(conf);
+    return impl_name(RV_PCSLOTS_PLATFORM, impl);
+}
+
+std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf)
+{
+    RV_LOG_INFO("pcca", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
+    if (impl == rv_pcca_impl::sw) {
+        return std::make_unique<rv_pcca_sw>(conf);
     }
-    RV_LOG_INFO("pcca", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(rv_pcca_impl::null));
     return std::make_unique<rv_pcca_null>(conf);
 }
 
-std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf, rv_pchost_sdl3 &host)
+std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf)
 {
     RV_LOG_INFO("pccv", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
-    if (impl == rv_pccv_impl::sdl3) {
-        return std::make_unique<rv_pccv_sdl3>(conf, host);
+    if (impl == rv_pccv_impl::sw) {
+        return std::make_unique<rv_pccv_sw>(conf);
     }
     return std::make_unique<rv_pccv_null>(conf);
 }
 
-std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pchost_sdl3 &host)
+std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform)
 {
     RV_LOG_INFO("pccio", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
-    if (impl == rv_pccio_impl::sdl3) {
-        return std::make_unique<rv_pccio_sdl3>(conf, host);
+    if (impl == rv_pccio_impl::standard) {
+        return std::make_unique<rv_pccio_std>(conf, platform.window(), platform.gamepads());
     }
     return std::make_unique<rv_pccio_null>(conf);
 }
@@ -123,6 +122,15 @@ std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &con
         return std::make_unique<rv_pccm_posix>(conf);
     }
     return std::make_unique<rv_pccm_null>(conf);
+}
+
+std::unique_ptr<rv_pcplatform> rv_pcplatform_make(rv_pcplatform_impl impl, const rv_pcplatform_wants &wants)
+{
+    RV_LOG_INFO("pcplatform", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
+    if (impl == rv_pcplatform_impl::sdl3) {
+        return rv_pcplatform_sdl3_make(wants);
+    }
+    return rv_pcplatform_null_make(wants);
 }
 
 } // namespace rv_3dmppc

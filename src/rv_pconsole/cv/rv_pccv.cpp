@@ -5,7 +5,7 @@
 // --- C contract (pdk/cv/rv_cv.h) ---------------------------------------------
 // An rv_cv* handle and the address of an rv_pccv are the same address: exactly
 // one implementation of the base lives behind the handle at a time (either
-// rv_pccv_sdl3 or rv_pccv_null), reached here through a virtual call.
+// rv_pccv_sw or rv_pccv_null), reached here through a virtual call.
 
 extern "C" int64_t rv_cv_screen_width(rv_cv *cv)
 {

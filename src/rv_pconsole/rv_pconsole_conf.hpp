@@ -88,20 +88,25 @@ struct rv_pccl_conf {
 };
 
 // Which concrete class backs each swappable slot. Default-constructed ==
-// the built-in preset "sdl3" (one copy of it, the same idiom as
+// the built-in preset "default" (one copy of it, the same idiom as
 // rv_manifest_budget's defaults being the reference machine). Chosen at boot
 // (rv_pboot_modes.hpp) and branched on nowhere but rv_pcslots.cpp.
-enum class rv_pcca_impl { null, sdl3 };
-enum class rv_pccv_impl { null, sdl3 };
-enum class rv_pccio_impl { null, sdl3 };
+enum class rv_pcplatform_impl { null, sdl3 };
+enum class rv_pcca_impl { null, sw };
+enum class rv_pccv_impl { null, sw };
+enum class rv_pccio_impl { null, standard };
 enum class rv_pccl_impl { null, luajit };
 enum class rv_pccd_impl { null, fs };
 enum class rv_pccm_impl { null, posix };
 
 struct rv_pcslots {
-    rv_pcca_impl ca = rv_pcca_impl::sdl3;
-    rv_pccv_impl cv = rv_pccv_impl::sdl3;
-    rv_pccio_impl cio = rv_pccio_impl::sdl3;
+    // Not a slot itself (see rv_pcslots.hpp), but the first field: it decides
+    // whether the six slots below get real endpoints to talk to at all.
+    rv_pcplatform_impl platform = rv_pcplatform_impl::sdl3;
+
+    rv_pcca_impl ca = rv_pcca_impl::sw;
+    rv_pccv_impl cv = rv_pccv_impl::sw;
+    rv_pccio_impl cio = rv_pccio_impl::standard;
     rv_pccl_impl cl = rv_pccl_impl::luajit;
     rv_pccd_impl cd = rv_pccd_impl::fs;
     rv_pccm_impl cm = rv_pccm_impl::posix;
@@ -112,10 +117,12 @@ struct rv_pconsole_params {
     uint64_t scale = 3;
     uint64_t max_frames = 0;
 
-    // Frame pacing. The presented console runs at target_fps; a run whose cv
-    // slot is null ignores this and goes as fast as it can (it is a smoke
-    // test, not a game). fixed_step feeds the disc exactly 1/target_fps
-    // regardless of wall clock.
+    // Every frame advances the machine by exactly 1/target_fps: the disc's
+    // dt, the SPU sample count and the frame counter all come from that one
+    // clock. Only WHEN the next frame runs differs by mode: fixed_step runs
+    // unpaced and does not feed the audio output; otherwise the audio output
+    // paces by backpressure when there is one, the steady clock when there
+    // is not.
     uint64_t target_fps = 60;
 
     // Where to write the last presented frame as a binary PPM when the run

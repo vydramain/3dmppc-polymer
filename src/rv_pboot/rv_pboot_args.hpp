@@ -58,7 +58,9 @@ inline void rv_console_print_usage(std::FILE *stream)
         "  -s, --scale N        Window magnification over native 320x240.\n"
         "                       Default: 3.\n"
         "  -n, --frames N       Stop after N frames. 0 runs until quit.\n"
-        "  -F, --fixed-step     Use a fixed 1/60 dt, for reproducible runs.\n"
+        "  -F, --fixed-step     Run unpaced with a fixed 1/60 dt, for\n"
+        "                       reproducible runs; the audio output is not\n"
+        "                       fed.\n"
         "  -d, --disc PATH      Medium to mount in the drive: a DIRECTORY of\n"
         "                       loose assets, the development shortcut that\n"
         "                       needs no packaging step. A packaged .mppcdisc\n"
@@ -67,17 +69,23 @@ inline void rv_console_print_usage(std::FILE *stream)
         "  -m, --memcard PATH   Memory-card image. Default: memcard.mppccard\n"
         "                       next to the 3dmppc binary.\n"
         "  -M, --mute           Silence the audio output stage.\n"
-        "  -D, --dump-frame P   Write the last presented frame to P as a binary\n"
+        "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
-        "      --mode=NAME      Preset: one implementation per slot. Default:\n"
-        "                       sdl3.\n"
+        "      --mode=NAME      Preset: the platform plus one implementation\n"
+        "                       per slot. Built in: default (platform sdl3)\n"
+        "                       and headless (platform null). Default:\n"
+        "                       default.\n"
+        "      --mode_platform=IMPL\n"
+        "                       Override the platform of the preset. IMPL is\n"
+        "                       null or sdl3. null runs the same machine with\n"
+        "                       no window, no gamepads and no audio device.\n"
         "      --mode_ca=IMPL   Override the ca slot of the preset. IMPL is\n"
-        "                       null or sdl3.\n"
+        "                       null or sw.\n"
         "      --mode_cv=IMPL   Override the cv slot of the preset. IMPL is\n"
-        "                       null or sdl3. A run with cv=null needs\n"
-        "                       --frames to end.\n"
+        "                       null or sw. A run without a window ends by\n"
+        "                       --frames, by the disc, or by Ctrl+C.\n"
         "      --mode_cio=IMPL  Override the cio slot of the preset. IMPL is\n"
-        "                       null or sdl3.\n"
+        "                       null or standard.\n"
         "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
         "                       null or luajit.\n"
         "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"
@@ -99,9 +107,10 @@ struct rv_pboot_args {
     std::string medium_path;
     std::string memcard_path;
     std::string dump_frame_path;
-    std::string mode = "sdl3";
+    std::string mode = "default";
 
     // Per-slot overrides of the preset named by `mode`. Empty = not given.
+    std::string mode_platform;
     std::string mode_ca;
     std::string mode_cv;
     std::string mode_cio;

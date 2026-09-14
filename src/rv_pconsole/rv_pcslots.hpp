@@ -1,8 +1,8 @@
 // The factory: the ONLY place a slot's choice is branched on. Every caller
 // above this file asks for a base (rv_pcca/rv_pccv/rv_pccio/rv_pccl/rv_pccd/
-// rv_pccm) and gets back whichever concrete class the choice and the
-// machine's state resolve to; no `if (disabled)` belongs anywhere else in the
-// tree.
+// rv_pccm) and gets back whichever concrete class the choice resolves to, and
+// asks for the platform the same way; no `if (disabled)` belongs anywhere
+// else in the tree.
 //
 // There is deliberately no common base over the slots — it would buy nothing
 // and would invite holding them in a container. Teardown order instead relies
@@ -19,13 +19,13 @@
 
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
-#include "rv_pconsole/ca/rv_pcca_sdl3.hpp"
+#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
-#include "rv_pconsole/cio/rv_pccio_sdl3.hpp"
+#include "rv_pconsole/cio/rv_pccio_std.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 #include "rv_pconsole/cl/rv_pccl_null.hpp"
@@ -34,14 +34,13 @@
 #include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/cv/rv_pccv_null.hpp"
-#include "rv_pconsole/cv/rv_pccv_sdl3.hpp"
+#include "rv_pconsole/cv/rv_pccv_sw.hpp"
+#include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
 {
-
-class rv_pchost_sdl3;
 
 // Implementation names, one row per enum value, plus the class's own budget
 // evaluation (rv_pcbudget.hpp) — the one function boot stage E3 calls before
@@ -55,15 +54,15 @@ struct rv_pcslots_row {
 
 inline constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA[] = {
     { "null", rv_pcca_impl::null, &rv_pcca_null::evaluate },
-    { "sdl3", rv_pcca_impl::sdl3, &rv_pcca_sdl3::evaluate },
+    { "sw", rv_pcca_impl::sw, &rv_pcca_sw::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV[] = {
     { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
-    { "sdl3", rv_pccv_impl::sdl3, &rv_pccv_sdl3::evaluate },
+    { "sw", rv_pccv_impl::sw, &rv_pccv_sw::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
-    { "sdl3", rv_pccio_impl::sdl3, &rv_pccio_sdl3::evaluate },
+    { "standard", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
 };
 inline constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL[] = {
     { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
@@ -85,13 +84,23 @@ const char *rv_pcslots_name(rv_pccl_impl impl);
 const char *rv_pcslots_name(rv_pccd_impl impl);
 const char *rv_pcslots_name(rv_pccm_impl impl);
 
-// sdl3 AND host.sounding() -> rv_pcca_sdl3; sdl3 without a device ->
-// rv_pcca_null, logged as a warning with the reason. null -> rv_pcca_null.
-std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf, rv_pchost_sdl3 &host);
+// The platform is not a slot and costs nothing against a budget: it is
+// chosen the same way (--mode_platform, [mode.*] platform=) but never
+// appears in a table above and is never evaluate()-checked.
+struct rv_pcslots_platform_row {
+    const char *name;
+    rv_pcplatform_impl impl;
+};
+inline constexpr rv_pcslots_platform_row RV_PCSLOTS_PLATFORM[] = {
+    { "null", rv_pcplatform_impl::null },
+    { "sdl3", rv_pcplatform_impl::sdl3 },
+};
+const char *rv_pcslots_name(rv_pcplatform_impl impl);
 
-// Straight mapping.
-std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf, rv_pchost_sdl3 &host);
-std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pchost_sdl3 &host);
+// Straight mapping, no device fallback: what was asked for is what is built.
+std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf);
+std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf);
+std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform);
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf);
 std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &conf);
 
@@ -100,6 +109,11 @@ std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &con
 // preset; the disc refuses for itself when it needed scripts and did not
 // get them.
 std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd);
+
+// Straight mapping to rv_pcplatform_sdl3_make / rv_pcplatform_null_make,
+// logged the same way as every other factory ("requested X, got X" under
+// "pcplatform").
+std::unique_ptr<rv_pcplatform> rv_pcplatform_make(rv_pcplatform_impl impl, const rv_pcplatform_wants &wants);
 
 // Asserts the invariants the six tables above and their evaluate() functions
 // must hold (every row has a non-null evaluate, every null class costs 0,

@@ -1,6 +1,4 @@
-#include "rv_pconsole/cv/rv_pccv_sdl3.hpp"
-
-#include <SDL3/SDL.h>
+#include "rv_pconsole/cv/rv_pccv_sw.hpp"
 
 #include <cstddef>
 #include <cstdio>
@@ -35,7 +33,7 @@ constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
 } // namespace
 
-int64_t rv_pccv_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
+int64_t rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes)
 {
     int64_t total = 0;
 
@@ -81,9 +79,8 @@ int64_t rv_pccv_sdl3::evaluate(const rv_pdklib::rv_manifest_budget &budget, int6
     return RV_OK;
 }
 
-rv_pccv_sdl3::rv_pccv_sdl3(const rv_pccv_conf &conf, rv_pchost_sdl3 &host)
+rv_pccv_sw::rv_pccv_sw(const rv_pccv_conf &conf)
     : conf_(conf)
-    , host_(host)
     , fbuf_(conf.screen_width, conf.screen_height)
     , vram_(conf.video_memory_size)
     , otable_(conf.ot_bucket_count, conf.depth_min, conf.depth_max)
@@ -96,43 +93,29 @@ rv_pccv_sdl3::rv_pccv_sdl3(const rv_pccv_conf &conf, rv_pchost_sdl3 &host)
     }
 }
 
-rv_pccv_sdl3::~rv_pccv_sdl3()
-{
-    // Texture before renderer: destroying the renderer first would leave the
-    // texture handle dangling. The window they were built on belongs to
-    // host_, which outlives this call (see the declaration order note on the
-    // destructor's declaration in rv_pccv_sdl3.hpp).
-    if (texture_) {
-        SDL_DestroyTexture(texture_);
-    }
-    if (renderer_) {
-        SDL_DestroyRenderer(renderer_);
-    }
-}
-
 // --- hardware geometry -------------------------------------------------------
 
-int64_t rv_pccv_sdl3::screen_width()
+int64_t rv_pccv_sw::screen_width()
 {
     return conf_.screen_width;
 }
-int64_t rv_pccv_sdl3::screen_height()
+int64_t rv_pccv_sw::screen_height()
 {
     return conf_.screen_height;
 }
-int64_t rv_pccv_sdl3::texture_max_width()
+int64_t rv_pccv_sw::texture_max_width()
 {
     return conf_.texture_max_width;
 }
-int64_t rv_pccv_sdl3::texture_max_height()
+int64_t rv_pccv_sw::texture_max_height()
 {
     return conf_.texture_max_height;
 }
-int64_t rv_pccv_sdl3::video_memory_size()
+int64_t rv_pccv_sw::video_memory_size()
 {
     return conf_.video_memory_size;
 }
-int64_t rv_pccv_sdl3::frame_capacity()
+int64_t rv_pccv_sw::frame_capacity()
 {
     return conf_.frame_capacity;
 }
@@ -142,17 +125,17 @@ int64_t rv_pccv_sdl3::frame_capacity()
 // Pure delegation: the pool owns "is there room", "which address", "is this
 // address live". Reproducing any of that here would give the console two
 // answers to the same question.
-int64_t rv_pccv_sdl3::video_asset_malloc(int64_t size)
+int64_t rv_pccv_sw::video_asset_malloc(int64_t size)
 {
     return vram_.malloc(size);
 }
 
-int64_t rv_pccv_sdl3::video_asset_free(int64_t addr)
+int64_t rv_pccv_sw::video_asset_free(int64_t addr)
 {
     return vram_.free(addr);
 }
 
-bool rv_pccv_sdl3::texture_format_known(rv_texfmt format)
+bool rv_pccv_sw::texture_format_known(rv_texfmt format)
 {
     if (rv_pdklib::rv_texfmt_name::by_format(format) != nullptr) {
         return true;
@@ -164,7 +147,7 @@ bool rv_pccv_sdl3::texture_format_known(rv_texfmt format)
 // the pool knows how many bytes fit in a region, but the texture *shape* limit
 // is hardware geometry this class publishes (texture_max_width/height), so this
 // is the one place that can enforce it.
-int64_t rv_pccv_sdl3::video_asset_write(int64_t addr, const rv_texture *texture_ptr)
+int64_t rv_pccv_sw::video_asset_write(int64_t addr, const rv_texture *texture_ptr)
 {
     if (texture_ptr == nullptr) {
         return RV_ERR_INVAL;
@@ -219,13 +202,13 @@ int64_t rv_pccv_sdl3::video_asset_write(int64_t addr, const rv_texture *texture_
 
 // --- the frame ---------------------------------------------------------------
 
-void rv_pccv_sdl3::frame_reset()
+void rv_pccv_sw::frame_reset()
 {
     primitives_.clear();
     otable_.reset();
 }
 
-int64_t rv_pccv_sdl3::frame_configure(uint64_t config, rv_color clear_color)
+int64_t rv_pccv_sw::frame_configure(uint64_t config, rv_color clear_color)
 {
     if ((config & ~RV_PCCV_CONFIG_KNOWN_BITS) != 0) {
         return RV_ERR_INVAL;
@@ -241,7 +224,7 @@ int64_t rv_pccv_sdl3::frame_configure(uint64_t config, rv_color clear_color)
     return RV_OK;
 }
 
-int64_t rv_pccv_sdl3::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const
+int64_t rv_pccv_sw::check_fill(uint32_t fill_mode, int64_t addr_texture, int64_t addr_palette) const
 {
     switch (fill_mode) {
     case RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED:
@@ -280,7 +263,7 @@ int64_t rv_pccv_sdl3::check_fill(uint32_t fill_mode, int64_t addr_texture, int64
     return RV_OK;
 }
 
-int64_t rv_pccv_sdl3::frame_put(const rv_primitive *primitive_ptr)
+int64_t rv_pccv_sw::frame_put(const rv_primitive *primitive_ptr)
 {
     if (primitive_ptr == nullptr) {
         return RV_ERR_INVAL;
@@ -336,7 +319,7 @@ int64_t rv_pccv_sdl3::frame_put(const rv_primitive *primitive_ptr)
     return RV_OK;
 }
 
-void rv_pccv_sdl3::texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
+void rv_pccv_sw::texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
     int64_t &addr_palette)
 {
     addr_texture = 0;
@@ -360,7 +343,7 @@ void rv_pccv_sdl3::texture_addresses(const rv_primitive &primitive, int64_t &add
     }
 }
 
-rv_pctexview rv_pccv_sdl3::texture_view(const rv_primitive &primitive) const
+rv_pctexview rv_pccv_sw::texture_view(const rv_primitive &primitive) const
 {
     rv_pctexview view; // invalid until every piece is found
 
@@ -413,7 +396,7 @@ rv_pctexview rv_pccv_sdl3::texture_view(const rv_primitive &primitive) const
     return view;
 }
 
-int64_t rv_pccv_sdl3::frame_flush()
+int64_t rv_pccv_sw::frame_flush()
 {
     // THEOREM: painter's algorithm, with the ordering table's residual
     // ambiguity resolved by the Z buffer. Drawing far-to-near is correct
@@ -444,7 +427,7 @@ int64_t rv_pccv_sdl3::frame_flush()
         rv_pcraster::draw(fbuf_, primitive, texture_view(primitive), z_enabled_);
     });
 
-    present(fbuf_.expand_argb());
+    last_frame_ = fbuf_.expand_argb();
 
     // The next frame starts empty. The clear colour and the Z flag go back to
     // their defaults too: frame_configure is per-frame state, and a frame that
@@ -457,68 +440,12 @@ int64_t rv_pccv_sdl3::frame_flush()
     return RV_OK;
 }
 
-// --- presentation -------------------------------------------------------------
-
-int64_t rv_pccv_sdl3::screen_open(const char *title, uint64_t scale)
-{
-    const int64_t opened = host_.open(title, conf_.screen_width, conf_.screen_height, scale);
-    if (opened < 0) {
-        return opened;
-    }
-
-    renderer_ = SDL_CreateRenderer(host_.window(), nullptr);
-    if (!renderer_) {
-        RV_LOG_ERR("pccv", "SDL_CreateRenderer failed: {}", SDL_GetError());
-        return RV_ERR_IO;
-    }
-
-    // The frame is always the native console resolution; the window is just a
-    // magnifying glass over it. Integer scaling keeps the pixels square and
-    // crisp instead of smearing them across a non-multiple window size.
-    SDL_SetRenderLogicalPresentation(renderer_, static_cast<int>(conf_.screen_width),
-        static_cast<int>(conf_.screen_height),
-        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
-
-    texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-        static_cast<int>(conf_.screen_width),
-        static_cast<int>(conf_.screen_height));
-    if (!texture_) {
-        RV_LOG_ERR("pccv", "SDL_CreateTexture failed: {}", SDL_GetError());
-        return RV_ERR_IO;
-    }
-    SDL_SetTextureScaleMode(texture_, SDL_SCALEMODE_NEAREST);
-
-    return RV_OK;
-}
-
-void rv_pccv_sdl3::present(const uint32_t *argb)
-{
-    if (!argb) {
-        return;
-    }
-
-    // Recorded before the renderer/texture check so a run with cv=null (no
-    // window, no texture) still remembers the pointer --dump-frame needs.
-    // The bytes dumped are exactly the bytes handed to the display when there
-    // is one — no second path that could drift.
-    last_frame_ = argb;
-
-    if (!renderer_ || !texture_) {
-        return;
-    }
-
-    SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(conf_.screen_width * 4));
-    SDL_RenderClear(renderer_);
-    SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
-    SDL_RenderPresent(renderer_);
-}
-
-// Write the presented frame out as a binary PPM. A developer-tooling
+// Write the flushed frame out as a binary PPM. A developer-tooling
 // convenience: it lets the exact pixels the console produced be inspected or
 // diffed without a screen capture, which is the difference between "looks
 // right to me" and a repeatable check. Deliberately the LAST frame rather
 // than the first — an animated disc has usually settled by then.
-void rv_pccv_sdl3::dump_last_frame(const std::string &path) const
+void rv_pccv_sw::dump_last_frame(const std::string &path) const
 {
     if (path.empty() || !last_frame_) {
         return;

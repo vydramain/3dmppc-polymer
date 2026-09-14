@@ -37,6 +37,8 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
 
+Ctrl+C in the terminal stops the console the same ordinary way.
+
 The same three commands work unchanged against
 [`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) — swap the directory in
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
@@ -94,14 +96,15 @@ the compiler they drive.
 | Flag | What it does |
 | --- | --- |
 | `--scale N` | window magnification over the native 320×240 (default 3) |
-| `--mode_cv=null` | no window; pair with `--frames` for a smoke test |
-| `--mode=NAME` / `--mode_ca=`/`--mode_cv=`/`--mode_cio=`/`--mode_cl=` | pick a preset or override one slot (`null`\|`sdl3`, `cl` also `luajit`) |
+| `--mode=NAME` | preset: `default` (SDL3 window, pads, sound) or `headless` (no window, no pads, no audio device — the same virtual machine) |
+| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`standard`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
+| `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
-| `--fixed-step` | feed the disc a fixed 1/60 dt — reproducible runs |
+| `--fixed-step` | run unpaced with a fixed 1/60 dt — reproducible runs; the audio output is not fed |
 | `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
 | `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
-| `--dump-frame PATH` | write the last presented frame as a binary PPM |
+| `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
 
 `--dump-frame` is how you check what the machine actually drew without taking a
 screenshot: `magick frame.ppm frame.png` and look at it, or diff it against a

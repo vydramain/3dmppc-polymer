@@ -148,7 +148,6 @@ set_target_properties(3dmppc PROPERTIES
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
 
 target_include_directories(3dmppc PRIVATE src)
-target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
 target_link_libraries(3dmppc PRIVATE 3dmppc_platform_sdl3)
 target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)

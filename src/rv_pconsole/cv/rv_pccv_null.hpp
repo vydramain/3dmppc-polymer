@@ -1,6 +1,6 @@
 // The machine with no video: no window, no framebuffer, no VRAM, no
 // rasterization. What cv=null means: the rv_cv slot's Null Object instead of a
-// branch inside rv_pccv_sdl3.
+// branch inside rv_pccv_sw.
 #pragma once
 
 #include <cstdint>
@@ -50,11 +50,10 @@ public:
         return true;
     }
 
-    int64_t screen_open(const char *title, uint64_t scale) override;
-
-    bool presenting() const override
+    // No rasterizer: nothing is ever flushed.
+    const uint32_t *last_frame() const override
     {
-        return false;
+        return nullptr;
     }
 
     void dump_last_frame(const std::string &path) const override;

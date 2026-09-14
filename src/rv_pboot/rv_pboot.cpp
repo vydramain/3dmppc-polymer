@@ -15,7 +15,10 @@
 #include "rv_pboot_modes.hpp"
 #include "rv_pmem/rv_pcvmem.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
+#include "rv_pconsole/cio/rv_pccio_std.hpp"
+#include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -52,8 +55,16 @@ int rv_pboot_run(int argc, char **argv)
     // --selfcheck runs before anything else is brought up, and exits: it does
     // not boot a disc, does not touch SDL, does not need a mode.
     if (args.selfcheck) {
-        return rv_pcvmem_selfcheck() && rv_pcslots_selfcheck() ? 0 : 1;
+        return rv_pcvmem_selfcheck() && rv_pcslots_selfcheck() && rv_pcca_sw_selfcheck() &&
+                       rv_pccio_std_selfcheck()
+                   ? 0
+                   : 1;
     }
+
+    // SIGINT/SIGTERM become an ordinary shutdown request, seen through
+    // rv_pcplatform::quit_requested(). Installed before any platform comes
+    // up, so no platform library claims them.
+    rv_pcsignals_install();
 
     // Resolve the preset and its per-slot overrides into the concrete choice
     // this run boots with. Nothing is brought up yet: a bad --mode or
@@ -73,28 +84,26 @@ int rv_pboot_run(int argc, char **argv)
         return 2;
     }
 
-    // The host owns SDL and is borrowed by the console, so it must outlive
-    // both the loader and the console below, hence it is declared before
-    // either. Brought up right after the mode name is validated, before the
-    // disc's budget is even read.
-    rv_pchost_sdl3 host;
-
     // Prepare the mode and learn the machine before any disc code, any
     // archive and any allocation.
     rv_pboot_mode_info machine;
-    if (rv_pboot_mode_prepare(args, slots, host, machine) < 0) {
+    if (rv_pboot_mode_prepare(args, machine) < 0) {
         return 1;
     }
 
     // Report the preparation. This states what the mode is ready to offer;
     // it must not be read as any disc having been found compatible yet.
-    rv_pboot_mode_report(args, slots, host, machine);
+    rv_pboot_mode_report(args, slots, machine);
 
     // The loader's teardown runs disc_shutdown(), a hook allowed to touch
     // every controller, so the loader must die before the console. Locals die
     // in reverse of declaration, hence the console is declared first, and
     // held in an optional because it cannot be constructed until the disc has
-    // said what it needs.
+    // said what it needs. The platform serves the console and is borrowed by
+    // it, so it must outlive both and is declared before either; it is
+    // brought up only after the budget check below, because nothing in the
+    // budget depends on it.
+    std::unique_ptr<rv_pcplatform> platform;
     std::optional<rv_pconsole> console;
     rv_pcloader loader;
 
@@ -122,7 +131,12 @@ int rv_pboot_run(int argc, char **argv)
     rv_pconsole_conf conf;
     rv_pboot_conf_build(*budget, args, slots, conf);
 
-    host.configure(conf.cio.iport_count);
+    // Open exactly the endpoints the virtual devices will use.
+    rv_pcplatform_wants wants;
+    wants.window = slots.cv != rv_pccv_impl::null;
+    wants.gamepads = slots.cio != rv_pccio_impl::null;
+    wants.audio = slots.ca != rv_pcca_impl::null;
+    platform = rv_pcplatform_make(slots.platform, wants);
 
     // Reserve and prepare memory. The resource check above only compared
     // MemAvailable against the declared budget, which is a forecast, not a
@@ -134,7 +148,7 @@ int rv_pboot_run(int argc, char **argv)
     // the ready() check below produces for the vmem's error path: a
     // diagnostic and exit code, not std::terminate/SIGABRT.
     try {
-        console.emplace(conf, host, args.disc_path != nullptr ? &loader : nullptr);
+        console.emplace(conf, *platform, args.disc_path != nullptr ? &loader : nullptr);
     } catch (const std::exception &e) {
         // bad_alloc and length_error both derive from std::exception.
         RV_LOG_ERR("main", "failed to construct console: {}", e.what());

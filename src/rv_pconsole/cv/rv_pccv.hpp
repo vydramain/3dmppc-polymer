@@ -1,8 +1,8 @@
 // The rv_cv contract made abstract: argument validation, the error vocabulary,
 // and addresses in and out. Exactly what "video" means underneath is a choice
-// made by whichever concrete class the console picks — a real GPU over a real
-// window (rv_pccv_sdl3) or a no-op that still reports the hardware shape the
-// disc declared (rv_pccv_null).
+// made by whichever concrete class the console picks — the software GPU
+// (rv_pccv_sw) or a no-op that still reports the hardware shape the disc
+// declared (rv_pccv_null).
 #pragma once
 
 #include <cstdint>
@@ -49,15 +49,14 @@ public:
     // Does the memory this controller owns actually exist?
     virtual bool valid() const = 0;
 
-    // Opens the machine's window (if it has one) at `title`/`scale`. Returns
-    // RV_OK or RV_ERR_IO.
-    virtual int64_t screen_open(const char *title, uint64_t scale) = 0;
+    // The most recently flushed frame: screen_width * screen_height pixels of
+    // 0xAARRGGBB, row-major; nullptr before the first flush and always for
+    // cv=null. Borrowed, valid until the next frame_flush(). The console hands
+    // it to the platform window; the GPU never learns whether anyone looked.
+    virtual const uint32_t *last_frame() const = 0;
 
-    // True once the machine has a surface to present to.
-    virtual bool presenting() const = 0;
-
-    // Write the most recently presented frame to `path` as a binary PPM.
-    // No-op when `path` is empty or nothing was ever presented.
+    // Write the most recently flushed frame to `path` as a binary PPM. No-op
+    // when `path` is empty or nothing was ever flushed.
     virtual void dump_last_frame(const std::string &path) const = 0;
 
 protected:

@@ -45,6 +45,8 @@ public:
 
     int64_t voice_status(int64_t voice_mask) override;
 
+    void advance(int16_t *out, int64_t frames) override;
+
     bool valid() const override
     {
         return true;

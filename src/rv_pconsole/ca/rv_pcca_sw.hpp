@@ -1,15 +1,16 @@
 // The rv_ca contract made concrete: a private pool of sound RAM, a fixed set of
-// voices reading out of it, and a mixer summing them for the host's device.
+// voices reading out of it, and a mixer summing them into the PCM the console
+// timeline asks for.
 //
 // The split is the usual one for this tree — this class is the CONTRACT SURFACE
 // (argument validation, the error vocabulary, addresses in and out) and owns
-// nothing that makes noise; rv_pcmixer owns the voices and the thread boundary;
-// rv_pcvoice owns the arithmetic. Sound RAM is the same rv_pcpool the video side
-// uses, with a different Meta — see rv_pconsole/cv/rv_pcvram.hpp, which is the
-// same idea for textures.
+// nothing that makes noise; rv_pcmixer owns the voices; rv_pcvoice owns the
+// arithmetic. Sound RAM is the same rv_pcpool the video side uses, with a
+// different Meta — see rv_pconsole/cv/rv_pcvram.hpp, which is the same idea for
+// textures.
 //
-// Only ever built when the host has a running audio device — a factory picks
-// this class or rv_pcca_null at construction time instead of a runtime flag.
+// Built whenever ca=sw. Needs no audio device: the console timeline advances it
+// through rv_pcca::advance() and a platform only plays what it produced.
 #pragma once
 
 #include <cstdint>
@@ -21,7 +22,6 @@
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
-#include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 namespace rv_3dmppc
@@ -35,13 +35,10 @@ struct rv_pcca_meta {
     int64_t frames = 0; // uploaded frames, i.e. bytes / RV_PCA_FRAME_BYTES
 };
 
-class rv_pcca_sdl3 final : public rv_pcca
+class rv_pcca_sw final : public rv_pcca
 {
 private:
     rv_pcca_conf conf_;
-
-    // Borrowed: the host owns the audio device and outlives every controller.
-    rv_pchost_sdl3 &host_;
 
     // DECLARATION ORDER IS LOAD-BEARING: the voices inside mixer_ hold pointers
     // into sram_, so sound RAM must be constructed first and destroyed last.
@@ -54,15 +51,10 @@ private:
     int64_t validate_mask(int64_t voice_mask) const;
 
 public:
-    rv_pcca_sdl3(const rv_pcca_conf &conf, rv_pchost_sdl3 &host);
+    explicit rv_pcca_sw(const rv_pcca_conf &conf);
 
-    // Detaches the mixer from the host BEFORE it stops existing. Does not
-    // close the device — that belongs to the host's lifetime (stage C), not
-    // to this disc's.
-    ~rv_pcca_sdl3() override;
-
-    rv_pcca_sdl3(const rv_pcca_sdl3 &) = delete;
-    rv_pcca_sdl3 &operator=(const rv_pcca_sdl3 &) = delete;
+    rv_pcca_sw(const rv_pcca_sw &) = delete;
+    rv_pcca_sw &operator=(const rv_pcca_sw &) = delete;
 
     // RV_OK plus the peak host bytes this class allocates for `budget`:
     // sram_ (sound_memory_size) + mixer_'s voices (one rv_pcvoice each) and
@@ -88,6 +80,8 @@ public:
 
     int64_t voice_status(int64_t voice_mask) override;
 
+    void advance(int16_t *out, int64_t frames) override;
+
     // Does the memory this controller owns actually exist? False when the
     // sound RAM pool failed to reserve.
     bool valid() const override
@@ -95,5 +89,11 @@ public:
         return sram_.valid();
     }
 };
+
+// Exercises rv_pcca_sw through its public methods only: a voice starts,
+// advances across chunks of the console timeline, and finishes, and two fresh
+// instances given the same inputs produce byte-identical PCM. Logs the failed
+// check under "pcca" and returns false on failure.
+bool rv_pcca_sw_selfcheck();
 
 } // namespace rv_3dmppc

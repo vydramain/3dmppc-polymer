@@ -8,8 +8,9 @@
 // of the VOICE (volume_l / volume_r), not of the sample. Two voices can play the
 // same sample from opposite sides at once.
 //
-// Knows nothing about SDL, about the mixer that owns it, or about the pool the
-// bytes live in — it borrows a pointer and a frame count and does arithmetic.
+// Knows nothing about any platform, about the mixer that owns it, or about the
+// pool the bytes live in — it borrows a pointer and a frame count and does
+// arithmetic.
 #pragma once
 
 #include <cstdint>
@@ -20,8 +21,8 @@
 namespace rv_3dmppc
 {
 
-// Everything in sound RAM is recorded at this rate, and the output stage asks
-// SDL for the same one. See rv_pcmixer.hpp for why there is no resampler.
+// Everything in sound RAM is recorded at this rate, and the platform plays PCM
+// at the same rate. See rv_pcmixer.hpp for why there is no resampler.
 constexpr int64_t RV_PCA_SAMPLE_RATE = 44100;
 
 // Number of bytes one mono frame of sound RAM occupies (S16LE).

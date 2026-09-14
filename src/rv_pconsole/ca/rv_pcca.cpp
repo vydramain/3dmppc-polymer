@@ -5,7 +5,7 @@
 // --- C contract (pdk/ca/rv_ca.h) ---------------------------------------------
 // An rv_ca* handle and the address of an rv_pcca are the same address: which
 // concrete class actually lives there is a console construction-time choice
-// (rv_pcca_sdl3 or rv_pcca_null), reached here through a virtual call.
+// (rv_pcca_sw or rv_pcca_null), reached here through a virtual call.
 
 extern "C" int64_t rv_ca_voice_count(rv_ca *ca)
 {

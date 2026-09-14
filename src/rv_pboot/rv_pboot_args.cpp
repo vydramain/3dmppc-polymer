@@ -37,6 +37,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mute", no_argument, 0, 'M'},
                                         {"dump-frame", required_argument, 0, 'D'},
                                         {"mode", required_argument, 0, 'o'},
+                                        {"mode_platform", required_argument, 0, 'p'},
                                         {"mode_ca", required_argument, 0, 'a'},
                                         {"mode_cv", required_argument, 0, 'v'},
                                         {"mode_cio", required_argument, 0, 'i'},
@@ -54,6 +55,9 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 break;
             case 'M':
                 args.mute = true;
+                break;
+            case 'p':
+                args.mode_platform = optarg;
                 break;
             case 'a':
                 args.mode_ca = optarg;

@@ -1,8 +1,9 @@
 // The console's rv_cio contract. Pure virtual interface.
 //
-// PATTERN: adapter. rv_pchost_sdl3 speaks "the machine" (slots, SDL gamepads, rumble
-// calls); rv_cio speaks "the contract" (stable ports, data-not-status queries,
-// a single error channel). Implementations provide the seam between the two vocabularies.
+// PATTERN: adapter. The platform speaks "devices" (a window's keyboard and
+// mouse, physical pads by id); rv_cio speaks "the contract" (stable ports,
+// data-not-status queries, a single error channel). rv_pccio_std is the seam
+// between the two vocabularies.
 #pragma once
 
 #include "pdk/cio/rv_imouse.h"

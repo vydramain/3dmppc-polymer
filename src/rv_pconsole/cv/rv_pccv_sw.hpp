@@ -1,6 +1,7 @@
 // The console's rv_cv implementation: the "GPU". It owns the four pieces a frame
 // needs — the video RAM pool, the ordering table, the framebuffer and the
-// per-frame primitive buffer — and hands the finished page to the SDL host.
+// per-frame primitive buffer — and keeps the finished page for whoever presents
+// it (the console hands it to the platform window).
 //
 // PATTERN: retained-mode command buffer. frame_put() does not draw: it validates
 // the primitive, COPIES it into a frame-owned vector and files its index in the
@@ -40,37 +41,21 @@
 #include "rv_pconsole/cv/rv_pctexel.hpp"
 #include "rv_pconsole/cv/rv_pcvram.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
-#include "rv_pconsole/rv_pchost_sdl3.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
-
-// Same reasoning as rv_pchost_sdl3.hpp: the presentation SDL handles are
-// forward-declared here rather than pulled in via <SDL3/SDL.h>, so this
-// header stays SDL-free; the dependency stops at rv_pccv_sdl3.cpp.
-struct SDL_Renderer;
-struct SDL_Texture;
 
 namespace rv_3dmppc
 {
 
-class rv_pccv_sdl3 final : public rv_pccv
+class rv_pccv_sw final : public rv_pccv
 {
 public:
-    // `host` is borrowed: the console owns it, constructs it before every
-    // controller and tears it down after them (see rv_pconsole.hpp — the
-    // declaration order there is load-bearing).
-    rv_pccv_sdl3(const rv_pccv_conf &conf, rv_pchost_sdl3 &host);
-
-    // PATTERN: RAII. The only teardown path for the renderer and the streaming
-    // texture — destroyed texture-then-renderer. The host, which owns the
-    // window they were built on, is declared before the console's controllers
-    // (rv_pconsole.hpp) and so outlives this destructor call.
-    ~rv_pccv_sdl3() override;
+    explicit rv_pccv_sw(const rv_pccv_conf &conf);
 
     // The frame buffers below are screen-sized pages and the vram pool is a
-    // megabyte: copying a console's GPU is never meaningful, and `host_` is a
-    // reference, so let the compiler say so instead of silently slicing.
-    rv_pccv_sdl3(const rv_pccv_sdl3 &) = delete;
-    rv_pccv_sdl3 &operator=(const rv_pccv_sdl3 &) = delete;
+    // megabyte: copying a console's GPU is never meaningful, so let the
+    // compiler say so instead of silently slicing.
+    rv_pccv_sw(const rv_pccv_sw &) = delete;
+    rv_pccv_sw &operator=(const rv_pccv_sw &) = delete;
 
     // RV_OK plus the peak host bytes this class allocates for `budget`:
     // vram_ (video_memory_size) + fbuf_ (screen_width * screen_height *
@@ -99,28 +84,20 @@ public:
     int64_t frame_put(const rv_primitive *primitive) override;
     int64_t frame_flush() override;
 
-    // --- presentation ---
-    //
-    // Owns the surface a finished frame lands on: opens the host's window,
-    // then builds the renderer and streaming texture on top of it. Not called
-    // when cv=null.
-
-    // Opens `host_`'s window at `title`/`scale` and, if that succeeds, the
-    // renderer and streaming texture presented frames land in. Returns RV_OK
-    // or RV_ERR_IO.
-    int64_t screen_open(const char *title, uint64_t scale) override;
-
-    // True once the machine has a surface to present to.
-    bool presenting() const override
-    {
-        return renderer_ != nullptr;
-    }
-
-    // Write the most recently presented frame to `path` as a binary PPM. A
+    // Write the most recently flushed frame to `path` as a binary PPM. A
     // developer convenience: it makes "what did the console actually draw" a
     // file that can be diffed, instead of a screen capture that cannot.
-    // No-op when `path` is empty or nothing was ever presented.
+    // No-op when `path` is empty or nothing was ever flushed.
     void dump_last_frame(const std::string &path) const override;
+
+    // The most recently flushed frame: screen_width * screen_height pixels of
+    // 0xAARRGGBB, row-major; nullptr before the first flush. Borrowed, valid
+    // until the next frame_flush(). The console hands it to the platform
+    // window; the GPU never learns whether anyone looked.
+    const uint32_t *last_frame() const override
+    {
+        return last_frame_;
+    }
 
     // Does the memory this controller owns actually exist? Only the vram pool
     // can fail here — the frame buffer and ordering table size from the same
@@ -160,19 +137,10 @@ private:
     // colour or the Z flag — frame_configure sets those and then calls this.
     void frame_reset();
 
-    // Hand a finished frame to the display. `argb` is width*height pixels in
-    // 0xAARRGGBB, produced by rv_pcfbuf::expand_argb().
-    void present(const uint32_t *argb);
-
     rv_pccv_conf conf_;
-    rv_pchost_sdl3 &host_; // borrowed, never owned
 
-    SDL_Renderer *renderer_ = nullptr;
-    SDL_Texture *texture_ = nullptr;
-
-    // BORROWED from fbuf_ (which outlives this class); only ever read inside
-    // dump_last_frame(). Nothing is copied per frame — presenting must stay
-    // cheap.
+    // BORROWED from fbuf_ (which outlives this class); read by last_frame() and
+    // dump_last_frame(). Nothing is copied per frame.
     const uint32_t *last_frame_ = nullptr;
 
     rv_pcfbuf fbuf_;

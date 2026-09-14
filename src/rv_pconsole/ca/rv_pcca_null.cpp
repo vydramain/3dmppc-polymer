@@ -1,5 +1,7 @@
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
 
+#include <algorithm>
+
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
@@ -68,6 +70,15 @@ int64_t rv_pcca_null::voice_status(int64_t /*voice_mask*/)
 {
     // No voice is ever busy in a no-op console.
     return 0;
+}
+
+void rv_pcca_null::advance(int16_t *out, int64_t frames)
+{
+    // No mixer exists: the console timeline still gets PCM-shaped silence.
+    if (!out || frames <= 0) {
+        return;
+    }
+    std::fill(out, out + 2 * frames, static_cast<int16_t>(0));
 }
 
 } // namespace rv_3dmppc

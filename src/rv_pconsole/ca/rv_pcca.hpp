@@ -1,8 +1,8 @@
 // The rv_ca contract made abstract: argument validation, the error vocabulary,
 // and addresses in and out. Exactly what "sound" means underneath is a choice
-// made by whichever concrete class the console picks — a real mixer over a
-// real device (rv_pcca_sdl3) or a no-op that still reports the hardware shape
-// the disc declared (rv_pcca_null).
+// made by whichever concrete class the console picks — the software SPU
+// (rv_pcca_sw) or a no-op that still reports the hardware shape the disc
+// declared (rv_pcca_null).
 #pragma once
 
 #include <cstdint>
@@ -38,6 +38,13 @@ public:
     virtual int64_t voice_stop(int64_t voice_mask) = 0;
 
     virtual int64_t voice_status(int64_t voice_mask) = 0;
+
+    // Console-side: advance the SPU by `frames` output frames of the console
+    // timeline and write the stereo PCM they produced into `out` (2 * frames
+    // interleaved int16). The ONLY thing that moves voices: envelopes, read
+    // heads and voice_status() change here and nowhere else. Not reached
+    // through the extern "C" block.
+    virtual void advance(int16_t *out, int64_t frames) = 0;
 
     // Does the memory this controller owns actually exist? Console-side only —
     // not reached through the extern "C" block.

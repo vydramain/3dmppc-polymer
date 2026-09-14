@@ -70,6 +70,7 @@ bool rv_pcslots_selfcheck()
 
     // rv_pccm_posix refuses a budget whose card image is over the ceiling;
     // rv_pccm_null accepts the very same budget with 0 bytes.
+    RV_LOG_INFO("pcslots", "selfcheck: the next pccheck error is an expected refusal");
     rv_pdklib::rv_manifest_budget oversized_budget{};
     oversized_budget.pccm.card_slots = 1;
     oversized_budget.pccm.card_slot_size = rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES;
@@ -83,10 +84,10 @@ bool rv_pcslots_selfcheck()
         return false;
     }
 
-    // rv_pccv_sdl3 evaluates the default budget to at least a vram pool plus a
+    // rv_pccv_sw evaluates the default budget to at least a vram pool plus a
     // bare framebuffer.
-    if (rv_pccv_sdl3::evaluate(default_budget, bytes) != RV_OK) {
-        RV_LOG_ERR("pcslots", "rv_pccv_sdl3::evaluate() refused the default budget");
+    if (rv_pccv_sw::evaluate(default_budget, bytes) != RV_OK) {
+        RV_LOG_ERR("pcslots", "rv_pccv_sw::evaluate() refused the default budget");
         return false;
     }
     const int64_t floor = default_budget.pccv.video_memory_size +
@@ -94,7 +95,7 @@ bool rv_pcslots_selfcheck()
             rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL;
     if (bytes < floor) {
         RV_LOG_ERR("pcslots",
-            "rv_pccv_sdl3::evaluate() answered {} byte(s), under the {} byte(s) floor", bytes,
+            "rv_pccv_sw::evaluate() answered {} byte(s), under the {} byte(s) floor", bytes,
             floor);
         return false;
     }

@@ -85,12 +85,6 @@ int64_t rv_pccv_null::frame_flush()
 
 // --- console-side --------------------------------------------------------------
 
-int64_t rv_pccv_null::screen_open(const char * /*title*/, uint64_t /*scale*/)
-{
-    // Opens nothing: there is no window in this machine.
-    return RV_OK;
-}
-
 void rv_pccv_null::dump_last_frame(const std::string & /*path*/) const
 {
     // Unreachable with a non-empty path: the boot refuses cv=null together

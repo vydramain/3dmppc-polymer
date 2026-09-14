@@ -10,8 +10,6 @@
 namespace rv_3dmppc
 {
 
-class rv_pchost_sdl3;
-
 // Bytes the kernel estimates can be handed to a new application without
 // swapping — /proc/meminfo MemAvailable, per Documentation/filesystems/proc.rst.
 // This is an estimate, not a promise: a later allocation may still fail.
@@ -25,21 +23,15 @@ struct rv_pboot_mode_info {
     int64_t ram_available = -1;
 };
 
-// Runs the MADV_POPULATE_WRITE probe, host.prepare(...), the staging probe
-// (which runs only when a disc path was given), and fills `out`.
-// Returns RV_OK, or a negative rv_err when a hard requirement failed.
-int64_t rv_pboot_mode_prepare(
-    const rv_pboot_args &args,
-    const rv_pcslots &slots,
-    rv_pchost_sdl3 &host,
-    rv_pboot_mode_info &out);
+// Runs the MADV_POPULATE_WRITE probe, the staging probe (which runs only
+// when a disc path was given), and fills `out`. Returns RV_OK, or a negative
+// rv_err when a hard requirement failed.
+int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out);
 
 // Reports the preparation. States what the mode is ready to offer; it must
-// not be read as any disc having been found compatible yet.
+// not be read as any disc having been found compatible yet. The platform's
+// own endpoints (window/gamepads/audio) are logged by the platform itself.
 void rv_pboot_mode_report(
-    const rv_pboot_args &args,
-    const rv_pcslots &slots,
-    const rv_pchost_sdl3 &host,
-    const rv_pboot_mode_info &machine);
+    const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine);
 
 } // namespace rv_3dmppc

@@ -1,22 +1,23 @@
 // The console's mixing stage: it owns the voices and turns them into the stereo
-// stream the host hands to the device.
+// stream the console timeline asks for.
 //
-// This is also THE MEETING POINT OF THE TWO THREADS of the machine. The game
-// thread arrives through rv_ca (voice_setup / voice_play / voice_stop /
-// voice_status); the device thread arrives through render(), called from SDL's
-// audio callback. Nothing else in the console is touched from two threads.
+// render() is called on the console thread by rv_pcca::advance() once per
+// frame; nothing reaches the mixer from a second thread any more — the
+// platform only plays PCM this already produced, queued.
 //
-// DECISION (do not re-litigate): the meeting is guarded by ONE MUTEX, not by a
-// lock-free command queue. The critical section is a few dozen microseconds of
-// arithmetic over 24 fixed-size voice structs — it does not allocate, it does
-// not block, it cannot recurse, and it holds no lock while calling anything
-// else. A lock-free queue would buy nothing measurable here and would cost the
-// one thing this project cannot spare: the ability to read the audio path and
-// believe it. If priority inversion ever shows up in a profile, the fix is a
-// smaller critical section, not a redesign.
+// DECISION (do not re-litigate): setup/play/stop/status and render() still go
+// through ONE MUTEX, not a lock-free command queue. The critical section is a
+// few dozen microseconds of arithmetic over 24 fixed-size voice structs — it
+// does not allocate, it does not block, it cannot recurse, and it holds no
+// lock while calling anything else.
 //
-// Knows nothing about SDL: it fills an int16 buffer and never learns where it
-// goes. SDL is confined to the rv_pchost_sdl3*.cpp files by house rule.
+// ponytail: single-threaded since the platform split, so this lock is
+// uncontended and kept only so this change does not also rewrite rv_pcca_sw's
+// compound operations (acquire() / *_locked). Drop the mutex together with
+// acquire() and the *_locked split in a follow-up.
+//
+// Knows nothing about any platform: it fills an int16 buffer and never learns
+// where it goes.
 #pragma once
 
 #include <cstdint>
@@ -31,7 +32,7 @@ namespace rv_3dmppc
 
 // Frames the mixer sums in one pass. render() chops any request into blocks of
 // at most this size so its int32 accumulator can be allocated ONCE, at
-// construction: the device thread must never wait on the heap.
+// construction: render() must never wait on the heap mid-frame.
 constexpr int64_t RV_PCMIXER_BLOCK_FRAMES = 512;
 
 // Channels on the output side. The voices are mono (see rv_pcvoice.hpp).
@@ -56,7 +57,7 @@ public:
     // from the disc's point of view (see rv_pcca_conf::mute).
     void set_muted(bool muted);
 
-    // --- the game thread's side; each call takes the lock for its duration ---
+    // --- the console's setup/control side; each call takes the lock for its duration ---
 
     // Load `conf` into every voice named by `mask`. `data` / `frames` describe
     // the sound-RAM region conf.sample_address resolves to.
@@ -77,7 +78,7 @@ public:
     // Mask of the voices in `mask` that are still busy.
     int64_t status(int64_t mask) const;
 
-    // --- the device thread's side ---
+    // --- the console timeline's side ---
 
     // Sum every sounding voice into `out`, which holds `frames` INTERLEAVED
     // stereo frames (2 * frames int16 values). Overwrites; does not accumulate.
@@ -111,8 +112,8 @@ private:
     mutable std::mutex lock_;
     std::vector<rv_pcvoice> voices_;
 
-    // Summing accumulator, sized once and reused. Lives here rather than on the
-    // device thread's stack so its size is a property of the mixer.
+    // Summing accumulator, sized once and reused. Lives here rather than on a
+    // caller's stack so its size is a property of the mixer.
     std::vector<int32_t> accumulator_;
 
     bool muted_ = false;
