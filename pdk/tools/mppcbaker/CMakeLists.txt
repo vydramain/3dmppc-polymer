@@ -1,5 +1,5 @@
 # mppcbaker BAKES a texture: PNG in, .mppctex out. Named for what it does, not
-# for what it produces — the artifact is .mppctex and a tool sharing that name
+# for what it produces - the artifact is .mppctex and a tool sharing that name
 # would make "build the mppctex" ambiguous forever.
 
 # --- stb_image (vendored, TOOL-ONLY dependency) -------------------------------
@@ -13,10 +13,10 @@ set(MPPCBAKER_STB_DIR ${RV_REPO_ROOT}/third_party/stb)
 if(NOT EXISTS ${MPPCBAKER_STB_DIR}/stb_image.h)
   message(FATAL_ERROR
     "mppcbaker: third_party/stb/stb_image.h is missing. It is vendored, not "
-    "downloaded — restore it from the repository rather than fetching it.")
+    "downloaded - restore it from the repository rather than fetching it.")
 endif()
 
-add_executable(mppcbaker mppcbaker.cpp)
+add_executable(mppcbaker mppcbaker.cpp rv_baker_encode.cpp rv_baker_quantize.cpp)
 
 # SYSTEM: stb_image.h is third-party and not warning-clean under -Wextra. Its
 # implementation is textually part of mppcbaker.cpp, but the diagnostics still
@@ -24,13 +24,13 @@ add_executable(mppcbaker mppcbaker.cpp)
 # noise and leaves every warning about our own code standing.
 target_include_directories(mppcbaker SYSTEM PRIVATE ${MPPCBAKER_STB_DIR})
 
-# The contract, for pdk/cv/rv_texel.h — the transparent-texel value the
+# The contract, for pdk/cv/rv_texel.h - the transparent-texel value the
 # console's sampler recognises. The baker writes that number into every file it
 # produces, so it takes the number from the same header the console reads it
 # from rather than restating it.
 target_include_directories(mppcbaker PRIVATE ${RV_REPO_ROOT}/pdk/include)
 
-# pdklib, for pdklib/rv_stdio.hpp — the output adapter every tool prints through.
+# pdklib, for pdklib/rv_stdio.hpp - the output adapter every tool prints through.
 target_include_directories(mppcbaker PRIVATE ${RV_REPO_ROOT}/pdk/lib/include)
 
 if(MSVC)

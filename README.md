@@ -11,9 +11,10 @@ runs it — and the console never learns the game's name.
 That screen, those voices, and the 1 MB of video memory behind them are a
 **virtual budget the console imposes on itself** — not what the host machine
 has. The host has gigabytes; a disc gets what the fantasy machine is defined to
-have, and the pools really do answer "out of memory" at the line. See
-[`docs/platform/specs.md`](docs/platform/specs.md) for the whole budget and for
-the two places it is not yet enforced.
+have, and the pools really do answer "out of memory" at the line. See the
+`rv_manifest_budget_*` defaults in
+[`pdk/lib/include/pdklib/rv_manifest/rv_manifest.hpp`](pdk/lib/include/pdklib/rv_manifest/rv_manifest.hpp)
+for the whole budget.
 
 ---
 
@@ -31,17 +32,19 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
     --baker pdk/tools/build/mppcbaker/mppcbaker
 
 # 4. run it
-./build/3dmppc build/example-cpp.mppcdisc
+./build/pconsole/3dmppc build/example-cpp.mppcdisc
 ```
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
+
+Ctrl+C in the terminal stops the console the same ordinary way.
 
 The same three commands work unchanged against
 [`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) — swap the directory in
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
 compiled C++.
 
-Running `./build/3dmppc` with no disc gives you the built-in **service test** — a
+Running `./build/pconsole/3dmppc` with no disc gives you the built-in **service test** — a
 diagnostics screen that exercises every subsystem and explains itself on screen.
 It is how you tell a broken console from a broken disc.
 
@@ -87,19 +90,23 @@ the compiler they drive.
 ## Running the console
 
 ```sh
-./build/3dmppc [flags] [DISC.mppcdisc]
+./build/pconsole/3dmppc [flags] [DISC.mppcdisc]
 ```
 
 | Flag | What it does |
 | --- | --- |
 | `--scale N` | window magnification over the native 320×240 (default 3) |
-| `--headless` | no window; pair with `--frames` for a smoke test |
+| `--mode=NAME` | preset: `default` (SDL3 window, pads, sound) or `headless` (no window, no pads, no audio device - the same virtual machine) |
+| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`std`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
+| `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
-| `--fixed-step` | feed the disc a fixed 1/60 dt — reproducible runs |
+| `--fixed-step` | fast run: no real-time wait and no audio output; every mode steps 1/60 s per frame, so runs stay reproducible |
 | `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
-| `--memcard PATH` | memory-card image (default `memcard.mppccard` in the working directory) |
+| `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
-| `--dump-frame PATH` | write the last presented frame as a binary PPM |
+| `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
+
+Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
 
 `--dump-frame` is how you check what the machine actually drew without taking a
 screenshot: `magick frame.ppm frame.png` and look at it, or diff it against a
@@ -177,11 +184,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 
 | Document | What it covers |
 | --- | --- |
-| [`docs/README.md`](docs/README.md) | **console vs disc** — read this first |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
 | [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
-| [`docs/platform/specs.md`](docs/platform/specs.md) | the hardware spec, and every place it deliberately differs from a real PSX |
-| [`docs/platform/disc-loading.md`](docs/platform/disc-loading.md) | how a disc is packaged and loaded |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |

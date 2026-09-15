@@ -17,12 +17,12 @@ namespace
 // std::filesystem::file_size answers in uintmax_t; the contract answers in a
 // signed int64 whose negative half is reserved for rv_err. An entry too large to
 // express is not a size we may return.
-constexpr uintmax_t kMaxEntrySize = static_cast<uintmax_t>(std::numeric_limits<int64_t>::max());
+constexpr uintmax_t RV_PCMEDIUM_MAX_ENTRY_SIZE = static_cast<uintmax_t>(std::numeric_limits<int64_t>::max());
 
 } // namespace
 
 // SECURITY: the gate that keeps a resource name from becoming a path. See the
-// long comment on the declaration in rv_pcmedium.hpp — everything refused here
+// long comment on the declaration in rv_pcmedium.hpp - everything refused here
 // is a way of naming bytes that are not on the inserted disc.
 bool rv_pcresname_valid(const char *resname)
 {
@@ -42,7 +42,7 @@ bool rv_pcresname_valid(const char *resname)
         if (*p == ':') {
             return false;
         }
-        // Any run of two dots: `..`, `../x`, `a/../b` — the parent-directory
+        // Any run of two dots: `..`, `../x`, `a/../b` - the parent-directory
         // escape in every shape it takes.
         if (*p == '.' && *(p + 1) == '.') {
             return false;
@@ -60,8 +60,8 @@ bool rv_pcresname_valid(const char *resname)
 rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
 {
     if (dir_path.empty()) {
-        // No disc in the drive. Deliberately quiet: this is how a headless smoke
-        // run of the console with no game boots, and it is not a fault.
+        // No disc in the drive. Deliberately quiet: this is how a smoke run
+        // with cv=null of the console with no game boots, and it is not a fault.
         RV_LOG_INFO("pcmedium", "no medium path configured; drive is empty");
         return;
     }
@@ -69,8 +69,8 @@ rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
     std::error_code ec;
     std::filesystem::path root = std::filesystem::path(dir_path).lexically_normal();
     if (!std::filesystem::is_directory(root, ec)) {
-        // Worth shouting about — someone pointed the console at a disc that is
-        // not there — but the machine stays usable, just empty.
+        // Worth shouting about - someone pointed the console at a disc that is
+        // not there - but the machine stays usable, just empty.
         RV_LOG_ERR("pcmedium", "medium path '{}' is not a directory; drive stays empty", dir_path);
         return;
     }
@@ -90,7 +90,7 @@ bool rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out)
 
     // Defence in depth: whatever the name did to the path, the result must still
     // be a DIRECT child of the medium root. A validated name can never fail this
-    // — which is exactly why a failure here means the validator was bypassed.
+    // - which is exactly why a failure here means the validator was bypassed.
     if (candidate.parent_path() != root_) {
         RV_LOG_ERR("pcmedium", "entry name '{}' escapes the medium root; refused", resname);
         return false;
@@ -121,7 +121,7 @@ int64_t rv_pcdirmedium::entry_size(const char *resname) const
         RV_LOG_ERR("pcmedium", "cannot measure entry '{}': {}", resname, ec.message());
         return RV_ERR_IO;
     }
-    if (size > kMaxEntrySize) {
+    if (size > RV_PCMEDIUM_MAX_ENTRY_SIZE) {
         RV_LOG_ERR("pcmedium", "entry '{}' is too large to address", resname);
         return RV_ERR_IO;
     }
@@ -171,7 +171,7 @@ int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap
         // the medium dying mid-copy, and the bytes are then already in the game's
         // buffer. Scrubbing what we touched is the closest honest equivalent:
         // the game cannot mistake half an entry for a whole one. The alternative
-        // — staging the entry in a shadow allocation — would make the drive
+        // - staging the entry in a shadow allocation - would make the drive
         // allocate per read, which rv_cd.hpp explicitly forbids.
         std::memset(baddr, 0, static_cast<size_t>(size));
         RV_LOG_ERR("pcmedium", "short read on entry '{}': {} of {} bytes", resname,

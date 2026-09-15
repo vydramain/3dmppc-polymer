@@ -1,46 +1,37 @@
-// The rv_cm implementation of the reference console: geometry out of
-// rv_pccm_conf, bytes out of rv_pccard. Everything this class adds over the
-// image is contract semantics — argument validation and the exact rv_err
-// vocabulary — so the medium never has to know what a rv_err is.
+// The rv_cm contract made abstract. Where a save's bytes live is the concrete
+// card's business (rv_pccm_posix or rv_pccm_null).
 #pragma once
 
-#include "rv_pconsole/cm/rv_pccard.hpp"
-#include "rv_pconsole/rv_pconsole_conf.hpp"
+#include <cstdint>
 
 namespace rv_3dmppc
 {
+
 class rv_pccm
 {
-private:
-    // The image is the single source of truth for the geometry too: it is what
-    // conf asked for, minus anything the medium refused.
-    rv_pccard card_;
-
-    // True when `slot` names a slot this console has.
-    bool slot_in_range(int64_t slot) const;
-
 public:
-    explicit rv_pccm(const rv_pccm_conf &conf);
-    ~rv_pccm() = default;
+    virtual ~rv_pccm() = default;
 
-    int64_t card_slots();
+    rv_pccm(const rv_pccm &) = delete;
+    rv_pccm &operator=(const rv_pccm &) = delete;
 
-    int64_t card_slot_size();
+    virtual int64_t card_slots() = 0;
 
-    int64_t card_size(int64_t slot);
+    virtual int64_t card_slot_size() = 0;
 
-    int64_t card_read(int64_t slot, void *baddr, int64_t baddr_size);
+    virtual int64_t card_size(int64_t slot) = 0;
 
-    int64_t card_write(int64_t slot, const void *data, int64_t data_size);
+    virtual int64_t card_read(int64_t slot, void *baddr, int64_t baddr_size) = 0;
 
-    int64_t card_erase(int64_t slot);
+    virtual int64_t card_write(int64_t slot, const void *data, int64_t data_size) = 0;
 
-    // Does the medium this controller owns actually exist? False when the
-    // card failed to come up with the geometry it was asked for.
-    bool valid() const
-    {
-        return card_.valid();
-    }
+    virtual int64_t card_erase(int64_t slot) = 0;
+
+    // Console-side only - not reached through the extern "C" block.
+    virtual bool valid() const = 0;
+
+protected:
+    rv_pccm() = default;
 };
 
 } // namespace rv_3dmppc

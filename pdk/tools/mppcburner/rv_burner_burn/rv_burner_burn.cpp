@@ -17,7 +17,7 @@ namespace rv_pdktools
 // are refused as asset names by check_asset_name() for exactly this reason.
 static constexpr const char *k_entry_manifest = "disc.toml";
 
-// Mirrors kDefaultCodeEntry in src/rv_pconsole/rv_pcloader.cpp — the console
+// Mirrors RV_PCLOADER_DEFAULT_CODE_ENTRY in src/rv_pconsole/rv_pcloader.cpp - the console
 // falls back to this same literal when the manifest leaves code_entry blank.
 // Kept as a separate constant (not shared across the two trees) but named
 // identically in spirit so the pair is easy to find.
@@ -53,7 +53,7 @@ int rv_pdktools::burn_archive(
     //
     // The manifest names the entry the module is stored under; a blank value
     // means the conventional name. The file compiled to disk is always
-    // disc_module — only the name it gets inside the archive changes.
+    // disc_module - only the name it gets inside the archive changes.
 
     const std::string entry_module = manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 

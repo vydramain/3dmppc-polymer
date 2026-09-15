@@ -9,20 +9,15 @@ namespace rv_3dmppc
 namespace
 {
 
-// Every region starts on a 4-byte boundary. The pool holds 16-bit texels and
-// 16-bit palette entries; an unaligned region would make the sampler pay for
-// byte-wise reads on every texel fetch.
-constexpr int64_t RV_PCVRAM_ALIGN = 4;
-
 // The pool's first bytes are never handed out, so no live region can ever have
-// address 0 — see the constructor comment in rv_pcpool.hpp for why that matters
+// address 0 - see the constructor comment in rv_pcpool.hpp for why that matters
 // to a zero-initialized rv_polygon.
 constexpr int64_t RV_PCVRAM_RESERVED_HEAD = 16;
 
 } // namespace
 
 rv_pcvram::rv_pcvram(int64_t size)
-    : pool_(size, RV_PCVRAM_ALIGN, RV_PCVRAM_RESERVED_HEAD)
+    : pool_(size, rv_pcvram::RV_PCVRAM_ALIGN, RV_PCVRAM_RESERVED_HEAD)
 {
     if (!pool_.valid()) {
         RV_LOG_ERR("pcvram", "failed to reserve {} byte(s) of video RAM", size);
@@ -79,7 +74,7 @@ int64_t rv_pcvram::region_format(int64_t addr) const
     }
 
     const rv_pcvram_meta *meta = written_meta(addr);
-    // The region is real but empty — a distinct answer from "no such region",
+    // The region is real but empty - a distinct answer from "no such region",
     // because frame_put uses it to decide whether a palette is required and an
     // unwritten region cannot demand one.
     if (!meta) {

@@ -4,7 +4,7 @@
 // is what it gets: the numbers become the machine it runs on. The built-in
 // service test carries no manifest, so its requirements live here instead:
 // the reference console's own answers, copied verbatim from
-// docs/platform/specs.md, "Target Spec".
+// rv_manifest_budget's defaults (pdklib/rv_manifest/rv_manifest.hpp).
 //
 // This is not a ceiling on what other discs may ask for. What a disc may ask
 // for is bounded by the machine it is asked to run on, and by nothing else.
@@ -26,8 +26,8 @@ inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
     // those numbers once (rv_manifest.hpp) and a manifest that states nothing
     // arrives holding exactly them. Restating them here would be a second list
     // free to drift from the one the burner fills discs from.
-    static const rv_pdklib::rv_manifest_budget kBudget;
-    return kBudget;
+    static const rv_pdklib::rv_manifest_budget RV_PBOOT_REFERENCE_BUDGET;
+    return RV_PBOOT_REFERENCE_BUDGET;
 }
 
 // What the machine is going to be. A disc declares its requirements in its

@@ -1,0 +1,331 @@
+#include "rv_pboot_modes.hpp"
+
+#include <algorithm>
+#include <filesystem>
+#include <format>
+#include <fstream>
+#include <iterator>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_manifest/detail/rv_manifest_failer.hpp"
+#include "pdklib/rv_manifest/detail/rv_manifest_lexer.hpp"
+#include "pdklib/rv_manifest/detail/rv_manifest_parser.hpp"
+#include "rv_pboot.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
+
+namespace rv_3dmppc
+{
+
+namespace
+{
+
+struct rv_pboot_preset {
+    const char *name;
+    rv_pcslots slots;
+};
+
+// "headless": the same virtual machine as "default", just with no platform
+// underneath it - nothing about the disc's machine changes, only whether a
+// real window/pads/audio device serve it.
+constexpr rv_pcslots rv_pboot_headless_slots()
+{
+    rv_pcslots slots;
+    slots.platform = rv_pcplatform_impl::null;
+    return slots;
+}
+
+// Built-in preset table, compiled in and mandatory: the console always has
+// at least "default" to fall back to, even before any preset FILE exists.
+constexpr rv_pboot_preset RV_PBOOT_BUILTIN_PRESETS[] = {
+    { "default", rv_pcslots{} },
+    { "headless", rv_pboot_headless_slots() },
+};
+
+// The runtime table a run actually resolves against: the built-in table,
+// with a preset FILE's `[mode.NAME]` sections merged in on top (same name
+// replaces, new name is added).
+struct rv_pboot_runtime_preset {
+    std::string name;
+    rv_pcslots slots;
+};
+
+bool find_preset(const std::vector<rv_pboot_runtime_preset> &table, const std::string &name, rv_pcslots &out)
+{
+    for (const rv_pboot_runtime_preset &preset : table) {
+        if (name == preset.name) {
+            out = preset.slots;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Applies a non-empty `--mode_<slot>=value` override. Returns false (with a
+// diagnostic already printed) when `value` names nothing in `table`.
+template <typename Table, typename Impl>
+bool apply_override(const Table &table, const std::string &slot_flag, const std::string &value,
+    Impl &out, int &exit_code)
+{
+    if (value.empty()) {
+        return true;
+    }
+    std::string available;
+    for (const auto &row : table) {
+        if (value == row.name) {
+            out = row.impl;
+            return true;
+        }
+        if (!available.empty()) {
+            available += ", ";
+        }
+        available += row.name;
+    }
+    rv_console_print_error(std::format("unknown --mode_{} '{}', available: {}", slot_flag,
+        rv_pdklib::rv_log_escape(value.c_str()), available));
+    rv_console_print_usage(stderr);
+    exit_code = 2;
+    return false;
+}
+
+// Reads a `[mode.<NAME>]` value for one slot: must be a string naming a row
+// of `table`. A diagnostic on `failer` and false otherwise.
+template <typename Table, typename Impl>
+bool lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entry &entry, Impl &out,
+    rv_pdklib::rv_manifest_failer &failer)
+{
+    if (entry.value.kind != rv_pdklib::rv_manifest_value_kind::string) {
+        failer.fail(entry.value.line,
+            std::format("'{}' must be {}, got {}", entry.key, rv_pdklib::rv_manifest_kind_name(
+                                                                    rv_pdklib::rv_manifest_value_kind::string),
+                rv_pdklib::rv_manifest_kind_name(entry.value.kind)));
+        return false;
+    }
+    std::string available;
+    for (const auto &row : table) {
+        if (entry.value.str == row.name) {
+            out = row.impl;
+            return true;
+        }
+        if (!available.empty()) {
+            available += ", ";
+        }
+        available += row.name;
+    }
+    failer.fail(entry.value.line,
+        std::format("unknown {} '{}', available: {}", entry.key, entry.value.str, available));
+    return false;
+}
+
+// Validates the whole tree against the mode-file schema and, only if the
+// file has no error, merges its presets into `table`. Returns how many
+// presets were loaded; the count is meaningless when `failer` is non-empty,
+// because nothing was merged.
+int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pboot_runtime_preset> &table,
+    rv_pdklib::rv_manifest_failer &failer)
+{
+    struct pending_preset {
+        std::string name;
+        int line;
+        rv_pcslots slots;
+    };
+    std::vector<pending_preset> pendings;
+
+    for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
+        if (section.poisoned) {
+            continue;
+        }
+        if (!section.name.starts_with("mode.") || section.name.size() == 5) {
+            failer.fail(section.line,
+                std::format("section '[{}]' is not a preset - expected '[mode.<NAME>]'", section.name));
+            continue;
+        }
+        const std::string name = section.name.substr(5);
+
+        bool duplicate = false;
+        for (const pending_preset &p : pendings) {
+            if (p.name == name) {
+                failer.fail(section.line,
+                    std::format("preset '{}' redefines the one at line {}", name, p.line));
+                duplicate = true;
+                break;
+            }
+        }
+        if (duplicate) {
+            continue;
+        }
+
+        rv_pcslots slots{};
+        std::vector<std::string> seen_keys;
+        for (const rv_pdklib::rv_manifest_tree_entry &entry : section.entries) {
+            if (std::find(seen_keys.begin(), seen_keys.end(), entry.key) != seen_keys.end()) {
+                failer.fail(entry.line, std::format("key '{}' given twice", entry.key));
+                continue;
+            }
+            seen_keys.push_back(entry.key);
+
+            if (entry.key == "platform") {
+                lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
+            } else if (entry.key == "ca") {
+                lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
+            } else if (entry.key == "cv") {
+                lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
+            } else if (entry.key == "cio") {
+                lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
+            } else if (entry.key == "cl") {
+                lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
+            } else if (entry.key == "cd") {
+                lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
+            } else if (entry.key == "cm") {
+                lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
+            } else {
+                failer.fail(entry.line, std::format("unknown key '{}'", entry.key));
+            }
+        }
+
+        pendings.push_back({ name, section.line, slots });
+    }
+
+    if (!failer.empty()) {
+        return 0;
+    }
+
+    for (const pending_preset &p : pendings) {
+        bool replaced = false;
+        for (rv_pboot_runtime_preset &existing : table) {
+            if (existing.name == p.name) {
+                existing.slots = p.slots;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            table.push_back({ p.name, p.slots });
+        }
+    }
+    return static_cast<int>(pendings.size());
+}
+
+// Merges modes.toml from the executable's directory (build/pconsole/) into
+// `table`.
+// Absent file: nothing happens. Present but unreadable, or present with a
+// schema/parse problem: a diagnostic and false. `table` is left untouched on
+// failure.
+bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
+{
+    const std::filesystem::path dir = rv_pboot_exe_dir();
+    if (dir.empty()) {
+        return true;
+    }
+    const std::filesystem::path path = dir / "modes.toml";
+
+    std::error_code exists_ec;
+    if (!std::filesystem::exists(path, exists_ec)) {
+        return true;
+    }
+
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        rv_console_print_error(std::format("cannot open modes file '{}'", path.string()));
+        exit_code = 2;
+        return false;
+    }
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    if (in.bad()) {
+        rv_console_print_error(std::format("cannot read modes file '{}'", path.string()));
+        exit_code = 2;
+        return false;
+    }
+    const std::string text = buffer.str();
+
+    rv_pdklib::rv_manifest_failer failer;
+    const std::vector<rv_pdklib::rv_manifest_token> tokens = rv_pdklib::rv_manifest_lex(text);
+    rv_pdklib::rv_manifest_parser parser(tokens, failer);
+    const rv_pdklib::rv_manifest_tree tree = parser.run();
+
+    int loaded = 0;
+    if (failer.empty()) {
+        loaded = apply_modes_tree(tree, table, failer);
+    }
+
+    if (!failer.empty()) {
+        const std::string report = failer.report(path.string());
+        std::size_t start = 0;
+        while (start <= report.size()) {
+            const std::size_t nl = report.find('\n', start);
+            rv_console_print_error(report.substr(start, nl == std::string::npos ? std::string::npos : nl - start));
+            if (nl == std::string::npos) {
+                break;
+            }
+            start = nl + 1;
+        }
+        exit_code = 2;
+        return false;
+    }
+
+    RV_LOG_INFO("main", "modes: {} preset(s) from '{}'", loaded, path.string());
+    return true;
+}
+
+} // namespace
+
+std::string rv_pboot_builtin_presets_summary()
+{
+    std::string result;
+    const std::size_t n = std::size(RV_PBOOT_BUILTIN_PRESETS);
+    for (std::size_t i = 0; i < n; ++i) {
+        if (i > 0) {
+            result += (i + 1 == n) ? " and " : ", ";
+        }
+        result += std::format("{} (platform {})", RV_PBOOT_BUILTIN_PRESETS[i].name,
+            rv_pcslots_name(RV_PBOOT_BUILTIN_PRESETS[i].slots.platform));
+    }
+    return result;
+}
+
+bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code)
+{
+    std::vector<rv_pboot_runtime_preset> table;
+    for (const rv_pboot_preset &preset : RV_PBOOT_BUILTIN_PRESETS) {
+        table.push_back({ preset.name, preset.slots });
+    }
+
+    if (!load_modes_file(table, exit_code)) {
+        return false;
+    }
+
+    rv_pcslots slots;
+    if (!find_preset(table, args.mode, slots)) {
+        std::string available;
+        for (const rv_pboot_runtime_preset &preset : table) {
+            if (!available.empty()) {
+                available += ", ";
+            }
+            available += preset.name;
+        }
+        rv_console_print_error(
+            std::format("unknown --mode '{}', available: {}", rv_pdklib::rv_log_escape(args.mode.c_str()),
+                available));
+        rv_console_print_usage(stderr);
+        exit_code = 2;
+        return false;
+    }
+
+    if (!apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform, slots.platform, exit_code) ||
+        !apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code) ||
+        !apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code) ||
+        !apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code) ||
+        !apply_override(RV_PCSLOTS_CL, "cl", args.mode_cl, slots.cl, exit_code) ||
+        !apply_override(RV_PCSLOTS_CD, "cd", args.mode_cd, slots.cd, exit_code) ||
+        !apply_override(RV_PCSLOTS_CM, "cm", args.mode_cm, slots.cm, exit_code)) {
+        return false;
+    }
+
+    out = slots;
+    return true;
+}
+
+} // namespace rv_3dmppc

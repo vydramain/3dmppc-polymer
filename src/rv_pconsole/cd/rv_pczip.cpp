@@ -12,39 +12,39 @@ namespace rv_3dmppc {
 namespace {
 
 // Signatures, as the 32-bit little-endian values they decode to.
-constexpr uint32_t kSigEocd = 0x06054b50u;   // PK\x05\x06
-constexpr uint32_t kSigCdir = 0x02014b50u;   // PK\x01\x02
-constexpr uint32_t kSigLocal = 0x04034b50u;  // PK\x03\x04
+constexpr uint32_t RV_PCZIP_SIG_EOCD = 0x06054b50u;   // PK\x05\x06
+constexpr uint32_t RV_PCZIP_SIG_CDIR = 0x02014b50u;   // PK\x01\x02
+constexpr uint32_t RV_PCZIP_SIG_LOCAL = 0x04034b50u;  // PK\x03\x04
 
 // Fixed parts of the three records, ahead of their variable-length tails.
-constexpr int64_t kEocdSize = 22;
-constexpr int64_t kCdirSize = 46;
-constexpr int64_t kLocalSize = 30;
+constexpr int64_t RV_PCZIP_EOCD_SIZE = 22;
+constexpr int64_t RV_PCZIP_CDIR_SIZE = 46;
+constexpr int64_t RV_PCZIP_LOCAL_SIZE = 30;
 
 // The archive comment length is a uint16, so the EOCD record can sit at most
 // this many bytes away from the end of the file.
-constexpr int64_t kMaxComment = 65535;
+constexpr int64_t RV_PCZIP_MAX_COMMENT = 65535;
 
 // The only compression method this container admits. See the header for why.
-constexpr uint16_t kMethodStore = 0;
+constexpr uint16_t RV_PCZIP_METHOD_STORE = 0;
 
 // An all-ones field is zip's "the real value is in a zip64 extra record"
 // sentinel. This reader has no zip64 support, so the sentinel is refused rather
-// than used as a number — using it would mean seeking to 4 GiB - 1 and reading
+// than used as a number - using it would mean seeking to 4 GiB - 1 and reading
 // whatever is there.
-constexpr uint32_t kZip64Sentinel = 0xffffffffu;
-constexpr uint16_t kZip64Sentinel16 = 0xffffu;
+constexpr uint32_t RV_PCZIP_ZIP64_SENTINEL = 0xffffffffu;
+constexpr uint16_t RV_PCZIP_ZIP64_SENTINEL16 = 0xffffu;
 
 // Sanity ceilings. Neither is a format limit; both exist so that a lying header
 // costs a rejection rather than an allocation. The central directory is already
 // bounded by the file size, but a 2 GiB "directory" inside a 2 GiB file is still
 // a 2 GiB allocation, and no real disc index comes close to 32 MiB.
-constexpr int64_t kMaxDirectoryBytes = 32 * 1024 * 1024;
-constexpr std::size_t kMaxEntries = 65536;
+constexpr int64_t RV_PCZIP_MAX_DIRECTORY_BYTES = 32 * 1024 * 1024;
+constexpr std::size_t RV_PCZIP_MAX_ENTRIES = 65536;
 
 // Chunk used when streaming an entry's bytes through the CRC. Bounded so that
 // verifying a large entry never doubles its memory cost.
-constexpr int64_t kCrcChunk = 64 * 1024;
+constexpr int64_t RV_PCZIP_CRC_CHUNK = 64 * 1024;
 
 uint16_t rd16(const unsigned char* p) {
     return static_cast<uint16_t>(static_cast<unsigned>(p[0]) | (static_cast<unsigned>(p[1]) << 8));
@@ -55,7 +55,7 @@ uint32_t rd32(const unsigned char* p) {
            (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
 }
 
-// THEOREM: CRC-32/ISO-HDLC — the checksum zip stores. Reflected input and
+// CRC-32/ISO-HDLC - the checksum zip stores. Reflected input and
 // output, polynomial 0xedb88320, pre- and post-inverted. It is written out here
 // instead of being pulled from zlib because the whole point of the store-only
 // container is that the console links no compression library at all; a 256-entry
@@ -108,7 +108,7 @@ bool rv_zipreader::open(const std::string& path, std::string& error) {
     }
     file_size_ = static_cast<int64_t>(end);
 
-    if (file_size_ < kEocdSize) {
+    if (file_size_ < RV_PCZIP_EOCD_SIZE) {
         error = "file is smaller than an empty zip archive";
         file_.close();
         return false;
@@ -135,29 +135,29 @@ bool rv_zipreader::read_at(int64_t offset, void* dst, int64_t count) const {
     return file_.gcount() == static_cast<std::streamsize>(count);
 }
 
-// THEOREM: backward search for the End Of Central Directory record — the EOCD is
+// Backward search for the End Of Central Directory record - the EOCD is
 // the only way into a zip (it says where the central directory starts), and it is
 // NOT simply the last 22 bytes. The record ends with a variable-length archive
 // comment of up to 65535 bytes, so an archive with any comment at all puts the
 // record further from the end, and "read the last 22 bytes" then finds nothing
 // and declares a perfectly good archive corrupt. The signature must therefore be
-// searched for, backwards, across the last kEocdSize + kMaxComment bytes.
+// searched for, backwards, across the last RV_PCZIP_EOCD_SIZE + RV_PCZIP_MAX_COMMENT bytes.
 //
 // Backwards, and not forwards, for a second reason: `PK\x05\x06` is four ordinary
 // bytes that can also occur inside stored file data or inside the comment itself.
 // A forward scan can stop on such an impostor; the real record is the LAST
 // plausible one, so scanning from the end and taking the first hit is what makes
-// the search deterministic. "Plausible" is then checked properly — the comment
+// the search deterministic. "Plausible" is then checked properly - the comment
 // length field must account for exactly the bytes that follow the record, which
 // is what tells a real EOCD from four coincidental bytes of a texture.
 bool rv_zipreader::find_eocd(const std::vector<unsigned char>& tail, std::size_t& pos) {
-    if (tail.size() < static_cast<std::size_t>(kEocdSize)) return false;
+    if (tail.size() < static_cast<std::size_t>(RV_PCZIP_EOCD_SIZE)) return false;
 
-    for (std::size_t i = tail.size() - static_cast<std::size_t>(kEocdSize) + 1; i-- > 0;) {
-        if (rd32(tail.data() + i) != kSigEocd) continue;
+    for (std::size_t i = tail.size() - static_cast<std::size_t>(RV_PCZIP_EOCD_SIZE) + 1; i-- > 0;) {
+        if (rd32(tail.data() + i) != RV_PCZIP_SIG_EOCD) continue;
 
         const std::size_t comment_len = rd16(tail.data() + i + 20);
-        const std::size_t after = tail.size() - i - static_cast<std::size_t>(kEocdSize);
+        const std::size_t after = tail.size() - i - static_cast<std::size_t>(RV_PCZIP_EOCD_SIZE);
         if (comment_len != after) continue;  // impostor: the tail does not add up
 
         pos = i;
@@ -167,7 +167,7 @@ bool rv_zipreader::find_eocd(const std::vector<unsigned char>& tail, std::size_t
 }
 
 bool rv_zipreader::parse_directory(std::string& error) {
-    const int64_t tail_size = std::min<int64_t>(file_size_, kEocdSize + kMaxComment);
+    const int64_t tail_size = std::min<int64_t>(file_size_, RV_PCZIP_EOCD_SIZE + RV_PCZIP_MAX_COMMENT);
     std::vector<unsigned char> tail(static_cast<std::size_t>(tail_size));
     if (!read_at(file_size_ - tail_size, tail.data(), tail_size)) {
         error = "cannot read the end of the archive";
@@ -192,8 +192,8 @@ bool rv_zipreader::parse_directory(std::string& error) {
         error = "split archives are not supported";
         return false;
     }
-    if (entries_total == kZip64Sentinel16 || cd_size == kZip64Sentinel ||
-        cd_offset == kZip64Sentinel) {
+    if (entries_total == RV_PCZIP_ZIP64_SENTINEL16 || cd_size == RV_PCZIP_ZIP64_SENTINEL ||
+        cd_offset == RV_PCZIP_ZIP64_SENTINEL) {
         error = "zip64 archives are not supported";
         return false;
     }
@@ -206,7 +206,7 @@ bool rv_zipreader::parse_directory(std::string& error) {
         error = "central directory lies outside the file";
         return false;
     }
-    if (static_cast<int64_t>(cd_size) > kMaxDirectoryBytes) {
+    if (static_cast<int64_t>(cd_size) > RV_PCZIP_MAX_DIRECTORY_BYTES) {
         error = "central directory is implausibly large";
         return false;
     }
@@ -218,9 +218,9 @@ bool rv_zipreader::parse_directory(std::string& error) {
     }
 
     std::size_t p = 0;
-    while (p + static_cast<std::size_t>(kCdirSize) <= cdir.size()) {
+    while (p + static_cast<std::size_t>(RV_PCZIP_CDIR_SIZE) <= cdir.size()) {
         const unsigned char* h = cdir.data() + p;
-        if (rd32(h) != kSigCdir) {
+        if (rd32(h) != RV_PCZIP_SIG_CDIR) {
             // The directory is a chain of records; anything else in the chain
             // means the archive's own index is damaged, and guessing where the
             // next record might start is how a parser reads someone else's bytes.
@@ -238,13 +238,13 @@ bool rv_zipreader::parse_directory(std::string& error) {
         const uint32_t lho = rd32(h + 42);
 
         const std::size_t record =
-            static_cast<std::size_t>(kCdirSize) + name_len + extra_len + comment_len;
+            static_cast<std::size_t>(RV_PCZIP_CDIR_SIZE) + name_len + extra_len + comment_len;
         if (record > cdir.size() - p) {
             error = "central directory record runs past the directory";
             return false;
         }
 
-        const std::string name(reinterpret_cast<const char*>(h + kCdirSize), name_len);
+        const std::string name(reinterpret_cast<const char*>(h + RV_PCZIP_CDIR_SIZE), name_len);
         p += record;
 
         if (name.empty()) {
@@ -252,22 +252,22 @@ bool rv_zipreader::parse_directory(std::string& error) {
             continue;
         }
 
-        if (method != kMethodStore) {
+        if (method != RV_PCZIP_METHOD_STORE) {
             // The container is store-only by design (see the header). Refusing
-            // the whole archive — rather than skipping the entry — is deliberate:
+            // the whole archive - rather than skipping the entry - is deliberate:
             // a disc whose assets are compressed was not burned for this console,
             // and letting it half-mount would turn one clear message into a
             // scattering of RV_ERR_NOENT during play.
             //
             // TODO(rv_log_escape): 12 calls in this file. The console is its only
-            // caller, so it does not belong in pdklib — find it a console-side home.
+            // caller, so it does not belong in pdklib - find it a console-side home.
             error = std::format(
                 "entry '{}' uses compression method {}; this container is "
                 "store-only (no decompressor on the console)",
                 rv_pdklib::rv_log_escape(name.c_str()), method);
             return false;
         }
-        if (csize == kZip64Sentinel || usize == kZip64Sentinel || lho == kZip64Sentinel) {
+        if (csize == RV_PCZIP_ZIP64_SENTINEL || usize == RV_PCZIP_ZIP64_SENTINEL || lho == RV_PCZIP_ZIP64_SENTINEL) {
             error = std::format("entry '{}' needs zip64, which is not supported",
                                 rv_pdklib::rv_log_escape(name.c_str()));
             return false;
@@ -278,15 +278,15 @@ bool rv_zipreader::parse_directory(std::string& error) {
             return false;
         }
         // The local header must at least FIT before its offset is ever seeked to.
-        // The data bounds cannot be settled here — they depend on the local
-        // header's own name/extra lengths — and are re-checked in read().
-        if (static_cast<int64_t>(lho) > file_size_ - kLocalSize) {
+        // The data bounds cannot be settled here - they depend on the local
+        // header's own name/extra lengths - and are re-checked in read().
+        if (static_cast<int64_t>(lho) > file_size_ - RV_PCZIP_LOCAL_SIZE) {
             error =
                 std::format("entry '{}' points outside the archive", rv_pdklib::rv_log_escape(name.c_str()));
             return false;
         }
 
-        if (entries_.size() >= kMaxEntries) {
+        if (entries_.size() >= RV_PCZIP_MAX_ENTRIES) {
             error = "archive declares implausibly many entries";
             return false;
         }
@@ -347,14 +347,14 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     const int64_t lho = entry->local_header_offset;
     const int64_t size = entry->size;
     const uint32_t want_crc = entry->crc32;
-    // Unreachable by construction — a size comes from a uint32 field — but the
+    // Unreachable by construction - a size comes from a uint32 field - but the
     // check is what turns "by construction" into something the compiler and the
     // next reader can both see.
     if (size < 0 || lho < 0) return rv_zipread::corrupt;
     if (cap < size) return rv_zipread::short_buffer;
     if (size > 0 && baddr == nullptr) return rv_zipread::short_buffer;
 
-    // THEOREM: the data offset comes from the LOCAL header, never from the
+    // The data offset comes from the LOCAL header, never from the
     // central directory. The two headers describe the same entry twice, and the
     // lengths of their `name` and `extra` fields are INDEPENDENT: writers
     // routinely put a zip64/timestamp/unix-uid extra field in one and not the
@@ -363,19 +363,19 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     // local_header_offset, read the 30-byte fixed local header, and take ITS
     // name/extra lengths: data begins at lho + 30 + local_name_len +
     // local_extra_len. Computing it from the central directory instead is the
-    // classic zip-reader bug — it lands a few bytes off and yields plausible
+    // classic zip-reader bug - it lands a few bytes off and yields plausible
     // garbage rather than an error, which is the worst possible failure mode for
     // a texture or a model.
-    unsigned char lh[kLocalSize];
-    if (!read_at(lho, lh, kLocalSize)) {
+    unsigned char lh[RV_PCZIP_LOCAL_SIZE];
+    if (!read_at(lho, lh, RV_PCZIP_LOCAL_SIZE)) {
         RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
-    if (rd32(lh) != kSigLocal) {
+    if (rd32(lh) != RV_PCZIP_SIG_LOCAL) {
         RV_LOG_ERR("pczip", "entry '{}': no local header at its offset", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
-    if (rd16(lh + 8) != kMethodStore) {
+    if (rd16(lh + 8) != RV_PCZIP_METHOD_STORE) {
         RV_LOG_ERR("pczip", "entry '{}': local header claims compression method {}",
                    rv_pdklib::rv_log_escape(name), rd16(lh + 8));
         return rv_zipread::corrupt;
@@ -383,9 +383,9 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
 
     const int64_t local_name_len = rd16(lh + 26);
     const int64_t local_extra_len = rd16(lh + 28);
-    const int64_t data_offset = lho + kLocalSize + local_name_len + local_extra_len;
+    const int64_t data_offset = lho + RV_PCZIP_LOCAL_SIZE + local_name_len + local_extra_len;
 
-    // Bounds first, seek second — always in that order, and phrased as
+    // Bounds first, seek second - always in that order, and phrased as
     // subtraction so nothing can wrap.
     if (data_offset > file_size_ || size > file_size_ - data_offset) {
         RV_LOG_ERR("pczip", "entry '{}': data lies outside the archive", rv_pdklib::rv_log_escape(name));
@@ -411,13 +411,13 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     // Verify what was just delivered. This is the cheap half of "the disc may be
     // rotten": the structure checks above catch an archive that lies about WHERE
     // the bytes are, and the CRC catches one that is honest about the location
-    // and wrong about the contents — a flipped bit in storage, a truncated
+    // and wrong about the contents - a flipped bit in storage, a truncated
     // download, a half-finished burn. Without it such a disc renders as noise and
     // gets reported as a game bug.
     uint32_t crc = 0;
     const unsigned char* p = static_cast<const unsigned char*>(baddr);
-    for (int64_t done = 0; done < size; done += kCrcChunk) {
-        const int64_t chunk = std::min<int64_t>(kCrcChunk, size - done);
+    for (int64_t done = 0; done < size; done += RV_PCZIP_CRC_CHUNK) {
+        const int64_t chunk = std::min<int64_t>(RV_PCZIP_CRC_CHUNK, size - done);
         crc = crc32_update(crc, p + done, static_cast<std::size_t>(chunk));
     }
     if (crc != want_crc) {

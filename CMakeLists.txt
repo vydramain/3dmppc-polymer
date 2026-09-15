@@ -37,8 +37,8 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # Linking it now delivers both things pdklib owns: the include directory and the
 # manifest parser object code built from pdk/lib/include/pdklib/rv_manifest/.
 #
-# Discs get it a different way — mppcburner writes the path into the CMakeLists
-# it generates for a disc project — so this target serves only what is built
+# Discs get it a different way - mppcburner writes the path into the CMakeLists
+# it generates for a disc project - so this target serves only what is built
 # from this file.
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
@@ -54,8 +54,9 @@ target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
 # console's include path is not on this target, so the first #include of a
 # console header here fails to compile.
 #
-# It is still statically linked into the executable for now — the .mppcdisc /
-# dlopen packaging is stage 5 (docs/platform/disc-loading.md).
+# rv_dmain is the console's built-in disc and is linked into the executable
+# statically; external .mppcdisc packages come in through rv_pcloader instead
+# (src/rv_pconsole/rv_pcloader.cpp).
 file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/rv_dmain/*.cpp)
 
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
@@ -79,6 +80,27 @@ endif()
 # a newly added .cpp is picked up without re-running cmake by hand.
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
+
+# --- the SDL3 platform ----------------------------------------------------------
+# The only code that may see SDL. It is its own library with SDL linked PRIVATE,
+# so SDL's include path never reaches the console: an #include <SDL3/SDL.h>
+# anywhere outside src/rv_pconsole/platform/sdl3/ fails to compile instead of
+# being caught in review. The console reaches it only through rv_pcplatform
+# (src/rv_pconsole/platform/rv_pcplatform.hpp).
+file(GLOB_RECURSE 3DMPPC_PLATFORM_SDL3_SOURCES CONFIGURE_DEPENDS
+  ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/sdl3/*.cpp
+)
+add_library(3dmppc_platform_sdl3 STATIC ${3DMPPC_PLATFORM_SDL3_SOURCES})
+target_include_directories(3dmppc_platform_sdl3 PRIVATE src)
+target_link_libraries(3dmppc_platform_sdl3 PRIVATE SDL3::SDL3 3dmppc_pdk 3dmppc_pdklib)
+target_compile_definitions(3dmppc_platform_sdl3 PRIVATE RV_LOG_ORIGIN="mppc")
+
+if(MSVC)
+  target_compile_options(3dmppc_platform_sdl3 PRIVATE /W4)
+else()
+  target_compile_options(3dmppc_platform_sdl3 PRIVATE -Wall -Wextra)
+endif()
 
 # --- PDK -> LuaJIT ffi.cdef bridge ---------------------------------------------
 # ffi.cdef() takes a STRING of C declarations - it cannot follow #include and it
@@ -118,15 +140,20 @@ add_executable(3dmppc
 # the LuaJIT FFI will look for them in the same place. Without ENABLE_EXPORTS
 # (which is -rdynamic) the executable's dynamic symbol table is empty and neither
 # side finds anything.
-set_target_properties(3dmppc PROPERTIES ENABLE_EXPORTS ON)
+#
+# The binary lands in build/pconsole/, next to its modes.toml and its default
+# memory card.
+set_target_properties(3dmppc PROPERTIES
+  ENABLE_EXPORTS ON
+  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
 
 target_include_directories(3dmppc PRIVATE src)
-target_link_libraries(3dmppc PRIVATE SDL3::SDL3)
+target_link_libraries(3dmppc PRIVATE 3dmppc_platform_sdl3)
 target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
 # separate tree with a separate purpose, and the console takes from it only the
-# output stack — pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
+# output stack - pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
 # top of it.
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)

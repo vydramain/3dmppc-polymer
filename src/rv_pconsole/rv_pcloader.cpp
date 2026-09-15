@@ -1,3 +1,4 @@
+// rv_pcloader: mounting the archive and the disc's load/unload lifecycle.
 #include "rv_pconsole/rv_pcloader.hpp"
 
 #include <dlfcn.h>
@@ -20,6 +21,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/rv_pcloader_detail.hpp"
 
 namespace rv_3dmppc
 {
@@ -30,16 +32,21 @@ namespace
 // The two service entries. They live in the archive next to the assets but are
 // NOT part of the disc's resource namespace: the console reads them, the game
 // never asks for them.
-constexpr const char *kManifestEntry = "disc.toml";
-constexpr const char *kDefaultCodeEntry = "disc.so";
+constexpr const char *RV_PCLOADER_MANIFEST_ENTRY = "disc.toml";
+constexpr const char *RV_PCLOADER_DEFAULT_CODE_ENTRY = "disc.so";
 
 // Ceilings on what the console will allocate on the say-so of an archive. Every
 // size below comes out of a file that may have been downloaded from anywhere,
 // so none of them may become a malloc argument unchecked: a two-line header
 // claiming a four-gigabyte manifest must cost a log line, not the machine's
 // memory.
-constexpr int64_t kManifestMaxSize = 1 << 20; // 1 MiB of text is already absurd
-constexpr int64_t kCodeMaxSize = 128 << 20;   // 128 MiB of code likewise
+constexpr int64_t RV_PCLOADER_MANIFEST_MAX_SIZE = 1 << 20; // 1 MiB of text is already absurd
+constexpr int64_t RV_PCLOADER_CODE_MAX_SIZE = 128 << 20;   // 128 MiB of code likewise
+
+} // namespace
+
+namespace rv_pcloader_detail
+{
 
 // Outcome of pulling one whole entry out of the archive, as a sentence fit for
 // a log line. Empty means success.
@@ -76,7 +83,7 @@ std::string read_whole_entry(const rv_zipreader &zip, const char *name,
     case rv_zipread::corrupt:
         return "the archive's bookkeeping for this entry does not hold up";
     case rv_zipread::crc_mismatch:
-        return "checksum mismatch — the entry is not the bytes that were written";
+        return "checksum mismatch - the entry is not the bytes that were written";
     case rv_zipread::io_error:
         return "the host file failed the read";
     }
@@ -86,140 +93,7 @@ std::string read_whole_entry(const rv_zipreader &zip, const char *name,
     return std::string();
 }
 
-// TMPDIR or /tmp, trailing slashes trimmed. The one place both extract_code()
-// and rv_pcloader_probe_staging() decide where the extracted disc.so lives —
-// factored out so the two can never drift onto different directories.
-std::string staging_dir()
-{
-    const char *tmpdir = std::getenv("TMPDIR");
-    std::string dir =
-        (tmpdir != nullptr && *tmpdir != '\0') ? std::string(tmpdir) : "/tmp";
-    while (dir.size() > 1 && dir.back() == '/') {
-        dir.pop_back();
-    }
-    return dir;
-}
-
-// Write `code` to a fresh private file and hand back its path.
-//
-// mkstemp is what makes the name unpredictable: the console must not open a
-// path an attacker could have guessed and pre-created as a symlink to something
-// else, which is exactly the classic /tmp race. mkstemp creates with O_EXCL and
-// mode 0600, and the fchmod below adds only the execute bit the mapping needs —
-// 0700 total, this user and nobody else. A group- or world-writable staging
-// file would be a way to swap the disc's code out between this write and the
-// dlopen a few lines later.
-std::string extract_code(const std::vector<unsigned char> &code,
-    std::string &out_path)
-{
-    const std::string dir = staging_dir();
-
-    std::string tmpl = dir + "/mppcdisc-XXXXXX";
-    std::vector<char> name(tmpl.begin(), tmpl.end());
-    name.push_back('\0');
-
-    const int fd = ::mkstemp(name.data());
-    if (fd < 0) {
-        return std::format("cannot create a staging file in '{}': {}", dir,
-            std::strerror(errno));
-    }
-
-    // From here on the file exists, so every failure path must remove it.
-    out_path.assign(name.data());
-
-    std::string error;
-    if (::fchmod(fd, S_IRWXU) != 0) {
-        error = std::format("cannot make the staging file executable: {}",
-            std::strerror(errno));
-    }
-
-    std::size_t written = 0;
-    while (error.empty() && written < code.size()) {
-        const ssize_t rc =
-            ::write(fd, code.data() + written, code.size() - written);
-        if (rc < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            error = std::format("cannot write the staging file: {}",
-                std::strerror(errno));
-            break;
-        }
-        if (rc == 0) {
-            error = "the staging file accepted no bytes";
-            break;
-        }
-        written += static_cast<std::size_t>(rc);
-    }
-
-    if (::close(fd) != 0 && error.empty()) {
-        // A close() that fails is a write that did not land — the mapping the
-        // loader is about to make would be of a truncated object file.
-        error =
-            std::format("cannot close the staging file: {}", std::strerror(errno));
-    }
-
-    if (!error.empty()) {
-        ::unlink(out_path.c_str());
-        out_path.clear();
-    }
-    return error;
-}
-
-// ELF note name/desc fields are padded to a 4-byte boundary (elf(5)). The
-// uint64_t parameter is the overflow guard: a 32-bit n_namesz/n_descsz widens
-// at the call site, so `+ 3` can never wrap.
-constexpr uint64_t align_elf_note_field_size(uint64_t size)
-{
-    return (size + 3ull) & ~3ull;
-}
-
-// Local hex formatting for a log line only — pdklib ships raw bytes, not text.
-std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
-{
-    static const char *const digits = "0123456789abcdef";
-    std::string out;
-    out.reserve(n * 2);
-    for (std::size_t i = 0; i < n; ++i) {
-        out.push_back(digits[bytes[i] >> 4]);
-        out.push_back(digits[bytes[i] & 0x0f]);
-    }
-    return out;
-}
-
-} // namespace
-
-// Stage C: is the staging area an extracted disc.so will need actually
-// usable? Creates and removes a probe file in the same directory
-// extract_code() would use (staging_dir(), above — the one helper both this
-// function and extract_code() share, so they can never disagree on the
-// directory). Returns RV_OK, or a negative rv_err after logging the
-// directory and why it cannot be used.
-int64_t rv_pcloader_probe_staging()
-{
-    const std::string dir = staging_dir();
-
-    std::string tmpl = dir + "/mppcdisc-probe-XXXXXX";
-    std::vector<char> name(tmpl.begin(), tmpl.end());
-    name.push_back('\0');
-
-    const int fd = ::mkstemp(name.data());
-    if (fd < 0) {
-        RV_LOG_ERR("pcloader",
-            "staging directory '{}' cannot be used to extract a disc's code: {}",
-            dir, std::strerror(errno));
-        return RV_ERR_IO;
-    }
-    ::close(fd);
-
-    if (::unlink(name.data()) != 0 && errno != ENOENT) {
-        RV_LOG_ERR("pcloader",
-            "staging directory '{}' accepted a probe file but would not remove it: {}",
-            dir, std::strerror(errno));
-        return RV_ERR_IO;
-    }
-    return RV_OK;
-}
+} // namespace rv_pcloader_detail
 
 rv_pcloader::~rv_pcloader()
 {
@@ -233,267 +107,13 @@ void rv_pcloader::notify_initialized(const rv_de *disc)
     }
 }
 
-
-template <typename O>
-bool rv_pcloader::pod_peek(std::vector<unsigned char> &buf, int64_t off_start,
-    int64_t off_end, O &out)
-{
-    static_assert(std::is_trivially_copyable_v<O>);
-
-    if (off_start < 0 || off_start > (int64_t)buf.size() - (int64_t)sizeof(O)) {
-        return false;
-    }
-    if (off_end < off_start || off_end > (int64_t)buf.size()) {
-        return false;
-    }
-
-    std::memcpy(&out, buf.data() + off_start, sizeof(O));
-    return true;
-}
-
-int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
-    const char *info_entry)
-{
-    int64_t size = zip->size(info_entry);
-    if (size <= 0) {
-        // TODO(rv_log_escape): 22 calls in this file. The console is its only
-        // caller, so it does not belong in pdklib — find it a console-side home.
-        RV_LOG_ERR(
-            "pcloader",
-            "code entry '{}' in '{}' is missing or empty; there is no binary "
-            "to version-check",
-            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()));
-        return RV_ERR_INVAL;
-    }
-
-    // One bulk read of the whole entry: the zip reader verifies the CRC over
-    // all of it, and no byte below is trusted before that verdict.
-    int64_t nread;
-    std::vector<unsigned char> buffer(size);
-    rv_zipread zipread = zip->read(info_entry, buffer.data(), size, nread);
-    if (zipread != rv_3dmppc::rv_zipread::ok || nread != size) {
-        RV_LOG_ERR(
-            "pcloader",
-            "cannot read code entry '{}' from '{}' (zip verdict {}, {} of {} "
-            "bytes); refusing a disc whose code cannot be inspected",
-            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()),
-            static_cast<int>(zipread), nread, size);
-        return RV_ERR_INVAL;
-    }
-
-    // The ELF header lives at offset 0 by definition — elf(5), "ELF header
-    // (Ehdr)". Each check below legalises exactly the fields the next step
-    // relies on; until a check has passed, the fields it covers are just bytes.
-    Elf64_Ehdr mppcdisc_ehdr;
-    if (!pod_peek(buffer, 0, sizeof(mppcdisc_ehdr), mppcdisc_ehdr)) {
-        RV_LOG_ERR(
-            "pcloader",
-            "code entry '{}' is only {} bytes — smaller than an ELF64 header; "
-            "not a loadable binary",
-            rv_pdklib::rv_log_escape(info_entry), size);
-        return RV_ERR_INVAL;
-    }
-
-    if (memcmp(mppcdisc_ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
-        RV_LOG_ERR(
-            "pcloader",
-            "code entry '{}' does not start with the ELF magic; it is not an "
-            "ELF object at all",
-            rv_pdklib::rv_log_escape(info_entry));
-        return RV_ERR_INVAL;
-    }
-
-    // Single-byte fields, so they are readable regardless of byte order — and
-    // only their verdict makes the multi-byte fields of the struct meaningful:
-    // everything was copied under a little-endian assumption.
-    if (mppcdisc_ehdr.e_ident[EI_CLASS] != ELFCLASS64 ||
-        mppcdisc_ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
-        RV_LOG_ERR("pcloader",
-            "code entry '{}' is not a 64-bit little-endian ELF (class {}, "
-            "data {}); this console only runs ELF64 LE discs",
-            rv_pdklib::rv_log_escape(info_entry), (int)mppcdisc_ehdr.e_ident[EI_CLASS],
-            (int)mppcdisc_ehdr.e_ident[EI_DATA]);
-        return RV_ERR_INVAL;
-    }
-
-    if (mppcdisc_ehdr.e_type != ET_DYN || mppcdisc_ehdr.e_machine != EM_X86_64) {
-        RV_LOG_ERR("pcloader",
-            "code entry '{}' is not an x86-64 shared object (e_type {}, "
-            "e_machine {}); it cannot run on this console",
-            rv_pdklib::rv_log_escape(info_entry), mppcdisc_ehdr.e_type,
-            mppcdisc_ehdr.e_machine);
-        return RV_ERR_INVAL;
-    }
-
-    // The program-header walk steps by e_phentsize; if the file declares a
-    // different stride than the Elf64_Phdr we read with, every entry after the
-    // first would be read misaligned with the table.
-    if (mppcdisc_ehdr.e_phentsize != sizeof(Elf64_Phdr)) {
-        RV_LOG_ERR(
-            "pcloader",
-            "code entry '{}' declares {}-byte program headers, elf(5) says {}; "
-            "its segment table cannot be walked",
-            rv_pdklib::rv_log_escape(info_entry), mppcdisc_ehdr.e_phentsize,
-            sizeof(Elf64_Phdr));
-        return RV_ERR_INVAL;
-    }
-
-    bool version_info_found_flag = false;
-    Elf64_Phdr potential_note;
-    rv_mppc_note_desc version_info;
-    for (int i = 0; i < mppcdisc_ehdr.e_phnum && !version_info_found_flag; ++i) {
-        if (!pod_peek(buffer, mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize,
-                (mppcdisc_ehdr.e_phoff + i * mppcdisc_ehdr.e_phentsize) +
-                    sizeof(potential_note),
-                potential_note)) {
-            RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from disc.so ");
-            continue;
-        }
-
-        if (potential_note.p_type == PT_NOTE) {
-            const uint64_t segment_offset =
-                static_cast<uint64_t>(potential_note.p_offset);
-            const uint64_t segment_size =
-                static_cast<uint64_t>(potential_note.p_filesz);
-            const uint64_t buffer_size = static_cast<uint64_t>(buffer.size());
-
-            if (segment_offset > buffer_size ||
-                segment_size > buffer_size - segment_offset) {
-                RV_LOG_ERR("pcloader", "ELF note segment exceeds mppcdisc bounds");
-                return RV_ERR_INVAL;
-            }
-
-            const uint64_t segment_end = segment_offset + segment_size;
-
-            constexpr uint64_t expected_owner_size =
-                sizeof(RV_MPPC_NOTE_OWNER);
-            constexpr uint64_t expected_desc_size = sizeof(rv_mppc_note_desc);
-
-            Elf64_Nhdr note{};
-
-            uint64_t note_offset = segment_offset;
-            uint64_t note_size = 0;
-
-            for (;; note_offset += note_size) {
-                if (note_offset >= segment_end) {
-                    break;
-                }
-
-                const uint64_t segment_bytes_left = segment_end - note_offset;
-
-                if (segment_bytes_left < sizeof(note)) {
-                    RV_LOG_WARN("pcloader",
-                        "ELF note header exceeds note segment bounds");
-                    break;
-                }
-
-                const uint64_t note_header_end = note_offset + sizeof(note);
-
-                if (!pod_peek(buffer, note_offset, note_header_end, note)) {
-                    RV_LOG_ERR("pcloader", "cannot read ELF note header from mppcdisc");
-                    return RV_ERR_INVAL;
-                }
-
-                const uint64_t owner_size = static_cast<uint64_t>(note.n_namesz);
-                const uint64_t desc_size = static_cast<uint64_t>(note.n_descsz);
-
-                const uint64_t aligned_owner_size =
-                    align_elf_note_field_size(owner_size);
-                const uint64_t aligned_desc_size = align_elf_note_field_size(desc_size);
-
-                note_size = sizeof(note) + aligned_owner_size + aligned_desc_size;
-
-                if (note_size > segment_bytes_left) {
-                    RV_LOG_WARN("pcloader", "ELF note exceeds note segment bounds");
-                    break;
-                }
-
-                const bool header_matches = owner_size == expected_owner_size &&
-                    desc_size == expected_desc_size &&
-                    note.n_type == RV_MPPC_NOTE_TYPE;
-
-                if (!header_matches) {
-                    // .so files carry notes from the toolchain (e.g. .note.gnu.build-id,
-                    // .note.ABI-tag), so a note that is not ours is skipped in silence.
-                    // The absence of the mppc note after the whole walk is what gets
-                    // reported as an error below.
-                    continue;
-                }
-
-                const uint64_t owner_offset = note_offset + sizeof(note);
-                const uint64_t desc_offset = owner_offset + aligned_owner_size;
-                const uint64_t note_end = note_offset + note_size;
-
-                const auto *owner = buffer.data() + owner_offset;
-
-                if (std::memcmp(owner, RV_MPPC_NOTE_OWNER,
-                        expected_owner_size) != 0) {
-                    continue;
-                }
-
-                if (!pod_peek(buffer, desc_offset, note_end, version_info)) {
-                    RV_LOG_WARN("pcloader",
-                        "cannot read version descriptor from ELF note");
-                    continue;
-                }
-
-                version_info_found_flag = true;
-                break;
-            }
-        }
-    }
-
-    if (!version_info_found_flag) {
-        RV_LOG_ERR("pcloader", "version did not found in mppcdisc");
-        return RV_ERR_INVAL;
-    }
-
-    // The disc code checksum: recomputed over the very buffer the ELF above
-    // was parsed from, and compared against what the burner stamped into the
-    // note. A mismatch means the code was altered after burning — refuse it
-    // before dlopen ever sees the file.
-    unsigned char computed_checksum[rv_pdklib::RV_DISC_HASH_BYTES];
-    std::string hash_error;
-    if (!rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(),
-            computed_checksum, hash_error)) {
-        RV_LOG_ERR("pcloader",
-            "cannot checksum code entry '{}': {}",
-            rv_pdklib::rv_log_escape(info_entry), hash_error);
-        return RV_ERR_INVAL;
-    }
-
-    static_assert(sizeof(version_info.magic) == rv_pdklib::RV_DISC_HASH_BYTES);
-    if (std::memcmp(computed_checksum, version_info.magic,
-            rv_pdklib::RV_DISC_HASH_BYTES) != 0) {
-        RV_LOG_ERR("pcloader",
-            "code entry '{}' checksum mismatch: expected {}, got {}; the disc "
-            "code was altered after burning",
-            rv_pdklib::rv_log_escape(info_entry),
-            bytes_to_hex(reinterpret_cast<const unsigned char *>(version_info.magic),
-                sizeof(version_info.magic)),
-            bytes_to_hex(computed_checksum, sizeof(computed_checksum)));
-        return RV_ERR_INVAL;
-    }
-
-    if (RV_MPPC_VER_MAJOR != version_info.version_major ||
-        RV_MPPC_VER_MINOR < version_info.version_minor) {
-        RV_LOG_ERR("pcloader",
-            "disc version are incompatible to currect console version: "
-            "disc version is: {}.{}; ",
-            version_info.version_major, version_info.version_minor);
-        return RV_ERR_INVAL;
-    }
-
-    return RV_OK;
-}
-
 // Which entry of the archive carries the code. The manifest names it; a
 // manifest that leaves the key blank falls back to the conventional name.
 // Both stages ask this, and they must agree: the version check reads the very
 // entry the extraction later maps.
 static std::string code_entry_of(const rv_pdklib::rv_manifest &manifest)
 {
-    return manifest.budget.pccd.code_entry.empty() ? kDefaultCodeEntry : manifest.budget.pccd.code_entry;
+    return manifest.budget.pccd.code_entry.empty() ? RV_PCLOADER_DEFAULT_CODE_ENTRY : manifest.budget.pccd.code_entry;
 }
 
 int64_t rv_pcloader::mount(const char *archive_path)
@@ -530,10 +150,10 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // Check the manifest.
     std::vector<unsigned char> manifest_bytes;
     std::string why =
-        read_whole_entry(*zip, kManifestEntry, kManifestMaxSize, manifest_bytes);
+        read_whole_entry(*zip, RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
     if (!why.empty()) {
         RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-            rv_pdklib::rv_log_escape(archive_path), kManifestEntry, why);
+            rv_pdklib::rv_log_escape(archive_path), RV_PCLOADER_MANIFEST_ENTRY, why);
         return RV_ERR_NOENT;
     }
 
@@ -542,12 +162,17 @@ int64_t rv_pcloader::mount(const char *archive_path)
         manifest_bytes.size());
 
     // The origin argument is what puts `disc.toml:14:` in front of every
-    // diagnostic instead of a bare `line 14:` — the report is the only thing
+    // diagnostic instead of a bare `line 14:` - the report is the only thing
     // the console can say about a manifest it could not read, so it says it in
     // the shape the burner's own messages have.
+    // The console parses the whole manifest with the burner's own parser (one
+    // shared schema, rv_pdklib::rv_manifest) but ACTS only on the disc's
+    // identity/title, the code entry and [budget.*]; [scripts] sources is read
+    // only for the all-or-none check below, and [build], [assets], [textures]
+    // are never read back out here.
     std::string merror;
     const int64_t mres =
-        rv_pdklib::rv_manifest_parse(manifest_text, kManifestEntry, manifest_, merror);
+        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror);
 
     if (mres != 0) {
         // The disc has no name yet: the manifest that would have given it one
@@ -561,7 +186,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
         // down to its first one.
         RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
             rv_pdklib::rv_log_escape(archive_path),
-            kManifestEntry,
+            RV_PCLOADER_MANIFEST_ENTRY,
             rv_pdklib::rv_log_escape(merror.c_str(), 512));
         return RV_ERR_INVAL;
     }
@@ -572,7 +197,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // manifest edited after burning, or a .luac taken out of the archive,
     // moves no checksum at all. So the declaration is checked here, from the
     // bytes, and a disagreement is a broken disc rather than a disc with less
-    // scripting in it — the console must not run something it cannot honour.
+    // scripting in it - the console must not run something it cannot honour.
     //
     // Whatever that entry script pulls in afterwards is not checked and is not
     // meant to be: the console knows the one name the disc gave it.
@@ -605,17 +230,17 @@ int64_t rv_pcloader::mount(const char *archive_path)
 
     const std::string code_entry = code_entry_of(manifest_);
 
-    // PATTERN: version verdict from BYTES, BEFORE dlopen. A disc built against
+    // Version verdict from BYTES, BEFORE dlopen. A disc built against
     // a different PDK sees the console's structs at the wrong offsets, and that
     // failure does not announce itself: it is garbage geometry, a silent
     // corruption, a crash three minutes into play. dlopen would already run the
     // disc's constructors, so the verdict is read straight from the code
     // entry's ELF note (elf(5)) while it is still nothing but bytes in a buffer
-    // — the mismatched code is never mapped at all. This is the ONLY version
+    // - the mismatched code is never mapped at all. This is the ONLY version
     // check: the factory below creates the disc and decides nothing.
     if (pre_dlopen_check(zip.get(), code_entry.c_str()) < 0) {
         RV_LOG_ERR("pcloader",
-            "disc '{}' failed the pre-load inspection of its code entry — "
+            "disc '{}' failed the pre-load inspection of its code entry - "
             "the exact "
             "refusal is in the log line above; its code will not be mapped",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
@@ -637,11 +262,11 @@ int64_t rv_pcloader::bring_up()
     }
 
     const std::string code_entry = code_entry_of(manifest_);
-    // (4) The code entry, and the extraction the OS loader forces on us — see
-    // the THEOREM at the top of rv_pcloader.hpp: dlopen maps a file, so the code
+    // (4) The code entry, and the extraction the OS loader forces on us - see
+    // the note at the top of rv_pcloader.hpp: dlopen maps a file, so the code
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
-    std::string why = read_whole_entry(*zip_, code_entry.c_str(), kCodeMaxSize, code);
+    std::string why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
     if (!why.empty()) {
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",
@@ -662,7 +287,7 @@ int64_t rv_pcloader::bring_up()
     // must fail on the loading screen, where the message is readable, and not
     // forty minutes in when the code path that needed it finally runs. RTLD_LOCAL
     // keeps the disc's symbols out of the process-global namespace, so two discs
-    // — or a disc and the console — cannot capture each other's names by
+    // - or a disc and the console - cannot capture each other's names by
     // accident, and nothing the disc exports beyond the two ABI symbols is
     // reachable by anyone.
     handle_ = ::dlopen(temp_path_.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -677,7 +302,7 @@ int64_t rv_pcloader::bring_up()
     }
 
     // (6) Both symbols or neither. A disc that can be created but not destroyed
-    // is not half-loadable, it is a leak with a vtable — and the only code that
+    // is not half-loadable, it is a leak with a vtable - and the only code that
     // may destroy the object is the code that made it (pdk/de/rv_dv.h).
     ::dlerror(); // clear any stale error before the lookups
     auto create = reinterpret_cast<rv_mppc_disc_create_fn>(
@@ -695,7 +320,7 @@ int64_t rv_pcloader::bring_up()
     }
 
     // Version compatibility was settled BEFORE this point: pre_dlopen_check reads
-    // the note, ahead of dlopen. create() takes no part in that decision — it is a
+    // the note, ahead of dlopen. create() takes no part in that decision - it is a
     // pure factory, and a nullptr from it means the disc refused to be created,
     // not a verdict about the version.
     rv_de *disc = nullptr;
@@ -735,14 +360,14 @@ int64_t rv_pcloader::load(const char *archive_path)
     return bring_up();
 }
 
-// PATTERN: RAII — the teardown order lives here and nowhere else, and it is the
+// RAII - the teardown order lives here and nowhere else, and it is the
 // exact reverse of construction:
 //
 //   disc_shutdown() -> mppc_disc_destroy() -> dlclose() -> unlink()
 //
 // dlclose AFTER destroy, never before: dlclose unmaps the library's text, and
 // the destructor is IN that text. Destroying afterwards calls a function whose
-// instructions are no longer mapped — the process jumps into a hole, at
+// instructions are no longer mapped - the process jumps into a hole, at
 // shutdown, where the crash looks like anything but its cause. The unlink comes
 // last for the same shape of reason: while the code is mapped, the file is what
 // the kernel pages from.
@@ -750,7 +375,7 @@ void rv_pcloader::unload()
 {
     if (disc_ != nullptr) {
         // rv_de.h: the hook runs after the last frame and NOT for a disc that
-        // refused to start. The facade is still valid at this point — that is
+        // refused to start. The facade is still valid at this point - that is
         // precisely why it runs before destroy and before dlclose.
         if (initialized_) {
             try {
@@ -786,7 +411,7 @@ void rv_pcloader::unload()
     }
 
     // Drop the archive last: reset() destroys the rv_zipreader, which closes
-    // its file handle — the one piece of teardown mount() introduced that the
+    // its file handle - the one piece of teardown mount() introduced that the
     // rest of this function did not know about before.
     zip_.reset();
 }

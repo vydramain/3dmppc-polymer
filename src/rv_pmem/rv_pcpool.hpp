@@ -1,35 +1,35 @@
 // A private memory pool the console hands out OPAQUE ADDRESSES into. Both of
 // the console's memories are this shape, word for word from the two
 // contracts: video RAM (rv_cv::video_asset_malloc / _write / _free) and sound
-// RAM (rv_ca::sound_asset_malloc / _write / _free) — reserve a region, fill it,
+// RAM (rv_ca::sound_asset_malloc / _write / _free) - reserve a region, fill it,
 // release it; the address is an offset, never a pointer; exhaustion is
 // RV_ERR_NOMEM, not a host allocation.
 //
-// The backing store is an rv_pcarena: construction only RESERVES address
+// The backing store is an rv_pcvmem: construction only RESERVES address
 // space, and physical pages are committed only for the bytes a malloc() has
-// actually handed out. The arena may round its reservation up to a page
+// actually handed out. The vmem may round its reservation up to a page
 // boundary, but that rounding is a host implementation detail and never
-// enlarges capacity() — every block bound is measured against the size the
+// enlarges capacity() - every block bound is measured against the size the
 // caller asked for.
 //
 // Extracted from the video pool once the audio stage needed the same thing. The
-// alternative — two near-identical allocators — would mean fixing every
+// alternative - two near-identical allocators - would mean fixing every
 // fragmentation bug twice.
 //
-// PATTERN: free-list allocator (object pool). One flat, offset-ordered vector of
+// Free-list allocator (object pool). One flat, offset-ordered vector of
 // blocks covers the whole pool with no gaps; allocation splits a free block and
 // release merges neighbours back. A general-purpose allocator would work too,
 // but the console must be able to answer "is this address a live region?" for
 // every primitive or voice that names one, and that question IS the block list.
 //
-// PATTERN: policy through a metadata type. What a region MEANS differs per
-// memory — a texture's format and shape for video, a sample's length for audio —
+// Policy through a metadata type. What a region MEANS differs per
+// memory - a texture's format and shape for video, a sample's length for audio -
 // so the pool carries a caller-chosen `Meta` next to each block instead of
 // knowing about either. The allocator stays ignorant of what it stores.
 //
 // A pool whose backing reservation FAILED is valid() == false. It still
-// reports the capacity() it was asked for — that is what the disc declared,
-// not what the host actually gave it — but hands out nothing: malloc() is
+// reports the capacity() it was asked for - that is what the disc declared,
+// not what the host actually gave it - but hands out nothing: malloc() is
 // RV_ERR_NOMEM immediately, before the block list is even consulted.
 #pragma once
 
@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "rv_pmem/rv_pcarena.hpp"
+#include "rv_pmem/rv_pcvmem.hpp"
 
 namespace rv_3dmppc
 {
@@ -47,24 +47,40 @@ template <typename Meta>
 class rv_pcpool
 {
 public:
+    // Most blocks a pool of `size` bytes can ever hold: every block except the
+    // reserved head and an unaligned tail spans at least `alignment` bytes.
+    static constexpr int64_t max_blocks(int64_t size, int64_t alignment)
+    {
+        return size / (alignment > 0 ? alignment : 1) + 2;
+    }
+    static constexpr int64_t block_bytes()
+    {
+        return static_cast<int64_t>(sizeof(rv_pcpool_block));
+    }
+
     // `alignment` is the boundary every region starts on; `reserved_head` is a
     // prefix of the pool that is never handed out.
     rv_pcpool(int64_t size, int64_t alignment, int64_t reserved_head)
-        : arena_(size > 0 ? size : 0)
+        : vmem_(size > 0 ? size : 0)
         , capacity_(size > 0 ? size : 0)
         , alignment_(alignment > 0 ? alignment : 1)
     {
-        // The block list only ever spans bytes the arena actually reserved. A
+        // Reserved once: blocks_ never reallocates, so its cost is exactly max_blocks() * block_bytes().
+        if (size > 0) {
+            blocks_.reserve(static_cast<size_t>(max_blocks(size, alignment)));
+        }
+
+        // The block list only ever spans bytes the vmem actually reserved. A
         // failed reservation reports its declared capacity() honestly but has
         // no usable free space to hand out: the whole pool is the (used,
         // reserved) head block below, sized 0, and nothing else.
-        const int64_t total = arena_.valid() ? capacity() : 0;
+        const int64_t total = vmem_.valid() ? capacity() : 0;
 
         // The head block is `used` forever: allocation skips it, free() refuses
         // it, and coalescing stops at it. Keeping address 0 out of circulation
         // is what lets a zero-initialized rv_polygon::addr_texture (or an unset
         // rv_voice_conf::sample_address) read as "not set" instead of
-        // accidentally naming a real region — the common case for a POD struct
+        // accidentally naming a real region - the common case for a POD struct
         // that crosses the contract by value.
         rv_pcpool_block head;
         head.offset = 0;
@@ -83,11 +99,11 @@ public:
     }
 
     // Does this pool actually hold the space it was asked for? False when the
-    // backing arena's reservation failed — capacity() still reports what was
+    // backing vmem's reservation failed - capacity() still reports what was
     // asked for, but nothing is usable.
     bool valid() const
     {
-        return arena_.valid();
+        return vmem_.valid();
     }
 
     // Reserve `size` bytes. Returns the region address (> 0), RV_ERR_INVAL when
@@ -109,7 +125,7 @@ public:
         // that is large enough. Best fit would waste less per call but leaves
         // the pool full of unusable slivers under this console's usage pattern
         // (a disc uploads its atlas once at load and rarely churns), and first
-        // fit keeps the block list short — which every region_exists() pays for.
+        // fit keeps the block list short - which every region_exists() pays for.
         for (size_t i = 0; i < blocks_.size(); ++i) {
             rv_pcpool_block &block = blocks_[i];
             if (block.used || block.size < want) {
@@ -136,7 +152,7 @@ public:
 
             // The block itself is only paperwork; the bytes it names must
             // actually be usable before a caller can touch them.
-            if (arena_.commit(addr + want) != RV_OK) {
+            if (vmem_.ensure(addr + want) != RV_OK) {
                 if (inserted_tail) {
                     blocks_.erase(blocks_.begin() + static_cast<int64_t>(i) + 1);
                 }
@@ -169,11 +185,11 @@ public:
         blocks_[index].used = false;
         blocks_[index].meta = Meta{};
 
-        // THEOREM: coalescing preserves the invariant "no two adjacent free
+        // Coalescing preserves the invariant "no two adjacent free
         // blocks", and that invariant is what makes the largest free block as
         // large as the contiguous free space actually allows. Without merging,
         // the pool degrades into a chain of free slivers that no allocation fits
-        // into even though the total free byte count is plenty — the classic
+        // into even though the total free byte count is plenty - the classic
         // external-fragmentation death of a long-running allocator.
         if (index + 1 < blocks_.size() && !blocks_[index + 1].used) {
             blocks_[index].size += blocks_[index + 1].size;
@@ -206,7 +222,7 @@ public:
         }
 
         if (bytes > 0) {
-            std::memcpy(arena_.base() + block->offset, data, static_cast<size_t>(bytes));
+            std::memcpy(vmem_.base() + block->offset, data, static_cast<size_t>(bytes));
         }
         return RV_OK;
     }
@@ -229,7 +245,7 @@ public:
     const uint8_t *region_data(int64_t addr) const
     {
         const rv_pcpool_block *block = live_block(addr);
-        return block ? arena_.base() + block->offset : nullptr;
+        return block ? vmem_.base() + block->offset : nullptr;
     }
 
     // The caller's metadata for the region, or nullptr when `addr` is not live.
@@ -276,7 +292,7 @@ private:
         return -1;
     }
 
-    // A block that exists, is allocated, and is not the reserved head — i.e.
+    // A block that exists, is allocated, and is not the reserved head - i.e.
     // one the caller could legitimately be naming.
     rv_pcpool_block *live_block(int64_t addr)
     {
@@ -297,7 +313,7 @@ private:
         return (block.used && !block.reserved) ? &block : nullptr;
     }
 
-    rv_pcarena arena_;
+    rv_pcvmem vmem_;
     int64_t capacity_;
     int64_t alignment_;
     std::vector<rv_pcpool_block> blocks_; // offset-ordered, gapless

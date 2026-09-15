@@ -18,7 +18,7 @@
 // incompatibility) turns into a compile error inside a template. A macro is
 // merely an int.
 #define RV_MPPC_VER_MAJOR 0
-#define RV_MPPC_VER_MINOR 1
+#define RV_MPPC_VER_MINOR 2
 
 #define RV_MPPC_NOTE_TYPE 1
 

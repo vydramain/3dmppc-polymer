@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_pboot_args.hpp"
@@ -11,14 +12,16 @@
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
 #include "rv_pboot_mode.hpp"
-#include "rv_pmem/rv_pcarena.hpp"
+#include "rv_pboot_modes.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
+#include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
+#include "rv_pconsole/rv_pcslots.hpp"
 
-// The built-in disc never goes through dlopen, so it has no entry points — but
+// The built-in disc never goes through dlopen, so it has no entry points - but
 // it needs the same rv_de table of hooks as any other. The macro expands the
 // same thunks and hands back a function that wraps an ALREADY created object:
 // the built-in disc's lifetime belongs to the stack frame below, not to a
@@ -27,6 +30,13 @@ RV_MPPC_DISC_TABLE_DEF(rv_service::rv_dmain, rv_dmain_table)
 
 namespace rv_3dmppc
 {
+
+std::filesystem::path rv_pboot_exe_dir()
+{
+    std::error_code ec;
+    const std::filesystem::path exe = std::filesystem::read_symlink("/proc/self/exe", ec);
+    return ec ? std::filesystem::path() : exe.parent_path();
+}
 
 int rv_pboot_run(int argc, char **argv)
 {
@@ -39,34 +49,49 @@ int rv_pboot_run(int argc, char **argv)
         return exit_code;
     }
 
-    // --selfcheck runs before anything else is brought up, and exits: it does
-    // not boot a disc, does not touch SDL, does not need a mode.
-    if (args.selfcheck) {
-        return rv_pcarena_selfcheck() ? 0 : 1;
+    // SIGINT/SIGTERM become an ordinary shutdown request, seen through
+    // rv_pcplatform::quit_requested(). Installed before any platform comes
+    // up, so no platform library claims them.
+    rv_pcsignals_install();
+
+    // Resolve the preset and its per-slot overrides into the concrete choice
+    // this run boots with. Nothing is brought up yet: a bad --mode or
+    // --mode_<slot> must still cost a diagnostic, not a machine.
+    rv_pcslots slots;
+    if (!rv_pboot_modes_resolve(args, slots, exit_code)) {
+        return exit_code;
     }
 
-    // The host owns SDL and is borrowed by the console, so it must outlive
-    // both the loader and the console below, hence it is declared before
-    // either. Brought up right after the mode name is validated, before the
-    // disc's budget is even read.
-    rv_pchost host;
+    // A run whose cv slot is null never presents a frame, so a dump would
+    // only ever be an empty frame. Refuse the combination here, before the
+    // host or anything else is brought up, rather than write a useless file
+    // - reached the same way whether cv=null came from the preset or from
+    // --mode_cv.
+    if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
+        rv_console_print_error("cv is null, nothing to dump");
+        return 2;
+    }
 
     // Prepare the mode and learn the machine before any disc code, any
     // archive and any allocation.
     rv_pboot_mode_info machine;
-    if (rv_pboot_mode_prepare(args, host, machine) < 0) {
+    if (rv_pboot_mode_prepare(args, machine) < 0) {
         return 1;
     }
 
     // Report the preparation. This states what the mode is ready to offer;
     // it must not be read as any disc having been found compatible yet.
-    rv_pboot_mode_report(args, host, machine);
+    rv_pboot_mode_report(args, slots, machine);
 
     // The loader's teardown runs disc_shutdown(), a hook allowed to touch
     // every controller, so the loader must die before the console. Locals die
     // in reverse of declaration, hence the console is declared first, and
     // held in an optional because it cannot be constructed until the disc has
-    // said what it needs.
+    // said what it needs. The platform serves the console and is borrowed by
+    // it, so it must outlive both and is declared before either; it is
+    // brought up only after the budget check below, because nothing in the
+    // budget depends on it.
+    std::unique_ptr<rv_pcplatform> platform;
     std::optional<rv_pconsole> console;
     rv_pcloader loader;
 
@@ -79,10 +104,14 @@ int rv_pboot_run(int argc, char **argv)
         return 1;
     }
 
+    // Resolve cl before evaluation so the row checked below is the row
+    // rv_pccl_make later builds.
+    slots.cl = rv_pccl_resolve(slots.cl, budget->pccl.script_memory_size);
+
     // Check the budget against the machine before any of the disc's code is
     // loaded. rv_pboot_check_budget() has already logged the specific reason;
     // this only names what is being refused.
-    if (rv_pboot_check_budget(*budget, machine) < 0) {
+    if (rv_pboot_check_budget(*budget, slots, machine) < 0) {
         rv_console_print_error(std::format(
             "refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
@@ -92,10 +121,14 @@ int rv_pboot_run(int argc, char **argv)
     // The disc's numbers become the machine's. Only the parameters that
     // belong to this run rather than to the disc come from the command line.
     rv_pconsole_conf conf;
-    rv_pboot_conf_build(*budget, args, conf);
+    rv_pboot_conf_build(*budget, args, slots, conf);
 
-    host.configure(conf.cv.screen_width, conf.cv.screen_height, conf.cio.iport_count,
-        conf.params.dump_frame_path);
+    // Open exactly the endpoints the virtual devices will use.
+    rv_pcplatform_wants wants;
+    wants.window = slots.cv != rv_pccv_impl::null;
+    wants.gamepads = slots.cio != rv_pccio_impl::null;
+    wants.audio = slots.ca != rv_pcca_impl::null;
+    platform = rv_pcplatform_make(slots.platform, wants);
 
     // Reserve and prepare memory. The resource check above only compared
     // MemAvailable against the declared budget, which is a forecast, not a
@@ -104,10 +137,10 @@ int rv_pboot_run(int argc, char **argv)
     // std::vectors, so a budget that passed that check can still fail here,
     // and it fails by throwing rather than by returning an error. Catching
     // std::exception here turns that throw into the same ordinary refusal
-    // the ready() check below produces for the arena's error path: a
+    // the ready() check below produces for the vmem's error path: a
     // diagnostic and exit code, not std::terminate/SIGABRT.
     try {
-        console.emplace(conf, host, args.disc_path != nullptr ? &loader : nullptr);
+        console.emplace(conf, *platform, args.disc_path != nullptr ? &loader : nullptr);
     } catch (const std::exception &e) {
         // bad_alloc and length_error both derive from std::exception.
         RV_LOG_ERR("main", "failed to construct console: {}", e.what());

@@ -1,9 +1,14 @@
 #include "rv_pboot_conf.hpp"
 
+#include "rv_pboot.hpp"
+
 namespace rv_3dmppc
 {
 
-void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget, const rv_pboot_args &args,
+void rv_pboot_conf_build(
+    const rv_pdklib::rv_manifest_budget &budget,
+    const rv_pboot_args &args,
+    const rv_pcslots &slots,
     rv_pconsole_conf &conf)
 {
     conf.ca.voice_count = budget.pcca.voice_count;
@@ -21,15 +26,16 @@ void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget, const rv_p
     conf.cm.card_slots = budget.pccm.card_slots;
     conf.cm.card_slot_size = budget.pccm.card_slot_size;
 
-    conf.params.headless = args.headless;
     conf.params.fixed_step = args.fixed_step;
     conf.params.scale = args.scale;
     conf.params.max_frames = args.max_frames;
     conf.params.dump_frame_path = args.dump_frame_path;
     conf.ca.mute = args.mute;
-    conf.ca.no_audio = args.no_audio;
     conf.cd.medium_path = args.medium_path;
-    conf.cm.image_path = args.memcard_path;
+    // No --memcard: the card next to the binary, never in the start directory.
+    conf.cm.image_path =
+        args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
+    conf.slots = slots;
 }
 
 } // namespace rv_3dmppc

@@ -18,11 +18,11 @@ namespace rv_pdktools
 // The sink lua_dump() writes through. LuaJIT hands out the compiled chunk in
 // pieces and calls this once per piece.
 //
-// `ud` is the untyped user pointer handed to lua_dump() — a C API cannot know
+// `ud` is the untyped user pointer handed to lua_dump() - a C API cannot know
 // our type, so it round-trips through void* and the cast back is unavoidable.
 // `auto` would not help: it would deduce void*, which is exactly the type that
 // cannot be appended to. `p` is one piece of bytecode, `sz` bytes of it, valid
-// only until this call returns — hence the copy.
+// only until this call returns - hence the copy.
 //
 // Returning non-zero would abort the dump; there is nothing here that can fail.
 static int bytecode_writer(lua_State *, const void *p, size_t sz, void *ud)
@@ -48,6 +48,10 @@ int rv_pdktools::compile_simple_script(
     // Fresh per script and never run: the burner compiles, it does not execute.
     // No standard library is opened, so a script cannot reach the burner's
     // filesystem while being turned into bytecode.
+    //
+    // This is the LuaJIT the burner links, never a host `luajit` off $PATH:
+    // LuaJIT bytecode is version-specific, so it must match the runtime that
+    // will load it - the console.
     lua_State *L = luaL_newstate();
     if (L == nullptr) {
         error = "cannot initialize a local lua vm";
