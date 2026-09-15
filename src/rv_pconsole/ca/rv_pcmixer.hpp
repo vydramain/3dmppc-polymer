@@ -11,10 +11,9 @@
 // does not allocate, it does not block, it cannot recurse, and it holds no
 // lock while calling anything else.
 //
-// ponytail: single-threaded since the platform split, so this lock is
-// uncontended and kept only so this change does not also rewrite rv_pcca_sw's
-// compound operations (acquire() / *_locked). Drop the mutex together with
-// acquire() and the *_locked split in a follow-up.
+// With a single thread the lock is never contended. It stays because
+// rv_pcca_sw's compound operations (acquire() / *_locked) are built on it;
+// removing it means removing acquire() and the *_locked helpers with it.
 //
 // Knows nothing about any platform: it fills an int16 buffer and never learns
 // where it goes.

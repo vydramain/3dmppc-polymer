@@ -18,7 +18,7 @@ namespace rv_3dmppc {
 class rv_pcfbuf {
    public:
     // One pixel's cost in the three pages below: color_ (uint16_t) + depth_
-    // (int32_t) + argb_ (uint32_t). Public so boot stage E3's budget check
+    // (int32_t) + argb_ (uint32_t). Public so the boot budget check
     // (rv_pccv_sw::evaluate) can cost a framebuffer before one is built.
     static constexpr int64_t RV_PCFBUF_BYTES_PER_PIXEL =
         sizeof(uint16_t) + sizeof(int32_t) + sizeof(uint32_t);

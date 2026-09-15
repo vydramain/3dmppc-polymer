@@ -138,7 +138,7 @@ std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 
 } // namespace
 
-// Stage C: is the staging area an extracted disc.so will need actually
+// Is the staging area an extracted disc.so will need actually
 // usable? Creates and removes a probe file in the same directory
 // extract_code() would use (staging_dir(), above - the one helper both this
 // function and extract_code() share, so they can never disagree on the

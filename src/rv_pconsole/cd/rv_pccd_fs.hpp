@@ -1,8 +1,8 @@
 // The console's rv_cd implementation: the DRIVE, not the disc. It owns the
 // contract's semantics - legal names, stable handles, which rv_err a situation
 // deserves - and delegates every actual byte to an rv_pcmedium (rv_pcmedium.hpp),
-// so it has no idea whether the disc it is reading is a directory today or a
-// `.mppcdisc` archive after stage 10.
+// so it has no idea whether the disc it is reading is a directory
+// (rv_pcdirmedium) or a `.mppcdisc` archive (rv_pczipmedium).
 #pragma once
 
 #include <cstdint>
@@ -56,7 +56,7 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
-    // stage 10: swap the inserted medium after construction. The console learns
+    // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the
     // catalogue path) is untouched and stays the default. Strategy -

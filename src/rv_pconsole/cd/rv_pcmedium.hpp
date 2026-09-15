@@ -2,10 +2,10 @@
 //
 // PATTERN: strategy — the drive (rv_pccd) implements the CONTRACT: name rules,
 // the handle table, which rv_err a situation deserves. The medium implements the
-// STORAGE: where the bytes of an entry actually live. Splitting them now, while
-// the only medium is a plain directory, is what lets stage 10 drop a
-// `.mppcdisc` zip reader in as a second rv_pcmedium without a single edit to
-// rv_pccd — the drive never learns which kind of medium it is talking to.
+// STORAGE: where the bytes of an entry actually live. The split is what lets a
+// plain directory (rv_pcdirmedium) and a `.mppcdisc` zip archive (rv_pczipmedium)
+// sit behind the same drive code - the drive never learns which kind of medium it
+// is talking to.
 //
 // The medium vocabulary is deliberately narrower than rv_cd: it knows entries by
 // NAME only (no handles, no table, no caching) and answers with the same

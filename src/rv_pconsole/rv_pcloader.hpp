@@ -27,7 +27,7 @@
 namespace rv_3dmppc
 {
 
-// Stage C: is the staging area an extracted disc.so will need actually
+// Is the staging area an extracted disc.so will need actually
 // usable? Creates and removes a probe file in the same directory
 // extract_code() would use. Returns RV_OK, or a negative rv_err after
 // logging the directory and why it cannot be used. Free function, not a

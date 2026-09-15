@@ -10,7 +10,7 @@ namespace rv_3dmppc
 
 // Can this machine provide what the disc's [budget] declares?
 //
-// Stage E3. Contract validation (every field non-negative, every active
+// Contract validation (every field non-negative, every active
 // field positive, voice_count within what a voice mask can name) is
 // identical for every mode and every backend. What each byte actually costs
 // is not decided here at all: every concrete slot class in `slots` statically

@@ -98,8 +98,8 @@ public:
 
     // Did every resource this console was built from actually come into
     // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and
-    // cl_. A budget the machine accepted at stage E3 can still fail to
-    // materialise at stage G - an address-space reservation is allowed to
+    // cl_. A budget the boot budget check accepted can still fail to
+    // materialise in the constructor - an address-space reservation is allowed to
     // refuse, and so is the card's backing image. cl_ needs no
     // special-casing: rv_pccl::valid() already treats "scripting was never
     // asked for" as true, so this stays a plain conjunction. False means the

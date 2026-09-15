@@ -27,9 +27,6 @@ namespace
 // PCM the audio output may hold ahead of the device, in frames of the
 // timeline, ~33 ms at 60 fps. Absorbs a late frame without an audible gap and
 // bounds voice_play-to-ear latency.
-//
-// ponytail: fixed knob, make it a conf value if a platform ever needs a
-// deeper queue.
 constexpr int64_t RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES = 2;
 
 // A device that has taken nothing for this long stopped draining.
