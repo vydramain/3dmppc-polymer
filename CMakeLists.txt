@@ -37,8 +37,8 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # Linking it now delivers both things pdklib owns: the include directory and the
 # manifest parser object code built from pdk/lib/include/pdklib/rv_manifest/.
 #
-# Discs get it a different way — mppcburner writes the path into the CMakeLists
-# it generates for a disc project — so this target serves only what is built
+# Discs get it a different way - mppcburner writes the path into the CMakeLists
+# it generates for a disc project - so this target serves only what is built
 # from this file.
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
@@ -153,7 +153,7 @@ target_link_libraries(3dmppc PRIVATE libluajit)
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
 # separate tree with a separate purpose, and the console takes from it only the
-# output stack — pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
+# output stack - pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
 # top of it.
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)

@@ -1,5 +1,5 @@
 // The console's rv_cl implementation: the script machine. Counterpart of
-// rv_pccv for rv_cv and rv_pcca for rv_ca — the contract is opaque C, the
+// rv_pccv for rv_cv and rv_pcca for rv_ca - the contract is opaque C, the
 // concrete class lives here.
 //
 // lua.hpp is the PDK boundary and is included by exactly ONE file in the
@@ -22,7 +22,7 @@ namespace rv_3dmppc
 {
 
 // The lua machine. Only ever built when the disc declared a lua machine
-// (rv_pccl_conf.hpp: script_memory_size > 0) — a factory upstream guarantees
+// (rv_pccl_conf.hpp: script_memory_size > 0) - a factory upstream guarantees
 // that before this class exists at all, so every method below can assume a
 // budgeted machine was asked for.
 class rv_pccl_luajit final : public rv_pccl
@@ -36,7 +36,7 @@ private:
     int64_t budget_ = 0; // conf_.script_memory_size, cached for the allocator
     int64_t used_ = 0;   // bytes the allocator currently has outstanding
 
-    // PATTERN: handle table, the same idea as rv_pccd's resource table — a
+    // Handle table, the same idea as rv_pccd's resource table - a
     // handle is an index into chunks_, and it is NEVER reused: LUA_NOREF
     // marks a slot script_free() emptied, so a stale handle finds nothing
     // rather than landing on somebody else's chunk.
@@ -75,7 +75,7 @@ public:
 
     // A VM that failed to come up is the only FALSE: the console refuses to
     // boot on that, so no contract method below is ever reached with L_ null
-    // — see the comment on that above valid()'s definition.
+    // - see the comment on that above valid()'s definition.
     bool valid() const override;
 
     int64_t script_load(const void *bytecode, int64_t size, const char *name) override;

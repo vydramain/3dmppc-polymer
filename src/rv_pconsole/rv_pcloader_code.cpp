@@ -26,7 +26,7 @@ namespace
 {
 
 // TMPDIR or /tmp, trailing slashes trimmed. The one place both extract_code()
-// and rv_pcloader_probe_staging() decide where the extracted disc.so lives —
+// and rv_pcloader_probe_staging() decide where the extracted disc.so lives -
 // factored out so the two can never drift onto different directories.
 std::string staging_dir()
 {
@@ -49,7 +49,7 @@ namespace rv_pcloader_detail
 // mkstemp is what makes the name unpredictable: the console must not open a
 // path an attacker could have guessed and pre-created as a symlink to something
 // else, which is exactly the classic /tmp race. mkstemp creates with O_EXCL and
-// mode 0600, and the fchmod below adds only the execute bit the mapping needs —
+// mode 0600, and the fchmod below adds only the execute bit the mapping needs -
 // 0700 total, this user and nobody else. A group- or world-writable staging
 // file would be a way to swap the disc's code out between this write and the
 // dlopen a few lines later.
@@ -97,7 +97,7 @@ std::string extract_code(const std::vector<unsigned char> &code,
     }
 
     if (::close(fd) != 0 && error.empty()) {
-        // A close() that fails is a write that did not land — the mapping the
+        // A close() that fails is a write that did not land - the mapping the
         // loader is about to make would be of a truncated object file.
         error =
             std::format("cannot close the staging file: {}", std::strerror(errno));
@@ -123,7 +123,7 @@ constexpr uint64_t align_elf_note_field_size(uint64_t size)
     return (size + 3ull) & ~3ull;
 }
 
-// Local hex formatting for a log line only — pdklib ships raw bytes, not text.
+// Local hex formatting for a log line only - pdklib ships raw bytes, not text.
 std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 {
     static const char *const digits = "0123456789abcdef";
@@ -140,7 +140,7 @@ std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 
 // Stage C: is the staging area an extracted disc.so will need actually
 // usable? Creates and removes a probe file in the same directory
-// extract_code() would use (staging_dir(), above — the one helper both this
+// extract_code() would use (staging_dir(), above - the one helper both this
 // function and extract_code() share, so they can never disagree on the
 // directory). Returns RV_OK, or a negative rv_err after logging the
 // directory and why it cannot be used.
@@ -193,7 +193,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
     int64_t size = zip->size(info_entry);
     if (size <= 0) {
         // TODO(rv_log_escape): 22 calls in this file. The console is its only
-        // caller, so it does not belong in pdklib — find it a console-side home.
+        // caller, so it does not belong in pdklib - find it a console-side home.
         RV_LOG_ERR(
             "pcloader",
             "code entry '{}' in '{}' is missing or empty; there is no binary "
@@ -217,14 +217,14 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
         return RV_ERR_INVAL;
     }
 
-    // The ELF header lives at offset 0 by definition — elf(5), "ELF header
+    // The ELF header lives at offset 0 by definition - elf(5), "ELF header
     // (Ehdr)". Each check below legalises exactly the fields the next step
     // relies on; until a check has passed, the fields it covers are just bytes.
     Elf64_Ehdr mppcdisc_ehdr;
     if (!pod_peek(buffer, 0, sizeof(mppcdisc_ehdr), mppcdisc_ehdr)) {
         RV_LOG_ERR(
             "pcloader",
-            "code entry '{}' is only {} bytes — smaller than an ELF64 header; "
+            "code entry '{}' is only {} bytes - smaller than an ELF64 header; "
             "not a loadable binary",
             rv_pdklib::rv_log_escape(info_entry), size);
         return RV_ERR_INVAL;
@@ -239,7 +239,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
         return RV_ERR_INVAL;
     }
 
-    // Single-byte fields, so they are readable regardless of byte order — and
+    // Single-byte fields, so they are readable regardless of byte order - and
     // only their verdict makes the multi-byte fields of the struct meaningful:
     // everything was copied under a little-endian assumption.
     if (mppcdisc_ehdr.e_ident[EI_CLASS] != ELFCLASS64 ||
@@ -386,7 +386,7 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 
     // The disc code checksum: recomputed over the very buffer the ELF above
     // was parsed from, and compared against what the burner stamped into the
-    // note. A mismatch means the code was altered after burning — refuse it
+    // note. A mismatch means the code was altered after burning - refuse it
     // before dlopen ever sees the file.
     unsigned char computed_checksum[rv_pdklib::RV_DISC_HASH_BYTES];
     std::string hash_error;

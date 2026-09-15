@@ -1,6 +1,6 @@
 // The console's rv_cd implementation: the DRIVE, not the disc. It owns the
-// contract's semantics — legal names, stable handles, which rv_err a situation
-// deserves — and delegates every actual byte to an rv_pcmedium (rv_pcmedium.hpp),
+// contract's semantics - legal names, stable handles, which rv_err a situation
+// deserves - and delegates every actual byte to an rv_pcmedium (rv_pcmedium.hpp),
 // so it has no idea whether the disc it is reading is a directory today or a
 // `.mppcdisc` archive after stage 10.
 #pragma once
@@ -23,17 +23,17 @@ class rv_pccd_fs final : public rv_pccd {
     rv_pccd_conf conf_;
 
     // What is inserted. Held by pointer purely so the medium KIND can change
-    // without this class changing (PATTERN: strategy); it is never null, an
+    // without this class changing (strategy); it is never null, an
     // empty drive is a mounted-less medium rather than a missing one.
     std::unique_ptr<rv_pcmedium> medium_;
 
-    // PATTERN: handle table — a handle is simply an index into `resnames_`, and
+    // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
     // both are contract requirements rather than conveniences:
     //   * the same name always yields the same handle, because a name resolved
     //     once is found in `by_name_` and its index returned again;
     //   * a handle needs no release and can never dangle, because the table only
-    //     ever grows — nothing is erased, reordered or reused for a later name.
+    //     ever grows - nothing is erased, reordered or reused for a later name.
     // The cost is one std::string per DISTINCT name ever opened, which is
     // bounded by the disc's asset set and is why no eviction policy is needed.
     std::vector<std::string> resnames_;
@@ -59,7 +59,7 @@ class rv_pccd_fs final : public rv_pccd {
     // stage 10: swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the
-    // catalogue path) is untouched and stays the default. PATTERN: strategy —
+    // catalogue path) is untouched and stays the default. Strategy -
     // this is the one seam where the strategy is chosen, and it is deliberately
     // the only one.
     void medium_insert(std::unique_ptr<rv_pcmedium> medium) override {

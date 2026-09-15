@@ -5,7 +5,7 @@
 namespace rv_pdklib
 {
 
-// The bitmap font the text drawer paints with — bits, not texels.
+// The bitmap font the text drawer paints with - bits, not texels.
 //
 // It lives in pdklib/ and not in pdk/ because the console has no idea what a letter
 // is: on a PSX the font was an ASSET the game shipped, uploaded into video RAM
@@ -14,11 +14,11 @@ namespace rv_pdklib
 // alphabet, kept in one place so every disc does not redraw it.
 //
 // The design is the era's: a 5x7 ink area inside an 8x8 CELL. Three blank columns
-// on the right and one blank row at the bottom ARE the letter spacing — that is
+// on the right and one blank row at the bottom ARE the letter spacing - that is
 // what makes a monospaced advance of exactly one cell work with no kerning table
 // and no per-glyph width. Eight is not decoration either: an 8-wide cell makes
 // every cell start on an even texel, which is what keeps the IDX4 packing in
-// rv_font_texture.hpp free of half-byte shifts (see the THEOREM there).
+// rv_font_texture.hpp free of half-byte shifts (see the note there).
 //
 // Storage: 8 bytes per glyph, a set bit means ink. Which byte is which row and
 // which bit is which column is drawn over the table itself, below.
@@ -43,11 +43,11 @@ inline constexpr int rv_font_notdef_index = 95;
 // FIRST, then the glyph's index in this table, its ASCII code and the character.
 // Reading a line left to right is reading the glyph top to bottom.
 //
-// Where a bit sits inside ONE row byte — the high bit is the LEFTMOST pixel:
+// Where a bit sits inside ONE row byte - the high bit is the LEFTMOST pixel:
 //
 //        0x80 0x40 0x20 0x10 0x08   0x04 0x02 0x01
 //         x=0  x=1  x=2  x=3  x=4    x=5  x=6  x=7
-//        └──── ink, 5 wide ─────┘   └─ always 0 ─┘
+//        +---- ink, 5 wide -----+   +- always 0 -+
 //
 // So 0xF8 is a full ink row and 0x20 is a single pixel in the middle column. An
 // entry whose low three bits are not zero would put ink in the spacing columns,
@@ -56,9 +56,9 @@ inline constexpr int rv_font_notdef_index = 95;
 // And which byte of a line is which row of the glyph:
 //
 //        y=0   y=1   y=2   y=3   y=4   y=5   y=6   y=7
-//        └──────────── ink, 7 rows ────────────┘   └─┘ blank
+//        +------------ ink, 7 rows ------------+   +-+ blank
 //
-// clang-format off — the table is a PICTURE. One byte per line, which is what
+// clang-format off - the table is a PICTURE. One byte per line, which is what
 // the formatter does to it, hides the shape of every letter in the font.
 inline constexpr uint8_t rv_font_bits[rv_font_glyph_count * rv_font_cell_height] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //   0  32     ' ' (space)

@@ -1,7 +1,7 @@
 // The rv_cm implementation of the reference console: geometry out of
 // rv_pccm_conf, bytes out of rv_pccard. Everything this class adds over the
-// image is contract semantics — argument validation and the exact rv_err
-// vocabulary — so the medium never has to know what a rv_err is.
+// image is contract semantics - argument validation and the exact rv_err
+// vocabulary - so the medium never has to know what a rv_err is.
 #pragma once
 
 #include "rv_pconsole/cm/rv_pccard.hpp"

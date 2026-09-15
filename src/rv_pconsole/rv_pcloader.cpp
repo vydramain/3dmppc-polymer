@@ -83,7 +83,7 @@ std::string read_whole_entry(const rv_zipreader &zip, const char *name,
     case rv_zipread::corrupt:
         return "the archive's bookkeeping for this entry does not hold up";
     case rv_zipread::crc_mismatch:
-        return "checksum mismatch — the entry is not the bytes that were written";
+        return "checksum mismatch - the entry is not the bytes that were written";
     case rv_zipread::io_error:
         return "the host file failed the read";
     }
@@ -162,7 +162,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
         manifest_bytes.size());
 
     // The origin argument is what puts `disc.toml:14:` in front of every
-    // diagnostic instead of a bare `line 14:` — the report is the only thing
+    // diagnostic instead of a bare `line 14:` - the report is the only thing
     // the console can say about a manifest it could not read, so it says it in
     // the shape the burner's own messages have.
     // The console parses the whole manifest with the burner's own parser (one
@@ -197,7 +197,7 @@ int64_t rv_pcloader::mount(const char *archive_path)
     // manifest edited after burning, or a .luac taken out of the archive,
     // moves no checksum at all. So the declaration is checked here, from the
     // bytes, and a disagreement is a broken disc rather than a disc with less
-    // scripting in it — the console must not run something it cannot honour.
+    // scripting in it - the console must not run something it cannot honour.
     //
     // Whatever that entry script pulls in afterwards is not checked and is not
     // meant to be: the console knows the one name the disc gave it.
@@ -230,17 +230,17 @@ int64_t rv_pcloader::mount(const char *archive_path)
 
     const std::string code_entry = code_entry_of(manifest_);
 
-    // PATTERN: version verdict from BYTES, BEFORE dlopen. A disc built against
+    // Version verdict from BYTES, BEFORE dlopen. A disc built against
     // a different PDK sees the console's structs at the wrong offsets, and that
     // failure does not announce itself: it is garbage geometry, a silent
     // corruption, a crash three minutes into play. dlopen would already run the
     // disc's constructors, so the verdict is read straight from the code
     // entry's ELF note (elf(5)) while it is still nothing but bytes in a buffer
-    // — the mismatched code is never mapped at all. This is the ONLY version
+    // - the mismatched code is never mapped at all. This is the ONLY version
     // check: the factory below creates the disc and decides nothing.
     if (pre_dlopen_check(zip.get(), code_entry.c_str()) < 0) {
         RV_LOG_ERR("pcloader",
-            "disc '{}' failed the pre-load inspection of its code entry — "
+            "disc '{}' failed the pre-load inspection of its code entry - "
             "the exact "
             "refusal is in the log line above; its code will not be mapped",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
@@ -262,8 +262,8 @@ int64_t rv_pcloader::bring_up()
     }
 
     const std::string code_entry = code_entry_of(manifest_);
-    // (4) The code entry, and the extraction the OS loader forces on us — see
-    // the THEOREM at the top of rv_pcloader.hpp: dlopen maps a file, so the code
+    // (4) The code entry, and the extraction the OS loader forces on us - see
+    // the note at the top of rv_pcloader.hpp: dlopen maps a file, so the code
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
     std::string why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
@@ -287,7 +287,7 @@ int64_t rv_pcloader::bring_up()
     // must fail on the loading screen, where the message is readable, and not
     // forty minutes in when the code path that needed it finally runs. RTLD_LOCAL
     // keeps the disc's symbols out of the process-global namespace, so two discs
-    // — or a disc and the console — cannot capture each other's names by
+    // - or a disc and the console - cannot capture each other's names by
     // accident, and nothing the disc exports beyond the two ABI symbols is
     // reachable by anyone.
     handle_ = ::dlopen(temp_path_.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -302,7 +302,7 @@ int64_t rv_pcloader::bring_up()
     }
 
     // (6) Both symbols or neither. A disc that can be created but not destroyed
-    // is not half-loadable, it is a leak with a vtable — and the only code that
+    // is not half-loadable, it is a leak with a vtable - and the only code that
     // may destroy the object is the code that made it (pdk/de/rv_dv.h).
     ::dlerror(); // clear any stale error before the lookups
     auto create = reinterpret_cast<rv_mppc_disc_create_fn>(
@@ -320,7 +320,7 @@ int64_t rv_pcloader::bring_up()
     }
 
     // Version compatibility was settled BEFORE this point: pre_dlopen_check reads
-    // the note, ahead of dlopen. create() takes no part in that decision — it is a
+    // the note, ahead of dlopen. create() takes no part in that decision - it is a
     // pure factory, and a nullptr from it means the disc refused to be created,
     // not a verdict about the version.
     rv_de *disc = nullptr;
@@ -360,14 +360,14 @@ int64_t rv_pcloader::load(const char *archive_path)
     return bring_up();
 }
 
-// PATTERN: RAII — the teardown order lives here and nowhere else, and it is the
+// RAII - the teardown order lives here and nowhere else, and it is the
 // exact reverse of construction:
 //
 //   disc_shutdown() -> mppc_disc_destroy() -> dlclose() -> unlink()
 //
 // dlclose AFTER destroy, never before: dlclose unmaps the library's text, and
 // the destructor is IN that text. Destroying afterwards calls a function whose
-// instructions are no longer mapped — the process jumps into a hole, at
+// instructions are no longer mapped - the process jumps into a hole, at
 // shutdown, where the crash looks like anything but its cause. The unlink comes
 // last for the same shape of reason: while the code is mapped, the file is what
 // the kernel pages from.
@@ -375,7 +375,7 @@ void rv_pcloader::unload()
 {
     if (disc_ != nullptr) {
         // rv_de.h: the hook runs after the last frame and NOT for a disc that
-        // refused to start. The facade is still valid at this point — that is
+        // refused to start. The facade is still valid at this point - that is
         // precisely why it runs before destroy and before dlclose.
         if (initialized_) {
             try {
@@ -411,7 +411,7 @@ void rv_pcloader::unload()
     }
 
     // Drop the archive last: reset() destroys the rv_zipreader, which closes
-    // its file handle — the one piece of teardown mount() introduced that the
+    // its file handle - the one piece of teardown mount() introduced that the
     // rest of this function did not know about before.
     zip_.reset();
 }

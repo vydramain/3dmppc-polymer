@@ -21,7 +21,7 @@ namespace rv_pdklib
 // frame_put.
 //
 // WHY A QUAD AND NOT A SPRITE. rv_sprite is the cheaper entity and looks
-// like the obvious answer — an axis-aligned rectangle is exactly what a character
+// like the obvious answer - an axis-aligned rectangle is exactly what a character
 // is. It cannot be used: rv_sprite carries NO uv (pdk/cv/rv_primitives.h), so a
 // textured sprite always lays the texture down from its UPPER-LEFT CORNER. It can
 // therefore show the whole atlas, or the atlas tiled, but never one chosen cell
@@ -36,44 +36,44 @@ namespace rv_pdklib
 // primitives: a 40-column line would spend 1400 of a frame budget that is in the
 // low thousands, to draw one line of a HUD. One quad per character spends 40.
 //
-// PATTERN: THE COLOUR OF TEXT COMES FROM THE PALETTE, NOT FROM VERTEX COLOURS.
+// THE COLOUR OF TEXT COMES FROM THE PALETTE, NOT FROM VERTEX COLOURS.
 // This is the part that surprises people, so it is stated here rather than
-// discovered later. The obvious modern move — draw a white glyph and tint it with
-// the vertex colour — needs texture-combine (modulate), and the contract marks
+// discovered later. The obvious modern move - draw a white glyph and tint it with
+// the vertex colour - needs texture-combine (modulate), and the contract marks
 // that DEFERRED (rv_polygon: "DEFERRED: blending ... and texture-combine
 // (raw/modulation) flags"). Today a SAMPLE_TEXTURE primitive shows the texel and
 // nothing else; the vertex colours it carries are ignored. Setting
 // rv_vertex colours here would change exactly nothing on screen.
 //
 // The era's own answer, and ours: the atlas is uploaded ONCE as RV_TEXFMT_IDX4
-// with only two indices in use — 0 for the background, 1 for the ink — and the
+// with only two indices in use - 0 for the background, 1 for the ink - and the
 // colour lives in the PALETTE. To draw the same string in a second colour, upload
 // a second 16-entry palette and point the primitive's addr_palette at it. Nothing
 // is re-rasterised, nothing is duplicated: the same 3 KiB of texels serves every
 // colour of text the disc ever shows, which is precisely why PSX games recoloured
 // fonts and menus this way. When texture-combine lands, vertex modulation becomes
-// an ADDITION to this, not a replacement — a per-glyph fade over a palette that
+// an ADDITION to this, not a replacement - a per-glyph fade over a palette that
 // already picked the hue.
 //
 // TRANSPARENCY FALLS OUT OF THE SAME PALETTE. Per pdk/cv/rv_texture.h the value
 // 0000h is fully transparent and, for the indexed formats, transparency is decided
 // AFTER the palette lookup. So palette entry 0 is written as 0000h and the glyph
 // background is a hole: text lands on top of the picture instead of inside a
-// rectangle of its own. The trap this creates is real and is guarded below — an
+// rectangle of its own. The trap this creates is real and is guarded below - an
 // INK colour that packs to 0000h (pure black) would make the text itself the hole
 // and the string would vanish. See rv_font_pack_rgb555.
 
 // NAMING: rv_font_ and not rv_text_, although this renders text. The prefix
-// rv_tex belongs to TEXTURES throughout the repository — rv_texture, rv_texfmt,
-// rv_textures/, rv_texel_pack — and rv_text lands inside it letter for letter,
+// rv_tex belongs to TEXTURES throughout the repository - rv_texture, rv_texfmt,
+// rv_textures/, rv_texel_pack - and rv_text lands inside it letter for letter,
 // so a reader scanning names cannot tell which of the two a symbol is about.
 // The subject here is the font; naming it after the font costs nothing and
 // leaves the tex- prefix meaning one thing.
 
 // --- measuring ----------------------------------------------------------------
 
-// Cell advance in screen pixels. `scale` is an INTEGER multiplier — 1 draws the
-// 8x8 cell over 8x8 pixels, 2 over 16x16 — because a non-integer scale under
+// Cell advance in screen pixels. `scale` is an INTEGER multiplier - 1 draws the
+// 8x8 cell over 8x8 pixels, 2 over 16x16 - because a non-integer scale under
 // nearest-neighbour sampling gives a glyph whose stems are two pixels wide in
 // some columns and one in others, which is exactly how bad retro text looks. A
 // scale of 0 or less is treated as 1 rather than drawing nothing.
@@ -88,7 +88,7 @@ inline int rv_font_advance(int scale)
 }
 
 // The step '\n' takes, in pixels: one whole cell, so consecutive lines touch. The
-// cell's single blank bottom row is the ONLY leading, which is tight — a descender
+// cell's single blank bottom row is the ONLY leading, which is tight - a descender
 // on one line sits one pixel above the capitals of the next. That is the 8x8 grid
 // being honest about itself, and it is what a caller wants for a dense HUD or a
 // character grid. A caller who wants air draws each line with its own call and its
@@ -145,7 +145,7 @@ inline int rv_font_measure_height(std::string_view text, int scale)
 // How many primitives rv_font_draw will produce. Newlines cost nothing, and so
 // does the SPACE: its cell is empty, and an empty cell of a transparent-background
 // atlas draws not one pixel. Filing it would spend a slot of rv_cv::frame_capacity
-// on nothing, so it is skipped — which makes indented or column-aligned text much
+// on nothing, so it is skipped - which makes indented or column-aligned text much
 // cheaper than its character count suggests.
 inline std::size_t rv_font_primitive_count(std::string_view text)
 {
@@ -189,7 +189,7 @@ namespace rv_font_detail
 
 // rv_vertex coordinates are int16 and a caller may legitimately place text
 // off the left edge (a scrolling credits crawl), so out-of-range values SATURATE
-// instead of wrapping — the same rule pdklib/rv_math/rv_xform.hpp applies to projected
+// instead of wrapping - the same rule pdklib/rv_math/rv_xform.hpp applies to projected
 // geometry. A wrap would teleport a glyph to the opposite edge of the screen.
 inline int16_t to_int16(int value)
 {
@@ -207,7 +207,7 @@ inline rv_vertex corner(int x, int y, int u, int v)
     rv_vertex vertex{};
     vertex.x = to_int16(x);
     vertex.y = to_int16(y);
-    // Ignored by a SAMPLE_TEXTURE primitive today (see the PATTERN at the top of
+    // Ignored by a SAMPLE_TEXTURE primitive today (see the note at the top of
     // this file); set to white so that the day texture-combine lands, a modulating
     // console multiplies by 1 and the text keeps the colour its palette gave it.
     vertex.color = rv_color{ 255, 255, 255 };
@@ -217,18 +217,18 @@ inline rv_vertex corner(int x, int y, int u, int v)
 
 } // namespace rv_font_detail
 
-// Build the quad for one glyph at (x, y) — the cell's upper-left pixel.
+// Build the quad for one glyph at (x, y) - the cell's upper-left pixel.
 //
 // The quad spans [x, x + 8 * scale) x [y, y + 8 * scale) and its uv span the cell's
 // half-open [u0, u0 + 8) x [v0, v0 + 8). Both spans being half-open is what makes
 // the mapping exact: the rasterizer fills pixels under a top-left rule (a rectangle
 // from x to x + w covers x .. x + w - 1) and interpolates uv affinely from the
 // vertex values, so at scale 1 pixel x + i samples texel u0 + i for every i in
-// 0..7 — one texel per pixel, no rounding, no bleed into the next cell. At scale s
+// 0..7 - one texel per pixel, no rounding, no bleed into the next cell. At scale s
 // the step is 1/s and each texel is a clean s x s block.
 //
 // CLAMP is the mapping because it can never be reached: nothing here generates a
-// coordinate outside the atlas. It is the honest choice anyway — TILE would hide a
+// coordinate outside the atlas. It is the honest choice anyway - TILE would hide a
 // future arithmetic mistake by wrapping it into a plausible-looking glyph.
 inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int x, int y,
     rv_primitive &out)
@@ -260,7 +260,7 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
     polygon.vertexes[3] = rv_font_detail::corner(x + size_x, y + size_y, u1, v1); // bottom-right
 }
 
-// Lay out `text` starting at (x, y) — the upper-left pixel of the first cell — and
+// Lay out `text` starting at (x, y) - the upper-left pixel of the first cell - and
 // hand every glyph's primitive to `sink`, which is called as sink(const
 // rv_primitive&). Returns how many primitives were produced.
 //
@@ -272,7 +272,7 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
 //
 // '\n' returns the pen to `x` and drops it one line. Spaces advance without
 // producing a primitive. Every other byte draws, including the notdef block for
-// anything outside printable ASCII — a stray '\r' from CRLF text prints a solid
+// anything outside printable ASCII - a stray '\r' from CRLF text prints a solid
 // slab, which is the file telling you about its line endings.
 template <typename Sink>
 inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
@@ -309,7 +309,7 @@ inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::s
 
 // The same, into a caller-provided array. Writes at most `capacity` primitives and
 // returns how many it wrote; ask rv_font_primitive_count first if you need to know
-// whether the whole string fits. Truncation is silent by design — a HUD that runs
+// whether the whole string fits. Truncation is silent by design - a HUD that runs
 // out of buffer should lose its tail, not stop the frame.
 inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
     rv_primitive *out, std::size_t capacity)

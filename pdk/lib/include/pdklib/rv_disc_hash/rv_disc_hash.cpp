@@ -88,16 +88,16 @@ inline uint32_t rotr(uint32_t x, uint32_t n)
 }
 
 // This is the initial state of SHA-256.
-// The algorithm starts its computation from these eight specific numbers — they are
+// The algorithm starts its computation from these eight specific numbers - they are
 // fixed by the standard.
 // If they are replaced with zeros or other values,
 // the result will no longer be a standard SHA-256.
 //
 // - h[8]             - initial values that will change as data is processed.
 //                      The final values become the hash.
-// - buf_len = 0      — no data in the buffer yet.
-// - total_len = 0    — no byte has arrived yet.
-// - buf[64]          — buffer for the next block.
+// - buf_len = 0      - no data in the buffer yet.
+// - total_len = 0    - no byte has arrived yet.
+// - buf[64]          - buffer for the next block.
 //                      Not initialised: the needed bytes are filled in before processing.
 struct sha256_ctx {
     uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
@@ -109,8 +109,8 @@ struct sha256_ctx {
 
 // This function processes one 64-byte block and updates the accumulated SHA-256 state.
 //
-// - ctx — the computation state, passed by reference: the function modifies its h[8].
-// - p — a pointer to 64 bytes of input data, which the function only reads.
+// - ctx - the computation state, passed by reference: the function modifies its h[8].
+// - p - a pointer to 64 bytes of input data, which the function only reads.
 void sha256_block(sha256_ctx &ctx, const unsigned char *p)
 {
     uint32_t w[64];
@@ -120,9 +120,9 @@ void sha256_block(sha256_ctx &ctx, const unsigned char *p)
             (uint32_t(p[i * 4 + 2]) << 8) | uint32_t(p[i * 4 + 3]);
     }
 
-    // The second loop fills w[16] … w[63] from the previous elements,
+    // The second loop fills w[16] ... w[63] from the previous elements,
     // using rotations, XOR (^) and addition:
-    // The result is 64 words — one for each round.
+    // The result is 64 words - one for each round.
     // All of them depend on the original block.
     for (int i = 16; i < 64; ++i) {
         uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
@@ -216,7 +216,7 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
         // Fill the free bytes up to the length field with zeros (indices up to 55 inclusive).
         std::memset(ctx.buf + buf_len, 0, 56 - buf_len);
 
-        // Write the length in bits into bytes 56–63, big-endian (most significant byte first).
+        // Write the length in bits into bytes 56-63, big-endian (most significant byte first).
         for (int i = 0; i < 8; ++i) {
             ctx.buf[56 + i] = static_cast<unsigned char>(bit_len >> (56 - 8 * i));
         }

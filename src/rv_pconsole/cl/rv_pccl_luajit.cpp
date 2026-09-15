@@ -5,7 +5,7 @@
 #include <cstring>
 #include <vector>
 
-// THE ONLY file in the whole project that includes lua.hpp — if it shows up
+// THE ONLY file in the whole project that includes lua.hpp - if it shows up
 // anywhere else, the PDK boundary has leaked.
 #include "lua.hpp"
 
@@ -124,7 +124,7 @@ rv_pccl_luajit::~rv_pccl_luajit()
         lua_close(L_);
     }
 }
-// L_ null is the only FALSE — the ctor already logged why. Every method
+// L_ null is the only FALSE - the ctor already logged why. Every method
 // below skips the "is a VM up" guard the old rv_pccl.cpp had: a factory
 // upstream only ever builds this class for a disc that declared a lua
 // machine, and the console refuses to boot when valid() answers false, so no
@@ -147,7 +147,7 @@ void *rv_pccl_luajit::rv_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
     }
     const int64_t old_size = ptr != nullptr ? static_cast<int64_t>(osize) : 0;
     const int64_t delta = static_cast<int64_t>(nsize) - old_size;
-    // Only growth is checked; NULL is not a crash — Lua turns it into a
+    // Only growth is checked; NULL is not a crash - Lua turns it into a
     // catchable "not enough memory" error, a ceiling the script hits.
     if (delta > 0 && self->used_ + delta > self->budget_) {
         return nullptr;
@@ -292,7 +292,7 @@ int64_t rv_pccl_luajit::script_entry()
     if (entry_ >= 0) {
         return entry_; // raised once; later calls answer from memo
     }
-    // The console parsed the manifest, so it — not the disc — knows the name.
+    // The console parsed the manifest, so it - not the disc - knows the name.
     const int64_t handle = cd_.asset_open(conf_.script_entry.c_str());
     if (handle < 0) {
         return handle;
@@ -466,7 +466,7 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     }
     lua_insert(L_, -static_cast<int>(argc) - 1); // [fn, args...]
     if (lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0) != 0) {
-        // Contract: nothing survives a failed call — logged, then popped.
+        // Contract: nothing survives a failed call - logged, then popped.
         RV_LOG_ERR("pccl", "script_call('{}'): {}", fname, lua_tostring(L_, -1));
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top - static_cast<int>(argc));

@@ -3,15 +3,15 @@
 // Everything it needs travels in the primitive (the contract's "no global drawing
 // state" rule), plus the frame-wide depth key and Z flag the caller passes in.
 //
-// PATTERN: stateless service. Only static functions — the rasterizer owns no
+// Stateless service. Only static functions - the rasterizer owns no
 // state at all, so a frame's primitives can be drawn in any order the ordering
 // table dictates without a reset in between, and the screen bounds come from the
 // framebuffer it is handed rather than from a configuration of its own.
 //
-// PATTERN: dependency inversion on video RAM. A textured primitive names its
+// Dependency inversion on video RAM. A textured primitive names its
 // texels by ADDRESS, and this class still has no idea what an address is: the
 // caller (rv_pccv) resolves it into an rv_pctexview and hands the view down.
-// That boundary is deliberate — it keeps the rasterizer drivable from a test
+// That boundary is deliberate - it keeps the rasterizer drivable from a test
 // with a view over a stack array, and keeps the pool's lifetime rules in the one
 // class that owns the pool.
 #pragma once
@@ -49,7 +49,7 @@ public:
         const rv_pctexview &texture, int32_t depth, bool z_enabled);
 
     // Draw whichever variant `primitive.type` selects. Unknown types are
-    // ignored — frame_put already rejected them, this is only belt and braces.
+    // ignored - frame_put already rejected them, this is only belt and braces.
     static void draw(rv_pcfbuf &fbuf, const rv_primitive &primitive,
         const rv_pctexview &texture, bool z_enabled);
 
@@ -61,7 +61,7 @@ public:
 
     // The same dither, applied to a texel that is already RGB555. Every pixel
     // this class writes goes through one of these three, so the quantizer lives
-    // in exactly one place — see the theorem in rv_pcraster_pixel.hpp for why this one
+    // in exactly one place - see the theorem in rv_pcraster_pixel.hpp for why this one
     // is currently an identity and why it is still the right call to make.
     static uint16_t dither_rgb555(uint16_t texel, int64_t x, int64_t y);
 };

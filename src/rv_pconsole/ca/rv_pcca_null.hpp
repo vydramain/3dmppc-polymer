@@ -1,4 +1,4 @@
-// The rv_ca contract impersonated: no pool, no mixer, no device — but a no-op
+// The rv_ca contract impersonated: no pool, no mixer, no device - but a no-op
 // console still describes the hardware shape a real one would have had. Ca has
 // no return channel with an invariant to keep true (unlike, say, a disc that
 // must see its own writes reflected back), so it may impersonate freely.

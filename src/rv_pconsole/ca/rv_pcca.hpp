@@ -51,7 +51,7 @@ public:
     // through the extern "C" block.
     virtual void advance(int16_t *out, int64_t frames) = 0;
 
-    // Does the memory this controller owns actually exist? Console-side only —
+    // Does the memory this controller owns actually exist? Console-side only -
     // not reached through the extern "C" block.
     virtual bool valid() const = 0;
 

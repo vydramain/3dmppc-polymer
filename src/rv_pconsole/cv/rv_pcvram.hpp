@@ -1,8 +1,8 @@
 // The video RAM the rv_cv contract promises: a fixed-size private pool the disc
-// reserves regions in and gets opaque ADDRESSES back — never pointers.
+// reserves regions in and gets opaque ADDRESSES back - never pointers.
 //
 // The allocator itself lives in rv_pmem/rv_pcpool.hpp and is shared with sound
-// RAM; what remains here is the part that is specific to VIDEO — the texture
+// RAM; what remains here is the part that is specific to VIDEO - the texture
 // shape a region carries, and the contract's error vocabulary around it. A
 // primitive names a region by address alone, so its format and dimensions have
 // to be remembered next to the bytes; that is exactly the pool's Meta slot.

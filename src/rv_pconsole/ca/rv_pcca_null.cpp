@@ -22,7 +22,7 @@ rv_pcca_null::rv_pcca_null(const rv_pcca_conf &conf)
 
 int64_t rv_pcca_null::voice_count()
 {
-    // The DISC's declared count, unchanged — a no-op console still reports the
+    // The DISC's declared count, unchanged - a no-op console still reports the
     // hardware shape a real one would have had.
     return conf_.voice_count;
 }
@@ -35,7 +35,7 @@ int64_t rv_pcca_null::sound_memory_size()
 int64_t rv_pcca_null::sound_asset_malloc(int64_t /*size*/)
 {
     // A fixed, positive, fake address: nothing is allocated, and repeats are
-    // fine — no pool exists for this to collide against.
+    // fine - no pool exists for this to collide against.
     constexpr int64_t RV_PCCA_NULL_FAKE_ADDR = 16;
     return RV_PCCA_NULL_FAKE_ADDR;
 }

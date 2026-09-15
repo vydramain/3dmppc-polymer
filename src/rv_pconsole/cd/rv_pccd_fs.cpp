@@ -24,16 +24,16 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
     // SECURITY: the name gate runs FIRST, before the table is consulted and long
     // before anything reaches the filesystem. A resource name addresses one entry
     // ON the inserted medium and has no syntax for leaving it, so `/`, `\` or
-    // `..` is not a formatting slip — it is an attempt to read bytes that are not
+    // `..` is not a formatting slip - it is an attempt to read bytes that are not
     // on the disc. `../../etc/passwd` must never become an open() on the host, so
     // it is refused here rather than somewhere deeper where the medium might be
     // tempted to resolve it. See rv_pcresname_valid() in rv_pcmedium.hpp.
     if (!rv_pcresname_valid(resname)) {
         // TODO(rv_log_escape): 3 calls in this file. The console is its only
-        // caller, so it does not belong in pdklib — find it a console-side home.
+        // caller, so it does not belong in pdklib - find it a console-side home.
         //
         // The name goes through rv_pdklib::rv_log_escape() because it is exactly the string
-        // an attack would put a newline or an ANSI escape into — see the note on
+        // an attack would put a newline or an ANSI escape into - see the note on
         // that function. Naming it matters: "an illegal name was rejected" tells
         // whoever reads the log nothing about WHICH asset the disc wanted.
         RV_LOG_WARN("pccd", "asset_open('{}') rejected: illegal resource name",
@@ -41,7 +41,7 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
         return RV_ERR_INVAL;
     }
 
-    // PATTERN: handle table — resolution is idempotent. A name already in the
+    // Handle table - resolution is idempotent. A name already in the
     // table returns its original handle, even if the entry has since vanished:
     // the contract promises a STABLE mapping from name to handle, and the fate of
     // the entry behind it is reported by asset_size / asset_read, not here.
@@ -56,14 +56,14 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
         // DBG, not WARN: an empty drive is a legal machine and the console
         // already said so once at boot. Repeating it as a warning on every
         // lookup is noise, and noise is what teaches people to stop reading
-        // logs — the one thing a log cannot survive.
+        // logs - the one thing a log cannot survive.
         RV_LOG_DBG("pccd", "asset_open('{}') with no medium mounted", rv_pdklib::rv_log_escape(key.c_str()));
         return RV_ERR_NOENT;
     }
 
     // Existence probe. The medium may answer RV_ERR_IO, which asset_open has no
     // way to express (its codes are INVAL / NOENT / NOMEM), so an entry that
-    // cannot even be measured is reported as one that is not there — the honest
+    // cannot even be measured is reported as one that is not there - the honest
     // summary for a caller whose only question was "can this be resolved?".
     const int64_t size = medium_->entry_size(resname);
     if (size < 0) {
@@ -95,7 +95,7 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
     return handle;
 }
 
-// THEOREM: size is a hint, not a promise — the drive reports the entry's size AT
+// Size is a hint, not a promise - the drive reports the entry's size AT
 // THE MOMENT OF THE CALL and nothing more. Between this call and the asset_read
 // that follows, the medium is free to change underneath: a directory medium is
 // live host filesystem, and a developer re-exporting an .obj mid-run genuinely

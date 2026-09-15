@@ -10,7 +10,7 @@ namespace rv_pdklib
 
 // One PNG-to-texel conversion rule. `files` are globs relative to the disc
 // directory; `format` is the rv_texfmt to bake into. The manifest spells it as
-// text and the binder turns that text into the enumerator — the accepted
+// text and the binder turns that text into the enumerator - the accepted
 // spellings are the rows of rv_texfmt_names (pdklib/rv_textures/rv_texfmt_name.hpp) and are not
 // restated anywhere in this tool.
 struct rv_manifest_textures {
@@ -20,12 +20,12 @@ struct rv_manifest_textures {
 
 // --- the defaults -------------------------------------------------------------
 //
-// Every number below IS the reference machine — there is no other copy of
+// Every number below IS the reference machine - there is no other copy of
 // these numbers, this struct's defaults are the specification. A manifest
 // states only what it wants to differ from;
 // everything it leaves out is filled in from here, and what it gets is exactly
 // the machine the built-in disc runs on. There is one copy of these numbers and
-// this is it — the console's built-in budget is a default-constructed
+// this is it - the console's built-in budget is a default-constructed
 // rv_manifest_budget rather than a second list that can drift from this one.
 //
 // The defaulted operator== on each section is what rendering uses to decide
@@ -72,7 +72,7 @@ struct rv_manifest_budget_pccd {
     bool operator==(const rv_manifest_budget_pccd &) const = default;
 };
 
-// The lua machine. Its default is NO MACHINE — the reference disc carries no
+// The lua machine. Its default is NO MACHINE - the reference disc carries no
 // scripts, so the reference answer here is zero, exactly as 24 voices is the
 // reference answer for pcca. Scripting is not an exception to the default rule;
 // it is the rule applied to a subsystem whose reference value happens to be
@@ -83,16 +83,16 @@ struct rv_manifest_budget_pccl {
     // The one script the disc starts its scripting from. Named rather than
     // guessed, for the same reason pccd names its module: the drive is asked
     // for it verbatim. Spelled script_entry, not code_entry, so that the two
-    // never read as the same thing at a glance — they are not.
+    // never read as the same thing at a glance - they are not.
     //
-    // This does NOT replace pccd's code_entry. Every disc has a disc.so — it
+    // This does NOT replace pccd's code_entry. Every disc has a disc.so - it
     // carries the ELF note the version and checksum are read from, it is what
     // pccd starts, and its RAII is what ends the run. Scripting is reached
     // FROM INSIDE it: disc.so initializes, then hands this entry to the lua
     // machine. Whatever that script pulls in afterwards is between it and the
     // drive; the console neither knows nor counts it.
     //
-    // This name and script_memory_size are ONE declaration in two fields —
+    // This name and script_memory_size are ONE declaration in two fields -
     // together with [scripts] sources it is one declaration in three: all
     // three present or all three absent. Checked at burn and again at mount.
     // Half of it is not a smaller lua machine, it is a broken disc.
@@ -103,7 +103,7 @@ struct rv_manifest_budget_pccl {
 
 // The budget the burner enforces at pack time. A manifest that states none of
 // it describes the reference machine, and that is a decision the author can
-// legitimately make by saying nothing — the numbers are the console's own, not
+// legitimately make by saying nothing - the numbers are the console's own, not
 // a guess. What a manifest DOES state overrides its part and nothing else.
 //
 // Checking here is still the whole point: a texture that does not fit is an
@@ -123,7 +123,7 @@ struct rv_manifest {
     std::string disc_id;    // short machine name, e.g. "example-cpp"
     std::string disc_title; // human title for the window and logs
 
-    // [build] — globs relative to the disc directory
+    // [build] - globs relative to the disc directory
     std::vector<std::string> build_sources;
     std::vector<std::string> build_defines;
     std::vector<std::string> build_include_dirs;
@@ -131,18 +131,18 @@ struct rv_manifest {
     // [scripts] - globs relative lua scripts to the disc directory
     std::vector<std::string> scripts_sources;
 
-    // [assets] — globs copied into the archive verbatim
+    // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
-    // [textures] — globs baked through mppcbaker on the way in
+    // [textures] - globs baked through mppcbaker on the way in
     rv_manifest_textures textures_files;
 
     // [budget]
     rv_manifest_budget budget;
 };
 
-// Parse manifest text: lexer → parser → semantic analysis → binder. Either a
-// manifest or the diagnostics — never a half-filled manifest next to a flag the
+// Parse manifest text: lexer -> parser -> semantic analysis -> binder. Either a
+// manifest or the diagnostics - never a half-filled manifest next to a flag the
 // caller may forget to check. Every message NAMES THE LINE NUMBER, and one call
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference

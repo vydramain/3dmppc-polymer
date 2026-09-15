@@ -4,7 +4,7 @@
 // asks for the platform the same way; no `if (disabled)` belongs anywhere
 // else in the tree.
 //
-// There is deliberately no common base over the slots — it would buy nothing
+// There is deliberately no common base over the slots - it would buy nothing
 // and would invite holding them in a container. Teardown order instead relies
 // on rv_pconsole's NAMED unique_ptr members: cl_ is declared last so it dies
 // first, because a lua finaliser may call back through the FFI into a
@@ -15,6 +15,7 @@
 // same words --mode_<slot> and [mode.*] accept.
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <span>
 
@@ -75,10 +76,13 @@ std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf 
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf);
 std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &conf);
 
-// luajit AND conf.script_memory_size > 0 -> rv_pccl_luajit; otherwise
-// rv_pccl_null. An absent [budget.pccl] selects null regardless of the
-// preset; the disc refuses for itself when it needed scripts and did not
-// get them.
+// Downgrades luajit to null when the disc declares no script memory. The
+// caller must call this before both budget evaluation and rv_pccl_make, so
+// the two see the same implementation.
+rv_pccl_impl rv_pccl_resolve(rv_pccl_impl requested, int64_t script_memory_size);
+
+// Straight mapping, same as the factories above: what rv_pccl_resolve
+// returned is what is built. The caller resolves first.
 std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd);
 
 // Straight mapping to rv_pcplatform_sdl3_make / rv_pcplatform_null_make,

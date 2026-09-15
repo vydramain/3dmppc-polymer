@@ -23,7 +23,7 @@ constexpr uint32_t RV_PCCARD_VERSION = 1;
 
 constexpr uint8_t RV_PCCARD_MAGIC[8] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
 
-// PATTERN: explicit byte order — the image is written and read one byte at a
+// Explicit byte order - the image is written and read one byte at a
 // time so a card written on one machine stays readable on another, instead of
 // silently inheriting whatever layout the compiler gave an int64_t.
 void put_u32(uint8_t *p, uint32_t v)
@@ -134,7 +134,7 @@ bool rv_pccard::load()
         // Either way these bytes are somebody's saves: refuse the medium rather
         // than reformat it. A card that answers RV_ERR_IO is recoverable by
         // moving the file aside; one that was silently reformatted is not.
-        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' is {} byte(s), expected {} — refusing to touch it",
+        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' is {} byte(s), expected {} - refusing to touch it",
             image_path_, static_cast<int64_t>(on_disk), expected);
         return false;
     }
@@ -164,7 +164,7 @@ bool rv_pccard::load()
     const int64_t file_slots = get_i64(buffer.data() + 16);
     const int64_t file_slot_size = get_i64(buffer.data() + 24);
     if (file_slots != slot_count_ || file_slot_size != slot_size_) {
-        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' holds {}x{} byte slots, this console has {}x{} — refusing",
+        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' holds {}x{} byte slots, this console has {}x{} - refusing",
             image_path_, file_slots, file_slot_size, slot_count_, slot_size_);
         return false;
     }
@@ -172,7 +172,7 @@ bool rv_pccard::load()
     for (int64_t i = 0; i < slot_count_; ++i) {
         const int64_t length = get_i64(buffer.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY);
         if (length < -1 || length > slot_size_) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) — corrupt", image_path_, i,
+            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) - corrupt", image_path_, i,
                 length);
             return false;
         }
@@ -239,7 +239,7 @@ bool rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
     uint8_t *payload = payload_at(slot);
 
     // The undo log: the bytes that must reappear if the medium refuses the
-    // write. Only the meaningful prefix is kept — the invariant that everything
+    // write. Only the meaningful prefix is kept - the invariant that everything
     // past a slot's length is zero makes the rest reconstructible.
     std::vector<uint8_t> undo;
     if (old_length > 0) {
@@ -266,7 +266,7 @@ bool rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
 
 bool rv_pccard::flush()
 {
-    // THEOREM: atomic replace via rename — POSIX requires rename(2) to be
+    // Atomic replace via rename - POSIX requires rename(2) to be
     // atomic WITHIN ONE FILESYSTEM: any observer, including the next boot after
     // a power cut, sees either the old inode whole or the new inode whole, and
     // never a state in between. The entire image is therefore built in RAM,
@@ -275,7 +275,7 @@ bool rv_pccard::flush()
     // writing", is what discharges rv_cm's promise that a failed card_write
     // leaves the previous content intact: an in-place write of 128 KiB is many
     // device operations, and a crash in the middle of them leaves a slot half
-    // old and half new — exactly the state the contract forbids.
+    // old and half new - exactly the state the contract forbids.
     //
     // Two conditions are load-bearing and easy to lose in a refactor:
     //   * the temporary MUST live in the same directory as the target. A temp

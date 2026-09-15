@@ -25,13 +25,13 @@ constexpr int32_t RV_DMAIN_DEPTH_PANEL = 880; // the slab text sits on
 constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900;  // over everything, it explains it
 
 // The screen is a POST: it reports WHAT THE MACHINE IS and whether each part
-// answered — not a caption for what is drawn below it.
+// answered - not a caption for what is drawn below it.
 //
 // The first version of this screen labelled the picture ("textures", "cube",
 // "ticks", "bar", "south") and was useless: those are the names of THIS FILE's
 // implementation details, and nobody outside it can know that "south" is what
 // the input contract calls the bottom face button. Every number below instead
-// comes from a real query — screen_width(), voice_count(), card_slots() — so
+// comes from a real query - screen_width(), voice_count(), card_slots() - so
 // the fact that it is on screen at all is itself the proof that the query
 // answers.
 constexpr const char *RV_DMAIN_TITLE = "3DMPPC";
@@ -40,7 +40,7 @@ constexpr const char *RV_DMAIN_NO_DISC = "NO DISC INSERTED";
 // the bottom face button, and nobody outside that header knows it.
 constexpr const char *RV_DMAIN_HINTS = "Z sound   ESC power off";
 
-// Human sizes. 1048576 reads as "1 MB", 524288 as "512 KB" — a service screen
+// Human sizes. 1048576 reads as "1 MB", 524288 as "512 KB" - a service screen
 // that prints raw byte counts makes the reader do arithmetic to learn something
 // the machine already knows.
 void format_bytes(char *out, std::size_t cap, int64_t bytes)
@@ -87,7 +87,7 @@ int16_t to_screen(float value)
 }
 
 // A flat rectangle, filled in completely so no byte of the union is left
-// indeterminate. PATTERN: factory method — rv_primitive is a tagged union of
+// indeterminate. Factory method - rv_primitive is a tagged union of
 // constructor-less structs, and an "almost filled" literal leaves live fields
 // holding whatever the stack had.
 rv_primitive make_bar(float x, float y, float w, float h, rv_color color, int32_t depth)
@@ -109,7 +109,7 @@ rv_primitive make_bar(float x, float y, float w, float h, rv_color color, int32_
     return primitive;
 }
 
-// Screen-space vertex, filled completely — rv_vertex is a plain struct and an
+// Screen-space vertex, filled completely - rv_vertex is a plain struct and an
 // "almost filled" literal leaves live fields holding whatever the stack had.
 rv_vertex make_vertex(int x, int y, rv_color color)
 {
@@ -125,7 +125,7 @@ rv_vertex make_vertex(int x, int y, rv_color color)
 
 // --- the test card -----------------------------------------------------------
 
-// PATTERN: test card. Every cell exercises exactly ONE thing the console can
+// Test card. Every cell exercises exactly ONE thing the console can
 // draw, and says which. That is what makes it a test rather than a demo: a
 // broken feature shows up as one wrong cell with a name on it, instead of a
 // picture that is subtly off in a way nobody can localise.
@@ -255,7 +255,7 @@ void rv_dmain::draw_cell(int index)
     const rv_color mid = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.7f, 0.85f, 1.0f);
 
     switch (index) {
-    case 0: { // LINE — the 1D case of colour interpolation
+    case 0: { // LINE - the 1D case of colour interpolation
         rv_primitive primitive{};
         primitive.type = RV_PRIMITIVE_LINE;
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
@@ -264,7 +264,7 @@ void rv_dmain::draw_cell(int index)
         rv_cv_frame_put(cv, &primitive);
         break;
     }
-    case 1: { // TRI — gouraud across three different vertex colours
+    case 1: { // TRI - gouraud across three different vertex colours
         rv_primitive primitive{};
         primitive.type = RV_PRIMITIVE_POLYGON;
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
@@ -281,7 +281,7 @@ void rv_dmain::draw_cell(int index)
         rv_cv_frame_put(cv, &primitive);
         break;
     }
-    case 2: { // QUAD — the same fill across the (1,2,3)/(2,3,4) split
+    case 2: { // QUAD - the same fill across the (1,2,3)/(2,3,4) split
         rv_primitive primitive{};
         primitive.type = RV_PRIMITIVE_POLYGON;
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
@@ -300,7 +300,7 @@ void rv_dmain::draw_cell(int index)
         rv_cv_frame_put(cv, &primitive);
         break;
     }
-    case 3: { // WIRE — edges only, so the interior must stay background
+    case 3: { // WIRE - edges only, so the interior must stay background
         rv_primitive primitive{};
         primitive.type = RV_PRIMITIVE_POLYGON;
         primitive.depth = RV_DMAIN_DEPTH_ART_HI;
@@ -317,7 +317,7 @@ void rv_dmain::draw_cell(int index)
         rv_cv_frame_put(cv, &primitive);
         break;
     }
-    case 4: { // SPRITE — the axis-aligned fast path, one flat colour
+    case 4: { // SPRITE - the axis-aligned fast path, one flat colour
         const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
             static_cast<float>(aw), static_cast<float>(ah), hot,
             RV_DMAIN_DEPTH_ART_HI);
@@ -325,19 +325,19 @@ void rv_dmain::draw_cell(int index)
         break;
     }
 
-    case 5: // DIRECT15 — a texel that carries its own colour, CLAMP
+    case 5: // DIRECT15 - a texel that carries its own colour, CLAMP
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_CLAMP);
         break;
 
-    case 6: // TILE — the same texture, repeated
+    case 6: // TILE - the same texture, repeated
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_TILE);
         break;
 
-    case 7: // IDX4 — an indexed texel resolved through a palette
+    case 7: // IDX4 - an indexed texel resolved through a palette
         draw_textured(ax, ay, aw, ah, addr_idx4_, addr_idx4_palette_, RV_TEXWRAP_STRETCH);
         break;
 
-    case 8: { // CUTOUT — 0000h writes neither colour nor depth
+    case 8: { // CUTOUT - 0000h writes neither colour nor depth
         // The backdrop is filed FIRST and NEARER-behind: what shows through
         // the holes is this magenta, and if the hole wrote depth it would
         // not.
@@ -348,7 +348,7 @@ void rv_dmain::draw_cell(int index)
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_STRETCH);
         break;
     }
-    case 9: { // DEPTH — the ordering table sorts, submission order does not
+    case 9: { // DEPTH - the ordering table sorts, submission order does not
         // Filed nearest FIRST. If the console honoured submission order
         // instead of the depth key, the stack would come out inverted.
         const rv_color tint[3] = { hot, cold, mid };
@@ -362,11 +362,11 @@ void rv_dmain::draw_cell(int index)
         }
         break;
     }
-    case 10: // STRETCH — uv ignored, the texture scaled to the primitive
+    case 10: // STRETCH - uv ignored, the texture scaled to the primitive
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_STRETCH);
         break;
 
-    default: // 3D — pdklib's transform feeding the console screen-space quads
+    default: // 3D - pdklib's transform feeding the console screen-space quads
         draw_cube_cell(ax, ay, aw, ah);
         break;
     }
@@ -396,8 +396,8 @@ void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, i
     rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);
 }
 
-// PATTERN: POST header. Two lines that say what this machine IS — the virtual
-// budget it imposes on itself — and one bottom line saying whether each
+// POST header. Two lines that say what this machine IS - the virtual
+// budget it imposes on itself - and one bottom line saying whether each
 // subsystem answered. The numbers come straight from the contract's geometry
 // queries, so a line that prints at all is a query that worked.
 //

@@ -21,7 +21,7 @@
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
-// The built-in disc never goes through dlopen, so it has no entry points — but
+// The built-in disc never goes through dlopen, so it has no entry points - but
 // it needs the same rv_de table of hooks as any other. The macro expands the
 // same thunks and hands back a function that wraps an ALREADY created object:
 // the built-in disc's lifetime belongs to the stack frame below, not to a
@@ -65,7 +65,7 @@ int rv_pboot_run(int argc, char **argv)
     // A run whose cv slot is null never presents a frame, so a dump would
     // only ever be an empty frame. Refuse the combination here, before the
     // host or anything else is brought up, rather than write a useless file
-    // — reached the same way whether cv=null came from the preset or from
+    // - reached the same way whether cv=null came from the preset or from
     // --mode_cv.
     if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
         rv_console_print_error("cv is null, nothing to dump");
@@ -103,6 +103,10 @@ int rv_pboot_run(int argc, char **argv)
     if (rv_pboot_budget_select(args, loader, budget) < 0) {
         return 1;
     }
+
+    // Resolve cl before evaluation so the row checked below is the row
+    // rv_pccl_make later builds.
+    slots.cl = rv_pccl_resolve(slots.cl, budget->pccl.script_memory_size);
 
     // Check the budget against the machine before any of the disc's code is
     // loaded. rv_pboot_check_budget() has already logged the specific reason;

@@ -14,7 +14,7 @@ namespace {
 constexpr int RV_BAKER_CHANNEL5_MAX = 31;
 
 // Luma coefficients of ITU-R BT.601 (Y' = 0.299 R' + 0.587 G' + 0.114 B') taken
-// ×10 and rounded: 2.99 -> 3, 5.87 -> 6, 1.14 -> 1. They weight the colour
+// x10 and rounded: 2.99 -> 3, 5.87 -> 6, 1.14 -> 1. They weight the colour
 // metric below so that palette accuracy is spent on green, which the eye
 // resolves far better than blue. Integers keep every comparison exact and
 // therefore reproducible across compilers.
@@ -63,7 +63,7 @@ struct axis_span {
 // Longest edge of a box and the channel it runs along. The span is the crude
 // measure of how badly one colour can stand in for the whole box: colours
 // differing by 2 are already described by their mean, colours spanning 25 are
-// not. Measured UNWEIGHTED — RV_BAKER_LUMA_WEIGHT_* applies to distance2, not here.
+// not. Measured UNWEIGHTED - RV_BAKER_LUMA_WEIGHT_* applies to distance2, not here.
 axis_span widest_axis(const std::vector<color_bin> &bins, const box &b)
 {
     axis_span best{ COLOR_AXIS_R, -1 };
@@ -124,7 +124,7 @@ rv_err gen_color5(const box &b, const std::vector<color_bin> &bins, rv_color5 *o
 //
 // A SEARCH, not a fallible operation: false means every box is already a single
 // colour, which is the normal answer for an image with fewer colours than the
-// palette has slots — nothing failed. `target` is untouched in that case.
+// palette has slots - nothing failed. `target` is untouched in that case.
 bool pick_box(const std::vector<box> &bs, const std::vector<color_bin> &bins, size_t *target)
 {
     size_t best = bs.size();
@@ -156,7 +156,7 @@ bool pick_box(const std::vector<box> &bs, const std::vector<color_bin> &bins, si
 // SQUARED distance between two colours under the RV_BAKER_LUMA_WEIGHT_* metric. Squared
 // because every caller only compares results and sqrt is monotone: the ordering
 // survives, while the arithmetic stays integer and therefore identical on every
-// compiler — two near-equal candidates can never swap places on someone else's
+// compiler - two near-equal candidates can never swap places on someone else's
 // machine and bake a different file.
 //
 // The weights make this deliberately non-Euclidean: it is the squared length of
@@ -175,7 +175,7 @@ uint32_t distance2(const rv_color5 &a, const rv_color5 &b)
 
 } // namespace
 
-// Median cut — Heckbert, "Color Image Quantization for Frame Buffer Display",
+// Median cut - Heckbert, "Color Image Quantization for Frame Buffer Display",
 // SIGGRAPH '82 (doi:10.1145/965145.801294). The palette is built by repeatedly
 // halving the colour set instead of searching for optimal centroids.
 //
@@ -184,9 +184,9 @@ uint32_t distance2(const rv_color5 &a, const rv_color5 &b)
 // and split at the median BY PIXEL COUNT; each surviving box then contributes
 // one entry, the weighted mean of its colours.
 //
-// Chosen over plain k-means because it is deterministic — the same PNG always
+// Chosen over plain k-means because it is deterministic - the same PNG always
 // bakes byte-identical output, which is what makes a build cache and a diff of
-// committed assets mean anything — and because it cannot waste a slot on an
+// committed assets mean anything - and because it cannot waste a slot on an
 // empty cluster the way a random seed can. Splitting by population rather than
 // by colour count is what suits flat-shaded artwork: a colour covering half the
 // image gets half the palette even from a visually tiny corner of the cube.
@@ -250,7 +250,7 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
 
 // Index of the palette entry closest to c. A linear scan is enough: the palette
 // is at most 256 entries and this runs per DISTINCT colour, not per pixel. It
-// only reads the palette — the entries themselves are moved by refine().
+// only reads the palette - the entries themselves are moved by refine().
 size_t nearest(const std::vector<rv_color5> &palette, const rv_color5 &c)
 {
     size_t best = 0;
@@ -265,7 +265,7 @@ size_t nearest(const std::vector<rv_color5> &palette, const rv_color5 &c)
     return best;
 }
 
-// Lloyd's algorithm — S. P. Lloyd, "Least Squares Quantization in PCM", Bell
+// Lloyd's algorithm - S. P. Lloyd, "Least Squares Quantization in PCM", Bell
 // Labs 1957, published in IEEE Trans. Inf. Theory 28(2):129-137, 1982
 // (doi:10.1109/TIT.1982.1056489); also known as Voronoi iteration, and as
 // k-means when the initial centres are random. Here it relaxes the palette that
@@ -279,7 +279,7 @@ size_t nearest(const std::vector<rv_color5> &palette, const rv_color5 &c)
 // A pass cannot increase total error, and the weighted mean really is the
 // minimiser under this metric: the weights are a constant factor in the
 // derivative and cancel, which is why the mean needs no knowledge of
-// RV_BAKER_LUMA_WEIGHT_*. Passes are counted, not run to convergence — see RV_BAKER_LLOYD_PASSES.
+// RV_BAKER_LUMA_WEIGHT_*. Passes are counted, not run to convergence - see RV_BAKER_LLOYD_PASSES.
 void refine(const std::vector<color_bin> &bins, std::vector<rv_color5> &palette, int passes)
 {
     if (palette.empty()) {

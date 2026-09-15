@@ -14,12 +14,12 @@ namespace
 {
 
 // A voice mask is an int64_t carrying bits 0..62 (pdk/ca/rv_ca.h), so 63 is
-// the most voices any console can ever name — see RV_PCCA_MAX_VOICES in
+// the most voices any console can ever name - see RV_PCCA_MAX_VOICES in
 // rv_pcca.cpp, whose clamp to this same limit is the unreachable backstop.
 constexpr int64_t RV_PCCA_MAX_VOICES = 63;
 
 // A field must be strictly positive when its subsystem is `active`. A
-// negative value is malformed regardless — an unset (zero) field of a
+// negative value is malformed regardless - an unset (zero) field of a
 // switched-off subsystem is the only value this passes without `active`.
 bool bad_field(const char *field, int64_t value, bool active)
 {
@@ -98,7 +98,7 @@ int64_t rv_pboot_check_budget(
     }
 
     // voice_count is never silently reduced: either the mask can name every
-    // requested voice, or the run is refused by name here — rv_pcca.cpp's own
+    // requested voice, or the run is refused by name here - rv_pcca.cpp's own
     // clamp to RV_PCCA_MAX_VOICES must never actually fire.
     if (budget.pcca.voice_count > RV_PCCA_MAX_VOICES) {
         RV_LOG_ERR("pccheck",

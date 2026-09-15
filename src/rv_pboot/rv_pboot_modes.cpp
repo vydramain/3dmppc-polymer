@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -138,7 +139,7 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
         }
         if (!section.name.starts_with("mode.") || section.name.size() == 5) {
             failer.fail(section.line,
-                std::format("section '[{}]' is not a preset — expected '[mode.<NAME>]'", section.name));
+                std::format("section '[{}]' is not a preset - expected '[mode.<NAME>]'", section.name));
             continue;
         }
         const std::string name = section.name.substr(5);
@@ -270,6 +271,20 @@ bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code
 }
 
 } // namespace
+
+std::string rv_pboot_builtin_presets_summary()
+{
+    std::string result;
+    const std::size_t n = std::size(RV_PBOOT_BUILTIN_PRESETS);
+    for (std::size_t i = 0; i < n; ++i) {
+        if (i > 0) {
+            result += (i + 1 == n) ? " and " : ", ";
+        }
+        result += std::format("{} (platform {})", RV_PBOOT_BUILTIN_PRESETS[i].name,
+            rv_pcslots_name(RV_PBOOT_BUILTIN_PRESETS[i].slots.platform));
+    }
+    return result;
+}
 
 bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code)
 {

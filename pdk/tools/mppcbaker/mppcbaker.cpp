@@ -24,7 +24,7 @@
 
 // A HOST program, not part of the machine: rv_pdktools is where the author's
 // tools live. What it takes from outside is everything the CONSOLE dictates and
-// the baker must reproduce byte for byte — the colour types from pdk/, the texel
+// the baker must reproduce byte for byte - the colour types from pdk/, the texel
 // layout and the 8-to-5 quantiser from pdklib/rv_textures. A second spelling of
 // any of those is a bug waiting for the day someone changes one copy. What
 // remains below describes the .mppctex CONTAINER, which no console ever opens,
@@ -51,7 +51,7 @@ using rv_pdklib::rv_texel_quantize;
 constexpr int RV_BAKER_SOURCE_CHANNELS = 4;
 
 // The console does not blend: a texel is either drawn or it is a hole. Anything
-// below half opacity becomes a hole. The exact cut is arbitrary — it only has to
+// below half opacity becomes a hole. The exact cut is arbitrary - it only has to
 // be fixed, so the same PNG always bakes the same way.
 constexpr uint8_t RV_BAKER_ALPHA_TRANSPARENT_BELOW = 128;
 
@@ -59,7 +59,7 @@ constexpr uint8_t RV_BAKER_ALPHA_TRANSPARENT_BELOW = 128;
 // described by the container at all. This is the CONTAINER's limit, not the
 // machine's: the console's own texture_max_width/height (256 on the reference
 // machine) is per-disc configuration this tool never sees, and it is enforced
-// only when the texture is uploaded — rv_pccv::video_asset_write returns
+// only when the texture is uploaded - rv_pccv::video_asset_write returns
 // RV_ERR_INVAL there. A texture between the two limits therefore bakes and burns
 // and is refused at run time.
 constexpr int RV_BAKER_MAX_AXIS = 65535;
@@ -291,7 +291,7 @@ rv_err write_file(const std::string &path, const std::vector<uint8_t> &bytes, ba
 // --- the tool -------------------------------------------------------------------
 
 // The program, one step to a line: read the command line, load the source, bake
-// the texture, write it, say what happened. This is the CLI boundary — the only
+// the texture, write it, say what happened. This is the CLI boundary - the only
 // function that turns a report into an exit code. main() below holds no logic of
 // its own: it has to live in the GLOBAL namespace because the language says so,
 // and that is the only reason it is outside rv_pdktools.

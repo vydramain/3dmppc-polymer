@@ -19,7 +19,7 @@ struct src_pixel {
     bool transparent = false;
 };
 // What the user asked for. Both optionals are absent until the flag that fills
-// them appears, so "was not given" cannot be mistaken for a value — there is no
+// them appears, so "was not given" cannot be mistaken for a value - there is no
 // spare `int` state and no companion bool to keep in step.
 struct options {
     std::string input;

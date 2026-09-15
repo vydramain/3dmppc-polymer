@@ -50,7 +50,7 @@ void rv_dmain::build_font()
 
     // The atlas is expanded into a buffer the DISC owns and uploaded; the buffer
     // dies at the end of this function because video_asset_write copies during
-    // the call. 128x48 IDX4 is 3 KiB — cheap enough to keep resident forever.
+    // the call. 128x48 IDX4 is 3 KiB - cheap enough to keep resident forever.
     std::vector<uint8_t> atlas(rv_pdklib::rv_font_atlas_size, 0);
     if (!rv_pdklib::rv_font_build_atlas(atlas.data(), atlas.size())) {
         return;
@@ -69,7 +69,7 @@ void rv_dmain::build_font()
 
     // One palette is one colour of text. There is no vertex-colour modulation in
     // the contract yet, so recolouring means uploading another palette and
-    // pointing addr_palette at it — which is exactly how the machine this
+    // pointing addr_palette at it - which is exactly how the machine this
     // imitates recoloured its fonts.
     std::vector<uint16_t> palette(rv_pdklib::rv_font_palette_entries, 0);
     rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(), palette.size());
@@ -164,15 +164,15 @@ void rv_dmain::build_texture()
 
 // A second texture in the INDEXED family: 8x8, IDX4, with a palette whose entry
 // 0 is 0000h. DIRECT15 alone leaves the palette path untested, and that path is
-// where the transparency rule is genuinely non-obvious — the hole is decided
+// where the transparency rule is genuinely non-obvious - the hole is decided
 // AFTER the lookup, so an opaque index can become a hole by palette alone.
 void rv_dmain::build_idx4_texture()
 {
     rv_cv *cv = rv_pdko_cv(pdk_);
     constexpr int64_t size = 8;
 
-    // THEOREM: IDX4 packing. Two texels share a byte, LOW nibble first, and rows
-    // are padded to whole bytes — so the stride is (width + 1) / 2, not width/2.
+    // IDX4 packing. Two texels share a byte, LOW nibble first, and rows
+    // are padded to whole bytes - so the stride is (width + 1) / 2, not width/2.
     texels_idx4_.assign(static_cast<std::size_t>(((size + 1) / 2) * size), 0);
     for (int64_t y = 0; y < size; ++y) {
         for (int64_t x = 0; x < size; ++x) {
@@ -245,7 +245,7 @@ void rv_dmain::probe_drive()
     }
 
     // A name carrying path separators must be refused before anything touches
-    // the medium — it is an attempt to leave the disc, not a spelling mistake.
+    // the medium - it is an attempt to leave the disc, not a spelling mistake.
     // This probe asserts the drive answers INVAL rather than merely NOENT.
     drive_rejects_paths_ = rv_cd_asset_open(cd, "../../etc/passwd") == RV_ERR_INVAL &&
         rv_cd_asset_open(cd, "assets/thing.obj") == RV_ERR_INVAL;
@@ -317,8 +317,8 @@ void rv_dmain::build_beep()
         return;
     }
 
-    // THEOREM: an exponentially decaying sine. The console has no pitch control,
-    // so a sample plays at exactly the rate it was recorded for — the frequency
+    // An exponentially decaying sine. The console has no pitch control,
+    // so a sample plays at exactly the rate it was recorded for - the frequency
     // is baked in here, against RV_DMAIN_BEEP_RATE, and nothing downstream can
     // bend it. The decay lives in the SAMPLE rather than the envelope so the
     // beep stays recognisable even with an ADSR nobody has tuned.

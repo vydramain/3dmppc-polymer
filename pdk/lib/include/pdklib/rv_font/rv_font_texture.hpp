@@ -39,9 +39,9 @@ inline constexpr uint8_t rv_font_index_ink = 1;
 inline constexpr std::size_t rv_font_palette_entries = 16;                       // IDX4 palette
 inline constexpr std::size_t rv_font_palette_size = rv_font_palette_entries * 2; // bytes
 
-// Map a byte to a cell index. Anything outside the printable ASCII range — a
+// Map a byte to a cell index. Anything outside the printable ASCII range - a
 // control byte, a stray 0x0D from CRLF line endings, the lead byte of a UTF-8
-// sequence — lands on the notdef block on purpose: broken encoding must look
+// sequence - lands on the notdef block on purpose: broken encoding must look
 // broken, not empty.
 inline int rv_font_glyph_index(char c)
 {
@@ -53,7 +53,7 @@ inline int rv_font_glyph_index(char c)
     return static_cast<int>(code) - rv_font_first_code;
 }
 
-// THEOREM: character -> cell -> texel coordinates. A glyph's index is `code - 32`
+// Character -> cell -> texel coordinates. A glyph's index is `code - 32`
 // (the notdef block is index 95), the atlas is filled left to right and top to
 // bottom, so index i sits in column i % 16 and row i / 16, and its upper-left
 // texel is
@@ -65,7 +65,7 @@ inline int rv_font_glyph_index(char c)
 // below: the right and bottom edges belong to the NEXT cell and are never
 // sampled, which is what stops a glyph from smearing one column of its neighbour
 // along its edge. Cell width 8 also keeps u0 EVEN, so every cell begins on a whole
-// byte in the IDX4 packing — a glyph never straddles a nibble boundary.
+// byte in the IDX4 packing - a glyph never straddles a nibble boundary.
 inline int rv_font_cell_u(int glyph_index)
 {
     return (glyph_index % rv_font_atlas_columns) * rv_font_cell_width;
@@ -78,7 +78,7 @@ inline int rv_font_cell_v(int glyph_index)
 
 // Expand the bitmap font into IDX4 texels, ready for rv_cv_video_asset_write.
 //
-// The buffer belongs to the CALLER — this header never allocates and never talks
+// The buffer belongs to the CALLER - this header never allocates and never talks
 // to the console. pdklib/ has no rv_cv to talk to: it is built over the contract, and
 // the disc is the one holding the machine. Typical use is a 3 KiB array the disc
 // keeps on the stack for the length of disc_initialize and drops afterwards; the
@@ -86,8 +86,8 @@ inline int rv_font_cell_v(int glyph_index)
 //
 // Returns false if `out` is null or `size` is under rv_font_atlas_size.
 //
-// THEOREM: IDX4 packing. Two texels share a byte and the LOW nibble is the LEFT
-// one — the PSX order, fixed by the console (the
+// IDX4 packing. Two texels share a byte and the LOW nibble is the LEFT
+// one - the PSX order, fixed by the console (the
 // sampler in src/.../rv_pctexel.cpp reads it as `(u & 1) ? packed >> 4 : packed &
 // 0x0F`). A converter has to agree with exactly one convention and this is it.
 // Rows are padded to a whole byte, so the row stride is (width + 1) / 2 rather
@@ -155,7 +155,7 @@ inline rv_texture rv_font_atlas_texture(const uint8_t *data)
 //
 // THE BLACK TRAP, and why rv_texel_opaque is not optional here: 0000h is not
 // black, it is FULLY TRANSPARENT. An ink colour of pure black would punch the
-// glyph out of the picture and the string would silently disappear — the exact
+// glyph out of the picture and the string would silently disappear - the exact
 // failure this whole header exists to make impossible.
 inline uint16_t rv_font_pack_rgb555(rv_color c)
 {
@@ -167,7 +167,7 @@ inline uint16_t rv_font_pack_rgb555(rv_color c)
 //
 // One colour of text = one of these, uploaded once. A disc that wants white body
 // text, a yellow highlight and a red warning uploads three palettes of 32 bytes
-// each and switches rv_polygon::addr_palette — see the PATTERN at the top.
+// each and switches rv_polygon::addr_palette - see the note at the top.
 //
 // Returns false if `out` is null or `count` is under rv_font_palette_entries.
 inline bool rv_font_build_palette(rv_color ink, uint16_t *out, std::size_t count)
@@ -183,7 +183,7 @@ inline bool rv_font_build_palette(rv_color ink, uint16_t *out, std::size_t count
 }
 
 // Describe a palette buffer for rv_cv_video_asset_write. A palette is uploaded as
-// a DIRECT15 texture of `entries` x 1 — the contract says so explicitly, because a
+// a DIRECT15 texture of `entries` x 1 - the contract says so explicitly, because a
 // palette entry and a DIRECT15 texel are the same 16-bit value.
 inline rv_texture rv_font_palette_texture(const uint16_t *entries)
 {

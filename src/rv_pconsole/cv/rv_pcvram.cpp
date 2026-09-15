@@ -10,7 +10,7 @@ namespace
 {
 
 // The pool's first bytes are never handed out, so no live region can ever have
-// address 0 — see the constructor comment in rv_pcpool.hpp for why that matters
+// address 0 - see the constructor comment in rv_pcpool.hpp for why that matters
 // to a zero-initialized rv_polygon.
 constexpr int64_t RV_PCVRAM_RESERVED_HEAD = 16;
 
@@ -74,7 +74,7 @@ int64_t rv_pcvram::region_format(int64_t addr) const
     }
 
     const rv_pcvram_meta *meta = written_meta(addr);
-    // The region is real but empty — a distinct answer from "no such region",
+    // The region is real but empty - a distinct answer from "no such region",
     // because frame_put uses it to decide whether a palette is required and an
     // unwritten region cannot demand one.
     if (!meta) {

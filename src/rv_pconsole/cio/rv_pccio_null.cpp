@@ -37,8 +37,8 @@ rv_istate rv_pccio_null::iport_state(int64_t)
     return rv_istate{};
 }
 
-// Every slot of this machine is empty, so every port index — whether in-range
-// or not — is an inactive slot. RV_ERR_INVAL is the contract's answer for
+// Every slot of this machine is empty, so every port index - whether in-range
+// or not - is an inactive slot. RV_ERR_INVAL is the contract's answer for
 // trying to activate an empty slot.
 int64_t rv_pccio_null::ohaptic(int64_t, rv_oheffect)
 {

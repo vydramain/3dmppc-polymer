@@ -41,58 +41,10 @@ inline void rv_console_print_error(const std::string &message)
     rv_pdklib::rv_fprintf(stderr, "%s: %s\n", rv_console_progname(), message.c_str());
 }
 
-inline void rv_console_print_usage(std::FILE *stream)
-{
-    rv_pdklib::rv_fprintf(stream,
-        "3dmppc - the console: mount a disc and run it\n"
-        "\n"
-        "Usage:\n"
-        "  3dmppc [options] [<disc.mppcdisc>]\n"
-        "\n"
-        "The positional argument is the disc to boot: the console mounts that\n"
-        "archive, loads the code inside it and runs it. With no disc it falls\n"
-        "back to the built-in rv_dmain, a service test of the hardware rather\n"
-        "than a game.\n"
-        "\n"
-        "Options:\n"
-        "  -s, --scale N        Window magnification over native 320x240.\n"
-        "                       Default: 3.\n"
-        "  -n, --frames N       Stop after N frames. 0 runs until quit.\n"
-        "  -F, --fixed-step     Fast run: no real-time wait and no audio\n"
-        "                       output. Every mode steps the machine by\n"
-        "                       1/60 s per frame, so runs stay reproducible.\n"
-        "  -d, --disc PATH      Medium to mount in the drive: a DIRECTORY of\n"
-        "                       loose assets, the development shortcut that\n"
-        "                       needs no packaging step. A packaged .mppcdisc\n"
-        "                       goes in the positional argument instead and\n"
-        "                       brings its own medium. Empty means no disc.\n"
-        "  -m, --memcard PATH   Memory-card image. Default: memcard.mppccard\n"
-        "                       next to the 3dmppc binary.\n"
-        "  -M, --mute           Silence the audio output stage.\n"
-        "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
-        "                       PPM. Refused when cv is null.\n"
-        "      --mode=NAME      Preset: the platform plus one implementation\n"
-        "                       per slot. Built in: default (platform sdl3)\n"
-        "                       and headless (platform null). Default:\n"
-        "                       default.\n"
-        "      --mode_platform=IMPL\n"
-        "                       Override the platform of the preset. IMPL is\n"
-        "                       null or sdl3. null runs the same machine with\n"
-        "                       no window, no gamepads and no audio device.\n"
-        "      --mode_ca=IMPL   Override the ca slot of the preset. IMPL is\n"
-        "                       null or sw.\n"
-        "      --mode_cv=IMPL   Override the cv slot of the preset. IMPL is\n"
-        "                       null or sw. A run without a window ends by\n"
-        "                       --frames, by the disc, or by Ctrl+C.\n"
-        "      --mode_cio=IMPL  Override the cio slot of the preset. IMPL is\n"
-        "                       null or std.\n"
-        "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
-        "                       null or luajit.\n"
-        "      --mode_cd=IMPL   Override the cd slot of the preset. IMPL is\n"
-        "                       null or fs.\n"
-        "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
-        "                       null or posix.\n");
-}
+// Defined in rv_pboot_args.cpp: the IMPL lists and the built-in preset
+// sentence are built from the registry tables (rv_pcslots.hpp,
+// rv_pboot_modes.cpp), not written out here.
+void rv_console_print_usage(std::FILE *stream);
 
 // Everything getopt_long can produce, and nothing else: no SDL, no
 // rv_pconsole_conf, no allocation beyond the strings themselves. Building the

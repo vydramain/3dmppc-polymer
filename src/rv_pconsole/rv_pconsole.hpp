@@ -19,7 +19,7 @@
 namespace rv_3dmppc
 {
 
-// PATTERN: composition root. This is the single place where the concrete
+// Composition root. This is the single place where the concrete
 // machine is assembled - the platform it is served by, the six controllers,
 // and the geometry they were built from. Nothing below constructs a
 // subsystem: a controller receives what it needs and never reaches sideways
@@ -41,7 +41,7 @@ private:
 
     // DECLARATION ORDER MATTERS, exactly as it does for platform_ above. Fields
     // are destroyed in the REVERSE order of their declaration, and cl_ is
-    // deliberately LAST — not alphabetical — in this row: a Lua finaliser can
+    // deliberately LAST - not alphabetical - in this row: a Lua finaliser can
     // call back into rv_cv_*/rv_ca_* through FFI while the machine shuts
     // down, so lua_close() must run BEFORE any controller it might reach is
     // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
@@ -54,7 +54,7 @@ private:
     std::unique_ptr<rv_pccl> cl_;
 
     // BORROWED, never owned. The loader reads the manifest BEFORE this console
-    // exists — the numbers it finds are what this console is built from — so it
+    // exists - the numbers it finds are what this console is built from - so it
     // cannot live inside the thing it configures. main() owns it and must let it
     // die FIRST: its teardown runs disc_shutdown(), a hook allowed to touch every
     // controller above. Null when the built-in disc is running.
@@ -87,7 +87,7 @@ public:
         return *cd_;
     }
 
-    // PATTERN: inversion of control. The frame loop belongs to the console; the
+    // Inversion of control. The frame loop belongs to the console; the
     // disc lives inside the rv_de hooks and never owns a loop of its own.
     //
     // Returns RV_OK when the run ends normally (the disc asked to stop, the
@@ -99,7 +99,7 @@ public:
     // Did every resource this console was built from actually come into
     // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and
     // cl_. A budget the machine accepted at stage E3 can still fail to
-    // materialise at stage G — an address-space reservation is allowed to
+    // materialise at stage G - an address-space reservation is allowed to
     // refuse, and so is the card's backing image. cl_ needs no
     // special-casing: rv_pccl::valid() already treats "scripting was never
     // asked for" as true, so this stays a plain conjunction. False means the

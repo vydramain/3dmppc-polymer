@@ -11,7 +11,7 @@ namespace rv_3dmppc
 {
 
 // Bytes the kernel estimates can be handed to a new application without
-// swapping — /proc/meminfo MemAvailable, per Documentation/filesystems/proc.rst.
+// swapping - /proc/meminfo MemAvailable, per Documentation/filesystems/proc.rst.
 // This is an estimate, not a promise: a later allocation may still fail.
 // Returns the byte count, or -1 when it cannot be determined.
 int64_t rv_pboot_mode_available_ram();

@@ -32,7 +32,7 @@ rv_pczipmedium::rv_pczipmedium(const std::string &archive_path)
 
     std::string error;
     if (!zip_.open(archive_path, error)) {
-        // Worth shouting about — someone inserted something that is not a disc —
+        // Worth shouting about - someone inserted something that is not a disc -
         // but the machine stays usable, just empty. `error` is the reader's own
         // wording and may quote an entry name from the archive, which is why the
         // reader escapes those before they get here.
@@ -88,7 +88,7 @@ bool rv_pczipmedium::visible(const char *resname) const
     // directory medium: a name is a name, not a path, and a name that tries to be
     // a path is refused rather than resolved. Here it cannot escape anywhere
     // (there is no filesystem below), but the two media must agree on what exists
-    // — a disc that behaves differently unpacked than burned is the worst kind of
+    // - a disc that behaves differently unpacked than burned is the worst kind of
     // bug to chase.
     if (!mounted_ || !rv_pcresname_valid(resname)) {
         return false;

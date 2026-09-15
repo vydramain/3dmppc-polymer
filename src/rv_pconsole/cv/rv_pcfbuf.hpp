@@ -1,9 +1,9 @@
 // The console's framebuffer: one screen-sized page of 16-bit colour plus one
 // screen-sized page of depth. Header-only because every method is a handful of
-// array operations that the rasterizer calls per pixel — a translation-unit
+// array operations that the rasterizer calls per pixel - a translation-unit
 // boundary here would be the single most expensive thing in the renderer.
 //
-// PATTERN: information hiding. The RGB555 packing (and the RGB555 -> ARGB8888
+// Information hiding. The RGB555 packing (and the RGB555 -> ARGB8888
 // expansion the host needs) exists in exactly ONE place, this class. The
 // rasterizer speaks packed uint16_t, the host speaks 0xAARRGGBB, and neither
 // knows the other's format.
@@ -53,7 +53,7 @@ class rv_pcfbuf {
     void plot(int64_t x, int64_t y, uint16_t rgb555) { color_[index(x, y)] = rgb555; }
 
     // Checked variant for the paths that walk a parametric curve instead of a
-    // box — the DDA line, whose endpoints may sit far off-screen.
+    // box - the DDA line, whose endpoints may sit far off-screen.
     void plot_checked(int64_t x, int64_t y, uint16_t rgb555) {
         if (inside(x, y)) {
             color_[index(x, y)] = rgb555;
@@ -77,7 +77,7 @@ class rv_pcfbuf {
 
     // Hand the finished page to the host as 0xAARRGGBB.
     //
-    // THEOREM: bit replication — the correct 5 -> 8 bit widening is
+    // Bit replication - the correct 5 -> 8 bit widening is
     // c8 = round(c5 * 255 / 31), and (c5 << 3) | (c5 >> 2) equals it for every
     // one of the 32 inputs. Reason: c5/31 written in binary is the infinitely
     // repeating group c5c5c5..., so copying the top bits of c5 down into the
@@ -94,7 +94,7 @@ class rv_pcfbuf {
             const uint32_t g8 = (g5 << 3) | (g5 >> 2);
             const uint32_t b8 = (b5 << 3) | (b5 >> 2);
 
-            // Bit 15 (STP) is stored but has no meaning yet — the blending
+            // Bit 15 (STP) is stored but has no meaning yet - the blending
             // modes that read it are DEFERRED, so the frame is always opaque.
             argb_[i] = 0xFF000000U | (r8 << 16) | (g8 << 8) | b8;
         }

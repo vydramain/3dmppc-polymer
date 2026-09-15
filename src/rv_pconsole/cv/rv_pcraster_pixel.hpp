@@ -10,14 +10,14 @@ namespace rv_3dmppc
 namespace rv_pcraster_px
 {
 
-// THEOREM: ordered dithering, Bayer 4x4 — quantizing 8 bits to 5 throws away 3
+// Ordered dithering, Bayer 4x4 - quantizing 8 bits to 5 throws away 3
 // bits, and plain truncation turns a smooth gradient into 32 visible bands. The
 // Bayer matrix is the recursively built threshold map whose entries are maximally
 // spread apart, so instead of banding the error becomes a fixed, non-clumping
 // 4x4 pattern the eye averages back into the original shade. Two properties
 // matter here: the threshold depends only on (x & 3, y & 3), so it costs a table
 // lookup and no state; and the 16 entries are the integers 0..15 exactly once,
-// so the mean of `threshold >> 1` is 3.5 — precisely the average error truncating
+// so the mean of `threshold >> 1` is 3.5 - precisely the average error truncating
 // 3 bits introduces, which is why adding it before the shift keeps the average
 // brightness correct instead of darkening the frame.
 //
@@ -63,13 +63,13 @@ inline void emit(rv_pcfbuf &fbuf, int64_t x, int64_t y, uint16_t rgb555, int32_t
     fbuf.plot(x, y, rgb555);
 }
 
-// THEOREM: fixed point for uv (16.16) — a texture coordinate is affine in screen
+// Fixed point for uv (16.16) - a texture coordinate is affine in screen
 // space exactly like an edge function, so it obeys the same recurrence
 //   u(x + 1, y) = u(x, y) + du/dx,
 // and the inner loop can be one integer add per axis instead of a per-pixel
 // weighted sum. The gradient is a ratio of integers and is almost never one, so
 // it needs a fraction: 16 fractional bits keep the drift over a full 4096-pixel
-// span below 1/16 of a texel (the accumulated error is exact — the ONLY rounding
+// span below 1/16 of a texel (the accumulated error is exact - the ONLY rounding
 // is the single division that builds the gradient), while leaving 47 bits of
 // integer headroom, which is more than any coordinate this console can reach.
 // The alternative, recomputing u from the barycentric weights per pixel, would
@@ -80,7 +80,7 @@ inline constexpr int64_t RV_UV_FX_ONE = static_cast<int64_t>(1) << RV_UV_FX_SHIF
 
 // Gradients are clamped to this magnitude (2^24 texels per pixel). A gradient
 // that large only comes out of a sliver triangle whose doubled area is a handful
-// of units — the texture on it is noise either way — and the clamp is what keeps
+// of units - the texture on it is noise either way - and the clamp is what keeps
 // the accumulator's arithmetic provably inside int64 for every input the
 // contract allows (coordinates are int16, uv is uint16).
 inline constexpr int64_t RV_UV_FX_LIMIT = static_cast<int64_t>(1) << 40;
@@ -139,7 +139,7 @@ inline uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int
             static_cast<uint8_t>(b) }));
 }
 
-// THEOREM: one quantizer for every pixel, samples included — a texel takes the
+// One quantizer for every pixel, samples included - a texel takes the
 // same 24 -> 15 bit dither path as a flat fill, so there is a single place where
 // colour becomes framebuffer, and nothing has to be kept in sync when the
 // quantizer changes.
@@ -148,15 +148,15 @@ inline uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int
 // ((c5 << 3) | (c5 >> 2)). That choice is what makes this call the IDENTITY on
 // an unmodulated texel: the Bayer threshold spans 0..7, the widened value has
 // three zero low bits, so threshold + low bits never carries into bit 3 and the
-// texel comes back out bit-for-bit — a raw texture is reproduced exactly, with
+// texel comes back out bit-for-bit - a raw texture is reproduced exactly, with
 // no shimmer added to flat areas. Replication would leave up to 7 in the low
 // bits and let the dither push texels a level up at random, which on a raw
 // texture is pure noise: the texel was already an exact 5-bit value, so there is
 // no quantization error to spread.
 //
 // It is not dead arithmetic, though. The moment texture-combine (modulation)
-// lands, the value entering here is a texel MULTIPLIED by a vertex colour — a
-// genuine 8-bit-per-channel quantity with a real error to dither — and this same
+// lands, the value entering here is a texel MULTIPLIED by a vertex colour - a
+// genuine 8-bit-per-channel quantity with a real error to dither - and this same
 // call starts doing the work, without the sampling paths changing at all.
 //
 // Bit 15 (STP) is carried through untouched: it is texture data, not colour, and

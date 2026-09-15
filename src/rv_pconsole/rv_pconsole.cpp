@@ -8,7 +8,6 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
 // The console's PCM format and the platform's are the same format by
@@ -81,7 +80,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
 // static_cast from or to them cannot compile. Every line hands out the slot's
 // BASE address (ca_.get(), cd_.get(), ...); the extern "C" block in each
 // XX/rv_pcXX.cpp casts back to that same base (one of several such cast
-// sites, not the only one — see the block below).
+// sites, not the only one - see the block below).
 rv_ca *rv_3dmppc::rv_pconsole::ca()
 {
     return reinterpret_cast<rv_ca *>(ca_.get());
@@ -115,7 +114,7 @@ bool rv_3dmppc::rv_pconsole::ready() const
 int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
 {
     // Everything a disc needs must be ready before its code runs, so the
-    // window is opened HERE, before disc_initialize() below — never after.
+    // window is opened HERE, before disc_initialize() below - never after.
     // disc_title() is a plain accessor (pdk/de/rv_de.h) with no dependency
     // on disc_initialize() having run, so it is safe to call this early.
     //
@@ -143,7 +142,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
     // the hook never runs for a disc that refused to start). For a disc that came
     // off an archive that debt belongs to the loader, whose teardown chain runs it
     // before unmapping the code; telling it here is what separates "started" from
-    // "loaded". A disc this loader did not produce is ignored — see below.
+    // "loaded". A disc this loader did not produce is ignored - see below.
     if (loader_ != nullptr) {
         loader_->notify_initialized(disc);
     }
@@ -197,7 +196,7 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         // frame_render() is always called: with cv null the calls it makes
         // land on rv_pccv_null, which touches no rasterizer, no framebuffer
         // and no virtual VRAM. A run whose video merely failed to come up
-        // still renders every frame — that run wanted a picture, it just has
+        // still renders every frame - that run wanted a picture, it just has
         // no screen to put it on.
         disc->frame_render(disc->self);
 
@@ -245,7 +244,8 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
             int64_t last_queued = platform_.audio().queued_frames();
             bool stalled = false;
             while (platform_.audio().queued_frames() > queue_target) {
-                if (rv_pcsignals_quit_requested()) {
+                platform_.pump();
+                if (platform_.quit_requested()) {
                     break;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));

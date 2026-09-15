@@ -1,6 +1,6 @@
 // The disc as it actually ships: one `.mppcdisc` file instead of a directory.
 //
-// PATTERN: strategy (second implementation) — this is the payoff promised in
+// Strategy (second implementation) - this is the payoff promised in
 // rv_pcmedium.hpp. rv_pccd owns the CONTRACT (legal names, handles, which rv_err
 // a situation deserves) and an rv_pcmedium owns the STORAGE, so a whole new kind
 // of storage arrives here without a single line changing in rv_pccd: the drive
@@ -12,7 +12,7 @@
 // archive's contents:
 //   * entries whose name contains a path separator are dropped, because a
 //     resource name is flat by contract (rv_cd::asset_open) and the burner writes
-//     flat names — a nested name is either a foreign zip or a packaging bug, and
+//     flat names - a nested name is either a foreign zip or a packaging bug, and
 //     inventing a mapping ("use the basename") would silently merge
 //     `hud/font.tex` with `ui/font.tex`;
 //   * the service entries disc.toml and disc.so are hidden, because they are how
@@ -35,11 +35,11 @@ namespace rv_3dmppc {
 inline constexpr const char* RV_PCZIPMEDIUM_DISC_MANIFEST_ENTRY = "disc.toml";
 inline constexpr const char* RV_PCZIPMEDIUM_DISC_CODE_ENTRY = "disc.so";
 
-class rv_pczipmedium : public rv_pcmedium {  // PATTERN: strategy
+class rv_pczipmedium : public rv_pcmedium {  // Strategy
    public:
     // An empty `archive_path` means "no disc inserted" and is not a failure. A
     // path that is not a readable store-only zip IS reported (loudly) but still
-    // leaves the drive merely empty rather than broken — a bad disc must not take
+    // leaves the drive merely empty rather than broken - a bad disc must not take
     // the console down with it.
     explicit rv_pczipmedium(const std::string& archive_path);
 
@@ -53,7 +53,7 @@ class rv_pczipmedium : public rv_pcmedium {  // PATTERN: strategy
     // answer to "why does my disc say RV_ERR_NOENT".
     const std::vector<std::string>& asset_names() const { return asset_names_; }
 
-    // The underlying archive, for the loader that must fetch disc.toml/disc.so —
+    // The underlying archive, for the loader that must fetch disc.toml/disc.so -
     // the entries this medium deliberately hides.
     const rv_zipreader& archive() const { return zip_; }
 

@@ -55,7 +55,7 @@ bool rv_pccm_posix::slot_in_range(int64_t slot) const
 
 // The geometry a disc validates its save blob against at disc_initialize. It is
 // taken from the card rather than straight from the conf so a configuration the
-// medium rejected reports 0 instead of a shape no slot actually has — and never
+// medium rejected reports 0 instead of a shape no slot actually has - and never
 // a negative number, which a caller would read as an error.
 int64_t rv_pccm_posix::card_slots()
 {

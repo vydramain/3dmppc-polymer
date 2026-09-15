@@ -155,9 +155,10 @@ public:
 
     // Drain the platform's event queue and re-read every device: window close,
     // pad arrival and removal, mouse motion, then pad and keyboard snapshots.
-    // Called exactly once per frame by rv_pconsole::disc_run, and the only
-    // place platform state changes. Pads keep updating without a window:
-    // pumping is a platform duty, not a window one.
+    // Called at the top of every frame by rv_pconsole::disc_run and again on
+    // each step of its audio-queue wait, so a close request ends the wait;
+    // still the only place platform state changes. Pads keep updating
+    // without a window: pumping is a platform duty, not a window one.
     virtual void pump() = 0;
 
     virtual rv_pcwindow &window() = 0;

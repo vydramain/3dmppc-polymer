@@ -1,6 +1,6 @@
 // The rv_cl contract made abstract: script loading, the stack protocol, and
 // the error vocabulary. Exactly what "running a script" means underneath is
-// a choice made by whichever concrete class the console picks — a real lua
+// a choice made by whichever concrete class the console picks - a real lua
 // machine (rv_pccl_luajit) or a no-op that answers RV_ERR_INVAL to every
 // call (rv_pccl_null).
 #pragma once
@@ -40,7 +40,7 @@ public:
     virtual int64_t script_call(int64_t handle, const char *fname, int64_t argc, int64_t retc) = 0;
 
     // Does the machine this controller owns actually exist? Console-side
-    // only — not reached through the extern "C" block.
+    // only - not reached through the extern "C" block.
     virtual bool valid() const = 0;
 
 protected:

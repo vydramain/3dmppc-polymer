@@ -112,9 +112,9 @@ void rv_dmain::frame_update(float dt)
     rv_cio *cio = rv_pdko_cio(pdk_);
     rv_ca *ca = rv_pdko_ca(pdk_);
 
-    // THEOREM: edge detection by snapshot diff. rv_cio reports the CURRENT level
+    // Edge detection by snapshot diff. rv_cio reports the CURRENT level
     // of every source and never a press/release event, so "was it pressed THIS
-    // frame" is (now & ~was) — set now, clear a frame ago. Acting on the level
+    // frame" is (now & ~was) - set now, clear a frame ago. Acting on the level
     // would fire the beep sixty times a second for as long as the key is held;
     // only the rising edge is an intent.
     for (int64_t port = 0; port < iport_count_; ++port) {
@@ -123,7 +123,7 @@ void rv_dmain::frame_update(float dt)
         const uint64_t pressed = now & ~was;
         was = now;
 
-        // Esc on the keyboard, Option/Start on a pad — any port may ask.
+        // Esc on the keyboard, Option/Start on a pad - any port may ask.
         if (pressed & RV_ISOURCE_MENU_BTTN_MENU) {
             release_ = true;
         }

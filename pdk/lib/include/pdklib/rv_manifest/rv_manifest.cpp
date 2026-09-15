@@ -28,7 +28,7 @@ namespace rv_pdklib
 
 // The inverse of parse_string(). Only the five escapes the parser knows are
 // ever emitted, so anything this function produces is something it can read
-// back — that is the whole round-trip contract in one sentence.
+// back - that is the whole round-trip contract in one sentence.
 static std::string quote(const std::string &s)
 {
     std::string out = "\"";
@@ -144,7 +144,7 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 {
     std::ostringstream out;
 
-    // EVERY key is written, including empty arrays and zero counts — no
+    // EVERY key is written, including empty arrays and zero counts - no
     // section is an exception and none is omitted. This is the copy that goes
     // ONTO THE DISC, and there it has to say what the burner actually used
     // rather than leaning on a default a later version of the tool might
@@ -221,14 +221,14 @@ static bool safe_entry_name(const std::string &entry, const char *what, std::str
     if (entry.front() == '/' || entry.find("..") != std::string::npos ||
         entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
         error = std::string(what) + " '" + entry +
-            "' is not a safe entry name — it must not be a path";
+            "' is not a safe entry name - it must not be a path";
         return false;
     }
     for (char c : entry) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
             error = std::string(what) + " '" + entry +
-                "' is not a safe entry name — use letters, digits, '-', '_' and '.' only";
+                "' is not a safe entry name - use letters, digits, '-', '_' and '.' only";
             return false;
         }
     }
@@ -244,14 +244,14 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     // before anything else touches it. A '/' would escape the output directory,
     // ".." would climb out of it, and a leading '.' would hide the result.
     if (manifest.disc_id.empty()) {
-        error = "[disc] id is empty — the disc needs a short machine name";
+        error = "[disc] id is empty - the disc needs a short machine name";
         return false;
     }
     for (char c : manifest.disc_id) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_') {
             error = "[disc] id '" + manifest.disc_id +
-                "' is not a safe filename — use letters, digits, '-' and '_' only";
+                "' is not a safe filename - use letters, digits, '-' and '_' only";
             return false;
         }
     }
@@ -264,25 +264,25 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     // here has a reference value and may be left unsaid; these five have none,
     // because no answer the tool could invent would be the author's.
     if (manifest.disc_title.empty()) {
-        error = "[disc] title is empty — the disc needs a human title for the window and logs";
+        error = "[disc] title is empty - the disc needs a human title for the window and logs";
         return false;
     }
     if (manifest.build_sources.empty()) {
-        error = "[build] sources is empty — a disc is built from its own code";
+        error = "[build] sources is empty - a disc is built from its own code";
         return false;
     }
     if (manifest.assets_files.empty()) {
-        error = "[assets] files is empty — state the files the disc carries";
+        error = "[assets] files is empty - state the files the disc carries";
         return false;
     }
     if (manifest.textures_files.files.empty()) {
-        error = "[textures] files is empty — state the images the disc carries";
+        error = "[textures] files is empty - state the images the disc carries";
         return false;
     }
 
     // pccd.code_entry and pccl.script_entry both name something the drive is
     // later asked for BY NAME
-    // — an empty value is legal and means "use the conventional name", but
+    // - an empty value is legal and means "use the conventional name", but
     // anything that IS given must be a bare name: no path to climb out of the
     // medium with.
     if (!safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error) ||
@@ -293,7 +293,7 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     // By the time a manifest reaches here the binder has already turned the
     // spelling into an enumerator, and an unknown spelling left the field at its
     // value-initialised zero. So this catches both a typo and a missing `format`
-    // line — but it can no longer quote what the author actually typed, because
+    // line - but it can no longer quote what the author actually typed, because
     // that string does not survive binding.
     if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) == nullptr) {
         std::string known;
@@ -303,7 +303,7 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
             }
             known += row.text;
         }
-        error = std::format("[textures] format is missing or unknown — expected one of {}", known);
+        error = std::format("[textures] format is missing or unknown - expected one of {}", known);
         return false;
     }
 
@@ -341,7 +341,7 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     // pccl is deliberately NOT in the table above. Every other subsystem is
     // hardware the machine always has; the Lua machine exists only for a disc
     // that carries scripts, so an absent section is a legal statement rather
-    // than a missing one. Only a negative is nonsense — nobody asks for less
+    // than a missing one. Only a negative is nonsense - nobody asks for less
     // than no memory.
     if (manifest.budget.pccl.script_memory_size < 0) {
         error = std::format("[budget.pccl] script_memory_size must not be negative, got {}",
@@ -351,7 +351,7 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
 
     // A lua disc is declared by THREE statements that mean nothing apart:
     // where the scripts come from, how much memory they run in, and which one
-    // starts. All three, or none of them — a disc is a lua disc or a C++ disc,
+    // starts. All three, or none of them - a disc is a lua disc or a C++ disc,
     // and there is no state between the two. Any partial declaration is a
     // manifest that describes a machine nobody can build.
     const bool has_scripts = !manifest.scripts_sources.empty();

@@ -1,8 +1,8 @@
-// The rv_cl contract impersonated — except this one CANNOT: rv_cl_script_call
+// The rv_cl contract impersonated - except this one CANNOT: rv_cl_script_call
 // promises retc results on the stack and rv_cl_stack_count counts them
 // (pdk/include/pdk/cl/rv_cl.h); a machine with no VM has nowhere to put
 // them. An honest RV_ERR_INVAL from every method is the correct Null Object
-// here — a disc that needs scripts refuses to start when rv_cl_script_entry
+// here - a disc that needs scripts refuses to start when rv_cl_script_entry
 // answers negative.
 #pragma once
 

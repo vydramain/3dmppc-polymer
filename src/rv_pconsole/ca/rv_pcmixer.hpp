@@ -65,14 +65,14 @@ public:
         int64_t addr);
 
     // Start / stop every voice in `mask`. Returns false when some voice in the
-    // mask was never armed — in which case NOTHING is started or stopped, so a
+    // mask was never armed - in which case NOTHING is started or stopped, so a
     // malformed call cannot leave half the mask sounding.
     bool play(int64_t mask);
     bool stop(int64_t mask);
 
     // Is every voice in `mask` armed? The same question play() asks before it
     // acts, for the caller that must validate a call it is not going to run
-    // (a console whose audio device never opened — see rv_pcca.cpp).
+    // (a console whose audio device never opened - see rv_pcca.cpp).
     bool armed(int64_t mask) const;
 
     // Mask of the voices in `mask` that are still busy.
@@ -87,7 +87,7 @@ public:
     // --- compound operations, for the caller that must be atomic ---
 
     // Take the lock by hand. rv_pcca needs it around work the mixer knows
-    // nothing about — writing bytes into a region a voice may be reading this
+    // nothing about - writing bytes into a region a voice may be reading this
     // instant, and freeing one after checking that nobody is.
     //
     // RULE: never call another rv_pcmixer method while holding this. The mutex

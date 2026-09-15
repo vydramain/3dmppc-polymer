@@ -1,12 +1,12 @@
 // Hardware geometry of the concrete console. Defaults are READ from pdklib's
 // rv_manifest_budget, which holds the reference machine and is the only place
 // those numbers are written. Restating them here would be a second list free to
-// drift from the one the burner fills discs with — and a silent one, because
+// drift from the one the burner fills discs with - and a silent one, because
 // rv_pboot_conf_build overwrites every field from the disc's budget, so a wrong
 // default here would never show up in a run.
 //
 // Session-stable: consumed at construction, never swapped while a disc runs.
-// Console-internal — never crosses into pdk/.
+// Console-internal - never crosses into pdk/.
 #pragma once
 
 #include <cstdint>
@@ -59,7 +59,7 @@ struct rv_pccm_conf {
     std::string image_path;
 };
 
-// The drive exposes no geometry through its contract — this is not hardware
+// The drive exposes no geometry through its contract - this is not hardware
 // shape but WHICH MEDIUM IS INSERTED, which is the console's business in
 // exactly the same way the memory-card image is.
 struct rv_pccd_conf {
@@ -72,7 +72,7 @@ struct rv_pccd_conf {
 // The lua machine. Unlike every other controller this one is OPTIONAL: it
 // exists for a disc that carries scripts and for no other. A disc that declared
 // no [budget.pccl] arrives here with zero, the machine brings no VM up, and the
-// console runs exactly as it did before scripting existed — C++ only.
+// console runs exactly as it did before scripting existed - C++ only.
 //
 // Zero is not a chosen value, it is the field nobody wrote: nothing is ever
 // allocated for a console that will never run a script.
@@ -80,7 +80,7 @@ struct rv_pccl_conf {
     int64_t script_memory_size = rv_pdklib::rv_manifest_budget_pccl{}.script_memory_size;
 
     // The console is the only party that parsed the manifest, so it is the
-    // only party that knows the entry chunk's name — the disc never spells
+    // only party that knows the entry chunk's name - the disc never spells
     // it, it just asks the machine to raise the entry the console already
     // knows. Empty means the same thing script_memory_size == 0 means: this
     // disc carries no scripts.
@@ -126,7 +126,7 @@ struct rv_pconsole_params {
     uint64_t target_fps = 60;
 
     // Where to write the last presented frame as a binary PPM when the run
-    // ends. Empty = never. Devkit only — it is how "what did the console draw"
+    // ends. Empty = never. Devkit only - it is how "what did the console draw"
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
 };

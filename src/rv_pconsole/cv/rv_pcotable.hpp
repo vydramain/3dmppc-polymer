@@ -2,13 +2,13 @@
 // A disc files primitives in any order it likes and the table replays them
 // far-to-near at flush.
 //
-// THEOREM: bucket sort — the depth key is bounded (the console picks the window)
+// Bucket sort - the depth key is bounded (the console picks the window)
 // and the bucket count is fixed, so ordering N primitives costs O(N + buckets)
 // with no comparisons at all, against O(N log N) for a comparison sort. That is
 // the reason the PSX shipped this structure and not a sort: the cost of filing a
 // primitive is a multiply and two stores, payable inside the frame loop.
 //
-// PATTERN: intrusive singly-linked list. The links live in a parallel array
+// Intrusive singly-linked list. The links live in a parallel array
 // indexed by primitive index (`next_`), not in nodes of their own: no allocation
 // per primitive, one cache-friendly array, and `reset()` is O(buckets) instead of
 // O(N) frees.
@@ -29,7 +29,7 @@ class rv_pcotable {
 
     rv_pcotable(int64_t bucket_count, int32_t depth_min, int32_t depth_max);
 
-    // Begin a new frame. Only the bucket heads/tails are touched — the link
+    // Begin a new frame. Only the bucket heads/tails are touched - the link
     // array is meaningless once no bucket points into it.
     void reset();
 

@@ -22,7 +22,7 @@ constexpr uintmax_t RV_PCMEDIUM_MAX_ENTRY_SIZE = static_cast<uintmax_t>(std::num
 } // namespace
 
 // SECURITY: the gate that keeps a resource name from becoming a path. See the
-// long comment on the declaration in rv_pcmedium.hpp — everything refused here
+// long comment on the declaration in rv_pcmedium.hpp - everything refused here
 // is a way of naming bytes that are not on the inserted disc.
 bool rv_pcresname_valid(const char *resname)
 {
@@ -42,7 +42,7 @@ bool rv_pcresname_valid(const char *resname)
         if (*p == ':') {
             return false;
         }
-        // Any run of two dots: `..`, `../x`, `a/../b` — the parent-directory
+        // Any run of two dots: `..`, `../x`, `a/../b` - the parent-directory
         // escape in every shape it takes.
         if (*p == '.' && *(p + 1) == '.') {
             return false;
@@ -69,8 +69,8 @@ rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
     std::error_code ec;
     std::filesystem::path root = std::filesystem::path(dir_path).lexically_normal();
     if (!std::filesystem::is_directory(root, ec)) {
-        // Worth shouting about — someone pointed the console at a disc that is
-        // not there — but the machine stays usable, just empty.
+        // Worth shouting about - someone pointed the console at a disc that is
+        // not there - but the machine stays usable, just empty.
         RV_LOG_ERR("pcmedium", "medium path '{}' is not a directory; drive stays empty", dir_path);
         return;
     }
@@ -90,7 +90,7 @@ bool rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out)
 
     // Defence in depth: whatever the name did to the path, the result must still
     // be a DIRECT child of the medium root. A validated name can never fail this
-    // — which is exactly why a failure here means the validator was bypassed.
+    // - which is exactly why a failure here means the validator was bypassed.
     if (candidate.parent_path() != root_) {
         RV_LOG_ERR("pcmedium", "entry name '{}' escapes the medium root; refused", resname);
         return false;
@@ -171,7 +171,7 @@ int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap
         // the medium dying mid-copy, and the bytes are then already in the game's
         // buffer. Scrubbing what we touched is the closest honest equivalent:
         // the game cannot mistake half an entry for a whole one. The alternative
-        // — staging the entry in a shadow allocation — would make the drive
+        // - staging the entry in a shadow allocation - would make the drive
         // allocate per read, which rv_cd.hpp explicitly forbids.
         std::memset(baddr, 0, static_cast<size_t>(size));
         RV_LOG_ERR("pcmedium", "short read on entry '{}': {} of {} bytes", resname,

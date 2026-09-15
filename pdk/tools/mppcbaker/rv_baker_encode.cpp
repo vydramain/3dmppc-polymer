@@ -18,8 +18,8 @@ constexpr char RV_BAKER_MAGIC[4] = { 'M', 'P', 'T', 'X' };
 constexpr uint16_t RV_BAKER_VERSION = 1;
 constexpr size_t RV_BAKER_HEADER_SIZE = 16;
 
-// A palette is written at FULL length whatever the image needed — 16 entries for
-// IDX4, 256 for IDX8 — so the disc uploads one fixed-shape rv_texture without
+// A palette is written at FULL length whatever the image needed - 16 entries for
+// IDX4, 256 for IDX8 - so the disc uploads one fixed-shape rv_texture without
 // caring how many colours the artwork used. The two sizes are what 4 and 8 index
 // bits can address.
 constexpr size_t RV_BAKER_PALETTE_SIZE_IDX4 = 16;
@@ -27,13 +27,13 @@ constexpr size_t RV_BAKER_PALETTE_SIZE_IDX8 = 256;
 
 // PSX nibble order for IDX4: the LOW nibble holds the LEFT texel. The console
 // samples it the same way, and getting this backwards produces an image that
-// looks almost right — the worst kind of wrong. Rows stay byte-aligned, so an
+// looks almost right - the worst kind of wrong. Rows stay byte-aligned, so an
 // odd width pads its last byte with a zero high nibble and the disc's stride is
 // (width + 1) / 2.
 constexpr int RV_BAKER_IDX4_NIBBLE_BITS = 4;
 constexpr uint8_t RV_BAKER_IDX4_NIBBLE_MASK = 0x0F;
 
-// PATTERN: reserved slot — index 0 is the hole whenever the image has one.
+// Reserved slot - index 0 is the hole whenever the image has one.
 // Transparency in an indexed format lives in the PALETTE (rv_texture.h:
 // "transparency is decided AFTER the palette lookup"), so a cut-out sprite
 // indexes a fixed 0000h entry. It costs one colour, hence it is only reserved
@@ -56,7 +56,7 @@ using rv_pdklib::rv_texel_opaque;
 using rv_pdklib::rv_texel_pack;
 using rv_pdklib::rv_texel_unpack;
 
-// THEOREM: the opaque-black trap — 0000h is the transparency sentinel, so an
+// The opaque-black trap - 0000h is the transparency sentinel, so an
 // OPAQUE pixel may never encode to it. Naive quantisation sends every very dark
 // pixel there and the picture's shadows turn into holes. rv_texel_opaque is that
 // fix, applied wherever an opaque colour becomes a 16-bit word.
@@ -111,7 +111,7 @@ void encode_direct15(const source_image &src, std::vector<uint8_t> *out)
 // must not drag the palette towards it.
 void histogram(const source_image &src, std::vector<color_bin> *out)
 {
-    // Bucketed directly, one counter per code — see RV_BAKER_COLOR5_CODES.
+    // Bucketed directly, one counter per code - see RV_BAKER_COLOR5_CODES.
     std::vector<uint32_t> counts(RV_BAKER_COLOR5_CODES, 0);
     for (const src_pixel &s : src.pixels) {
         if (!s.transparent) {
@@ -125,7 +125,7 @@ void histogram(const source_image &src, std::vector<color_bin> *out)
     }
 }
 
-// IDX4 rows, two texels to a byte — see RV_BAKER_IDX4_NIBBLE_BITS.
+// IDX4 rows, two texels to a byte - see RV_BAKER_IDX4_NIBBLE_BITS.
 void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
     std::vector<uint8_t> *out)
 {

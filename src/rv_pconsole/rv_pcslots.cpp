@@ -123,17 +123,21 @@ std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf 
     return std::make_unique<rv_pccio_null>(conf);
 }
 
+rv_pccl_impl rv_pccl_resolve(rv_pccl_impl requested, int64_t script_memory_size)
+{
+    if (requested == rv_pccl_impl::luajit && script_memory_size == 0) {
+        RV_LOG_INFO("pccl", "requested {}, resolved to {} (the disc declares no script memory)",
+            rv_pcslots_name(requested), rv_pcslots_name(rv_pccl_impl::null));
+        return rv_pccl_impl::null;
+    }
+    return requested;
+}
+
 std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd)
 {
-    if (impl == rv_pccl_impl::luajit && conf.script_memory_size > 0) {
-        RV_LOG_INFO("pccl", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(rv_pccl_impl::luajit));
-        return std::make_unique<rv_pccl_luajit>(conf, cd);
-    }
+    RV_LOG_INFO("pccl", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
     if (impl == rv_pccl_impl::luajit) {
-        RV_LOG_INFO("pccl", "requested {}, got {} (the disc declares no script memory)", rv_pcslots_name(impl),
-            rv_pcslots_name(rv_pccl_impl::null));
-    } else {
-        RV_LOG_INFO("pccl", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(rv_pccl_impl::null));
+        return std::make_unique<rv_pccl_luajit>(conf, cd);
     }
     return std::make_unique<rv_pccl_null>();
 }

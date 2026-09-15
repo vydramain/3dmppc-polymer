@@ -46,7 +46,7 @@ void rv_pcraster::draw_line(rv_pcfbuf &fbuf, const rv_line &line, int32_t depth,
     const int64_t dx = static_cast<int64_t>(b.x) - x0;
     const int64_t dy = static_cast<int64_t>(b.y) - y0;
 
-    // THEOREM: DDA — parameterize the segment as p(t) = p0 + t * (p1 - p0) and
+    // DDA - parameterize the segment as p(t) = p0 + t * (p1 - p0) and
     // step t in max(|dx|, |dy|) equal increments. Choosing the longer axis as
     // the driving one is what makes the trace gapless: the fast axis advances by
     // at most one pixel per step, so consecutive samples are always neighbours.
@@ -89,7 +89,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
     const int64_t x1 = x0 + static_cast<int64_t>(sprite.width);  // exclusive
     const int64_t y1 = y0 + static_cast<int64_t>(sprite.height); // exclusive
 
-    // Bounding box ∩ screen again — a sprite is axis-aligned by construction, so
+    // Bounding box clipped to the screen again - a sprite is axis-aligned by construction, so
     // the box IS the primitive and the clip is exact rather than conservative.
     const int64_t cx0 = max64(x0, 0);
     const int64_t cy0 = max64(y0, 0);
@@ -108,7 +108,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
 
     if (textured) {
         // The texture is laid down from the sprite's UPPER-LEFT corner, one
-        // texel per pixel — the contract's rule (rv_primitives.hpp), and the
+        // texel per pixel - the contract's rule (rv_primitives.hpp), and the
         // reason a sprite carries no uv at all. CLAMP smears the last texel over
         // the overhang, TILE repeats; both are the sampler's job.
         //
@@ -164,7 +164,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
 void rv_pcraster::draw(rv_pcfbuf &fbuf, const rv_primitive &primitive, const rv_pctexview &texture,
     bool z_enabled)
 {
-    // PATTERN: dispatch on the variant tag. rv_primitive is a tagged union (the
+    // Dispatch on the variant tag. rv_primitive is a tagged union (the
     // PDK is a C-shaped ABI, so no std::variant), and this is the one place that
     // reads the tag.
     switch (primitive.type) {
