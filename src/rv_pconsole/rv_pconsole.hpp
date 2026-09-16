@@ -83,6 +83,11 @@ private:
     // what lua puts in front of every error message from that chunk.
     std::string script_entry_;
 
+    // Stopped, whoever asked. Two inputs reach this one flag: the `pause`
+    // request on the development channel, and the physical Pause key, which is
+    // an operator's act on the machine (like closing the window) rather than
+    // game input and therefore needs no --dev. One flag and not two, so there
+    // is one answer to "is this machine running" no matter who stopped it.
     bool paused_ = false;
 
     // A step is armed by ONE request and answered after ITS frame, so three
@@ -111,6 +116,7 @@ private:
     void dev_status(int64_t id);
     void dev_reload(const rv_pcdevreq &req);
     void dev_get(const rv_pcdevreq &req);
+    void dev_asset(const rv_pcdevreq &req);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);

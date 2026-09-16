@@ -212,6 +212,30 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
             break;
         }
 
+        // The pause key. This is NOT under --dev: stopping the machine is an
+        // operator's act, the same category as closing the window, and it is
+        // wanted in an ordinary run more than in a development one. The key
+        // never reaches the disc - the platform keeps it out of the keyboard
+        // snapshot rv_cio hands over - so a paused game cannot see a phantom
+        // button, and this is a pause OF THE CONSOLE, not a state inside the
+        // game.
+        if (const uint32_t asked = platform_.window().consume_pause_requests(); asked != 0) {
+            // An odd number of presses since the last look is a change of
+            // state; an even number is a press and an unpress that both landed
+            // in one frame and cancel out.
+            if ((asked & 1u) != 0u) {
+                paused_ = !paused_;
+                RV_LOG_INFO("pconsole", "{} by the pause key at frame {}",
+                    paused_ ? "stopped" : "running again", frames);
+                if (dev_) {
+                    // The client did not ask for this, so it arrives as an
+                    // event: something else moved the machine it is driving.
+                    dev_->reply(std::format("0 event=pause mode={} frame={}",
+                        paused_ ? "paused" : "running", frames));
+                }
+            }
+        }
+
         // The frame boundary, and the only place a command is executed. Here no
         // script call is in flight and the lua stack is at its base, which is
         // what makes replacing code safe - the pause is for the developer's
@@ -224,27 +248,30 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
                     frames);
                 break;
             }
-            if (paused_ && step_reply_id_ < 0) {
-                // No frame is created: no update, no render, no advance, no
-                // counter. The window still gets its last picture and its
-                // events, so it can be moved and closed while stopped.
-                if (const uint32_t *argb = cv_->last_frame()) {
-                    platform_.window().present(argb);
-                }
-                std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
-                left_pause = true;
-                continue;
+        }
+
+        // Stopped is stopped, whoever asked. No frame is created: no update, no
+        // render, no advance, no counter. The window still gets its last
+        // picture and its events, so it can be moved, paused again and closed
+        // while stopped - and the quit check above runs first every time, so
+        // Ctrl+C and the close button are never trapped behind a pause.
+        if (paused_ && step_reply_id_ < 0) {
+            if (const uint32_t *argb = cv_->last_frame()) {
+                platform_.window().present(argb);
             }
-            if (left_pause) {
-                // Re-base the clock. A deadline computed before the pause is
-                // now far in the past, and the clock-paced branch below would
-                // read that as "we are behind" and run a burst of frames as
-                // fast as it could to catch up - a visible jump, which is
-                // exactly what a pause must not cause.
-                t_deadline = rv_pcclock::now() +
-                    std::chrono::duration_cast<rv_pcclock::duration>(frame_budget);
-                left_pause = false;
-            }
+            std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
+            left_pause = true;
+            continue;
+        }
+        if (left_pause) {
+            // Re-base the clock. A deadline computed before the pause is now
+            // far in the past, and the clock-paced branch below would read that
+            // as "we are behind" and run a burst of frames as fast as it could
+            // to catch up - a visible jump, which is exactly what a pause must
+            // not cause.
+            t_deadline = rv_pcclock::now() +
+                std::chrono::duration_cast<rv_pcclock::duration>(frame_budget);
+            left_pause = false;
         }
 
         disc->frame_update(disc->self, dt);
@@ -497,9 +524,13 @@ void rv_3dmppc::rv_pconsole::dev_dispatch(const rv_pcdevreq &req)
         dev_get(req);
         return;
     }
+    if (verb == "asset") {
+        dev_asset(req);
+        return;
+    }
 
     dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false,
-        "unknown request; this console speaks status pause resume step reload get gc quit"));
+        "unknown request; this console speaks status pause resume step reload asset get gc quit"));
 }
 
 void rv_3dmppc::rv_pconsole::dev_status(int64_t id)
@@ -571,6 +602,45 @@ void rv_3dmppc::rv_pconsole::dev_reload(const rv_pcdevreq &req)
     cl_->script_status(script);
     dev_->reply(std::format("{} ok entry_revision={} entry_hash={:016x} lua_used={}", req.id,
         script.revision, script.hash, script.used));
+}
+
+void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
+{
+    const std::string_view name = req.arg(0);
+    if (name.empty()) {
+        dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false,
+            "asset needs the name of an entry on the mounted medium"));
+        return;
+    }
+    if (!params_.medium_live) {
+        // An archive entry cannot have changed, so there is nothing to refresh
+        // and telling the game otherwise would have it re-upload the same bytes
+        // and report success.
+        dev_->reply(rv_pcdev_err(req.id, "unsupported_medium", RV_ERR_INVAL, false,
+            "the mounted medium cannot change; boot an unpacked directory"));
+        return;
+    }
+
+    // Resolved here so the answer can tell "there is no such entry" from "the
+    // game refused it". The drive's name table is fixed at boot, which is also
+    // why an ADDED asset needs a restart while a CHANGED one does not.
+    const std::string key(name);
+    if (cd_->asset_open(key.c_str()) < 0) {
+        dev_->reply(rv_pcdev_err(req.id, "no_asset", RV_ERR_NOENT, false,
+            "the mounted medium has no entry by that name"));
+        return;
+    }
+
+    // From here the console's part is over: it has said which entry moved. What
+    // that entry IS, where its bytes went, and whether anything still points at
+    // them is knowledge that lives only in the game's own code.
+    rv_pccl_reload_report report;
+    const int64_t rc = cl_->script_asset_changed(key.c_str(), report);
+    if (rc < 0) {
+        dev_->reply(rv_pcdev_err(req.id, report.phase, rc, report.effects_possible, report.message));
+        return;
+    }
+    dev_->reply(std::format("{} ok asset={}", req.id, rv_pcdev_hex(key)));
 }
 
 void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
