@@ -65,6 +65,23 @@ Reload does not need step 1 (`2 pause`) to work - pause and reload are
 independent commands - but stepping frame-by-frame to watch the new code
 before letting it run free is the reason to pause first.
 
+## The Pause key
+
+The physical Pause key toggles the console's own pause in ANY mode, with no
+`--dev` needed - it needs no development channel because it is not a
+development feature. It is an operator's act on the machine, the same class
+of input as closing the window: the disc never sees it, exactly as it never
+sees a window close, and it drives the same pause state the `pause`/`resume`
+requests drive when `--dev` is open. The two ways of pausing compose: the
+key can pause a `--dev` run and the channel can resume it, or the other way
+around - there is only one pause flag, not one per input source.
+
+One consequence worth knowing before it surprises a script: a run started
+with `--frames N` never reaches its frame budget while paused, because a
+paused run advances no frames at all - a Pause key hit during an
+otherwise-unattended `--frames` run hangs it exactly as a `--dev` client
+that never sends `resume` would.
+
 ## Protocol, version 1
 
 One request per line, LF-terminated: `<id> <verb> [args...]`. `<id>` is a
@@ -97,6 +114,7 @@ protocol needs no escaping rules because of it.
 | `<id> resume` | continue running |
 | `<id> reload entry` | re-read the entry script from the drive (medium must be a directory) |
 | `<id> reload entry bytes <n>` | the next `n` bytes are the candidate script |
+| `<id> asset <name>` | re-read one asset off the drive and tell the entry chunk it changed (medium must be a directory) |
 | `<id> get frame_count` | read one top-level field of the persistent state table (`frame_count` is an example key, not a fixed field name - any key in the table can be asked for) |
 | `<id> gc` | full collection, then report the script heap |
 | `<id> quit` | shut the console down by its ordinary path |
@@ -130,6 +148,29 @@ chunk over the development channel.
   `attach` runs fine as an entry chunk; the console just reports
   `entry_reloadable=0` for it, because there is nothing a later reload could
   call to check compatibility.
+- **`asset <name>` reloads DATA, not code, and the console does half the
+  job.** An asset is bytes the running game already put somewhere - a
+  texture lives at a video address the game's own code chose, and the
+  console has no way to know that address. So the console only re-reads the
+  named asset off the drive and calls `asset_changed(name)` on the entry
+  chunk at a frame boundary; the SCRIPT is the one that re-reads it through
+  the drive (again, on its own) and re-uploads it to the address it
+  remembers. `true` means the script handled it; `false, reason` is a
+  refusal, reported as `error=asset_refused`, and leaves the old data in
+  place. Like a code reload, effects inside the hook cannot be rolled back
+  once it has started writing - `effects=` on the error answer follows the
+  same conservative rule reload's does.
+- **`asset` needs a live directory medium.** Only an unpacked disc directory
+  (`mppcburner build ... --unpacked`) can have a file changed under a
+  running console - in an archive the bytes cannot have moved, and the
+  request is refused with `unsupported_medium`, the same token `reload
+  entry` (drive form) uses for the same reason. A changed `.png` needs
+  `mppcbaker` run again (by re-running the burner) before asking for the
+  reload - a `.mppctex` is baker OUTPUT, and a symlink to the source `.png`
+  is not one.
+- **The hook is optional, like `attach`.** A chunk without `asset_changed`
+  gets `error=no_asset_hook` when asked for an asset reload, exactly as a
+  chunk without `attach` cannot be code-reloaded.
 - **C++ cannot be hot swapped.** `status` reports `disc_hash`, the checksum of
   the loaded `disc.so`. The client is the one that knows what a fresh build's
   checksum should be; when they differ, the client is expected to restart
@@ -156,7 +197,11 @@ at the moment it fires, so the same failure is legible from either end.
 | `no_entry` | no entry chunk has ever been raised |
 | `not_reloadable` | the current entry has no `attach` and cannot accept a reload |
 | `in_call` | a reload was requested while a hook is still on the call stack |
-| `unsupported_medium` | `reload entry` (drive form) was asked of a non-directory medium |
+| `unsupported_medium` | `reload entry` (drive form) or `asset` was asked of a non-directory medium |
+| `no_asset` | `asset` named a file that does not exist on the drive |
+| `no_asset_hook` | the entry chunk has no `asset_changed` at all |
+| `asset_refused` | `asset_changed` returned `false` (with a reason) |
+| `asset` | `asset_changed` raised instead of returning |
 | `compile` | the candidate did not compile |
 | `body` | the candidate compiled but its top-level body raised |
 | `not_a_table` | the candidate's body ran but did not return a table |
@@ -164,6 +209,7 @@ at the moment it fires, so the same failure is legible from either end.
 | `attach` | `attach` raised instead of returning |
 | `attach_refused` | `attach` returned `false` (with a reason) |
 | `attach_contract` | `attach` returned something other than `true` or `false, reason` |
+| `asset_contract` | `asset_changed` returned something other than `true` or `false, reason` |
 | `nomem` | the script heap's budget was exceeded |
 | `insn_ceiling` | the instruction ceiling installed for a reload attempt was hit (a hang guard, not a general watchdog) |
 
@@ -176,6 +222,8 @@ script error would send the developer looking in the wrong place.
 | Changed | Needs a process restart? | Who notices |
 | --- | --- | --- |
 | Entry Lua chunk (`.lua`/`.luac`) | No - `reload entry` | The client, by asking; `entry_revision` counts successful ones |
+| An existing asset's bytes CHANGED | No - `asset <name>` | The client, by asking; the entry chunk's `asset_changed` decides whether it took |
+| An asset ADDED or REMOVED | Yes | Nobody automatically - the medium's entry set is fixed at boot, and nothing re-reads it |
 | `disc.so` (any C++ change) | Yes | The client, by comparing `disc_hash` against the checksum of its own fresh build |
 | `disc.toml` manifest | Yes | Nobody automatically - it is read once, at construction |
 | `[budget.*]` values | Yes | Nobody automatically - budgets are consumed once, at construction |

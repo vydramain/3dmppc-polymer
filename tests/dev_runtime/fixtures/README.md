@@ -21,6 +21,9 @@ the protocol these prove.
 | `attach_throws_dirty.lua` | `attach` writes a state field, THEN raises | `attach`, `effects=1` |
 | `attach_hangs.lua` | `attach` loops forever | `insn_ceiling` |
 | `body_hangs.lua` | the top-level body loops forever | `insn_ceiling` |
+| `asset_ok.lua` | a well-formed entry whose `asset_changed` returns `true` | (none - `asset` answers `ok`) |
+| `asset_refuses.lua` | `asset_changed` writes nothing and returns `false, reason` | `asset_refused`, `effects=0` |
+| `asset_missing.lua` | a valid entry with NO `asset_changed` at all | `no_asset_hook` |
 
 This table and `docs/development-runtime.md` are meant to agree; if they
 ever diverge, this one is the source of truth, because it is the one an

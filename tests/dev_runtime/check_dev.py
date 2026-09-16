@@ -14,10 +14,12 @@ Run it through check-dev.sh, which supplies the paths.
 
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import time
+import zlib
 
 CONSOLE = os.environ.get("MPPC_CONSOLE", "build/pconsole/3dmppc")
 BURNER = os.environ.get("MPPC_BURNER", "pdk/tools/build/mppcburner/mppcburner")
@@ -138,6 +140,73 @@ def run_plain(disc, frames, dump, card, dev=False, extra=()):
     argv.append(disc)
     done = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=120)
     return done
+
+
+def make_png(path, width, height, rgb):
+    """A solid-colour 8-bit RGB PNG, written by hand.
+
+    By hand because the point is to change a texture ON DISK between two frames
+    of a running console, and reaching for an image library to fill a rectangle
+    with one colour would be a dependency bought for nothing.
+    """
+    def chunk(tag, data):
+        body = tag + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    raw = b"".join(b"\x00" + bytes(rgb) * width for _ in range(height))
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    with open(path, "wb") as handle:
+        handle.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+                     + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def check_asset_changes_the_picture():
+    """The whole point of asset reload, end to end.
+
+    A texture is replaced on disk while the console is running, the game is
+    told, and the NEXT frame must show it - without a restart. Anything less
+    than a changed pixel is a check that could pass while the feature does
+    nothing.
+    """
+    if not os.path.isdir(DISC_DIR):
+        record("A20 a refreshed texture reaches the next frame", False, "no %s" % DISC_DIR)
+        return
+    disc = make_dir_copy("assetpix.discdir")
+    texture = os.path.join(disc, "example-sprite.mppctex")
+    if not os.path.exists(texture):
+        record("A20 a refreshed texture reaches the next frame", False, "no baked texture in the disc")
+        return
+
+    before = os.path.join(work, "asset-before.ppm")
+    after = os.path.join(work, "asset-after.ppm")
+    run_plain(disc, 5, before, os.path.join(work, "ca1"))
+
+    # Same 32x32 and the same encoding the manifest asks for, so the baked file
+    # is the size the game already allocated for - a different size is a
+    # different test (the game is expected to refuse that one).
+    png = os.path.join(work, "new-sprite.png")
+    make_png(png, 32, 32, (255, 0, 255))
+    baked = subprocess.run([BAKER, png, os.path.join(work, "new-sprite.mppctex"),
+                            "--format", "idx8"], capture_output=True, timeout=120)
+    if baked.returncode != 0:
+        record("A20 a refreshed texture reaches the next frame", False,
+               "the baker refused: " + baked.stderr.decode(errors="replace").strip()[:120])
+        return
+
+    session = Session(disc, extra=["--dev-paused"], dump=after)
+    try:
+        session.ask("step")  # one frame with the texture the disc booted with
+        # Now the file changes under the running console, which is the one thing
+        # an archive can never do.
+        shutil.copyfile(os.path.join(work, "new-sprite.mppctex"), texture)
+        handled = session.fields("asset example-sprite.mppctex")
+        session.ask("step")  # and this frame must show it
+        record("A20 the game takes a texture that changed on disk", handled["_ok"], handled["_raw"])
+    finally:
+        session.close()
+
+    changed = os.path.exists(after) and open(before, "rb").read() != open(after, "rb").read()
+    record("A20b a refreshed texture reaches the next frame with no restart", changed)
 
 
 def burner_checksum():
@@ -518,6 +587,74 @@ def check_game_error_recovery():
         session.close()
 
 
+# --- A19: refreshing an asset ---------------------------------------------
+
+def check_asset_reload():
+    # A missing fixture is a FAILURE, not a skip: the acceptance run is the
+    # definition of what this release promises, and a promise whose evidence is
+    # absent has not been kept.
+    missing = [name for name in ("asset_refuses.lua", "asset_contract.lua")
+               if not os.path.exists(os.path.join(FIXTURES, name))]
+    if missing:
+        record("A19 asset refresh checks", False, "fixtures missing: " + ", ".join(missing))
+        return
+
+    # An archive cannot change under a running console, so the request is
+    # refused rather than answered with a reload of identical bytes.
+    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    try:
+        fixed = session.fields("asset example-sprite.mppctex")
+        record("A19 an archive refuses an asset refresh",
+               fixed.get("error") == "unsupported_medium", fixed["_raw"])
+    finally:
+        session.close()
+
+    if not os.path.isdir(DISC_DIR):
+        record("A19b asset refresh on a live directory", False, "no %s" % DISC_DIR)
+        return
+    disc = make_dir_copy("asset.discdir")
+    session = Session(disc, extra=["--dev-paused"])
+    try:
+        session.ask("step")
+        unknown = session.fields("asset definitely-not-an-entry")
+        record("A19b a name the medium does not have is named as such",
+               unknown.get("error") == "no_asset", unknown["_raw"])
+
+        # The entry exists, the game owns it: the hook runs and answers.
+        handled = session.fields("asset example-sprite.mppctex")
+        record("A19c the game handles a refresh of an asset it owns",
+               handled["_ok"], handled["_raw"])
+
+        # A chunk with no asset_changed cannot take one. ok_b.lua is a valid
+        # entry chunk that deliberately has no such hook.
+        session.ask("reload entry", fixture("ok_b.lua"))
+        without = session.fields("asset example-sprite.mppctex")
+        record("A19d a chunk without the hook is refused, and nothing ran",
+               without.get("error") == "no_asset_hook" and without.get("effects") == "0",
+               without["_raw"])
+
+        # A hook that refuses is an error with a reason, and the old data stays.
+        session.ask("reload entry", fixture("asset_refuses.lua"))
+        refused = session.fields("asset example-sprite.mppctex")
+        record("A19e a hook that refuses is reported as a refusal",
+               refused.get("error") == "asset_refused", refused["_raw"])
+
+        # A hook that returns something that is not a boolean is a contract
+        # violation, and it must be named after ITS OWN hook: the two gates
+        # share one implementation, and a shared implementation that reported
+        # the other hook's token was a real defect here once.
+        session.ask("reload entry", fixture("asset_contract.lua"))
+        contract = session.fields("asset example-sprite.mppctex")
+        record("A19f a non-boolean answer is a contract error named after its hook",
+               contract.get("error") == "asset_contract", contract["_raw"])
+
+        alive = session.fields("step")
+        record("A19g and the run continues through all of it",
+               " ok completed=1" in alive["_raw"], alive["_raw"])
+    finally:
+        session.close()
+
+
 # --- A17: the way out -----------------------------------------------------
 
 def check_quit():
@@ -539,6 +676,29 @@ def check_quit():
            "exit %s" % code)
 
 
+def check_quit_is_not_trapped_behind_a_pause():
+    """A stopped console must still be killable the ordinary way.
+
+    The pause branch sits after the quit check for exactly this reason: if it
+    sat before, a paused run would swallow SIGINT and the close button, and the
+    only way out of a pause would be the thing that caused it.
+    """
+    import signal
+    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    stopped = session.fields("status")
+    session.proc.send_signal(signal.SIGTERM)
+    try:
+        code = session.proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        code = "still running"
+    log = session.stderr_text()
+    session.close(graceful=False)
+    record("A21 SIGTERM still ends a PAUSED console, by the ordinary path",
+           stopped.get("mode") == "paused" and code == 0
+           and "shutdown requested (window closed or SIGINT/SIGTERM)" in log,
+           "exit %s" % code)
+
+
 def main():
     for path, what in ((CONSOLE, "console"), (DISC_ARCHIVE, "archive")):
         if not os.path.exists(path):
@@ -555,6 +715,9 @@ def main():
     check_file_form()
     check_protocol_abuse()
     check_game_error_recovery()
+    check_asset_reload()
+    check_asset_changes_the_picture()
+    check_quit_is_not_trapped_behind_a_pause()
     check_quit()
 
     failed = [name for name, ok, _ in results if not ok]
