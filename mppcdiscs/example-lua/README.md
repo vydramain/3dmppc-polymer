@@ -30,7 +30,7 @@ example-lua/
   (`M.disc_initialize`, `M.frame_update`, ...) instead of touching `_G`, and
   reaches hardware through the global `pdk` table — `pdk.cv_screen_width`,
   `pdk.cv_frame_configure`, `pdk.cv_frame_put`, `pdk.cast`. It reads the real
-  screen size back from the console and prints it, then fills the frame with
+  screen size back from the console and logs it, then fills the frame with
   one triangle every `frame_render` — `FLAT_COLOURED` contrasts with
   `SAMPLE_TEXTURE` (vertex colour vs. texel), not with shading, so its three
   differently-coloured vertices Gouraud-interpolate into a red→green→blue
@@ -40,6 +40,30 @@ example-lua/
   `pdk.new`. The C++ side flushes the frame right after the hook returns —
   `frame_render()` in `src/example-lua.cpp` is one `rv_cl_script_call()`
   followed by one `rv_cv_frame_flush()`, nothing else.
+
+## Code != state
+
+The console keeps one persistent table alive for the whole run, independent
+of whatever chunk is currently loaded, and hands it to `M.attach(state)` —
+once at boot, right after the entry chunk is raised, and again after every
+successful reload of that chunk's code. A chunk local or a field of `M` dies
+with the code; only a field of `state` survives a reload, so that is where
+this script keeps its controller pointers, the screen size, and a frame
+counter it increments once per `frame_update`. Reburn the disc with a change
+to `frame_render`'s colours while the console is running and reload it — the
+picture changes but the counter keeps climbing instead of resetting to 0,
+which is the whole point: the code changed, the state did not. `attach` also
+carries a `version` field and refuses (returns `false`, a reason) a state
+shape it has no migration for, so a reload is atomic in code — either the new
+chunk accepts the state and takes over, or it is refused and the old chunk
+keeps running untouched. Neither a Lua function nor a coroutine is ever
+stored in `state`: either would keep the old chunk's bytecode alive after a
+reload was supposed to have replaced it.
+
+A per-frame script failure no longer disables scripting for the rest of the
+run either: `src/example-lua.cpp` keeps calling `frame_update`/`frame_render`
+every frame (a reload may fix the script at any moment) and only throttles
+the stderr logging of a repeated, unchanged failure.
 
 `pdk` is not a wrapper: it is a LuaJIT FFI table whose `__index` resolves
 `pdk.cv_frame_put` to `ffi.C.rv_cv_frame_put` the first time it is touched —
@@ -79,13 +103,15 @@ itself, only asks for "the one you already checked".
 ./build/pconsole/3dmppc build/example-lua.mppcdisc
 ```
 
-Watch stderr for `pccl: lua machine up, 262144 byte(s) budgeted` on load, and
-stdout for:
+Watch stderr for `pccl: lua machine up, 262144 byte(s) budgeted` on load,
+followed by:
 
 ```
 Hello from example lua!
 example-lua: screen is 320x240 (read through pdk)
 ```
 
-The second line is the proof: it only prints once `pdk.cv_screen_width` has
-round-tripped into the console's real video controller and back.
+`print()` is routed into the console's stderr logger, not stdout, so both
+lines land there. The second one is the proof: it only prints once
+`pdk.cv_screen_width` has round-tripped into the console's real video
+controller and back.

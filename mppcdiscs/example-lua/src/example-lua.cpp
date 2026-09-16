@@ -18,6 +18,52 @@ namespace
 // allocated".
 constexpr int64_t RV_EXAMPLE_LUA_NO_CHUNK = -1;
 
+// How many frames a repeated, UNCHANGED script failure is allowed to stay
+// quiet for. Not a timeout: frame_update/frame_render still call into Lua
+// every frame either way (a console-side reload may fix the script at any
+// moment, and that needs a live call to notice) - this only bounds how often
+// the SAME failure is allowed to re-print.
+constexpr int RV_EXAMPLE_LUA_LOG_EVERY_N_FRAMES = 60;
+
+// Per-hook throttle for a script call that keeps failing the same way. Two
+// independent hooks (frame_update, frame_render) fail independently, so each
+// gets its own instance rather than sharing one flag - the old script_broken_
+// conflated them and any failure silenced BOTH for the rest of the run.
+class rv_example_lua_call_throttle
+{
+public:
+    // Decide whether THIS failure should be logged: yes the first time, yes
+    // again the moment the rv_err code changes (that is news - a different
+    // failure), otherwise at most once every RV_EXAMPLE_LUA_LOG_EVERY_N_FRAMES
+    // frames so a stuck script does not spam stderr sixty times a second.
+    bool should_log(int64_t err)
+    {
+        const bool changed = !had_error_ || err != last_err_;
+        ++frames_since_log_;
+        const bool log_now = changed || frames_since_log_ >= RV_EXAMPLE_LUA_LOG_EVERY_N_FRAMES;
+        if (log_now) {
+            frames_since_log_ = 0;
+        }
+        had_error_ = true;
+        last_err_ = err;
+        return log_now;
+    }
+
+    // A successful call clears the throttle, so the NEXT failure (whenever it
+    // comes) is treated as new again instead of being silenced by a streak
+    // that already ended.
+    void on_success()
+    {
+        had_error_ = false;
+        frames_since_log_ = 0;
+    }
+
+private:
+    bool had_error_ = false;
+    int64_t last_err_ = 0;
+    int frames_since_log_ = 0;
+};
+
 } // namespace
 
 class rv_dmain
@@ -47,11 +93,11 @@ private:
 
     bool release_ = false;
 
-    // Latched the first time a per-frame script_call fails, so frame_update
-    // and frame_render stop forwarding into a script that already told us it
-    // is broken, instead of re-reporting the same failure sixty times a
-    // second.
-    bool script_broken_ = false;
+    // One throttle per per-frame hook - see rv_example_lua_call_throttle
+    // above. There is no throttle for disc_initialize/disc_shutdown: both
+    // run at most once, so nothing there can spam.
+    rv_example_lua_call_throttle frame_update_throttle_;
+    rv_example_lua_call_throttle frame_render_throttle_;
 };
 
 int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
@@ -61,6 +107,7 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
     rv_cv *cv = rv_pdko_cv(pdk_);
     rv_ca *ca = rv_pdko_ca(pdk_);
     rv_cio *cio = rv_pdko_cio(pdk_);
+    rv_cd *cd = rv_pdko_cd(pdk_);
 
     // The contract itself does not require a script machine: a C++ disc gets
     // nullptr from rv_pdko_cl() and never calls a single rv_cl_* function.
@@ -83,12 +130,14 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
     // Hand the script the controllers it will forward draw/sound/input calls
     // to, once the console binds hardware into the VM. Until then they arrive
     // as light userdata the script can only hold onto - see
-    // scripts/example-lua.lua.
+    // scripts/example-lua.lua. cd (the drive) rides along last so a later
+    // task can let the script re-read an asset off the mounted disc.
     rv_cl_stack_push_pointer(cl, cv);
     rv_cl_stack_push_pointer(cl, ca);
     rv_cl_stack_push_pointer(cl, cio);
+    rv_cl_stack_push_pointer(cl, cd);
 
-    const int64_t call = rv_cl_script_call(cl, chunk_, "disc_initialize", 3, 0);
+    const int64_t call = rv_cl_script_call(cl, chunk_, "disc_initialize", 4, 0);
     if (call < 0) {
         // rv_cl_script_call already logged the Lua message itself, with the
         // chunk and hook name attached (see its doc in rv_cl.h) - naming
@@ -104,10 +153,6 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
 
 void rv_dmain::frame_update(float dt)
 {
-    if (script_broken_) {
-        return;
-    }
-
     // Guaranteed non-null: disc_initialize already refused to start (above)
     // the one time rv_pdko_cl() could have come back nullptr, and the script
     // machine does not appear or vanish under a disc that is already running.
@@ -117,12 +162,16 @@ void rv_dmain::frame_update(float dt)
     const int64_t call = rv_cl_script_call(cl, chunk_, "frame_update", 1, 1);
     if (call < 0) {
         // The pushed dt is already gone on this path too (rv_cl_script_call's
-        // own contract), so there is nothing on the stack to drop here.
-        std::fprintf(stderr, "example-lua: frame_update failed (rv_err %lld)\n",
-            static_cast<long long>(call));
-        script_broken_ = true;
+        // own contract), so there is nothing on the stack to drop here. No
+        // latch: the call keeps happening every frame (a reload may fix the
+        // script at any moment), only the LOGGING is throttled.
+        if (frame_update_throttle_.should_log(call)) {
+            std::fprintf(stderr, "example-lua: frame_update failed (rv_err %lld)\n",
+                static_cast<long long>(call));
+        }
         return;
     }
+    frame_update_throttle_.on_success();
 
     // The script answers "should the disc stop" as frame_update's own return
     // value - that is release_ from here on, until frame_update runs again.
@@ -132,20 +181,19 @@ void rv_dmain::frame_update(float dt)
 
 void rv_dmain::frame_render()
 {
-    if (script_broken_) {
-        return;
-    }
-
     // Guaranteed non-null - see frame_update above.
     rv_cl *cl = rv_pdko_cl(pdk_);
     rv_cv *cv = rv_pdko_cv(pdk_);
     const int64_t call = rv_cl_script_call(cl, chunk_, "frame_render", 0, 0);
     if (call < 0) {
-        std::fprintf(stderr, "example-lua: frame_render failed (rv_err %lld)\n",
-            static_cast<long long>(call));
-        script_broken_ = true;
+        // No latch here either - see frame_update above.
+        if (frame_render_throttle_.should_log(call)) {
+            std::fprintf(stderr, "example-lua: frame_render failed (rv_err %lld)\n",
+                static_cast<long long>(call));
+        }
         return;
     }
+    frame_render_throttle_.on_success();
 
     // The script only FILLS the frame (pdk.cv_frame_configure/cv_frame_put,
     // see scripts/example-lua.lua) - closing it stays in C++, the same shape
