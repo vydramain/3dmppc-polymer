@@ -239,12 +239,29 @@ script error would send the developer looking in the wrong place.
 | `disc.toml` manifest | Yes | Nobody automatically - it is read once, at construction |
 | `[budget.*]` values | Yes | Nobody automatically - budgets are consumed once, at construction |
 
-## Fixtures
+## How this is checked
 
-[`tests/dev_runtime/fixtures/`](../tests/dev_runtime/fixtures/) holds one
-minimal entry chunk per acceptance case, mapped to the `error=` token (or
-lack of one) it is meant to prove; see
-[its README](../tests/dev_runtime/fixtures/README.md) for the table. That
-mapping is the source of truth this document agrees with - if the two ever
-disagree, the fixtures README wins, because it is the one an acceptance run
-actually executes against.
+The acceptance run for all of the above is developer-side and deliberately
+NOT in this repository: it drives the shipped binary from outside, the way an
+editor does, and a console is not the place to keep the thing that tests it.
+The console carries no test code and no self-checks.
+
+What such a run has to prove, case by case, is the table of `error=` tokens
+above plus these, which are the claims most likely to rot silently:
+
+| Claim | How it is shown |
+| --- | --- |
+| `--dev` changes nothing on its own | the same disc, with and without it, dumps the identical frame |
+| an archive and an unpacked directory are one machine | the same sources, both media, identical frame |
+| time only moves when told | several `status` reads across real seconds hold one frame number |
+| `step` is exactly one frame | three `step` requests in one write give three frames and three answers |
+| a refusal keeps the running code | `entry_revision` and `entry_hash` unchanged after each refusal |
+| state survives a swap | a counter in the state table continues instead of restarting |
+| a refreshed texture reaches the next frame | the file replaced on disk under the running console changes the dumped pixels |
+| repeated reloads accumulate nothing | `chunks` constant and `lua_used` back to a plateau after a `gc` |
+| a paused console cannot be trapped | SIGTERM ends it, by the ordinary path |
+| the Pause key stops the machine | a real key event, injected at the evdev level, with the window present |
+
+The last two cannot be shown headless, and the key one cannot be shown at all
+without a window: a run that cannot exercise a claim has to say so rather than
+count it as passed.
