@@ -91,6 +91,21 @@ int rv_pboot_run(int argc, char **argv)
         return 2;
     }
 
+    // --paused stops the loop before frame 0, so something has to be able to
+    // start it again. There are exactly two things that can: a command on the
+    // development channel, and the Pause key, which needs a window to arrive
+    // through. A run with neither would stop and stay stopped with no way out
+    // but a signal - refused here rather than delivered as a hang, and checked
+    // only now because it depends on the resolved platform and cv slot.
+    const bool pause_can_be_lifted =
+        args.dev || (slots.platform == rv_pcplatform_impl::sdl3 && slots.cv != rv_pccv_impl::null);
+    if (args.loop_paused && !pause_can_be_lifted) {
+        rv_console_print_error(
+            "--paused would never be lifted: this mode has no window for the pause key, "
+            "and --dev was not given");
+        return 2;
+    }
+
     // Prepare the mode and learn the machine before any disc code, any
     // archive and any allocation.
     rv_pboot_mode_info machine;

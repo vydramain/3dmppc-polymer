@@ -22,6 +22,7 @@ Run from the repository root:  python3 tests/dev_runtime/check_pause_key.py
 
 import fcntl
 import os
+import shutil
 import struct
 import subprocess
 import sys
@@ -52,12 +53,17 @@ def record(name, ok, detail=""):
 
 
 class VirtualKeyboard:
-    """One virtual keyboard that can press exactly one key."""
+    """A virtual keyboard the compositor will accept as one."""
 
     def __init__(self):
         self.fd = os.open("/dev/uinput", os.O_WRONLY | os.O_NONBLOCK)
         fcntl.ioctl(self.fd, UI_SET_EVBIT, EV_KEY)
-        for key in (KEY_PAUSE, KEY_ESC):
+        # A FULL key range, not just the two keys this needs. libinput decides
+        # what a device IS from the keys it advertises: a device offering two
+        # codes is not classified as a keyboard, and the compositor then routes
+        # nothing from it - which looks exactly like a focus problem and is not
+        # one. Advertising the ordinary range makes it an ordinary keyboard.
+        for key in range(KEY_ESC, 128):
             fcntl.ioctl(self.fd, UI_SET_KEYBIT, key)
         # struct uinput_setup: input_id{bustype, vendor, product, version},
         # name[80], ff_effects_max. BUS_USB so the compositor treats it as an
@@ -116,10 +122,15 @@ class Console:
         self.next_id = 1
         time.sleep(1.5)  # let the window come up and take focus
 
-    def status(self):
+    def ask_ok(self, verb):
+        return self.status(verb)
+
+    def status(self, verb=b"status"):
         rid = self.next_id
         self.next_id += 1
-        self.proc.stdin.write(b"%d status\n" % rid)
+        if isinstance(verb, str):
+            verb = verb.encode()
+        self.proc.stdin.write(b"%d %s\n" % (rid, verb))
         self.proc.stdin.flush()
         deadline = time.time() + 10
         while time.time() < deadline:
@@ -127,7 +138,7 @@ class Console:
             if not line:
                 break
             if line.startswith("%d " % rid):
-                out = {}
+                out = {"_raw": line}
                 for token in line.split(" ")[1:]:
                     if "=" in token:
                         key, value = token.split("=", 1)
@@ -146,6 +157,102 @@ class Console:
         if self.proc.poll() is None:
             self.proc.kill()
             self.proc.wait(timeout=5)
+
+
+def read_ppm(path):
+    """(width, height, pixels) from a binary PPM. magick writes them; parsing
+    one is six lines, which is cheaper than a dependency."""
+    data = open(path, "rb").read()
+    at = [0]
+
+    def token():
+        while data[at[0]:at[0] + 1].isspace():
+            at[0] += 1
+        start = at[0]
+        while not data[at[0]:at[0] + 1].isspace():
+            at[0] += 1
+        return data[start:at[0]]
+
+    assert token() == b"P6"
+    width, height = int(token()), int(token())
+    token()
+    at[0] += 1
+    return width, height, memoryview(data)[at[0]:]
+
+
+def check_pause_overlay_is_drawn():
+    """A stopped console must SAY it is stopped.
+
+    Checked by looking at the window, because that is the only place the answer
+    exists: the overlay is drawn into a copy and presented, so it deliberately
+    does not appear in --dump-frame, and the disc's own last frame stays exactly
+    what the disc drew.
+    """
+    if not (shutil.which("spectacle") and shutil.which("magick")):
+        print("SKIP D03: needs spectacle and magick to look at the window.")
+        return
+    log = open("/tmp/mppc-overlay.log", "w+b")
+    proc = subprocess.Popen([CONSOLE, "--paused", "--scale", "3", "--mode_ca=null",
+                             "-m", "/tmp/mppc-overlay.card", DISC],
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=log)
+    shot = "/tmp/mppc-overlay.png"
+    try:
+        time.sleep(3.0)
+        # The active window, not the whole screen: the console window is the one
+        # that just opened, and hunting for it inside a desktop-sized image is
+        # work with no payoff.
+        subprocess.run(["spectacle", "-b", "-n", "-a", "-o", shot],
+                       capture_output=True, timeout=60)
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+    if not os.path.exists(shot):
+        record("D03 a stopped console says CONSOLE PAUSED on screen", False, "no screenshot")
+        return
+
+    subprocess.run(["magick", shot, "/tmp/mppc-overlay.ppm"], capture_output=True, timeout=60)
+    width, height, pixels = read_ppm("/tmp/mppc-overlay.ppm")
+    if width < 600 or height < 450:
+        record("D03 a stopped console says CONSOLE PAUSED on screen", False,
+               "captured %dx%d - that is not the console window" % (width, height))
+        return
+
+    # The console's own picture first, not the whole grab: the window
+    # DECORATION has white in it (the title text and the close button), and
+    # including that would widen any bounding box until the shape test meant
+    # nothing. Paused at frame 0 the content is pure black except the label, so
+    # the exactly-black pixels ARE the content rectangle.
+    black = [(x, y) for y in range(height) for x in range(0, width, 2)
+             if pixels[(y * width + x) * 3] == 0 and pixels[(y * width + x) * 3 + 1] == 0
+             and pixels[(y * width + x) * 3 + 2] == 0]
+    if len(black) < 1000:
+        record("D03 a stopped console says CONSOLE PAUSED, centred in its own picture", False,
+               "no black content area found in the grab")
+        return
+    cx0, cx1 = min(p[0] for p in black), max(p[0] for p in black)
+    cy0, cy1 = min(p[1] for p in black), max(p[1] for p in black)
+
+    ink = [(x, y) for y in range(cy0, cy1 + 1) for x in range(cx0, cx1 + 1, 2)
+           if pixels[(y * width + x) * 3] > 200 and pixels[(y * width + x) * 3 + 1] > 200
+           and pixels[(y * width + x) * 3 + 2] > 200]
+    if not ink:
+        record("D03 a stopped console says CONSOLE PAUSED, centred in its own picture", False,
+               "no white pixels inside the console picture")
+        return
+    x0, x1 = min(p[0] for p in ink), max(p[0] for p in ink)
+    y0, y1 = min(p[1] for p in ink), max(p[1] for p in ink)
+    band = (x1 - x0) > 3 * (y1 - y0)   # a line of text, not a blob
+    mid_y = (cy0 + cy1) / 2
+    mid_x = (cx0 + cx1) / 2
+    centred = (abs((y0 + y1) / 2 - mid_y) < (cy1 - cy0) * 0.12
+               and abs((x0 + x1) / 2 - mid_x) < (cx1 - cx0) * 0.12)
+    record("D03 a stopped console says CONSOLE PAUSED, centred in its own picture",
+           band and centred and len(ink) > 200,
+           "%d px, %dx%d band; picture %dx%d at (%d,%d)"
+           % (len(ink), x1 - x0, y1 - y0, cx1 - cx0, cy1 - cy0, cx0, cy0))
 
 
 def check_audio_pacing_across_a_pause():
@@ -218,35 +325,19 @@ def main():
 
     if check_audio_pacing_across_a_pause() != 0:
         return 1
+    check_pause_overlay_is_drawn()
 
     keyboard = VirtualKeyboard()
-
-    # PRECONDITION, and not a formality: a synthetic key only reaches an
-    # application if the compositor routes it there, which means the console's
-    # window must hold keyboard focus. Nothing in this script can take focus -
-    # there is no portable way to ask for it - so the state of the desktop
-    # decides whether this check can run at all.
-    #
-    # It is probed with Escape, which this console quits on. If Escape does not
-    # end the process, keys are not arriving, and every check below would pass
-    # or fail for a reason that has nothing to do with the Pause key. A run that
-    # cannot tell those apart must SKIP, not report.
-    probe = Console(probe=True)
-    keyboard.tap(KEY_ESC)
-    time.sleep(1.5)
-    reached = probe.proc.poll() is not None
-    probe.close()
-    if not reached:
-        keyboard.close()
-        print("SKIP: synthetic keys are not reaching the console window.")
-        print("      The window does not hold keyboard focus in this session, so the")
-        print("      Pause key cannot be exercised here. Run this from a desktop")
-        print("      session where the new window is focused, or click the window")
-        print("      once after it opens and run again.")
-        return 2
-
     console = Console()
     try:
+        # The MECHANISM first, over the channel. If this fails, nothing below
+        # can be blamed on key delivery.
+        console.ask_ok("pause")
+        by_channel = console.status()
+        console.ask_ok("resume")
+        record("P00 the pause mechanism itself works over the channel",
+               by_channel.get("mode") == "paused", by_channel["_raw"])
+
         first = console.status()
         time.sleep(0.5)
         second = console.status()
@@ -260,10 +351,23 @@ def main():
         stopped = console.status()
         time.sleep(0.6)
         held = console.status()
+        arrived = stopped.get("mode") == "paused"
+        if not arrived:
+            # P00 proved the pause works, so what failed here is the key not
+            # reaching the window. This script cannot tell a platform-layer
+            # defect from a compositor that will not route a synthetic device,
+            # and it must not guess: it says so and fails, because an
+            # unprovable claim is not a passing one.
+            print("UNPROVEN P02: the pause works (P00) but the injected Pause key did not")
+            print("         arrive. Either the platform layer is not reading it, or this")
+            print("         compositor does not route a virtual input device to the window.")
+            print("         Press the real key by hand to tell the two apart.")
         record("P02 one tap of the Pause key stops the console",
-               stopped.get("mode") == "paused" and held.get("frame") == stopped.get("frame"),
+               arrived and held.get("frame") == stopped.get("frame"),
                "mode %s, frame %s -> %s" % (stopped.get("mode"), stopped.get("frame"),
                                             held.get("frame")))
+        if not arrived:
+            return 1
 
         keyboard.tap()
         time.sleep(0.3)

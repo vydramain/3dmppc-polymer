@@ -130,12 +130,16 @@ struct rv_pconsole_params {
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
 
-    // The development runtime. `dev` is the only thing that makes the console
-    // read stdin at all; `dev_paused` stops it before frame 0. Both default to
-    // false, so a run that was not asked to be controllable is byte for byte
-    // the run it was before this existed.
+    // `dev` is the only thing that makes the console read stdin at all. It
+    // defaults to false, so a run that was not asked to be controllable is byte
+    // for byte the run it was before this existed.
     bool dev = false;
-    bool dev_paused = false;
+
+    // Start with the frame loop stopped. Named for the loop rather than for the
+    // development runtime: stopping the machine is an operator's act, the Pause
+    // key drives the same flag, and neither has anything to do with whether a
+    // command channel is open.
+    bool loop_paused = false;
 
     // Does the mounted medium reflect files that can change while the console
     // runs? True only for a directory medium. It decides whether the file form

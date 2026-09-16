@@ -97,6 +97,13 @@ private:
     // on the spot.
     int64_t step_reply_id_ = -1;
 
+    // The picture a stopped console presents: the last frame dimmed, with
+    // CONSOLE PAUSED across it. A copy, so the disc's own last frame - and
+    // therefore --dump-frame - stays exactly what the disc drew. Allocated the
+    // first time the machine is actually stopped, and never in a headless run.
+    std::vector<uint32_t> pause_overlay_;
+    bool pause_overlay_valid_ = false;
+
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
     bool dev_close_logged_ = false;

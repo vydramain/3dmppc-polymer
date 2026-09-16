@@ -53,13 +53,19 @@ struct rv_pboot_args {
     bool fixed_step = false;
     bool mute = false;
 
-    // The development runtime. `dev` opens the command channel on stdin (see
-    // rv_pconsole/platform/rv_pcdevchan.hpp); `dev_paused` additionally stops
-    // the machine before frame 0, so the first controllable moment comes before
-    // the disc has drawn anything. `dev_paused` without `dev` is refused rather
-    // than quietly ignored: there would be nothing left that could resume it.
+    // `dev` opens the command channel on stdin (see
+    // rv_pconsole/platform/rv_pcdevchan.hpp).
     bool dev = false;
-    bool dev_paused = false;
+
+    // Start with the frame loop STOPPED, before frame 0, so the first
+    // controllable moment comes before the disc has drawn anything.
+    //
+    // Named for the loop and not for the development runtime, because the pause
+    // is not a development feature: the Pause key drives the same stop in an
+    // ordinary run. What --paused needs is only a way to be LIFTED - a command
+    // channel or a window that can receive the key - and boot refuses the
+    // combination that has neither.
+    bool loop_paused = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
     std::string medium_path;

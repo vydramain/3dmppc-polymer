@@ -193,7 +193,7 @@ def check_asset_changes_the_picture():
                "the baker refused: " + baked.stderr.decode(errors="replace").strip()[:120])
         return
 
-    session = Session(disc, extra=["--dev-paused"], dump=after)
+    session = Session(disc, extra=["--paused"], dump=after)
     try:
         session.ask("step")  # one frame with the texture the disc booted with
         # Now the file changes under the running console, which is the one thing
@@ -267,10 +267,10 @@ def check_media_agree(base):
 # --- A04/A05/A06: time only moves when it is told to -----------------------
 
 def check_frame_control():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         first = session.fields("status")
-        record("A04 --dev-paused stops before frame 0",
+        record("A04 --paused stops before frame 0",
                first.get("frame") == "0" and first.get("mode") == "paused",
                first["_raw"])
 
@@ -310,7 +310,7 @@ def check_frame_control():
 
 def check_reload_and_state():
     dump = os.path.join(work, "reloaded.ppm")
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"], dump=dump)
+    session = Session(DISC_ARCHIVE, extra=["--paused"], dump=dump)
     try:
         session.ask("step")
         session.ask("step")
@@ -354,7 +354,7 @@ REFUSALS = [
 
 
 def check_refusals():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         session.ask("step")
         anchor = session.fields("status")
@@ -381,7 +381,7 @@ def check_refusals():
 # --- A10: reading state may not run script code ---------------------------
 
 def check_get_types():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         session.ask("step")
         missing = session.fields("get definitely_not_there")
@@ -399,7 +399,7 @@ def check_get_types():
 # --- A11: repeated reloads must not accumulate ----------------------------
 
 def check_no_accumulation(rounds=60):
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         session.ask("step")
         session.ask("reload entry", fixture("ok_a.lua"))
@@ -461,7 +461,7 @@ def check_legacy_disc():
         record("A12 a disc without attach still boots", False, "no %s" % DISC_DIR)
         return
     disc = make_dir_copy("legacy.discdir", LEGACY_CHUNK)
-    session = Session(disc, extra=["--dev-paused"])
+    session = Session(disc, extra=["--paused"])
     try:
         status = session.fields("status")
         record("A12 a disc without attach still boots, and says it cannot reload",
@@ -482,7 +482,7 @@ def check_file_form():
         record("A13 the file form re-reads a live directory", False, "no %s" % DISC_DIR)
         return
     disc = make_dir_copy("live.discdir")
-    session = Session(disc, extra=["--dev-paused"])
+    session = Session(disc, extra=["--paused"])
     try:
         session.ask("step")
         before = session.fields("status")
@@ -499,7 +499,7 @@ def check_file_form():
     finally:
         session.close()
 
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         fixed = session.fields("status")
         refused = session.fields("reload entry")
@@ -513,7 +513,7 @@ def check_file_form():
 # --- A15/A16: the protocol under abuse ------------------------------------
 
 def check_protocol_abuse():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         unknown = session.fields("definitely-not-a-verb")
         record("A15 an unknown verb is an error, not a disconnect",
@@ -536,7 +536,7 @@ def check_protocol_abuse():
 
     # A payload that never finishes. The channel must refuse and close rather
     # than read the next command out of the middle of a script.
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         session.proc.stdin.write(b"1 reload entry bytes 4096\nonly-a-few-bytes")
         session.proc.stdin.flush()
@@ -559,7 +559,7 @@ def check_protocol_abuse():
 # --- A18: a game hook that breaks after the reload succeeded ---------------
 
 def check_game_error_recovery():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         session.ask("step")
         accepted = session.fields("reload entry", fixture("update_throws.lua"))
@@ -601,7 +601,7 @@ def check_asset_reload():
 
     # An archive cannot change under a running console, so the request is
     # refused rather than answered with a reload of identical bytes.
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     try:
         fixed = session.fields("asset example-sprite.mppctex")
         record("A19 an archive refuses an asset refresh",
@@ -613,7 +613,7 @@ def check_asset_reload():
         record("A19b asset refresh on a live directory", False, "no %s" % DISC_DIR)
         return
     disc = make_dir_copy("asset.discdir")
-    session = Session(disc, extra=["--dev-paused"])
+    session = Session(disc, extra=["--paused"])
     try:
         session.ask("step")
         unknown = session.fields("asset definitely-not-an-entry")
@@ -658,7 +658,7 @@ def check_asset_reload():
 # --- A17: the way out -----------------------------------------------------
 
 def check_quit():
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     reply = session.fields("quit")
     # WAIT for it. Killing the child here would prove nothing: the point of the
     # check is that the console leaves by its own ordinary path - through
@@ -684,7 +684,7 @@ def check_quit_is_not_trapped_behind_a_pause():
     only way out of a pause would be the thing that caused it.
     """
     import signal
-    session = Session(DISC_ARCHIVE, extra=["--dev-paused"])
+    session = Session(DISC_ARCHIVE, extra=["--paused"])
     stopped = session.fields("status")
     session.proc.send_signal(signal.SIGTERM)
     try:

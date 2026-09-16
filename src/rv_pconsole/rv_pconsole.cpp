@@ -11,6 +11,7 @@
 #include "pdk/cl/rv_cl.h"
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_font/rv_font_data.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
 
@@ -60,6 +61,83 @@ const char *rv_pcpacing_name(rv_pcpacing pacing)
 }
 
 using rv_pcclock = std::chrono::steady_clock;
+
+// What a stopped machine says. The console's own words, not the disc's - which
+// is why it is spelled CONSOLE and not GAME: what stopped is the frame loop,
+// and the disc is not paused so much as simply not being called.
+constexpr std::string_view RV_PCONSOLE_PAUSE_LABEL = "CONSOLE PAUSED";
+constexpr int RV_PCONSOLE_PAUSE_LABEL_SCALE = 2;
+
+// One line of pdklib's bitmap font, straight into an ARGB buffer.
+//
+// Only the DATA is borrowed from pdklib, not its text drawer: that one paints
+// through rv_cv primitives and needs the font uploaded into virtual VRAM, which
+// is a disc's job and would mean the console allocating video memory behind the
+// disc's back to print one word. Here the glyphs are what they are on the page -
+// eight row bytes, top row first, high bit leftmost - and the destination is the
+// host's pixel buffer, so a blit is the whole of it.
+void rv_pcblit_text(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0,
+    std::string_view text, int scale, uint32_t argb)
+{
+    int64_t pen = x0;
+    for (const char c : text) {
+        const int glyph = (c >= 32 && c <= 126) ? c - 32 : rv_pdklib::rv_font_notdef_index;
+        const uint8_t *rows = &rv_pdklib::rv_font_bits[glyph * rv_pdklib::rv_font_cell_height];
+        for (int row = 0; row < rv_pdklib::rv_font_cell_height; ++row) {
+            for (int column = 0; column < rv_pdklib::rv_font_ink_width; ++column) {
+                if ((rows[row] & (0x80u >> column)) == 0) {
+                    continue;
+                }
+                for (int sy = 0; sy < scale; ++sy) {
+                    for (int sx = 0; sx < scale; ++sx) {
+                        const int64_t px = pen + column * scale + sx;
+                        const int64_t py = y0 + row * scale + sy;
+                        // Clipped rather than assumed to fit: the label is
+                        // sized for 320x240 and a disc may declare a smaller
+                        // screen.
+                        if (px >= 0 && px < width && py >= 0 && py < height) {
+                            dst[py * width + px] = argb;
+                        }
+                    }
+                }
+            }
+        }
+        pen += rv_pdklib::rv_font_cell_width * scale;
+    }
+}
+
+// The picture a stopped console presents: the last frame, dimmed, with the
+// label across the middle.
+//
+// A COPY, never the disc's own framebuffer. Drawing into that would make the
+// pause destructive - the text would end up in --dump-frame, and a second pause
+// would print over the first - and the disc's last frame has to stay exactly
+// what the disc drew.
+void rv_pcbuild_pause_overlay(std::vector<uint32_t> &out, const uint32_t *frame,
+    int64_t width, int64_t height)
+{
+    const std::size_t pixels = static_cast<std::size_t>(width * height);
+    out.assign(pixels, 0xFF000000u);
+    if (frame != nullptr) {
+        for (std::size_t i = 0; i < pixels; ++i) {
+            // Halved, not blacked out. The developer still needs to see WHAT is
+            // on screen when they stopped it; the dimming is what keeps white
+            // text readable over a bright frame.
+            out[i] = 0xFF000000u | ((frame[i] >> 1) & 0x007F7F7Fu);
+        }
+    }
+
+    // The font's three trailing columns are letter spacing, so the last cell
+    // carries blank width that must come off before centring - otherwise the
+    // line sits a few pixels left of centre.
+    const int scale = RV_PCONSOLE_PAUSE_LABEL_SCALE;
+    const int64_t text_width =
+        static_cast<int64_t>(RV_PCONSOLE_PAUSE_LABEL.size()) * rv_pdklib::rv_font_cell_width * scale -
+        (rv_pdklib::rv_font_cell_width - rv_pdklib::rv_font_ink_width) * scale;
+    const int64_t text_height = rv_pdklib::rv_font_ink_height * scale;
+    rv_pcblit_text(out.data(), width, height, (width - text_width) / 2,
+        (height - text_height) / 2, RV_PCONSOLE_PAUSE_LABEL, scale, 0xFFFFFFFFu);
+}
 
 } // namespace
 } // namespace rv_3dmppc
@@ -176,14 +254,19 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
 
     // The channel opens AFTER disc_initialize: a run that refused to start must
     // not have put stdin into non-blocking mode and announced a protocol on
-    // stdout. --dev-paused takes effect from here, which means frame 0 has not
-    // run yet but the disc's own boot hooks have - it is a controllable first
+    // stdout. --paused takes effect just below, which means frame 0 has not run
+    // yet but the disc's own boot hooks have - it is a controllable first
     // moment, not a debugger attached before initialisation.
     if (params_.dev) {
         dev_.emplace();
-        paused_ = params_.dev_paused;
-        RV_LOG_INFO("pconsole", "development runtime armed ({})",
-            paused_ ? "stopped before frame 0" : "running");
+        RV_LOG_INFO("pconsole", "development runtime armed");
+    }
+    // Independent of the channel: --paused is about the loop, and the Pause key
+    // can lift it with no channel at all.
+    paused_ = params_.loop_paused;
+    if (paused_) {
+        RV_LOG_INFO("pconsole", "stopped before frame 0; lift it with the pause key{}",
+            dev_ ? " or a resume/step request" : "");
     }
 
     uint64_t frames = 0;
@@ -256,13 +339,24 @@ int64_t rv_3dmppc::rv_pconsole::disc_run(rv_de *disc)
         // while stopped - and the quit check above runs first every time, so
         // Ctrl+C and the close button are never trapped behind a pause.
         if (paused_ && step_reply_id_ < 0) {
-            if (const uint32_t *argb = cv_->last_frame()) {
-                platform_.window().present(argb);
+            // Built once per pause, not once per 2 ms: the picture cannot change
+            // while no frame is running. A headless run builds nothing at all -
+            // there would be nowhere to put it.
+            if (platform_.window().presenting()) {
+                if (!pause_overlay_valid_) {
+                    rv_pcbuild_pause_overlay(pause_overlay_, cv_->last_frame(),
+                        cv_->screen_width(), cv_->screen_height());
+                    pause_overlay_valid_ = true;
+                }
+                platform_.window().present(pause_overlay_.data());
             }
             std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
             left_pause = true;
             continue;
         }
+        // A frame is about to run, so whatever is on screen is about to stop
+        // being what a pause would show.
+        pause_overlay_valid_ = false;
         if (left_pause) {
             // Re-base the clock. A deadline computed before the pause is now
             // far in the past, and the clock-paced branch below would read that

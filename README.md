@@ -106,7 +106,7 @@ the compiler they drive.
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
 | `--dev` | open the development command channel on stdin, answered on stdout; without it the console reads no commands at all |
-| `--dev-paused` | additionally stop the machine before frame 0; requires `--dev`, refused without it |
+| `--paused` | start with the frame loop stopped, before frame 0. Lift it with the **Pause** key, or with a resume/step request when `--dev` is given; a mode that offers neither is refused |
 
 Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
 

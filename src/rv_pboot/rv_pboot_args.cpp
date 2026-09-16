@@ -97,7 +97,9 @@ void rv_console_print_usage(std::FILE *stream)
         "                       answer on stdout: pause, step, reload of the\n"
         "                       lua entry and state inspection. Without it the\n"
         "                       console reads no commands at all.\n"
-        "      --dev-paused     Start stopped, before frame 0. Requires --dev.\n"
+        "      --paused         Start with the frame loop stopped, before frame\n"
+        "                       0. Lift it with the Pause key, or with the\n"
+        "                       resume/step requests when --dev is given.\n"
         "      --mode=NAME      Preset: the platform plus one implementation\n"
         "                       per slot. Built in: %s. Default:\n"
         "                       default.\n"
@@ -142,7 +144,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cd", required_argument, 0, 'c'},
                                         {"mode_cm", required_argument, 0, 'k'},
                                         {"dev", no_argument, 0, 'E'},
-                                        {"dev-paused", no_argument, 0, 'Y'},
+                                        {"paused", no_argument, 0, 'Y'},
                                         {0, 0, 0, 0}};
 
     int c;
@@ -158,7 +160,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 args.dev = true;
                 break;
             case 'Y':
-                args.dev_paused = true;
+                args.loop_paused = true;
                 break;
             case 'p':
                 args.mode_platform = optarg;
@@ -219,16 +221,9 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
         }
     }
 
-    // --dev-paused has no meaning on its own: the only thing that could lift
-    // that pause is a command, and without --dev nothing is listening for one.
-    // Refused here rather than ignored, because a run that silently starts
-    // unpaused is the opposite of what was asked for.
-    if (args.dev_paused && !args.dev) {
-        rv_3dmppc::rv_console_print_error("--dev-paused needs --dev: nothing would be able to resume the run");
-        rv_3dmppc::rv_console_print_usage(stderr);
-        exit_code = 2;
-        return false;
-    }
+    // Whether --paused can be lifted at all depends on the platform and the cv
+    // slot, which are not resolved yet - so that refusal lives in rv_pboot_run,
+    // not here. This file only collects what getopt produced.
 
     // Which slot's implementation actually resolves --mode/--mode_<slot> to,
     // and whether cv ends up null (so --dump-frame must be refused), is not

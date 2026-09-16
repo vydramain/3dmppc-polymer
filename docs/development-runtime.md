@@ -14,7 +14,7 @@ a shipped binary is not controllable through this channel by construction.
   stdout is reserved for protocol lines from here on, and Lua's `print` is
   routed into the logger for exactly this reason: a script that printed to
   stdout would splice text into the answer stream.
-- `--dev-paused` additionally stops the machine before frame 0. It requires
+- `--paused` additionally stops the machine before frame 0. It requires
   `--dev` and is refused without it - there would be nothing listening for
   the command that could ever lift the pause.
 
@@ -75,6 +75,17 @@ sees a window close, and it drives the same pause state the `pause`/`resume`
 requests drive when `--dev` is open. The two ways of pausing compose: the
 key can pause a `--dev` run and the channel can resume it, or the other way
 around - there is only one pause flag, not one per input source.
+
+A stopped console says so on screen: the last frame it drew, dimmed by half,
+with `CONSOLE PAUSED` across the middle. It is drawn into a COPY of that
+frame, so the disc's own picture is untouched and `--dump-frame` still writes
+exactly what the disc drew, not what the operator was looking at. A headless
+run builds no overlay at all - there would be nowhere to present it.
+
+`--paused` starts the loop already stopped, before frame 0. It needs a way to
+be lifted, and there are two: the Pause key, which needs a window, or a
+`resume`/`step` request, which needs `--dev`. A mode that offers neither is
+refused at boot rather than started and hung.
 
 One consequence worth knowing before it surprises a script: a run started
 with `--frames N` never reaches its frame budget while paused, because a
