@@ -52,6 +52,14 @@ void rv_console_print_usage(std::FILE *stream);
 struct rv_pboot_args {
     bool fixed_step = false;
     bool mute = false;
+
+    // The development runtime. `dev` opens the command channel on stdin (see
+    // rv_pconsole/platform/rv_pcdevchan.hpp); `dev_paused` additionally stops
+    // the machine before frame 0, so the first controllable moment comes before
+    // the disc has drawn anything. `dev_paused` without `dev` is refused rather
+    // than quietly ignored: there would be nothing left that could resume it.
+    bool dev = false;
+    bool dev_paused = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
     std::string medium_path;

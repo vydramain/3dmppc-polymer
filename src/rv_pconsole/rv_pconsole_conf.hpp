@@ -129,6 +129,20 @@ struct rv_pconsole_params {
     // ends. Empty = never. Devkit only - it is how "what did the console draw"
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
+
+    // The development runtime. `dev` is the only thing that makes the console
+    // read stdin at all; `dev_paused` stops it before frame 0. Both default to
+    // false, so a run that was not asked to be controllable is byte for byte
+    // the run it was before this existed.
+    bool dev = false;
+    bool dev_paused = false;
+
+    // Does the mounted medium reflect files that can change while the console
+    // runs? True only for a directory medium. It decides whether the file form
+    // of `reload` (re-read the entry from the drive) is answerable at all: in an
+    // archive the bytes cannot have changed, so re-reading them is not a
+    // refresh, it is a lie that costs a frame.
+    bool medium_live = false;
 };
 
 struct rv_pconsole_conf {
