@@ -54,8 +54,8 @@ later code reload has no other way to recover, since the console never
 calls `disc_initialize` again.
 
 That address is also what makes `M.asset_changed(name)` possible - the
-development runtime's asset-reload hook
-([`docs/development-runtime.md`](../../docs/development-runtime.md)). The
+development runtime's asset-reload hook (see "The development runtime" in the
+[project README](../../README.md)). The
 console re-reads a changed asset's bytes and tells the script its name; this
 script re-reads it again itself (through the same drive) and re-uploads it
 to the address remembered in `state`, refusing first if the new bytes no

@@ -119,11 +119,122 @@ them. A script's own `print` is routed into the same logger, on stderr, not
 stdout — stdout is reserved for the development channel's protocol lines
 (see below) and carries nothing when `--dev` is off.
 
-With `--dev`, stdin becomes a line-based command channel and stdout answers
-it one line per request: pause, step, resume, reload the entry script, read
-back a field of its state, force a collection, or quit — see
-[`docs/development-runtime.md`](docs/development-runtime.md) for the
-protocol, its guarantees, and what still needs a process restart.
+---
+
+## The development runtime
+
+The console can be driven while it runs: stopped at a frame boundary, stepped
+one frame at a time, and — the point of the whole thing — handed replacement
+Lua for the disc's entry script without losing the game's state.
+
+### Stopping it
+
+The **Pause** key stops and starts the frame loop in any mode, with no `--dev`
+needed. It is an operator's act on the machine, the same class of input as
+closing the window: the disc never sees the key, and what stops is the frame
+loop, not something inside the game. A stopped console says so on screen — the
+last frame it drew, dimmed, with `CONSOLE PAUSED` across the middle — and
+creates no frames at all, so a run started with `--frames N` never reaches its
+budget while it is stopped.
+
+### The channel
+
+With `--dev`, stdin becomes a line protocol and stdout answers it, one line
+per request, in request order:
+
+```
+<id> <verb> [args...]        the id is yours; the console echoes it back
+<id> ok key=value ...
+<id> err error=<token> effects=<0|1> msg=<hex>
+```
+
+A request carries bytes by ending its header with `bytes <n>`: exactly `n`
+bytes follow the newline with no terminator, and the next header starts right
+after them. Any value that could hold a space, a newline or a NUL travels as
+lowercase hex, which is why the protocol needs no escaping rules at all.
+
+| Request | What it does |
+| --- | --- |
+| `status` | frame, mode, both hashes, script heap, error count |
+| `pause` / `resume` | stop at the next frame boundary / carry on |
+| `step` | run exactly one frame, then stay stopped; answered *after* that frame |
+| `reload entry` | re-read the entry script off the drive (directory medium only) |
+| `reload entry bytes <n>` | the next `n` bytes are the candidate script |
+| `asset <name>` | re-read one asset and tell the entry chunk it changed (directory medium only) |
+| `get <key>` | read one top-level field of the persistent state table |
+| `gc` | full collection, then report the heap |
+| `quit` | shut down by the ordinary path |
+
+`entry` is a literal selector, not a name: this version replaces the entry
+chunk and nothing else.
+
+### A session
+
+```sh
+mppcburner build mppcdiscs/example-lua --unpacked build/example-lua.discdir --baker …
+3dmppc --dev --paused build/example-lua.discdir
+```
+
+```
+1 status                    -> 1 ok protocol=1 frame=0 mode=paused entry_revision=0 …
+2 step                      -> 2 ok completed=1 frame=1 mode=paused
+3 get frame_count           -> 3 ok found=1 type=number value=1
+                               … edit scripts/example-lua.lua in your editor …
+4 reload entry              -> 4 ok entry_revision=1 entry_hash=dac227b078e5407b
+5 step                      -> 5 ok completed=1 frame=2 mode=paused
+6 get frame_count           -> 6 ok found=1 type=number value=2   <- state survived
+7 resume                    -> 7 ok mode=running frame=2
+```
+
+An unpacked directory is what makes the file form work: `--unpacked` publishes
+the scripts as symlinks to your own sources, so an edit is visible through the
+drive at once. An archive cannot change under a running console, so the same
+request is refused there rather than answered with a reload of identical bytes
+— send the bytes instead.
+
+### What it promises, and what it does not
+
+A candidate becomes the running code only after all of it passes: it compiles,
+its body runs, it returns a table, that table has `attach`, and `attach(state)`
+returns `true`. A failure at any of those leaves the running code exactly where
+it was. **Code is atomic; effects are not** — once a candidate's body or its
+`attach` has run it may have written into the state table or called hardware,
+and nothing can take that back, which is what `effects=1` on an error answer
+says. `attach` returning `false, "reason"` is how a script refuses a state
+layout it cannot read: the console has no schema for that table and cannot
+detect the mismatch itself.
+
+Not offered: rolling back effects, hot-swapping C++, interrupting a hung game
+hook, interrupting a hung C or FFI call, or recovering a session after a
+restart.
+
+### What still needs a restart
+
+| Changed | Restart? | Who notices |
+| --- | --- | --- |
+| entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
+| an existing asset's bytes | no — `asset <name>` | the client; the chunk's `asset_changed` decides whether it took |
+| an asset added or removed | **yes** | nobody — the drive's name set is fixed at boot |
+| `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
+| `disc.toml`, any `[budget.*]` | **yes** | nobody — they are consumed once, at construction |
+
+### Error tokens
+
+Every `err` carries a stable token, so a client branches on that and never on
+the sentence. Framing: `protocol`, `payload_size`, `payload_timeout`. Machine:
+`no_machine`, `no_entry`, `not_reloadable`, `in_call`, `unsupported_medium`,
+`nomem`, `insn_ceiling`. A candidate: `compile`, `body`, `not_a_table`,
+`no_attach`, `attach`, `attach_refused`, `attach_contract`. An asset:
+`no_asset`, `no_asset_hook`, `asset_refused`, `asset`, `asset_contract`.
+
+A C API stack imbalance is deliberately not among them: that would be a bug in
+the console, not a fault in the script, and reporting it as a script error
+sends the developer looking in the wrong place.
+
+The state contract a script has to follow to be reloadable at all — what lives
+in the persistent table and what dies with the code — is in
+[`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md), next to
+the script that demonstrates it.
 
 ---
 
@@ -201,7 +312,6 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
 | [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
-| [`docs/development-runtime.md`](docs/development-runtime.md) | `--dev`: the pause/step/reload protocol, its guarantees, and what still needs a restart |
 
 ---
 
