@@ -43,6 +43,17 @@ public:
 
     int64_t script_call(int64_t handle, const char *fname, int64_t argc, int64_t retc) override;
 
+    // No VM, so there is nothing to reload and nothing to inspect. Each answers
+    // a refusal with a named phase rather than pretending to succeed: a console
+    // booted with --mode_cl=null and asked for a reload must say why, not report
+    // ok on a machine that never ran a script.
+    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
+        rv_pccl_reload_report &report) override;
+    int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
+    int64_t state_get(const char *key, rv_pccl_value &out) override;
+    int64_t state_collect(int64_t *used_out) override;
+    void script_status(rv_pccl_status &out) const override;
+
     bool valid() const override
     {
         return true;

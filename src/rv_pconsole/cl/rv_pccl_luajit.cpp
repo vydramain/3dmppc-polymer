@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 // THE ONLY file in the whole project that includes lua.hpp - if it shows up
@@ -26,6 +27,82 @@ namespace rv_3dmppc
 {
 namespace
 {
+// How many VM instructions a reload gets for its body and its attach(). Not a
+// timeout: a count hook cannot bound the parser, a C call or an FFI call, and
+// it says nothing about wall clock. What it does bound is the ordinary mistake
+// this ceiling exists for - a loop with no exit in code the developer is in the
+// middle of editing. Generous enough that a legitimately heavy attach (building
+// a large table) never meets it.
+constexpr int RV_PCCL_RELOAD_INSN_CEILING = 50 * 1000 * 1000;
+
+// FNV-1a, 64 bit. Identifies the bytes a chunk is running so `status` can say
+// "this is still the code you sent"; it is not a security claim and nothing
+// depends on it being hard to collide. rv_disc_hash is the ELF checksum and has
+// a different job - conflating them would mean one number answering two
+// questions.
+uint64_t rv_pccl_fnv1a(const void *bytes, int64_t size)
+{
+    const unsigned char *p = static_cast<const unsigned char *>(bytes);
+    uint64_t hash = 0xcbf29ce484222325ULL;
+    for (int64_t i = 0; i < size; ++i) {
+        hash ^= p[i];
+        hash *= 0x100000001b3ULL;
+    }
+    return hash;
+}
+
+// Installs a hook and puts the PREVIOUS one back, rather than clearing it. That
+// is what makes the guard safe to nest: reload arms the ceiling around both the
+// body and attach(), and the raise_ inside it arms its own - the inner
+// restoration must not disarm the outer one.
+class rv_pccl_insn_guard
+{
+public:
+    rv_pccl_insn_guard(lua_State *L, lua_Hook hook, int count)
+        : L_(L)
+        , old_hook_(lua_gethook(L))
+        , old_mask_(lua_gethookmask(L))
+        , old_count_(lua_gethookcount(L))
+    {
+        lua_sethook(L_, hook, LUA_MASKCOUNT, count);
+    }
+    ~rv_pccl_insn_guard()
+    {
+        lua_sethook(L_, old_hook_, old_mask_, old_count_);
+    }
+    rv_pccl_insn_guard(const rv_pccl_insn_guard &) = delete;
+    rv_pccl_insn_guard &operator=(const rv_pccl_insn_guard &) = delete;
+
+private:
+    lua_State *L_;
+    lua_Hook old_hook_;
+    int old_mask_;
+    int old_count_;
+};
+
+// Balanced +1/-1 around anything that runs script code, so that a reload or a
+// free arriving from the development channel can refuse while the interpreter
+// is still on the stack. A guard object and not two bare statements: the pcall
+// between them has an early-return path.
+class rv_pccl_call_guard
+{
+public:
+    explicit rv_pccl_call_guard(int &depth)
+        : depth_(depth)
+    {
+        ++depth_;
+    }
+    ~rv_pccl_call_guard()
+    {
+        --depth_;
+    }
+    rv_pccl_call_guard(const rv_pccl_call_guard &) = delete;
+    rv_pccl_call_guard &operator=(const rv_pccl_call_guard &) = delete;
+
+private:
+    int &depth_;
+};
+
 // luaL_openlibs' own recipe (lib_init.c): only what this console allows.
 void open_lib(lua_State *L, const char *name, lua_CFunction f)
 {
@@ -109,12 +186,25 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     open_lib(L_, LUA_STRLIBNAME, luaopen_string);
     open_lib(L_, LUA_MATHLIBNAME, luaopen_math);
     open_lib(L_, LUA_TABLIBNAME, luaopen_table);
+    // print() must not reach stdout: that stream carries the development
+    // channel's answers, and a chunk printing there would splice its text into
+    // a reply the editor is parsing. Replaced unconditionally rather than only
+    // under --dev, so a script behaves the same way in both runs and nobody
+    // debugs a difference that exists only when the channel is open.
+    lua_pushcfunction(L_, print_to_log);
+    lua_setglobal(L_, "print");
     if (!bootstrap_pdk()) {
         RV_LOG_ERR("pccl", "pdk bootstrap failed, lua machine going down");
         lua_close(L_);
         L_ = nullptr; // same shape as a failed lua_newstate: valid() below goes false
         return;
     }
+    // The persistent state table. Created here, before any chunk exists, and
+    // held in the registry until the machine goes down - that lifetime IS the
+    // "code != state" guarantee, and it is the reason a reload cannot take the
+    // game's data with it.
+    lua_newtable(L_);
+    state_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
     RV_LOG_INFO("pccl", "lua machine up, {} byte(s) budgeted", budget_);
 }
 // No VM to close is not a failure: the ctor already logged why L_ is null.
@@ -150,6 +240,11 @@ void *rv_pccl_luajit::rv_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
     // Only growth is checked; NULL is not a crash - Lua turns it into a
     // catchable "not enough memory" error, a ceiling the script hits.
     if (delta > 0 && self->used_ + delta > self->budget_) {
+        // Remembered, because Lua turns this null into an ordinary catchable
+        // error: without the flag, "out of script memory" and "your chunk threw"
+        // arrive as the same failed pcall and the report would have to guess
+        // from the message text.
+        self->oom_ = true;
         return nullptr;
     }
     void *out = std::realloc(ptr, nsize);
@@ -241,37 +336,16 @@ bool rv_pccl_luajit::bootstrap_pdk()
 }
 int64_t rv_pccl_luajit::script_load(const void *bytecode, int64_t size, const char *name)
 {
-    if (bytecode == nullptr || size <= 0 || name == nullptr) {
-        return RV_ERR_INVAL;
+    int ref = 0;
+    rv_pccl_reload_report report;
+    const int64_t raised = raise_(bytecode, size, name, ref, report);
+    if (raised < 0) {
+        return raised;
     }
-    // Stack height on entry. Used only in builds without NDEBUG, where the
-    // assert()s below compare it on every return to prove the stack is left
-    // as it was found. With NDEBUG the asserts expand to nothing and top is
-    // never read, so -Wall -Wextra would flag it: hence [[maybe_unused]].
-    [[maybe_unused]] const int top = lua_gettop(L_);
-    // Shared exit for a lua-level failure: log, pop, confirm the balance.
-    auto fail = [&](int64_t code) {
-        RV_LOG_ERR("pccl", "script_load('{}'): {}", name, lua_tostring(L_, -1));
-        lua_pop(L_, 1);
-        assert(lua_gettop(L_) == top);
-        return code;
-    };
-    if (luaL_loadbuffer(L_, static_cast<const char *>(bytecode), static_cast<size_t>(size), name) != 0) {
-        return fail(RV_ERR_IO);
-    }
-    // loadbuffer only COMPILES; the module table is the RESULT of running the body.
-    if (lua_pcall(L_, 0, 1, 0) != 0) {
-        return fail(RV_ERR_IO);
-    }
-    if (!lua_istable(L_, -1)) {
-        RV_LOG_ERR("pccl", "script_load('{}'): chunk did not return a table", name);
-        lua_pop(L_, 1);
-        assert(lua_gettop(L_) == top);
-        return RV_ERR_INVAL;
-    }
-    const int ref = luaL_ref(L_, LUA_REGISTRYINDEX); // pops the table
-    chunks_.push_back(ref);
-    assert(lua_gettop(L_) == top);
+    // The ONLY place a handle is minted. A reload deliberately does not come
+    // through here: it reuses the slot it already has, so a session of a
+    // thousand keystrokes does not leave a thousand dead slots behind.
+    chunks_.push_back(chunk_slot{ ref, name != nullptr ? name : "" });
     return static_cast<int64_t>(chunks_.size() - 1);
 }
 int64_t rv_pccl_luajit::script_free(int64_t handle)
@@ -279,7 +353,16 @@ int64_t rv_pccl_luajit::script_free(int64_t handle)
     if (handle < 0 || handle >= static_cast<int64_t>(chunks_.size())) {
         return RV_ERR_INVAL;
     }
-    int &ref = chunks_[static_cast<size_t>(handle)];
+    // A chunk must not be freed while its own code is on the stack. The pdk
+    // metatable resolves any rv_* symbol through ffi.C, so a script handed a
+    // cl pointer can reach rv_cl_script_free and aim it at itself - this is
+    // where that ends, with a code that says "try again later" rather than an
+    // interpreter running from a collected prototype.
+    if (call_depth_ > 0) {
+        RV_LOG_ERR("pccl", "script_free({}) refused: a script call is in flight", handle);
+        return RV_ERR_BUSY;
+    }
+    int &ref = chunks_[static_cast<size_t>(handle)].ref;
     if (ref == LUA_NOREF) {
         return RV_ERR_INVAL; // already freed; the slot is never reused
     }
@@ -311,6 +394,33 @@ int64_t rv_pccl_luajit::script_entry()
         return loaded;
     }
     entry_ = loaded;
+    entry_hash_ = rv_pccl_fnv1a(bytes.data(), read);
+
+    // attach() is OPTIONAL at boot and REQUIRED for a reload. That asymmetry is
+    // what keeps every disc written before the development runtime existed
+    // working unchanged: it boots, it plays, and the only thing it cannot do is
+    // have its code replaced - because there would be nowhere to carry its state
+    // across, and pretending otherwise would lose the game silently.
+    entry_attach_ = has_attach_(chunks_[static_cast<size_t>(entry_)].ref);
+    if (!entry_attach_) {
+        RV_LOG_INFO("pccl",
+            "entry chunk '{}' has no attach(); it will run, but its state cannot be carried "
+            "across a reload",
+            rv_pdklib::rv_log_escape(conf_.script_entry.c_str()));
+        return entry_;
+    }
+
+    rv_pccl_reload_report report;
+    const int64_t attached = attach_(chunks_[static_cast<size_t>(entry_)].ref, report);
+    if (attached < 0) {
+        RV_LOG_ERR("pccl", "entry chunk '{}' refused its state at boot ({}): {}",
+            rv_pdklib::rv_log_escape(conf_.script_entry.c_str()), report.phase,
+            rv_pdklib::rv_log_escape(report.message.c_str(), 256));
+        // No reference is left behind on a boot that will not happen.
+        script_free(entry_);
+        entry_ = -1;
+        return attached;
+    }
     return entry_;
 }
 // --- group B: raw stack access, direct lua_* wrappers ---
@@ -444,7 +554,7 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     if (handle < 0 || handle >= static_cast<int64_t>(chunks_.size())) {
         return RV_ERR_INVAL;
     }
-    const int ref = chunks_[static_cast<size_t>(handle)];
+    const int ref = chunks_[static_cast<size_t>(handle)].ref;
     if (ref == LUA_NOREF) {
         return RV_ERR_INVAL; // handle names a freed chunk
     }
@@ -461,13 +571,29 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     if (!callable) {    // args AND the non-function value must both leave the stack
         lua_pop(L_, static_cast<int>(argc) + 1);
         RV_LOG_ERR("pccl", "script_call: '{}' is not a function", fname);
+        ++error_seq_;
+        error_text_ = std::string(fname) + ": not a function";
         assert(lua_gettop(L_) == top - static_cast<int>(argc));
         return RV_ERR_INVAL;
     }
     lua_insert(L_, -static_cast<int>(argc) - 1); // [fn, args...]
-    if (lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0) != 0) {
-        // Contract: nothing survives a failed call - logged, then popped.
-        RV_LOG_ERR("pccl", "script_call('{}'): {}", fname, lua_tostring(L_, -1));
+    // From here until the pcall returns, script code owns the interpreter: a
+    // reload or a free arriving in the meantime must refuse rather than pull
+    // the prototype out from under it.
+    int rc = 0;
+    {
+        rv_pccl_call_guard guard(call_depth_);
+        rc = lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0);
+    }
+    if (rc != 0) {
+        // Contract: nothing survives a failed call - logged, then popped. The
+        // message is also KEPT: the console watches error_seq_ to stop the run
+        // in --dev and hands the text to `status`, so the developer reads the
+        // lua error from the channel instead of hunting for it in stderr.
+        const char *msg = lua_tostring(L_, -1);
+        RV_LOG_ERR("pccl", "script_call('{}'): {}", fname, msg != nullptr ? msg : "(no message)");
+        ++error_seq_;
+        error_text_ = std::string(fname) + ": " + (msg != nullptr ? msg : "(no message)");
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top - static_cast<int>(argc));
         return RV_ERR_IO;
@@ -475,4 +601,388 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     assert(lua_gettop(L_) == top - static_cast<int>(argc) + static_cast<int>(retc));
     return RV_OK;
 }
+
+// --- the development runtime -------------------------------------------------
+
+// base print() writes to stdout, and stdout is the development channel's answer
+// stream. Routing it here is not a preference: a chunk printing one line there
+// would splice text into a reply the editor is parsing. The stock semantics are
+// kept otherwise - every argument through the global tostring, tab separated -
+// so a script's own diagnostics keep working, they just land where every other
+// diagnostic of this console already lands.
+int rv_pccl_luajit::print_to_log(lua_State *L)
+{
+    const int argc = lua_gettop(L);
+    std::string line;
+    for (int i = 1; i <= argc; ++i) {
+        // The global tostring, exactly as base print does, so __tostring is
+        // honoured. It may raise; this runs inside the caller's pcall.
+        lua_getglobal(L, "tostring");
+        lua_pushvalue(L, i);
+        lua_call(L, 1, 1);
+        std::size_t len = 0;
+        const char *text = lua_tolstring(L, -1, &len);
+        if (text != nullptr) {
+            if (i > 1) {
+                line.push_back('\t');
+            }
+            line.append(text, len);
+        }
+        lua_pop(L, 1);
+    }
+    // Escaped: script text is the one string in this process most likely to
+    // carry a newline or an ANSI escape, and a log line a chunk can forge is
+    // a log nobody can trust.
+    RV_LOG_INFO("lua", "{}", rv_pdklib::rv_log_escape(line.c_str(), 512));
+    return 0;
+}
+
+// Armed only for the duration of a reload. It raises, which unwinds into the
+// pcall that raise_/attach_ set up, so a chunk that never finishes becomes an
+// ordinary refusal instead of a console that has to be killed - and killing it
+// would cost the developer the session they were working in.
+void rv_pccl_luajit::insn_hook(lua_State *L, struct lua_Debug *)
+{
+    void *ud = nullptr;
+    lua_getallocf(L, &ud);
+    if (ud != nullptr) {
+        static_cast<rv_pccl_luajit *>(ud)->ceiling_hit_ = true;
+    }
+    luaL_error(L, "instruction ceiling of %d reached; the chunk did not finish",
+        RV_PCCL_RELOAD_INSN_CEILING);
+}
+
+// Which phase name a failure deserves. The ceiling and the budget both surface
+// as an ordinary lua error, so without these two flags they would be reported
+// as whatever the caller was doing at the time.
+const char *rv_pccl_luajit::phase_of(const char *phase) const
+{
+    if (ceiling_hit_) {
+        return "insn_ceiling";
+    }
+    if (oom_) {
+        return "nomem";
+    }
+    return phase;
+}
+
+int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
+    rv_pccl_reload_report &report)
+{
+    if (bytecode == nullptr || size <= 0 || name == nullptr) {
+        report.phase = "bad_request";
+        report.effects_possible = false;
+        report.message = "no bytes to raise";
+        return RV_ERR_INVAL;
+    }
+
+    [[maybe_unused]] const int top = lua_gettop(L_);
+    oom_ = false;
+    ceiling_hit_ = false;
+    // Covers compiling the source AND running its body. It does NOT cover a C
+    // or FFI call the body makes, and it is not a wall-clock timeout: the
+    // promise is bounded instructions, not bounded time.
+    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_RELOAD_INSN_CEILING);
+
+    // Shared exit for a lua-level failure: name the phase, keep the message,
+    // pop the error and prove the stack is where it was found.
+    auto fail = [&](const char *phase, bool effects, int64_t code) {
+        const char *msg = lua_tostring(L_, -1);
+        report.phase = phase_of(phase);
+        report.effects_possible = effects;
+        report.message = msg != nullptr ? msg : "(no message)";
+        RV_LOG_ERR("pccl", "raise('{}') failed at {}: {}", rv_pdklib::rv_log_escape(name),
+            report.phase, rv_pdklib::rv_log_escape(report.message.c_str(), 256));
+        lua_pop(L_, 1);
+        assert(lua_gettop(L_) == top);
+        return ceiling_hit_ || oom_ ? (oom_ ? RV_ERR_NOMEM : RV_ERR_IO) : code;
+    };
+
+    if (luaL_loadbuffer(L_, static_cast<const char *>(bytecode), static_cast<std::size_t>(size),
+            name) != 0) {
+        // Nothing of the candidate has run yet, so nothing of it can have left
+        // a mark: this is the one failure that is provably clean.
+        return fail("compile", false, RV_ERR_IO);
+    }
+    // loadbuffer only COMPILES; the module table is the RESULT of running the body.
+    if (lua_pcall(L_, 0, 1, 0) != 0) {
+        return fail("body", true, RV_ERR_IO);
+    }
+    if (!lua_istable(L_, -1)) {
+        report.phase = "not_a_table";
+        report.effects_possible = true; // the body ran before it returned the wrong thing
+        report.message = "the chunk did not return a table";
+        RV_LOG_ERR("pccl", "raise('{}'): {}", rv_pdklib::rv_log_escape(name), report.message);
+        lua_pop(L_, 1);
+        assert(lua_gettop(L_) == top);
+        return RV_ERR_INVAL;
+    }
+
+    ref_out = luaL_ref(L_, LUA_REGISTRYINDEX); // pops the table
+    assert(lua_gettop(L_) == top);
+    report.phase = "ok";
+    report.effects_possible = false;
+    return RV_OK;
+}
+
+// RAW lookup, deliberately: a metatable on the module table must not be able to
+// decide what the console calls.
+bool rv_pccl_luajit::has_attach_(int ref) const
+{
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, ref);
+    lua_pushliteral(L_, "attach");
+    lua_rawget(L_, -2);
+    const bool found = lua_isfunction(L_, -1);
+    lua_pop(L_, 2);
+    return found;
+}
+
+int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
+{
+    [[maybe_unused]] const int top = lua_gettop(L_);
+    oom_ = false;
+    ceiling_hit_ = false;
+    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_RELOAD_INSN_CEILING);
+
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, ref); // [T]
+    lua_pushliteral(L_, "attach");
+    lua_rawget(L_, -2); // [T, fn?]
+    if (!lua_isfunction(L_, -1)) {
+        lua_pop(L_, 2);
+        report.phase = "no_attach";
+        report.effects_possible = true; // the body already ran to produce this table
+        report.message = "the chunk has no attach() function";
+        assert(lua_gettop(L_) == top);
+        return RV_ERR_INVAL;
+    }
+
+    // The SAME table every chunk before it got, and every chunk after it will.
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_); // [T, fn, state]
+    int rc = 0;
+    {
+        // Counts as script activity: a reload or a free arriving from inside
+        // attach() must refuse, not swap code that is on the stack.
+        const rv_pccl_call_guard guard(call_depth_);
+        rc = lua_pcall(L_, 1, 2, 0); // [T, accepted, reason] or [T, error]
+    }
+    if (rc != 0) {
+        const char *msg = lua_tostring(L_, -1);
+        report.phase = phase_of("attach");
+        // It raised part way through, so whatever it had already written into
+        // the state table, or asked of the hardware, is still written and still
+        // asked. Nothing here can take that back.
+        report.effects_possible = true;
+        report.message = msg != nullptr ? msg : "(no message)";
+        lua_pop(L_, 2);
+        assert(lua_gettop(L_) == top);
+        return oom_ ? RV_ERR_NOMEM : RV_ERR_IO;
+    }
+
+    // A boolean, and only a boolean. Accepting anything truthy would make
+    // "forgot to return" read as "accepted", which is the one mistake this
+    // check exists to catch.
+    if (lua_type(L_, -2) != LUA_TBOOLEAN) {
+        lua_pop(L_, 3);
+        report.phase = "attach_contract";
+        report.effects_possible = true;
+        report.message = "attach() must return true, or false and a reason";
+        assert(lua_gettop(L_) == top);
+        return RV_ERR_INVAL;
+    }
+    const bool accepted = lua_toboolean(L_, -2) != 0;
+    std::string reason;
+    if (lua_type(L_, -1) == LUA_TSTRING) {
+        std::size_t len = 0;
+        const char *text = lua_tolstring(L_, -1, &len);
+        reason.assign(text, len);
+    }
+    lua_pop(L_, 3);
+    assert(lua_gettop(L_) == top);
+
+    if (!accepted) {
+        // The incompatible-state answer. The console has no schema for the
+        // state table and cannot tell that `player.hp` used to be a number -
+        // only the new code knows what it expects, so only the new code can
+        // say no. A refusal here is a refused reload, not a fault.
+        report.phase = "attach_refused";
+        report.effects_possible = true;
+        report.message = reason.empty() ? "attach() refused the state it was handed" : reason;
+        return RV_ERR_INVAL;
+    }
+
+    report.phase = "ok";
+    report.effects_possible = false;
+    report.message.clear();
+    return RV_OK;
+}
+
+int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
+    rv_pccl_reload_report &report)
+{
+    if (entry_ < 0) {
+        report.phase = "no_entry";
+        report.message = "the entry chunk has not been raised yet";
+        return RV_ERR_INVAL;
+    }
+    if (call_depth_ > 0) {
+        // Not a failure of the candidate: the same request one frame boundary
+        // later will be fine, which is exactly what RV_ERR_BUSY means.
+        report.phase = "in_call";
+        report.message = "a script call is in flight";
+        return RV_ERR_BUSY;
+    }
+    if (!entry_attach_) {
+        report.phase = "not_reloadable";
+        report.message = "the entry chunk has no attach(); its state could not be carried across";
+        return RV_ERR_INVAL;
+    }
+
+    int candidate = 0;
+    const int64_t raised = raise_(bytecode, size, name, candidate, report);
+    if (raised < 0) {
+        return raised;
+    }
+    // attach() runs on the CANDIDATE, before the swap. That order is the whole
+    // guarantee: everything that can refuse has refused by the time the old
+    // reference is let go, so there is no state in which the code has been
+    // replaced but the replacement was never accepted - and therefore nothing
+    // to roll back.
+    const int64_t attached = attach_(candidate, report);
+    if (attached < 0) {
+        luaL_unref(L_, LUA_REGISTRYINDEX, candidate);
+        return attached;
+    }
+
+    // --- the commit. Nothing below is allowed to fail. ---
+    chunk_slot &slot = chunks_[static_cast<std::size_t>(entry_)];
+    const int previous = slot.ref;
+    slot.ref = candidate;
+    if (name != nullptr) {
+        slot.name = name;
+    }
+    luaL_unref(L_, LUA_REGISTRYINDEX, previous);
+    ++revision_;
+    entry_hash_ = rv_pccl_fnv1a(bytecode, size);
+    report.phase = "ok";
+    report.effects_possible = false;
+    report.message.clear();
+    RV_LOG_INFO("pccl", "entry chunk replaced from '{}' (revision {}, {} byte(s), hash {:016x})",
+        rv_pdklib::rv_log_escape(slot.name.c_str()), revision_, size, entry_hash_);
+    return RV_OK;
+}
+
+int64_t rv_pccl_luajit::script_reload_entry(const void *bytecode, int64_t size, const char *name,
+    rv_pccl_reload_report &report)
+{
+    return reload_entry_bytes_(bytecode, size, name, report);
+}
+
+// The bytes come off the drive instead of the wire. Whether that is meaningful
+// is the CALLER's judgement (rv_pconsole_params::medium_live): in an archive the
+// entry cannot have changed, and re-reading it would answer ok while changing
+// nothing.
+int64_t rv_pccl_luajit::script_reload_entry_from_drive(rv_pccl_reload_report &report)
+{
+    if (entry_ < 0) {
+        report.phase = "no_entry";
+        report.message = "the entry chunk has not been raised yet";
+        return RV_ERR_INVAL;
+    }
+
+    const int64_t handle = cd_.asset_open(conf_.script_entry.c_str());
+    if (handle < 0) {
+        report.phase = "drive";
+        report.message = "the drive has no entry asset by that name any more";
+        return handle;
+    }
+    const int64_t size = cd_.asset_size(handle);
+    if (size <= 0) {
+        report.phase = "drive";
+        report.message = "the entry asset is empty or cannot be measured";
+        return size < 0 ? size : RV_ERR_INVAL;
+    }
+    // Read into a bounded buffer of our own. The file may be mid-save by an
+    // editor, and a short or oversized read must cost a refusal, never a guess.
+    std::vector<char> bytes(static_cast<std::size_t>(size));
+    const int64_t read = cd_.asset_read(handle, bytes.data(), size);
+    if (read < 0) {
+        report.phase = "drive";
+        report.message = "the entry asset could not be read";
+        return read;
+    }
+    return reload_entry_bytes_(bytes.data(), read, conf_.script_entry.c_str(), report);
+}
+
+// RAW read of one top-level field. No metatable is consulted, so inspecting
+// state can never run script code: a channel that evaluates is a channel that
+// can be asked to do anything, and this one is only allowed to look.
+int64_t rv_pccl_luajit::state_get(const char *key, rv_pccl_value &out)
+{
+    if (key == nullptr) {
+        return RV_ERR_INVAL;
+    }
+    [[maybe_unused]] const int top = lua_gettop(L_);
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_);
+    lua_pushstring(L_, key);
+    lua_rawget(L_, -2);
+
+    out = rv_pccl_value{};
+    switch (lua_type(L_, -1)) {
+    case LUA_TNIL:
+        // A lua table stores no nil, so "absent" and "nil" are one fact and get
+        // one answer.
+        out.type = -1;
+        break;
+    case LUA_TBOOLEAN:
+        out.type = RV_CL_TYPE_BOOLEAN;
+        out.boolean = lua_toboolean(L_, -1) != 0;
+        break;
+    case LUA_TNUMBER:
+        out.type = RV_CL_TYPE_NUMBER;
+        out.number = static_cast<double>(lua_tonumber(L_, -1));
+        break;
+    case LUA_TSTRING: {
+        out.type = RV_CL_TYPE_STRING;
+        std::size_t len = 0;
+        const char *text = lua_tolstring(L_, -1, &len);
+        out.bytes.assign(text, len); // raw: it may hold NUL and invalid UTF-8
+        break;
+    }
+    case LUA_TFUNCTION:
+        out.type = RV_CL_TYPE_FUNCTION;
+        break;
+    case LUA_TTABLE:
+        out.type = RV_CL_TYPE_TABLE;
+        break;
+    default:
+        out.type = RV_CL_TYPE_OTHER;
+        break;
+    }
+
+    lua_pop(L_, 2);
+    assert(lua_gettop(L_) == top);
+    return RV_OK;
+}
+
+int64_t rv_pccl_luajit::state_collect(int64_t *used_out)
+{
+    lua_gc(L_, LUA_GCCOLLECT, 0);
+    if (used_out != nullptr) {
+        *used_out = used_;
+    }
+    return RV_OK;
+}
+
+void rv_pccl_luajit::script_status(rv_pccl_status &out) const
+{
+    out.revision = revision_;
+    out.hash = entry_hash_;
+    out.used = used_;
+    out.budget = budget_;
+    out.slots = static_cast<int64_t>(chunks_.size());
+    out.error_seq = error_seq_;
+    out.reloadable = entry_ >= 0 && entry_attach_;
+    out.error = error_text_;
+}
+
 } // namespace rv_3dmppc

@@ -88,4 +88,38 @@ int64_t rv_pccl_null::script_call(int64_t, const char *, int64_t, int64_t)
     return RV_ERR_INVAL;
 }
 
+
+// --- the development runtime -------------------------------------------------
+// "no_machine" is a stable token: the client can tell "this console has no lua
+// at all" from "your chunk did not compile" without reading a sentence.
+int64_t rv_pccl_null::script_reload_entry(const void *, int64_t, const char *,
+    rv_pccl_reload_report &report)
+{
+    report.phase = "no_machine";
+    report.effects_possible = false;
+    report.message = "this disc declared no lua machine";
+    return RV_ERR_INVAL;
+}
+int64_t rv_pccl_null::script_reload_entry_from_drive(rv_pccl_reload_report &report)
+{
+    return script_reload_entry(nullptr, 0, nullptr, report);
+}
+int64_t rv_pccl_null::state_get(const char *, rv_pccl_value &)
+{
+    return RV_ERR_INVAL;
+}
+int64_t rv_pccl_null::state_collect(int64_t *used_out)
+{
+    if (used_out != nullptr) {
+        *used_out = 0;
+    }
+    return RV_ERR_INVAL;
+}
+// Every field stays at its default, and `reloadable` false is the honest
+// summary: there is no entry chunk to reload.
+void rv_pccl_null::script_status(rv_pccl_status &out) const
+{
+    out = rv_pccl_status{};
+}
+
 } // namespace rv_3dmppc

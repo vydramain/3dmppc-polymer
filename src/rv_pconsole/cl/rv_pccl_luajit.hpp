@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "rv_pconsole/cd/rv_pccd.hpp"
@@ -17,6 +18,7 @@
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
 struct lua_State;
+struct lua_Debug;
 
 namespace rv_3dmppc
 {
@@ -40,9 +42,63 @@ private:
     // handle is an index into chunks_, and it is NEVER reused: LUA_NOREF
     // marks a slot script_free() emptied, so a stale handle finds nothing
     // rather than landing on somebody else's chunk.
-    std::vector<int> chunks_;
+    //
+    // The REF is what a reload swaps: the handle keeps its index, the slot gets
+    // a different registry reference, and the disc goes on calling the same
+    // number. The name travels with it so the log line after a reload says which
+    // file the code came from, and so a future multi-chunk reload has something
+    // to select on.
+    // No default for `ref`: LUA_NOREF is not visible in this header (lua.hpp is
+    // included by exactly one .cpp), and a plausible-looking 0 would read as a
+    // valid reference. Every slot is brace-initialised with a real one.
+    struct chunk_slot {
+        int ref;
+        std::string name;
+    };
+    std::vector<chunk_slot> chunks_;
 
     int64_t entry_ = -1; // memoised script_entry() handle; -1 = not raised yet
+
+    // --- the development runtime ------------------------------------------
+
+    // The persistent state table, owned by this machine and held in the
+    // registry for the whole run. This is the whole of "code != state": the
+    // table outlives every chunk that ever sees it, so replacing the code
+    // cannot take the game's data with it. Chunks reach it only as attach()'s
+    // argument - it is deliberately NOT a global, because _G belongs to no
+    // chunk and two chunks sharing a global would collide the moment a disc
+    // raises a second one.
+    //
+    // 0 means "not created yet" for the same reason chunk_slot has no default:
+    // LUA_NOREF cannot be named here. luaL_ref never hands out 0.
+    int state_ref_ = 0;
+
+    // How deep we are inside script code right now. A COUNTER and not a flag:
+    // a hook that calls back into another hook would let a flag clear itself on
+    // the inner return, and a reload during the outer call would then be
+    // allowed to swap code that is still on the stack. Anything that replaces
+    // or frees a chunk refuses while this is non-zero.
+    int call_depth_ = 0;
+
+    // Set by rv_alloc when it refuses growth. Lua turns a null allocation into
+    // an ordinary catchable error, so without this flag "out of script memory"
+    // and "your chunk threw" would arrive as the same failed pcall and the
+    // report would have to guess from the message text.
+    bool oom_ = false;
+
+    // Set by the count hook below. The hook is static and has no `this`, but
+    // the lua_State does: lua_getallocf hands back the userdata the state was
+    // created with, which is this object (see rv_alloc). Without this flag an
+    // interrupted chunk would arrive as an ordinary failed pcall and "your loop
+    // never ended" would be reported as "your chunk threw".
+    bool ceiling_hit_ = false;
+
+    int64_t revision_ = 0;      // successful entry reloads
+    uint64_t entry_hash_ = 0;   // FNV-1a of the bytes the entry is running
+    bool entry_attach_ = false; // the entry chunk has attach(); reload needs it
+
+    int64_t error_seq_ = 0;     // failed hook calls, ever; the console watches it
+    std::string error_text_;    // the last one, for status
 
     // lua_Alloc for this machine: a realloc that refuses to push used_ past
     // budget_. `ud` is the rv_pccl_luajit the state was created with (lua_newstate).
@@ -51,6 +107,45 @@ private:
     // Installed via lua_atpanic: by default an error raised outside every
     // pcall calls abort() and the console dies with nothing in the log.
     static int panic(lua_State *L);
+
+    // Replaces the stock global print(). base print() writes to STDOUT, and
+    // stdout is the development channel's answer stream - a chunk printing a
+    // line there would splice text into a reply. Everything the console says
+    // about its own work already goes to stderr through rv_logs, and so does
+    // this.
+    static int print_to_log(lua_State *L);
+
+    // A count hook installed for the duration of a reload only. Without it a
+    // `while true do end` in a candidate's body hangs the frame loop, and since
+    // SIGINT only sets a flag the loop is no longer reading, the console would
+    // need SIGKILL - losing the very session the developer is working in.
+    static void insn_hook(lua_State *L, struct lua_Debug *ar);
+
+    // Compile, run the body and demand a module table, under the instruction
+    // ceiling. Returns RV_OK and a registry ref in `ref_out`, or a negative
+    // rv_err with `report` naming the phase. Gives out NO handle: a reload must
+    // not grow the handle table, or a long session would leave one dead slot
+    // per keystroke.
+    int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
+        rv_pccl_reload_report &report);
+
+    // Call attach(state) on the chunk `ref` holds. Raw lookup, so a metatable
+    // cannot make the console call something else. A chunk that returns false
+    // has REFUSED the state it was handed - the incompatible-state answer - and
+    // that is a failed reload, not a crash.
+    int64_t attach_(int ref, rv_pccl_reload_report &report);
+
+    // Is there an attach() in the table `ref` holds? Raw, same reason.
+    bool has_attach_(int ref) const;
+
+    // The phase name a failure deserves: the instruction ceiling and the memory
+    // budget both surface as an ordinary lua error, so without the two flags
+    // they would be reported as whatever the caller happened to be doing.
+    const char *phase_of(const char *phase) const;
+
+    // Shared by both reload forms once the bytes are in hand.
+    int64_t reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
+        rv_pccl_reload_report &report);
 
     // Builds the console<->script vocabulary: opens ffi, feeds it
     // rv_pdk_cdef, and turns rv_pdk_consts into the global `pdk` table (see
@@ -98,6 +193,13 @@ public:
     int64_t value_string(int64_t index, char *baddr, int64_t baddr_size) override;
 
     int64_t script_call(int64_t handle, const char *fname, int64_t argc, int64_t retc) override;
+
+    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
+        rv_pccl_reload_report &report) override;
+    int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
+    int64_t state_get(const char *key, rv_pccl_value &out) override;
+    int64_t state_collect(int64_t *used_out) override;
+    void script_status(rv_pccl_status &out) const override;
 };
 
 } // namespace rv_3dmppc
