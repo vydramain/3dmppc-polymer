@@ -401,7 +401,7 @@ int64_t rv_pccl_luajit::script_entry()
     // working unchanged: it boots, it plays, and the only thing it cannot do is
     // have its code replaced - because there would be nowhere to carry its state
     // across, and pretending otherwise would lose the game silently.
-    entry_attach_ = has_attach_(chunks_[static_cast<size_t>(entry_)].ref);
+    entry_attach_ = has_hook_(chunks_[static_cast<size_t>(entry_)].ref, "attach");
     if (!entry_attach_) {
         RV_LOG_INFO("pccl",
             "entry chunk '{}' has no attach(); it will run, but its state cannot be carried "
@@ -727,17 +727,18 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
 
 // RAW lookup, deliberately: a metatable on the module table must not be able to
 // decide what the console calls.
-bool rv_pccl_luajit::has_attach_(int ref) const
+bool rv_pccl_luajit::has_hook_(int ref, const char *hook) const
 {
     lua_rawgeti(L_, LUA_REGISTRYINDEX, ref);
-    lua_pushliteral(L_, "attach");
+    lua_pushstring(L_, hook);
     lua_rawget(L_, -2);
     const bool found = lua_isfunction(L_, -1);
     lua_pop(L_, 2);
     return found;
 }
 
-int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
+int64_t rv_pccl_luajit::call_gate_(int ref, const char *hook, const char *string_arg,
+    const gate_phases &phases, rv_pccl_reload_report &report)
 {
     [[maybe_unused]] const int top = lua_gettop(L_);
     oom_ = false;
@@ -745,29 +746,37 @@ int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
     const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_RELOAD_INSN_CEILING);
 
     lua_rawgeti(L_, LUA_REGISTRYINDEX, ref); // [T]
-    lua_pushliteral(L_, "attach");
+    lua_pushstring(L_, hook);
     lua_rawget(L_, -2); // [T, fn?]
     if (!lua_isfunction(L_, -1)) {
         lua_pop(L_, 2);
-        report.phase = "no_attach";
-        report.effects_possible = true; // the body already ran to produce this table
-        report.message = "the chunk has no attach() function";
+        report.phase = phases.missing;
+        // The body already ran to produce this table, so something of the
+        // candidate has executed even though the hook it needed is absent.
+        report.effects_possible = true;
+        report.message = std::string("the chunk has no ") + hook + "() function";
         assert(lua_gettop(L_) == top);
         return RV_ERR_INVAL;
     }
 
-    // The SAME table every chunk before it got, and every chunk after it will.
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_); // [T, fn, state]
+    if (string_arg != nullptr) {
+        lua_pushstring(L_, string_arg); // [T, fn, arg]
+    } else {
+        // The SAME table every chunk before it got, and every chunk after it
+        // will: that lifetime is the whole of "code != state".
+        lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_); // [T, fn, state]
+    }
+
     int rc = 0;
     {
         // Counts as script activity: a reload or a free arriving from inside
-        // attach() must refuse, not swap code that is on the stack.
+        // this hook must refuse, not swap code that is on the stack.
         const rv_pccl_call_guard guard(call_depth_);
         rc = lua_pcall(L_, 1, 2, 0); // [T, accepted, reason] or [T, error]
     }
     if (rc != 0) {
         const char *msg = lua_tostring(L_, -1);
-        report.phase = phase_of("attach");
+        report.phase = phase_of(phases.raised);
         // It raised part way through, so whatever it had already written into
         // the state table, or asked of the hardware, is still written and still
         // asked. Nothing here can take that back.
@@ -783,9 +792,9 @@ int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
     // check exists to catch.
     if (lua_type(L_, -2) != LUA_TBOOLEAN) {
         lua_pop(L_, 3);
-        report.phase = "attach_contract";
+        report.phase = phases.contract;
         report.effects_possible = true;
-        report.message = "attach() must return true, or false and a reason";
+        report.message = std::string(hook) + "() must return true, or false and a reason";
         assert(lua_gettop(L_) == top);
         return RV_ERR_INVAL;
     }
@@ -800,13 +809,9 @@ int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
     assert(lua_gettop(L_) == top);
 
     if (!accepted) {
-        // The incompatible-state answer. The console has no schema for the
-        // state table and cannot tell that `player.hp` used to be a number -
-        // only the new code knows what it expects, so only the new code can
-        // say no. A refusal here is a refused reload, not a fault.
-        report.phase = "attach_refused";
+        report.phase = phases.refused;
         report.effects_possible = true;
-        report.message = reason.empty() ? "attach() refused the state it was handed" : reason;
+        report.message = reason.empty() ? std::string(hook) + "() refused" : reason;
         return RV_ERR_INVAL;
     }
 
@@ -814,6 +819,50 @@ int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
     report.effects_possible = false;
     report.message.clear();
     return RV_OK;
+}
+
+// The incompatible-state gate. The console has no schema for the state table
+// and cannot tell that `player.hp` used to be a number - only the new code
+// knows what it expects, so only the new code can say no.
+int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
+{
+    static constexpr gate_phases phases{ "no_attach", "attach", "attach_refused",
+        "attach_contract" };
+    return call_gate_(ref, "attach", nullptr, phases, report);
+}
+
+// The asset gate. Same protocol, different question: not "can you take this
+// state" but "could you take this refreshed asset".
+int64_t rv_pccl_luajit::script_asset_changed(const char *name, rv_pccl_reload_report &report)
+{
+    static constexpr gate_phases phases{ "no_asset_hook", "asset", "asset_refused",
+        "asset_contract" };
+    if (name == nullptr) {
+        report.phase = "bad_request";
+        report.message = "no asset name";
+        return RV_ERR_INVAL;
+    }
+    if (entry_ < 0) {
+        report.phase = "no_entry";
+        report.message = "the entry chunk has not been raised yet";
+        return RV_ERR_INVAL;
+    }
+    if (call_depth_ > 0) {
+        report.phase = "in_call";
+        report.message = "a script call is in flight";
+        return RV_ERR_BUSY;
+    }
+    const int ref = chunks_[static_cast<std::size_t>(entry_)].ref;
+    if (!has_hook_(ref, "asset_changed")) {
+        // Answered before the hook is called rather than after, so the
+        // "effects" flag can honestly say nothing ran: unlike a reload, there
+        // is no candidate body here to have executed first.
+        report.phase = phases.missing;
+        report.effects_possible = false;
+        report.message = "the entry chunk has no asset_changed() function";
+        return RV_ERR_INVAL;
+    }
+    return call_gate_(ref, "asset_changed", name, phases, report);
 }
 
 int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,

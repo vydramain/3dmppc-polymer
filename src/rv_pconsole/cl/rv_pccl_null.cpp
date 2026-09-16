@@ -104,6 +104,13 @@ int64_t rv_pccl_null::script_reload_entry_from_drive(rv_pccl_reload_report &repo
 {
     return script_reload_entry(nullptr, 0, nullptr, report);
 }
+int64_t rv_pccl_null::script_asset_changed(const char *, rv_pccl_reload_report &report)
+{
+    report.phase = "no_machine";
+    report.effects_possible = false;
+    report.message = "this disc declared no lua machine";
+    return RV_ERR_INVAL;
+}
 int64_t rv_pccl_null::state_get(const char *, rv_pccl_value &)
 {
     return RV_ERR_INVAL;

@@ -129,14 +129,40 @@ private:
     int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
         rv_pccl_reload_report &report);
 
-    // Call attach(state) on the chunk `ref` holds. Raw lookup, so a metatable
-    // cannot make the console call something else. A chunk that returns false
-    // has REFUSED the state it was handed - the incompatible-state answer - and
-    // that is a failed reload, not a crash.
+    // The names a gate hook's three failures get. Passed in rather than derived
+    // from the hook name, because the client branches on these tokens and they
+    // are part of the protocol, not a formatting detail.
+    struct gate_phases {
+        const char *missing;
+        const char *raised;
+        const char *refused;
+        // Returned something that is not a boolean at all. Parameterised like
+        // the other three: a shared implementation that hardcoded one hook's
+        // token would answer an asset request with an attach error, and the
+        // client branches on these strings.
+        const char *contract;
+    };
+
+    // Call a GATE HOOK on the chunk `ref` holds: one argument in, and
+    // `true` or `false, "reason"` out. Two hooks share this shape - attach(),
+    // which decides whether the new code accepts the old state, and
+    // asset_changed(), which decides whether the game could take the refreshed
+    // asset - so they share one implementation of the stack protocol rather
+    // than two copies of the same twenty lines.
+    //
+    // `string_arg` null means "hand it the state table"; otherwise that string
+    // is the argument. Raw lookup throughout, so a metatable cannot make the
+    // console call something other than what it asked for.
+    int64_t call_gate_(int ref, const char *hook, const char *string_arg,
+        const gate_phases &phases, rv_pccl_reload_report &report);
+
+    // attach(state): the one gate every reloadable chunk must have. A chunk that
+    // returns false has REFUSED the state it was handed - the
+    // incompatible-state answer - and that is a failed reload, not a crash.
     int64_t attach_(int ref, rv_pccl_reload_report &report);
 
-    // Is there an attach() in the table `ref` holds? Raw, same reason.
-    bool has_attach_(int ref) const;
+    // Is there a function under `hook` in the table `ref` holds? Raw, same reason.
+    bool has_hook_(int ref, const char *hook) const;
 
     // The phase name a failure deserves: the instruction ceiling and the memory
     // budget both surface as an ordinary lua error, so without the two flags
@@ -197,6 +223,7 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
+    int64_t script_asset_changed(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const char *key, rv_pccl_value &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;
