@@ -1,5 +1,6 @@
 #include "rv_pboot.hpp"
 
+#include <filesystem>
 #include <format>
 #include <memory>
 #include <optional>
@@ -14,6 +15,7 @@
 #include "rv_pboot_mode.hpp"
 #include "rv_pboot_modes.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/cd/rv_pcmedium.hpp"
 #include "rv_pconsole/cd/rv_pczipmedium.hpp"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
@@ -30,6 +32,23 @@ RV_MPPC_DISC_TABLE_DEF(rv_service::rv_dmain, rv_dmain_table)
 
 namespace rv_3dmppc
 {
+
+namespace
+{
+
+// Whether the positional disc path names a directory rather than a
+// `.mppcdisc` archive. rv_pboot_budget_select() already asked the filesystem
+// this same question to pick mount()/mount_dir(); this run asks it again for
+// medium_live and for which rv_pcmedium to insert, rather than have the
+// loader hand the answer back through a new field of its own.
+bool rv_pboot_disc_is_directory(const char *disc_path)
+{
+    std::error_code ec;
+    return disc_path != nullptr &&
+        std::filesystem::is_directory(std::filesystem::path(disc_path), ec);
+}
+
+} // namespace
 
 std::filesystem::path rv_pboot_exe_dir()
 {
@@ -123,6 +142,14 @@ int rv_pboot_run(int argc, char **argv)
     rv_pconsole_conf conf;
     rv_pboot_conf_build(*budget, args, slots, conf);
 
+    // An archive cannot change while it is mounted; an unpacked directory can
+    // - that is the whole reason a directory disc exists (see rv_pcloader.hpp
+    // and mppcburner's --unpacked). medium_live is what lets the rest of the
+    // console tell those two apart, so it is set here, once, from the same
+    // filesystem answer rv_pboot_budget_select() already used to choose
+    // mount() vs mount_dir(). An archive keeps the default, false.
+    conf.params.medium_live = rv_pboot_disc_is_directory(args.disc_path);
+
     // Open exactly the endpoints the virtual devices will use.
     rv_pcplatform_wants wants;
     wants.window = slots.cv != rv_pccv_impl::null;
@@ -166,11 +193,20 @@ int rv_pboot_run(int argc, char **argv)
             return 1;
         }
 
-        // The bytes the disc reads through rv_cd come out of the same file
-        // its code came out of; that is what makes a `.mppcdisc` one object
-        // rather than a program plus a loose pile of assets.
-        console->drive().medium_insert(
-            std::make_unique<rv_pczipmedium>(std::string(args.disc_path)));
+        // The bytes the disc reads through rv_cd come out of the same place its
+        // code came out of; that is what makes a disc ONE object rather than a
+        // program plus a loose pile of assets - and it holds for both media.
+        // The archive is the shipped form and cannot change while mounted; the
+        // unpacked directory is the development form, and its entries may be
+        // symlinks to the author's own files, which is exactly what makes a
+        // live script reload possible (conf.params.medium_live above).
+        if (conf.params.medium_live) {
+            console->drive().medium_insert(
+                std::make_unique<rv_pcdirmedium>(std::string(args.disc_path)));
+        } else {
+            console->drive().medium_insert(
+                std::make_unique<rv_pczipmedium>(std::string(args.disc_path)));
+        }
 
         return static_cast<int>(console->disc_run(loader.disc()) < 0 ? 1 : 0);
     }

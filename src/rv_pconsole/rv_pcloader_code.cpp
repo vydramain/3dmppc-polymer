@@ -217,6 +217,27 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
         return RV_ERR_INVAL;
     }
 
+    return pre_dlopen_check_bytes(buffer, info_entry, zip->path().c_str());
+}
+
+// The core of pre_dlopen_check(): ELF header, PT_NOTE walk, version and
+// checksum, all off bytes already in memory. `origin` names the archive or
+// directory the bytes came from, for the log lines only - this function never
+// reads anything itself, which is what lets mount() (via the wrapper above)
+// and mount_dir() share it verbatim.
+int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
+    const char *info_entry, const char *origin)
+{
+    const int64_t size = static_cast<int64_t>(buffer.size());
+    if (size <= 0) {
+        RV_LOG_ERR(
+            "pcloader",
+            "code entry '{}' in '{}' is missing or empty; there is no binary "
+            "to version-check",
+            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(origin));
+        return RV_ERR_INVAL;
+    }
+
     // The ELF header lives at offset 0 by definition - elf(5), "ELF header
     // (Ehdr)". Each check below legalises exactly the fields the next step
     // relies on; until a check has passed, the fields it covers are just bytes.
@@ -410,6 +431,11 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
             bytes_to_hex(computed_checksum, sizeof(computed_checksum)));
         return RV_ERR_INVAL;
     }
+
+    // Kept only now, after the comparison passed: a checksum that did not match
+    // is not this disc's checksum, and reporting it would invite a client to
+    // compare against a number that was refused.
+    code_hash_ = bytes_to_hex(computed_checksum, sizeof(computed_checksum));
 
     if (RV_MPPC_VER_MAJOR != version_info.version_major ||
         RV_MPPC_VER_MINOR < version_info.version_minor) {

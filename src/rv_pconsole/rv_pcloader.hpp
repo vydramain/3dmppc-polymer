@@ -86,6 +86,18 @@ public:
     // archive is left mounted.
     int64_t mount(const char *archive_path);
 
+    // STAGE 1 of load(), for an UNPACKED DIRECTORY disc (disc.toml + disc.so +
+    // flat entries) instead of a `.mppcdisc` archive. Runs exactly the same
+    // checks as mount(), off the same bytes: the manifest parser, the same
+    // size ceilings, the lua triple, the script_entry existence check, and
+    // pre_dlopen_check's ELF/version/checksum walk over the code entry - the
+    // only thing that differs is where the bytes are read from. On success
+    // the validated code bytes are kept (as `dir_code_`) for bring_up() to
+    // extract from unchanged; see bring_up()'s comment for why they must not
+    // be re-read from the path. Returns RV_OK, or a negative rv_err after
+    // logging exactly what went wrong; on failure nothing is left mounted.
+    int64_t mount_dir(const char *dir_path);
+
     // STAGE 2 of load(): extract the code entry from the archive mount() left
     // open, dlopen it and create() the disc. Requires a prior successful
     // mount() — called without one, it fails with RV_ERR_INVAL and touches
@@ -120,6 +132,20 @@ public:
         return manifest_;
     }
 
+    // The disc code checksum of the disc.so that is actually LOADED, as the
+    // same 16 hex characters the burner prints when it stamps it. Empty for the
+    // built-in disc, which has no note and no archive.
+    //
+    // It exists for one question the development channel has to answer: has the
+    // C++ been rebuilt since this process started? Native code cannot be hot
+    // swapped, so the honest answer is a restart - and to know it is needed,
+    // the client compares this against the checksum of its own fresh build. The
+    // console deliberately does not watch the file: it reports what it loaded.
+    const std::string &code_hash() const
+    {
+        return code_hash_;
+    }
+
     // Told by the console once disc_initialize() has returned success, so that
     // teardown knows whether disc_shutdown() is owed: rv_de.h says the hook
     // runs on every path out of the frame loop but NEVER for a disc that
@@ -146,8 +172,39 @@ private:
     // as state precisely so the destructor can remove it on EVERY exit path.
     std::string temp_path_;
 
+    // True when the current mount came from mount_dir() rather than mount().
+    // bring_up() branches on this because the two routes stage the code
+    // differently - see bring_up()'s comment.
+    bool from_directory_ = false;
+
+    // The directory mount_dir() was given, kept for logging and for
+    // bring_up()'s "loaded disc ... from '{}'" line. Empty unless the
+    // directory route is mounted.
+    std::string dir_path_;
+
+    // The code entry's bytes, already read and pre_dlopen_check-ed by
+    // mount_dir(). A directory, unlike an archive, is exactly the medium a
+    // burner run is expected to rewrite while this session is alive, so
+    // bring_up() extracts THESE bytes instead of reopening the path: the
+    // bytes just inspected are the only bytes that may ever reach dlopen.
+    // Empty/unused for the archive route.
+    std::vector<unsigned char> dir_code_;
+
     template <typename O>
     bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out);
+
+    // The ELF/version/checksum core of pre_dlopen_check(), shared by both
+    // mount() and mount_dir(): it knows only bytes, an entry name (for the
+    // log lines) and an origin label (the archive or directory path, for the
+    // same lines) - never how those bytes were fetched. Returns RV_OK or a
+    // negative rv_err after logging the exact refusal.
+    int64_t pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
+        const char *info_entry, const char *origin);
+
+    // Filled by pre_dlopen_check_bytes once the checksum has been recomputed
+    // and found to match the note - so a non-empty value also means "these
+    // bytes passed inspection", never "this is what the file claims".
+    std::string code_hash_;
 
     void *handle_ = nullptr;
     rv_de *disc_ = nullptr;

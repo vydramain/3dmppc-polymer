@@ -11,6 +11,7 @@
 #include <cstring>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <new>
 #include <system_error>
 #include <vector>
@@ -88,6 +89,46 @@ std::string read_whole_entry(const rv_zipreader &zip, const char *name,
         return "the host file failed the read";
     }
     if (nread != size) {
+        return "short read";
+    }
+    return std::string();
+}
+
+// Same contract as read_whole_entry() above, off a plain file instead of a
+// zip entry - the directory route's counterpart, so mount_dir() can share
+// every check downstream of "here are the bytes" with mount().
+std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
+    std::vector<unsigned char> &out)
+{
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+        return "no such file";
+    }
+
+    const uintmax_t raw_size = std::filesystem::file_size(path, ec);
+    if (ec) {
+        return std::format("cannot measure the file: {}", ec.message());
+    }
+    const int64_t size = static_cast<int64_t>(raw_size);
+    if (size > max_size) {
+        return std::format("file is {} bytes, over the {} byte ceiling", size,
+            max_size);
+    }
+
+    try {
+        out.assign(static_cast<std::size_t>(size), 0);
+    } catch (const std::bad_alloc &) {
+        return "out of memory";
+    }
+    if (size == 0) {
+        return std::string();
+    }
+
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return "cannot open the file";
+    }
+    if (!in.read(reinterpret_cast<char *>(out.data()), size)) {
         return "short read";
     }
     return std::string();
@@ -253,9 +294,111 @@ int64_t rv_pcloader::mount(const char *archive_path)
     return RV_OK;
 }
 
+int64_t rv_pcloader::mount_dir(const char *dir_path)
+{
+    unload();
+
+    if (dir_path == nullptr || *dir_path == '\0') {
+        RV_LOG_ERR("pcloader", "no disc path was given");
+        return RV_ERR_INVAL;
+    }
+
+    std::error_code ec;
+    const std::filesystem::path root(dir_path);
+    if (!std::filesystem::is_directory(root, ec)) {
+        RV_LOG_ERR("pcloader",
+            "no disc at '{}': the path does not name a readable directory",
+            rv_pdklib::rv_log_escape(dir_path));
+        return RV_ERR_NOENT;
+    }
+
+    // Check the manifest - same parser, same ceiling as mount().
+    std::vector<unsigned char> manifest_bytes;
+    std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY,
+        RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
+    if (!why.empty()) {
+        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
+            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY, why);
+        return RV_ERR_NOENT;
+    }
+
+    std::string manifest_text(
+        reinterpret_cast<const char *>(manifest_bytes.data()),
+        manifest_bytes.size());
+
+    std::string merror;
+    const int64_t mres =
+        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror);
+    if (mres != 0) {
+        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
+            rv_pdklib::rv_log_escape(dir_path),
+            RV_PCLOADER_MANIFEST_ENTRY,
+            rv_pdklib::rv_log_escape(merror.c_str(), 512));
+        return RV_ERR_INVAL;
+    }
+
+    // The lua triple, exactly as mount() enforces it.
+    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest_.budget.pccl;
+    const bool lua_scripts = !manifest_.scripts_sources.empty();
+    const bool lua_memory = pccl.script_memory_size > 0;
+    const bool lua_entry = !pccl.script_entry.empty();
+
+    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
+            "script_memory_size={}, script_entry='{}'. All three or none",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+
+    if (lua_entry) {
+        std::error_code entry_ec;
+        if (!std::filesystem::is_regular_file(root / pccl.script_entry, entry_ec)) {
+            RV_LOG_ERR("pcloader",
+                "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
+                rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+                rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+            return RV_ERR_INVAL;
+        }
+    }
+
+    const std::string code_entry = code_entry_of(manifest_);
+
+    // The code entry's bytes, under the same ceiling bring_up() would apply -
+    // read ONCE, here, so the bytes pre_dlopen_check_bytes() inspects below
+    // are the exact bytes bring_up() later hands to extract_code(). See
+    // dir_code_'s comment in rv_pcloader.hpp for why a second read from the
+    // path is not an option for a directory disc.
+    std::vector<unsigned char> code_bytes;
+    why = read_whole_file(root / code_entry, RV_PCLOADER_CODE_MAX_SIZE, code_bytes);
+    if (!why.empty()) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names its code entry '{}', which is unusable: {}",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(code_entry.c_str()), why);
+        return RV_ERR_NOENT;
+    }
+
+    if (pre_dlopen_check_bytes(code_bytes, code_entry.c_str(), dir_path) < 0) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' failed the pre-load inspection of its code entry - "
+            "the exact "
+            "refusal is in the log line above; its code will not be mapped",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
+        return RV_ERR_INVAL;
+    }
+
+    dir_path_ = dir_path;
+    dir_code_ = std::move(code_bytes);
+    from_directory_ = true;
+    return RV_OK;
+}
+
 int64_t rv_pcloader::bring_up()
 {
-    if (zip_ == nullptr) {
+    if (zip_ == nullptr && !from_directory_) {
         RV_LOG_ERR("pcloader",
             "bring_up() called with no disc mounted; call mount() first");
         return RV_ERR_INVAL;
@@ -266,13 +409,25 @@ int64_t rv_pcloader::bring_up()
     // the note at the top of rv_pcloader.hpp: dlopen maps a file, so the code
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
-    std::string why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
-    if (!why.empty()) {
-        RV_LOG_ERR("pcloader",
-            "disc '{}' names its code entry '{}', which is unusable: {}",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            rv_pdklib::rv_log_escape(code_entry.c_str()), why);
-        return RV_ERR_NOENT;
+    std::string why;
+    if (from_directory_) {
+        // The directory route already read and pre_dlopen_check-ed these exact
+        // bytes in mount_dir(). Re-reading disc.so here would reopen the very
+        // race this whole path exists to close: the bytes just verified must
+        // be the bytes that get mapped, and an unpacked directory - unlike an
+        // archive - can be rewritten by a live burner run at any moment while
+        // this session is mounted. Moving the buffer out is a straight reuse,
+        // not a second read.
+        code = std::move(dir_code_);
+    } else {
+        why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
+        if (!why.empty()) {
+            RV_LOG_ERR("pcloader",
+                "disc '{}' names its code entry '{}', which is unusable: {}",
+                rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+                rv_pdklib::rv_log_escape(code_entry.c_str()), why);
+            return RV_ERR_NOENT;
+        }
     }
 
     why = extract_code(code, temp_path_);
@@ -347,7 +502,8 @@ int64_t rv_pcloader::bring_up()
         "pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
         rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
         rv_pdklib::rv_log_escape(manifest_.disc_title.c_str()),
-        rv_pdklib::rv_log_escape(zip_->path().c_str()), (int)RV_MPPC_VER_MAJOR, (int)RV_MPPC_VER_MINOR);
+        rv_pdklib::rv_log_escape(from_directory_ ? dir_path_.c_str() : zip_->path().c_str()),
+        (int)RV_MPPC_VER_MAJOR, (int)RV_MPPC_VER_MINOR);
     return RV_OK;
 }
 
@@ -414,6 +570,14 @@ void rv_pcloader::unload()
     // its file handle - the one piece of teardown mount() introduced that the
     // rest of this function did not know about before.
     zip_.reset();
+
+    // The directory route's state, reset the same way for the same reason:
+    // an idempotent teardown must leave nothing behind that the next mount()
+    // or mount_dir() could mistake for this one's.
+    from_directory_ = false;
+    dir_path_.clear();
+    dir_code_.clear();
+    code_hash_.clear();
 }
 
 } // namespace rv_3dmppc
