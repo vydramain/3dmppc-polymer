@@ -105,6 +105,8 @@ the compiler they drive.
 | `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
+| `--dev` | open the development command channel on stdin, answered on stdout; without it the console reads no commands at all |
+| `--dev-paused` | additionally stop the machine before frame 0; requires `--dev`, refused without it |
 
 Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
 
@@ -113,7 +115,15 @@ screenshot: `magick frame.ppm frame.png` and look at it, or diff it against a
 known-good frame.
 
 Logs go to **stderr**, so `2>/dev/null` silences them and `2>log.txt` captures
-them while the program's own output stays on stdout.
+them. A script's own `print` is routed into the same logger, on stderr, not
+stdout — stdout is reserved for the development channel's protocol lines
+(see below) and carries nothing when `--dev` is off.
+
+With `--dev`, stdin becomes a line-based command channel and stdout answers
+it one line per request: pause, step, resume, reload the entry script, read
+back a field of its state, force a collection, or quit — see
+[`docs/development-runtime.md`](docs/development-runtime.md) for the
+protocol, its guarantees, and what still needs a process restart.
 
 ---
 
@@ -191,6 +201,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
 | [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
+| [`docs/development-runtime.md`](docs/development-runtime.md) | `--dev`: the pause/step/reload protocol, its guarantees, and what still needs a restart |
 
 ---
 
