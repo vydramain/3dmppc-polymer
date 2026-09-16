@@ -53,9 +53,18 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return 1;
     }
 
-    const fs::path output_path = fs::absolute(fs::path(options.output), ec);
+    // --unpacked and -o pick the same slot in the pipeline (where the burned
+    // result goes) but produce different mediums, so exactly one of them names
+    // the output.
+    if (options.output.empty() == options.unpacked.empty()) {
+        rv_burner_print_error("build needs exactly one of -o/--output or -u/--unpacked");
+        return 1;
+    }
+    const bool unpacked = !options.unpacked.empty();
+
+    const fs::path output_path = fs::absolute(fs::path(unpacked ? options.unpacked : options.output), ec);
     if (ec) {
-        rv_burner_print_error("cannot resolve output path '" + options.output + "'");
+        rv_burner_print_error("cannot resolve output path '" + (unpacked ? options.unpacked : options.output) + "'");
         return 1;
     }
 
@@ -199,7 +208,22 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         }
     }
 
-    if (compile_scripts(plan, disc_dir, error) != 0) {
+    if (unpacked) {
+        // An unpacked directory keeps the developer's .lua reachable and live,
+        // so it is never compiled to bytecode. Put back the plan entries the
+        // .luac renaming above gave each script, and point the manifest's
+        // script_entry (rendered into disc.toml below) at the same name -
+        // rv_manifest_render only ever renders what the struct already holds.
+        for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
+            archive_item &item = plan.items[i];
+            const std::string lua_name = flat_name(item.source);
+            if (item.name == manifest.budget.pccl.script_entry) {
+                manifest.budget.pccl.script_entry = lua_name;
+            }
+            item.name = lua_name;
+            item.payload = (disc_dir / item.source).string();
+        }
+    } else if (compile_scripts(plan, disc_dir, error) != 0) {
         rv_burner_print_error(error);
         return 1;
     }
@@ -211,19 +235,26 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     rv_burner_print_step(3, "assets",
         std::to_string(plan.texture_count) + " png -> .mppctex, " +
-            std::to_string(plan.script_count) + " lua -> .luac, " +
+            std::to_string(plan.script_count) + (unpacked ? " lua (uncompiled), " : " lua -> .luac, ") +
             std::to_string(plan.asset_count) + " copied");
 
     // --- [4/4] burn ---
 
-    int64_t burned_size = 0;
-    if (burn_archive(output_path, manifest, disc_module, plan, burned_size, error) != 0) {
-        rv_burner_print_error(error);
-        return 1;
+    if (unpacked) {
+        if (burn_directory(output_path, manifest, disc_module, plan, error) != 0) {
+            rv_burner_print_error(error);
+            return 1;
+        }
+        rv_burner_print_step(4, "burn", output_path.string() + " (unpacked)");
+    } else {
+        int64_t burned_size = 0;
+        if (burn_archive(output_path, manifest, disc_module, plan, burned_size, error) != 0) {
+            rv_burner_print_error(error);
+            return 1;
+        }
+        rv_burner_print_step(4, "burn",
+            output_path.filename().string() + " (" + rv_burner_human_size(burned_size) + ")");
     }
-
-    rv_burner_print_step(4, "burn",
-        output_path.filename().string() + " (" + rv_burner_human_size(burned_size) + ")");
 
     // --- clean up ---
     //

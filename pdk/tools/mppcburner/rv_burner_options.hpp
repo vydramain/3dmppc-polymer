@@ -22,6 +22,8 @@ struct rv_burner_options {
 	std::string operand;                               // the one non-option word: disc directory
 	                                                   // for build, .mppcdisc file for inspect
 	std::string output;                                // -o
+	std::string unpacked;                              // -u, an unpacked disc directory instead
+	                                                   // of a .mppcdisc; exclusive with -o
 	std::string pdk_dir = RV_BURNER_DEFAULT_PDK;       // -p
 	std::string pdklib_dir = RV_BURNER_DEFAULT_PDKLIB; // -l
 	std::string baker = "";                            // -b, empty: find mppcbaker on our own

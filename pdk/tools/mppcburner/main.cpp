@@ -46,7 +46,13 @@ static void print_usage(std::FILE *stream)
         "  help      Print this text.\n"
         "\n"
         "Options (build):\n"
-        "  -o, --output PATH        Image to write. Required.\n"
+        "  -o, --output PATH        Image to write. Required unless --unpacked is\n"
+        "                           given; exclusive with it.\n"
+        "  -u, --unpacked PATH      Write an unpacked disc directory at PATH instead\n"
+        "                           of a .mppcdisc image. Scripts and copied assets\n"
+        "                           are symlinked back to their source instead of\n"
+        "                           being compiled/copied, so the console sees a live\n"
+        "                           edit without a rebuild. Exclusive with -o.\n"
         "  -p, --pdk PATH           PDK include directory the disc compiles\n"
         "                           against. Default: " RV_BURNER_DEFAULT_PDK
         "\n"
@@ -68,7 +74,9 @@ static void print_usage(std::FILE *stream)
 constexpr rv_burner_option_spec OPTIONS[] = {
     { 'h', "help", no_argument, "print this text",
         RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT },
-    { 'o', "output", required_argument, "image to write (required)",
+    { 'o', "output", required_argument, "image to write (required unless --unpacked)",
+        RV_BURNER_MASK_BUILD },
+    { 'u', "unpacked", required_argument, "write an unpacked disc directory instead",
         RV_BURNER_MASK_BUILD },
     { 'p', "pdk", required_argument,
         "PDK include directory the disc compiles against",
@@ -169,6 +177,10 @@ int main(int argc, char **argv)
         }
         case 'o': {
             burner_options.output = optarg;
+            break;
+        }
+        case 'u': {
+            burner_options.unpacked = optarg;
             break;
         }
         case 'p': {
