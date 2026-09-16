@@ -21,7 +21,9 @@ a shipped binary is not controllable through this channel by construction.
 ## A worked session
 
 Assume `example-lua/scripts/example-lua.lua` is mounted live
-(`--disc mppcdiscs/example-lua`, a directory medium) and the console was
+(an unpacked disc directory from `mppcburner build ... --unpacked`, passed as
+the POSITIONAL argument - not `-d/--disc`, which mounts loose assets for the
+built-in service test and loads no code) and the console was
 started with `--dev`. Requests go to stdin, answers come back on stdout, one
 line per line sent.
 
