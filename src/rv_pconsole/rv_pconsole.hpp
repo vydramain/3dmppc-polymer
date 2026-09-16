@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <optional>
+#include <string>
 #include <vector>
 
 #include "pdk/de/rv_de.h"
@@ -12,6 +14,7 @@
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
+#include "rv_pconsole/platform/rv_pcdevchan.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -66,6 +69,48 @@ private:
     // Bresenham accumulator in disc_run never overruns it.
     // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
+
+    // --- the development runtime ------------------------------------------
+    //
+    // Constructed only when the run asked for it. Everything below is inert
+    // without it: one `if` per frame that is not taken, and no second frame
+    // loop - a dev path that diverged from the ordinary one would drift, and
+    // then the thing the developer tested would not be the thing that ships.
+    std::optional<rv_pcdevchan> dev_;
+
+    // The entry chunk's asset name, kept so a candidate that arrived over the
+    // channel can be compiled under the name the developer recognises: it is
+    // what lua puts in front of every error message from that chunk.
+    std::string script_entry_;
+
+    bool paused_ = false;
+
+    // A step is armed by ONE request and answered after ITS frame, so three
+    // step requests are three frames and three answers. A counter would let
+    // them collapse into one frame; the queue is suspended at a step instead,
+    // which is also why the reply id has to be remembered rather than answered
+    // on the spot.
+    int64_t step_reply_id_ = -1;
+
+    uint64_t frames_ = 0;
+    bool quit_by_command_ = false;
+    bool dev_close_logged_ = false;
+
+    // The last script-error sequence number this console has already reacted
+    // to. rv_pccl counts every failed hook call; comparing against that count
+    // is how the console learns a game hook broke, without the disc having to
+    // tell it and without a contract change.
+    int64_t dev_error_seq_ = 0;
+
+    // Move the channel along and execute whatever arrived, on the frame
+    // boundary and nowhere else: at that point no script call is in flight and
+    // the lua stack is at its base, which is what makes a code swap safe. Pause
+    // is a convenience for the developer, never a precondition.
+    void dev_service();
+    void dev_dispatch(const rv_pcdevreq &req);
+    void dev_status(int64_t id);
+    void dev_reload(const rv_pcdevreq &req);
+    void dev_get(const rv_pcdevreq &req);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);
