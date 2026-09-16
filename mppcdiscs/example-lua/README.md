@@ -41,6 +41,27 @@ example-lua/
   `frame_render()` in `src/example-lua.cpp` is one `rv_cl_script_call()`
   followed by one `rv_cv_frame_flush()`, nothing else.
 
+## Owning a texture
+
+Past the triangle, the script also reads `example-sprite.mppctex` off the
+drive itself (`pdk.cd_asset_open`/`_size`/`_read`, the same three calls
+`example-cpp.cpp`'s own `read_asset` makes) and uploads it into virtual VRAM
+with `pdk.cv_video_asset_malloc`/`cv_video_asset_write` - once, in
+`disc_initialize` - then draws it as a sprite next to the triangle every
+`frame_render`. The video address that upload returns is kept in `state`,
+alongside the asset's name, never in a chunk local: it is the one thing a
+later code reload has no other way to recover, since the console never
+calls `disc_initialize` again.
+
+That address is also what makes `M.asset_changed(name)` possible - the
+development runtime's asset-reload hook
+([`docs/development-runtime.md`](../../docs/development-runtime.md)). The
+console re-reads a changed asset's bytes and tells the script its name; this
+script re-reads it again itself (through the same drive) and re-uploads it
+to the address remembered in `state`, refusing first if the new bytes no
+longer fit what was allocated. A name it does not own - anything other than
+the one texture it uploaded - is refused too, untouched.
+
 ## Code != state
 
 The console keeps one persistent table alive for the whole run, independent
