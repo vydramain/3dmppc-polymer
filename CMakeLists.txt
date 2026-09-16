@@ -40,6 +40,11 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # Discs get it a different way - mppcburner writes the path into the CMakeLists
 # it generates for a disc project - so this target serves only what is built
 # from this file.
+# The 512-line rule, checked at configure time rather than trusted. See
+# cmake/rv_file_length.cmake for why the build is the right place for it.
+include(cmake/rv_file_length.cmake)
+rv_check_file_lengths()
+
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
 )

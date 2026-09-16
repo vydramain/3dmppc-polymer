@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -118,6 +119,70 @@ private:
     // boundary and nowhere else: at that point no script call is in flight and
     // the lua stack is at its base, which is what makes a code swap safe. Pause
     // is a convenience for the developer, never a precondition.
+    // --- the frame loop, in named steps -----------------------------------
+    //
+    // How the next frame's START TIME is decided. The frame's DURATION is
+    // always 1/target_fps and never varies with the wall clock or the audio
+    // device; pacing only decides when that frame runs.
+    enum class pacing { none, audio, clock };
+
+    // One run's bookkeeping. A struct handed between the steps below rather
+    // than a row of members: none of it outlives disc_run, and as members a
+    // second run would inherit the first one's audio counters and its stale
+    // deadline.
+    struct run_state {
+        uint64_t target_fps = 60;
+        float dt = 0.0f;
+        std::chrono::duration<double> frame_budget{};
+        pacing mode = pacing::none;
+        int64_t queue_target = 0;
+        std::chrono::steady_clock::time_point deadline{};
+
+        // The previous iteration created no frame, so the pacing deadline is
+        // stale and has to be re-based before it is believed again.
+        bool left_pause = false;
+
+        int64_t audio_phase = 0;
+        int64_t audio_written = 0;
+        int64_t audio_underruns = 0;
+        int64_t audio_peak_queued = 0;
+        bool audio_paced_ever = false;
+    };
+
+    static const char *pacing_name(pacing mode);
+
+    // Open the window, start the disc, settle the timeline and arm the
+    // development runtime. A negative return means the disc refused to start
+    // and there is no loop to enter.
+    int64_t run_start(rv_de *disc, run_state &run);
+
+    // The operator's stop switch, read straight off the platform.
+    void run_pause_key();
+
+    // Serve whatever the development channel has to say on this boundary.
+    // True means it asked the console to stop. A step of its own rather than
+    // four lines inside the loop: the loop body should read as a flat list of
+    // what happens per frame, and every `if` nested in it is one more thing a
+    // reader has to hold while looking for the timing rule.
+    bool run_dev_commands();
+
+    // True when this iteration creates NO frame. Also owns what a pause does
+    // to the clock, because the two are the same fact seen twice.
+    bool run_hold_paused(run_state &run);
+
+    // One frame of the machine: update, render, present, and the audio of
+    // exactly that step.
+    void run_frame(rv_de *disc, run_state &run);
+
+    // What the console owes the channel once the frame is over.
+    void run_after_frame();
+
+    // Wait, however this run decides to wait.
+    void run_pace(run_state &run);
+
+    // The last hook, the frame dump, the audio summary and the last answer.
+    void run_finish(rv_de *disc, const run_state &run);
+
     void dev_service();
     void dev_dispatch(const rv_pcdevreq &req);
     void dev_status(int64_t id);

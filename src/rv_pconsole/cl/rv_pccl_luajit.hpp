@@ -2,9 +2,11 @@
 // rv_pccv for rv_cv and rv_pcca for rv_ca - the contract is opaque C, the
 // concrete class lives here.
 //
-// lua.hpp is the PDK boundary and is included by exactly ONE file in the
-// whole project: rv_pccl_luajit.cpp. A pointer to an incomplete type needs
-// nothing more than the forward declaration below, so nothing here pulls it in.
+// lua.hpp is the PDK boundary and is confined to
+// src/rv_pconsole/cl/rv_pccl_luajit* - the five .cpp files of this one class
+// and their detail header. Nothing outside that set may include it. This
+// header is not in that set: a pointer to an incomplete type needs nothing
+// more than the forward declaration below, so nothing here pulls it in.
 #pragma once
 
 #include <cstddef>
@@ -49,7 +51,7 @@ private:
     // file the code came from, and so a future multi-chunk reload has something
     // to select on.
     // No default for `ref`: LUA_NOREF is not visible in this header (lua.hpp is
-    // included by exactly one .cpp), and a plausible-looking 0 would read as a
+    // not included by this header), and a plausible-looking 0 would read as a
     // valid reference. Every slot is brace-initialised with a real one.
     struct chunk_slot {
         int ref;
