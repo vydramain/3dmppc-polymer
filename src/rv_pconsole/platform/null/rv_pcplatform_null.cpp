@@ -52,6 +52,12 @@ public:
     {
         return rv_imouse{};
     }
+
+    uint32_t consume_pause_requests() override
+    {
+        // No window means no keyboard, so the Pause key never fires here.
+        return 0;
+    }
 };
 
 class rv_pcgamepads_null final : public rv_pcgamepads

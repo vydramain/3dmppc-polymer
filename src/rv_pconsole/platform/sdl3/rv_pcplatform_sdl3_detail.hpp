@@ -27,6 +27,7 @@ public:
     uint64_t keyboard_abilities() const override;
     rv_istate keyboard_state() const override;
     rv_imouse consume_mouse() override;
+    uint32_t consume_pause_requests() override;
 
     // Whether SDL_INIT_VIDEO came up; open() refuses when it did not. Set by
     // rv_pcplatform_sdl3::make() before open() is ever called.
@@ -48,6 +49,10 @@ public:
     // --- what pump() drives ---
     void note_close();
     void add_mouse(float dx, float dy);
+    // Counts one Pause-key DOWN edge. The pump() event loop already skips
+    // SDL's key-repeat events before calling this, so every call here is a
+    // fresh press, never a hold.
+    void note_pause_request();
     // Re-derive keyboard_state_ from SDL_GetKeyboardState(). No-op without a
     // window: keys only ever reach a window.
     void snapshot_keyboard();
@@ -64,6 +69,7 @@ private:
     rv_istate keyboard_state_{};
     float mouse_dx_ = 0.0f;
     float mouse_dy_ = 0.0f;
+    uint32_t pause_requests_ = 0;
 };
 
 class rv_pcgamepads_sdl3 final : public rv_pcgamepads
