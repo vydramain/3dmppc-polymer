@@ -77,6 +77,8 @@ private:
     // One cell of the test card. `index` picks the cell; each draws exactly one
     // of the console's drawing capabilities, labelled with what it proves.
     void draw_cell(int index);
+    void draw_cell_label(int index, int cx, int cy);
+    void draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid);
     void draw_cube_cell(int x, int y, int w, int h);
 
     // A textured sprite filling the given rect. `addr_palette` is 0 for the
