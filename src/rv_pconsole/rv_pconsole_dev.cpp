@@ -243,7 +243,22 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         dev_->reply(rv_pcdev_err(req.id, "asset", rc, false, "the drive could not reload that asset"));
         return;
     }
-    dev_->reply(std::format("{} ok asset={}", req.id, rv_pcdev_hex(key)));
+    // The new size, read back through the ordinary contract rather than a
+    // console-only accessor: an acquire of a name already resident bumps the
+    // refcount and hands back the same id, so this costs no upload and the
+    // release below puts the count back exactly where it was. The editor
+    // needs the numbers because a RESIZED texture is the one case its own
+    // layout has to follow, and nothing else in the protocol carries them.
+    int64_t width = 0;
+    int64_t height = 0;
+    const int64_t res = cd_->texture_acquire(key.c_str());
+    if (res >= 0) {
+        width = cd_->texture_width(res);
+        height = cd_->texture_height(res);
+        cd_->texture_release(res);
+    }
+    dev_->reply(std::format("{} ok asset={} width={} height={}", req.id, rv_pcdev_hex(key), width,
+        height));
 }
 
 void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
@@ -256,6 +271,15 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
 
     rv_pccl_value value;
     const int64_t rc = cl_->state_get(std::string(key).c_str(), value);
+    if (rc == RV_ERR_NOMEM) {
+        // Looking a key up interns it, and interning allocates: on a machine
+        // that has run its script heap out, the read cannot be performed at
+        // all. Answered, not fatal - `gc` is the next thing to try, and the
+        // client has to be able to reach it.
+        dev_->reply(rv_pcdev_err(req.id, "nomem", rc, false,
+            "the script heap is exhausted; the key could not be interned. try gc"));
+        return;
+    }
     if (rc < 0) {
         dev_->reply(rv_pcdev_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
         return;

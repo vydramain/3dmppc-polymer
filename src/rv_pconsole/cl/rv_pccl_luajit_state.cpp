@@ -51,21 +51,38 @@ int rv_pccl_luajit::print_to_log(lua_State *L)
     return 0;
 }
 
+namespace
+{
+// Carries the read across the protected-call boundary, the same shape
+// shape_call_args uses: no C++ return value and no exception may cross it.
+struct state_get_args {
+    rv_pccl_luajit *self = nullptr;
+    const char *key = nullptr;
+    rv_pccl_value *out = nullptr;
+};
+} // namespace
+
 // RAW read of one top-level field. No metatable is consulted, so inspecting
 // state can never run script code: a channel that evaluates is a channel that
 // can be asked to do anything, and this one is only allowed to look.
-int64_t rv_pccl_luajit::state_get(const char *key, rv_pccl_value &out)
+//
+// Under lua_pcall because lua_pushstring INTERNS the key, and interning
+// allocates from the script heap: on a machine that has already run that heap
+// out, the read itself raises. Unprotected that reaches lua_atpanic and ends
+// the process - so the command whose whole job is to explain a broken run
+// would be the command that destroys it. Protected, it is an ordinary
+// RV_ERR_NOMEM the channel answers with.
+int rv_pccl_luajit::state_get_trampoline_(lua_State *L)
 {
-    if (key == nullptr) {
-        return RV_ERR_INVAL;
-    }
-    [[maybe_unused]] const int top = lua_gettop(L_);
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_);
-    lua_pushstring(L_, key);
-    lua_rawget(L_, -2);
+    auto *args = static_cast<state_get_args *>(lua_touserdata(L, 1));
+    rv_pccl_luajit *self = args->self;
+    rv_pccl_value &out = *args->out;
 
-    out = rv_pccl_value{};
-    switch (lua_type(L_, -1)) {
+    lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_);
+    lua_pushstring(L, args->key); // the allocating step this pcall exists for
+    lua_rawget(L, -2);
+
+    switch (lua_type(L, -1)) {
     case LUA_TNIL:
         // A lua table stores no nil, so "absent" and "nil" are one fact and get
         // one answer.
@@ -73,16 +90,16 @@ int64_t rv_pccl_luajit::state_get(const char *key, rv_pccl_value &out)
         break;
     case LUA_TBOOLEAN:
         out.type = RV_CL_TYPE_BOOLEAN;
-        out.boolean = lua_toboolean(L_, -1) != 0;
+        out.boolean = lua_toboolean(L, -1) != 0;
         break;
     case LUA_TNUMBER:
         out.type = RV_CL_TYPE_NUMBER;
-        out.number = static_cast<double>(lua_tonumber(L_, -1));
+        out.number = static_cast<double>(lua_tonumber(L, -1));
         break;
     case LUA_TSTRING: {
         out.type = RV_CL_TYPE_STRING;
         std::size_t len = 0;
-        const char *text = lua_tolstring(L_, -1, &len);
+        const char *text = lua_tolstring(L, -1, &len);
         out.bytes.assign(text, len); // raw: it may hold NUL and invalid UTF-8
         break;
     }
@@ -97,7 +114,33 @@ int64_t rv_pccl_luajit::state_get(const char *key, rv_pccl_value &out)
         break;
     }
 
-    lua_pop(L_, 2);
+    lua_pop(L, 2);
+    return 0;
+}
+
+int64_t rv_pccl_luajit::state_get(const char *key, rv_pccl_value &out)
+{
+    if (key == nullptr) {
+        return RV_ERR_INVAL;
+    }
+    [[maybe_unused]] const int top = lua_gettop(L_);
+    out = rv_pccl_value{};
+
+    state_get_args args;
+    args.self = this;
+    args.key = key;
+    args.out = &out;
+
+    lua_pushcfunction(L_, state_get_trampoline_);
+    lua_pushlightuserdata(L_, &args);
+    if (lua_pcall(L_, 1, 0, 0) != 0) {
+        // The heap is out; `out` is whatever the walk had filled in, so it is
+        // reset rather than half-reported.
+        out = rv_pccl_value{};
+        lua_pop(L_, 1);
+        assert(lua_gettop(L_) == top);
+        return RV_ERR_NOMEM;
+    }
     assert(lua_gettop(L_) == top);
     return RV_OK;
 }

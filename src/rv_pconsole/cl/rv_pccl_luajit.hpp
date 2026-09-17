@@ -196,6 +196,14 @@ private:
     // shape_call_args* (rv_pccl_luajit_shape.cpp).
     static int shape_trampoline_(lua_State *L);
 
+    // The state read, run under lua_pcall for the same reason: looking a key
+    // up INTERNS it, and interning allocates, so a machine that has run its
+    // script heap out turns the console's own inspection into a raise. Without
+    // this it reaches the panic handler and the process ends - the one command
+    // that exists to find out what went wrong would be the one that kills the
+    // run. Argument 1 is a state_get_args* (rv_pccl_luajit_state.cpp).
+    static int state_get_trampoline_(lua_State *L);
+
     // Is there a function under `hook` in the table `ref` holds? Raw, same reason.
     bool has_hook_(int ref, const char *hook) const;
 
