@@ -276,7 +276,10 @@ spent per table visited and per key examined.
 
 A refusal from the shape check answers with the error token `state_shape` and
 a message naming the field path, e.g. `screen_width: expected string, stored
-number`.
+number` — with `effects=1`, because the walk runs after the candidate's body
+has already executed. The console takes back its own insertions; it cannot
+take back what the body did. `state_shape` present but not a table is that
+same refusal, not a chunk without a declaration.
 
 ### What still needs a restart
 

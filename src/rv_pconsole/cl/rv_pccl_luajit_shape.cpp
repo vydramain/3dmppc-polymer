@@ -26,7 +26,6 @@ struct shape_call_args {
     rv_pccl_luajit *self = nullptr;
     int ref = 0;
     std::vector<rv_pccl_luajit::state_shape_insert> *inserted = nullptr;
-    bool has_shape = false;
     bool refused = false;
     std::string refuse_path;
     std::string refuse_message;
@@ -54,7 +53,6 @@ int rv_pccl_luajit::shape_trampoline_(lua_State *L)
         args->refuse_message = "state_shape must be a table";
         return 0;
     }
-    args->has_shape = true;
     const int shape_idx = lua_gettop(L);
     lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_); // [module, shape, state]
     const int state_idx = lua_gettop(L);
@@ -106,7 +104,11 @@ int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_inse
         const char *msg = lua_tostring(L_, -1);
         finish_state_shape_(inserted, false);
         report.phase = "state_shape";
-        report.effects_possible = false; // only our own pending defaults existed; all rolled back
+        // The console's own pending defaults are all rolled back - but this
+        // check runs AFTER raise_ has executed the candidate's body, and that
+        // body may have written anything it could reach. effects_possible is a
+        // conservative statement about the whole attempt, not about this step.
+        report.effects_possible = true;
         report.message = std::string("could not install defaults: ") + (msg != nullptr ? msg : "(no message)");
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top);
@@ -114,18 +116,22 @@ int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_inse
     }
     assert(lua_gettop(L_) == top);
 
-    if (!args.has_shape) {
-        return RV_OK; // no state_shape declared: unchanged behaviour
-    }
+    // The refusal is checked BEFORE the declaration, because a state_shape
+    // that is not a table is a refusal WITHOUT a shape: asking "was one
+    // declared" first answered no and let `state_shape = 42` install itself
+    // unchecked - the one kind of candidate this whole walk exists to stop.
     if (args.refused) {
         finish_state_shape_(inserted, false); // nothing pending on a pass-one refusal, but be exact
         report.phase = "state_shape";
-        report.effects_possible = false;
+        report.effects_possible = true; // the body ran before the walk did; see above
         // A refusal at the top level has no field path, and a bare ": reason"
         // reads like a truncated message.
         report.message = args.refuse_path.empty() ? args.refuse_message : args.refuse_path + ": " + args.refuse_message;
         return RV_ERR_INVAL;
     }
+    // Reached both when the walk accepted the tree and when the chunk declared
+    // no state_shape at all; the second is the documented unchanged behaviour,
+    // and neither has anything left to report.
     return RV_OK;
 }
 

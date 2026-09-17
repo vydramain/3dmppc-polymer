@@ -83,11 +83,10 @@ void rv_console_print_usage(std::FILE *stream)
         "  -F, --fixed-step     Fast run: no real-time wait and no audio\n"
         "                       output. Every mode steps the machine by\n"
         "                       1/60 s per frame, so runs stay reproducible.\n"
-        "  -d, --disc PATH      Medium to mount in the drive: a DIRECTORY of\n"
-        "                       loose assets, the development shortcut that\n"
-        "                       needs no packaging step. A packaged .mppcdisc\n"
-        "                       goes in the positional argument instead and\n"
-        "                       brings its own medium. Empty means no disc.\n"
+        "  -d, --disc PATH      Assets DIRECTORY for the BUILT-IN disc, which\n"
+        "                       carries no medium of its own. A disc given\n"
+        "                       positionally brings its own medium, archive or\n"
+        "                       directory, so the two may not be combined.\n"
         "  -m, --memcard PATH   Memory-card image. Default: memcard.mppccard\n"
         "                       next to the 3dmppc binary.\n"
         "  -M, --mute           Silence the audio output stage.\n"
@@ -236,6 +235,18 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
     // positional argument is expected - the disc - and more than one is a typo
     // worth refusing rather than silently ignoring.
     args.disc_path = (optind < argc) ? argv[optind] : nullptr;
+    // A positional disc inserts its OWN medium (rv_pboot_run), which would
+    // overwrite whatever --disc mounted - so the two together are a run whose
+    // -d did nothing at all. Refusing says so; the old silent override left
+    // the developer reading a `medium=fixed` status they had asked to be live.
+    if (args.disc_path != nullptr && !args.medium_path.empty()) {
+        rv_3dmppc::rv_console_print_error(
+            "--disc names the assets directory for the BUILT-IN disc; a disc given "
+            "positionally brings its own medium. Give one or the other.");
+        rv_3dmppc::rv_console_print_usage(stderr);
+        exit_code = 2;
+        return false;
+    }
     if (optind + 1 < argc) {
         rv_3dmppc::rv_console_print_error(
             std::format("expected at most one disc path, got {}", argc - optind));
