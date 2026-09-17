@@ -22,10 +22,16 @@
 // (rv_logs), and Lua's own print() is re-pointed at the logger by rv_pccl_luajit
 // for this reason: a chunk that printed to stdout would splice its text into the
 // answer stream, and the editor would parse it as a reply.
+//
+// A pure interface, on purpose: the concrete stdio channel (rv_pcdevchan_stdio)
+// carries every buffer this protocol needs, and a player build never compiles
+// that class at all. Splitting the interface away from its state is what keeps
+// a player binary from holding seven fields nothing in it ever touches.
 #pragma once
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -40,6 +46,10 @@ constexpr int64_t RV_PCDEVCHAN_HEADER_MAX = 4096;          // one request line
 constexpr int64_t RV_PCDEVCHAN_PAYLOAD_MAX = 4 << 20;      // one script
 constexpr int64_t RV_PCDEVCHAN_OUT_MAX = 256 * 1024;       // answers not yet taken
 constexpr int64_t RV_PCDEVCHAN_REQS_PER_TICK = 32;         // the CALLER honours this one
+// Comfortably above HEADER_MAX + PAYLOAD_MAX so one legal request plus its
+// payload never trips it, but still a bound: a sender that outruns the
+// console must hit this instead of growing the backlog without limit.
+constexpr int64_t RV_PCDEVCHAN_IN_MAX = RV_PCDEVCHAN_HEADER_MAX + RV_PCDEVCHAN_PAYLOAD_MAX + (1 << 20);
 
 // Payload deadlines. `idle` is "no byte arrived for this long", `total` is "this
 // transfer has gone on long enough" - a sender that dribbles one byte per second
@@ -67,93 +77,39 @@ struct rv_pcdevreq {
     }
 };
 
-// Lowercase hex of `bytes`. Every value that could carry a space, a newline or a
-// NUL travels through this: a Lua error message is multi-line by nature, and a
-// protocol that needs escaping rules needs a parser, while hex needs neither.
-std::string rv_pcdev_hex(std::string_view bytes);
-
 class rv_pcdevchan
 {
 public:
-    // Puts stdin and stdout into non-blocking mode and takes SIGPIPE off the
-    // default disposition; the destructor puts all three back. Ignoring SIGPIPE
-    // is what turns "the editor died mid-answer" into an EPIPE this class can
-    // report, instead of a process that vanishes without a log line.
-    rv_pcdevchan();
-    ~rv_pcdevchan();
+    virtual ~rv_pcdevchan() = default;
 
+    rv_pcdevchan() = default;
     rv_pcdevchan(const rv_pcdevchan &) = delete;
     rv_pcdevchan &operator=(const rv_pcdevchan &) = delete;
 
     // Move input and output along, then hand back one framed request if one is
     // ready. False means "nothing complete right now" - never "wait".
-    bool next_request(rv_pcdevreq &out);
+    virtual bool next_request(rv_pcdevreq &out) = 0;
 
     // Queue one answer line (the newline is added here). Over the queue ceiling
     // the channel disconnects rather than grow: an answer nobody reads is not
     // worth a frame's memory.
-    void reply(std::string_view line);
+    virtual void reply(std::string_view line) = 0;
 
     // Best effort, bounded by `budget`. Used on the way out so the last answer
     // reaches a client that is still there, without promising it did.
-    void drain(std::chrono::milliseconds budget);
+    virtual void drain(std::chrono::milliseconds budget) = 0;
 
     // False once the far end went away or broke the framing. A disconnected
     // channel answers nothing and reads nothing; the run carries on, and the
     // pause state is deliberately NOT touched - see rv_pconsole::dev_service.
-    bool connected() const
-    {
-        return connected_;
-    }
+    virtual bool connected() const = 0;
 
     // Why the channel went down, for the log line the caller writes once.
-    const char *closed_reason() const
-    {
-        return reason_;
-    }
-
-private:
-    enum class phase { header, payload };
-
-    void pump_in();
-    void pump_out();
-    bool take_header(rv_pcdevreq &out);
-    bool take_payload(rv_pcdevreq &out);
-    void close(const char *why);
-    void compact();
-    std::size_t available() const
-    {
-        return in_.size() - consumed_;
-    }
-    const char *cursor() const
-    {
-        return in_.data() + consumed_;
-    }
-
-    std::vector<char> in_;
-    std::size_t consumed_ = 0;   // bytes of in_ already framed away
-    std::size_t scanned_ = 0;    // how far the newline search got last time
-    std::string out_;
-
-    phase phase_ = phase::header;
-    rv_pcdevreq pending_;        // header parsed, payload still arriving
-    std::size_t need_ = 0;
-    std::chrono::steady_clock::time_point payload_started_;
-    std::chrono::steady_clock::time_point payload_progress_;
-
-    bool connected_ = true;
-    const char *reason_ = "";
-
-    // The far end stopped writing, but what it already wrote is still ours to
-    // execute. Kept separate from connected_ for exactly that reason: a stream
-    // redirected from a file hits EOF on the very first service call, and
-    // treating that as a disconnect would throw away every command in it - the
-    // whole session, unread. The channel closes only once the buffer is drained.
-    bool eof_ = false;
-
-    int in_flags_ = -1;
-    int out_flags_ = -1;
-    bool sigpipe_saved_ = false;
+    virtual const char *closed_reason() const = 0;
 };
+
+// The one concrete channel, or nullptr where the player build excludes it
+// (see the dev-capability slot in CMakeLists.txt).
+std::unique_ptr<rv_pcdevchan> rv_pcdevchan_make();
 
 } // namespace rv_3dmppc

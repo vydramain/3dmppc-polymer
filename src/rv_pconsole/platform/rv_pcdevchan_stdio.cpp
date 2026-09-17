@@ -6,7 +6,7 @@
 // every partial arrival. Compaction happens when the buffer drains or the dead
 // prefix grows past a threshold, which is the only point where copying is worth
 // it.
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pcdevchan_stdio.hpp"
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -18,6 +18,7 @@
 #include <thread>
 
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/platform/rv_pcdevhex.hpp"
 
 namespace rv_3dmppc
 {
@@ -79,20 +80,7 @@ bool parse_u63(std::string_view text, int64_t &out)
 
 } // namespace
 
-std::string rv_pcdev_hex(std::string_view bytes)
-{
-    static constexpr char digits[] = "0123456789abcdef";
-    std::string out;
-    out.reserve(bytes.size() * 2);
-    for (const char c : bytes) {
-        const unsigned char byte = static_cast<unsigned char>(c);
-        out.push_back(digits[byte >> 4]);
-        out.push_back(digits[byte & 0x0F]);
-    }
-    return out;
-}
-
-rv_pcdevchan::rv_pcdevchan()
+rv_pcdevchan_stdio::rv_pcdevchan_stdio()
 {
     // SIGPIPE first. Without this, the first write to a closed pipe kills the
     // process from underneath the frame loop - no disc_shutdown, no loader
@@ -117,7 +105,7 @@ rv_pcdevchan::rv_pcdevchan()
     RV_LOG_INFO("pcdev", "development channel open on stdin/stdout (protocol 1)");
 }
 
-rv_pcdevchan::~rv_pcdevchan()
+rv_pcdevchan_stdio::~rv_pcdevchan_stdio()
 {
     // Flags go back even if the channel died early: they belong to the process,
     // not to this object, and a shell left with a non-blocking stdin is a shell
@@ -133,7 +121,7 @@ rv_pcdevchan::~rv_pcdevchan()
     }
 }
 
-void rv_pcdevchan::close(const char *why)
+void rv_pcdevchan_stdio::close(const char *why)
 {
     if (!connected_) {
         return;
@@ -147,7 +135,7 @@ void rv_pcdevchan::close(const char *why)
     pending_ = rv_pcdevreq{};
 }
 
-void rv_pcdevchan::compact()
+void rv_pcdevchan_stdio::compact()
 {
     if (consumed_ == 0) {
         return;
@@ -166,11 +154,15 @@ void rv_pcdevchan::compact()
     consumed_ = 0;
 }
 
-void rv_pcdevchan::pump_in()
+void rv_pcdevchan_stdio::pump_in()
 {
     std::size_t taken = 0;
     while (connected_ && taken < RV_PCDEVCHAN_READ_PER_TICK) {
         const std::size_t old_size = in_.size();
+        if (old_size + RV_PCDEVCHAN_READ_CHUNK > static_cast<std::size_t>(RV_PCDEVCHAN_IN_MAX)) {
+            close("input backlog exceeded the ceiling");
+            return;
+        }
         in_.resize(old_size + RV_PCDEVCHAN_READ_CHUNK);
         const ssize_t got = ::read(STDIN_FILENO, in_.data() + old_size, RV_PCDEVCHAN_READ_CHUNK);
         if (got > 0) {
@@ -200,7 +192,7 @@ void rv_pcdevchan::pump_in()
     }
 }
 
-void rv_pcdevchan::pump_out()
+void rv_pcdevchan_stdio::pump_out()
 {
     while (connected_ && !out_.empty()) {
         const ssize_t put = ::write(STDOUT_FILENO, out_.data(), out_.size());
@@ -219,7 +211,7 @@ void rv_pcdevchan::pump_out()
     }
 }
 
-void rv_pcdevchan::reply(std::string_view line)
+void rv_pcdevchan_stdio::reply(std::string_view line)
 {
     if (!connected_) {
         return;
@@ -233,7 +225,7 @@ void rv_pcdevchan::reply(std::string_view line)
     pump_out();
 }
 
-void rv_pcdevchan::drain(std::chrono::milliseconds budget)
+void rv_pcdevchan_stdio::drain(std::chrono::milliseconds budget)
 {
     const auto deadline = std::chrono::steady_clock::now() + budget;
     while (connected_ && !out_.empty() && std::chrono::steady_clock::now() < deadline) {
@@ -244,7 +236,7 @@ void rv_pcdevchan::drain(std::chrono::milliseconds budget)
     }
 }
 
-bool rv_pcdevchan::take_header(rv_pcdevreq &out)
+bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
 {
     const char *base = in_.data();
     const std::size_t end = in_.size();
@@ -278,6 +270,12 @@ bool rv_pcdevchan::take_header(rv_pcdevreq &out)
         reply("0 err error=protocol msg=" + rv_pcdev_hex("first token must be a numeric request id"));
         return false;
     }
+    if (req.id == 0) {
+        // 0 is reserved for unsolicited events (see rv_pconsole_run.cpp), so a
+        // reply tagged 0 would be indistinguishable from one of those.
+        reply("0 err error=protocol msg=" + rv_pcdev_hex("request id must be greater than zero; zero is reserved for unsolicited events"));
+        return false;
+    }
     req.args.erase(req.args.begin());
 
     // A trailing `bytes <n>` is the channel's business, not the verb's: only the
@@ -307,7 +305,7 @@ bool rv_pcdevchan::take_header(rv_pcdevreq &out)
     return true;
 }
 
-bool rv_pcdevchan::take_payload(rv_pcdevreq &out)
+bool rv_pcdevchan_stdio::take_payload(rv_pcdevreq &out)
 {
     if (available() >= need_) {
         pending_.payload.assign(cursor(), cursor() + need_);
@@ -332,7 +330,7 @@ bool rv_pcdevchan::take_payload(rv_pcdevreq &out)
     return false;
 }
 
-bool rv_pcdevchan::next_request(rv_pcdevreq &out)
+bool rv_pcdevchan_stdio::next_request(rv_pcdevreq &out)
 {
     if (!connected_) {
         return false;
@@ -372,6 +370,11 @@ bool rv_pcdevchan::next_request(rv_pcdevreq &out)
         }
     }
     return got;
+}
+
+std::unique_ptr<rv_pcdevchan> rv_pcdevchan_make()
+{
+    return std::make_unique<rv_pcdevchan_stdio>();
 }
 
 } // namespace rv_3dmppc

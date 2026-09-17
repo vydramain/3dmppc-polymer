@@ -124,8 +124,17 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     // not have put stdin into non-blocking mode and announced a protocol on
     // stdout.
     if (params_.dev) {
-        dev_.emplace();
-        RV_LOG_INFO("pconsole", "development runtime armed");
+        // Belt and braces: rv_pboot already refuses --dev in a console built
+        // without the development runtime, so the null factory is unreachable
+        // from here - but an unchecked null would be a crash, not a refusal.
+        dev_ = rv_pcdevchan_make();
+        if (!dev_) {
+            RV_LOG_ERR("pconsole",
+                "development runtime unavailable: this console was built without it "
+                "(-D3DMPPC_DEVTOOLS=ON)");
+        } else {
+            RV_LOG_INFO("pconsole", "development runtime armed");
+        }
     }
 
     // Independent of the channel: --paused is about the loop, and the Pause key

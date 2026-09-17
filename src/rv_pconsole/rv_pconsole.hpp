@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -16,6 +15,7 @@
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pcdevhex.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -77,7 +77,7 @@ private:
     // without it: one `if` per frame that is not taken, and no second frame
     // loop - a dev path that diverged from the ordinary one would drift, and
     // then the thing the developer tested would not be the thing that ships.
-    std::optional<rv_pcdevchan> dev_;
+    std::unique_ptr<rv_pcdevchan> dev_;
 
     // The entry chunk's asset name, kept so a candidate that arrived over the
     // channel can be compiled under the name the developer recognises: it is
