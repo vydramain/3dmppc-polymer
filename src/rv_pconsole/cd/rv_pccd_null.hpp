@@ -40,6 +40,9 @@ public:
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}
 
+    // No drive, so nothing is ever made resident: ignored.
+    void video_attach(rv_pccv & /*cv*/) override {}
+
     bool valid() const override { return true; }
 };
 

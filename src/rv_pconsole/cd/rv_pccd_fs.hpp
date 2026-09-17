@@ -5,6 +5,7 @@
 // (rv_pcdirmedium) or a `.mppcdisc` archive (rv_pczipmedium).
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -12,8 +13,10 @@
 #include <utility>
 #include <vector>
 
+#include "pdklib/rv_textures/rv_mppctex.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
+#include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -26,6 +29,30 @@ class rv_pccd_fs final : public rv_pccd {
     // without this class changing (strategy); it is never null, an
     // empty drive is a mounted-less medium rather than a missing one.
     std::unique_ptr<rv_pcmedium> medium_;
+
+    // BORROWED, set by video_attach() after construction (rv_pccd.hpp: cd_ is
+    // built before cv_ exists, so this cannot be a constructor reference).
+    // Null until attached, which the six texture_* functions treat the same
+    // way asset_open treats an unmounted medium: not an error, just nothing
+    // resident yet.
+    rv_pccv *cv_ = nullptr;
+
+    // One baked texture currently uploaded. The vector only ever grows and a
+    // released record stays in place with `live = false` - the same shape and
+    // reason as `resnames_` above: a residency id is `index + 1` (0 is never
+    // valid) and reusing a slot for a new name would let a stale id silently
+    // address someone else's texture instead of failing.
+    struct texture_record {
+        std::string resname;
+        int64_t tex_addr = 0;
+        int64_t pal_addr = 0; // 0 when the format has no palette
+        int64_t width = 0;
+        int64_t height = 0;
+        int64_t refs = 0;
+        bool live = false;
+    };
+    std::vector<texture_record> textures_;
+    std::unordered_map<std::string, int64_t> tex_by_name_;
 
     // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
@@ -56,7 +83,6 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
-    // Working implementation lands in the next slice; today these are inert.
     int64_t texture_acquire(const char* resname) override;
 
     int64_t texture_release(int64_t res) override;
@@ -79,6 +105,8 @@ class rv_pccd_fs final : public rv_pccd {
         if (medium) medium_ = std::move(medium);
     }
 
+    void video_attach(rv_pccv& cv) override { cv_ = &cv; }
+
     // An empty or unmountable medium leaves the drive empty, never broken.
     bool valid() const override { return true; }
 
@@ -90,6 +118,17 @@ class rv_pccd_fs final : public rv_pccd {
 
     // Name behind a handle, or nullptr when the handle was never issued.
     const char* handle_name(int64_t handle) const;
+
+    // Record behind a residency id, or nullptr when the id is 0, was never
+    // issued, or names a record already released.
+    texture_record* texture_record_of(int64_t res);
+
+    // Stages of texture_acquire(), split out to stay under the function-size
+    // limit and so a mid-way failure has one clear place to free from.
+    int64_t texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
+                             const std::byte*& palette_out, const std::byte*& texels_out) const;
+    int64_t texture_upload_(const rv_pdklib::rv_mppctex_header& header, const std::byte* palette,
+                             const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out);
 };
 
 }  // namespace rv_3dmppc

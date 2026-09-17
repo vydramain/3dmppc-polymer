@@ -1,5 +1,6 @@
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
+#include <cstring>
 #include <new>
 #include <utility>
 
@@ -7,6 +8,15 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
+
+namespace {
+
+uint16_t read_le_u16(const std::byte* p) {
+    return static_cast<uint16_t>(std::to_integer<uint8_t>(p[0])) |
+           (static_cast<uint16_t>(std::to_integer<uint8_t>(p[1])) << 8);
+}
+
+}  // namespace
 
 rv_pcbudget_cost rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget& /*budget*/) {
     return {};
@@ -18,6 +28,14 @@ rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf& conf)
 const char* rv_pccd_fs::handle_name(int64_t handle) const {
     if (handle < 0 || handle >= static_cast<int64_t>(resnames_.size())) return nullptr;
     return resnames_[static_cast<size_t>(handle)].c_str();
+}
+
+rv_pccd_fs::texture_record* rv_pccd_fs::texture_record_of(int64_t res) {
+    const int64_t index = res - 1;
+    if (res <= 0 || index >= static_cast<int64_t>(textures_.size())) return nullptr;
+    texture_record& record = textures_[static_cast<size_t>(index)];
+    if (!record.live) return nullptr;
+    return &record;
 }
 
 int64_t rv_pccd_fs::asset_open(const char* resname) {
@@ -140,17 +158,202 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
     return medium_->entry_read(resname, baddr, baddr_size);
 }
 
-// Inert for this slice - no index, no decoder, no rv_pccv allocation yet.
-int64_t rv_pccd_fs::texture_acquire(const char* /*resname*/) { return RV_ERR_INVAL; }
+// Parses the header this file's caller already read into `bytes`, and hands
+// back pointers INTO `bytes` for the palette and texels - nothing is copied
+// twice. Refuses anything mppcbaker would not have written: bad magic, a
+// version this console does not speak, or fewer bytes than the header
+// promises.
+int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
+                                     const std::byte*& palette_out, const std::byte*& texels_out) const {
+    if (static_cast<int64_t>(bytes.size()) < rv_pdklib::rv_mppctex_header_size) {
+        return RV_ERR_INVAL;
+    }
 
-int64_t rv_pccd_fs::texture_release(int64_t /*res*/) { return RV_ERR_INVAL; }
+    const std::byte* raw = bytes.data();
+    if (std::memcmp(raw + rv_pdklib::RV_MPPCTEX_OFF_MAGIC, rv_pdklib::rv_mppctex_magic,
+                     sizeof(rv_pdklib::rv_mppctex_magic)) != 0) {
+        return RV_ERR_INVAL;
+    }
 
-int64_t rv_pccd_fs::texture_addr(int64_t /*res*/) { return RV_ERR_INVAL; }
+    const uint16_t version = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_VERSION);
+    if (version != rv_pdklib::rv_mppctex_version) {
+        return RV_ERR_INVAL;
+    }
 
-int64_t rv_pccd_fs::texture_palette_addr(int64_t /*res*/) { return RV_ERR_INVAL; }
+    rv_pdklib::rv_mppctex_header header;
+    header.format = static_cast<rv_texfmt>(read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_FORMAT));
+    header.width = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_WIDTH);
+    header.height = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_HEIGHT);
+    header.palette_count = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_PALETTE_COUNT);
 
-int64_t rv_pccd_fs::texture_width(int64_t /*res*/) { return RV_ERR_INVAL; }
+    const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
+    const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
+    const int64_t need = rv_pdklib::rv_mppctex_header_size + palette_bytes + texel_bytes;
+    if (static_cast<int64_t>(bytes.size()) < need) {
+        return RV_ERR_INVAL;
+    }
 
-int64_t rv_pccd_fs::texture_height(int64_t /*res*/) { return RV_ERR_INVAL; }
+    header_out = header;
+    palette_out = header.palette_count > 0 ? raw + rv_pdklib::rv_mppctex_header_size : nullptr;
+    texels_out = raw + rv_pdklib::rv_mppctex_header_size + palette_bytes;
+    return RV_OK;
+}
+
+// Allocates and uploads the palette (if any) and the texels. On any failure
+// AFTER an allocation succeeded, that allocation is freed before returning:
+// a failed acquire must leave video RAM exactly as it found it.
+int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header& header, const std::byte* palette,
+                                     const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out) {
+    int64_t pal_addr = 0;
+    if (header.palette_count > 0) {
+        const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
+        pal_addr = cv_->video_asset_malloc(palette_bytes);
+        if (pal_addr < 0) return pal_addr;
+
+        rv_texture pal_tex{};
+        pal_tex.format = RV_TEXFMT_DIRECT15;
+        pal_tex.data = palette;
+        pal_tex.size = static_cast<uint64_t>(palette_bytes);
+        pal_tex.width = static_cast<uint64_t>(header.palette_count);
+        pal_tex.height = 1;
+        const int64_t rc = cv_->video_asset_write(pal_addr, &pal_tex);
+        if (rc < 0) {
+            cv_->video_asset_free(pal_addr);
+            return rc;
+        }
+    }
+
+    const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
+    const int64_t tex_addr = cv_->video_asset_malloc(texel_bytes);
+    if (tex_addr < 0) {
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        return tex_addr;
+    }
+
+    rv_texture tex{};
+    tex.format = header.format;
+    tex.data = texels;
+    tex.size = static_cast<uint64_t>(texel_bytes);
+    tex.width = static_cast<uint64_t>(header.width);
+    tex.height = static_cast<uint64_t>(header.height);
+    const int64_t rc = cv_->video_asset_write(tex_addr, &tex);
+    if (rc < 0) {
+        cv_->video_asset_free(tex_addr);
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        return rc;
+    }
+
+    tex_addr_out = tex_addr;
+    pal_addr_out = pal_addr;
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::texture_acquire(const char* resname) {
+    // No video attached is the same situation as no medium mounted: a legal
+    // machine state, not a caller error, so it answers the way asset_open
+    // answers an unmounted drive - nothing can be made resident yet.
+    if (cv_ == nullptr) return RV_ERR_INVAL;
+    if (resname == nullptr) return RV_ERR_INVAL;
+
+    std::string key(resname);
+    if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
+        texture_record& record = textures_[static_cast<size_t>(it->second)];
+        if (record.live) {
+            record.refs += 1;
+            return it->second + 1;
+        }
+    }
+
+    const int64_t handle = asset_open(resname);
+    if (handle < 0) return handle;
+    const int64_t size = asset_size(handle);
+    if (size < 0) return size;
+
+    std::vector<std::byte> bytes;
+    try {
+        bytes.resize(static_cast<size_t>(size));
+    } catch (const std::bad_alloc&) {
+        return RV_ERR_NOMEM;
+    }
+    const int64_t got = asset_read(handle, bytes.data(), size);
+    if (got < 0) return got;
+
+    rv_pdklib::rv_mppctex_header header;
+    const std::byte* palette = nullptr;
+    const std::byte* texels = nullptr;
+    const int64_t decode_rc = texture_decode_(bytes, header, palette, texels);
+    if (decode_rc < 0) return decode_rc;
+
+    int64_t tex_addr = 0;
+    int64_t pal_addr = 0;
+    const int64_t upload_rc = texture_upload_(header, palette, texels, tex_addr, pal_addr);
+    if (upload_rc < 0) return upload_rc;
+
+    texture_record record;
+    record.resname = key;
+    record.tex_addr = tex_addr;
+    record.pal_addr = pal_addr;
+    record.width = header.width;
+    record.height = header.height;
+    record.refs = 1;
+    record.live = true;
+
+    const int64_t index = static_cast<int64_t>(textures_.size());
+    try {
+        textures_.push_back(std::move(record));
+        tex_by_name_[key] = index;
+    } catch (const std::bad_alloc&) {
+        cv_->video_asset_free(tex_addr);
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        if (static_cast<int64_t>(textures_.size()) > index) textures_.pop_back();
+        return RV_ERR_NOMEM;
+    }
+
+    return index + 1;
+}
+
+int64_t rv_pccd_fs::texture_release(int64_t res) {
+    if (cv_ == nullptr) return RV_ERR_INVAL;
+
+    texture_record* record = texture_record_of(res);
+    if (record == nullptr) return RV_ERR_INVAL;
+
+    record->refs -= 1;
+    if (record->refs > 0) return RV_OK;
+
+    cv_->video_asset_free(record->tex_addr);
+    if (record->pal_addr != 0) cv_->video_asset_free(record->pal_addr);
+
+    // The slot itself is never reused (see the member comment on textures_):
+    // only the name lookup is undone, so a later acquire of this name starts
+    // fresh instead of colliding with a dead record.
+    tex_by_name_.erase(record->resname);
+    record->live = false;
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::texture_addr(int64_t res) {
+    const texture_record* record = texture_record_of(res);
+    if (record == nullptr) return RV_ERR_INVAL;
+    return record->tex_addr;
+}
+
+int64_t rv_pccd_fs::texture_palette_addr(int64_t res) {
+    const texture_record* record = texture_record_of(res);
+    if (record == nullptr) return RV_ERR_INVAL;
+    return record->pal_addr;
+}
+
+int64_t rv_pccd_fs::texture_width(int64_t res) {
+    const texture_record* record = texture_record_of(res);
+    if (record == nullptr) return RV_ERR_INVAL;
+    return record->width;
+}
+
+int64_t rv_pccd_fs::texture_height(int64_t res) {
+    const texture_record* record = texture_record_of(res);
+    if (record == nullptr) return RV_ERR_INVAL;
+    return record->height;
+}
 
 }  // namespace rv_3dmppc

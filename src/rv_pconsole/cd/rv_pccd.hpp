@@ -10,6 +10,8 @@
 namespace rv_3dmppc
 {
 
+class rv_pccv;
+
 class rv_pccd
 {
 public:
@@ -38,6 +40,12 @@ public:
 
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
+
+    // Where texture_acquire uploads to. Borrowed - cv_ outlives cd_ for the
+    // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s
+    // shutdown-order requirement pins that declaration order), so cd cannot
+    // take cv by constructor reference the way rv_pccl_luajit takes cd.
+    virtual void video_attach(rv_pccv &cv) = 0;
 
     virtual bool valid() const = 0;
 

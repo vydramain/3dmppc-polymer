@@ -33,6 +33,11 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {
+    // Here and not in the initialiser list: cd_ is declared before cv_, so
+    // during that list cv_ does not exist yet. Unlike medium_insert, which is
+    // a boot-time choice made in rv_pboot, this is an invariant between two
+    // parts of one console - nothing should be able to forget it.
+    cd_->video_attach(*cv_);
 }
 
 // This is where the contract meets the machine. reinterpret_cast is mandatory
