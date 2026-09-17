@@ -85,6 +85,26 @@ rv_pcaudio_sink &rv_pcplatform_sdl3::audio()
     return audio_;
 }
 
+namespace
+{
+// Diagnostic only - nothing downstream reads the numbers, and a display that
+// will not measure is not a reason to refuse a window. Lifted out of the make
+// function because a query with its own success/failure branch, inside the
+// video branch, inside the window branch, is one level past what this tree
+// allows.
+void log_display_bounds()
+{
+    SDL_Rect display_bounds{};
+    const SDL_DisplayID display = SDL_GetPrimaryDisplay();
+    if (display != 0 && SDL_GetDisplayBounds(display, &display_bounds)) {
+        RV_LOG_INFO("pcplatform", "display bounds measured at {}x{}", display_bounds.w,
+            display_bounds.h);
+        return;
+    }
+    RV_LOG_WARN("pcplatform", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
+}
+} // namespace
+
 std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants &wants)
 {
     // Signals belong to rv_pcsignals, installed before any platform comes up;
@@ -102,14 +122,7 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
         if (!platform->video_up_) {
             RV_LOG_WARN("pcplatform", "SDL_INIT_VIDEO failed: {}", SDL_GetError());
         } else {
-            SDL_Rect display_bounds{};
-            SDL_DisplayID display = SDL_GetPrimaryDisplay();
-            if (display != 0 && SDL_GetDisplayBounds(display, &display_bounds)) {
-                RV_LOG_INFO("pcplatform", "display bounds measured at {}x{}", display_bounds.w,
-                    display_bounds.h);
-            } else {
-                RV_LOG_WARN("pcplatform", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
-            }
+            log_display_bounds();
         }
         platform->window_.set_video_ready(platform->video_up_);
     }

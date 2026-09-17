@@ -33,6 +33,23 @@ constexpr int RV_PCONSOLE_PAUSE_LABEL_SCALE = 2;
 // disc's back to print one word. Here the glyphs are what they are on the page -
 // eight row bytes, top row first, high bit leftmost - and the destination is the
 // host's pixel buffer, so a blit is the whole of it.
+// One set texel of a glyph, magnified: `scale` by `scale` pixels of one colour.
+// Clipped rather than assumed to fit - the label is sized for 320x240 and a
+// disc may declare a smaller screen.
+void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0, int scale,
+    uint32_t argb)
+{
+    for (int sy = 0; sy < scale; ++sy) {
+        for (int sx = 0; sx < scale; ++sx) {
+            const int64_t px = x0 + sx;
+            const int64_t py = y0 + sy;
+            if (px >= 0 && px < width && py >= 0 && py < height) {
+                dst[py * width + px] = argb;
+            }
+        }
+    }
+}
+
 void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0,
     std::string_view text, int scale, uint32_t argb)
 {
@@ -42,20 +59,9 @@ void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t 
         const uint8_t *rows = &rv_pdklib::rv_font_bits[glyph * rv_pdklib::rv_font_cell_height];
         for (int row = 0; row < rv_pdklib::rv_font_cell_height; ++row) {
             for (int column = 0; column < rv_pdklib::rv_font_ink_width; ++column) {
-                if ((rows[row] & (0x80u >> column)) == 0) {
-                    continue;
-                }
-                for (int sy = 0; sy < scale; ++sy) {
-                    for (int sx = 0; sx < scale; ++sx) {
-                        const int64_t px = pen + column * scale + sx;
-                        const int64_t py = y0 + row * scale + sy;
-                        // Clipped rather than assumed to fit: the label is
-                        // sized for 320x240 and a disc may declare a smaller
-                        // screen.
-                        if (px >= 0 && px < width && py >= 0 && py < height) {
-                            dst[py * width + px] = argb;
-                        }
-                    }
+                if ((rows[row] & (0x80u >> column)) != 0) {
+                    blit_texel(dst, width, height, pen + column * scale, y0 + row * scale, scale,
+                        argb);
                 }
             }
         }

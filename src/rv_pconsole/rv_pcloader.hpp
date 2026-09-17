@@ -162,6 +162,9 @@ public:
     // Idempotent teardown, in the order documented above. Called by the
     // destructor; public so a caller may end a disc early and see the log lines
     // in place rather than at some indeterminate point during unwinding.
+    // The disc's last hook, with its throw contained. See rv_pcloader.cpp.
+    void shutdown_disc_();
+
     void unload();
 
 private:

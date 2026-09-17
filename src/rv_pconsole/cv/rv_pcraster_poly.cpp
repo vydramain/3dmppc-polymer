@@ -223,6 +223,42 @@ rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t ar
 
 // Per-scanline, per-pixel fill. `row`/`uv` are stepped in place across the
 // walk; their final values are never read back by the caller.
+// One covered pixel of a textured fill. Its own function so the scanline loop
+// stays a loop: the sample-then-test pair is a third level of nesting that has
+// nothing to do with walking the bounding box.
+void shade_textured(rv_pcfbuf &fbuf, const rv_pctexstage &stage, int64_t x, int64_t y, int64_t u_fx,
+    int64_t v_fx, int32_t depth, bool z_enabled)
+{
+    // >> on a signed value floors (C++20 onwards), so a coordinate lands in the
+    // same texel on both sides of zero - no half-texel jump across u == 0 under
+    // TILE.
+    const rv_pctexel_sample texel = rv_pctexel::sample(
+        *stage.view, u_fx >> RV_UV_FX_SHIFT, v_fx >> RV_UV_FX_SHIFT, stage.mapping);
+    // A transparent texel writes NOTHING - not colour, not depth. The Z test is
+    // inside emit(), so simply not calling it is the whole rule (see
+    // rv_pctexel.cpp).
+    if (texel.drawn) {
+        emit(fbuf, x, y, rv_pcraster::dither_rgb555(texel.value, x, y), depth, z_enabled);
+    }
+}
+
+// One covered pixel of a flat/Gouraud fill: the three edge functions the inside
+// test already computed, turned into barycentric weights and mixed.
+void shade_gouraud(rv_pcfbuf &fbuf, const rv_pctri &tri, int64_t x, int64_t y, int64_t e0,
+    int64_t e1, int64_t e2, double inv_area2, int32_t depth, bool z_enabled)
+{
+    const double w0 = static_cast<double>(e1) * inv_area2; // opposite edge 1
+    const double w1 = static_cast<double>(e2) * inv_area2; // opposite edge 2
+    const double w2 = static_cast<double>(e0) * inv_area2; // opposite edge 0
+
+    rv_color color;
+    color.r = clamp_channel(w0 * tri.color[0].r + w1 * tri.color[1].r + w2 * tri.color[2].r);
+    color.g = clamp_channel(w0 * tri.color[0].g + w1 * tri.color[1].g + w2 * tri.color[2].g);
+    color.b = clamp_channel(w0 * tri.color[0].b + w1 * tri.color[1].b + w2 * tri.color[2].b);
+
+    emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth, z_enabled);
+}
+
 void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexstage &stage,
     int32_t depth, bool z_enabled, int64_t min_x, int64_t min_y, int64_t max_x, int64_t max_y,
     int64_t area2, const int64_t step_x[3], const int64_t step_y[3], const int64_t bias[3],
@@ -249,33 +285,9 @@ void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexsta
         for (int64_t x = min_x; x <= max_x; ++x) {
             if ((e0 + bias[0]) >= 0 && (e1 + bias[1]) >= 0 && (e2 + bias[2]) >= 0) {
                 if (textured) {
-                    // >> on a signed value floors (C++20 onwards), so a
-                    // coordinate lands in the same texel on both sides of zero -
-                    // no half-texel jump across u == 0 under TILE.
-                    const rv_pctexel_sample texel = rv_pctexel::sample(
-                        *stage.view, u_fx >> RV_UV_FX_SHIFT, v_fx >> RV_UV_FX_SHIFT, stage.mapping);
-                    // A transparent texel writes NOTHING - not colour, not
-                    // depth. The Z test is inside emit(), so simply not calling
-                    // it is the whole rule (see rv_pctexel.cpp).
-                    if (texel.drawn) {
-                        emit(fbuf, x, y, rv_pcraster::dither_rgb555(texel.value, x, y), depth,
-                            z_enabled);
-                    }
+                    shade_textured(fbuf, stage, x, y, u_fx, v_fx, depth, z_enabled);
                 } else {
-                    const double w0 = static_cast<double>(e1) * inv_area2; // opposite edge 1
-                    const double w1 = static_cast<double>(e2) * inv_area2; // opposite edge 2
-                    const double w2 = static_cast<double>(e0) * inv_area2; // opposite edge 0
-
-                    rv_color color;
-                    color.r = clamp_channel(w0 * tri.color[0].r + w1 * tri.color[1].r +
-                        w2 * tri.color[2].r);
-                    color.g = clamp_channel(w0 * tri.color[0].g + w1 * tri.color[1].g +
-                        w2 * tri.color[2].g);
-                    color.b = clamp_channel(w0 * tri.color[0].b + w1 * tri.color[1].b +
-                        w2 * tri.color[2].b);
-
-                    emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth,
-                        z_enabled);
+                    shade_gouraud(fbuf, tri, x, y, e0, e1, e2, inv_area2, depth, z_enabled);
                 }
             }
 

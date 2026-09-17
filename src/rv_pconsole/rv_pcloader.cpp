@@ -161,6 +161,20 @@ int64_t rv_pcloader::load(const char *archive_path)
 // shutdown, where the crash looks like anything but its cause. The unlink comes
 // last for the same shape of reason: while the code is mapped, the file is what
 // the kernel pages from.
+// A disc that throws out of its last hook is still a disc being torn down: the
+// catch must not stop destroy_ or dlclose from running. Its own function
+// because try/catch inside two ifs inside unload() is one level of nesting past
+// what this tree allows, and the nesting is the part that reads badly.
+void rv_pcloader::shutdown_disc_()
+{
+    try {
+        disc_->disc_shutdown(disc_->self);
+    } catch (...) {
+        RV_LOG_ERR("pcloader", "disc_shutdown() of '{}' threw; tearing down anyway",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
+    }
+}
+
 void rv_pcloader::unload()
 {
     if (disc_ != nullptr) {
@@ -168,13 +182,7 @@ void rv_pcloader::unload()
         // refused to start. The facade is still valid at this point - that is
         // precisely why it runs before destroy and before dlclose.
         if (initialized_) {
-            try {
-                disc_->disc_shutdown(disc_->self);
-            } catch (...) {
-                RV_LOG_ERR("pcloader",
-                    "disc_shutdown() of '{}' threw; tearing down anyway",
-                    rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
-            }
+            shutdown_disc_();
         }
         if (destroy_ != nullptr) {
             destroy_(disc_);
