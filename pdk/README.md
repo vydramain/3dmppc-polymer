@@ -544,6 +544,11 @@ bug: the boundary is checked by the toolchain every build.
 - PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.hpp`
   holds line / polygon / sprite and the `rv_primitive` union); otherwise one type
   per file, as in `ca/`.
+- **File names say what they hold.** No suffix: subsystem core (e.g., `rv_pccd.hpp`
+  with `rv_pccd.cpp`) or standalone entity (e.g., `rv_pcvoice`, `rv_pccard`).
+  Suffix `_<job>`: technical role (`_null`, `_posix`) or subsystem part (`_stack`,
+  `_reload`). Suffix `_detail`: subsystem internals. Test: the name must match
+  the contents.
 
 ---
 

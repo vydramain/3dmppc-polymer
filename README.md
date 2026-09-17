@@ -214,6 +214,42 @@ Not offered: rolling back effects, hot-swapping C++, interrupting a hung game
 hook, interrupting a hung C or FFI call, or recovering a session after a
 restart.
 
+A chunk may declare `state_shape`, a table literal describing the persistent
+state it expects:
+
+```lua
+state_shape = {
+    frame_count = 0,
+    tex_name = "",
+    enemies = { ["*"] = { hp = 0, x = 0.0 } },
+}
+```
+
+Before `attach` runs, the console walks the live state against this shape: a
+declared key already stored keeps its value if the type matches; a declared
+key missing from state is inserted; a stored key that is not declared is
+refused, so nothing is orphaned in silence; a type mismatch is refused, naming
+the field path. A table whose only declared key is `"*"` is an open
+collection — every key of the matching state table is checked against the
+shape under `"*"`, which is how a script declares `enemies` without naming
+every id. Allowed values are number, string, boolean and nested table; a
+function, coroutine, userdata, a cycle, or a table reached by two different
+paths is refused. No `state_shape` at all skips the check, so a disc built
+before this keeps working unchanged.
+
+The walk is two passes: the first validates the whole tree without mutating
+anything, the second inserts. If `attach` then refuses, the console removes
+exactly the keys it inserted — a refusal this way leaves the state as the old
+code left it. What `attach` itself wrote is not undone, per the `effects=1`
+contract above. `attach` still returns `false, "reason"` on its own terms:
+the console checks structure, only the new code knows whether seconds became
+milliseconds. The walk is bounded by a maximum nesting depth and a budget
+spent per table visited and per key examined.
+
+A refusal from the shape check answers with the error token `state_shape` and
+a message naming the field path, e.g. `screen_width: expected string, stored
+number`.
+
 ### What still needs a restart
 
 | Changed | Restart? | Who notices |
@@ -230,8 +266,8 @@ Every `err` carries a stable token, so a client branches on that and never on
 the sentence. Framing: `protocol`, `payload_size`, `payload_timeout`. Machine:
 `no_machine`, `no_entry`, `not_reloadable`, `in_call`, `unsupported_medium`,
 `nomem`, `insn_ceiling`. A candidate: `compile`, `body`, `not_a_table`,
-`no_attach`, `attach`, `attach_refused`, `attach_contract`. An asset:
-`no_asset`, `asset`.
+`no_attach`, `attach`, `attach_refused`, `attach_contract`, `state_shape`. An
+asset: `no_asset`, `asset`.
 
 A C API stack imbalance is deliberately not among them: that would be a bug in
 the console, not a fault in the script, and reporting it as a script error
