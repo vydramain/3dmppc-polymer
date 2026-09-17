@@ -37,6 +37,8 @@ public:
 
     int64_t texture_height(int64_t res) override;
 
+    int64_t texture_reload(const char *resname) override;
+
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}
 

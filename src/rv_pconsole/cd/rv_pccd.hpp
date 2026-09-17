@@ -41,6 +41,11 @@ public:
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
+    // Re-read a resident texture by name and swap it in place: the id, refs
+    // and name mapping do not change, only the record's addresses/size do.
+    // Console-side only, reached by the dev channel, never by a game.
+    virtual int64_t texture_reload(const char *resname) = 0;
+
     // Where texture_acquire uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s
     // shutdown-order requirement pins that declaration order), so cd cannot

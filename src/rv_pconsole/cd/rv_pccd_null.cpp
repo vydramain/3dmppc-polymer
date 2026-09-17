@@ -57,4 +57,9 @@ int64_t rv_pccd_null::texture_height(int64_t /*res*/)
     return RV_ERR_INVAL;
 }
 
+int64_t rv_pccd_null::texture_reload(const char * /*resname*/)
+{
+    return RV_ERR_INVAL;
+}
+
 } // namespace rv_3dmppc

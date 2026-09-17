@@ -95,6 +95,8 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t texture_height(int64_t res) override;
 
+    int64_t texture_reload(const char* resname) override;
+
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the
