@@ -62,7 +62,7 @@ bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_en
 // stride. Each check legalises exactly the fields the next step relies on;
 // until a check has passed, the fields it covers are just bytes. Fills
 // out_ehdr on success.
-bool elf_header_ok_(std::vector<unsigned char> &buffer, const char *info_entry,
+bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
     const char *origin, Elf64_Ehdr &out_ehdr)
 {
     const int64_t size = static_cast<int64_t>(buffer.size());
@@ -129,7 +129,7 @@ bool elf_header_ok_(std::vector<unsigned char> &buffer, const char *info_entry,
 // Walks ehdr's program headers for the first PT_NOTE segment. found stays
 // false (RV_OK) when none exists; a bounds violation returns RV_ERR_INVAL
 // immediately, already logged.
-int64_t find_note_segment_(std::vector<unsigned char> &buffer, const Elf64_Ehdr &ehdr,
+int64_t find_note_segment(std::vector<unsigned char> &buffer, const Elf64_Ehdr &ehdr,
     uint64_t &segment_offset, uint64_t &segment_end, bool &found)
 {
     found = false;
@@ -165,7 +165,7 @@ int64_t find_note_segment_(std::vector<unsigned char> &buffer, const Elf64_Ehdr 
 // Walks the notes inside [segment_offset, segment_end) for the RV_MPPC note
 // and fills version_info. found stays false (RV_OK) when no matching note is
 // present; only an unreadable note header returns RV_ERR_INVAL.
-int64_t read_mppc_note_(std::vector<unsigned char> &buffer, uint64_t segment_offset,
+int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offset,
     uint64_t segment_end, rv_mppc_note_desc &version_info, bool &found)
 {
     found = false;
@@ -245,7 +245,7 @@ int64_t read_mppc_note_(std::vector<unsigned char> &buffer, uint64_t segment_off
 }
 
 // Compares version_info against this console's RV_MPPC_VER_MAJOR/MINOR.
-bool version_compatible_(const rv_mppc_note_desc &version_info)
+bool version_compatible(const rv_mppc_note_desc &version_info)
 {
     if (RV_MPPC_VER_MAJOR != version_info.version_major ||
         RV_MPPC_VER_MINOR < version_info.version_minor) {
@@ -340,14 +340,14 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
     const char *info_entry, const char *origin)
 {
     Elf64_Ehdr mppcdisc_ehdr;
-    if (!elf_header_ok_(buffer, info_entry, origin, mppcdisc_ehdr)) {
+    if (!elf_header_ok(buffer, info_entry, origin, mppcdisc_ehdr)) {
         return RV_ERR_INVAL;
     }
 
     uint64_t segment_offset = 0;
     uint64_t segment_end = 0;
     bool note_segment_found = false;
-    if (const int64_t rc = find_note_segment_(buffer, mppcdisc_ehdr, segment_offset,
+    if (const int64_t rc = find_note_segment(buffer, mppcdisc_ehdr, segment_offset,
             segment_end, note_segment_found);
         rc != RV_OK) {
         return rc;
@@ -356,7 +356,7 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
     rv_mppc_note_desc version_info;
     bool version_info_found_flag = false;
     if (note_segment_found) {
-        if (const int64_t rc = read_mppc_note_(buffer, segment_offset, segment_end,
+        if (const int64_t rc = read_mppc_note(buffer, segment_offset, segment_end,
                 version_info, version_info_found_flag);
             rc != RV_OK) {
             return rc;
@@ -372,7 +372,7 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
         return RV_ERR_INVAL;
     }
 
-    if (!version_compatible_(version_info)) {
+    if (!version_compatible(version_info)) {
         return RV_ERR_INVAL;
     }
 
