@@ -106,7 +106,7 @@ the compiler they drive.
 | `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | fast run: no real-time wait and no audio output; every mode steps 1/60 s per frame, so runs stay reproducible |
-| `--disc PATH` | mount a **directory** of loose assets: the development shortcut, no packaging step |
+| `--disc PATH` | assets **directory** for the built-in disc, which carries no medium of its own; a disc given positionally brings its own medium, so the two may not be combined |
 | `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
@@ -131,6 +131,23 @@ stdout — stdout is reserved for the development channel's protocol lines
 The console can be driven while it runs: stopped at a frame boundary, stepped
 one frame at a time, and — the point of the whole thing — handed replacement
 Lua for the disc's entry script without losing the game's state.
+
+It is a **build**, not a flag: `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in
+the compile line and `OFF` puts their null counterparts there instead, the
+same slot shape the platform, cv and cl implementations already use. `--dev`
+is only the switch that opens the channel inside a console that was built
+with it; a player binary refuses the option by name rather than accepting it
+and doing nothing.
+
+What "not in the player build" means, exactly: no implementation, no protocol
+vocabulary and no reachable path — `strings` on a player binary finds none of
+the verbs, and the command dispatcher, the stdin channel, the entry reload and
+the loose-directory mount are not compiled. What remains is the *name* of each
+slot's entry point, answering "no": that is the price of choosing a link-time
+slot over `#ifdef` in the headers, and it is the same price `rv_pccl_null`,
+`rv_pccd_null` and `rv_pcplatform_null` already pay. A symbol-name sweep is
+therefore the wrong check; the verb vocabulary and the refusals are the right
+ones.
 
 ### Stopping it
 
@@ -169,14 +186,17 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `step` | run exactly one frame, then stay stopped; answered *after* that frame |
 | `reload entry` | re-read the entry script off the drive (directory medium only) |
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
-| `asset <name>` | re-read the named texture and refresh it in place behind its residency id (directory medium only) |
+| `asset <name>` | re-read the named texture and refresh it in place behind its residency id; answers with the new `width=`/`height=` (directory medium only) |
 | `get <key>` | read one top-level field of the persistent state table |
 | `gc` | full collection, then report the heap |
 | `quit` | shut down by the ordinary path |
 
 `entry` is a literal selector, not a name: this version replaces the entry
 chunk and nothing else. `asset <name>` refreshes a baked texture in place; a
-script that changed a non-texture asset gets no notification at all.
+script that changed a non-texture asset gets no notification at all. The
+answer carries the texture's size because a RESIZED texture is the one case
+the client's own layout has to follow — the game does not have to hear about
+it at all, since it asks the drive for the address and the size every draw.
 
 ### A session
 
@@ -237,8 +257,12 @@ the field path. A table whose only declared key is `"*"` is an open
 collection — every key of the matching state table is checked against the
 shape under `"*"`, which is how a script declares `enemies` without naming
 every id. Allowed values are number, string, boolean and nested table; a
-function, coroutine, userdata, a cycle, or a table reached by two different
-paths is refused. No `state_shape` at all skips the check, so a disc built
+function, coroutine, userdata and a cycle are refused. The two sides are
+checked differently, and deliberately: a shape table may be reached again on
+a sibling path — that is what `"*"` IS, one template handed to every element
+in turn — and refuses only when it is its own ancestor, which is a cycle. A
+STATE table reached twice refuses, because two fields holding one table means
+a default inserted through one path silently changes the other. No `state_shape` at all skips the check, so a disc built
 before this keeps working unchanged.
 
 The walk is two passes: the first validates the whole tree without mutating
@@ -282,6 +306,35 @@ The state contract a script has to follow to be reloadable at all — what lives
 in the persistent table and what dies with the code — is in
 [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md), next to
 the script that demonstrates it.
+
+### What an acceptance run has to prove
+
+The console carries no test code, so the harness that checks this runtime lives
+outside the repository — it builds both configurations from a working tree,
+drives the channel over a fifo so the disc can be EDITED mid-run, and asserts on
+protocol lines rather than on log text. What stays here is the list it has to
+satisfy, because that list is a property of the contract above and not of
+whoever wrote the script:
+
+1. Both configurations build, and both burn and boot an ordinary disc.
+2. The player build contains no verb of the protocol, refuses `--dev` by name
+   with exit 2, and refuses a loose directory — checked by vocabulary and by
+   refusal, never by symbol name (see the note at the top of this section).
+3. The medium answers for itself: a positional directory is `live`, an archive
+   is `fixed`, and no combination of disc arguments is silently ignored.
+4. `pause` stops at a boundary, `step` runs exactly one frame and is answered
+   after it, `resume` carries on — with the frame counter agreeing.
+5. A successful reload keeps the state and the next frame runs the new code.
+6. Each refusal — a stored key nothing declares, a retyped key, `attach`
+   refusing on meaning — leaves the old code running, the revision unmoved and
+   the keys the shape inserted taken back. A candidate with no `state_shape` is
+   *accepted*, unchecked, on purpose.
+7. Reload repeats within one run without a stack or resource error.
+8. A texture refreshes with no game hook and reports its new size; a truncated
+   or non-container candidate is refused and the old texture is still there; a
+   resized one is accepted at its new size; an archive refuses the request.
+9. A frame is still rendered, and no run crashes — including on the way out,
+   after every protocol line has already been printed.
 
 ---
 

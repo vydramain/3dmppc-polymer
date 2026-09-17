@@ -117,8 +117,8 @@ struct shape_walk_ctx {
     bool refused = false;
     std::string refuse_path;
     std::string refuse_message;
-    std::vector<const void *> shape_seen; // catches a shape table reused on two paths
-    std::vector<const void *> state_seen; // same, for the state tree
+    std::vector<const void *> shape_path;  // the shape tables on the CURRENT path: catches a cycle, permits a reused template
+    std::vector<const void *> state_seen;  // every state table already visited: catches a diamond in the game's data
     std::vector<rv_pccl_luajit::state_shape_insert> *inserted = nullptr;
 };
 
