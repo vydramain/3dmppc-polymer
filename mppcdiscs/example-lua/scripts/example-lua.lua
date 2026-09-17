@@ -29,30 +29,6 @@ local STATE_VERSION = 2
 -- recreated each frame_render, cheaply, from data already in state).
 local state
 
--- Recover cv/ca/cio as real controller pointers from whatever `state` holds
--- right now. Called from both disc_initialize (the raw light userdata just
--- arrived) and attach (a reload may run with no disc_initialize in between -
--- see there) - one place casts, so both callers agree on the result.
---
--- This cannot be done ONCE inside attach() and cached in a local: a local
--- dies with the chunk that set it, and the whole point of this helper is to
--- rebuild working pointers AFTER a reload, when the old chunk's locals are
--- already gone and only `state`'s raw userdata is still there.
-local function recast_controllers(s)
-	if s.cv_raw then
-		s.cv = pdk.cast("rv_cv*", s.cv_raw)
-	end
-	if s.ca_raw then
-		s.ca = pdk.cast("rv_ca*", s.ca_raw)
-	end
-	if s.cio_raw then
-		s.cio = pdk.cast("rv_cio*", s.cio_raw)
-	end
-	if s.cd_raw then
-		s.cd = pdk.cast("rv_cd*", s.cd_raw)
-	end
-end
-
 -- The one asset this script OWNS: it uploads it once, in disc_initialize,
 -- into an address it remembers, and it is the only asset name
 -- M.asset_changed (below) will accept. "Owns" is the whole division of
@@ -231,29 +207,26 @@ function M.attach(s)
 	end
 
 	state = s
-	recast_controllers(state)
 	return true
 end
 
-function M.disc_initialize(cv_, ca_, cio_, cd_)
-	-- cv_/ca_/cio_/cd_ arrive as light userdata (rv_cl_stack_push_pointer on
-	-- the C++ side). They are stored RAW in state, not just cast to a local:
-	-- a reloaded chunk's attach() has no disc_initialize call to wait for, so
-	-- recast_controllers() is what turns raw userdata back into a usable
-	-- pointer on EVERY attach, using whichever raw value is already in state.
-	state.cv_raw = cv_
-	state.ca_raw = ca_
-	state.cio_raw = cio_
-	state.cd_raw = cd_
-	recast_controllers(state)
+function M.disc_initialize(o_)
+	local o = pdk.cast("rv_pdko*", o_)
+	local cv = pdk.pdko_cv(o)
+	local cd = pdk.pdko_cd(o)
+
+	-- The one pointer kept across a reload: M.asset_changed (below) is called
+	-- by the console with only a name and no handle, so until the console
+	-- owns asset reload this is what it re-derives cv/cd from.
+	state.pdko = o_
 
 	-- Read something real back through pdk and log it: the headless-
 	-- verifiable proof that a Lua call reached the console's own
 	-- rv_cv_screen_width and got its real answer, not a stub. Stored in
 	-- state, not a local, because frame_render (below) needs it and a local
 	-- set here would not survive a reload.
-	state.screen_width = tonumber(pdk.cv_screen_width(state.cv))
-	state.screen_height = tonumber(pdk.cv_screen_height(state.cv))
+	state.screen_width = tonumber(pdk.cv_screen_width(cv))
+	state.screen_height = tonumber(pdk.cv_screen_height(cv))
 	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
 
 	-- Uploaded exactly once here, never in attach(): disc_initialize is the
@@ -261,7 +234,7 @@ function M.disc_initialize(cv_, ca_, cio_, cd_)
 	-- address it allocates NOW that M.asset_changed (below) has to remember
 	-- across every future code reload - hence storing it in `state`, not a
 	-- local.
-	local buf, size, err = read_asset_bytes(state.cd, ASSET_TEXTURE_NAME)
+	local buf, size, err = read_asset_bytes(cd, ASSET_TEXTURE_NAME)
 	if not buf then
 		print("example-lua: " .. err)
 		return
@@ -271,7 +244,7 @@ function M.disc_initialize(cv_, ca_, cio_, cd_)
 		print("example-lua: " .. herr)
 		return
 	end
-	local tex, uerr = upload_texture(state.cv, buf, size, header)
+	local tex, uerr = upload_texture(cv, buf, size, header)
 	if not tex then
 		print("example-lua: " .. uerr)
 		return
@@ -307,7 +280,11 @@ function M.asset_changed(name)
 		return false, "no texture currently uploaded to refresh"
 	end
 
-	local buf, size, err = read_asset_bytes(state.cd, name)
+	local o = pdk.cast("rv_pdko*", state.pdko)
+	local cv = pdk.pdko_cv(o)
+	local cd = pdk.pdko_cd(o)
+
+	local buf, size, err = read_asset_bytes(cd, name)
 	if not buf then
 		return false, err
 	end
@@ -339,7 +316,7 @@ function M.asset_changed(name)
 		palette.size = palette_bytes
 		palette.width = header.palette_count
 		palette.height = 1
-		if pdk.cv_video_asset_write(state.cv, state.tex_pal_addr, palette) < 0 then
+		if pdk.cv_video_asset_write(cv, state.tex_pal_addr, palette) < 0 then
 			return false, "video write failed (palette)"
 		end
 	end
@@ -350,7 +327,7 @@ function M.asset_changed(name)
 	texels.size = texel_bytes
 	texels.width = header.width
 	texels.height = header.height
-	if pdk.cv_video_asset_write(state.cv, state.tex_addr, texels) < 0 then
+	if pdk.cv_video_asset_write(cv, state.tex_addr, texels) < 0 then
 		return false, "video write failed (texels)"
 	end
 
@@ -363,25 +340,27 @@ function M.asset_changed(name)
 	return true
 end
 
-function M.frame_update(dt)
+function M.frame_update(dt, o_)
 	-- The frame counter: the one field this example exists to demonstrate.
 	-- It lives in `state`, so a code reload (M.attach runs, this chunk's
 	-- locals do not) leaves it exactly where it was - the count CONTINUES
 	-- instead of restarting at 0.
 	state.frame_count = state.frame_count + 1
 
-	-- Should the disc stop? cio is cast and reachable now, but this example
-	-- does not wire a button up to it - false every frame is still the
-	-- honest answer for a script that raises no stop condition of its own.
+	-- Should the disc stop? this example does not wire a button up to check
+	-- - false every frame is still the honest answer for a script that
+	-- raises no stop condition of its own.
 	return false
 end
 
-function M.frame_render()
+function M.frame_render(o_)
+	local cv = pdk.pdko_cv(pdk.cast("rv_pdko*", o_))
+
 	-- Same shape as example-cpp.cpp's own frame_render: configure the frame
 	-- (clear colour), fill it with a primitive, and leave the flush to the
 	-- disc's C++ side (src/example-lua.cpp), which calls rv_cv_frame_flush
 	-- right after this hook returns.
-	pdk.cv_frame_configure(state.cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
+	pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
 
 	local primitive = pdk.new("rv_primitive") -- ffi.new zero-inits every field
 	primitive.type = pdk.PRIMITIVE_POLYGON
@@ -405,7 +384,7 @@ function M.frame_render()
 	set_vertex(1, 40, h - 40, 80, 255, 80)
 	set_vertex(2, w - 40, h - 40, 80, 80, 255)
 
-	pdk.cv_frame_put(state.cv, primitive)
+	pdk.cv_frame_put(cv, primitive)
 
 	-- The sprite next to the triangle: SAMPLE_TEXTURE against the address
 	-- disc_initialize (or, after a reload, a since-run M.asset_changed)
@@ -427,10 +406,10 @@ function M.frame_render()
 		sprite.width = state.tex_width
 		sprite.height = state.tex_height
 
-		pdk.cv_frame_put(state.cv, sprite_primitive)
+		pdk.cv_frame_put(cv, sprite_primitive)
 	end
 end
 
-function M.disc_shutdown() end
+function M.disc_shutdown(o_) end
 
 return M
