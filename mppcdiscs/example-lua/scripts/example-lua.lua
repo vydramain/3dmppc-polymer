@@ -9,11 +9,17 @@
 -- machine.
 local M = {}
 
--- Bumped whenever a stored shape changes. attach() below refuses a state
--- table whose "version" field it has no migration for, INSTEAD of guessing -
--- an old field silently misread as a new one is a worse failure than a
--- refused reload.
-local STATE_VERSION = 2
+-- Declares the shape of `state` (below). The console checks a reload
+-- candidate's live state table against this BEFORE attach() runs: a missing
+-- declared key is inserted, a stored key not declared here or with a
+-- mismatched type refuses the reload.
+M.state_shape = {
+	frame_count = 0,
+	screen_width = 0,
+	screen_height = 0,
+	tex_name = "",
+	tex_res = 0,
+}
 
 -- The console owns ONE persistent table for the whole run and hands it to
 -- M.attach() - once at boot, right after this chunk is raised, and again
@@ -30,10 +36,9 @@ local STATE_VERSION = 2
 local state
 
 -- The one asset this script OWNS: it acquires it once, in disc_initialize,
--- remembers only the residency id the drive hands back, and it is the only
--- asset name M.asset_changed (below) will accept. "Owns" is the whole
--- division of labour behind asset reload - the drive decodes and re-decodes
--- the container, but only the game knows which primitives draw with it.
+-- and remembers only the residency id the drive hands back. The drive
+-- refreshes the texture behind that id on its own, so this script never
+-- hears about a reload - it just keeps asking for the same id's address.
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
@@ -48,34 +53,10 @@ local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 print("Hello from example lua!")
 
 function M.attach(s)
-	-- Compatibility check FIRST, before a single field is written - a
-	-- refusal must leave the state exactly as the old code left it.
-	if s.version ~= nil and s.version > STATE_VERSION then
-		return false, string.format("state version %d is newer than this code (%d)", s.version, STATE_VERSION)
-	end
-
-	-- One real migration, so the shape exists rather than being described
-	-- in a comment: version 1 kept the frame counter under the old name
-	-- "frames" - version 2 renamed it to "frame_count" for clarity. A
-	-- table from a version-1 chunk still attaches; it is upgraded in place.
-	if s.version == 1 and s.frame_count == nil then
-		s.frame_count = s.frames
-		s.frames = nil
-	end
-	s.version = STATE_VERSION
-
-	-- Explicit nil checks, not `x = x or default`: false/0 are legal stored
-	-- values and `or` would stomp them back to the default every attach().
-	if s.frame_count == nil then
-		s.frame_count = 0
-	end
-	if s.screen_width == nil then
-		s.screen_width = false
-	end
-	if s.screen_height == nil then
-		s.screen_height = false
-	end
-
+	-- The console has already checked s against M.state_shape (above) -
+	-- structure and types are settled by the time this runs. What is left is
+	-- the SEMANTIC half a shape cannot express: attach still has the right to
+	-- refuse a structurally valid state it judges unusable.
 	state = s
 	return true
 end
@@ -84,11 +65,6 @@ function M.disc_initialize(o_)
 	local o = pdk.cast("rv_pdko*", o_)
 	local cv = pdk.pdko_cv(o)
 	local cd = pdk.pdko_cd(o)
-
-	-- The one pointer kept across a reload: M.asset_changed (below) is called
-	-- by the console with only a name and no handle, so until the console
-	-- owns asset reload this is what it re-derives cv/cd from.
-	state.pdko = o_
 
 	-- Read something real back through pdk and log it: the headless-
 	-- verifiable proof that a Lua call reached the console's own
@@ -100,9 +76,9 @@ function M.disc_initialize(o_)
 	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
 
 	-- Acquired exactly once here, never in attach(): disc_initialize is the
-	-- only hook that runs at boot and never again, and it is the residency id
-	-- it gets back NOW that M.asset_changed (below) has to remember across
-	-- every future code reload - hence storing it in `state`, not a local.
+	-- only hook that runs at boot and never again. The residency id is stored
+	-- so it survives every future code reload - frame_render queries the drive
+	-- for the address each time it draws, not cached across reloads.
 	local res = pdk.cd_texture_acquire(cd, ASSET_TEXTURE_NAME)
 	if res < 0 then
 		print("example-lua: could not acquire texture '" .. ASSET_TEXTURE_NAME .. "'")
@@ -112,35 +88,6 @@ function M.disc_initialize(o_)
 	state.tex_name = ASSET_TEXTURE_NAME
 	state.tex_res = tonumber(res)
 end
-
--- The console's asset-reload hook: called on the ENTRY CHUNK, at a frame
--- boundary, with the flat entry name whose bytes on the drive just changed.
--- true means this script has already re-read and re-uploaded it; false plus
--- a reason is a refusal, reported to the client as an error, and leaves the
--- old video data exactly where it was.
---
--- Only the ONE asset this script acquired in disc_initialize (above) is
--- ever accepted - a name it does not own is refused without touching
--- anything. The drive owns the decode and the video allocation now, so a
--- texture that changed size is just a fresh acquire, not a refusal.
-function M.asset_changed(name)
-	if name ~= state.tex_name then
-		return false, "asset '" .. tostring(name) .. "' is not owned by this script"
-	end
-
-	local cd = pdk.pdko_cd(pdk.cast("rv_pdko*", state.pdko))
-
-	pdk.cd_texture_release(cd, state.tex_res)
-	local res = pdk.cd_texture_acquire(cd, name)
-	if res < 0 then
-		state.tex_res = nil
-		return false, "could not re-acquire texture '" .. name .. "'"
-	end
-
-	state.tex_res = tonumber(res)
-	return true
-end
-
 function M.frame_update(dt, o_)
 	-- The frame counter: the one field this example exists to demonstrate.
 	-- It lives in `state`, so a code reload (M.attach runs, this chunk's
@@ -188,11 +135,10 @@ function M.frame_render(o_)
 	pdk.cv_frame_put(cv, primitive)
 
 	-- The sprite next to the triangle: SAMPLE_TEXTURE against the residency
-	-- disc_initialize (or, after a reload, a since-run M.asset_changed)
-	-- acquired. Asked fresh every frame, not cached: an address is only
-	-- valid until that texture is reloaded. Guarded by tex_res because
-	-- acquire can fail (e.g. the asset missing) without disc_initialize
-	-- itself refusing to start.
+	-- disc_initialize acquired. Asked fresh every frame for its address, not
+	-- cached: an address is only valid until that texture is reloaded. Guarded
+	-- by tex_res because acquire can fail (e.g. the asset missing) without
+	-- disc_initialize itself refusing to start.
 	if state.tex_res then
 		local cd = pdk.pdko_cd(pdk.cast("rv_pdko*", o_))
 		local sprite_primitive = pdk.new("rv_primitive")
