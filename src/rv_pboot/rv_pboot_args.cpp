@@ -46,6 +46,26 @@ std::string join_names_or(const Table &table) {
     return result;
 }
 
+// Every bad argument ends the same way: name it, print the usage, exit 2.
+// Written once because it was written five times, and the fifth copy is where
+// one of them stops matching the others.
+bool refuse(const std::string &what, int &exit_code) {
+    rv_3dmppc::rv_console_print_error(what);
+    rv_3dmppc::rv_console_print_usage(stderr);
+    exit_code = 2;
+    return false;
+}
+
+// A numeric option, refused by its own name. `floor` is the smallest value the
+// option accepts, so --scale can reject 0 without a second check at the call.
+bool option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code) {
+    if (!parse_u64(text, out) || out < floor) {
+        return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)),
+            exit_code);
+    }
+    return true;
+}
+
 }  // namespace
 
 void rv_console_print_usage(std::FILE *stream)
@@ -125,6 +145,34 @@ void rv_console_print_usage(std::FILE *stream)
         cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
 }
 
+namespace {
+
+// Which medium this run mounts, decided after getopt has taken every flag it
+// recognises. Its own function because it is its own question - the loop above
+// only collects strings - and because the two ways of getting it wrong each
+// need a sentence.
+bool rv_pboot_args_disc(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
+    // getopt_long has left optind on the first thing that was not a flag. One
+    // positional argument is expected - the disc - and more than one is a typo
+    // worth refusing rather than silently ignoring.
+    args.disc_path = (optind < argc) ? argv[optind] : nullptr;
+    // A positional disc inserts its OWN medium (rv_pboot_run), which would
+    // overwrite whatever --disc mounted - so the two together are a run whose
+    // -d did nothing at all. Refusing says so; the old silent override left
+    // the developer reading a `medium=fixed` status they had asked to be live.
+    if (args.disc_path != nullptr && !args.medium_path.empty()) {
+        return refuse("--disc names the assets directory for the BUILT-IN disc; a disc given "
+                      "positionally brings its own medium. Give one or the other.",
+            exit_code);
+    }
+    if (optind + 1 < argc) {
+        return refuse(std::format("expected at most one disc path, got {}", argc - optind), exit_code);
+    }
+    return true;
+}
+
+}  // namespace
+
 bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
     // There is no game's name here. The console mounts whatever medium it is
     // pointed at and boots the disc it is handed on the command line; with
@@ -185,22 +233,10 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 args.mode_cm = optarg;
                 break;
             case 's':
-                if (!parse_u64(optarg, args.scale) || args.scale == 0) {
-                    rv_3dmppc::rv_console_print_error(
-                        std::format("bad value for --scale: '{}'", rv_pdklib::rv_log_escape(optarg)));
-                    rv_3dmppc::rv_console_print_usage(stderr);
-                    exit_code = 2;
-                    return false;
-                }
+                if (!option_u64("scale", optarg, 1, args.scale, exit_code)) return false;
                 break;
             case 'n':
-                if (!parse_u64(optarg, args.max_frames)) {
-                    rv_3dmppc::rv_console_print_error(
-                        std::format("bad value for --frames: '{}'", rv_pdklib::rv_log_escape(optarg)));
-                    rv_3dmppc::rv_console_print_usage(stderr);
-                    exit_code = 2;
-                    return false;
-                }
+                if (!option_u64("frames", optarg, 0, args.max_frames, exit_code)) return false;
                 break;
             case 'd':
                 args.medium_path = optarg;
@@ -219,6 +255,8 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 rv_3dmppc::rv_console_print_usage(stderr);
                 exit_code = 2;
                 return false;
+            default:
+                break;
         }
     }
 
@@ -231,31 +269,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
     // known until rv_pboot_modes_resolve runs - this file only collects the
     // raw strings.
 
-    // getopt_long has left optind on the first thing that was not a flag. One
-    // positional argument is expected - the disc - and more than one is a typo
-    // worth refusing rather than silently ignoring.
-    args.disc_path = (optind < argc) ? argv[optind] : nullptr;
-    // A positional disc inserts its OWN medium (rv_pboot_run), which would
-    // overwrite whatever --disc mounted - so the two together are a run whose
-    // -d did nothing at all. Refusing says so; the old silent override left
-    // the developer reading a `medium=fixed` status they had asked to be live.
-    if (args.disc_path != nullptr && !args.medium_path.empty()) {
-        rv_3dmppc::rv_console_print_error(
-            "--disc names the assets directory for the BUILT-IN disc; a disc given "
-            "positionally brings its own medium. Give one or the other.");
-        rv_3dmppc::rv_console_print_usage(stderr);
-        exit_code = 2;
-        return false;
-    }
-    if (optind + 1 < argc) {
-        rv_3dmppc::rv_console_print_error(
-            std::format("expected at most one disc path, got {}", argc - optind));
-        rv_3dmppc::rv_console_print_usage(stderr);
-        exit_code = 2;
-        return false;
-    }
-
-    return true;
+    return rv_pboot_args_disc(argc, argv, args, exit_code);
 }
 
 }  // namespace rv_3dmppc
