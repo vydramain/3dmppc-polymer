@@ -59,6 +59,10 @@ private:
     phase phase_ = phase::header;
     rv_pcdevreq pending_;        // header parsed, payload still arriving
     std::size_t need_ = 0;
+    // A header that claimed a payload AND was refused. The bytes still have to
+    // be eaten - they carry no marker, so anything left in the stream would be
+    // read as commands - and only once they are gone is the refusal answered.
+    std::string pending_error_;
     std::chrono::steady_clock::time_point payload_started_;
     std::chrono::steady_clock::time_point payload_progress_;
 

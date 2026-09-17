@@ -270,17 +270,20 @@ bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
     if (req.args.empty()) {
         return false; // a blank line is nothing at all, not an error
     }
+    // The id is judged but NOT acted on yet: a refused header may still claim a
+    // payload, and those bytes have to be framed away before anything is
+    // answered. Refusing first left them in the stream to be read as commands -
+    // `0 reload entry bytes 8` followed by eight bytes of "99 quit" shut the
+    // console down.
+    std::string id_error;
     if (!parse_u63(req.args.front(), req.id)) {
-        // The framing is intact (a whole line, no payload claimed), so this is
-        // answerable and the channel survives it.
-        reply("0 err error=protocol effects=0 msg=" + rv_pcdev_hex("first token must be a numeric request id"));
-        return false;
-    }
-    if (req.id == 0) {
+        id_error = "0 err error=protocol effects=0 msg=" +
+            rv_pcdev_hex("first token must be a numeric request id");
+    } else if (req.id == 0) {
         // 0 is reserved for unsolicited events (see rv_pconsole_run.cpp), so a
         // reply tagged 0 would be indistinguishable from one of those.
-        reply("0 err error=protocol effects=0 msg=" + rv_pcdev_hex("request id must be greater than zero; zero is reserved for unsolicited events"));
-        return false;
+        id_error = "0 err error=protocol effects=0 msg=" +
+            rv_pcdev_hex("request id must be greater than zero; zero is reserved for unsolicited events");
     }
     req.args.erase(req.args.begin());
 
@@ -301,10 +304,18 @@ bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
         req.has_payload = true;
         need_ = static_cast<std::size_t>(size);
         pending_ = std::move(req);
+        pending_error_ = std::move(id_error); // empty unless the id was refused
         phase_ = phase::payload;
         payload_started_ = std::chrono::steady_clock::now();
         payload_progress_ = payload_started_;
         return take_payload(out);
+    }
+
+    if (!id_error.empty()) {
+        // No payload claimed, so the framing was never in doubt: answer and
+        // carry on.
+        reply(id_error);
+        return false;
     }
 
     out = std::move(req);
@@ -318,9 +329,17 @@ bool rv_pcdevchan_stdio::take_payload(rv_pcdevreq &out)
         consumed_ += need_;
         scanned_ = consumed_;
         phase_ = phase::header;
+        need_ = 0;
+        if (!pending_error_.empty()) {
+            // The bytes are eaten, so the next header starts where it should;
+            // only now is the refused header answerable.
+            reply(pending_error_);
+            pending_error_.clear();
+            pending_ = rv_pcdevreq{};
+            return false;
+        }
         out = std::move(pending_);
         pending_ = rv_pcdevreq{};
-        need_ = 0;
         return true;
     }
 
@@ -331,6 +350,7 @@ bool rv_pcdevchan_stdio::take_payload(rv_pcdevreq &out)
         // reading on would feed a half script's tail to the command parser.
         reply(std::to_string(pending_.id) + " err error=payload_timeout effects=0 msg=" +
             rv_pcdev_hex("payload did not arrive in time"));
+        pending_error_.clear(); // the channel is going down; the id refusal is moot
         close("payload transfer timed out");
     }
     return false;
