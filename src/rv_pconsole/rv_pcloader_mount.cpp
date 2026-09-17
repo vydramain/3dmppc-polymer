@@ -39,6 +39,141 @@ constexpr int64_t RV_PCLOADER_MANIFEST_MAX_SIZE = 1 << 20; // 1 MiB of text is a
 
 } // namespace
 
+namespace
+{
+
+// Check that a disc path was given at all, and that it names a readable file.
+// The first stage of mount(): everything after this needs an actual file to
+// open.
+int64_t check_archive_path(const char *archive_path)
+{
+    if (archive_path == nullptr || *archive_path == '\0') {
+        RV_LOG_ERR("pcloader", "no disc path was given");
+        return RV_ERR_INVAL;
+    }
+
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(std::filesystem::path(archive_path),
+            ec)) {
+        RV_LOG_ERR("pcloader",
+            "no disc at '{}': the path does not name a readable file",
+            rv_pdklib::rv_log_escape(archive_path));
+        return RV_ERR_NOENT;
+    }
+    return RV_OK;
+}
+
+// Opens the container. zip_ is a member so the archive can stay open past
+// mount()'s return, for bring_up() to read from later; `out_zip` is handed
+// back for mount() to keep only once every later check has passed.
+int64_t open_archive(const char *archive_path,
+    std::unique_ptr<rv_zipreader> &out_zip)
+{
+    out_zip = std::make_unique<rv_zipreader>();
+    std::string zip_error;
+    if (!out_zip->open(archive_path, zip_error)) {
+        RV_LOG_ERR("pcloader", "'{}' is not a readable .mppcdisc archive: {}",
+            rv_pdklib::rv_log_escape(archive_path),
+            rv_pdklib::rv_log_escape(zip_error.c_str(), 160));
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+// Reads the manifest entry whole and hands it back as text.
+int64_t read_manifest_text(const rv_zipreader &zip, const char *archive_path,
+    std::string &out_text)
+{
+    std::vector<unsigned char> manifest_bytes;
+    std::string why = read_whole_entry(zip, RV_PCLOADER_MANIFEST_ENTRY,
+        RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
+    if (!why.empty()) {
+        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
+            rv_pdklib::rv_log_escape(archive_path), RV_PCLOADER_MANIFEST_ENTRY, why);
+        return RV_ERR_NOENT;
+    }
+
+    out_text.assign(reinterpret_cast<const char *>(manifest_bytes.data()),
+        manifest_bytes.size());
+    return RV_OK;
+}
+
+// The origin argument is what puts `disc.toml:14:` in front of every
+// diagnostic instead of a bare `line 14:` - the report is the only thing
+// the console can say about a manifest it could not read, so it says it in
+// the shape the burner's own messages have.
+// The console parses the whole manifest with the burner's own parser (one
+// shared schema, rv_pdklib::rv_manifest) but ACTS only on the disc's
+// identity/title, the code entry and [budget.*]; [scripts] sources is read
+// only for the all-or-none check below, and [build], [assets], [textures]
+// are never read back out here.
+int64_t parse_manifest(const std::string &manifest_text,
+    const char *archive_path, rv_pdklib::rv_manifest &out_manifest)
+{
+    std::string merror;
+    const int64_t mres =
+        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, out_manifest, merror);
+
+    if (mres != 0) {
+        // The disc has no name yet: the manifest that would have given it one
+        // is exactly what failed, so `manifest_` is still empty and the archive
+        // path is the only honest identity here.
+        //
+        // The report lists one mistake per LINE, and rv_log_escape turns those
+        // newlines into \x0A rather than letting an archive forge log lines. It
+        // stays one long line on purpose, and the length is raised well past the
+        // 64-byte default so that a manifest with several mistakes is not cut
+        // down to its first one.
+        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
+            rv_pdklib::rv_log_escape(archive_path),
+            RV_PCLOADER_MANIFEST_ENTRY,
+            rv_pdklib::rv_log_escape(merror.c_str(), 512));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// A disc is a lua disc or a C++ disc. All three statements, or none: a
+// manifest carrying some of them describes a machine this console cannot
+// build, and the honest answer to that is a refusal, not a guess about
+// which of the three the author meant.
+int64_t check_lua_triple(const rv_pdklib::rv_manifest &manifest)
+{
+    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest.budget.pccl;
+    const bool lua_scripts = !manifest.scripts_sources.empty();
+    const bool lua_memory = pccl.script_memory_size > 0;
+    const bool lua_entry = !pccl.script_entry.empty();
+
+    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
+            "script_memory_size={}, script_entry='{}'. All three or none",
+            rv_pdklib::rv_log_escape(manifest.disc_id.c_str()),
+            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// The lua entry the manifest names must actually be an asset the archive
+// carries - a blank script_entry (a C++ disc) has nothing to check here.
+int64_t check_lua_entry_asset(const rv_pdklib::rv_manifest &manifest,
+    const rv_zipreader &zip)
+{
+    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest.budget.pccl;
+    if (!pccl.script_entry.empty() && !zip.has(pccl.script_entry.c_str())) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
+            rv_pdklib::rv_log_escape(manifest.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+} // namespace
+
 namespace rv_pcloader_detail
 {
 
@@ -92,77 +227,27 @@ int64_t rv_pcloader::mount(const char *archive_path)
 {
     unload();
 
-    // Check that a disc path was given at all
-    if (archive_path == nullptr || *archive_path == '\0') {
-        RV_LOG_ERR("pcloader", "no disc path was given");
-        return RV_ERR_INVAL;
+    int64_t err = check_archive_path(archive_path);
+    if (err < 0) {
+        return err;
     }
 
-    // Check the file.
-    std::error_code ec;
-    if (!std::filesystem::is_regular_file(std::filesystem::path(archive_path),
-            ec)) {
-        RV_LOG_ERR("pcloader",
-            "no disc at '{}': the path does not name a readable file",
-            rv_pdklib::rv_log_escape(archive_path));
-        return RV_ERR_NOENT;
+    std::unique_ptr<rv_zipreader> zip;
+    err = open_archive(archive_path, zip);
+    if (err < 0) {
+        return err;
     }
 
-    // Check the container. zip_ is a member so the archive can stay open past
-    // this function's return, for bring_up() to read from later.
-    auto zip = std::make_unique<rv_zipreader>();
-    std::string zip_error;
-    if (!zip->open(archive_path, zip_error)) {
-        RV_LOG_ERR("pcloader", "'{}' is not a readable .mppcdisc archive: {}",
-            rv_pdklib::rv_log_escape(archive_path),
-            rv_pdklib::rv_log_escape(zip_error.c_str(), 160));
-        return RV_ERR_IO;
+    std::string manifest_text;
+    err = read_manifest_text(*zip, archive_path, manifest_text);
+    if (err < 0) {
+        return err;
     }
 
-    // Check the manifest.
-    std::vector<unsigned char> manifest_bytes;
-    std::string why =
-        read_whole_entry(*zip, RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
-    if (!why.empty()) {
-        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-            rv_pdklib::rv_log_escape(archive_path), RV_PCLOADER_MANIFEST_ENTRY, why);
-        return RV_ERR_NOENT;
+    err = parse_manifest(manifest_text, archive_path, manifest_);
+    if (err < 0) {
+        return err;
     }
-
-    std::string manifest_text(
-        reinterpret_cast<const char *>(manifest_bytes.data()),
-        manifest_bytes.size());
-
-    // The origin argument is what puts `disc.toml:14:` in front of every
-    // diagnostic instead of a bare `line 14:` - the report is the only thing
-    // the console can say about a manifest it could not read, so it says it in
-    // the shape the burner's own messages have.
-    // The console parses the whole manifest with the burner's own parser (one
-    // shared schema, rv_pdklib::rv_manifest) but ACTS only on the disc's
-    // identity/title, the code entry and [budget.*]; [scripts] sources is read
-    // only for the all-or-none check below, and [build], [assets], [textures]
-    // are never read back out here.
-    std::string merror;
-    const int64_t mres =
-        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror);
-
-    if (mres != 0) {
-        // The disc has no name yet: the manifest that would have given it one
-        // is exactly what failed, so `manifest_` is still empty and the archive
-        // path is the only honest identity here.
-        //
-        // The report lists one mistake per LINE, and rv_log_escape turns those
-        // newlines into \x0A rather than letting an archive forge log lines. It
-        // stays one long line on purpose, and the length is raised well past the
-        // 64-byte default so that a manifest with several mistakes is not cut
-        // down to its first one.
-        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
-            rv_pdklib::rv_log_escape(archive_path),
-            RV_PCLOADER_MANIFEST_ENTRY,
-            rv_pdklib::rv_log_escape(merror.c_str(), 512));
-        return RV_ERR_INVAL;
-    }
-
 
     // The lua machine, cross-checked against what this archive can actually
     // serve. The code checksum below covers disc.so and NOTHING else: a
@@ -173,31 +258,14 @@ int64_t rv_pcloader::mount(const char *archive_path)
     //
     // Whatever that entry script pulls in afterwards is not checked and is not
     // meant to be: the console knows the one name the disc gave it.
-    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest_.budget.pccl;
-    const bool lua_scripts = !manifest_.scripts_sources.empty();
-    const bool lua_memory = pccl.script_memory_size > 0;
-    const bool lua_entry = !pccl.script_entry.empty();
-
-    // A disc is a lua disc or a C++ disc. All three statements, or none: a
-    // manifest carrying some of them describes a machine this console cannot
-    // build, and the honest answer to that is a refusal, not a guess about
-    // which of the three the author meant.
-    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
-        RV_LOG_ERR("pcloader",
-            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
-            "script_memory_size={}, script_entry='{}'. All three or none",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
-            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
-        return RV_ERR_INVAL;
+    err = check_lua_triple(manifest_);
+    if (err < 0) {
+        return err;
     }
 
-    if (lua_entry && !zip->has(pccl.script_entry.c_str())) {
-        RV_LOG_ERR("pcloader",
-            "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
-        return RV_ERR_INVAL;
+    err = check_lua_entry_asset(manifest_, *zip);
+    if (err < 0) {
+        return err;
     }
 
     const std::string code_entry = code_entry_of(manifest_);
