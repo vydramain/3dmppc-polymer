@@ -13,6 +13,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# The development runtime (the dev command channel, booting a game from a
+# loose directory, ...) is a build-time choice, not a runtime flag: with this
+# OFF the dev sources are not in the compile line at all. Two configurations
+# exist - OFF is the ordinary player console; ON costs nothing a player needs.
+option(3DMPPC_DEVTOOLS "Build the development runtime: the dev command channel and booting a game from a loose directory" OFF)
+
 include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
@@ -86,6 +92,16 @@ endif()
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
+
+# Dev-capability slot: both implementations excluded from the glob, then
+# exactly one added back by the option, the same shape as the null/real slot
+# pairs below (3dmppc_platform_sdl3 etc.) moved from runtime to build time.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir(_null)?\\.cpp")
+if(3DMPPC_DEVTOOLS)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir.cpp)
+else()
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_null.cpp)
+endif()
 
 # --- the SDL3 platform ----------------------------------------------------------
 # The only code that may see SDL. It is its own library with SDL linked PRIVATE,

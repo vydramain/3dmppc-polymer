@@ -35,6 +35,11 @@ namespace rv_3dmppc
 // even mounted, not an operation on a loaded disc.
 int64_t rv_pcloader_probe_staging();
 
+// True when this binary was built with 3DMPPC_DEVTOOLS ON, i.e. mount_dir()
+// and the other dev-only capabilities are the real implementations rather
+// than the refusing stubs. Free function so callers need no loader instance.
+bool rv_devtools_built();
+
 // PATTERN: RAII — one object owns the whole loaded-disc state (temporary file,
 // dlopen handle, the disc object) and its destructor is the ONLY teardown path,
 // so the order below cannot be got wrong by a caller taking an early return:

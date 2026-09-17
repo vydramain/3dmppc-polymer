@@ -86,6 +86,11 @@ std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
 
 } // namespace rv_pcloader_detail
 
+bool rv_devtools_built()
+{
+    return true;
+}
+
 int64_t rv_pcloader::mount_dir(const char *dir_path)
 {
     unload();
