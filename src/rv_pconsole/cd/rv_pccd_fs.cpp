@@ -187,6 +187,33 @@ int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte>& bytes, rv_pdkl
     header.height = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_HEIGHT);
     header.palette_count = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_PALETTE_COUNT);
 
+    // The FORMAT decides whether a palette is required, and how big it may be.
+    // Counting bytes alone is not enough: an IDX8 whose palette was deleted and
+    // whose palette_count was zeroed has exactly the byte count its header
+    // promises, and used to be accepted - the old texture was freed and the new
+    // one sampled palette address 0. A paletted texture with no palette is not
+    // a texture.
+    switch (header.format) {
+    case RV_TEXFMT_IDX4:
+        if (header.palette_count == 0 || header.palette_count > 16) return RV_ERR_INVAL;
+        break;
+    case RV_TEXFMT_IDX8:
+        if (header.palette_count == 0 || header.palette_count > 256) return RV_ERR_INVAL;
+        break;
+    case RV_TEXFMT_DIRECT15:
+        // A direct texture samples no palette, so one here is a header
+        // describing something this console cannot draw.
+        if (header.palette_count != 0) return RV_ERR_INVAL;
+        break;
+    default:
+        return RV_ERR_INVAL; // a format this console does not speak
+    }
+    // Zero of either dimension uploads nothing and draws nothing; it is a
+    // corrupt header, not an empty picture.
+    if (header.width == 0 || header.height == 0) {
+        return RV_ERR_INVAL;
+    }
+
     const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
     const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
     const int64_t need = rv_pdklib::rv_mppctex_header_size + palette_bytes + texel_bytes;
