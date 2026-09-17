@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstddef>
 #include <string>
+#include <vector>
 
 #include "lua.hpp"
 
@@ -204,14 +205,29 @@ int64_t rv_pccl_luajit::call_gate_(int ref, const char *hook, const char *string
     return RV_OK;
 }
 
-// The incompatible-state gate. The console has no schema for the state table
-// and cannot tell that `player.hp` used to be a number - only the new code
-// knows what it expects, so only the new code can say no.
+// The incompatible-state gate. Two checks, deliberately not one:
+// check_state_shape_ is STRUCTURAL and belongs to the console, because a
+// disc author cannot get key-present/type-matches wrong in a way the console
+// cannot see for itself. attach() is SEMANTIC and stays the chunk's call -
+// the console has no schema for the state table and cannot tell that
+// `player.hp` used to mean something different, only the new code knows what
+// it expects, so only the new code can say no to that.
 int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
 {
     static constexpr gate_phases phases{ "no_attach", "attach", "attach_refused",
         "attach_contract" };
-    return call_gate_(ref, "attach", nullptr, phases, report);
+
+    std::vector<state_shape_insert> inserted;
+    const int64_t shaped = check_state_shape_(ref, inserted, report);
+    if (shaped < 0) {
+        return shaped; // report already named the field path; nothing was left mutated
+    }
+
+    const int64_t result = call_gate_(ref, "attach", nullptr, phases, report);
+    // Whether attach() accepted or refused, the console's own pins are done
+    // with; a refusal also asks for the keys themselves back out.
+    finish_state_shape_(inserted, result >= 0);
+    return result;
 }
 
 } // namespace rv_3dmppc

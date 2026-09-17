@@ -1,9 +1,9 @@
 // Internals shared by the rv_pccl_luajit translation units
 // (rv_pccl_luajit.cpp, _stack.cpp, _chunks.cpp, _gate.cpp, _reload.cpp,
-// _state.cpp). The instruction ceiling and both guards are used from more
-// than one of them, and duplicating a guard would mean two copies of the
-// nesting rule its comment records - one of which would eventually stop
-// matching the other.
+// _state.cpp, _shape.cpp, _shapewalk.cpp). The instruction ceiling and both
+// guards are used from more than one of them, and duplicating a guard would
+// mean two copies of the nesting rule its comment records - one of which
+// would eventually stop matching the other.
 //
 // lua.hpp is the PDK boundary and is confined to
 // src/rv_pconsole/cl/rv_pccl_luajit* - this header and the .cpp files of
@@ -91,4 +91,29 @@ public:
 private:
     int &depth_;
 };
+
+// Bound the walk itself, independent of what either tree contains: a
+// malformed or adversarial state_shape/state pair must not be able to make
+// this run unbounded, the same reason the reload path bounds VM instructions.
+constexpr int kShapeMaxDepth = 16;
+constexpr int kShapeMaxNodes = 4096;
+
+// One walk's working state: which pass (validate or apply), the caps, the
+// first refusal found (a walk stops at the first one), and - APPLY only -
+// where inserted keys get recorded so a later attach() refusal can undo them.
+struct shape_walk_ctx {
+    lua_State *L = nullptr;
+    bool apply = false;
+    int nodes = 0;
+    bool refused = false;
+    std::string refuse_path;
+    std::string refuse_message;
+    std::vector<const void *> shape_seen; // catches a shape table reused on two paths
+    std::vector<const void *> state_seen; // same, for the state tree
+    std::vector<rv_pccl_luajit::state_shape_insert> *inserted = nullptr;
+};
+
+// Walk function declarations: the structural walk functions from _shapewalk.cpp
+// that are called by shape_trampoline_ in _shape.cpp.
+bool walk_table(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::string &path, int depth);
 } // namespace rv_3dmppc

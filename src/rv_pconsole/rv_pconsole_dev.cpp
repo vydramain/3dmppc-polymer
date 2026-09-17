@@ -236,13 +236,11 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         return;
     }
 
-    // From here the console's part is over: it has said which entry moved. What
-    // that entry IS, where its bytes went, and whether anything still points at
-    // them is knowledge that lives only in the game's own code.
-    rv_pccl_reload_report report;
-    const int64_t rc = cl_->script_asset_changed(key.c_str(), report);
+    // The drive refreshes the resident texture in place - same id, same
+    // address - so the game picks it up next draw without being told.
+    const int64_t rc = cd_->texture_reload(key.c_str());
     if (rc < 0) {
-        dev_->reply(rv_pcdev_err(req.id, report.phase, rc, report.effects_possible, report.message));
+        dev_->reply(rv_pcdev_err(req.id, "asset", rc, false, "the drive could not reload that asset"));
         return;
     }
     dev_->reply(std::format("{} ok asset={}", req.id, rv_pcdev_hex(key)));

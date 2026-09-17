@@ -50,7 +50,6 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
-    int64_t script_asset_changed(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const char *key, rv_pccl_value &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;

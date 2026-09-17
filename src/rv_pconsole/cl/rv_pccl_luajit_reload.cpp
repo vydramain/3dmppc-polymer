@@ -1,6 +1,5 @@
-// The development capability: replacing the entry chunk, and telling the
-// entry chunk an asset changed. Reached only through the dev command channel,
-// never on the normal boot path.
+// The development capability: replacing the entry chunk. Reached only through
+// the dev command channel, never on the normal boot path.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.
@@ -17,40 +16,6 @@
 
 namespace rv_3dmppc
 {
-
-// The asset gate. Same protocol, different question: not "can you take this
-// state" but "could you take this refreshed asset".
-int64_t rv_pccl_luajit::script_asset_changed(const char *name, rv_pccl_reload_report &report)
-{
-    static constexpr gate_phases phases{ "no_asset_hook", "asset", "asset_refused",
-        "asset_contract" };
-    if (name == nullptr) {
-        report.phase = "bad_request";
-        report.message = "no asset name";
-        return RV_ERR_INVAL;
-    }
-    if (entry_ < 0) {
-        report.phase = "no_entry";
-        report.message = "the entry chunk has not been raised yet";
-        return RV_ERR_INVAL;
-    }
-    if (call_depth_ > 0) {
-        report.phase = "in_call";
-        report.message = "a script call is in flight";
-        return RV_ERR_BUSY;
-    }
-    const int ref = chunks_[static_cast<std::size_t>(entry_)].ref;
-    if (!has_hook_(ref, "asset_changed")) {
-        // Answered before the hook is called rather than after, so the
-        // "effects" flag can honestly say nothing ran: unlike a reload, there
-        // is no candidate body here to have executed first.
-        report.phase = phases.missing;
-        report.effects_possible = false;
-        report.message = "the entry chunk has no asset_changed() function";
-        return RV_ERR_INVAL;
-    }
-    return call_gate_(ref, "asset_changed", name, phases, report);
-}
 
 int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
     rv_pccl_reload_report &report)

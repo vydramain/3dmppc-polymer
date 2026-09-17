@@ -31,6 +31,18 @@ namespace rv_3dmppc
 // budgeted machine was asked for.
 class rv_pccl_luajit final : public rv_pccl
 {
+public:
+    // One key the structural state_shape check added to the live state
+    // table because a chunk declared it and the state lacked it. `parent_ref`
+    // pins the table the key lives in, so a rollback can find it again
+    // without re-walking the tree. Public only so the free walker functions
+    // in rv_pccl_luajit_shape.cpp can name it; nothing outside this class and
+    // that file has a reason to touch it.
+    struct state_shape_insert {
+        int parent_ref;
+        std::string key;
+    };
+
 private:
     rv_pccl_conf conf_;
     rv_pccd &cd_; // BORROWED. Reads the entry asset out of the archive.
@@ -146,11 +158,8 @@ private:
     };
 
     // Call a GATE HOOK on the chunk `ref` holds: one argument in, and
-    // `true` or `false, "reason"` out. Two hooks share this shape - attach(),
-    // which decides whether the new code accepts the old state, and
-    // asset_changed(), which decides whether the game could take the refreshed
-    // asset - so they share one implementation of the stack protocol rather
-    // than two copies of the same twenty lines.
+    // `true` or `false, "reason"` out. attach() is the one caller today -
+    // does the new code accept the old state - but the shape is general.
     //
     // `string_arg` null means "hand it the state table"; otherwise that string
     // is the argument. Raw lookup throughout, so a metatable cannot make the
@@ -162,6 +171,30 @@ private:
     // returns false has REFUSED the state it was handed - the
     // incompatible-state answer - and that is a failed reload, not a crash.
     int64_t attach_(int ref, rv_pccl_reload_report &report);
+
+    // The STRUCTURAL half of the incompatible-state question: does the live
+    // state table match the shape the chunk itself declared, field by field,
+    // independent of what attach() then decides. A chunk with no state_shape
+    // field is unaffected - this returns RV_OK having touched nothing, the
+    // same behaviour as before this check existed. Inserts declared keys the
+    // state lacks; `inserted` records exactly those keys so a later attach()
+    // refusal can undo precisely them. Refuses (message names the field path)
+    // on a key the state has and the shape did not declare, a type mismatch,
+    // or a shape value outside the supported model - and mutates nothing when
+    // it refuses.
+    int64_t check_state_shape_(int ref, std::vector<state_shape_insert> &inserted,
+        rv_pccl_reload_report &report);
+
+    // Releases check_state_shape_'s registry pins. When `keep` is false it
+    // first nils each key back out of its parent table - undoing exactly the
+    // console's own insertions, never anything attach() itself wrote.
+    void finish_state_shape_(std::vector<state_shape_insert> &inserted, bool keep);
+
+    // The state_shape walk, run under lua_pcall: an out-of-budget allocation
+    // while building a default table then surfaces as an ordinary catchable
+    // error instead of reaching the panic handler. Argument 1 is a
+    // shape_call_args* (rv_pccl_luajit_shape.cpp).
+    static int shape_trampoline_(lua_State *L);
 
     // Is there a function under `hook` in the table `ref` holds? Raw, same reason.
     bool has_hook_(int ref, const char *hook) const;
@@ -225,7 +258,6 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
-    int64_t script_asset_changed(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const char *key, rv_pccl_value &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;

@@ -106,18 +106,6 @@ public:
     // is consulted, so inspecting state can never run script code. That is not
     // a detail - a dev channel that evaluates is a dev channel that can be
     // asked to do anything.
-    // Tell the entry chunk that one asset of the mounted medium has changed on
-    // disk, so it can re-read and re-upload it.
-    //
-    // The console does NOT refresh the asset itself, and cannot: a texture
-    // lives at an address in virtual VRAM that the game's own code chose, and
-    // nothing outside that code knows which address, how big it was, or whether
-    // anything still points at it. So the division is fixed - the console
-    // notifies, the game re-uploads - and the same "atomic in code, not in
-    // effects" rule applies: once the hook has started writing into VRAM, a
-    // failure part way through cannot be taken back.
-    virtual int64_t script_asset_changed(const char *name, rv_pccl_reload_report &report) = 0;
-
     virtual int64_t state_get(const char *key, rv_pccl_value &out) = 0;
 
     // Full collection, then the resulting heap size. Exists for one reason: a
