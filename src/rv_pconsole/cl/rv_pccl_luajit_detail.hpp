@@ -1,11 +1,12 @@
 // Internals shared by the rv_pccl_luajit translation units
-// (rv_pccl_luajit.cpp, _stack.cpp, _chunks.cpp, _dev.cpp, _state.cpp). The
-// instruction ceiling and both guards are used from more than one of them, and
-// duplicating a guard would mean two copies of the nesting rule its comment
-// records - one of which would eventually stop matching the other.
+// (rv_pccl_luajit.cpp, _stack.cpp, _chunks.cpp, _gate.cpp, _reload.cpp,
+// _state.cpp). The instruction ceiling and both guards are used from more
+// than one of them, and duplicating a guard would mean two copies of the
+// nesting rule its comment records - one of which would eventually stop
+// matching the other.
 //
 // lua.hpp is the PDK boundary and is confined to
-// src/rv_pconsole/cl/rv_pccl_luajit* - this header and the five .cpp files of
+// src/rv_pconsole/cl/rv_pccl_luajit* - this header and the .cpp files of
 // that one class. If it shows up anywhere else, the PDK boundary has leaked.
 #pragma once
 
