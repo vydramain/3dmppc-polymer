@@ -257,6 +257,12 @@ bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
     if (line_end > line_begin && in_[line_end - 1] == '\r') {
         --line_end; // an editor that sends CRLF is not making a protocol error
     }
+    if (line_end - line_begin > static_cast<std::size_t>(RV_PCDEVCHAN_HEADER_MAX)) {
+        // consumed_/scanned_ are already past this line, so it is dropped, not
+        // rescanned forever, even though it is refused rather than parsed.
+        close("request line exceeded the header ceiling");
+        return false;
+    }
     std::string_view line(base + line_begin, line_end - line_begin);
 
     rv_pcdevreq req;
@@ -267,13 +273,13 @@ bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
     if (!parse_u63(req.args.front(), req.id)) {
         // The framing is intact (a whole line, no payload claimed), so this is
         // answerable and the channel survives it.
-        reply("0 err error=protocol msg=" + rv_pcdev_hex("first token must be a numeric request id"));
+        reply("0 err error=protocol effects=0 msg=" + rv_pcdev_hex("first token must be a numeric request id"));
         return false;
     }
     if (req.id == 0) {
         // 0 is reserved for unsolicited events (see rv_pconsole_run.cpp), so a
         // reply tagged 0 would be indistinguishable from one of those.
-        reply("0 err error=protocol msg=" + rv_pcdev_hex("request id must be greater than zero; zero is reserved for unsolicited events"));
+        reply("0 err error=protocol effects=0 msg=" + rv_pcdev_hex("request id must be greater than zero; zero is reserved for unsolicited events"));
         return false;
     }
     req.args.erase(req.args.begin());
@@ -286,7 +292,7 @@ bool rv_pcdevchan_stdio::take_header(rv_pcdevreq &out)
         if (!parse_u63(req.args.back(), size) || size > RV_PCDEVCHAN_PAYLOAD_MAX) {
             // Fatal to the framing: the sender is about to write a number of
             // bytes we do not know, and guessing would turn them into commands.
-            reply(std::to_string(req.id) + " err error=payload_size msg=" +
+            reply(std::to_string(req.id) + " err error=payload_size effects=0 msg=" +
                 rv_pcdev_hex("payload size is not a number within the ceiling"));
             close("payload size could not be framed");
             return false;

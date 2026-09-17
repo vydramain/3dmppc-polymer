@@ -267,8 +267,9 @@ number`.
 ### Error tokens
 
 Every `err` carries a stable token, so a client branches on that and never on
-the sentence. Framing: `protocol`, `payload_size`, `payload_timeout`. Machine:
-`no_machine`, `no_entry`, `not_reloadable`, `in_call`, `unsupported_medium`,
+the sentence. Framing: `protocol`, `payload_size`, `answer_size`,
+`payload_timeout`. Machine: `no_machine`, `no_entry`, `not_reloadable`,
+`in_call`, `unsupported_medium`,
 `nomem`, `insn_ceiling`. A candidate: `compile`, `body`, `not_a_table`,
 `no_attach`, `attach`, `attach_refused`, `attach_contract`, `state_shape`. An
 asset: `no_asset`, `asset`.

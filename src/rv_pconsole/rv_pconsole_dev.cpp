@@ -268,12 +268,29 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
     case RV_CL_TYPE_NUMBER:
         dev_->reply(std::format("{} ok found=1 type=number value={}", req.id, value.number));
         return;
-    case RV_CL_TYPE_STRING:
+    case RV_CL_TYPE_STRING: {
+        // Hex doubles the byte count, and the answer queue has its own
+        // ceiling; decided here, from the value's length, because building
+        // the line first and recovering after would already have queued too
+        // much.
+        // The fixed part of the line counts too: a value at exactly half the
+        // ceiling would pass a hex-only check and then overflow the queue by
+        // the length of this prefix, which is the same defect one step smaller.
+        const std::string prefix = std::format("{} ok found=1 type=string value=", req.id);
+        const int64_t line_size =
+            static_cast<int64_t>(prefix.size()) + static_cast<int64_t>(value.bytes.size()) * 2 + 1;
+        if (line_size > RV_PCDEVCHAN_OUT_MAX) {
+            dev_->reply(rv_pcdev_err(req.id, "answer_size", RV_ERR_INVAL, false,
+                std::format("value is {} bytes; its hex answer does not fit one reply (ceiling {} bytes)",
+                    value.bytes.size(), RV_PCDEVCHAN_OUT_MAX)));
+            return;
+        }
         // Hex, not text: a stored string may hold a NUL or bytes that are not
         // valid UTF-8, and the protocol promises to hand back what is there.
         dev_->reply(std::format("{} ok found=1 type=string value={}", req.id,
             rv_pcdev_hex(value.bytes)));
         return;
+    }
     case RV_CL_TYPE_TABLE:
         dev_->reply(std::format("{} ok found=1 type=table", req.id));
         return;
