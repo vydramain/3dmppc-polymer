@@ -14,14 +14,14 @@ Checks: >
 CheckOptions:
   # The companion of the 512-line FILE rule (pdk/README.md, File conventions,
   # enforced by cmake/rv_file_length.cmake): a file may be short and still hide
-  # one function that does everything. 120 lines is already a quarter of a
-  # file's whole budget, which is a generous ceiling for one job.
+  # one function that does everything. 128 is 512/4 on purpose - one file holds
+  # at most four jobs of full size, and the two thresholds read off one scale.
   #
   # This flags code that predates the rule - rv_pboot_run and
   # rv_zipreader::parse_directory are the two worst - and that is the point: the
   # warning list is the queue. Raise the number to silence it, do not delete the
   # check.
-  readability-function-size.LineThreshold: 120
+  readability-function-size.LineThreshold: 128
   readability-function-size.StatementThreshold: 80
   readability-function-size.NestingThreshold: 5
   # else after return/break/continue: warn even when no automatic fix is possible
