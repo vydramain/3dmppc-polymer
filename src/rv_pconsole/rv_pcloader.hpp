@@ -22,7 +22,7 @@
 #include "pdk/de/rv_de.h"
 #include "pdk/de/rv_dv.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
-#include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/cd/rv_zipreader.hpp"
 
 namespace rv_3dmppc
 {

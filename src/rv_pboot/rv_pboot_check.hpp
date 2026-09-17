@@ -3,7 +3,7 @@
 #include <cstdint>
 
 #include "pdklib/rv_manifest/rv_manifest.hpp"
-#include "rv_pboot_mode.hpp"
+#include "rv_pboot_machine.hpp"
 
 namespace rv_3dmppc
 {

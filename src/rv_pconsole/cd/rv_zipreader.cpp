@@ -1,4 +1,4 @@
-#include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/cd/rv_zipreader.hpp"
 
 #include <algorithm>
 #include <array>
@@ -83,7 +83,7 @@ uint32_t crc32_update(uint32_t state, const void* data, std::size_t size) {
 }
 
 // Fields of one EOCD record, once validated.
-struct rv_pczip_eocd_fields {
+struct rv_zip_eocd_fields {
     uint32_t cd_offset = 0;
     uint32_t cd_size = 0;
     uint16_t entries_total = 0;
@@ -94,7 +94,7 @@ struct rv_pczip_eocd_fields {
 // large). No member state needed beyond `file_size`, so this stays a free
 // function rather than a method.
 bool validate_eocd_record(const unsigned char* eocd, int64_t file_size, std::string& error,
-                           rv_pczip_eocd_fields& out) {
+                           rv_zip_eocd_fields& out) {
     const uint16_t disk = rd16(eocd + 4);
     const uint16_t cd_disk = rd16(eocd + 6);
     const uint16_t entries_here = rd16(eocd + 8);
@@ -235,7 +235,7 @@ bool rv_zipreader::parse_directory(std::string& error) {
     std::size_t eocd_pos = 0;
     if (!locate_eocd(error, tail, eocd_pos)) return false;
 
-    rv_pczip_eocd_fields fields;
+    rv_zip_eocd_fields fields;
     if (!validate_eocd_record(tail.data() + eocd_pos, file_size_, error, fields)) return false;
 
     std::vector<unsigned char> cdir(static_cast<std::size_t>(fields.cd_size));

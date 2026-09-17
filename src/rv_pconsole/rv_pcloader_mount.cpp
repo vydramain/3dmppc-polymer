@@ -14,7 +14,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
-#include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/cd/rv_zipreader.hpp"
 #include "rv_pconsole/rv_pcloader_detail.hpp"
 
 namespace rv_3dmppc

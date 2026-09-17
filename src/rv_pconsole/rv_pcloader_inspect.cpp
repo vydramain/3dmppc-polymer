@@ -12,7 +12,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdklib/rv_disc_hash/rv_disc_hash.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/cd/rv_zipreader.hpp"
 #include "rv_pconsole/rv_pcloader_detail.hpp"
 
 namespace rv_3dmppc

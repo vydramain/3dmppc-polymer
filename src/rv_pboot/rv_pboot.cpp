@@ -12,7 +12,7 @@
 #include "rv_pboot_budget.hpp"
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
-#include "rv_pboot_mode.hpp"
+#include "rv_pboot_machine.hpp"
 #include "rv_pboot_modes.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
