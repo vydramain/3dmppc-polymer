@@ -24,6 +24,18 @@ public:
 
     virtual int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) = 0;
 
+    virtual int64_t texture_acquire(const char *resname) = 0;
+
+    virtual int64_t texture_release(int64_t res) = 0;
+
+    virtual int64_t texture_addr(int64_t res) = 0;
+
+    virtual int64_t texture_palette_addr(int64_t res) = 0;
+
+    virtual int64_t texture_width(int64_t res) = 0;
+
+    virtual int64_t texture_height(int64_t res) = 0;
+
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 

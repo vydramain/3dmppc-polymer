@@ -25,6 +25,18 @@ public:
 
     int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) override;
 
+    int64_t texture_acquire(const char *resname) override;
+
+    int64_t texture_release(int64_t res) override;
+
+    int64_t texture_addr(int64_t res) override;
+
+    int64_t texture_palette_addr(int64_t res) override;
+
+    int64_t texture_width(int64_t res) override;
+
+    int64_t texture_height(int64_t res) override;
+
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}
 

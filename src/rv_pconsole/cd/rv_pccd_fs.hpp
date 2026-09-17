@@ -56,6 +56,19 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
+    // Working implementation lands in the next slice; today these are inert.
+    int64_t texture_acquire(const char* resname) override;
+
+    int64_t texture_release(int64_t res) override;
+
+    int64_t texture_addr(int64_t res) override;
+
+    int64_t texture_palette_addr(int64_t res) override;
+
+    int64_t texture_width(int64_t res) override;
+
+    int64_t texture_height(int64_t res) override;
+
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the

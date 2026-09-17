@@ -140,4 +140,17 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
     return medium_->entry_read(resname, baddr, baddr_size);
 }
 
+// Inert for this slice - no index, no decoder, no rv_pccv allocation yet.
+int64_t rv_pccd_fs::texture_acquire(const char* /*resname*/) { return RV_ERR_INVAL; }
+
+int64_t rv_pccd_fs::texture_release(int64_t /*res*/) { return RV_ERR_INVAL; }
+
+int64_t rv_pccd_fs::texture_addr(int64_t /*res*/) { return RV_ERR_INVAL; }
+
+int64_t rv_pccd_fs::texture_palette_addr(int64_t /*res*/) { return RV_ERR_INVAL; }
+
+int64_t rv_pccd_fs::texture_width(int64_t /*res*/) { return RV_ERR_INVAL; }
+
+int64_t rv_pccd_fs::texture_height(int64_t /*res*/) { return RV_ERR_INVAL; }
+
 }  // namespace rv_3dmppc
