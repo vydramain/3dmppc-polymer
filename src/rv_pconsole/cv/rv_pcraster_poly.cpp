@@ -92,23 +92,24 @@ struct rv_pctri {
     rv_uv uv[3];
 };
 
-void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, int32_t depth,
-    bool z_enabled)
+// Signed area - area2 = E(v0, v1, v2) is twice the signed area of
+// the triangle. Its sign is the winding; a negative area means every edge
+// function has the opposite sense and the "all E >= 0" test would reject the
+// whole interior. Swapping any two vertices flips the winding, so one
+// conditional swap normalizes every input to the positive case and the inner
+// loop needs no orientation branch.
+//
+// Note what this deliberately does NOT do: back-face culling. The winding is
+// normalized, never rejected - the console draws whatever the disc hands it
+// (the contract names no facing rule, and a disc that wants culling does it
+// in its own transform stage where it still has a normal to test).
+//
+// Returns 0 for a degenerate (zero-area) triangle: it covers no pixel centre.
+int64_t normalize_winding(rv_pctri &tri)
 {
-    // Signed area - area2 = E(v0, v1, v2) is twice the signed area of
-    // the triangle. Its sign is the winding; a negative area means every edge
-    // function has the opposite sense and the "all E >= 0" test would reject the
-    // whole interior. Swapping any two vertices flips the winding, so one
-    // conditional swap normalizes every input to the positive case and the inner
-    // loop needs no orientation branch.
-    //
-    // Note what this deliberately does NOT do: back-face culling. The winding is
-    // normalized, never rejected - the console draws whatever the disc hands it
-    // (the contract names no facing rule, and a disc that wants culling does it
-    // in its own transform stage where it still has a normal to test).
     int64_t area2 = edge_at(tri.x[0], tri.y[0], tri.x[1], tri.y[1], tri.x[2], tri.y[2]);
     if (area2 == 0) {
-        return; // degenerate: zero-area triangles cover no pixel centre
+        return 0;
     }
     if (area2 < 0) {
         const int64_t sx = tri.x[1];
@@ -125,27 +126,32 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
         tri.uv[2] = suv;
         area2 = -area2;
     }
+    return area2;
+}
 
-    // Bounding box clipped to the screen - the triangle covers no pixel outside the
-    // box spanned by its vertices, and the console has no scissor state beyond
-    // the screen itself (rv_cv: "a frame is always the whole screen"). So the
-    // intersection of the two rectangles is the complete clip: no polygon
-    // clipping against the frustum, no per-pixel bounds test in the inner loop,
-    // and an entirely off-screen primitive costs only this comparison.
-    int64_t min_x = max64(min64(tri.x[0], min64(tri.x[1], tri.x[2])), 0);
-    int64_t min_y = max64(min64(tri.y[0], min64(tri.y[1], tri.y[2])), 0);
-    int64_t max_x = min64(max64(tri.x[0], max64(tri.x[1], tri.x[2])), fbuf.width() - 1);
-    int64_t max_y = min64(max64(tri.y[0], max64(tri.y[1], tri.y[2])), fbuf.height() - 1);
-    if (min_x > max_x || min_y > max_y) {
-        return;
-    }
+// Bounding box clipped to the screen - the triangle covers no pixel outside the
+// box spanned by its vertices, and the console has no scissor state beyond
+// the screen itself (rv_cv: "a frame is always the whole screen"). So the
+// intersection of the two rectangles is the complete clip: no polygon
+// clipping against the frustum, no per-pixel bounds test in the inner loop,
+// and an entirely off-screen primitive costs only this comparison.
+//
+// Returns false when the box is empty (nothing to draw).
+bool clip_bounds(const rv_pctri &tri, const rv_pcfbuf &fbuf, int64_t &min_x, int64_t &min_y,
+    int64_t &max_x, int64_t &max_y)
+{
+    min_x = max64(min64(tri.x[0], min64(tri.x[1], tri.x[2])), 0);
+    min_y = max64(min64(tri.y[0], min64(tri.y[1], tri.y[2])), 0);
+    max_x = min64(max64(tri.x[0], max64(tri.x[1], tri.x[2])), fbuf.width() - 1);
+    max_y = min64(max64(tri.y[0], max64(tri.y[1], tri.y[2])), fbuf.height() - 1);
+    return min_x <= max_x && min_y <= max_y;
+}
 
-    // Edge i runs from vertex i to vertex (i + 1) % 3; the vertex it does NOT
-    // touch is (i + 2) % 3.
-    int64_t step_x[3];
-    int64_t step_y[3];
-    int64_t bias[3];
-    int64_t row[3];
+// Edge i runs from vertex i to vertex (i + 1) % 3; the vertex it does NOT
+// touch is (i + 2) % 3.
+void setup_edges(const rv_pctri &tri, int64_t min_x, int64_t min_y, int64_t step_x[3],
+    int64_t step_y[3], int64_t bias[3], int64_t row[3])
+{
     for (int i = 0; i < 3; ++i) {
         const int a = i;
         const int b = (i + 1) % 3;
@@ -157,7 +163,71 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
         bias[i] = is_top_left(dx, dy) ? 0 : -1;
         row[i] = edge_at(tri.x[a], tri.y[a], tri.x[b], tri.y[b], min_x, min_y);
     }
+}
 
+// AFFINE texture mapping - uv is interpolated with the very same
+// screen-space barycentrics as the vertex colours, NOT divided through by a
+// per-vertex 1/w. This is not a shortcut a later stage repairs: an rv_vertex
+// carries x, y, colour and uv and no w at all (pdk/cv/rv_vertex.h - the
+// disc hands the console screen positions, not clip-space points), so the
+// information perspective correction needs does not exist on this side of the
+// contract and cannot be reconstructed here. It is inherited from the PSX on
+// purpose, not missed.
+//
+// The visible consequence, and the reason the contract is shaped this way: a
+// polygon receding into the screen has its texture interpolated linearly in
+// SCREEN space rather than along the surface, so the texels swim as it turns
+// and the two halves of a quad visibly disagree along their shared diagonal.
+// Worst on large, steeply angled surfaces (floors, walls); invisible on small
+// or screen-parallel ones. A disc manages it exactly as PSX games did - by
+// subdividing a big surface into more, smaller polygons.
+rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t area2,
+    const int64_t step_x[3], const int64_t step_y[3], int64_t min_x, int64_t min_y)
+{
+    rv_pcuvwalk uv;
+    if (stage.stretch()) {
+        // STRETCH ignores the vertex uv entirely: the texture is mapped onto
+        // the primitive's bounding box, so the gradient is one texture per
+        // box and there are no cross terms.
+        uv.du_dx = fx_ratio(stage.view->width, max64(stage.box_w, 1));
+        uv.dv_dy = fx_ratio(stage.view->height, max64(stage.box_h, 1));
+        uv.u = (min_x - stage.box_x) * uv.du_dx;
+        uv.v = (min_y - stage.box_y) * uv.dv_dy;
+    } else {
+        const int64_t u0 = tri.uv[0].u;
+        const int64_t u1 = tri.uv[1].u;
+        const int64_t u2 = tri.uv[2].u;
+        const int64_t v0 = tri.uv[0].v;
+        const int64_t v1 = tri.uv[1].v;
+        const int64_t v2 = tri.uv[2].v;
+
+        // u(p) = (E1 * u0 + E2 * u1 + E0 * u2) / area2 - the weights above -
+        // and every E is affine with the steps already computed, so the two
+        // gradients cost one division each for the whole triangle.
+        uv.du_dx = fx_ratio(step_x[1] * u0 + step_x[2] * u1 + step_x[0] * u2, area2);
+        uv.du_dy = fx_ratio(step_y[1] * u0 + step_y[2] * u1 + step_y[0] * u2, area2);
+        uv.dv_dx = fx_ratio(step_x[1] * v0 + step_x[2] * v1 + step_x[0] * v2, area2);
+        uv.dv_dy = fx_ratio(step_y[1] * v0 + step_y[2] * v1 + step_y[0] * v2, area2);
+
+        // Anchor at vertex 0, where the weights are exactly (1, 0, 0) and the
+        // coordinate is exactly that vertex's uv - no division and no
+        // rounding, so the texel the disc authored to sit on a corner is the
+        // one texel guaranteed to land on it.
+        uv.u = (u0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.du_dx +
+            (min_y - tri.y[0]) * uv.du_dy;
+        uv.v = (v0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.dv_dx +
+            (min_y - tri.y[0]) * uv.dv_dy;
+    }
+    return uv;
+}
+
+// Per-scanline, per-pixel fill. `row`/`uv` are stepped in place across the
+// walk; their final values are never read back by the caller.
+void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexstage &stage,
+    int32_t depth, bool z_enabled, int64_t min_x, int64_t min_y, int64_t max_x, int64_t max_y,
+    int64_t area2, const int64_t step_x[3], const int64_t step_y[3], const int64_t bias[3],
+    int64_t row[3], bool textured, rv_pcuvwalk uv)
+{
     // Barycentric coordinates from the same edge functions - for a
     // point p inside, E_i(p) is twice the area of the sub-triangle opposite
     // vertex (i + 2) % 3, so w_(i+2) = E_i(p) / area2. The three weights are
@@ -168,61 +238,6 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
     // E is stepped incrementally, NO division per pixel: only the reciprocal of
     // area2, hoisted out of both loops.
     const double inv_area2 = 1.0 / static_cast<double>(area2);
-
-    const bool textured = stage.active();
-
-    // AFFINE texture mapping - uv is interpolated with the very same
-    // screen-space barycentrics as the vertex colours, NOT divided through by a
-    // per-vertex 1/w. This is not a shortcut a later stage repairs: an rv_vertex
-    // carries x, y, colour and uv and no w at all (pdk/cv/rv_vertex.h - the
-    // disc hands the console screen positions, not clip-space points), so the
-    // information perspective correction needs does not exist on this side of the
-    // contract and cannot be reconstructed here. It is inherited from the PSX on
-    // purpose, not missed.
-    //
-    // The visible consequence, and the reason the contract is shaped this way: a
-    // polygon receding into the screen has its texture interpolated linearly in
-    // SCREEN space rather than along the surface, so the texels swim as it turns
-    // and the two halves of a quad visibly disagree along their shared diagonal.
-    // Worst on large, steeply angled surfaces (floors, walls); invisible on small
-    // or screen-parallel ones. A disc manages it exactly as PSX games did - by
-    // subdividing a big surface into more, smaller polygons.
-    rv_pcuvwalk uv;
-    if (textured) {
-        if (stage.stretch()) {
-            // STRETCH ignores the vertex uv entirely: the texture is mapped onto
-            // the primitive's bounding box, so the gradient is one texture per
-            // box and there are no cross terms.
-            uv.du_dx = fx_ratio(stage.view->width, max64(stage.box_w, 1));
-            uv.dv_dy = fx_ratio(stage.view->height, max64(stage.box_h, 1));
-            uv.u = (min_x - stage.box_x) * uv.du_dx;
-            uv.v = (min_y - stage.box_y) * uv.dv_dy;
-        } else {
-            const int64_t u0 = tri.uv[0].u;
-            const int64_t u1 = tri.uv[1].u;
-            const int64_t u2 = tri.uv[2].u;
-            const int64_t v0 = tri.uv[0].v;
-            const int64_t v1 = tri.uv[1].v;
-            const int64_t v2 = tri.uv[2].v;
-
-            // u(p) = (E1 * u0 + E2 * u1 + E0 * u2) / area2 - the weights above -
-            // and every E is affine with the steps already computed, so the two
-            // gradients cost one division each for the whole triangle.
-            uv.du_dx = fx_ratio(step_x[1] * u0 + step_x[2] * u1 + step_x[0] * u2, area2);
-            uv.du_dy = fx_ratio(step_y[1] * u0 + step_y[2] * u1 + step_y[0] * u2, area2);
-            uv.dv_dx = fx_ratio(step_x[1] * v0 + step_x[2] * v1 + step_x[0] * v2, area2);
-            uv.dv_dy = fx_ratio(step_y[1] * v0 + step_y[2] * v1 + step_y[0] * v2, area2);
-
-            // Anchor at vertex 0, where the weights are exactly (1, 0, 0) and the
-            // coordinate is exactly that vertex's uv - no division and no
-            // rounding, so the texel the disc authored to sit on a corner is the
-            // one texel guaranteed to land on it.
-            uv.u = (u0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.du_dx +
-                (min_y - tri.y[0]) * uv.du_dy;
-            uv.v = (v0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.dv_dx +
-                (min_y - tri.y[0]) * uv.dv_dy;
-        }
-    }
 
     for (int64_t y = min_y; y <= max_y; ++y) {
         int64_t e0 = row[0];
@@ -277,6 +292,35 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
         uv.u += uv.du_dy;
         uv.v += uv.dv_dy;
     }
+}
+
+void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, int32_t depth,
+    bool z_enabled)
+{
+    const int64_t area2 = normalize_winding(tri);
+    if (area2 == 0) {
+        return;
+    }
+
+    int64_t min_x, min_y, max_x, max_y;
+    if (!clip_bounds(tri, fbuf, min_x, min_y, max_x, max_y)) {
+        return;
+    }
+
+    int64_t step_x[3];
+    int64_t step_y[3];
+    int64_t bias[3];
+    int64_t row[3];
+    setup_edges(tri, min_x, min_y, step_x, step_y, bias, row);
+
+    const bool textured = stage.active();
+    rv_pcuvwalk uv;
+    if (textured) {
+        uv = setup_uv(tri, stage, area2, step_x, step_y, min_x, min_y);
+    }
+
+    rasterize_scanlines(fbuf, tri, stage, depth, z_enabled, min_x, min_y, max_x, max_y, area2,
+        step_x, step_y, bias, row, textured, uv);
 }
 
 rv_line make_edge(const rv_vertex &a, const rv_vertex &b)
