@@ -91,6 +91,65 @@ bool rv_devtools_built()
     return true;
 }
 
+// The manifest of a directory disc: same parser, same ceiling as mount(). Its
+// own step because reading a file and parsing what is in it are two ways to
+// fail and mount_dir has five more of its own.
+int64_t rv_pcloader::read_dir_manifest_(const std::filesystem::path &root, const char *dir_path)
+{
+    std::vector<unsigned char> manifest_bytes;
+    const std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY,
+        RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
+    if (!why.empty()) {
+        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
+            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY, why);
+        return RV_ERR_NOENT;
+    }
+
+    const std::string manifest_text(
+        reinterpret_cast<const char *>(manifest_bytes.data()), manifest_bytes.size());
+
+    std::string merror;
+    if (rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror)
+        != 0) {
+        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
+            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY,
+            rv_pdklib::rv_log_escape(merror.c_str(), 512));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// The lua triple, exactly as mount() enforces it: [scripts] sources, a script
+// memory budget and an entry name are all three or none, and a named entry has
+// to actually be on the medium.
+int64_t rv_pcloader::check_dir_lua_triple_(const std::filesystem::path &root)
+{
+    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest_.budget.pccl;
+    const bool lua_scripts = !manifest_.scripts_sources.empty();
+    const bool lua_memory = pccl.script_memory_size > 0;
+    const bool lua_entry = !pccl.script_entry.empty();
+
+    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
+            "script_memory_size={}, script_entry='{}'. All three or none",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+
+    std::error_code entry_ec;
+    if (lua_entry && !std::filesystem::is_regular_file(root / pccl.script_entry, entry_ec)) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
 int64_t rv_pcloader::mount_dir(const char *dir_path)
 {
     unload();
@@ -109,56 +168,14 @@ int64_t rv_pcloader::mount_dir(const char *dir_path)
         return RV_ERR_NOENT;
     }
 
-    // Check the manifest - same parser, same ceiling as mount().
-    std::vector<unsigned char> manifest_bytes;
-    std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY,
-        RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
-    if (!why.empty()) {
-        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY, why);
-        return RV_ERR_NOENT;
+    const int64_t manifest_rc = read_dir_manifest_(root, dir_path);
+    if (manifest_rc < 0) {
+        return manifest_rc;
     }
 
-    std::string manifest_text(
-        reinterpret_cast<const char *>(manifest_bytes.data()),
-        manifest_bytes.size());
-
-    std::string merror;
-    const int64_t mres =
-        rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror);
-    if (mres != 0) {
-        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
-            rv_pdklib::rv_log_escape(dir_path),
-            RV_PCLOADER_MANIFEST_ENTRY,
-            rv_pdklib::rv_log_escape(merror.c_str(), 512));
-        return RV_ERR_INVAL;
-    }
-
-    // The lua triple, exactly as mount() enforces it.
-    const rv_pdklib::rv_manifest_budget_pccl &pccl = manifest_.budget.pccl;
-    const bool lua_scripts = !manifest_.scripts_sources.empty();
-    const bool lua_memory = pccl.script_memory_size > 0;
-    const bool lua_entry = !pccl.script_entry.empty();
-
-    if (lua_scripts != lua_memory || lua_memory != lua_entry) {
-        RV_LOG_ERR("pcloader",
-            "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
-            "script_memory_size={}, script_entry='{}'. All three or none",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
-            rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
-        return RV_ERR_INVAL;
-    }
-
-    if (lua_entry) {
-        std::error_code entry_ec;
-        if (!std::filesystem::is_regular_file(root / pccl.script_entry, entry_ec)) {
-            RV_LOG_ERR("pcloader",
-                "disc '{}' names '{}' as its lua entry, but the drive has no such asset",
-                rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-                rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
-            return RV_ERR_INVAL;
-        }
+    const int64_t lua_rc = check_dir_lua_triple_(root);
+    if (lua_rc < 0) {
+        return lua_rc;
     }
 
     const std::string code_entry = code_entry_of(manifest_);
@@ -169,7 +186,7 @@ int64_t rv_pcloader::mount_dir(const char *dir_path)
     // dir_code_'s comment in rv_pcloader.hpp for why a second read from the
     // path is not an option for a directory disc.
     std::vector<unsigned char> code_bytes;
-    why = read_whole_file(root / code_entry, RV_PCLOADER_CODE_MAX_SIZE, code_bytes);
+    const std::string why = read_whole_file(root / code_entry, RV_PCLOADER_CODE_MAX_SIZE, code_bytes);
     if (!why.empty()) {
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",

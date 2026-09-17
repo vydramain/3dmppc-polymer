@@ -324,7 +324,9 @@ whoever wrote the script:
    with exit 2, and refuses a loose directory — checked by vocabulary and by
    refusal, never by symbol name (see the note at the top of this section).
 3. The medium answers for itself: a positional directory is `live`, an archive
-   is `fixed`, and no combination of disc arguments is silently ignored.
+   is `fixed`, and no combination of disc arguments is silently ignored. A
+   header that is refused still frames away the payload it claimed, so those
+   bytes are never read as commands.
 4. `pause` stops at a boundary, `step` runs exactly one frame and is answered
    after it, `resume` carries on — with the frame counter agreeing.
 5. A successful reload keeps the state and the next frame runs the new code.
@@ -334,8 +336,9 @@ whoever wrote the script:
    *accepted*, unchecked, on purpose.
 7. Reload repeats within one run without a stack or resource error.
 8. A texture refreshes with no game hook and reports its new size; a truncated
-   or non-container candidate is refused and the old texture is still there; a
-   resized one is accepted at its new size; an archive refuses the request.
+   candidate, a non-container and a paletted texture carrying no palette are
+   each refused with the old texture still there; a resized one is accepted at
+   its new size; an archive refuses the request.
 9. A frame is still rendered, and no run crashes — including on the way out,
    after every protocol line has already been printed.
 

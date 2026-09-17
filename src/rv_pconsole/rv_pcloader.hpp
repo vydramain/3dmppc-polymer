@@ -15,6 +15,7 @@
 // portable path is the one that must work.)
 #pragma once
 
+#include <filesystem>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -162,6 +163,12 @@ public:
     // Idempotent teardown, in the order documented above. Called by the
     // destructor; public so a caller may end a disc early and see the log lines
     // in place rather than at some indeterminate point during unwinding.
+    // Two stages of mount_dir(), split out to stay under the function-size
+    // rule. Both are development-build only, like mount_dir itself
+    // (rv_pcloader_livedir.cpp).
+    int64_t read_dir_manifest_(const std::filesystem::path &root, const char *dir_path);
+    int64_t check_dir_lua_triple_(const std::filesystem::path &root);
+
     // The disc's last hook, with its throw contained. See rv_pcloader.cpp.
     void shutdown_disc_();
 

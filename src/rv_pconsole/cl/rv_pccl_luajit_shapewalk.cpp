@@ -23,6 +23,9 @@ namespace
 
 // Defined below handle_missing, which calls it, so it needs this.
 bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &path, int depth, bool build);
+// Defined below default_from_shape, which calls it, and calls it back.
+bool build_default_table(shape_walk_ctx &ctx, int shape_idx, const std::vector<std::string> &keys,
+    const std::string &path, int depth);
 
 // Charges one budget unit against kShapeMaxNodes for a single key examined by
 // a key-enumeration loop, same cap and same refusal shape as the per-table
@@ -35,6 +38,34 @@ bool charge_key(shape_walk_ctx &ctx, const std::string &path)
         ctx.refuse_path = path;
         ctx.refuse_message = "state_shape has too many fields";
         return false;
+    }
+    return true;
+}
+
+// Every key a shape table declares, in one pass, charged against the node
+// budget. Shape keys are string-only: a number key would print the same as a
+// string key and then match nothing in state. Written once because both the
+// validating walk and the default builder need exactly this list, and two
+// copies of a lua_next loop is two places to get the stack height wrong.
+bool collect_shape_keys(shape_walk_ctx &ctx, int shape_idx, const std::string &path,
+    std::vector<std::string> &keys)
+{
+    lua_State *L = ctx.L;
+    lua_pushnil(L);
+    while (lua_next(L, shape_idx) != 0) {
+        if (!charge_key(ctx, path)) {
+            lua_pop(L, 2);
+            return false;
+        }
+        if (lua_type(L, -2) != LUA_TSTRING) {
+            lua_pop(L, 2);
+            ctx.refused = true;
+            ctx.refuse_path = path;
+            ctx.refuse_message = "state_shape key must be a string";
+            return false;
+        }
+        keys.emplace_back(lua_tostring(L, -2));
+        lua_pop(L, 1);
     }
     return true;
 }
@@ -146,21 +177,8 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
     } const shape_path_guard{ ctx };
 
     std::vector<std::string> keys;
-    lua_pushnil(L);
-    while (lua_next(L, shape_idx) != 0) {
-        if (!charge_key(ctx, path)) {
-            lua_pop(L, 2);
-            return false;
-        }
-        if (lua_type(L, -2) != LUA_TSTRING) {
-            lua_pop(L, 2);
-            ctx.refused = true;
-            ctx.refuse_path = path;
-            ctx.refuse_message = "state_shape key must be a string";
-            return false;
-        }
-        keys.emplace_back(lua_tostring(L, -2));
-        lua_pop(L, 1);
+    if (!collect_shape_keys(ctx, shape_idx, path, keys)) {
+        return false;
     }
 
     // An open collection with nothing in it yet defaults to empty: the "*"
@@ -186,6 +204,17 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
         return true;
     }
 
+    return build_default_table(ctx, shape_idx, keys, path, depth);
+}
+
+// The build half of default_from_shape: a fresh table carrying one default per
+// declared key, left on the stack. Its own function so the walk above reads as
+// its checks and this reads as its stack discipline - the two were one body,
+// and the body was the longest in the file.
+bool build_default_table(shape_walk_ctx &ctx, int shape_idx, const std::vector<std::string> &keys,
+    const std::string &path, int depth)
+{
+    lua_State *L = ctx.L;
     const int entry_top = lua_gettop(L); // height to restore to on any failure below
     lua_newtable(L);
     const int new_idx = lua_gettop(L);
@@ -429,21 +458,8 @@ bool walk_table(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::st
     ctx.state_seen.push_back(stp);
 
     std::vector<std::string> keys;
-    lua_pushnil(L);
-    while (lua_next(L, shape_idx) != 0) {
-        if (!charge_key(ctx, path)) {
-            lua_pop(L, 2);
-            return false;
-        }
-        if (lua_type(L, -2) != LUA_TSTRING) {
-            lua_pop(L, 2);
-            ctx.refused = true;
-            ctx.refuse_path = path;
-            ctx.refuse_message = "state_shape key must be a string";
-            return false;
-        }
-        keys.emplace_back(lua_tostring(L, -2));
-        lua_pop(L, 1);
+    if (!collect_shape_keys(ctx, shape_idx, path, keys)) {
+        return false;
     }
 
     if (keys.size() == 1 && keys[0] == "*") {
