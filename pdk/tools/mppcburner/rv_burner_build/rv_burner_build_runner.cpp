@@ -38,6 +38,43 @@ static constexpr const char *k_textures_subdir = "textures";
 // from.
 static constexpr const char *k_disc_module_name = "disc.so";
 
+// What -o/--unpacked resolved to, decided once and asked by every later
+// stage instead of each one re-testing which flag was given.
+enum class rv_burner_destination_kind
+{
+    archive,
+    directory,
+};
+
+struct rv_burner_destination
+{
+    rv_burner_destination_kind kind;
+    fs::path path;
+};
+
+// Runs the burn phase for whichever medium the destination names, and prints
+// its [4/4] step.
+static int rv_burner_destination_burn(const rv_burner_destination &destination,
+    const rv_pdklib::rv_manifest &manifest, const fs::path &disc_module, const archive_plan &plan,
+    std::string &error)
+{
+    if (destination.kind == rv_burner_destination_kind::directory) {
+        if (burn_directory(destination.path, manifest, disc_module, plan, error) != 0) {
+            return 1;
+        }
+        rv_burner_print_step(4, "burn", destination.path.string() + " (unpacked)");
+        return 0;
+    }
+
+    int64_t burned_size = 0;
+    if (burn_archive(destination.path, manifest, disc_module, plan, burned_size, error) != 0) {
+        return 1;
+    }
+    rv_burner_print_step(4, "burn",
+        destination.path.filename().string() + " (" + rv_burner_human_size(burned_size) + ")");
+    return 0;
+}
+
 } // namespace rv_pdktools
 
 int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
@@ -60,11 +97,15 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         rv_burner_print_error("build needs exactly one of -o/--output or -u/--unpacked");
         return 1;
     }
-    const bool unpacked = !options.unpacked.empty();
-
-    const fs::path output_path = fs::absolute(fs::path(unpacked ? options.unpacked : options.output), ec);
+    // Resolved once: every later stage asks `destination` what to do, instead
+    // of re-testing which flag was given.
+    const std::string &destination_operand = options.unpacked.empty() ? options.output : options.unpacked;
+    const rv_burner_destination destination{
+        options.unpacked.empty() ? rv_burner_destination_kind::archive : rv_burner_destination_kind::directory,
+        fs::absolute(fs::path(destination_operand), ec)
+    };
     if (ec) {
-        rv_burner_print_error("cannot resolve output path '" + (unpacked ? options.unpacked : options.output) + "'");
+        rv_burner_print_error("cannot resolve output path '" + destination_operand + "'");
         return 1;
     }
 
@@ -208,7 +249,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         }
     }
 
-    if (unpacked) {
+    if (destination.kind == rv_burner_destination_kind::directory) {
         // An unpacked directory keeps the developer's .lua reachable and live,
         // so it is never compiled to bytecode. Put back the plan entries the
         // .luac renaming above gave each script, and point the manifest's
@@ -235,25 +276,15 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     rv_burner_print_step(3, "assets",
         std::to_string(plan.texture_count) + " png -> .mppctex, " +
-            std::to_string(plan.script_count) + (unpacked ? " lua (uncompiled), " : " lua -> .luac, ") +
+            std::to_string(plan.script_count) +
+            (destination.kind == rv_burner_destination_kind::directory ? " lua (uncompiled), " : " lua -> .luac, ") +
             std::to_string(plan.asset_count) + " copied");
 
     // --- [4/4] burn ---
 
-    if (unpacked) {
-        if (burn_directory(output_path, manifest, disc_module, plan, error) != 0) {
-            rv_burner_print_error(error);
-            return 1;
-        }
-        rv_burner_print_step(4, "burn", output_path.string() + " (unpacked)");
-    } else {
-        int64_t burned_size = 0;
-        if (burn_archive(output_path, manifest, disc_module, plan, burned_size, error) != 0) {
-            rv_burner_print_error(error);
-            return 1;
-        }
-        rv_burner_print_step(4, "burn",
-            output_path.filename().string() + " (" + rv_burner_human_size(burned_size) + ")");
+    if (rv_burner_destination_burn(destination, manifest, disc_module, plan, error) != 0) {
+        rv_burner_print_error(error);
+        return 1;
     }
 
     // --- clean up ---
