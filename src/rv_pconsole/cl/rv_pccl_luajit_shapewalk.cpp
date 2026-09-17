@@ -24,6 +24,21 @@ namespace
 // Defined below handle_missing, which calls it, so it needs this.
 bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &path, int depth, bool build);
 
+// Charges one budget unit against kShapeMaxNodes for a single key examined by
+// a key-enumeration loop, same cap and same refusal shape as the per-table
+// charge - a table visited and a key examined are both work the walk must
+// bound, or a flat table with a huge key count would slip past the cap.
+bool charge_key(shape_walk_ctx &ctx, const std::string &path)
+{
+	if (++ctx.nodes > kShapeMaxNodes) {
+		ctx.refused = true;
+		ctx.refuse_path = path;
+		ctx.refuse_message = "state_shape has too many fields";
+		return false;
+	}
+	return true;
+}
+
 // A lua_next key to text, WITHOUT lua_tostring'ing the original: converting a
 // number key in place is the one mutation lua_next's contract forbids during
 // iteration, so a number key is converted on a throwaway duplicate.
@@ -113,6 +128,10 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
 	std::vector<std::string> keys;
 	lua_pushnil(L);
 	while (lua_next(L, shape_idx) != 0) {
+		if (!charge_key(ctx, path)) {
+			lua_pop(L, 2);
+			return false;
+		}
 		if (lua_type(L, -2) != LUA_TSTRING) {
 			lua_pop(L, 2);
 			ctx.refused = true;
@@ -147,6 +166,7 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
 		return true;
 	}
 
+	const int entry_top = lua_gettop(L); // height to restore to on any failure below
 	lua_newtable(L);
 	const int new_idx = lua_gettop(L);
 	for (const auto &key : keys) {
@@ -156,7 +176,7 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
 		lua_rawget(L, shape_idx);           // [new, key, shape_val]
 		const int shape_val_idx = lua_gettop(L);
 		if (!default_from_shape(ctx, shape_val_idx, child_path, depth + 1, true)) {
-			lua_pop(L, 2); // shape_val, key
+			lua_settop(L, entry_top); // net-zero on failure, not a fixed pop count
 			return false;
 		}
 		lua_remove(L, shape_val_idx); // [new, key, default]
@@ -174,13 +194,18 @@ bool refuse_undeclared(shape_walk_ctx &ctx, int state_idx, const std::vector<std
 	lua_pushnil(L);
 	while (lua_next(L, state_idx) != 0) {
 		const std::string kstr = key_to_string(L, -2);
+		const std::string child_path = path.empty() ? kstr : path + "." + kstr;
+		if (!charge_key(ctx, child_path)) {
+			lua_pop(L, 2); // key, value
+			return false;
+		}
 		lua_pop(L, 1); // value
 		if (std::find(keys.begin(), keys.end(), kstr) != keys.end()) {
 			continue; // key kept on stack for lua_next
 		}
 		lua_pop(L, 1); // key
 		ctx.refused = true;
-		ctx.refuse_path = path.empty() ? kstr : path + "." + kstr;
+		ctx.refuse_path = child_path;
 		ctx.refuse_message = "not declared";
 		return false;
 	}
@@ -195,6 +220,9 @@ bool walk_named(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::ve
 	lua_State *L = ctx.L;
 	for (const auto &key : keys) {
 		const std::string child_path = path.empty() ? key : path + "." + key;
+		if (!charge_key(ctx, child_path)) {
+			return false;
+		}
 		lua_pushstring(L, key.c_str());
 		lua_rawget(L, shape_idx);
 		const int shape_val_idx = lua_gettop(L);
@@ -276,6 +304,10 @@ bool walk_open(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::str
 	while (lua_next(L, state_idx) != 0) {
 		const std::string kstr = key_to_string(L, -2);
 		const std::string child_path = path.empty() ? kstr : path + "." + kstr;
+		if (!charge_key(ctx, child_path)) {
+			lua_pop(L, 3); // value, key, entry_shape
+			return false;
+		}
 		const int val_idx = lua_gettop(L);
 		const int val_type = lua_type(L, val_idx);
 		bool ok = true;
@@ -349,6 +381,10 @@ bool walk_table(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::st
 	std::vector<std::string> keys;
 	lua_pushnil(L);
 	while (lua_next(L, shape_idx) != 0) {
+		if (!charge_key(ctx, path)) {
+			lua_pop(L, 2);
+			return false;
+		}
 		if (lua_type(L, -2) != LUA_TSTRING) {
 			lua_pop(L, 2);
 			ctx.refused = true;

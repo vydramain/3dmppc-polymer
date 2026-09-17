@@ -95,8 +95,17 @@ private:
 // Bound the walk itself, independent of what either tree contains: a
 // malformed or adversarial state_shape/state pair must not be able to make
 // this run unbounded, the same reason the reload path bounds VM instructions.
+// The walk is plain C++ and executes no bytecode, so the instruction ceiling
+// cannot see it - these are the only bounds it has.
+//
+// One unit is one table visited OR one key examined: counting tables alone
+// left a flat table with a huge key count costing one unit. The number is set
+// so it cannot fire before [budget.pccl] script_memory_size does - a table
+// entry costs LuaJIT tens of bytes, so a 256 KiB script heap runs out at
+// roughly eight thousand entries, and a cap that refused a state table the
+// machine was willing to hold would diagnose the wrong problem.
 constexpr int kShapeMaxDepth = 16;
-constexpr int kShapeMaxNodes = 4096;
+constexpr int kShapeMaxNodes = 16384;
 
 // One walk's working state: which pass (validate or apply), the caps, the
 // first refusal found (a walk stops at the first one), and - APPLY only -
