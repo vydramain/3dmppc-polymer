@@ -93,17 +93,28 @@ file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/s
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
 
+# rv_pcdevchan is deliberately NOT in this slot. Splitting it left seven of
+# its private fields untouched in the player build - they describe how it
+# talks to stdin - and -Wunused-private-field said so, correctly. Faking a use
+# or silencing the warning would both be worse than shipping it: the channel
+# frames lines and holds no development POLICY, the dispatcher below does, and
+# it cannot open because --dev is refused outright. Getting its state out of
+# its header is the real fix and is its own change.
+#
 # Dev-capability slot: both implementations excluded from the glob, then
 # exactly one added back by the option, the same shape as the null/real slot
 # pairs below (3dmppc_platform_sdl3 etc.) moved from runtime to build time.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir(_null)?\\.cpp")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_dev(_null)?\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_reload(_null)?\\.cpp")
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload.cpp)
 else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_null.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_null.cpp)
 endif()
 
 # --- the SDL3 platform ----------------------------------------------------------
