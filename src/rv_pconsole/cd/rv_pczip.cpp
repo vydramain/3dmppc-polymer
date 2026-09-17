@@ -82,6 +82,55 @@ uint32_t crc32_update(uint32_t state, const void* data, std::size_t size) {
     return c ^ 0xffffffffu;
 }
 
+// Fields of one EOCD record, once validated.
+struct rv_pczip_eocd_fields {
+    uint32_t cd_offset = 0;
+    uint32_t cd_size = 0;
+    uint16_t entries_total = 0;
+};
+
+// Decode `eocd` and reject anything this reader cannot handle (split
+// archives, zip64, a directory that lies outside the file or is implausibly
+// large). No member state needed beyond `file_size`, so this stays a free
+// function rather than a method.
+bool validate_eocd_record(const unsigned char* eocd, int64_t file_size, std::string& error,
+                           rv_pczip_eocd_fields& out) {
+    const uint16_t disk = rd16(eocd + 4);
+    const uint16_t cd_disk = rd16(eocd + 6);
+    const uint16_t entries_here = rd16(eocd + 8);
+    const uint16_t entries_total = rd16(eocd + 10);
+    const uint32_t cd_size = rd32(eocd + 12);
+    const uint32_t cd_offset = rd32(eocd + 16);
+
+    if (disk != 0 || cd_disk != 0 || entries_here != entries_total) {
+        error = "split archives are not supported";
+        return false;
+    }
+    if (entries_total == RV_PCZIP_ZIP64_SENTINEL16 || cd_size == RV_PCZIP_ZIP64_SENTINEL ||
+        cd_offset == RV_PCZIP_ZIP64_SENTINEL) {
+        error = "zip64 archives are not supported";
+        return false;
+    }
+
+    // Every offset from here on is checked against the REAL file size before it
+    // is used, and the subtraction form avoids the overflow that `a + b > size`
+    // invites on 32-bit fields promoted to 64-bit arithmetic.
+    if (static_cast<int64_t>(cd_offset) > file_size ||
+        static_cast<int64_t>(cd_size) > file_size - static_cast<int64_t>(cd_offset)) {
+        error = "central directory lies outside the file";
+        return false;
+    }
+    if (static_cast<int64_t>(cd_size) > RV_PCZIP_MAX_DIRECTORY_BYTES) {
+        error = "central directory is implausibly large";
+        return false;
+    }
+
+    out.cd_offset = cd_offset;
+    out.cd_size = cd_size;
+    out.entries_total = entries_total;
+    return true;
+}
+
 }  // namespace
 
 bool rv_zipreader::open(const std::string& path, std::string& error) {
@@ -166,57 +215,40 @@ bool rv_zipreader::find_eocd(const std::vector<unsigned char>& tail, std::size_t
     return false;
 }
 
-bool rv_zipreader::parse_directory(std::string& error) {
+bool rv_zipreader::locate_eocd(std::string& error, std::vector<unsigned char>& tail, std::size_t& eocd_pos) const {
     const int64_t tail_size = std::min<int64_t>(file_size_, RV_PCZIP_EOCD_SIZE + RV_PCZIP_MAX_COMMENT);
-    std::vector<unsigned char> tail(static_cast<std::size_t>(tail_size));
+    tail.resize(static_cast<std::size_t>(tail_size));
     if (!read_at(file_size_ - tail_size, tail.data(), tail_size)) {
         error = "cannot read the end of the archive";
         return false;
     }
 
-    std::size_t eocd_pos = 0;
     if (!find_eocd(tail, eocd_pos)) {
         error = "no end-of-central-directory record: this is not a zip archive";
         return false;
     }
+    return true;
+}
 
-    const unsigned char* eocd = tail.data() + eocd_pos;
-    const uint16_t disk = rd16(eocd + 4);
-    const uint16_t cd_disk = rd16(eocd + 6);
-    const uint16_t entries_here = rd16(eocd + 8);
-    const uint16_t entries_total = rd16(eocd + 10);
-    const uint32_t cd_size = rd32(eocd + 12);
-    const uint32_t cd_offset = rd32(eocd + 16);
+bool rv_zipreader::parse_directory(std::string& error) {
+    std::vector<unsigned char> tail;
+    std::size_t eocd_pos = 0;
+    if (!locate_eocd(error, tail, eocd_pos)) return false;
 
-    if (disk != 0 || cd_disk != 0 || entries_here != entries_total) {
-        error = "split archives are not supported";
-        return false;
-    }
-    if (entries_total == RV_PCZIP_ZIP64_SENTINEL16 || cd_size == RV_PCZIP_ZIP64_SENTINEL ||
-        cd_offset == RV_PCZIP_ZIP64_SENTINEL) {
-        error = "zip64 archives are not supported";
-        return false;
-    }
+    rv_pczip_eocd_fields fields;
+    if (!validate_eocd_record(tail.data() + eocd_pos, file_size_, error, fields)) return false;
 
-    // Every offset from here on is checked against the REAL file size before it
-    // is used, and the subtraction form avoids the overflow that `a + b > size`
-    // invites on 32-bit fields promoted to 64-bit arithmetic.
-    if (static_cast<int64_t>(cd_offset) > file_size_ ||
-        static_cast<int64_t>(cd_size) > file_size_ - static_cast<int64_t>(cd_offset)) {
-        error = "central directory lies outside the file";
-        return false;
-    }
-    if (static_cast<int64_t>(cd_size) > RV_PCZIP_MAX_DIRECTORY_BYTES) {
-        error = "central directory is implausibly large";
-        return false;
-    }
-
-    std::vector<unsigned char> cdir(static_cast<std::size_t>(cd_size));
-    if (!read_at(static_cast<int64_t>(cd_offset), cdir.data(), static_cast<int64_t>(cd_size))) {
+    std::vector<unsigned char> cdir(static_cast<std::size_t>(fields.cd_size));
+    if (!read_at(static_cast<int64_t>(fields.cd_offset), cdir.data(), static_cast<int64_t>(fields.cd_size))) {
         error = "cannot read the central directory (archive is truncated)";
         return false;
     }
 
+    return parse_entries(cdir, fields.entries_total, error);
+}
+
+bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total,
+                                  std::string& error) {
     std::size_t p = 0;
     while (p + static_cast<std::size_t>(RV_PCZIP_CDIR_SIZE) <= cdir.size()) {
         const unsigned char* h = cdir.data() + p;
