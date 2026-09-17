@@ -436,7 +436,7 @@ things `ffi.cdef` cannot read (`#include`, `#define`) need two different
 escape hatches.
 
 **What a script actually sees: exactly one global, `pdk`.** `rv_pccl`'s
-constructor (`src/rv_pconsole/cl/rv_pccl.cpp`) opens only
+constructor (`src/rv_pconsole/cl/rv_pccl_luajit.cpp`) opens only
 `base`/`string`/`math`/`table` and LuaJIT's `ffi` — deliberately never `io`,
 `os`, or `package`/`require` — feeds it `rv_pdk_cdef` through `ffi.cdef`,
 turns `rv_pdk_consts` into a table, and installs that table as `_G.pdk` once
@@ -446,6 +446,16 @@ metatable `__index` that tries `ffi.C["rv_"..k]` then `ffi.C["RV_"..k]` and
 memoizes whichever one hits — so a script writes `pdk.cv_frame_put(cv, prim)`
 or `pdk.TEXWRAP_CLAMP` and never says `ffi` itself, which is never reachable
 any other way.
+
+The same bootstrap installs one accessor per controller — `pdk.cv(o)`,
+`pdk.cd(o)`, and so on for `ca`/`cio`/`cl`/`cm`. Each hook is handed the
+organizer as an untyped pointer, and reaching a controller through it costs
+the identical three steps every time: cast to `rv_pdko*`, call
+`rv_pdko_<slot>`, keep the result. That is the console's plumbing, and a game
+repeating it in every hook is the boilerplate the accessors delete. They are a
+shorter spelling of the same path, not a layer in front of it: the cast is
+`ffi.cast` on a pointer (no allocation) and the accessor is the very export
+the long form called.
 
 This is **hygiene, not a sandbox.** `pdk.cast` and `pdk.new` ARE
 `ffi.cast`/`ffi.new`, so a script can build a pointer from a bare integer and
@@ -652,7 +662,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   lifecycle (`script_load`/`script_free`/`script_entry`), a shared value
   stack (`stack_push_*`/`stack_drop`/`stack_count`/`value_*`), and one call
   primitive (`script_call`) with a documented stack discipline. Concrete
-  backend `src/rv_pconsole/cl/rv_pccl.cpp` wraps LuaJIT: a private
+  backend `src/rv_pconsole/cl/rv_pccl_luajit.cpp` wraps LuaJIT: a private
   sound-RAM-style allocator caps a script's memory at `[budget.pccl]
   script_memory_size`, only `base`/`string`/`math`/`table`/`ffi` are opened
   (never `io`/`os`/`package`), and the console's own PDK surface reaches the

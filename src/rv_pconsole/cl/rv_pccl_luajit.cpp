@@ -76,6 +76,18 @@ setmetatable(pdk, {
         return v
     end,
 })
+-- Every hook is handed the organizer as an untyped pointer, so reaching a
+-- controller used to cost a script three steps: cast to rv_pdko*, call
+-- rv_pdko_<slot>, keep the result. That is the console's plumbing, not the
+-- game's, and writing it out in every hook is what PR comment #1 asked to
+-- stop. `pdk.cv(o)` does all three. The cast is free (ffi.cast on a pointer
+-- is not an allocation) and the accessor is the same exported function the
+-- long form called, so this is a shorter spelling of the identical path, not
+-- a layer in front of it.
+for _, slot in ipairs({ "ca", "cd", "cio", "cl", "cm", "cv" }) do
+    local accessor = pdk["pdko_" .. slot]
+    pdk[slot] = function(o) return accessor(pdk.cast("rv_pdko*", o)) end
+end
 local _ = pdk.cv_screen_width -- boot-time proof the wiring actually resolves
 )lua";
 } // namespace

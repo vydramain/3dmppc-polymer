@@ -1,7 +1,7 @@
 # The DEVKIT: tools that run on a developer's machine while a game is authored.
 # It is a separate product from the console and builds with its own command:
 #
-#   cmake -S tools -B pdk/tools/build && cmake --build pdk/tools/build
+#   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build
 #
 # This separation is deliberate. The console is firmware — it loads a disc and
 # runs it, and it must never look like the thing that COMPILES a disc. Building

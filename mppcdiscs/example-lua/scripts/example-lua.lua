@@ -18,7 +18,10 @@ M.state_shape = {
 	screen_width = 0,
 	screen_height = 0,
 	tex_name = "",
-	tex_res = 0,
+	-- -1, not 0: a residency id is 1-based, and 0 is TRUE in lua - a zero
+	-- default would make the "did the acquire work" guard below pass after a
+	-- failed acquire and draw from an invalid address.
+	tex_res = -1,
 }
 
 -- The console owns ONE persistent table for the whole run and hands it to
@@ -62,9 +65,8 @@ function M.attach(s)
 end
 
 function M.disc_initialize(o_)
-	local o = pdk.cast("rv_pdko*", o_)
-	local cv = pdk.pdko_cv(o)
-	local cd = pdk.pdko_cd(o)
+	local cv = pdk.cv(o_)
+	local cd = pdk.cd(o_)
 
 	-- Read something real back through pdk and log it: the headless-
 	-- verifiable proof that a Lua call reached the console's own
@@ -102,7 +104,7 @@ function M.frame_update(dt, o_)
 end
 
 function M.frame_render(o_)
-	local cv = pdk.pdko_cv(pdk.cast("rv_pdko*", o_))
+	local cv = pdk.cv(o_)
 
 	-- Same shape as example-cpp.cpp's own frame_render: configure the frame
 	-- (clear colour), fill it with a primitive, and leave the flush to the
@@ -139,8 +141,8 @@ function M.frame_render(o_)
 	-- cached: an address is only valid until that texture is reloaded. Guarded
 	-- by tex_res because acquire can fail (e.g. the asset missing) without
 	-- disc_initialize itself refusing to start.
-	if state.tex_res then
-		local cd = pdk.pdko_cd(pdk.cast("rv_pdko*", o_))
+	if state.tex_res >= 0 then
+		local cd = pdk.cd(o_)
 		local sprite_primitive = pdk.new("rv_primitive")
 		sprite_primitive.type = pdk.PRIMITIVE_SPRITE
 		sprite_primitive.depth = 1
