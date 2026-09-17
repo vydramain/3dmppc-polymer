@@ -190,16 +190,21 @@ private:
     // Empty/unused for the archive route.
     std::vector<unsigned char> dir_code_;
 
-    template <typename O>
-    bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out);
-
     // The ELF/version/checksum core of pre_dlopen_check(), shared by both
     // mount() and mount_dir(): it knows only bytes, an entry name (for the
     // log lines) and an origin label (the archive or directory path, for the
-    // same lines) - never how those bytes were fetched. Returns RV_OK or a
+    // same lines) - never how those bytes were fetched. Its ELF header, note
+    // walk and version stages are free functions in rv_pcloader_inspect.cpp,
+    // since none of them touch this object's state. Returns RV_OK or a
     // negative rv_err after logging the exact refusal.
     int64_t pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
         const char *info_entry, const char *origin);
+
+    // Recomputes the disc code checksum and compares it against version_info;
+    // on a match, also sets code_hash_ (see its comment for why only then).
+    // A member (unlike its sibling stages) because it writes code_hash_.
+    bool checksum_matches_(std::vector<unsigned char> &buffer, const char *info_entry,
+        const rv_mppc_note_desc &version_info);
 
     // Filled by pre_dlopen_check_bytes once the checksum has been recomputed
     // and found to match the note - so a non-empty value also means "these
