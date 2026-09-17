@@ -7,6 +7,14 @@ void rv_3dmppc::rv_pconsole::dev_service()
 {
 }
 
+void rv_3dmppc::rv_pconsole::dev_after_frame()
+{
+}
+
+void rv_3dmppc::rv_pconsole::dev_note_pause()
+{
+}
+
 void rv_3dmppc::rv_pconsole::dev_dispatch(const rv_pcdevreq & /*req*/)
 {
 }

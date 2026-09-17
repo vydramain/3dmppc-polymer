@@ -172,12 +172,7 @@ void rv_pconsole::run_pause_key()
     paused_ = !paused_;
     RV_LOG_INFO("pconsole", "{} by the pause key at frame {}", paused_ ? "stopped" : "running again",
         frames_);
-    if (dev_) {
-        // The client did not ask for this, so it arrives as an event: something
-        // else moved the machine it is driving.
-        dev_->reply(std::format("0 event=pause mode={} frame={}", paused_ ? "paused" : "running",
-            frames_));
-    }
+    dev_note_pause();
 }
 
 bool rv_pconsole::run_dev_commands()
@@ -269,40 +264,6 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
     platform_.audio().write(pcm_.data(), samples);
     run.audio_written += samples;
     run.audio_peak_queued = std::max(run.audio_peak_queued, platform_.audio().queued_frames());
-}
-
-void rv_pconsole::run_after_frame()
-{
-    if (!dev_) {
-        return;
-    }
-
-    // The step's answer, now that its frame is over. `step` means "one frame has
-    // happened", so answering when the request arrived would be answering for
-    // work not yet done.
-    if (step_reply_id_ >= 0) {
-        dev_->reply(
-            std::format("{} ok completed=1 frame={} mode=paused", step_reply_id_, frames_ + 1));
-        step_reply_id_ = -1;
-    }
-
-    // Did a game hook fail this frame? rv_pccl counts every failed call, so
-    // comparing that count is how the console finds out without the disc having
-    // to tell it and without a contract change. In a development run the machine
-    // stops there: a frozen picture with no explanation is the worst possible
-    // answer, and the developer needs the state as it was when it broke. id 0
-    // marks a line nobody asked for.
-    if (!cl_->valid()) {
-        return;
-    }
-    rv_pccl_status script;
-    cl_->script_status(script);
-    if (script.error_seq != dev_error_seq_) {
-        dev_error_seq_ = script.error_seq;
-        paused_ = true;
-        dev_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1,
-            rv_pcdev_hex(script.error)));
-    }
 }
 
 void rv_pconsole::run_pace(run_state &run)
@@ -427,7 +388,7 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         }
 
         run_frame(disc, run);
-        run_after_frame();
+        dev_after_frame();
 
         // Polled every frame, per the contract. Checked after the frame so the
         // disc gets to draw the frame on which it decided to quit.

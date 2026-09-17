@@ -72,6 +72,51 @@ void rv_3dmppc::rv_pconsole::dev_service()
     }
 }
 
+void rv_3dmppc::rv_pconsole::dev_after_frame()
+{
+    if (!dev_) {
+        return;
+    }
+
+    // The step's answer, now that its frame is over. `step` means "one frame has
+    // happened", so answering when the request arrived would be answering for
+    // work not yet done.
+    if (step_reply_id_ >= 0) {
+        dev_->reply(
+            std::format("{} ok completed=1 frame={} mode=paused", step_reply_id_, frames_ + 1));
+        step_reply_id_ = -1;
+    }
+
+    // Did a game hook fail this frame? rv_pccl counts every failed call, so
+    // comparing that count is how the console finds out without the disc having
+    // to tell it and without a contract change. In a development run the machine
+    // stops there: a frozen picture with no explanation is the worst possible
+    // answer, and the developer needs the state as it was when it broke. id 0
+    // marks a line nobody asked for.
+    if (!cl_->valid()) {
+        return;
+    }
+    rv_pccl_status script;
+    cl_->script_status(script);
+    if (script.error_seq != dev_error_seq_) {
+        dev_error_seq_ = script.error_seq;
+        paused_ = true;
+        dev_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1,
+            rv_pcdev_hex(script.error)));
+    }
+}
+
+void rv_3dmppc::rv_pconsole::dev_note_pause()
+{
+    if (!dev_) {
+        return;
+    }
+    // The client did not ask for this, so it arrives as an event: something
+    // else moved the machine it is driving.
+    dev_->reply(std::format("0 event=pause mode={} frame={}", paused_ ? "paused" : "running",
+        frames_));
+}
+
 void rv_3dmppc::rv_pconsole::dev_dispatch(const rv_pcdevreq &req)
 {
     const std::string_view verb = req.verb();

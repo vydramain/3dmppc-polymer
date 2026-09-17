@@ -107,6 +107,11 @@ private:
 
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
+    // Touched only by the dev slot (rv_pconsole_dev.cpp). It stays declared
+    // here because a link-time slot cannot add a member - what it can do, and
+    // does, is leave the player build without a single line that reads or
+    // writes it. Two scalars that are never looked at is the residue of that
+    // choice, and the whole of it.
     bool dev_close_logged_ = false;
 
     // The last script-error sequence number this console has already reacted
@@ -174,16 +179,24 @@ private:
     // exactly that step.
     void run_frame(rv_de *disc, run_state &run);
 
-    // What the console owes the channel once the frame is over.
-    void run_after_frame();
-
     // Wait, however this run decides to wait.
     void run_pace(run_state &run);
 
     // The last hook, the frame dump, the audio summary and the last answer.
     void run_finish(rv_de *disc, const run_state &run);
 
+    // Every one of these is a SLOT: rv_pconsole_dev.cpp in a development build,
+    // rv_pconsole_dev_null.cpp in a player build, chosen in CMakeLists.txt.
+    // The frame loop calls them unconditionally so there is one loop and not
+    // two - what a developer tested is what ships - and a player binary
+    // carries no line of what they say.
     void dev_service();
+    // What the console owes the channel once the frame is over: the answer to
+    // a step, and a game hook that failed this frame.
+    void dev_after_frame();
+    // The Pause KEY moved the machine. The client did not ask, so it hears
+    // about it as an event.
+    void dev_note_pause();
     void dev_dispatch(const rv_pcdevreq &req);
     void dev_status(int64_t id);
     void dev_reload(const rv_pcdevreq &req);
