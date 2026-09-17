@@ -165,13 +165,14 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `step` | run exactly one frame, then stay stopped; answered *after* that frame |
 | `reload entry` | re-read the entry script off the drive (directory medium only) |
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
-| `asset <name>` | re-read one asset and tell the entry chunk it changed (directory medium only) |
+| `asset <name>` | re-read the named texture and refresh it in place behind its residency id (directory medium only) |
 | `get <key>` | read one top-level field of the persistent state table |
 | `gc` | full collection, then report the heap |
 | `quit` | shut down by the ordinary path |
 
 `entry` is a literal selector, not a name: this version replaces the entry
-chunk and nothing else.
+chunk and nothing else. `asset <name>` refreshes a baked texture in place; a
+script that changed a non-texture asset gets no notification at all.
 
 ### A session
 
@@ -218,7 +219,7 @@ restart.
 | Changed | Restart? | Who notices |
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
-| an existing asset's bytes | no — `asset <name>` | the client; the chunk's `asset_changed` decides whether it took |
+| an existing asset's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
 | an asset added or removed | **yes** | nobody — the drive's name set is fixed at boot |
 | `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
 | `disc.toml`, any `[budget.*]` | **yes** | nobody — they are consumed once, at construction |
@@ -230,7 +231,7 @@ the sentence. Framing: `protocol`, `payload_size`, `payload_timeout`. Machine:
 `no_machine`, `no_entry`, `not_reloadable`, `in_call`, `unsupported_medium`,
 `nomem`, `insn_ceiling`. A candidate: `compile`, `body`, `not_a_table`,
 `no_attach`, `attach`, `attach_refused`, `attach_contract`. An asset:
-`no_asset`, `no_asset_hook`, `asset_refused`, `asset`, `asset_contract`.
+`no_asset`, `asset`.
 
 A C API stack imbalance is deliberately not among them: that would be a bug in
 the console, not a fault in the script, and reporting it as a script error
@@ -289,6 +290,11 @@ The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose
 names collide once flattened. Every one of those is cheaper to hit on your desk
 than on a player's loading screen.
+
+At runtime a disc can ask the drive for a baked texture by name and get back a
+residency id plus its VRAM address, palette address, width and height, instead
+of opening and parsing the container itself. The manual `asset_open` /
+`asset_size` / `asset_read` path remains for anything that isn't a texture.
 
 ### What a disc must contain
 

@@ -83,7 +83,7 @@ asks the organizer for one.
 | `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `texture_acquire`/`_release` (name → resident id) / `_addr`/`_palette_addr`/`_width`/`_height` |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 
