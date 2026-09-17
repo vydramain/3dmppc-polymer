@@ -17,10 +17,10 @@ CheckOptions:
   # one function that does everything. 128 is 512/4 on purpose - one file holds
   # at most four jobs of full size, and the two thresholds read off one scale.
   #
-  # This flags code that predates the rule - rv_pboot_run and
-  # rv_zipreader::parse_directory are the two worst - and that is the point: the
-  # warning list is the queue. Raise the number to silence it, do not delete the
-  # check.
+  # This flags code that predates the rule, and that is the point: the warning
+  # list IS the queue, so it shrinks as the queue is worked off. Raise the
+  # number to silence it, do not delete the check, and do not name offenders
+  # here - a list of names in a config file is stale the day it is written.
   readability-function-size.LineThreshold: 128
   readability-function-size.StatementThreshold: 80
   readability-function-size.NestingThreshold: 5
