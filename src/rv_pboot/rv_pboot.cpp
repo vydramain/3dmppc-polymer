@@ -61,6 +61,18 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
         return false;
     }
 
+    // --dev opens the development channel, but a player build carries none of
+    // the code behind it - rv_devtools_built() names that at link time, not
+    // at parse time, so a player binary must refuse the option by name rather
+    // than accept it and do nothing.
+    if (args.dev && !rv_devtools_built()) {
+        rv_console_print_error(
+            "--dev needs a console built with the development runtime "
+            "(-D3DMPPC_DEVTOOLS=ON)");
+        exit_code = 2;
+        return false;
+    }
+
     // SIGINT/SIGTERM become an ordinary shutdown request, seen through
     // rv_pcplatform::quit_requested(). Installed before any platform comes
     // up, so no platform library claims them.

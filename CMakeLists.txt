@@ -97,10 +97,13 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3
 # exactly one added back by the option, the same shape as the null/real slot
 # pairs below (3dmppc_platform_sdl3 etc.) moved from runtime to build time.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir(_null)?\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_dev(_null)?\\.cpp")
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev.cpp)
 else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev_null.cpp)
 endif()
 
 # --- the SDL3 platform ----------------------------------------------------------
