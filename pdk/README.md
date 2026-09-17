@@ -130,10 +130,14 @@ Subsystem split, PSX-faithful:
   `[budget.pcca]`/`[budget.pccv]` size sound and video RAM, and
   `rv_pdko_cl()` never answers `nullptr` — a disc that never asked for one
   gets a handle whose every `rv_cl_*` call answers `RV_ERR_INVAL`
-  (`src/rv_pconsole/rv_pconsole.cpp`). The console itself never executes a
-  line of Lua and never dispatches through `rv_cl`: it sizes and hands out the
-  machine exactly as it hands out VRAM, and the DISC is the one that decides
-  whether to drive it (see "Three paths across the boundary").
+  (`src/rv_pconsole/rv_pconsole.cpp`). The console IMPLEMENTS the
+  machine: it owns the VM, loads the entry bytecode the manifest names,
+  executes what it is asked to execute, and holds the budget, the instruction
+  ceiling and the error collector. What it does not own is WHICH game function
+  answers a game event — that binding belongs to the disc side, which asks for
+  it through `rv_cl_script_call`. Asking the console to run a Lua function is
+  not owning the machine, the same way asking it to draw a triangle is not
+  owning the rasterizer (see "Three paths across the boundary").
 
 ### Class realization — opaque in `pdk/`, concrete at the edges
 
@@ -407,16 +411,16 @@ console target sets `ENABLE_EXPORTS ON` (`-rdynamic`) —
 `dlsym`/`ffi.C` to find. Take either property away and the third path stops
 existing; neither is incidental.
 
-Because of this, **the console never learns that Lua exists as an execution
-path.** It knows `rv_cl` only as a controller it sizes and hands out, the
-same way it sizes and hands out `rv_cv`'s video RAM: `rv_pconsole::cl()`
-(`src/rv_pconsole/rv_pconsole.cpp`) just returns a pointer or `nullptr`, and
-the frame loop (`rv_pconsole::disc_run`) calls `disc->frame_update`/
-`frame_render` identically whether or not that disc forwards the call into a
-Lua chunk. The DISC drives the machine: every hook in
-`mppcdiscs/example-lua/src/example-lua.cpp` is one `rv_cl_script_call`
-forwarding into `scripts/example-lua.lua`, while the console's own frame
-loop (`rv_pconsole.cpp`) never mentions `rv_cl` or Lua at all.
+Because of this, **the frame loop never learns whether a disc runs Lua.**
+`rv_pconsole::cl()` (`src/rv_pconsole/rv_pconsole.cpp`) hands out the machine
+the same way the console hands out `rv_cv`'s video RAM, and the loop
+(`rv_pconsole::disc_run`) calls `disc->frame_update`/`frame_render`
+identically whether or not that disc forwards the call into a Lua chunk — the
+console's own loop never mentions `rv_cl` or Lua at all. The EXECUTION of Lua
+is the console's: the VM, the entry bytecode the manifest names, the budget
+and the error collector all live in `src/rv_pconsole/cl/`. What stays on the
+disc side is the BINDING — which game function answers `frame_update` — and a
+disc states it by asking, one `rv_cl_script_call` per hook.
 
 **Why `ffi.cdef` cannot just read the header.** LuaJIT's `ffi.cdef()` takes a
 string of C declarations — it is not a preprocessor: it cannot follow
