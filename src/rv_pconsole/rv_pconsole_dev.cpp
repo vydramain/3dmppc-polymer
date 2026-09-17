@@ -236,8 +236,8 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         return;
     }
 
-    // The drive refreshes the resident texture in place - same id, same
-    // address - so the game picks it up next draw without being told.
+    // The drive refreshes the resident texture: residency id is stable, but
+    // addresses change. The game picks it up by querying for the address each draw.
     const int64_t rc = cd_->texture_reload(key.c_str());
     if (rc < 0) {
         dev_->reply(rv_pcdev_err(req.id, "asset", rc, false, "the drive could not reload that asset"));

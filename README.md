@@ -148,10 +148,14 @@ With `--dev`, stdin becomes a line protocol and stdout answers it, one line
 per request, in request order:
 
 ```
-<id> <verb> [args...]        the id is yours; the console echoes it back
+<id> <verb> [args...]        the id is yours, and must be above zero
 <id> ok key=value ...
 <id> err error=<token> effects=<0|1> msg=<hex>
 ```
+
+The console echoes your id back on the answer. Zero is not yours to send: the
+console tags with `0` the events it raises on its own, so a request numbered
+zero would be answered indistinguishably from one of those.
 
 A request carries bytes by ending its header with `bytes <n>`: exactly `n`
 bytes follow the newline with no terminator, and the next header starts right

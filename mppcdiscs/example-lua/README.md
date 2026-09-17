@@ -43,24 +43,15 @@ example-lua/
 
 ## Owning a texture
 
-Past the triangle, the script also reads `example-sprite.mppctex` off the
-drive itself (`pdk.cd_asset_open`/`_size`/`_read`, the same three calls
-`example-cpp.cpp`'s own `read_asset` makes) and uploads it into virtual VRAM
-with `pdk.cv_video_asset_malloc`/`cv_video_asset_write` - once, in
-`disc_initialize` - then draws it as a sprite next to the triangle every
-`frame_render`. The video address that upload returns is kept in `state`,
-alongside the asset's name, never in a chunk local: it is the one thing a
-later code reload has no other way to recover, since the console never
-calls `disc_initialize` again.
-
-That address is also what makes `M.asset_changed(name)` possible - the
-development runtime's asset-reload hook (see "The development runtime" in the
-[project README](../../README.md)). The
-console re-reads a changed asset's bytes and tells the script its name; this
-script re-reads it again itself (through the same drive) and re-uploads it
-to the address remembered in `state`, refusing first if the new bytes no
-longer fit what was allocated. A name it does not own - anything other than
-the one texture it uploaded - is refused too, untouched.
+Past the triangle, the script also draws `example-sprite.mppctex` from the
+drive. It acquires the texture once in `disc_initialize` with
+`pdk.cd_texture_acquire`, which returns a residency id; that id is stored in
+`state` where it survives every code reload. Every `frame_render`, it queries
+the drive for the residency id's current address, palette address, width and
+height with `pdk.cd_texture_addr`, `cd_texture_palette_addr`, `cd_texture_width`,
+and `cd_texture_height`, then draws the sprite. The drive refreshes a resident
+texture in place: the id is stable, the addresses change, and the game picks the
+new texture up by asking for the address fresh each draw.
 
 ## Code != state
 
