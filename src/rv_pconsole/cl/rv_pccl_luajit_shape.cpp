@@ -121,7 +121,11 @@ int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_inse
 		finish_state_shape_(inserted, false); // nothing pending on a pass-one refusal, but be exact
 		report.phase = "state_shape";
 		report.effects_possible = false;
-		report.message = args.refuse_path + ": " + args.refuse_message;
+		// A refusal at the top level has no field path, and a bare ": reason"
+		// reads like a truncated message.
+		report.message = args.refuse_path.empty()
+			? args.refuse_message
+			: args.refuse_path + ": " + args.refuse_message;
 		return RV_ERR_INVAL;
 	}
 	return RV_OK;

@@ -42,19 +42,30 @@ bool charge_key(shape_walk_ctx &ctx, const std::string &path)
 // A lua_next key to text, WITHOUT lua_tostring'ing the original: converting a
 // number key in place is the one mutation lua_next's contract forbids during
 // iteration, so a number key is converted on a throwaway duplicate.
-std::string key_to_string(lua_State *L, int key_idx)
+// Only string and number keys have a text form at all; lua_tolstring returns
+// NULL for anything else, so any other key type is a refusal, not a string.
+// Stack-neutral on both the accept and the refuse path.
+bool key_to_string(lua_State *L, int key_idx, shape_walk_ctx &ctx, const std::string &parent_path, std::string &out)
 {
-	if (lua_type(L, key_idx) == LUA_TSTRING) {
+	const int t = lua_type(L, key_idx);
+	if (t != LUA_TSTRING && t != LUA_TNUMBER) {
+		ctx.refused = true;
+		ctx.refuse_path = parent_path;
+		ctx.refuse_message = std::string("state key must be a string or number, found ") + lua_typename(L, t);
+		return false;
+	}
+	if (t == LUA_TSTRING) {
 		std::size_t len = 0;
 		const char *s = lua_tolstring(L, key_idx, &len);
-		return std::string(s, len);
+		out.assign(s, len);
+		return true;
 	}
 	lua_pushvalue(L, key_idx);
 	std::size_t len = 0;
 	const char *s = lua_tolstring(L, -1, &len);
-	std::string out(s, len);
+	out.assign(s, len);
 	lua_pop(L, 1);
-	return out;
+	return true;
 }
 
 // A declared key absent from state: build its default from the shape alone
@@ -193,14 +204,22 @@ bool refuse_undeclared(shape_walk_ctx &ctx, int state_idx, const std::vector<std
 	lua_State *L = ctx.L;
 	lua_pushnil(L);
 	while (lua_next(L, state_idx) != 0) {
-		const std::string kstr = key_to_string(L, -2);
+		const int key_type = lua_type(L, -2);
+		std::string kstr;
+		if (!key_to_string(L, -2, ctx, path, kstr)) {
+			lua_pop(L, 2); // key, value
+			return false;
+		}
 		const std::string child_path = path.empty() ? kstr : path + "." + kstr;
 		if (!charge_key(ctx, child_path)) {
 			lua_pop(L, 2); // key, value
 			return false;
 		}
 		lua_pop(L, 1); // value
-		if (std::find(keys.begin(), keys.end(), kstr) != keys.end()) {
+		// Declared keys are always strings (shape keys are string-only); a
+		// number key that merely prints the same text is a different key and
+		// must never match, or it would insert alongside an orphaned entry.
+		if (key_type == LUA_TSTRING && std::find(keys.begin(), keys.end(), kstr) != keys.end()) {
 			continue; // key kept on stack for lua_next
 		}
 		lua_pop(L, 1); // key
@@ -302,7 +321,11 @@ bool walk_open(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::str
 
 	lua_pushnil(L);
 	while (lua_next(L, state_idx) != 0) {
-		const std::string kstr = key_to_string(L, -2);
+		std::string kstr;
+		if (!key_to_string(L, -2, ctx, path, kstr)) {
+			lua_pop(L, 3); // value, key, entry_shape
+			return false;
+		}
 		const std::string child_path = path.empty() ? kstr : path + "." + kstr;
 		if (!charge_key(ctx, child_path)) {
 			lua_pop(L, 3); // value, key, entry_shape
