@@ -1,4 +1,4 @@
-#include "rv_pboot_mode.hpp"
+#include "rv_pboot_machine.hpp"
 
 #include <cstdio>
 #include <limits>

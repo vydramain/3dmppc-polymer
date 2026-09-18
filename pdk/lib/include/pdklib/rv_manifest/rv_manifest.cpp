@@ -235,14 +235,12 @@ static bool safe_entry_name(const std::string &entry, const char *what, std::str
     return true;
 }
 
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
+// The id is not decoration: it becomes the name of the burned file and of
+// the directory the console unpacks into, so it is checked as a FILENAME
+// before anything else touches it. A '/' would escape the output directory,
+// ".." would climb out of it, and a leading '.' would hide the result.
+static bool validate_disc_id(const rv_manifest &manifest, std::string &error)
 {
-    error.clear();
-
-    // The id is not decoration: it becomes the name of the burned file and of
-    // the directory the console unpacks into, so it is checked as a FILENAME
-    // before anything else touches it. A '/' would escape the output directory,
-    // ".." would climb out of it, and a leading '.' would hide the result.
     if (manifest.disc_id.empty()) {
         error = "[disc] id is empty - the disc needs a short machine name";
         return false;
@@ -259,10 +257,14 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         error = "[disc] id must not start with '.'";
         return false;
     }
+    return true;
+}
 
-    // The rest of what a disc cannot be built without. Everything NOT listed
-    // here has a reference value and may be left unsaid; these five have none,
-    // because no answer the tool could invent would be the author's.
+// The rest of what a disc cannot be built without. Everything NOT listed
+// here has a reference value and may be left unsaid; these five have none,
+// because no answer the tool could invent would be the author's.
+static bool validate_required_sections(const rv_manifest &manifest, std::string &error)
+{
     if (manifest.disc_title.empty()) {
         error = "[disc] title is empty - the disc needs a human title for the window and logs";
         return false;
@@ -279,108 +281,138 @@ bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
         error = "[textures] files is empty - state the images the disc carries";
         return false;
     }
+    return true;
+}
 
-    // pccd.code_entry and pccl.script_entry both name something the drive is
-    // later asked for BY NAME
-    // - an empty value is legal and means "use the conventional name", but
-    // anything that IS given must be a bare name: no path to climb out of the
-    // medium with.
-    if (!safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error) ||
-        !safe_entry_name(manifest.budget.pccl.script_entry, "[budget.pccl] script_entry", error)) {
-        return false;
+// pccd.code_entry and pccl.script_entry both name something the drive is
+// later asked for BY NAME
+// - an empty value is legal and means "use the conventional name", but
+// anything that IS given must be a bare name: no path to climb out of the
+// medium with.
+static bool validate_entry_names(const rv_manifest &manifest, std::string &error)
+{
+    return safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error) &&
+        safe_entry_name(manifest.budget.pccl.script_entry, "[budget.pccl] script_entry", error);
+}
+
+// By the time a manifest reaches here the binder has already turned the
+// spelling into an enumerator, and an unknown spelling left the field at its
+// value-initialised zero. So this catches both a typo and a missing `format`
+// line - but it can no longer quote what the author actually typed, because
+// that string does not survive binding.
+static bool validate_texture_format(const rv_manifest &manifest, std::string &error)
+{
+    if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) != nullptr) {
+        return true;
     }
-
-    // By the time a manifest reaches here the binder has already turned the
-    // spelling into an enumerator, and an unknown spelling left the field at its
-    // value-initialised zero. So this catches both a typo and a missing `format`
-    // line - but it can no longer quote what the author actually typed, because
-    // that string does not survive binding.
-    if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) == nullptr) {
-        std::string known;
-        for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
-            if (!known.empty()) {
-                known += ", ";
-            }
-            known += row.text;
+    std::string known;
+    for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
+        if (!known.empty()) {
+            known += ", ";
         }
-        error = std::format("[textures] format is missing or unknown - expected one of {}", known);
-        return false;
+        known += row.text;
     }
+    error = std::format("[textures] format is missing or unknown - expected one of {}", known);
+    return false;
+}
 
+// Every resource the machine has to supply. A zero here is not a value the
+// disc chose, it is a field nobody wrote. Every field here now arrives
+// filled: absent means the reference machine, not zero. So a zero or a
+// negative can only be something the author typed, and that is the only
+// thing left to refuse.
+static bool validate_budget_positive(const rv_manifest &manifest, std::string &error)
+{
     struct budget_field {
         const char *name;
         int64_t value;
     };
-    // Every resource the machine has to supply. A zero here is not a value the
-    // disc chose, it is a field nobody wrote.
+    const rv_manifest_budget &budget = manifest.budget;
     const budget_field budgets[] = {
-        { "[budget.pcca] voice_count", manifest.budget.pcca.voice_count },
-        { "[budget.pcca] sound_memory_size", manifest.budget.pcca.sound_memory_size },
-        { "[budget.pccv] screen_width", manifest.budget.pccv.screen_width },
-        { "[budget.pccv] screen_height", manifest.budget.pccv.screen_height },
-        { "[budget.pccv] texture_max_width", manifest.budget.pccv.texture_max_width },
-        { "[budget.pccv] texture_max_height", manifest.budget.pccv.texture_max_height },
-        { "[budget.pccv] video_memory_size", manifest.budget.pccv.video_memory_size },
-        { "[budget.pccv] frame_capacity", manifest.budget.pccv.frame_capacity },
-        { "[budget.pccv] ot_bucket_count", manifest.budget.pccv.ot_bucket_count },
-        { "[budget.pccio] iport_count", manifest.budget.pccio.iport_count },
-        { "[budget.pccm] card_slots", manifest.budget.pccm.card_slots },
-        { "[budget.pccm] card_slot_size", manifest.budget.pccm.card_slot_size },
+        { "[budget.pcca] voice_count", budget.pcca.voice_count },
+        { "[budget.pcca] sound_memory_size", budget.pcca.sound_memory_size },
+        { "[budget.pccv] screen_width", budget.pccv.screen_width },
+        { "[budget.pccv] screen_height", budget.pccv.screen_height },
+        { "[budget.pccv] texture_max_width", budget.pccv.texture_max_width },
+        { "[budget.pccv] texture_max_height", budget.pccv.texture_max_height },
+        { "[budget.pccv] video_memory_size", budget.pccv.video_memory_size },
+        { "[budget.pccv] frame_capacity", budget.pccv.frame_capacity },
+        { "[budget.pccv] ot_bucket_count", budget.pccv.ot_bucket_count },
+        { "[budget.pccio] iport_count", budget.pccio.iport_count },
+        { "[budget.pccm] card_slots", budget.pccm.card_slots },
+        { "[budget.pccm] card_slot_size", budget.pccm.card_slot_size },
     };
-
-    // Every field here now arrives filled: absent means the reference machine,
-    // not zero. So a zero or a negative can only be something the author typed,
-    // and that is the only thing left to refuse.
     for (const budget_field &b : budgets) {
         if (b.value <= 0) {
             error = std::format("{} must be positive, got {}", b.name, b.value);
             return false;
         }
     }
+    return true;
+}
 
-    // pccl is deliberately NOT in the table above. Every other subsystem is
-    // hardware the machine always has; the Lua machine exists only for a disc
-    // that carries scripts, so an absent section is a legal statement rather
-    // than a missing one. Only a negative is nonsense - nobody asks for less
-    // than no memory.
+// pccl is deliberately NOT in the budget table. Every other subsystem is
+// hardware the machine always has; the Lua machine exists only for a disc
+// that carries scripts, so an absent section is a legal statement rather
+// than a missing one. Only a negative is nonsense - nobody asks for less
+// than no memory.
+static bool validate_pccl_memory(const rv_manifest &manifest, std::string &error)
+{
     if (manifest.budget.pccl.script_memory_size < 0) {
         error = std::format("[budget.pccl] script_memory_size must not be negative, got {}",
             manifest.budget.pccl.script_memory_size);
         return false;
     }
+    return true;
+}
 
-    // A lua disc is declared by THREE statements that mean nothing apart:
-    // where the scripts come from, how much memory they run in, and which one
-    // starts. All three, or none of them - a disc is a lua disc or a C++ disc,
-    // and there is no state between the two. Any partial declaration is a
-    // manifest that describes a machine nobody can build.
+// A lua disc is declared by THREE statements that mean nothing apart:
+// where the scripts come from, how much memory they run in, and which one
+// starts. All three, or none of them - a disc is a lua disc or a C++ disc,
+// and there is no state between the two. Any partial declaration is a
+// manifest that describes a machine nobody can build.
+static bool validate_lua_disc_consistency(const rv_manifest &manifest, std::string &error)
+{
     const bool has_scripts = !manifest.scripts_sources.empty();
     const bool has_memory = manifest.budget.pccl.script_memory_size > 0;
     const bool has_entry = !manifest.budget.pccl.script_entry.empty();
 
-    if (has_scripts != has_memory || has_memory != has_entry) {
-        std::string stated;
-        std::string missing;
-        const auto note = [&](bool present, const char *what) {
-            std::string &side = present ? stated : missing;
-            if (!side.empty()) {
-                side += ", ";
-            }
-            side += what;
-        };
-        note(has_scripts, "[scripts] sources");
-        note(has_memory, "[budget.pccl] script_memory_size");
-        note(has_entry, "[budget.pccl] script_entry");
-
-        error = std::format(
-            "a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
-            "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
-            "State the rest, or drop them all and burn a C++ disc",
-            stated, missing);
-        return false;
+    if (has_scripts == has_memory && has_memory == has_entry) {
+        return true;
     }
 
-    return true;
+    std::string stated;
+    std::string missing;
+    const auto note = [&](bool present, const char *what) {
+        std::string &side = present ? stated : missing;
+        if (!side.empty()) {
+            side += ", ";
+        }
+        side += what;
+    };
+    note(has_scripts, "[scripts] sources");
+    note(has_memory, "[budget.pccl] script_memory_size");
+    note(has_entry, "[budget.pccl] script_entry");
+
+    error = std::format(
+        "a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
+        "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
+        "State the rest, or drop them all and burn a C++ disc",
+        stated, missing);
+    return false;
+}
+
+bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
+{
+    error.clear();
+
+    return validate_disc_id(manifest, error) &&
+        validate_required_sections(manifest, error) &&
+        validate_entry_names(manifest, error) &&
+        validate_texture_format(manifest, error) &&
+        validate_budget_positive(manifest, error) &&
+        validate_pccl_memory(manifest, error) &&
+        validate_lua_disc_consistency(manifest, error);
 }
 
 } // namespace rv_pdklib

@@ -21,3 +21,33 @@ extern "C" int64_t rv_cd_asset_read(rv_cd *cd, int64_t handle, void *baddr, int6
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->asset_read(handle, baddr, baddr_size);
 }
+
+extern "C" int64_t rv_cd_texture_acquire(rv_cd *cd, const char *resname)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_acquire(resname);
+}
+
+extern "C" int64_t rv_cd_texture_release(rv_cd *cd, int64_t res)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_release(res);
+}
+
+extern "C" int64_t rv_cd_texture_addr(rv_cd *cd, int64_t res)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_addr(res);
+}
+
+extern "C" int64_t rv_cd_texture_palette_addr(rv_cd *cd, int64_t res)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_palette_addr(res);
+}
+
+extern "C" int64_t rv_cd_texture_width(rv_cd *cd, int64_t res)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_width(res);
+}
+
+extern "C" int64_t rv_cd_texture_height(rv_cd *cd, int64_t res)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_height(res);
+}

@@ -26,7 +26,7 @@
 #include <vector>
 
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
-#include "rv_pconsole/cd/rv_pczip.hpp"
+#include "rv_pconsole/cd/rv_zipreader.hpp"
 
 namespace rv_3dmppc {
 

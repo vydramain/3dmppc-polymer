@@ -1,5 +1,4 @@
 #include <cstdint>
-#include <cstring>
 #include <vector>
 
 #include "pdk/cd/rv_cd.h"
@@ -18,36 +17,6 @@ namespace
 
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_SPRITE = 0;
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_BAR = 400;
-
-struct rv_example_cpp_texheader {
-    uint16_t version;
-    uint16_t format;
-    uint16_t width;
-    uint16_t height;
-    uint16_t palette_count;
-};
-
-uint16_t read_u16(const uint8_t *p)
-{
-    return static_cast<uint16_t>(p[0] | (p[1] << 8));
-}
-
-bool parse_texheader(const std::vector<uint8_t> &bytes, rv_example_cpp_texheader &out)
-{
-    if (bytes.size() < 16) {
-        return false;
-    }
-    if (std::memcmp(bytes.data(), "MPTX", 4) != 0) {
-        return false;
-    }
-
-    out.version = read_u16(bytes.data() + 4);
-    out.format = read_u16(bytes.data() + 6);
-    out.width = read_u16(bytes.data() + 8);
-    out.height = read_u16(bytes.data() + 10);
-    out.palette_count = read_u16(bytes.data() + 12);
-    return out.version == 1;
-}
 
 } // namespace
 
@@ -75,8 +44,7 @@ private:
     int64_t screen_width_ = 0;
     int64_t screen_height_ = 0;
 
-    int64_t addr_texels_ = 0;
-    int64_t addr_palette_ = 0;
+    int64_t tex_res_ = 0;
 
     int64_t text_bytes_ = 0;
     float phase_ = 0.0f;
@@ -113,61 +81,16 @@ bool rv_dmain::read_asset(const char *name, std::vector<uint8_t> &out)
 
 void rv_dmain::load_sprite()
 {
-    std::vector<uint8_t> bytes;
-    if (!read_asset("example-sprite.mppctex", bytes)) {
+    rv_cd *cd = rv_pdko_cd(pdk_);
+    if (!cd) {
         return;
     }
 
-    rv_example_cpp_texheader header{};
-    if (!parse_texheader(bytes, header)) {
+    const int64_t res = rv_cd_texture_acquire(cd, "example-sprite.mppctex");
+    if (res < 0) {
         return;
     }
-
-    rv_cv *cv = rv_pdko_cv(pdk_);
-    const std::size_t palette_offset = 16;
-    const std::size_t palette_bytes = static_cast<std::size_t>(header.palette_count) * 2;
-    const std::size_t texel_offset = palette_offset + palette_bytes;
-    if (bytes.size() < texel_offset) {
-        return;
-    }
-
-    const std::size_t texel_bytes = bytes.size() - texel_offset;
-
-    if (header.palette_count > 0) {
-        const int64_t addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_bytes));
-        if (addr < 0) {
-            return;
-        }
-
-        rv_texture palette = {};
-        palette.format = RV_TEXFMT_DIRECT15;
-        palette.data = bytes.data() + palette_offset;
-        palette.size = palette_bytes;
-        palette.width = header.palette_count;
-        palette.height = 1;
-        if (rv_cv_video_asset_write(cv, addr, &palette) < 0) {
-            rv_cv_video_asset_free(cv, addr);
-            return;
-        }
-        addr_palette_ = addr;
-    }
-
-    const int64_t addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(texel_bytes));
-    if (addr < 0) {
-        return;
-    }
-
-    rv_texture texels = {};
-    texels.format = static_cast<rv_texfmt>(header.format);
-    texels.data = bytes.data() + texel_offset;
-    texels.size = texel_bytes;
-    texels.width = header.width;
-    texels.height = header.height;
-    if (rv_cv_video_asset_write(cv, addr, &texels) < 0) {
-        rv_cv_video_asset_free(cv, addr);
-        return;
-    }
-    addr_texels_ = addr;
+    tex_res_ = res;
 }
 
 int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
@@ -221,7 +144,10 @@ void rv_dmain::frame_render()
 
     rv_cv_frame_configure(cv, 0, rv_color{ 20, 24, 40 });
 
-    if (addr_texels_ != 0) {
+    if (tex_res_ != 0) {
+        rv_cd *cd = rv_pdko_cd(pdk_);
+        const int64_t addr_texture = rv_cd_texture_addr(cd, tex_res_);
+        const int64_t addr_palette = rv_cd_texture_palette_addr(cd, tex_res_);
         const rv_texture_mapping_type modes[3] = {
             RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
         };
@@ -238,8 +164,8 @@ void rv_dmain::frame_render()
 
             rv_sprite &sprite = primitive.data.sprite;
             sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
-            sprite.addr_texture = addr_texels_;
-            sprite.addr_palette = addr_palette_;
+            sprite.addr_texture = addr_texture;
+            sprite.addr_palette = addr_palette;
             sprite.color = rv_color{ 255, 255, 255 };
             sprite.mapping = modes[i];
             sprite.x = static_cast<int16_t>(x0 + static_cast<float>(i) * (size + gap));
@@ -279,15 +205,10 @@ void rv_dmain::disc_shutdown()
         return;
     }
 
-    rv_cv *cv = rv_pdko_cv(pdk_);
-    if (addr_texels_ != 0) {
-        rv_cv_video_asset_free(cv, addr_texels_);
+    if (tex_res_ != 0) {
+        rv_cd_texture_release(rv_pdko_cd(pdk_), tex_res_);
+        tex_res_ = 0;
     }
-    if (addr_palette_ != 0) {
-        rv_cv_video_asset_free(cv, addr_palette_);
-    }
-    addr_texels_ = 0;
-    addr_palette_ = 0;
 }
 
 } // namespace example_cpp

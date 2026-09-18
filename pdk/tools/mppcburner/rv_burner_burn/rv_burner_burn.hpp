@@ -40,4 +40,35 @@ int burn_archive(
     int64_t &burned_size,
     std::string &error);
 
+/// Write the disc as an unpacked directory instead of a .mppcdisc.
+///
+/// Same three kinds of entry as burn_archive(), the same flat names, and the
+/// same order does not matter here since a directory has no central index. The
+/// difference is HOW each kind lands on disk: "disc.toml" is rendered text,
+/// "disc.so" and a baked texture are finished products and are copied, but a
+/// script or a verbatim-copied asset is symlinked straight back to its source
+/// (falling back to a copy if the filesystem refuses the symlink) so that an
+/// edit to the developer's own file is visible through the directory without
+/// a rebuild. Every write lands at a temporary name first and is rename()'d
+/// into place, so a failure mid-run cannot leave a half-written file at its
+/// final name - but there is no promise over the directory AS A WHOLE: a crash
+/// between two entries leaves some of them freshly published and others from
+/// the previous run, which is fine for a namespace where every entry stands on
+/// its own.
+///
+/// @param output_dir   the directory to publish into; created if missing
+/// @param manifest     the validated manifest, re-rendered into "disc.toml"
+/// @param disc_module  the disc.so compile_sources() produced
+/// @param plan         the planned archive; for an unpacked build the caller
+///                     has already pointed script entries at their .lua
+///                     source instead of compiled bytecode
+/// @param error        set on any I/O failure
+/// @return 0 on success, 1 on refusal
+int burn_directory(
+    const std::filesystem::path &output_dir,
+    const rv_pdklib::rv_manifest &manifest,
+    const std::filesystem::path &disc_module,
+    const archive_plan &plan,
+    std::string &error);
+
 } // namespace rv_pdktools

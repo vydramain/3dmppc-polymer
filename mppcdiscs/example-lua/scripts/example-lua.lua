@@ -9,47 +9,103 @@
 -- machine.
 local M = {}
 
--- The controllers, cast to their real pointer types once disc_initialize
--- hands them over (see below) - every later hook reaches hardware through
--- these, the same way example-cpp.cpp re-derives its rv_cv* each frame.
-local cv, ca, cio
+-- Declares the shape of `state` (below). The console checks a reload
+-- candidate's live state table against this BEFORE attach() runs: a missing
+-- declared key is inserted, a stored key not declared here or with a
+-- mismatched type refuses the reload.
+M.state_shape = {
+	frame_count = 0,
+	screen_width = 0,
+	screen_height = 0,
+	tex_name = "",
+	-- -1, not 0: a residency id is 1-based, and 0 is TRUE in lua - a zero
+	-- default would make the "did the acquire work" guard below pass after a
+	-- failed acquire and draw from an invalid address.
+	tex_res = -1,
+}
 
--- screen_width/screen_height: read back once in disc_initialize (see there)
--- and reused every frame_render, instead of asking the console again per
--- frame for a number that cannot change mid-disc.
-local screen_width, screen_height
+-- The console owns ONE persistent table for the whole run and hands it to
+-- M.attach() - once at boot, right after this chunk is raised, and again
+-- after every successful code reload. This is the ONLY thing that survives a
+-- reload: a chunk local (like this one) or a field of M dies with the code
+-- that reload replaces. Everything this script needs to keep is a field of
+-- `state`, never a local and never a field of M.
+--
+-- Not stored: a function or a coroutine. Either would keep the OLD chunk's
+-- bytecode alive and callable after the swap - the state table would quietly
+-- carry a piece of code the reload was supposed to have replaced. This
+-- script has no closure worth surviving a reload (set_vertex below is
+-- recreated each frame_render, cheaply, from data already in state).
+local state
+
+-- The one asset this script OWNS: it acquires it once, in disc_initialize,
+-- and remembers only the residency id the drive hands back. The drive
+-- refreshes the texture behind that id on its own, so this script never
+-- hears about a reload - it just keeps asking for the same id's address.
+local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
--- first raise - before disc_initialize or any other hook is ever called. This
--- is the first milestone: seeing this line proves the bytecode actually
--- executes.
+-- first raise - before disc_initialize, attach, or any other hook is ever
+-- called. print() is routed into the console's stderr logger, not stdout, so
+-- this is a "the bytecode executed" breadcrumb, never something a test reads.
+--
+-- Nothing else runs here: the body must stay PURE (no pdk call, no write to
+-- `state`) because it also runs to VALIDATE a reload candidate, before the
+-- console knows whether attach() will accept it. An impure body would leave
+-- effects behind even for a candidate that is about to be refused.
 print("Hello from example lua!")
 
-function M.disc_initialize(cv_, ca_, cio_)
-	-- cv_/ca_/cio_ arrive as light userdata (rv_cl_stack_push_pointer on the
-	-- C++ side) - pdk.cast (== ffi.cast, see rv_pccl.cpp) is what turns each
-	-- back into its real controller pointer type. This script never says
-	-- `ffi` itself: pdk is the only vocabulary it uses.
-	cv = pdk.cast("rv_cv*", cv_)
-	ca = pdk.cast("rv_ca*", ca_)
-	cio = pdk.cast("rv_cio*", cio_)
-
-	-- Read something real back through pdk and print it: the headless-
-	-- verifiable proof that a Lua call reached the console's own
-	-- rv_cv_screen_width and got its real answer, not a stub.
-	screen_width = tonumber(pdk.cv_screen_width(cv))
-	screen_height = tonumber(pdk.cv_screen_height(cv))
-	print(string.format("example-lua: screen is %dx%d (read through pdk)", screen_width, screen_height))
+function M.attach(s)
+	-- The console has already checked s against M.state_shape (above) -
+	-- structure and types are settled by the time this runs. What is left is
+	-- the SEMANTIC half a shape cannot express: attach still has the right to
+	-- refuse a structurally valid state it judges unusable.
+	state = s
+	return true
 end
 
-function M.frame_update(dt)
-	-- Should the disc stop? cio is cast and reachable now, but this example
-	-- does not wire a button up to it - false every frame is still the
-	-- honest answer for a script that raises no stop condition of its own.
+function M.disc_initialize(o_)
+	local cv = pdk.cv(o_)
+	local cd = pdk.cd(o_)
+
+	-- Read something real back through pdk and log it: the headless-
+	-- verifiable proof that a Lua call reached the console's own
+	-- rv_cv_screen_width and got its real answer, not a stub. Stored in
+	-- state, not a local, because frame_render (below) needs it and a local
+	-- set here would not survive a reload.
+	state.screen_width = tonumber(pdk.cv_screen_width(cv))
+	state.screen_height = tonumber(pdk.cv_screen_height(cv))
+	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
+
+	-- Acquired exactly once here, never in attach(): disc_initialize is the
+	-- only hook that runs at boot and never again. The residency id is stored
+	-- so it survives every future code reload - frame_render queries the drive
+	-- for the address each time it draws, not cached across reloads.
+	local res = pdk.cd_texture_acquire(cd, ASSET_TEXTURE_NAME)
+	if res < 0 then
+		print("example-lua: could not acquire texture '" .. ASSET_TEXTURE_NAME .. "'")
+		return
+	end
+
+	state.tex_name = ASSET_TEXTURE_NAME
+	state.tex_res = tonumber(res)
+end
+function M.frame_update(dt, o_)
+	-- The frame counter: the one field this example exists to demonstrate.
+	-- It lives in `state`, so a code reload (M.attach runs, this chunk's
+	-- locals do not) leaves it exactly where it was - the count CONTINUES
+	-- instead of restarting at 0.
+	state.frame_count = state.frame_count + 1
+
+	-- Should the disc stop? this example does not wire a button up to check
+	-- - false every frame is still the honest answer for a script that
+	-- raises no stop condition of its own.
 	return false
 end
 
-function M.frame_render()
+function M.frame_render(o_)
+	local cv = pdk.cv(o_)
+
 	-- Same shape as example-cpp.cpp's own frame_render: configure the frame
 	-- (clear colour), fill it with a primitive, and leave the flush to the
 	-- disc's C++ side (src/example-lua.cpp), which calls rv_cv_frame_flush
@@ -73,13 +129,39 @@ function M.frame_render()
 		v.color.r, v.color.g, v.color.b = r, g, b
 	end
 
-	set_vertex(0, screen_width / 2, 40, 255, 80, 80)
-	set_vertex(1, 40, screen_height - 40, 80, 255, 80)
-	set_vertex(2, screen_width - 40, screen_height - 40, 80, 80, 255)
+	local w, h = state.screen_width, state.screen_height
+	set_vertex(0, w / 2, 40, 255, 80, 80)
+	set_vertex(1, 40, h - 40, 80, 255, 80)
+	set_vertex(2, w - 40, h - 40, 80, 80, 255)
 
 	pdk.cv_frame_put(cv, primitive)
+
+	-- The sprite next to the triangle: SAMPLE_TEXTURE against the residency
+	-- disc_initialize acquired. Asked fresh every frame for its address, not
+	-- cached: an address is only valid until that texture is reloaded. Guarded
+	-- by tex_res because acquire can fail (e.g. the asset missing) without
+	-- disc_initialize itself refusing to start.
+	if state.tex_res >= 0 then
+		local cd = pdk.cd(o_)
+		local sprite_primitive = pdk.new("rv_primitive")
+		sprite_primitive.type = pdk.PRIMITIVE_SPRITE
+		sprite_primitive.depth = 1
+
+		local sprite = sprite_primitive.data.sprite
+		sprite.fill_mode = pdk.PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE
+		sprite.addr_texture = tonumber(pdk.cd_texture_addr(cd, state.tex_res))
+		sprite.addr_palette = tonumber(pdk.cd_texture_palette_addr(cd, state.tex_res))
+		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
+		sprite.mapping = pdk.TEXWRAP_CLAMP
+		sprite.x = 16
+		sprite.y = 16
+		sprite.width = tonumber(pdk.cd_texture_width(cd, state.tex_res))
+		sprite.height = tonumber(pdk.cd_texture_height(cd, state.tex_res))
+
+		pdk.cv_frame_put(cv, sprite_primitive)
+	end
 end
 
-function M.disc_shutdown() end
+function M.disc_shutdown(o_) end
 
 return M

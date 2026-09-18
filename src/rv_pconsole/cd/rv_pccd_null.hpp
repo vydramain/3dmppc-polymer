@@ -25,8 +25,25 @@ public:
 
     int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) override;
 
+    int64_t texture_acquire(const char *resname) override;
+
+    int64_t texture_release(int64_t res) override;
+
+    int64_t texture_addr(int64_t res) override;
+
+    int64_t texture_palette_addr(int64_t res) override;
+
+    int64_t texture_width(int64_t res) override;
+
+    int64_t texture_height(int64_t res) override;
+
+    int64_t texture_reload(const char *resname) override;
+
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}
+
+    // No drive, so nothing is ever made resident: ignored.
+    void video_attach(rv_pccv & /*cv*/) override {}
 
     bool valid() const override { return true; }
 };

@@ -13,6 +13,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# The development runtime (the dev command channel, booting a game from a
+# loose directory, ...) is a build-time choice, not a runtime flag: with this
+# OFF the dev sources are not in the compile line at all. Two configurations
+# exist - OFF is the ordinary player console; ON costs nothing a player needs.
+option(3DMPPC_DEVTOOLS "Build the development runtime: the dev command channel and booting a game from a loose directory" OFF)
+
 include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
@@ -40,6 +46,11 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # Discs get it a different way - mppcburner writes the path into the CMakeLists
 # it generates for a disc project - so this target serves only what is built
 # from this file.
+# The 512-line rule, checked at configure time rather than trusted. See
+# cmake/rv_file_length.cmake for why the build is the right place for it.
+include(cmake/rv_file_length.cmake)
+rv_check_file_lengths()
+
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
 )
@@ -81,6 +92,41 @@ endif()
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
+
+# Dev-capability slot: both implementations excluded from the glob, then
+# exactly one added back by the option, the same shape as the null/real slot
+# pairs below (3dmppc_platform_sdl3 etc.) moved from runtime to build time.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir(_null)?\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_dev(_null)?\\.cpp")
+# `get`/`keys` have no null half: only the dev dispatcher calls them.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_dev_state\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_reload(_null)?\\.cpp")
+# The in-place patch has no null half: only the dev reload calls it.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_patch(walk)?\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcdevchan_(stdio|null)\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs_reload(_null)?\\.cpp")
+# The protocol's hex encoder has no null half: nothing in a player build calls
+# it, so that build simply does not compile it. Its declaration stays visible -
+# a header nobody calls costs nothing - but the encoder itself is dev code.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcdevhex\\.cpp")
+if(3DMPPC_DEVTOOLS)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev_state.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patch.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patchwalk.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevchan_stdio.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevhex.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload.cpp)
+else()
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevchan_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_null.cpp)
+endif()
+
 
 # --- the SDL3 platform ----------------------------------------------------------
 # The only code that may see SDL. It is its own library with SDL linked PRIVATE,
@@ -159,6 +205,14 @@ target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
 
 target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
+
+# The ONE macro this option defines, and it is for DATA, never for behaviour: a
+# link-time slot can leave a player build without a line that touches a member,
+# but it cannot remove the member itself. Behaviour stays a slot - if a new
+# #ifdef appears around CODE, the slot pattern was the thing to reach for.
+if(3DMPPC_DEVTOOLS)
+  target_compile_definitions(3dmppc PRIVATE RV_DEVTOOLS=1)
+endif()
 
 # dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
 # "-ldl" where that is a separate library and empty where it is part of libc.

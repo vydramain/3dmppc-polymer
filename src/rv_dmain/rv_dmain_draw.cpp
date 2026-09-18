@@ -228,8 +228,6 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
 
 void rv_dmain::draw_cell(int index)
 {
-    rv_cv *cv = rv_pdko_cv(pdk_);
-
     const int col = index % RV_DMAIN_GRID_COLS;
     const int row = index / RV_DMAIN_GRID_COLS;
     const int cx = 4 + col * RV_DMAIN_CELL_W;
@@ -241,7 +239,19 @@ void rv_dmain::draw_cell(int index)
     const int aw = RV_DMAIN_CELL_W - 8;
     const int ah = RV_DMAIN_CELL_H - RV_DMAIN_CELL_ART_TOP - 5;
 
+    draw_cell_label(index, cx, cy);
+
+    const rv_color hot = rv_pdklib::rv_hsv_to_rgb(hue_, 0.85f, 1.0f);
+    const rv_color cold = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.4f, 0.85f, 1.0f);
+    const rv_color mid = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.7f, 0.85f, 1.0f);
+
+    draw_cell_art(index, ax, ay, aw, ah, hot, cold, mid);
+}
+
+void rv_dmain::draw_cell_label(int index, int cx, int cy)
+{
     if (addr_font_ != 0) {
+        rv_cv *cv = rv_pdko_cv(pdk_);
         const rv_pdklib::rv_font_style ink =
             rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
         rv_pdklib::rv_font_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
@@ -249,10 +259,12 @@ void rv_dmain::draw_cell(int index)
                 rv_cv_frame_put(cv, &p);
             });
     }
+}
 
-    const rv_color hot = rv_pdklib::rv_hsv_to_rgb(hue_, 0.85f, 1.0f);
-    const rv_color cold = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.4f, 0.85f, 1.0f);
-    const rv_color mid = rv_pdklib::rv_hsv_to_rgb(hue_ + 0.7f, 0.85f, 1.0f);
+void rv_dmain::draw_cell_art(
+    int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid)
+{
+    rv_cv *cv = rv_pdko_cv(pdk_);
 
     switch (index) {
     case 0: { // LINE - the 1D case of colour interpolation
