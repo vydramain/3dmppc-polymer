@@ -1,5 +1,5 @@
-// Patching the entry chunk's tables in place instead of swapping the module
-// reference: anything already holding a reference into the OLD tables (an
+// Patching a chunk's tables in place - the entry on `reload entry`, a module
+// on `reload module` - instead of swapping the reference: anything already holding a reference into the OLD tables (an
 // object whose metatable is a class from the old version) must run the NEW
 // code on its next call, without the reload having to find and fix up every
 // such reference itself.

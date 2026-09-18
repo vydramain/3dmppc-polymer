@@ -29,6 +29,38 @@ void clear_marker(lua_State *L, int loaded_idx, const char *name)
 
 } // namespace
 
+// The same name/extension rules require_ has always used: empty, over 200
+// bytes, or containing '.', '/', '\\' is not a module name (1); the entry's
+// own extension picks .lua or .luac for every module (2 when it has neither).
+// Never raises: require_'s callers still need lua error text of their own,
+// and the dev reload path calls this outside any pcall at all.
+int rv_pccl_luajit::module_asset_(const char *name, char *out, std::size_t cap) const
+{
+    const std::size_t len = std::strlen(name);
+    bool bad = len == 0 || len > 200;
+    for (std::size_t i = 0; !bad && i < len; ++i) {
+        const char c = name[i];
+        if (c == '.' || c == '/' || c == '\\') {
+            bad = true;
+        }
+    }
+    if (bad) {
+        return 1;
+    }
+
+    const char *ext = nullptr;
+    if (conf_.script_entry.ends_with(".luac")) {
+        ext = ".luac";
+    } else if (conf_.script_entry.ends_with(".lua")) {
+        ext = ".lua";
+    } else {
+        return 2;
+    }
+
+    std::snprintf(out, cap, "%s%s", name, ext);
+    return 0;
+}
+
 // No std::string/std::vector lives in this frame: luaL_error/lua_error
 // longjmp out of it, and a C++ object with a destructor must not be alive
 // when that happens. The module name is bounded and copied into a fixed
@@ -40,15 +72,9 @@ int rv_pccl_luajit::require_(lua_State *L)
     rv_pccl_luajit *self = static_cast<rv_pccl_luajit *>(ud);
 
     const char *name = luaL_checkstring(L, 1);
-    const std::size_t len = std::strlen(name);
-    bool bad = len == 0 || len > 200;
-    for (std::size_t i = 0; !bad && i < len; ++i) {
-        const char c = name[i];
-        if (c == '.' || c == '/' || c == '\\') {
-            bad = true;
-        }
-    }
-    if (bad) {
+    char asset[256];
+    const int asset_code = self->module_asset_(name, asset, sizeof asset);
+    if (asset_code == 1) {
         return luaL_error(L,
             "require('%s'): a module name is a file name with no extension and no directory", name);
     }
@@ -71,19 +97,11 @@ int rv_pccl_luajit::require_(lua_State *L)
 
     // The entry's own extension decides the archive/--unpacked question for
     // every module, not just the entry itself.
-    const char *ext = nullptr;
-    if (self->conf_.script_entry.ends_with(".luac")) {
-        ext = ".luac";
-    } else if (self->conf_.script_entry.ends_with(".lua")) {
-        ext = ".lua";
-    } else {
+    if (asset_code == 2) {
         clear_marker(L, loaded_idx, name);
         return luaL_error(L, "require('%s'): the entry script '%s' is neither .lua nor .luac", name,
             self->conf_.script_entry.c_str());
     }
-
-    char asset[256];
-    std::snprintf(asset, sizeof asset, "%s%s", name, ext);
 
     const int64_t handle = self->cd_.asset_open(asset);
     const int64_t size = handle >= 0 ? self->cd_.asset_size(handle) : -1;

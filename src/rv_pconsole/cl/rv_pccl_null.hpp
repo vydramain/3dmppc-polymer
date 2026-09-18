@@ -52,6 +52,9 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
+    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
+        rv_pccl_reload_report &report) override;
+    int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const std::vector<std::string> &path, rv_pccl_value &out) override;
     int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
         std::vector<rv_pccl_key> &out) override;

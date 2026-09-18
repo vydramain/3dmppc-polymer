@@ -226,8 +226,16 @@ private:
     // they would be reported as whatever the caller happened to be doing.
     const char *phase_of(const char *phase) const;
 
-    // Shared by both reload forms once the bytes are in hand.
+    // Shared by both entry reload forms once the bytes are in hand.
     int64_t reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
+        rv_pccl_reload_report &report);
+
+    // Turns a require() module name into the asset name require_ would read:
+    // 0 ok (out filled), 1 not a module name, 2 the entry is neither .lua nor .luac.
+    int module_asset_(const char *name, char *out, std::size_t cap) const;
+
+    // Shared by both module reload forms once the bytes are in hand.
+    int64_t reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
         rv_pccl_reload_report &report);
 
     // Updates the tables `old_ref` holds to carry `new_ref`'s contents in
@@ -292,6 +300,9 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
+    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
+        rv_pccl_reload_report &report) override;
+    int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const std::vector<std::string> &path, rv_pccl_value &out) override;
     int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
         std::vector<rv_pccl_key> &out) override;

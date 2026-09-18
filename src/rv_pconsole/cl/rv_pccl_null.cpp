@@ -104,6 +104,14 @@ int64_t rv_pccl_null::script_reload_entry_from_drive(rv_pccl_reload_report &repo
 {
     return script_reload_entry(nullptr, 0, nullptr, report);
 }
+int64_t rv_pccl_null::script_reload_module(const char *, const void *, int64_t, rv_pccl_reload_report &report)
+{
+    return script_reload_entry(nullptr, 0, nullptr, report);
+}
+int64_t rv_pccl_null::script_reload_module_from_drive(const char *, rv_pccl_reload_report &report)
+{
+    return script_reload_entry(nullptr, 0, nullptr, report);
+}
 int64_t rv_pccl_null::state_get(const std::vector<std::string> &, rv_pccl_value &)
 {
     return RV_ERR_INVAL;

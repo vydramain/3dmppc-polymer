@@ -63,6 +63,7 @@ struct rv_pccl_reload_report {
     const char *phase = "";
     bool effects_possible = false;
     std::string message;
+    uint64_t hash = 0; // FNV-1a of the bytes now running; set on a successful reload
 };
 
 class rv_pccl
@@ -115,6 +116,15 @@ public:
     // under the console, which the CALLER decides (rv_pconsole_params::
     // medium_live) - in an archive the bytes are the same bytes.
     virtual int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) = 0;
+
+    // Replace the code of the module require() loaded under `name`, in place:
+    // the same compile/body/table checks as the entry, no attach and no state.
+    // Refuses a name nothing has required yet (no_module).
+    virtual int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
+        rv_pccl_reload_report &report) = 0;
+
+    // The same, with the bytes read from the drive: the file require() would read.
+    virtual int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) = 0;
 
     // Walk `path` from the persistent state table, one rawget per segment. RAW:
     // no metatable is consulted, so inspecting state can never run script code -
