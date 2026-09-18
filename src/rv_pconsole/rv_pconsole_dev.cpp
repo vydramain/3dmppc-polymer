@@ -21,6 +21,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/platform/rv_pcdevhex.hpp"
 
 // --- the development runtime -------------------------------------------------
 //

@@ -100,17 +100,26 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_l
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_dev(_null)?\\.cpp")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_reload(_null)?\\.cpp")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcdevchan_(stdio|null)\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs_reload(_null)?\\.cpp")
+# The protocol's hex encoder has no null half: nothing in a player build calls
+# it, so that build simply does not compile it. Its declaration stays visible -
+# a header nobody calls costs nothing - but the encoder itself is dev code.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcdevhex\\.cpp")
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevchan_stdio.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevhex.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload.cpp)
 else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_null.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_dev_null.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_null.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcdevchan_null.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_null.cpp)
 endif()
+
 
 # --- the SDL3 platform ----------------------------------------------------------
 # The only code that may see SDL. It is its own library with SDL linked PRIVATE,
@@ -189,6 +198,14 @@ target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
 target_link_libraries(3dmppc PRIVATE rv_dmain)
 
 target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
+
+# The ONE macro this option defines, and it is for DATA, never for behaviour: a
+# link-time slot can leave a player build without a line that touches a member,
+# but it cannot remove the member itself. Behaviour stays a slot - if a new
+# #ifdef appears around CODE, the slot pattern was the thing to reach for.
+if(3DMPPC_DEVTOOLS)
+  target_compile_definitions(3dmppc PRIVATE RV_DEVTOOLS=1)
+endif()
 
 # dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
 # "-ldl" where that is a separate library and empty where it is part of libc.

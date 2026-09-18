@@ -15,7 +15,6 @@
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/platform/rv_pcdevchan.hpp"
-#include "rv_pconsole/platform/rv_pcdevhex.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -107,11 +106,13 @@ private:
 
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
-    // Touched only by the dev slot (rv_pconsole_dev.cpp). It stays declared
-    // here because a link-time slot cannot add a member - what it can do, and
-    // does, is leave the player build without a single line that reads or
-    // writes it. Two scalars that are never looked at is the residue of that
-    // choice, and the whole of it.
+#if RV_DEVTOOLS
+    // Touched only by the dev slot (rv_pconsole_dev.cpp), and so not present at
+    // all without it. This is the one thing a link-time slot cannot do on its
+    // own - it can leave a build without a line that reads a member, but not
+    // without the member - which is why -D3DMPPC_DEVTOOLS=ON defines exactly
+    // one macro, and defines it for DATA only. Every BEHAVIOUR here is still a
+    // slot, so the frame loop has no #ifdef in it.
     bool dev_close_logged_ = false;
 
     // The last script-error sequence number this console has already reacted
@@ -119,6 +120,7 @@ private:
     // is how the console learns a game hook broke, without the disc having to
     // tell it and without a contract change.
     int64_t dev_error_seq_ = 0;
+#endif
 
     // Move the channel along and execute whatever arrived, on the frame
     // boundary and nowhere else: at that point no script call is in flight and

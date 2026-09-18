@@ -1,6 +1,8 @@
-// Lowercase hex encoding used by the development protocol. Plain formatting,
-// not developer policy, so it is always compiled - not excluded in a player
-// build the way the channel itself is.
+// Lowercase hex encoding used by the development protocol. Nothing outside the
+// development runtime speaks it, so rv_pcdevhex.cpp is compiled only into a
+// -D3DMPPC_DEVTOOLS=ON build (see CMakeLists.txt). It needs no null half, unlike
+// the slots around it: a player build calls neither function, so leaving the
+// declarations visible costs that build nothing and defining them would.
 #pragma once
 
 #include <string>

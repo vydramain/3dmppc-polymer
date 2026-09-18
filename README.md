@@ -110,7 +110,7 @@ the compiler they drive.
 | `--memcard PATH` | memory-card image (default `memcard.mppccard` next to the binary, in `build/pconsole/`) |
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
-| `--dev` | open the development command channel on stdin, answered on stdout; without it the console reads no commands at all |
+| `--dev` | attach the development command channel to stdin/stdout; what the console *can* do is set by its build, this only says where to speak |
 | `--paused` | start with the frame loop stopped, before frame 0. Lift it with the **Pause** key, or with a resume/step request when `--dev` is given; a mode that offers neither is refused |
 
 Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
@@ -132,22 +132,34 @@ The console can be driven while it runs: stopped at a frame boundary, stepped
 one frame at a time, and — the point of the whole thing — handed replacement
 Lua for the disc's entry script without losing the game's state.
 
-It is a **build**, not a flag: `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in
-the compile line and `OFF` puts their null counterparts there instead, the
-same slot shape the platform, cv and cl implementations already use. `--dev`
-is only the switch that opens the channel inside a console that was built
-with it; a player binary refuses the option by name rather than accepting it
-and doing nothing.
+**The build decides what this console can do; `--dev` only decides where the
+channel is attached.** `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in the
+compile line and `OFF` puts their null counterparts there instead, the same
+slot shape the platform, cv and cl implementations already use — that, and
+nothing at run time, is what makes a console capable of being driven. `--dev`
+is an I/O choice within a console that already is: it hands **stdin and
+stdout** to the protocol. It has to be asked for because those two streams
+have another use — a dev build with no `--dev` is an ordinary console you can
+pipe like any other — and a player binary refuses the option by name rather
+than accepting it and doing nothing. Do not read `--dev` as a feature gate:
+there is no capability behind it that the build did not already grant.
 
 What "not in the player build" means, exactly: no implementation, no protocol
-vocabulary and no reachable path — `strings` on a player binary finds none of
-the verbs, and the command dispatcher, the stdin channel, the entry reload and
-the loose-directory mount are not compiled. What remains is the *name* of each
-slot's entry point, answering "no": that is the price of choosing a link-time
-slot over `#ifdef` in the headers, and it is the same price `rv_pccl_null`,
-`rv_pccd_null` and `rv_pcplatform_null` already pay. A symbol-name sweep is
-therefore the wrong check; the verb vocabulary and the refusals are the right
-ones.
+vocabulary and no reachable path. Not compiled there: the command dispatcher,
+the stdin channel, the protocol's hex encoder, the entry reload, the texture
+refresh and the loose-directory mount. `strings` finds none of the verbs and
+none of the answer shapes. What remains is the *name* of each slot's entry
+point, answering "no" in a handful of bytes — that is the price of choosing a
+link-time slot over `#ifdef` in the headers, and it is the same price
+`rv_pccl_null`, `rv_pccd_null` and `rv_pcplatform_null` already pay. A
+symbol-name sweep is therefore the wrong check; the vocabulary, the refusals
+and the size of the remaining stub are the right ones.
+
+The option defines exactly one macro, `RV_DEVTOOLS`, and it guards **data** —
+the two fields only the dev slot touches. A slot can leave a build without a
+line that reads a member; it cannot remove the member. Every *behaviour* stays
+a slot, which is why the frame loop contains no `#ifdef` and a developer tests
+the same loop a player runs.
 
 ### Stopping it
 
@@ -167,8 +179,14 @@ per request, in request order:
 ```
 <id> <verb> [args...]        the id is yours, and must be above zero
 <id> ok key=value ...
-<id> err error=<token> effects=<0|1> msg=<hex>
+<id> err error=<token> rv_err=<n> effects=<0|1> msg=<hex>
 ```
+
+`rv_err` is the contract's own code (`pdk/include/pdk/rv_err.h`) — the same
+number a disc would have got from the call — and `error` is the token to branch
+on. `msg` is prose for a human, cut to 4096 bytes with the cut named in the
+text: a lua error or an `attach` refusal reason is written by the disc, and an
+answer that does not fit the queue is an answer nobody reads.
 
 The console echoes your id back on the answer. Zero is not yours to send: the
 console tags with `0` the events it raises on its own, so a request numbered
@@ -320,9 +338,11 @@ satisfy, because that list is a property of the contract above and not of
 whoever wrote the script:
 
 1. Both configurations build, and both burn and boot an ordinary disc.
-2. The player build contains no verb of the protocol, refuses `--dev` by name
-   with exit 2, and refuses a loose directory — checked by vocabulary and by
-   refusal, never by symbol name (see the note at the top of this section).
+2. The player build contains no verb of the protocol and no hex encoder for
+   one, its texture refresh is a stub of a few bytes, and it refuses `--dev`
+   by name with exit 2 and refuses a loose directory — checked by vocabulary,
+   by refusal and by stub size, never by symbol name alone (see the note at
+   the top of this section).
 3. The medium answers for itself: a positional directory is `live`, an archive
    is `fixed`, and no combination of disc arguments is silently ignored. A
    header that is refused still frames away the payload it claimed, so those
@@ -330,10 +350,14 @@ whoever wrote the script:
 4. `pause` stops at a boundary, `step` runs exactly one frame and is answered
    after it, `resume` carries on — with the frame counter agreeing.
 5. A successful reload keeps the state and the next frame runs the new code.
-6. Each refusal — a stored key nothing declares, a retyped key, `attach`
-   refusing on meaning — leaves the old code running, the revision unmoved and
-   the keys the shape inserted taken back. A candidate with no `state_shape` is
-   *accepted*, unchecked, on purpose.
+6. Each refusal — a stored key nothing declares, a retyped key, a function or
+   a cycle under `"*"`, `attach` refusing on meaning — leaves the old code
+   running, the revision unmoved and the keys the shape inserted taken back. A
+   many-field shape applies whole or not at all. A candidate with no
+   `state_shape` is *accepted*, unchecked, on purpose. A refusal reason too
+   long for one answer is cut rather than dropped, and the channel survives it.
+   A candidate whose body tries to free the running entry is told to try later,
+   and the old code stays callable.
 7. Reload repeats within one run without a stack or resource error.
 8. A texture refreshes with no game hook and reports its new size; a truncated
    candidate, a non-container and a paletted texture carrying no palette are
