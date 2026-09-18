@@ -89,8 +89,18 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
         return fail("compile", false, RV_ERR_IO);
     }
     // loadbuffer only COMPILES; the module table is the RESULT of running the body.
-    if (lua_pcall(L_, 0, 1, 0) != 0) {
-        return fail("body", true, RV_ERR_IO);
+    //
+    // Guarded, like every other place script code runs. A body is script code
+    // with a pdk table in reach, so it can call rv_cl_script_free and aim it at
+    // the chunk that is running RIGHT NOW: without the guard call_depth_ was 0,
+    // the free was allowed, and the live entry went away. The candidate could
+    // then be refused for any later reason and leave the console holding a
+    // released entry - the old code gone, the new code never installed.
+    {
+        const rv_pccl_call_guard guard(call_depth_);
+        if (lua_pcall(L_, 0, 1, 0) != 0) {
+            return fail("body", true, RV_ERR_IO);
+        }
     }
     if (!lua_istable(L_, -1)) {
         report.phase = "not_a_table";
