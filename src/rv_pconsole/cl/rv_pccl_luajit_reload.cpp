@@ -51,31 +51,35 @@ int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, 
     if (raised < 0) {
         return raised;
     }
-    // attach() runs on the CANDIDATE, before the swap. That order is the whole
-    // guarantee: everything that can refuse has refused by the time the old
-    // reference is let go, so there is no state in which the code has been
-    // replaced but the replacement was never accepted - and therefore nothing
-    // to roll back.
+    // attach() runs on the CANDIDATE, before the patch. That order is the
+    // whole guarantee: everything that can refuse has refused by the time the
+    // running tables are touched, so there is no state in which the code has
+    // been replaced but the replacement was never accepted - and therefore
+    // nothing to roll back.
     const int64_t attached = attach_(candidate, report);
     if (attached < 0) {
         luaL_unref(L_, LUA_REGISTRYINDEX, candidate);
         return attached;
     }
 
-    // --- the commit. Nothing below is allowed to fail. ---
+    // --- the commit: the running tables take the new code in place. The patch
+    // can still refuse on its size bounds before it touches anything, or run
+    // out of heap part way through (nomem, effects=1). ---
     chunk_slot &slot = chunks_[static_cast<std::size_t>(entry_)];
-    const int previous = slot.ref;
-    slot.ref = candidate;
+    const int64_t patched = patch_in_place_(slot.ref, candidate, report);
+    luaL_unref(L_, LUA_REGISTRYINDEX, candidate); // the candidate table itself is never kept
+    if (patched < 0) {
+        return patched; // report already filled by patch_in_place_; slot.ref still holds the old code
+    }
     if (name != nullptr) {
         slot.name = name;
     }
-    luaL_unref(L_, LUA_REGISTRYINDEX, previous);
     ++revision_;
     entry_hash_ = rv_pccl_fnv1a(bytecode, size);
     report.phase = "ok";
     report.effects_possible = false;
     report.message.clear();
-    RV_LOG_INFO("pccl", "entry chunk replaced from '{}' (revision {}, {} byte(s), hash {:016x})",
+    RV_LOG_INFO("pccl", "entry chunk updated in place from '{}' (revision {}, {} byte(s), hash {:016x})",
         rv_pdklib::rv_log_escape(slot.name.c_str()), revision_, size, entry_hash_);
     return RV_OK;
 }

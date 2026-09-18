@@ -269,6 +269,26 @@ says. `attach` returning `false, "reason"` is how a script refuses a state
 layout it cannot read: the console has no schema for that table and cannot
 detect the mismatch itself.
 
+Once every check has passed, the running tables are updated in place rather
+than replaced. The table the file returned, and every table inside it that the
+old version also had under the same key - metatables included - stay the same
+objects and receive the new functions; a function the new version no longer
+defines is removed from them; and the new code's references to its own fresh
+tables are pointed at the live ones. So an object in state whose metatable is
+a class keeps its class and runs the new methods on the next frame, and an
+object made after the reload gets that same class. Three rules follow for the
+script author:
+
+- a class follows a reload only if it can be reached from the table the file
+  returns; a local table the file does not hand out is new after every reload;
+- non-function values in class tables and a file's local tables come from the
+  new version, so data that must survive a reload lives in state;
+- a function copied elsewhere (`local f = Entity.speak`, a callback) keeps the
+  old code - call through the table.
+
+The state table and the modules `require` has loaded are live data, not part of
+the candidate: the in-place walk does not enter them.
+
 Not offered: rolling back effects, hot-swapping C++, interrupting a hung C or
 FFI call, or recovering a session after a restart. A hung Lua hook is
 interrupted in a development build only: every hook call runs under the same

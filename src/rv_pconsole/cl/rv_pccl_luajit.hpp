@@ -230,6 +230,18 @@ private:
     int64_t reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report);
 
+    // Updates the tables `old_ref` holds to carry `new_ref`'s contents in
+    // place, instead of swapping the reference - anything already holding a
+    // reference into the old tables keeps it and runs the new code. Defined
+    // only in rv_pccl_luajit_patch.cpp (dev-only, see CMakeLists.txt); a
+    // player build never calls this.
+    int64_t patch_in_place_(int old_ref, int new_ref, rv_pccl_reload_report &report);
+
+    // Runs the whole pair/count/patch walk under one lua_pcall: only an
+    // allocation failure can make it fail from the caller's point of view.
+    // Argument 1 is a patch_call_args* (rv_pccl_luajit_patch.cpp).
+    static int patch_trampoline_(lua_State *L);
+
     // Builds the console<->script vocabulary: opens ffi, feeds it
     // rv_pdk_cdef, and turns rv_pdk_consts into the global `pdk` table (see
     // rv_pccl_luajit.cpp for the whole recipe and why it is not inlined in

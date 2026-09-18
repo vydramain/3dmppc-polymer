@@ -126,4 +126,36 @@ struct shape_walk_ctx {
 // Walk function declarations: the structural walk functions from _shapewalk.cpp
 // that are called by shape_trampoline_ in _shape.cpp.
 bool walk_table(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::string &path, int depth);
+
+// The in-place patch (dev slot): patch_trampoline_ in _patch.cpp runs the
+// passes, _patchwalk.cpp holds the two walks it calls.
+// One reachable table or function, counted once, is the unit both bounds are
+// measured in - the same reasoning as kShapeMaxNodes: a malformed or merely
+// very large candidate must refuse cleanly rather than run away.
+constexpr int RV_PCCL_PATCH_NODE_MAX = 65536;
+constexpr int RV_PCCL_PATCH_DEPTH_MAX = 64;
+
+// Bookkeeping shared by the whole walk: ordinary lua tables used only as
+// identity sets/maps (keyed by the value itself, looked up raw). MAP pairs a
+// NEW table with the OLD table Pass 1 gave it. OLD_CLAIMED marks an old table
+// already given to a pair - checked directly by Pass 2 as part of LIVE.
+// PAIR_SEEN marks a new table Pass 1 visited but did not pair, so a cycle
+// among unpaired new tables ends. SEEN marks a table/function Pass 2 counted,
+// for its node budget and to stop at a cycle. LIVE marks a table Pass 2 must
+// never enter: the persistent state and every loaded module (built once, see
+// patch_trampoline_).
+struct patch_ctx {
+    lua_State *L;
+    int map_idx;
+    int old_claimed_idx;
+    int pair_seen_idx;
+    int seen_idx;
+    int live_idx;
+    int nodes = 0;
+    bool refused = false;
+    const char *refuse_message = nullptr;
+};
+
+bool patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth);
+bool patch_reach(patch_ctx &ctx, int n_idx, int depth);
 } // namespace rv_3dmppc
