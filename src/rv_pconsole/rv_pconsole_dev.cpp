@@ -208,13 +208,15 @@ void rv_3dmppc::rv_pconsole::dev_status(int64_t id)
 
 void rv_3dmppc::rv_pconsole::dev_reload(const rv_pcdevreq &req)
 {
-    // `entry` is a literal selector, not a name: version 1 replaces the entry
-    // chunk and nothing else. A chunk the disc raised itself has a handle only
-    // the disc knows, and inventing a lookup for it would be answering a
-    // question nobody has asked yet.
+    // Two selectors: `entry`, the chunk the manifest names, and `module <name>`,
+    // a module require() loaded. Both update the running tables in place.
+    if (req.arg(0) == "module") {
+        dev_reload_module(req);
+        return;
+    }
     if (req.arg(0) != "entry") {
         dev_->reply(rv_pcdev_err(req.id, "unsupported_target", RV_ERR_INVAL, false,
-            "this protocol version reloads the entry chunk only"));
+            "reload takes `entry` or `module <name>`"));
         return;
     }
 
@@ -246,6 +248,40 @@ void rv_3dmppc::rv_pconsole::dev_reload(const rv_pcdevreq &req)
     cl_->script_status(script);
     dev_->reply(std::format("{} ok entry_revision={} entry_hash={:016x} lua_used={}", req.id,
         script.revision, script.hash, script.used));
+}
+
+void rv_3dmppc::rv_pconsole::dev_reload_module(const rv_pcdevreq &req)
+{
+    const std::string name(req.arg(1));
+    if (name.empty()) {
+        dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false, "reload module needs the module's name"));
+        return;
+    }
+
+    rv_pccl_reload_report report;
+    int64_t rc = 0;
+    if (req.has_payload) {
+        rc = cl_->script_reload_module(name.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()),
+            report);
+    } else {
+        // Same rule as the entry: an archive cannot have changed under the console.
+        if (!params_.medium_live) {
+            dev_->reply(rv_pcdev_err(req.id, "unsupported_medium", RV_ERR_INVAL, false,
+                "the mounted medium cannot change; send the bytes, or boot an unpacked directory"));
+            return;
+        }
+        rc = cl_->script_reload_module_from_drive(name.c_str(), report);
+    }
+
+    if (rc < 0) {
+        dev_->reply(rv_pcdev_err(req.id, report.phase, rc, report.effects_possible, report.message));
+        return;
+    }
+
+    rv_pccl_status script;
+    cl_->script_status(script);
+    dev_->reply(std::format("{} ok module={} hash={:016x} lua_used={}", req.id, rv_pcdev_hex(name), report.hash,
+        script.used));
 }
 
 void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)

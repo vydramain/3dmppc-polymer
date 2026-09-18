@@ -210,14 +210,20 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `step` | run exactly one frame, then stay stopped; answered *after* that frame |
 | `reload entry` | re-read the entry script off the drive (directory medium only) |
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
+| `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
+| `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
 | `asset <name>` | refresh the named texture in place behind its residency id: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh (directory medium only) |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
 | `quit` | shut down by the ordinary path |
 
-`entry` is a literal selector, not a name: this version replaces the entry
-chunk and nothing else.
+`entry` selects the chunk the manifest names; `module <name>` selects a module
+by the name it was `require`d under. The entry answers with `entry_revision=`
+and `entry_hash=`, a module with `module=<hex>` and `hash=`. A module goes
+through the same compile, body and table checks as the entry, but has no
+`attach` and no state of its own. A file that inherits from a reloaded module
+needs no reload of its own: it holds the same table, now updated in place.
 
 A path is looked up raw, one table per key: a key is tried as a string, and
 when that misses and it spells a decimal integer within 2^53, as that integer - so
@@ -345,6 +351,7 @@ same refusal, not a chunk without a declaration.
 | Changed | Restart? | Who notices |
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
+| a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
 | an existing asset's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
@@ -355,7 +362,7 @@ same refusal, not a chunk without a declaration.
 
 Every `err` carries a stable token, so a client branches on that and never on
 the sentence. Framing: `protocol`, `payload_size`, `answer_size`,
-`payload_timeout`. Machine: `no_machine`, `no_entry`, `not_reloadable`,
+`payload_timeout`. Machine: `no_machine`, `no_entry`, `no_module`, `not_reloadable`,
 `in_call`, `unsupported_target`,
 `unsupported_medium`, `drive`, `nomem`, `insn_ceiling`. A candidate:
 `bad_request` (no bytes), `compile`, `body`, `not_a_table`,
@@ -412,7 +419,10 @@ whoever wrote the script:
     `script_error` event with the state intact, and fixed code reloads after
     it. An asset added after boot is acquirable without a restart, and `asset`
     answers `resident=0` for it until something holds it.
-11. A frame is still rendered, and no run crashes — including on the way out,
+11. `reload module` updates a required module in place: an object whose class
+    inherits from it in another file runs the new code on the next frame, and
+    a module nobody required is `no_module`.
+12. A frame is still rendered, and no run crashes — including on the way out,
     after every protocol line has already been printed.
 
 ---
