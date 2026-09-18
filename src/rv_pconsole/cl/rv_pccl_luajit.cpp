@@ -137,6 +137,12 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     // game's data with it.
     lua_newtable(L_);
     state_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
+    // require()'s loaded-module table and the global itself. A game feature,
+    // not a dev tool: installed in both builds.
+    lua_newtable(L_);
+    loaded_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
+    lua_pushcfunction(L_, require_);
+    lua_setglobal(L_, "require");
     RV_LOG_INFO("pccl", "lua machine up, {} byte(s) budgeted", budget_);
 }
 // No VM to close is not a failure: the ctor already logged why L_ is null.
@@ -195,8 +201,10 @@ int rv_pccl_luajit::panic(lua_State *L)
 }
 // See the RV_PCCL_PDK_BOOTSTRAP_SRC comment above for why most of this is
 // Lua source rather than lua_* calls. This C++ half only does what Lua
-// itself cannot: reach luaopen_ffi (no `require` exists - package/require is
-// never opened, matching the io/os policy above), and glue rv_pdk_cdef /
+// itself cannot: reach luaopen_ffi (the stock package library stays closed,
+// matching the io/os policy above; the global `require` a script sees is the
+// console's own, installed by the constructor and reading modules off the
+// drive - see rv_pccl_luajit_require.cpp), and glue rv_pdk_cdef /
 // rv_pdk_consts into the pieces that Lua chunk needs.
 bool rv_pccl_luajit::bootstrap_pdk()
 {

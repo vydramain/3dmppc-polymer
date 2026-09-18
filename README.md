@@ -47,7 +47,9 @@ compiled C++.
 A Lua disc's C++ side is one pdklib macro — `RV_MPPC_LUA_DISC_DEF("example-lua")`
 after `#include "pdklib/rv_dscript/rv_dscript.hpp"`. It forwards each `disc_*`
 hook into the same-named Lua function, so the disc's own file carries no
-forwarding of its own.
+forwarding of its own. A script pulls in another with `require("name")`, which
+reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
+it once and hands every caller the same table.
 
 Running `./build/pconsole/3dmppc` with no disc gives you the built-in **service test** — a
 diagnostics screen that exercises every subsystem and explains itself on screen.

@@ -87,6 +87,8 @@ private:
     // LUA_NOREF cannot be named here. luaL_ref never hands out 0.
     int state_ref_ = 0;
 
+    int loaded_ref_ = 0; // registry ref: module name -> the table require returned
+
     // How deep we are inside script code right now. A COUNTER and not a flag:
     // a hook that calls back into another hook would let a flag clear itself on
     // the inner return, and a reload during the outer call would then be
@@ -128,6 +130,11 @@ private:
     // about its own work already goes to stderr through rv_logs, and so does
     // this.
     static int print_to_log(lua_State *L);
+
+    // The console's own global `require`. Reads name.lua/name.luac off the
+    // drive (rv_pccl_luajit_require.cpp); the stock package library stays
+    // closed, same reason io/os do.
+    static int require_(lua_State *L);
 
     // A count hook installed for the duration of a reload only. Without it a
     // `while true do end` in a candidate's body hangs the frame loop, and since

@@ -435,10 +435,10 @@ into the console executable: **two outputs, not one**, because the two
 things `ffi.cdef` cannot read (`#include`, `#define`) need two different
 escape hatches.
 
-**What a script actually sees: exactly one global, `pdk`.** `rv_pccl`'s
+**What a script actually sees: two globals of the console's own, `pdk` and `require`.** `rv_pccl`'s
 constructor (`src/rv_pconsole/cl/rv_pccl_luajit.cpp`) opens only
 `base`/`string`/`math`/`table` and LuaJIT's `ffi` — deliberately never `io`,
-`os`, or `package`/`require` — feeds it `rv_pdk_cdef` through `ffi.cdef`,
+`os`, or the stock `package` library — feeds it `rv_pdk_cdef` through `ffi.cdef`,
 turns `rv_pdk_consts` into a table, and installs that table as `_G.pdk` once
 `RV_PCCL_PDK_BOOTSTRAP_SRC` has wired it up: `pdk.cast`/`pdk.new` are
 `ffi.cast`/`ffi.new` directly, and every other key resolves lazily through a
@@ -456,6 +456,17 @@ repeating it in every hook is the boilerplate the accessors delete. They are a
 shorter spelling of the same path, not a layer in front of it: the cast is
 `ffi.cast` on a pointer (no allocation) and the accessor is the very export
 the long form called.
+
+`require` is the console's own, not the stock one, which would read the host
+filesystem. `require("entity")` reads the module off the disc through the
+drive: `entity.luac` in an archive, `entity.lua` in an `--unpacked` directory -
+whichever extension the manifest's entry script carries. The burner flattens
+`scripts/` into file names, so a module name is a file name with no extension
+and no directory. The module runs once and must return a table; every later
+`require` of that name, from any file, gets the same table, which is what lets
+`npc.lua` and `player.lua` share one `Entity` to inherit from. A missing
+module, a name with `.`, `/` or `\`, a module that returns no table and two
+modules requiring each other each raise a Lua error naming the module.
 
 This is **hygiene, not a sandbox.** `pdk.cast` and `pdk.new` ARE
 `ffi.cast`/`ffi.new`, so a script can build a pointer from a bare integer and
