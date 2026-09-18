@@ -218,7 +218,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 chunk and nothing else.
 
 A path is looked up raw, one table per key: a key is tried as a string, and
-when that misses and it spells a decimal integer, as that integer - so
+when that misses and it spells a decimal integer within 2^53, as that integer - so
 `get enemies 3 hp` reaches `state.enemies[3].hp`. A path that runs out of
 tables answers `found=0 type=nil`; at most 32 keys. `keys` answers
 `found= type= count= shown= keys=`, each entry `s<hex>:<type>` for a string
