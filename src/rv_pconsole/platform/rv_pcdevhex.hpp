@@ -1,7 +1,7 @@
 // Lowercase hex encoding and the error line of the development protocol. Nothing outside the
 // development runtime speaks it, so rv_pcdevhex.cpp is compiled only into a
 // -D3DMPPC_DEVTOOLS=ON build (see CMakeLists.txt). It needs no null half, unlike
-// the slots around it: a player build calls neither function, so leaving the
+// the slots around it: a player build calls none of them, so leaving the
 // declarations visible costs that build nothing and defining them would.
 #pragma once
 

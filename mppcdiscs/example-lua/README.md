@@ -74,9 +74,9 @@ the whole point: the code changed, the state did not. This `attach` accepts
 every state the shape check lets through; returning `false` and a reason is
 how a chunk refuses a layout it has no migration for. Either way a reload is
 atomic in code - either the new chunk accepts the state and takes over, or it
-is refused and the old chunk keeps running untouched. Neither a Lua function nor a coroutine is ever
-stored in `state`: either would keep the old chunk's bytecode alive after a
-reload was supposed to have replaced it.
+is refused and the old chunk keeps running untouched. Neither a Lua function
+nor a coroutine is ever stored in `state`: either would keep the old chunk's
+bytecode alive after a reload was supposed to have replaced it.
 
 A per-frame script failure does not disable scripting for the rest of the run
 either: the macro keeps calling `frame_update`/`frame_render` every frame, and

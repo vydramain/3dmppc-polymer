@@ -96,7 +96,7 @@ public:
 
     // --- the development runtime: console-side only ------------------------
     //
-    // None of the five below is reachable through the extern "C" block, and
+    // None of the functions below is reachable through the extern "C" block, and
     // that is the point. A disc cannot ask for a reload, and neither can a
     // script: the pdk metatable resolves any rv_* symbol through ffi.C, so a
     // contract function here would hand a chunk the means to replace itself

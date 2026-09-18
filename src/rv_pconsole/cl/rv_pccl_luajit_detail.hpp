@@ -16,7 +16,7 @@
 
 namespace rv_3dmppc
 {
-// How many VM instructions a bound of script code gets: a reload candidate's
+// How many VM instructions guarded script code gets: a reload candidate's
 // body and attach(), and, in a development build, every hook call the console
 // makes into a chunk. Not a timeout: a count hook cannot bound the parser, a C
 // call or an FFI call, and it says nothing about wall clock. What it does bound

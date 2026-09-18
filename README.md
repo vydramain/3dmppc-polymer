@@ -129,8 +129,8 @@ stdout — stdout is reserved for the development channel's protocol lines
 ## The development runtime
 
 The console can be driven while it runs: stopped at a frame boundary, stepped
-one frame at a time, and — the point of the whole thing — handed replacement
-Lua for the disc's entry script without losing the game's state.
+one frame at a time, inspected, and - the point of the whole thing - handed
+replacement Lua for the disc's entry script without losing the game's state.
 
 **The build decides what this console can do; `--dev` only decides where the
 channel is attached.** `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in the
@@ -146,8 +146,9 @@ there is no capability behind it that the build did not already grant.
 
 What "not in the player build" means, exactly: no implementation, no protocol
 vocabulary and no reachable path. Not compiled there: the command dispatcher,
-the stdin channel, the protocol's hex encoder, the entry reload, the texture
-refresh and the loose-directory mount. `strings` finds none of the verbs and
+the state inspection, the stdin channel, the protocol's hex encoder and error
+line, the entry reload, the texture refresh and the loose-directory mount; the
+ceiling on hook calls is 0 there. `strings` finds none of the verbs and
 none of the answer shapes. What remains is the *name* of each slot's entry
 point, answering "no" in a handful of bytes — that is the price of choosing a
 link-time slot over `#ifdef` in the headers, and it is the same price
@@ -186,7 +187,10 @@ per request, in request order:
 number a disc would have got from the call — and `error` is the token to branch
 on. `msg` is prose for a human, cut to 4096 bytes with the cut named in the
 text: a lua error or an `attach` refusal reason is written by the disc, and an
-answer that does not fit the queue is an answer nobody reads.
+answer that does not fit the queue is an answer nobody reads. An error the
+channel raises while framing a request - an unreadable or zero id, a payload
+size it cannot accept, a payload that never arrives - answers for the channel,
+not for a contract call, and carries no `rv_err`.
 
 The console echoes your id back on the answer. Zero is not yours to send: the
 console tags with `0` the events it raises on its own, so a request numbered
@@ -204,13 +208,24 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `step` | run exactly one frame, then stay stopped; answered *after* that frame |
 | `reload entry` | re-read the entry script off the drive (directory medium only) |
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
-| `asset <name>` | re-read the named texture and refresh it in place behind its residency id; answers with the new `width=`/`height=` (directory medium only) |
-| `get <key>` | read one top-level field of the persistent state table |
+| `asset <name>` | refresh the named texture in place behind its residency id: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh (directory medium only) |
+| `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
+| `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
 | `quit` | shut down by the ordinary path |
 
 `entry` is a literal selector, not a name: this version replaces the entry
-chunk and nothing else. `asset <name>` refreshes a baked texture in place; a
+chunk and nothing else.
+
+A path is looked up raw, one table per key: a key is tried as a string, and
+when that misses and it spells a decimal integer, as that integer - so
+`get enemies 3 hp` reaches `state.enemies[3].hp`. A path that runs out of
+tables answers `found=0 type=nil`; at most 32 keys. `keys` answers
+`found= type= count= shown= keys=`, each entry `s<hex>:<type>` for a string
+key, `i<n>:<type>` for an integer key and `x:<type>` for a key no path can
+name; `shown` below `count` means the list was cut to fit one answer.
+
+`asset <name>` refreshes a baked texture in place; a
 script that changed a non-texture asset gets no notification at all. The
 answer carries the texture's size because a RESIZED texture is the one case
 the client's own layout has to follow — the game does not have to hear about
@@ -252,9 +267,13 @@ says. `attach` returning `false, "reason"` is how a script refuses a state
 layout it cannot read: the console has no schema for that table and cannot
 detect the mismatch itself.
 
-Not offered: rolling back effects, hot-swapping C++, interrupting a hung game
-hook, interrupting a hung C or FFI call, or recovering a session after a
-restart.
+Not offered: rolling back effects, hot-swapping C++, interrupting a hung C or
+FFI call, or recovering a session after a restart. A hung Lua hook is
+interrupted in a development build only: every hook call runs under the same
+instruction ceiling as a reload candidate, and a call that runs past it fails
+like any raised error - with `--dev` the loop stops on a `script_error` event.
+The count hook that takes is not free, so a Lua-heavy frame runs measurably
+slower in a development build; a player build arms no ceiling.
 
 A chunk may declare `state_shape`, a table literal describing the persistent
 state it expects:
@@ -305,7 +324,8 @@ same refusal, not a chunk without a declaration.
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
 | an existing asset's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
-| an asset added or removed | **yes** | nobody — the drive's name set is fixed at boot |
+| an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
+| an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
 | `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
 | `disc.toml`, any `[budget.*]` | **yes** | nobody — they are consumed once, at construction |
 
@@ -314,8 +334,9 @@ same refusal, not a chunk without a declaration.
 Every `err` carries a stable token, so a client branches on that and never on
 the sentence. Framing: `protocol`, `payload_size`, `answer_size`,
 `payload_timeout`. Machine: `no_machine`, `no_entry`, `not_reloadable`,
-`in_call`, `unsupported_medium`,
-`nomem`, `insn_ceiling`. A candidate: `compile`, `body`, `not_a_table`,
+`in_call`, `unsupported_target`,
+`unsupported_medium`, `drive`, `nomem`, `insn_ceiling`. A candidate:
+`bad_request` (no bytes), `compile`, `body`, `not_a_table`,
 `no_attach`, `attach`, `attach_refused`, `attach_contract`, `state_shape`. An
 asset: `no_asset`, `asset`.
 
@@ -363,8 +384,14 @@ whoever wrote the script:
    candidate, a non-container and a paletted texture carrying no palette are
    each refused with the old texture still there; a resized one is accepted at
    its new size; an archive refuses the request.
-9. A frame is still rendered, and no run crashes — including on the way out,
-   after every protocol line has already been printed.
+9. `get` walks a path into nested tables, `keys` lists a table's keys with
+   their types, and a path through a non-table answers `found=0`.
+10. In a development build a Lua hook that never returns ends as a
+    `script_error` event with the state intact, and fixed code reloads after
+    it. An asset added after boot is acquirable without a restart, and `asset`
+    answers `resident=0` for it until something holds it.
+11. A frame is still rendered, and no run crashes — including on the way out,
+    after every protocol line has already been printed.
 
 ---
 

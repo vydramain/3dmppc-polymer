@@ -23,7 +23,7 @@ namespace rv_3dmppc
 
 // Armed around a reload, and in a development build around every hook call. It
 // raises, which unwinds into the pcall the caller set up, so a chunk that never
-// finishes becomes an ordinary refusal instead of a console that has to be
+// finishes becomes an ordinary failure instead of a console that has to be
 // killed - and killing it would cost the developer the session they were
 // working in.
 void rv_pccl_luajit::insn_hook(lua_State *L, struct lua_Debug *)
