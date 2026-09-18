@@ -78,8 +78,17 @@ int rv_pccl_luajit::shape_trampoline_(lua_State *L)
     ctx.nodes = 0;
     ctx.shape_path.clear();
     ctx.state_seen.clear();
-    walk_table(ctx, shape_idx, state_idx, "", 0);
-    assert(!ctx.refused); // pass one already proved this tree valid
+    // Checked, not asserted. An assert is gone in a release build, and this one
+    // was: pass two used to exhaust the node budget on a tree pass one had
+    // accepted, its refusal went unread, and the reload answered ok with the
+    // state HALF grown - 4438 of 5000 fields inserted, then attach() called on
+    // it. Pass two failing is a console bug either way, but a refusal the
+    // caller can roll back beats a success that is not one.
+    if (!walk_table(ctx, shape_idx, state_idx, "", 0)) {
+        args->refused = true;
+        args->refuse_path = ctx.refuse_path;
+        args->refuse_message = ctx.refuse_message;
+    }
 
     lua_pop(L, 3);
     return 0;
@@ -121,7 +130,9 @@ int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_inse
     // declared" first answered no and let `state_shape = 42` install itself
     // unchecked - the one kind of candidate this whole walk exists to stop.
     if (args.refused) {
-        finish_state_shape_(inserted, false); // nothing pending on a pass-one refusal, but be exact
+        // A pass-one refusal has nothing pending; a pass-two refusal does, and
+        // this is what takes those insertions back out.
+        finish_state_shape_(inserted, false);
         report.phase = "state_shape";
         report.effects_possible = true; // the body ran before the walk did; see above
         // A refusal at the top level has no field path, and a bare ": reason"

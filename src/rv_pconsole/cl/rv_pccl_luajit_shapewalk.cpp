@@ -182,8 +182,19 @@ bool default_from_shape(shape_walk_ctx &ctx, int shape_idx, const std::string &p
     }
 
     // An open collection with nothing in it yet defaults to empty: the "*"
-    // entry is a per-key SHAPE, never itself a literal value to insert.
+    // entry is a per-key SHAPE, never itself a literal value to insert. The
+    // template is still CHECKED - returning early without looking at it let a
+    // function or a cycle under "*" install itself, because an empty collection
+    // has no element to check it through.
     if (keys.size() == 1 && keys[0] == "*") {
+        lua_pushstring(L, "*");
+        lua_rawget(L, shape_idx);
+        const bool ok = default_from_shape(ctx, lua_gettop(L), path.empty() ? "*" : path + ".*",
+            depth + 1, false);
+        lua_pop(L, 1);
+        if (!ok) {
+            return false;
+        }
         if (build) {
             lua_newtable(L);
         }
@@ -335,6 +346,14 @@ bool walk_named(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::ve
         lua_pop(L, 2);
     }
 
+    if (ctx.apply) {
+        // Pass one already proved every stored key declared, and pass two has
+        // since INSERTED the declared keys that were missing. Sweeping again
+        // would walk a bigger table and charge the node budget for keys this
+        // very pass added - which is how pass two ran out of budget on a tree
+        // pass one had accepted.
+        return true;
+    }
     return refuse_undeclared(ctx, state_idx, keys, path);
 }
 
@@ -354,6 +373,17 @@ bool walk_open(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::str
         ctx.refused = true;
         ctx.refuse_path = path.empty() ? "*" : path + ".*";
         ctx.refuse_message = "state_shape declares an unsupported value";
+        return false;
+    }
+
+    // The TEMPLATE is checked here, once, and not only through the elements it
+    // is applied to: an EMPTY collection never enters the loop below, and the
+    // shape under "*" would then go unexamined - a function, a cycle or any
+    // other thing the contract forbids installed itself that way. build=false
+    // walks the shape alone and asks exactly "is this a well-formed shape".
+    if (!default_from_shape(ctx, entry_shape_idx, path.empty() ? "*" : path + ".*", depth + 1,
+            false)) {
+        lua_pop(L, 1); // entry_shape
         return false;
     }
 
