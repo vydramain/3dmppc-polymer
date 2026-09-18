@@ -1,5 +1,6 @@
-// The development capability: replacing the entry chunk. Reached only through
-// the dev command channel, never on the normal boot path.
+// The development capability: replacing the entry chunk, reached only through
+// the dev command channel, and the ceiling armed around every hook call in a
+// development build - the two things that only exist when 3DMPPC_DEVTOOLS is on.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.
@@ -16,6 +17,13 @@
 
 namespace rv_3dmppc
 {
+
+// A development build guards every hook call the same way a reload guards a
+// candidate's body: a hook that never returns must not take the session with it.
+int rv_pccl_luajit::hook_insn_ceiling_()
+{
+    return RV_PCCL_INSN_CEILING;
+}
 
 int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
     rv_pccl_reload_report &report)

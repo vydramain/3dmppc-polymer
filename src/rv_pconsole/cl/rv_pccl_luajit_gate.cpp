@@ -21,10 +21,11 @@
 namespace rv_3dmppc
 {
 
-// Armed only for the duration of a reload. It raises, which unwinds into the
-// pcall that raise_/attach_ set up, so a chunk that never finishes becomes an
-// ordinary refusal instead of a console that has to be killed - and killing it
-// would cost the developer the session they were working in.
+// Armed around a reload, and in a development build around every hook call. It
+// raises, which unwinds into the pcall the caller set up, so a chunk that never
+// finishes becomes an ordinary refusal instead of a console that has to be
+// killed - and killing it would cost the developer the session they were
+// working in.
 void rv_pccl_luajit::insn_hook(lua_State *L, struct lua_Debug *)
 {
     void *ud = nullptr;
@@ -33,7 +34,7 @@ void rv_pccl_luajit::insn_hook(lua_State *L, struct lua_Debug *)
         static_cast<rv_pccl_luajit *>(ud)->ceiling_hit_ = true;
     }
     luaL_error(L, "instruction ceiling of %d reached; the chunk did not finish",
-        RV_PCCL_RELOAD_INSN_CEILING);
+        RV_PCCL_INSN_CEILING);
 }
 
 // Which phase name a failure deserves. The ceiling and the budget both surface
@@ -66,7 +67,7 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
     // Covers compiling the source AND running its body. It does NOT cover a C
     // or FFI call the body makes, and it is not a wall-clock timeout: the
     // promise is bounded instructions, not bounded time.
-    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_RELOAD_INSN_CEILING);
+    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_INSN_CEILING);
 
     // Shared exit for a lua-level failure: name the phase, keep the message,
     // pop the error and prove the stack is where it was found.
@@ -137,7 +138,7 @@ int64_t rv_pccl_luajit::call_gate_(int ref, const char *hook, const char *string
     [[maybe_unused]] const int top = lua_gettop(L_);
     oom_ = false;
     ceiling_hit_ = false;
-    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_RELOAD_INSN_CEILING);
+    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_INSN_CEILING);
 
     lua_rawgeti(L_, LUA_REGISTRYINDEX, ref); // [T]
     lua_pushstring(L_, hook);

@@ -135,6 +135,11 @@ private:
     // need SIGKILL - losing the very session the developer is working in.
     static void insn_hook(lua_State *L, struct lua_Debug *ar);
 
+    // The ceiling armed around every script_call: RV_PCCL_INSN_CEILING in a
+    // development build, 0 (no guard) in a player build. Defined in the
+    // dev-capability slot (rv_pccl_luajit_reload.cpp / _reload_null.cpp).
+    static int hook_insn_ceiling_();
+
     // Compile, run the body and demand a module table, under the instruction
     // ceiling. Returns RV_OK and a registry ref in `ref_out`, or a negative
     // rv_err with `report` naming the phase. Gives out NO handle: a reload must

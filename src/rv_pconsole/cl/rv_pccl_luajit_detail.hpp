@@ -16,13 +16,14 @@
 
 namespace rv_3dmppc
 {
-// How many VM instructions a reload gets for its body and its attach(). Not a
-// timeout: a count hook cannot bound the parser, a C call or an FFI call, and
-// it says nothing about wall clock. What it does bound is the ordinary mistake
-// this ceiling exists for - a loop with no exit in code the developer is in the
-// middle of editing. Generous enough that a legitimately heavy attach (building
-// a large table) never meets it.
-constexpr int RV_PCCL_RELOAD_INSN_CEILING = 50 * 1000 * 1000;
+// How many VM instructions a bound of script code gets: a reload candidate's
+// body and attach(), and, in a development build, every hook call the console
+// makes into a chunk. Not a timeout: a count hook cannot bound the parser, a C
+// call or an FFI call, and it says nothing about wall clock. What it does bound
+// is the ordinary mistake this ceiling exists for - a loop with no exit in code
+// the developer is in the middle of editing. Generous enough that a
+// legitimately heavy attach (building a large table) never meets it.
+constexpr int RV_PCCL_INSN_CEILING = 50 * 1000 * 1000;
 
 // FNV-1a, 64 bit. Identifies the bytes a chunk is running so `status` can say
 // "this is still the code you sent"; it is not a security claim and nothing

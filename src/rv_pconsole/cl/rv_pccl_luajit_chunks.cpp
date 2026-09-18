@@ -143,7 +143,16 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
     int rc = 0;
     {
         rv_pccl_call_guard guard(call_depth_);
-        rc = lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0);
+        // A hook that never returns would otherwise take the whole session with
+        // it; hook_insn_ceiling_() is 0 in a player build, so this stays unguarded.
+        const int ceiling = hook_insn_ceiling_();
+        ceiling_hit_ = false;
+        if (ceiling > 0) {
+            const rv_pccl_insn_guard armed(L_, insn_hook, ceiling);
+            rc = lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0);
+        } else {
+            rc = lua_pcall(L_, static_cast<int>(argc), static_cast<int>(retc), 0);
+        }
     }
     if (rc != 0) {
         // Contract: nothing survives a failed call - logged, then popped. The
