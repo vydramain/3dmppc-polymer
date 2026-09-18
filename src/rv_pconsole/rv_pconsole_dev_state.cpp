@@ -4,6 +4,7 @@
 
 #include <format>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "pdk/cl/rv_cl.h"
@@ -145,6 +146,8 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pcdevreq &req)
 
     const std::string prefix = std::format("{} ok found={} type={} count={} shown=", req.id,
         target.type < 0 ? 0 : 1, rv_pcdev_type_name(target.type), target.count);
+    // The whole line counts: the prefix, the widest `shown` it can print, " keys=" and the list.
+    const std::size_t fixed = prefix.size() + std::to_string(keys.size()).size() + std::string_view(" keys=").size();
     std::string list;
     int64_t shown = 0;
     for (const rv_pccl_key &k : keys) {
@@ -161,8 +164,7 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pcdevreq &req)
             break;
         }
         const std::size_t added = entry.size() + (list.empty() ? 0 : 1);
-        if (static_cast<int64_t>(prefix.size() + list.size() + added + std::string("keys=").size()) >
-            RV_PCDEV_KEYS_LIST_MAX) {
+        if (static_cast<int64_t>(fixed + list.size() + added) > RV_PCDEV_KEYS_LIST_MAX) {
             break;
         }
         if (!list.empty()) {

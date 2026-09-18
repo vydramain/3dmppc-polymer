@@ -66,9 +66,10 @@ struct state_walk_args {
     std::vector<rv_pccl_key> *keys = nullptr;
 };
 
-// Is `s` the canonical decimal spelling of an int64: "0", or an optional '-'
-// then a digit 1-9 then up to 15 more digits? Anything else is not a number a
-// segment can mean unambiguously (leading zeros, "+1", overlong digit runs).
+// Is `s` the canonical decimal spelling of an integer a lua number holds
+// exactly: "0", or an optional '-' then a digit 1-9 then up to 15 more digits,
+// within 2^53? Anything else is not a number a segment can mean unambiguously
+// (leading zeros, "+1", a value that would round onto a neighbouring key).
 bool canonical_int(const std::string &s, int64_t &out)
 {
     if (s == "0") {
@@ -88,7 +89,7 @@ bool canonical_int(const std::string &s, int64_t &out)
         }
     }
     out = std::stoll(s);
-    return true;
+    return out >= -9007199254740992LL && out <= 9007199254740992LL;
 }
 
 // The RV_CL_TYPE_* of the value at `idx`, or -1 for nil - the mapping
