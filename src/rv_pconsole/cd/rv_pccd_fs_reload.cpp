@@ -24,9 +24,9 @@ int64_t rv_pccd_fs::texture_reload(const char* resname) {
 
     std::string key(resname);
     auto it = tex_by_name_.find(key);
-    if (it == tex_by_name_.end()) return RV_ERR_NOENT;
+    if (it == tex_by_name_.end()) return RV_PCCD_NOT_RESIDENT;
     texture_record& record = textures_[static_cast<size_t>(it->second)];
-    if (!record.live) return RV_ERR_NOENT;
+    if (!record.live) return RV_PCCD_NOT_RESIDENT;
 
     const int64_t handle = asset_open(resname);
     if (handle < 0) return handle;

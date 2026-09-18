@@ -272,9 +272,10 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         return;
     }
 
-    // Resolved here so the answer can tell "there is no such entry" from "the
-    // game refused it". The drive's name table is fixed at boot, which is also
-    // why an ADDED asset needs a restart while a CHANGED one does not.
+    // Resolved here so the answer can tell "no such entry" from "the drive
+    // refused it"; the medium is asked at open time, so an entry added to a
+    // live directory after boot is found, and a texture nobody holds
+    // resident has nothing to refresh.
     const std::string key(name);
     if (cd_->asset_open(key.c_str()) < 0) {
         dev_->reply(rv_pcdev_err(req.id, "no_asset", RV_ERR_NOENT, false,
@@ -285,6 +286,10 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
     // The drive refreshes the resident texture: residency id is stable, but
     // addresses change. The game picks it up by querying for the address each draw.
     const int64_t rc = cd_->texture_reload(key.c_str());
+    if (rc == RV_PCCD_NOT_RESIDENT) {
+        dev_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pcdev_hex(key)));
+        return;
+    }
     if (rc < 0) {
         dev_->reply(rv_pcdev_err(req.id, "asset", rc, false, "the drive could not reload that asset"));
         return;
@@ -303,8 +308,8 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         height = cd_->texture_height(res);
         cd_->texture_release(res);
     }
-    dev_->reply(std::format("{} ok asset={} width={} height={}", req.id, rv_pcdev_hex(key), width,
-        height));
+    dev_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pcdev_hex(key),
+        width, height));
 }
 
 void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)

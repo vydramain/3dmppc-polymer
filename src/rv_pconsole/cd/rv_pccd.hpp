@@ -12,6 +12,10 @@ namespace rv_3dmppc
 
 class rv_pccv;
 
+// texture_reload result meaning nothing holds that name resident, so there
+// was nothing to refresh.
+constexpr int64_t RV_PCCD_NOT_RESIDENT = 1;
+
 class rv_pccd
 {
 public:
@@ -41,8 +45,11 @@ public:
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
-    // Re-read a resident texture by name and swap it in place: the id, refs
-    // and name mapping do not change, only the record's addresses/size do.
+    // Refreshes a resident texture in place (same residency id, new addresses
+    // and size). Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when
+    // nothing holds that name resident (nothing to refresh - the next
+    // acquire reads the current bytes), a negative rv_err when the refresh
+    // failed and the old texture stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t texture_reload(const char *resname) = 0;
 
