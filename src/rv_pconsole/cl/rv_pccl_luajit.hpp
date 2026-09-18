@@ -201,13 +201,15 @@ private:
     // shape_call_args* (rv_pccl_luajit_shape.cpp).
     static int shape_trampoline_(lua_State *L);
 
-    // The state read, run under lua_pcall for the same reason: looking a key
-    // up INTERNS it, and interning allocates, so a machine that has run its
-    // script heap out turns the console's own inspection into a raise. Without
-    // this it reaches the panic handler and the process ends - the one command
-    // that exists to find out what went wrong would be the one that kills the
-    // run. Argument 1 is a state_get_args* (rv_pccl_luajit_state.cpp).
-    static int state_get_trampoline_(lua_State *L);
+    // The path walk, run under lua_pcall for the same reason: looking a key up
+    // INTERNS it, and interning allocates, so a machine that has run its script
+    // heap out turns the console's own inspection into a raise. Without this it
+    // reaches the panic handler and the process ends - the one command that
+    // exists to find out what went wrong would be the one that kills the run.
+    // Argument 1 is a state_walk_args* (rv_pccl_luajit_state.cpp). Shared by
+    // state_get and state_keys: the resolved value is left on top of the lua
+    // stack for the caller to read (and to walk children of, for state_keys).
+    static int state_walk_trampoline_(lua_State *L);
 
     // Is there a function under `hook` in the table `ref` holds? Raw, same reason.
     bool has_hook_(int ref, const char *hook) const;
@@ -271,7 +273,9 @@ public:
     int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
-    int64_t state_get(const char *key, rv_pccl_value &out) override;
+    int64_t state_get(const std::vector<std::string> &path, rv_pccl_value &out) override;
+    int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
+        std::vector<rv_pccl_key> &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;
 };
