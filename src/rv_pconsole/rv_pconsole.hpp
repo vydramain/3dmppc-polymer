@@ -202,6 +202,7 @@ private:
     void dev_dispatch(const rv_pcdevreq &req);
     void dev_status(int64_t id);
     void dev_reload(const rv_pcdevreq &req);
+    void dev_reload_module(const rv_pcdevreq &req);
     void dev_get(const rv_pcdevreq &req);
     void dev_keys(const rv_pcdevreq &req);
     void dev_asset(const rv_pcdevreq &req);
