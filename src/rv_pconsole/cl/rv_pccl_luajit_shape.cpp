@@ -104,9 +104,7 @@ int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_inse
     args.ref = ref;
     args.inserted = &inserted;
 
-    lua_pushcfunction(L_, shape_trampoline_);
-    lua_pushlightuserdata(L_, &args);
-    const int rc = lua_pcall(L_, 1, 0, 0);
+    const int rc = protected_call_(shape_trampoline_, &args);
     if (rc != 0) {
         // An out-of-budget allocation while building a default table; undo
         // whatever this call had already written before the failure.

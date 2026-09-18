@@ -234,9 +234,7 @@ int64_t rv_pccl_luajit::state_get(const std::vector<std::string> &path, rv_pccl_
     args.path = &path;
     args.out = &out;
 
-    lua_pushcfunction(L_, state_walk_trampoline_);
-    lua_pushlightuserdata(L_, &args);
-    if (lua_pcall(L_, 1, 0, 0) != 0) {
+    if (protected_call_(state_walk_trampoline_, &args) != 0) {
         // The heap is out; `out` is whatever the walk had filled in, so it is
         // reset rather than half-reported.
         out = rv_pccl_value{};
@@ -264,9 +262,7 @@ int64_t rv_pccl_luajit::state_keys(const std::vector<std::string> &path, rv_pccl
     args.out = &target;
     args.keys = &out;
 
-    lua_pushcfunction(L_, state_walk_trampoline_);
-    lua_pushlightuserdata(L_, &args);
-    if (lua_pcall(L_, 1, 0, 0) != 0) {
+    if (protected_call_(state_walk_trampoline_, &args) != 0) {
         target = rv_pccl_value{};
         out.clear();
         lua_pop(L_, 1);

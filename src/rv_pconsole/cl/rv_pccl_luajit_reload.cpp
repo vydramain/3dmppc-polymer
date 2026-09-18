@@ -129,6 +129,26 @@ int64_t rv_pccl_luajit::script_reload_entry_from_drive(rv_pccl_reload_report &re
 }
 
 
+// Carries the module lookup across the protected call: interning `name` and
+// taking a registry ref can both allocate.
+struct module_lookup_args {
+    int loaded_ref = 0;
+    const char *name = nullptr;
+    int ref_out = LUA_NOREF;
+};
+
+static int module_lookup_trampoline(lua_State *L)
+{
+    auto *args = static_cast<module_lookup_args *>(lua_touserdata(L, 1));
+    lua_rawgeti(L, LUA_REGISTRYINDEX, args->loaded_ref);
+    lua_pushstring(L, args->name);
+    lua_rawget(L, -2);
+    if (lua_istable(L, -1)) {
+        args->ref_out = luaL_ref(L, LUA_REGISTRYINDEX); // pops the module table
+    }
+    return 0;
+}
+
 // Why module_asset_ refused a name, in the report's words.
 static const char *module_asset_refusal(int code)
 {
@@ -152,18 +172,23 @@ int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytec
     }
 
     // The running module is the table require() handed every caller: the one
-    // whose identity the patch keeps.
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, loaded_ref_);
-    lua_pushstring(L_, name);
-    lua_rawget(L_, -2);
-    if (!lua_istable(L_, -1)) {
-        lua_pop(L_, 2);
+    // whose identity the patch keeps. Looked up under protection, so a heap the
+    // game has run out costs an answer, not the console.
+    module_lookup_args lookup;
+    lookup.loaded_ref = loaded_ref_;
+    lookup.name = name;
+    if (protected_call_(module_lookup_trampoline, &lookup) != 0) {
+        lua_pop(L_, 1); // the error object
+        report.phase = "nomem";
+        report.message = "the script heap is exhausted; the module could not be looked up. try gc";
+        return RV_ERR_NOMEM;
+    }
+    if (lookup.ref_out == LUA_NOREF) {
         report.phase = "no_module";
         report.message = "no module by that name has been required";
         return RV_ERR_NOENT;
     }
-    const int old_ref = luaL_ref(L_, LUA_REGISTRYINDEX); // pops the module table
-    lua_pop(L_, 1);                                      // the loaded table
+    const int old_ref = lookup.ref_out;
 
     // A module has no attach() and no state of its own: compile, body and a
     // returned table are the whole of its checks.
