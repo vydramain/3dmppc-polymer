@@ -37,7 +37,7 @@ std::string rv_pcdev_err(int64_t id, const char *token, int64_t rc, bool effects
     std::string_view message)
 {
     return std::format("{} err error={} rv_err={} effects={} msg={}", id, token, rc, effects ? 1 : 0,
-        rv_3dmppc::rv_pcdev_hex(message));
+        rv_3dmppc::rv_pcdev_hex_msg(message));
 }
 
 } // namespace
@@ -102,7 +102,7 @@ void rv_3dmppc::rv_pconsole::dev_after_frame()
         dev_error_seq_ = script.error_seq;
         paused_ = true;
         dev_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1,
-            rv_pcdev_hex(script.error)));
+            rv_pcdev_hex_msg(script.error)));
     }
 }
 
@@ -209,7 +209,7 @@ void rv_3dmppc::rv_pconsole::dev_status(int64_t id)
         id, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
         rv_pcdev_hex(disc_id), code_hash, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR, script.reloadable ? 1 : 0,
         script.revision, script.hash, script.used, script.budget, script.slots, script.error_seq,
-        rv_pcdev_hex(script.error)));
+        rv_pcdev_hex_msg(script.error)));
 }
 
 void rv_3dmppc::rv_pconsole::dev_reload(const rv_pcdevreq &req)

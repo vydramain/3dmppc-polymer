@@ -14,4 +14,12 @@ namespace rv_3dmppc
 // protocol that needs escaping rules needs a parser, while hex needs neither.
 std::string rv_pcdev_hex(std::string_view bytes);
 
+// Hex of a DIAGNOSTIC string, cut to RV_PCDEVCHAN_MSG_MAX bytes first with the
+// cut named in the text. Used for every string the DISC wrote - a lua error, an
+// attach() refusal reason - because their length is the disc's choice and an
+// answer that does not fit the queue is an answer the client never sees. A
+// stored value read by `get` does NOT come through here: that one is data the
+// client asked for, so an oversized one is refused rather than shortened.
+std::string rv_pcdev_hex_msg(std::string_view message);
+
 } // namespace rv_3dmppc

@@ -1,5 +1,10 @@
 #include "rv_pconsole/platform/rv_pcdevhex.hpp"
 
+#include <cstddef>
+#include <string>
+
+#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+
 namespace rv_3dmppc
 {
 
@@ -14,6 +19,19 @@ std::string rv_pcdev_hex(std::string_view bytes)
         out.push_back(digits[byte & 0x0F]);
     }
     return out;
+}
+
+std::string rv_pcdev_hex_msg(std::string_view message)
+{
+    static constexpr std::string_view cut = " ...(truncated)";
+    if (message.size() <= static_cast<std::size_t>(RV_PCDEVCHAN_MSG_MAX)) {
+        return rv_pcdev_hex(message);
+    }
+    // The head, not the tail: a lua error puts the chunk name and the line
+    // number first, and those are the part worth keeping.
+    std::string cut_down(message.substr(0, static_cast<std::size_t>(RV_PCDEVCHAN_MSG_MAX)));
+    cut_down.append(cut);
+    return rv_pcdev_hex(cut_down);
 }
 
 } // namespace rv_3dmppc
