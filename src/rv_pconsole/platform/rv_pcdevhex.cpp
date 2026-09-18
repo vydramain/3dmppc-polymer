@@ -1,6 +1,8 @@
 #include "rv_pconsole/platform/rv_pcdevhex.hpp"
 
 #include <cstddef>
+#include <cstdint>
+#include <format>
 #include <string>
 
 #include "rv_pconsole/platform/rv_pcdevchan.hpp"
@@ -32,6 +34,13 @@ std::string rv_pcdev_hex_msg(std::string_view message)
     std::string cut_down(message.substr(0, static_cast<std::size_t>(RV_PCDEVCHAN_MSG_MAX)));
     cut_down.append(cut);
     return rv_pcdev_hex(cut_down);
+}
+
+std::string rv_pcdev_err(int64_t id, const char *token, int64_t rc, bool effects,
+    std::string_view message)
+{
+    return std::format("{} err error={} rv_err={} effects={} msg={}", id, token, rc, effects ? 1 : 0,
+        rv_pcdev_hex_msg(message));
 }
 
 } // namespace rv_3dmppc

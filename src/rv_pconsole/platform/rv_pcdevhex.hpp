@@ -1,10 +1,11 @@
-// Lowercase hex encoding used by the development protocol. Nothing outside the
+// Lowercase hex encoding and the error line of the development protocol. Nothing outside the
 // development runtime speaks it, so rv_pcdevhex.cpp is compiled only into a
 // -D3DMPPC_DEVTOOLS=ON build (see CMakeLists.txt). It needs no null half, unlike
 // the slots around it: a player build calls neither function, so leaving the
 // declarations visible costs that build nothing and defining them would.
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <string_view>
 
@@ -23,5 +24,9 @@ std::string rv_pcdev_hex(std::string_view bytes);
 // stored value read by `get` does NOT come through here: that one is data the
 // client asked for, so an oversized one is refused rather than shortened.
 std::string rv_pcdev_hex_msg(std::string_view message);
+
+// One `err` answer: `<id> err error=<token> rv_err=<rc> effects=<0|1> msg=<hex>`,
+// the message cut and encoded by rv_pcdev_hex_msg.
+std::string rv_pcdev_err(int64_t id, const char *token, int64_t rc, bool effects, std::string_view message);
 
 } // namespace rv_3dmppc
