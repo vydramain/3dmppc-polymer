@@ -12,7 +12,7 @@
 
 // title_literal becomes disc_title()'s return value. The generated class
 // hands pdk_ to the script on every hook (instead of individual controllers)
-// so the script derives cv/ca/cio/cd itself through pdk.pdko_cv(o) etc.
+// so the script derives cv/ca/cio/cd itself through pdk.cv(o), pdk.cd(o) etc.
 //
 // A failing rv_cl_script_call is never logged here: the machine has already
 // logged the Lua message with the chunk name and hook name attached (see the
