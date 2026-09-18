@@ -143,6 +143,10 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     loaded_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
     lua_pushcfunction(L_, require_);
     lua_setglobal(L_, "require");
+    // Made now, while there is heap to make it: every protected console call
+    // (protected_call_) enters through this one closure afterwards.
+    lua_pushcfunction(L_, protected_invoke_);
+    invoke_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
     RV_LOG_INFO("pccl", "lua machine up, {} byte(s) budgeted", budget_);
 }
 // No VM to close is not a failure: the ctor already logged why L_ is null.
@@ -273,6 +277,21 @@ bool rv_pccl_luajit::bootstrap_pdk()
     lua_setglobal(L_, "pdk");
     lua_settop(L_, top);
     return true;
+}
+
+int rv_pccl_luajit::protected_invoke_(lua_State *L)
+{
+    const auto fn = reinterpret_cast<lua_CFunction>(lua_touserdata(L, 1));
+    lua_remove(L, 1);
+    return fn(L);
+}
+
+int rv_pccl_luajit::protected_call_(int (*fn)(lua_State *), void *args)
+{
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, invoke_ref_);
+    lua_pushlightuserdata(L_, reinterpret_cast<void *>(fn));
+    lua_pushlightuserdata(L_, args);
+    return lua_pcall(L_, 2, 0, 0);
 }
 
 } // namespace rv_3dmppc

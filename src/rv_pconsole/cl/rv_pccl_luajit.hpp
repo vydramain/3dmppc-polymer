@@ -88,6 +88,7 @@ private:
     int state_ref_ = 0;
 
     int loaded_ref_ = 0; // registry ref: module name -> the table require returned
+    int invoke_ref_ = 0; // registry ref: protected_invoke_, made once (see protected_call_)
 
     // How deep we are inside script code right now. A COUNTER and not a flag:
     // a hook that calls back into another hook would let a flag clear itself on
@@ -135,6 +136,16 @@ private:
     // drive (rv_pccl_luajit_require.cpp); the stock package library stays
     // closed, same reason io/os do.
     static int require_(lua_State *L);
+
+    // The one C closure every protected console call enters through: argument 1 is
+    // the real trampoline as a light userdata, the rest are its own arguments.
+    static int protected_invoke_(lua_State *L);
+
+    // Runs `fn(L)` with `args` as its light-userdata argument 1, under lua_pcall.
+    // The closure comes out of the registry, so nothing is allocated before the
+    // pcall covers it - the call still answers on a heap the game has run out.
+    // Returns lua_pcall's result; on failure the error object is left on top.
+    int protected_call_(int (*fn)(lua_State *), void *args);
 
     // A count hook installed for the duration of a reload only. Without it a
     // `while true do end` in a candidate's body hangs the frame loop, and since

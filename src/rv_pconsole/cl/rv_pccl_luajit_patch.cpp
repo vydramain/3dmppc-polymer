@@ -278,9 +278,7 @@ int64_t rv_pccl_luajit::patch_in_place_(int old_ref, int new_ref, rv_pccl_reload
     args.new_ref = new_ref;
     args.report = &report;
 
-    lua_pushcfunction(L_, patch_trampoline_);
-    lua_pushlightuserdata(L_, &args);
-    if (lua_pcall(L_, 1, 0, 0) != 0) {
+    if (protected_call_(patch_trampoline_, &args) != 0) {
         lua_pop(L_, 1); // the error object; only an allocation failure can raise here
         report.phase = "nomem";
         report.effects_possible = true;
