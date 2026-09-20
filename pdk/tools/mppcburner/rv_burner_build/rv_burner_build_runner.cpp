@@ -186,22 +186,27 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         }
     }
 
-    if (destination.kind == rv_burner_destination_kind::directory) {
-        // An unpacked directory keeps the developer's .lua reachable and live,
-        // so it is never compiled to bytecode. Put back the plan entries the
-        // .luac renaming above gave each script, and point the manifest's
-        // script_entry (rendered into disc.toml below) at the same name -
-        // rv_manifest_render only ever renders what the struct already holds.
-        for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
-            archive_item &item = plan.items[i];
-            const std::string lua_name = flat_name(item.source);
-            if (item.name == manifest.budget.pccl.script_entry) {
-                manifest.budget.pccl.script_entry = lua_name;
-            }
-            item.name = lua_name;
-            item.payload = (disc_dir / item.source).string();
-        }
-    } else if (compile_scripts(plan, disc_dir, error) != 0) {
+    // Which of the two a script gets — left as .lua or turned into .luac — is
+    // decided once here by the destination, in a switch rather than an
+    // if/else chain, so a third destination kind added later fails to compile
+    // instead of silently falling into one of these two. One failure check
+    // below covers both functions, instead of one per branch.
+    int scripts_status = 1;
+    switch (destination.kind) {
+    case rv_burner_destination_kind::directory:
+        scripts_status = prepare_scripts(plan, manifest, disc_dir, error);
+        break;
+    case rv_burner_destination_kind::archive:
+        scripts_status = compile_scripts(plan, disc_dir, error);
+        break;
+    default:
+        // Unreachable while rv_burner_destination_kind has only these two
+        // values — kept so the switch stays exhaustive under a compiler
+        // warning and so a future third kind fails here, not silently.
+        error = "unknown destination kind";
+        break;
+    }
+    if (scripts_status != 0) {
         rv_burner_print_error(error);
         return 1;
     }
