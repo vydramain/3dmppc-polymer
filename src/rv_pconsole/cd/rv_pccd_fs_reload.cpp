@@ -28,23 +28,9 @@ int64_t rv_pccd_fs::texture_reload(const char* resname) {
     texture_record& record = textures_[static_cast<size_t>(it->second)];
     if (!record.live) return RV_PCCD_NOT_RESIDENT;
 
-    const int64_t handle = asset_open(resname);
-    if (handle < 0) return handle;
-    const int64_t size = asset_size(handle);
-    if (size < 0) return size;
-
     std::vector<std::byte> bytes;
-    try {
-        bytes.resize(static_cast<size_t>(size));
-    } catch (const std::bad_alloc&) {
-        return RV_ERR_NOMEM;
-    }
-    const int64_t got = asset_read(handle, bytes.data(), size);
-    if (got < 0) return got;
-    // Same reason as in texture_acquire, and it bites harder here: a reload is
-    // asked for precisely because the file changed, so a shrunk entry is the
-    // expected case, not the exotic one.
-    if (got != size) return RV_ERR_INVAL;
+    const int64_t read_rc = texture_read_bytes_(resname, bytes);
+    if (read_rc < 0) return read_rc;
 
     rv_pdklib::rv_mppctex_header header;
     const std::byte* palette = nullptr;

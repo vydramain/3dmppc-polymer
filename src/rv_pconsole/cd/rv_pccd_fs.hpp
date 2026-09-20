@@ -125,6 +125,11 @@ class rv_pccd_fs final : public rv_pccd {
     // issued, or names a record already released.
     texture_record* texture_record_of(int64_t res);
 
+    // Shared by texture_acquire() and texture_reload(): open, measure, allocate
+    // and read `resname`'s whole current contents into `bytes_out`. Returns
+    // RV_OK or the negative rv_err either step answered.
+    int64_t texture_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out);
+
     // Stages of texture_acquire(), split out to stay under the function-size
     // limit and so a mid-way failure has one clear place to free from.
     int64_t texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,

@@ -159,6 +159,34 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
     return medium_->entry_read(resname, baddr, baddr_size);
 }
 
+// Reads `resname`'s whole current contents into `bytes_out`: open, measure,
+// allocate, and read the full entry - the preparation texture_acquire() and
+// texture_reload() both need before decoding. Medium re-measures the size on
+// every call (see asset_size()'s comment above), so a short read here means
+// the entry changed between the size call and the read; a reload is asked
+// for precisely because the file changed, so that is where a shrunk entry is
+// the expected case rather than the exotic one, and it is refused here
+// rather than fed to a decoder as padding pretending to be pixels.
+int64_t rv_pccd_fs::texture_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out) {
+    const int64_t handle = asset_open(resname);
+    if (handle < 0) return handle;
+    const int64_t size = asset_size(handle);
+    if (size < 0) return size;
+
+    try {
+        bytes_out.resize(static_cast<size_t>(size));
+    } catch (const std::bad_alloc&) {
+        return RV_ERR_NOMEM;
+    }
+    const int64_t got = asset_read(handle, bytes_out.data(), size);
+    if (got < 0) return got;
+    // Medium re-measures each read; short count means entry shrank.
+    // Padding bytes cannot go to video memory as false pixels.
+    if (got != size) return RV_ERR_INVAL;
+
+    return RV_OK;
+}
+
 // Parses the header this file's caller already read into `bytes`, and hands
 // back pointers INTO `bytes` for the palette and texels - nothing is copied
 // twice. Refuses anything mppcbaker would not have written: bad magic, a
@@ -292,22 +320,9 @@ int64_t rv_pccd_fs::texture_acquire(const char* resname) {
         }
     }
 
-    const int64_t handle = asset_open(resname);
-    if (handle < 0) return handle;
-    const int64_t size = asset_size(handle);
-    if (size < 0) return size;
-
     std::vector<std::byte> bytes;
-    try {
-        bytes.resize(static_cast<size_t>(size));
-    } catch (const std::bad_alloc&) {
-        return RV_ERR_NOMEM;
-    }
-    const int64_t got = asset_read(handle, bytes.data(), size);
-    if (got < 0) return got;
-    // Medium re-measures each read; short count means entry shrank.
-    // Padding bytes cannot go to video memory as false pixels.
-    if (got != size) return RV_ERR_INVAL;
+    const int64_t read_rc = texture_read_bytes_(resname, bytes);
+    if (read_rc < 0) return read_rc;
 
     rv_pdklib::rv_mppctex_header header;
     const std::byte* palette = nullptr;
