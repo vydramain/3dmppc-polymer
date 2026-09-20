@@ -137,6 +137,22 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     // game's data with it.
     lua_newtable(L_);
     state_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
+    // The entry chunk's own environment, built once and reused for every
+    // raise of the entry from here on: a plain table whose metatable falls
+    // reads through to the real globals table (so `pdk`, `print`, `require`
+    // and the opened stdlib still resolve) but declares no __newindex, so a
+    // write the script never made `local` lands in this table and never
+    // touches _G. `state` is set into it right here, once - the same table
+    // state_ref_ names for the whole run, handed to every future candidate
+    // by nothing more than pointing its closure at this one environment.
+    lua_newtable(L_); // the environment
+    lua_newtable(L_); // its metatable
+    lua_pushvalue(L_, LUA_GLOBALSINDEX);
+    lua_setfield(L_, -2, "__index");
+    lua_setmetatable(L_, -2);
+    lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_);
+    lua_setfield(L_, -2, "state");
+    entry_env_ref_ = luaL_ref(L_, LUA_REGISTRYINDEX);
     // require()'s loaded-module table and the global itself. A game feature,
     // not a dev tool: installed in both builds.
     lua_newtable(L_);

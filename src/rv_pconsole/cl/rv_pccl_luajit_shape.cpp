@@ -1,4 +1,4 @@
-// The attachment entry and bookkeeping: manage the state_shape check and
+// The state_shape check and the bookkeeping around it: the walk itself, and
 // the insertions it makes to the live state table.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
@@ -81,9 +81,10 @@ int rv_pccl_luajit::shape_trampoline_(lua_State *L)
     // Checked, not asserted. An assert is gone in a release build, and this one
     // was: pass two used to exhaust the node budget on a tree pass one had
     // accepted, its refusal went unread, and the reload answered ok with the
-    // state HALF grown - 4438 of 5000 fields inserted, then attach() called on
-    // it. Pass two failing is a console bug either way, but a refusal the
-    // caller can roll back beats a success that is not one.
+    // state HALF grown - 4438 of 5000 fields inserted, and the candidate's own
+    // hooks then running against it. Pass two failing is a console bug either
+    // way, but a refusal the caller can roll back beats a success that is not
+    // one.
     if (!walk_table(ctx, shape_idx, state_idx, "", 0)) {
         args->refused = true;
         args->refuse_path = ctx.refuse_path;

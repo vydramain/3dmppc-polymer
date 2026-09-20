@@ -41,26 +41,21 @@ int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, 
         report.message = "a script call is in flight";
         return RV_ERR_BUSY;
     }
-    if (!entry_attach_) {
-        report.phase = "not_reloadable";
-        report.message = "the entry chunk has no attach(); its state could not be carried across";
-        return RV_ERR_INVAL;
-    }
 
     int candidate = 0;
-    const int64_t raised = raise_(bytecode, size, name, candidate, report);
+    const int64_t raised = raise_(bytecode, size, name, candidate, report, /*is_entry=*/true);
     if (raised < 0) {
         return raised;
     }
-    // attach() runs on the CANDIDATE, before the patch. That order is the
-    // whole guarantee: everything that can refuse has refused by the time the
-    // running tables are touched, so there is no state in which the code has
-    // been replaced but the replacement was never accepted - and therefore
-    // nothing to roll back.
-    const int64_t attached = attach_(candidate, report);
-    if (attached < 0) {
+    // The shape check runs on the CANDIDATE, before the patch. That order is
+    // the whole guarantee: everything that can refuse has refused by the time
+    // the running tables are touched, so there is no state in which the code
+    // has been replaced but the replacement was never accepted - and
+    // therefore nothing to roll back.
+    const int64_t shaped = accept_state_shape_(candidate, report);
+    if (shaped < 0) {
         luaL_unref(L_, LUA_REGISTRYINDEX, candidate);
-        return attached;
+        return shaped;
     }
 
     // --- the commit: the running tables take the new code in place. The patch
@@ -190,10 +185,11 @@ int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytec
     }
     const int old_ref = lookup.ref_out;
 
-    // A module has no attach() and no state of its own: compile, body and a
-    // returned table are the whole of its checks.
+    // A module has no state of its own: compile, body and a returned table
+    // are the whole of its checks - is_entry stays false, so it keeps the
+    // real globals table it always had.
     int candidate = 0;
-    const int64_t raised = raise_(bytecode, size, asset, candidate, report);
+    const int64_t raised = raise_(bytecode, size, asset, candidate, report, /*is_entry=*/false);
     if (raised < 0) {
         luaL_unref(L_, LUA_REGISTRYINDEX, old_ref);
         return raised;

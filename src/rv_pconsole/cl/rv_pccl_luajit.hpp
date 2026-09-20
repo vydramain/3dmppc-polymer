@@ -78,14 +78,30 @@ private:
     // The persistent state table, owned by this machine and held in the
     // registry for the whole run. This is the whole of "code != state": the
     // table outlives every chunk that ever sees it, so replacing the code
-    // cannot take the game's data with it. Chunks reach it only as attach()'s
-    // argument - it is deliberately NOT a global, because _G belongs to no
-    // chunk and two chunks sharing a global would collide the moment a disc
-    // raises a second one.
+    // cannot take the game's data with it. The entry chunk reaches it as
+    // `state`, resolved through entry_env_ref_ below - it is deliberately NOT
+    // a field of the real globals table, because _G belongs to no chunk and a
+    // required module sharing a global with the entry would collide the
+    // moment a disc raises one.
     //
     // 0 means "not created yet" for the same reason chunk_slot has no default:
     // LUA_NOREF cannot be named here. luaL_ref never hands out 0.
     int state_ref_ = 0;
+
+    // The entry chunk's own environment (its lua_setfenv target), reused for
+    // every raise of the entry - the initial one and every reload candidate
+    // alike, since it is the same `state` either way. A plain table with one
+    // metamethod: __index falls through to the real globals table, so `pdk`,
+    // `print`, `require` and the opened stdlib still resolve, but there is no
+    // __newindex, so a write the script never declared `local` lands in THIS
+    // table and never touches _G. `state` is set into it once, in the
+    // constructor, right after state_ref_ exists - the same table object for
+    // the machine's whole life, so handing it to a new candidate is nothing
+    // more than pointing that candidate's own closure at this one table.
+    // Never used for a module raised through reload_module_bytes_: a module
+    // keeps the real globals table it always had, and has no state of its
+    // own to reach.
+    int entry_env_ref_ = 0;
 
     int loaded_ref_ = 0; // registry ref: module name -> the table require returned
     int invoke_ref_ = 0; // registry ref: protected_invoke_, made once (see protected_call_)
@@ -110,9 +126,8 @@ private:
     // never ended" would be reported as "your chunk threw".
     bool ceiling_hit_ = false;
 
-    int64_t revision_ = 0;      // successful entry reloads
-    uint64_t entry_hash_ = 0;   // FNV-1a of the bytes the entry is running
-    bool entry_attach_ = false; // the entry chunk has attach(); reload needs it
+    int64_t revision_ = 0;    // successful entry reloads
+    uint64_t entry_hash_ = 0; // FNV-1a of the bytes the entry is running
 
     int64_t error_seq_ = 0;     // failed hook calls, ever; the console watches it
     std::string error_text_;    // the last one, for status
@@ -163,55 +178,41 @@ private:
     // rv_err with `report` naming the phase. Gives out NO handle: a reload must
     // not grow the handle table, or a long session would leave one dead slot
     // per keystroke.
-    int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
-        rv_pccl_reload_report &report);
-
-    // The names a gate hook's three failures get. Passed in rather than derived
-    // from the hook name, because the client branches on these tokens and they
-    // are part of the protocol, not a formatting detail.
-    struct gate_phases {
-        const char *missing;
-        const char *raised;
-        const char *refused;
-        // Returned something that is not a boolean at all. Parameterised like
-        // the other three: a shared implementation that hardcoded one hook's
-        // token would answer an asset request with an attach error, and the
-        // client branches on these strings.
-        const char *contract;
-    };
-
-    // Call a GATE HOOK on the chunk `ref` holds: one argument in, and
-    // `true` or `false, "reason"` out. attach() is the one caller today -
-    // does the new code accept the old state - but the shape is general.
     //
-    // `string_arg` null means "hand it the state table"; otherwise that string
-    // is the argument. Raw lookup throughout, so a metatable cannot make the
-    // console call something other than what it asked for.
-    int64_t call_gate_(int ref, const char *hook, const char *string_arg,
-        const gate_phases &phases, rv_pccl_reload_report &report);
-
-    // attach(state): the one gate every reloadable chunk must have. A chunk that
-    // returns false has REFUSED the state it was handed - the
-    // incompatible-state answer - and that is a failed reload, not a crash.
-    int64_t attach_(int ref, rv_pccl_reload_report &report);
+    // `is_entry` points the freshly compiled closure's environment at
+    // entry_env_ref_ BEFORE its body runs, so every hook the body defines
+    // (disc_initialize, frame_update, ...) inherits that same environment -
+    // the ordinary Lua 5.1 rule that a nested function starts with whatever
+    // environment its creator already has. False for a module
+    // (reload_module_bytes_): a module keeps the real globals table it
+    // always had and has no state of its own to reach.
+    int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
+        rv_pccl_reload_report &report, bool is_entry);
 
     // The STRUCTURAL half of the incompatible-state question: does the live
-    // state table match the shape the chunk itself declared, field by field,
-    // independent of what attach() then decides. A chunk with no state_shape
-    // field is unaffected - this returns RV_OK having touched nothing, the
-    // same behaviour as before this check existed. Inserts declared keys the
-    // state lacks; `inserted` records exactly those keys so a later attach()
-    // refusal can undo precisely them. Refuses (message names the field path)
-    // on a key the state has and the shape did not declare, a type mismatch,
-    // or a shape value outside the supported model - and mutates nothing when
-    // it refuses.
+    // state table match the shape the chunk itself declared, field by field.
+    // A chunk with no state_shape field is unaffected - this returns RV_OK
+    // having touched nothing, the same behaviour as before this check
+    // existed. Inserts declared keys the state lacks; `inserted` records
+    // exactly those keys so a refusal can undo precisely them. Refuses
+    // (message names the field path) on a key the state has and the shape
+    // did not declare, a type mismatch, or a shape value outside the
+    // supported model - and mutates nothing when it refuses.
     int64_t check_state_shape_(int ref, std::vector<state_shape_insert> &inserted,
         rv_pccl_reload_report &report);
 
     // Releases check_state_shape_'s registry pins. When `keep` is false it
     // first nils each key back out of its parent table - undoing exactly the
-    // console's own insertions, never anything attach() itself wrote.
+    // console's own insertions.
     void finish_state_shape_(std::vector<state_shape_insert> &inserted, bool keep);
+
+    // Runs check_state_shape_ and, once it has approved the whole tree, keeps
+    // every default it planned - there is no further, script-side veto over a
+    // structurally valid state (that used to be attach()'s job; see the
+    // definition for why it is gone). Called on the entry chunk at boot and
+    // on a reload candidate before the swap - the same two moments attach()
+    // used to run at.
+    int64_t accept_state_shape_(int ref, rv_pccl_reload_report &report);
 
     // The state_shape walk, run under lua_pcall: an out-of-budget allocation
     // while building a default table then surfaces as an ordinary catchable
@@ -228,9 +229,6 @@ private:
     // state_get and state_keys: the resolved value is left on top of the lua
     // stack for the caller to read (and to walk children of, for state_keys).
     static int state_walk_trampoline_(lua_State *L);
-
-    // Is there a function under `hook` in the table `ref` holds? Raw, same reason.
-    bool has_hook_(int ref, const char *hook) const;
 
     // The phase name a failure deserves: the instruction ceiling and the memory
     // budget both surface as an ordinary lua error, so without the two flags

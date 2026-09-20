@@ -19,19 +19,22 @@ M.state_shape = {
 	screen_height = 0,
 }
 
--- The console owns ONE persistent table for the whole run and hands it to
--- M.attach() - once at boot, right after this chunk is raised, and again
--- after every successful code reload. This is the ONLY thing that survives a
--- reload: a chunk local (like this one) or a field of M dies with the code
--- that reload replaces. Everything this script needs to keep is a field of
--- `state`, never a local and never a field of M.
+-- `state` is not declared anywhere in this file: the console places its ONE
+-- persistent table into this chunk's own environment, under this plain name,
+-- before any hook of this chunk ever runs - once at boot, right after this
+-- chunk is raised, and again after every successful code reload. An
+-- undeclared identifier is exactly how Lua spells "look this up in my
+-- environment", and the console's environment for this chunk resolves
+-- `state` to that one table; nothing here has to ask for it. This is the
+-- ONLY thing that survives a reload: a chunk local or a field of M dies with
+-- the code that reload replaces. Everything this script needs to keep is a
+-- field of `state`, never a local and never a field of M.
 --
 -- Not stored: a function or a coroutine. Either would keep the OLD chunk's
 -- bytecode alive and callable after the swap - the state table would quietly
 -- carry a piece of code the reload was supposed to have replaced. This
 -- script has no closure worth surviving a reload (set_vertex below is
 -- recreated each frame_render, cheaply, from data already in state).
-local state
 
 -- The one texture this script draws. It never acquires or releases it - it
 -- only ever names it. The drive makes it resident the first time any of the
@@ -42,24 +45,16 @@ local state
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
--- first raise - before disc_initialize, attach, or any other hook is ever
--- called. print() is routed into the console's stderr logger, not stdout, so
--- this is a "the bytecode executed" breadcrumb, never something a test reads.
+-- first raise - before disc_initialize or any other hook is ever called.
+-- print() is routed into the console's stderr logger, not stdout, so this is
+-- a "the bytecode executed" breadcrumb, never something a test reads.
 --
 -- Nothing else runs here: the body must stay PURE (no pdk call, no write to
 -- `state`) because it also runs to VALIDATE a reload candidate, before the
--- console knows whether attach() will accept it. An impure body would leave
--- effects behind even for a candidate that is about to be refused.
+-- console knows whether the candidate will pass its state_shape check. An
+-- impure body would leave effects behind even for a candidate that is about
+-- to be refused.
 print("Hello from example lua!")
-
-function M.attach(s)
-	-- The console has already checked s against M.state_shape (above) -
-	-- structure and types are settled by the time this runs. What is left is
-	-- the SEMANTIC half a shape cannot express: attach still has the right to
-	-- refuse a structurally valid state it judges unusable.
-	state = s
-	return true
-end
 
 function M.disc_initialize(o_)
 	local cv = pdk.cv(o_)
@@ -78,9 +73,10 @@ function M.disc_initialize(o_)
 end
 function M.frame_update(dt, o_)
 	-- The frame counter: the one field this example exists to demonstrate.
-	-- It lives in `state`, so a code reload (M.attach runs, this chunk's
-	-- locals do not) leaves it exactly where it was - the count CONTINUES
-	-- instead of restarting at 0.
+	-- It lives in `state`, so a code reload (the console re-wires `state`
+	-- into the new code's environment; this chunk's locals do not survive)
+	-- leaves it exactly where it was - the count CONTINUES instead of
+	-- restarting at 0.
 	state.frame_count = state.frame_count + 1
 
 	-- Should the disc stop? this example does not wire a button up to check

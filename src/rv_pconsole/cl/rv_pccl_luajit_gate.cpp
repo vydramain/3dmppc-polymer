@@ -1,7 +1,8 @@
 // Entering a chunk safely: raising bytecode into a table under the
-// instruction ceiling, and calling one of its gate hooks under the same
-// ceiling. Used by both the normal boot (rv_pccl_luajit_chunks.cpp) and the
-// development reload path (rv_pccl_luajit_reload.cpp).
+// instruction ceiling, wiring the entry's environment in before its body
+// runs, and settling the structural half of the incompatible-state question
+// once it has. Used by both the normal boot (rv_pccl_luajit_chunks.cpp) and
+// the development reload path (rv_pccl_luajit_reload.cpp).
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.
@@ -52,7 +53,7 @@ const char *rv_pccl_luajit::phase_of(const char *phase) const
 }
 
 int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
-    rv_pccl_reload_report &report)
+    rv_pccl_reload_report &report, bool is_entry)
 {
     if (bytecode == nullptr || size <= 0 || name == nullptr) {
         report.phase = "bad_request";
@@ -89,6 +90,17 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
         // a mark: this is the one failure that is provably clean.
         return fail("compile", false, RV_ERR_IO);
     }
+    if (is_entry) {
+        // Set on the closure BEFORE it runs, not after: a nested function
+        // (M.disc_initialize, M.frame_update, ...) inherits whatever
+        // environment the running function already has at the moment it is
+        // defined, and every one of those is defined during the body run
+        // that follows. Setting this any later would leave every hook this
+        // chunk owns closed over the real globals table instead.
+        const int close_idx = lua_gettop(L_);
+        lua_rawgeti(L_, LUA_REGISTRYINDEX, entry_env_ref_);
+        lua_setfenv(L_, close_idx);
+    }
     // loadbuffer only COMPILES; the module table is the RESULT of running the body.
     //
     // Guarded, like every other place script code runs. A body is script code
@@ -120,125 +132,30 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
     return RV_OK;
 }
 
-// RAW lookup, deliberately: a metatable on the module table must not be able to
-// decide what the console calls.
-bool rv_pccl_luajit::has_hook_(int ref, const char *hook) const
+// The incompatible-state gate used to be two checks: a STRUCTURAL one the
+// console could run for itself (check_state_shape_) and a SEMANTIC one
+// only the new code could judge - attach(), which could refuse a
+// structurally valid state on meaning alone even though nothing in this repo
+// ever exercised that right. A PR review asked why attach lived in the
+// console's own Lua machinery instead of the disc-facing half of the
+// contract, and the owner's answer was to remove it rather than move it: the
+// console now hands the entry chunk its state (see raise_'s `is_entry`
+// wiring) instead of asking the chunk to accept delivery of it, and there is
+// no replacement for the semantic refusal that went with it. What remains is
+// the structural half: once check_state_shape_ has approved the whole tree,
+// keep every default it planned.
+int64_t rv_pccl_luajit::accept_state_shape_(int ref, rv_pccl_reload_report &report)
 {
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, ref);
-    lua_pushstring(L_, hook);
-    lua_rawget(L_, -2);
-    const bool found = lua_isfunction(L_, -1);
-    lua_pop(L_, 2);
-    return found;
-}
-
-int64_t rv_pccl_luajit::call_gate_(int ref, const char *hook, const char *string_arg,
-    const gate_phases &phases, rv_pccl_reload_report &report)
-{
-    [[maybe_unused]] const int top = lua_gettop(L_);
-    oom_ = false;
-    ceiling_hit_ = false;
-    const rv_pccl_insn_guard ceiling(L_, insn_hook, RV_PCCL_INSN_CEILING);
-
-    lua_rawgeti(L_, LUA_REGISTRYINDEX, ref); // [T]
-    lua_pushstring(L_, hook);
-    lua_rawget(L_, -2); // [T, fn?]
-    if (!lua_isfunction(L_, -1)) {
-        lua_pop(L_, 2);
-        report.phase = phases.missing;
-        // The body already ran to produce this table, so something of the
-        // candidate has executed even though the hook it needed is absent.
-        report.effects_possible = true;
-        report.message = std::string("the chunk has no ") + hook + "() function";
-        assert(lua_gettop(L_) == top);
-        return RV_ERR_INVAL;
-    }
-
-    if (string_arg != nullptr) {
-        lua_pushstring(L_, string_arg); // [T, fn, arg]
-    } else {
-        // The SAME table every chunk before it got, and every chunk after it
-        // will: that lifetime is the whole of "code != state".
-        lua_rawgeti(L_, LUA_REGISTRYINDEX, state_ref_); // [T, fn, state]
-    }
-
-    int rc = 0;
-    {
-        // Counts as script activity: a reload or a free arriving from inside
-        // this hook must refuse, not swap code that is on the stack.
-        const rv_pccl_call_guard guard(call_depth_);
-        rc = lua_pcall(L_, 1, 2, 0); // [T, accepted, reason] or [T, error]
-    }
-    if (rc != 0) {
-        const char *msg = lua_tostring(L_, -1);
-        report.phase = phase_of(phases.raised);
-        // It raised part way through, so whatever it had already written into
-        // the state table, or asked of the hardware, is still written and still
-        // asked. Nothing here can take that back.
-        report.effects_possible = true;
-        report.message = msg != nullptr ? msg : "(no message)";
-        lua_pop(L_, 2);
-        assert(lua_gettop(L_) == top);
-        return oom_ ? RV_ERR_NOMEM : RV_ERR_IO;
-    }
-
-    // A boolean, and only a boolean. Accepting anything truthy would make
-    // "forgot to return" read as "accepted", which is the one mistake this
-    // check exists to catch.
-    if (lua_type(L_, -2) != LUA_TBOOLEAN) {
-        lua_pop(L_, 3);
-        report.phase = phases.contract;
-        report.effects_possible = true;
-        report.message = std::string(hook) + "() must return true, or false and a reason";
-        assert(lua_gettop(L_) == top);
-        return RV_ERR_INVAL;
-    }
-    const bool accepted = lua_toboolean(L_, -2) != 0;
-    std::string reason;
-    if (lua_type(L_, -1) == LUA_TSTRING) {
-        std::size_t len = 0;
-        const char *text = lua_tolstring(L_, -1, &len);
-        reason.assign(text, len);
-    }
-    lua_pop(L_, 3);
-    assert(lua_gettop(L_) == top);
-
-    if (!accepted) {
-        report.phase = phases.refused;
-        report.effects_possible = true;
-        report.message = reason.empty() ? std::string(hook) + "() refused" : reason;
-        return RV_ERR_INVAL;
-    }
-
-    report.phase = "ok";
-    report.effects_possible = false;
-    report.message.clear();
-    return RV_OK;
-}
-
-// The incompatible-state gate. Two checks, deliberately not one:
-// check_state_shape_ is STRUCTURAL and belongs to the console, because a
-// disc author cannot get key-present/type-matches wrong in a way the console
-// cannot see for itself. attach() is SEMANTIC and stays the chunk's call -
-// the console has no schema for the state table and cannot tell that
-// `player.hp` used to mean something different, only the new code knows what
-// it expects, so only the new code can say no to that.
-int64_t rv_pccl_luajit::attach_(int ref, rv_pccl_reload_report &report)
-{
-    static constexpr gate_phases phases{ "no_attach", "attach", "attach_refused",
-        "attach_contract" };
-
     std::vector<state_shape_insert> inserted;
     const int64_t shaped = check_state_shape_(ref, inserted, report);
     if (shaped < 0) {
         return shaped; // report already named the field path; nothing was left mutated
     }
-
-    const int64_t result = call_gate_(ref, "attach", nullptr, phases, report);
-    // Whether attach() accepted or refused, the console's own pins are done
-    // with; a refusal also asks for the keys themselves back out.
-    finish_state_shape_(inserted, result >= 0);
-    return result;
+    finish_state_shape_(inserted, true); // keep every default the walk inserted
+    report.phase = "ok";
+    report.effects_possible = false;
+    report.message.clear();
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

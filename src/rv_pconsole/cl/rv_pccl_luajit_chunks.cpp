@@ -20,7 +20,11 @@ int64_t rv_pccl_luajit::script_load(const void *bytecode, int64_t size, const ch
 {
     int ref = 0;
     rv_pccl_reload_report report;
-    const int64_t raised = raise_(bytecode, size, name, ref, report);
+    // Not the entry: script_entry() below raises the entry chunk itself, with
+    // its own call to raise_, so that the entry's environment is wired in
+    // before this generic path ever sees it. Anything reaching script_load
+    // gets the real globals table, same as a required module.
+    const int64_t raised = raise_(bytecode, size, name, ref, report, /*is_entry=*/false);
     if (raised < 0) {
         return raised;
     }
@@ -71,37 +75,35 @@ int64_t rv_pccl_luajit::script_entry()
     if (read < 0) {
         return read;
     }
-    const int64_t loaded = script_load(bytes.data(), read, conf_.script_entry.c_str());
-    if (loaded < 0) {
-        return loaded;
+    // Raised directly, not through script_load(): only the entry gets
+    // is_entry=true, which is what wires `state` into its environment before
+    // its body ever runs (see raise_).
+    int ref = 0;
+    rv_pccl_reload_report raise_report;
+    const int64_t raised = raise_(bytes.data(), read, conf_.script_entry.c_str(), ref, raise_report,
+        /*is_entry=*/true);
+    if (raised < 0) {
+        return raised;
     }
-    entry_ = loaded;
+    chunks_.push_back(chunk_slot{ ref, conf_.script_entry });
+    entry_ = static_cast<int64_t>(chunks_.size() - 1);
     entry_hash_ = rv_pccl_fnv1a(bytes.data(), read);
 
-    // attach() is OPTIONAL at boot and REQUIRED for a reload. That asymmetry is
-    // what keeps every disc written before the development runtime existed
-    // working unchanged: it boots, it plays, and the only thing it cannot do is
-    // have its code replaced - because there would be nowhere to carry its state
-    // across, and pretending otherwise would lose the game silently.
-    entry_attach_ = has_hook_(chunks_[static_cast<size_t>(entry_)].ref, "attach");
-    if (!entry_attach_) {
-        RV_LOG_INFO("pccl",
-            "entry chunk '{}' has no attach(); it will run, but its state cannot be carried "
-            "across a reload",
-            rv_pdklib::rv_log_escape(conf_.script_entry.c_str()));
-        return entry_;
-    }
-
+    // The state the entry starts with is always empty (this machine has just
+    // come up), so the only way this can refuse is an out-of-budget
+    // allocation while installing state_shape's own defaults - every disc,
+    // with or without a state_shape declaration, boots the same way that
+    // preceded this check.
     rv_pccl_reload_report report;
-    const int64_t attached = attach_(chunks_[static_cast<size_t>(entry_)].ref, report);
-    if (attached < 0) {
-        RV_LOG_ERR("pccl", "entry chunk '{}' refused its state at boot ({}): {}",
+    const int64_t shaped = accept_state_shape_(ref, report);
+    if (shaped < 0) {
+        RV_LOG_ERR("pccl", "entry chunk '{}' failed its state shape check at boot ({}): {}",
             rv_pdklib::rv_log_escape(conf_.script_entry.c_str()), report.phase,
             rv_pdklib::rv_log_escape(report.message.c_str(), 256));
         // No reference is left behind on a boot that will not happen.
         script_free(entry_);
         entry_ = -1;
-        return attached;
+        return shaped;
     }
     return entry_;
 }

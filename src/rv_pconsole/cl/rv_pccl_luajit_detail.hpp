@@ -17,12 +17,12 @@
 namespace rv_3dmppc
 {
 // How many VM instructions guarded script code gets: a reload candidate's
-// body and attach(), and, in a development build, every hook call the console
-// makes into a chunk. Not a timeout: a count hook cannot bound the parser, a C
-// call or an FFI call, and it says nothing about wall clock. What it does bound
-// is the ordinary mistake this ceiling exists for - a loop with no exit in code
-// the developer is in the middle of editing. Generous enough that a
-// legitimately heavy attach (building a large table) never meets it.
+// body, and, in a development build, every hook call the console makes into a
+// chunk. Not a timeout: a count hook cannot bound the parser, a C call or an
+// FFI call, and it says nothing about wall clock. What it does bound is the
+// ordinary mistake this ceiling exists for - a loop with no exit in code the
+// developer is in the middle of editing. Generous enough that a legitimately
+// heavy hook (building a large table) never meets it.
 constexpr int RV_PCCL_INSN_CEILING = 50 * 1000 * 1000;
 
 // FNV-1a, 64 bit. Identifies the bytes a chunk is running so `status` can say
@@ -42,9 +42,10 @@ inline uint64_t rv_pccl_fnv1a(const void *bytes, int64_t size)
 }
 
 // Installs a hook and puts the PREVIOUS one back, rather than clearing it. That
-// is what makes the guard safe to nest: reload arms the ceiling around both the
-// body and attach(), and the raise_ inside it arms its own - the inner
-// restoration must not disarm the outer one.
+// is what makes the guard safe to nest: a development build arms one ceiling
+// around a whole script_call, and a hook that calls back into raise_ (e.g.
+// rv_cl_script_load, raising another chunk) arms its own inside that - the
+// inner restoration must not disarm the outer one.
 class rv_pccl_insn_guard
 {
 public:
@@ -110,7 +111,7 @@ constexpr int kShapeMaxNodes = 16384;
 
 // One walk's working state: which pass (validate or apply), the caps, the
 // first refusal found (a walk stops at the first one), and - APPLY only -
-// where inserted keys get recorded so a later attach() refusal can undo them.
+// where inserted keys get recorded so a later refusal can undo them.
 struct shape_walk_ctx {
     lua_State *L = nullptr;
     bool apply = false;

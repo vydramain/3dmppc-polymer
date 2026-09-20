@@ -188,8 +188,9 @@ per request, in request order:
 `rv_err` is the contract's own code (`pdk/include/pdk/rv_err.h`) — the same
 number a disc would have got from the call — and `error` is the token to branch
 on. `msg` is prose for a human, cut to 4096 bytes with the cut named in the
-text: a lua error or an `attach` refusal reason is written by the disc, and an
-answer that does not fit the queue is an answer nobody reads. An error the
+text: a lua error written by the disc's own script, or a `state_shape`
+refusal naming the field the console's own walk checked, and an answer that
+does not fit the queue is an answer nobody reads. An error the
 channel raises while framing a request - an unreadable or zero id, a payload
 size it cannot accept, a payload that never arrives - answers for the channel,
 not for a contract call, and carries no `rv_err`.
@@ -222,8 +223,8 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 by the name it was `require`d under. The entry answers with `entry_revision=`
 and `entry_hash=`, a module with `module=<hex>` and `hash=`. A module goes
 through the same compile, body and table checks as the entry, but has no
-`attach` and no state of its own. A file that inherits from a reloaded module
-needs no reload of its own: it holds the same table, now updated in place.
+state of its own. A file that inherits from a reloaded module needs no
+reload of its own: it holds the same table, now updated in place.
 
 A path is looked up raw, one table per key: a key is tried as a string, and
 when that misses and it spells a decimal integer within 2^53, as that integer - so
@@ -266,14 +267,17 @@ request is refused there rather than answered with a reload of identical bytes
 ### What it promises, and what it does not
 
 A candidate becomes the running code only after all of it passes: it compiles,
-its body runs, it returns a table, that table has `attach`, and `attach(state)`
-returns `true`. A failure at any of those leaves the running code exactly where
-it was. **Code is atomic; effects are not** — once a candidate's body or its
-`attach` has run it may have written into the state table or called hardware,
-and nothing can take that back, which is what `effects=1` on an error answer
-says. `attach` returning `false, "reason"` is how a script refuses a state
-layout it cannot read: the console has no schema for that table and cannot
-detect the mismatch itself.
+its body runs, it returns a table, and the live state table matches the shape
+the candidate declares (`state_shape`, below — declaring none is a pass by
+default). A failure at any of those leaves the running code exactly where it
+was. **Code is atomic; effects are not** — once a candidate's body has run,
+with `state` already reachable from its own environment, it may have written
+into the state table or called hardware, and nothing can take that back,
+which is what `effects=1` on an error answer says. There is no further,
+script-side veto: the state check is structural only, and the console hands a
+passing candidate's own environment the state table directly rather than
+asking the candidate to accept delivery of it — so nothing here can refuse a
+structurally valid state on meaning alone.
 
 Once every check has passed, the running tables are updated in place rather
 than replaced. The table the file returned, and every table inside it that the
@@ -314,7 +318,7 @@ state_shape = {
 }
 ```
 
-Before `attach` runs, the console walks the live state against this shape: a
+Before any hook of the candidate runs, the console walks the live state against this shape: a
 declared key already stored keeps its value if the type matches; a declared
 key missing from state is inserted; a stored key that is not declared is
 refused, so nothing is orphaned in silence; a type mismatch is refused, naming
@@ -331,13 +335,12 @@ a default inserted through one path silently changes the other. No `state_shape`
 before this keeps working unchanged.
 
 The walk is two passes: the first validates the whole tree without mutating
-anything, the second inserts. If `attach` then refuses, the console removes
-exactly the keys it inserted — a refusal this way leaves the state as the old
-code left it. What `attach` itself wrote is not undone, per the `effects=1`
-contract above. `attach` still returns `false, "reason"` on its own terms:
-the console checks structure, only the new code knows whether seconds became
-milliseconds. The walk is bounded by a maximum nesting depth and a budget
-spent per table visited and per key examined.
+anything, the second inserts. If the walk itself refuses, the console removes
+exactly the keys it had inserted so far — a refusal this way leaves the state
+as the old code left it. What the candidate's own body wrote before the walk
+ran is not undone, per the `effects=1` contract above. The walk is bounded by
+a maximum nesting depth and a budget spent per table visited and per key
+examined.
 
 A refusal from the shape check answers with the error token `state_shape` and
 a message naming the field path, e.g. `screen_width: expected string, stored
@@ -365,8 +368,7 @@ the sentence. Framing: `protocol`, `payload_size`, `answer_size`,
 `payload_timeout`. Machine: `no_machine`, `no_entry`, `no_module`, `not_reloadable`,
 `in_call`, `unsupported_target`,
 `unsupported_medium`, `drive`, `nomem`, `insn_ceiling`. A candidate:
-`bad_request` (no bytes), `compile`, `body`, `not_a_table`,
-`no_attach`, `attach`, `attach_refused`, `attach_contract`, `state_shape`. An
+`bad_request` (no bytes), `compile`, `body`, `not_a_table`, `state_shape`. An
 asset: `no_asset`, `asset`.
 
 A C API stack imbalance is deliberately not among them: that would be a bug in
@@ -400,9 +402,9 @@ whoever wrote the script:
 4. `pause` stops at a boundary, `step` runs exactly one frame and is answered
    after it, `resume` carries on — with the frame counter agreeing.
 5. A successful reload keeps the state and the next frame runs the new code.
-6. Each refusal — a stored key nothing declares, a retyped key, a function or
-   a cycle under `"*"`, `attach` refusing on meaning — leaves the old code
-   running, the revision unmoved and the keys the shape inserted taken back. A
+6. Each refusal — a stored key nothing declares, a retyped key, or a function
+   or a cycle under `"*"` — leaves the old code running, the revision unmoved
+   and the keys the shape inserted taken back. A
    many-field shape applies whole or not at all. A candidate with no
    `state_shape` is *accepted*, unchecked, on purpose. A refusal reason too
    long for one answer is cut rather than dropped, and the channel survives it.

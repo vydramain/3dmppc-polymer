@@ -61,22 +61,25 @@ each draw - and frees it itself when the disc unloads.
 ## Code != state
 
 The console keeps one persistent table alive for the whole run, independent
-of whatever chunk is currently loaded, and hands it to `M.attach(state)` —
-once at boot, right after the entry chunk is raised, and again after every
-successful reload of that chunk's code. A chunk local or a field of `M` dies
-with the code; only a field of `state` survives a reload, so that is where
-this script keeps the screen size and a frame counter it increments once per
-`frame_update`; `M.state_shape` declares both of them, and the console checks
-the live state against it before `attach` runs. Boot the `--unpacked` directory with `--dev`, change `frame_render`'s
-colours in `scripts/example-lua.lua` and send `reload entry` - the picture
-changes but the counter keeps climbing instead of resetting to 0, which is
-the whole point: the code changed, the state did not. This `attach` accepts
-every state the shape check lets through; returning `false` and a reason is
-how a chunk refuses a layout it has no migration for. Either way a reload is
-atomic in code - either the new chunk accepts the state and takes over, or it
-is refused and the old chunk keeps running untouched. Neither a Lua function
-nor a coroutine is ever stored in `state`: either would keep the old chunk's
-bytecode alive after a reload was supposed to have replaced it.
+of whatever chunk is currently loaded, and places it in the entry chunk's own
+environment under the plain name `state` — once at boot, right after the
+entry chunk is raised, and again after every successful reload of that
+chunk's code, always before any hook of the new code runs. A chunk local or a
+field of `M` dies with the code; only a field of `state` survives a reload,
+so that is where this script keeps the screen size and a frame counter it
+increments once per `frame_update`; `M.state_shape` declares both of them,
+and the console checks the live state against it before any hook of the
+candidate runs. Boot the `--unpacked` directory with `--dev`, change
+`frame_render`'s colours in `scripts/example-lua.lua` and send `reload
+entry` - the picture changes but the counter keeps climbing instead of
+resetting to 0, which is the whole point: the code changed, the state did
+not. A reload is atomic in code - either the candidate passes the shape
+check and takes over, or it is refused and the old chunk keeps running
+untouched; the console hands `state` over, it does not ask the script to
+accept it, so there is no further, script-side veto over a structurally
+valid state. Neither a Lua function nor a coroutine is ever stored in
+`state`: either would keep the old chunk's bytecode alive after a reload was
+supposed to have replaced it.
 
 A per-frame script failure does not disable scripting for the rest of the run
 either: the macro keeps calling `frame_update`/`frame_render` every frame, and

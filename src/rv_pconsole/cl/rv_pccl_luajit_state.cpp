@@ -290,7 +290,10 @@ void rv_pccl_luajit::script_status(rv_pccl_status &out) const
     out.budget = budget_;
     out.slots = static_cast<int64_t>(chunks_.size());
     out.error_seq = error_seq_;
-    out.reloadable = entry_ >= 0 && entry_attach_;
+    // Every raised entry is reloadable now: the console hands it `state`
+    // through its own environment instead of asking it to accept one, so
+    // there is no longer a per-script opt-in a chunk could lack.
+    out.reloadable = entry_ >= 0;
     out.error = error_text_;
 }
 

@@ -27,7 +27,7 @@ struct rv_pccl_status {
     int64_t budget = 0;     // the ceiling it holds them under
     int64_t slots = 0;      // handle-table size; must not grow with reloads
     int64_t error_seq = 0;  // bumped on every failed hook call, never reset
-    bool reloadable = false;// the entry was raised AND it has attach()
+    bool reloadable = false;// the entry chunk was raised
     std::string error;      // the last hook failure, empty when there was none
 };
 
@@ -53,12 +53,14 @@ struct rv_pccl_key {
 // Why a reload did not happen, in the two shapes the answer needs: a stable
 // token the client branches on, and a sentence a person reads.
 //
-// `effects_possible` is a CONSERVATIVE statement. Once the candidate's body or
-// its attach() has run, it may have written into the state table or called
-// hardware, and nothing can take that back: a voice already fed the mixer, a
-// video address the old code has never heard of is already allocated. The
-// contract is therefore "atomic in code, not in effects", and this flag is how
-// the console says so out loud instead of implying a rollback it cannot do.
+// `effects_possible` is a CONSERVATIVE statement. Once the candidate's body
+// has run - and for the entry chunk, `state` is reachable from its own
+// environment for that whole run - it may have written into the state table
+// or called hardware, and nothing can take that back: a voice already fed the
+// mixer, a video address the old code has never heard of is already
+// allocated. The contract is therefore "atomic in code, not in effects", and
+// this flag is how the console says so out loud instead of implying a
+// rollback it cannot do.
 struct rv_pccl_reload_report {
     const char *phase = "";
     bool effects_possible = false;
@@ -105,9 +107,10 @@ public:
 
     // Replace the entry chunk's code, keeping its handle. Every check runs
     // BEFORE the old code is let go - compile, run the body, demand a table,
-    // demand attach(), and run attach() against the live state - so a refusal
-    // always leaves the running code untouched. On success the handle the disc
-    // holds now names the new chunk and the disc never learns anything changed.
+    // and check the live state against the shape the candidate declares - so
+    // a refusal always leaves the running code untouched. On success the
+    // handle the disc holds now names the new chunk and the disc never learns
+    // anything changed.
     virtual int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) = 0;
 
@@ -118,7 +121,7 @@ public:
     virtual int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) = 0;
 
     // Replace the code of the module require() loaded under `name`, in place:
-    // the same compile/body/table checks as the entry, no attach and no state.
+    // the same compile/body/table checks as the entry, no state of its own.
     // Refuses a name nothing has required yet (no_module).
     virtual int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
         rv_pccl_reload_report &report) = 0;
