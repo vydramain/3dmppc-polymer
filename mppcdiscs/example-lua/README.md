@@ -26,7 +26,11 @@ example-lua/
   `rv_cl_script_call()` into the same-named Lua function, handed the organizer
   (`rv_pdko*`) as light userdata. There is no fallback: a disc that declares no
   lua machine gets the null one, `rv_cl_script_entry()` answers
-  `RV_ERR_INVAL`, and the disc refuses to start.
+  `RV_ERR_INVAL`, and the disc refuses to start. This generated
+  `disc_initialize` is only that wiring, though - it never picks what the
+  game starts as. That choice belongs to `M.disc_initialize` in the script
+  below, which this macro forwards into; see that function's own comment for
+  what it does and what the organizer handle it receives is for.
 - **`scripts/example-lua.lua`** is compiled by `mppcburner` into
   `example-lua.luac` in an archive (an `--unpacked` directory symlinks the
   `.lua` source instead) and is the chunk named above. It returns a module table

@@ -32,9 +32,9 @@ class rv_pccd_fs final : public rv_pccd {
 
     // BORROWED, set by video_attach() after construction (rv_pccd.hpp: cd_ is
     // built before cv_ exists, so this cannot be a constructor reference).
-    // Null until attached, which the six texture_* functions treat the same
-    // way asset_open treats an unmounted medium: not an error, just nothing
-    // resident yet.
+    // Null until attached, which the four rv_cd_resource_* functions (addr,
+    // palette_addr, width, height) treat the same way asset_open treats an
+    // unmounted medium: not an error, just nothing resident yet.
     rv_pccv *cv_ = nullptr;
 
     // One baked texture currently uploaded, keyed by name in `tex_by_name_`.

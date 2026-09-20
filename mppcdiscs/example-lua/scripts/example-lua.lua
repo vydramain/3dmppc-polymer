@@ -53,6 +53,27 @@ local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 -- then refused, but a body that stays pure never needs it to.
 print("Hello from example lua!")
 
+-- The disc author's decision point: this is where a game picks what it
+-- STARTS AS - a menu, a saved game's last scene, a character-creation
+-- screen, a demo loop - by calling or setting up whatever that requires.
+-- Nothing above this function makes that choice, and nothing else in this
+-- chunk runs before it does.
+--
+-- Not the same thing as RV_MPPC_LUA_DISC_DEF("example-lua")'s own generated
+-- disc_initialize (src/example-lua.cpp), which shares this name but does a
+-- different job: it raises this chunk with rv_cl_script_entry() and then
+-- forwards every lifecycle hook into its same-named Lua function, this one
+-- included. That macro IS the technical wiring - legal names, the rv_cl call
+-- shape, handing the organizer handle across - Lua exists so a disc author
+-- never has to write it. This function is the first place that wiring hands
+-- control to actual game content.
+--
+-- `o_` is that organizer handle (an rv_pdko*), passed into EVERY hook of
+-- this chunk by the console, not something this script asked for. It is not
+-- a controller itself: pdk.cv(o_), pdk.cd(o_), and pdk.ca(o_)/pdk.cio(o_)
+-- the same way, resolve it into the actual controller a call needs, so each
+-- hook only reaches for the ones it uses. Explained here, once, because
+-- every hook below takes the same `o_` for the same reason.
 function M.disc_initialize(o_)
 	local cv = pdk.cv(o_)
 
