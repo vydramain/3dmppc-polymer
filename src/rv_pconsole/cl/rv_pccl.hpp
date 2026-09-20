@@ -55,12 +55,16 @@ struct rv_pccl_key {
 //
 // `effects_possible` is a CONSERVATIVE statement. Once the candidate's body
 // has run - and for the entry chunk, `state` is reachable from its own
-// environment for that whole run - it may have written into the state table
-// or called hardware, and nothing can take that back: a voice already fed the
-// mixer, a video address the old code has never heard of is already
-// allocated. The contract is therefore "atomic in code, not in effects", and
-// this flag is how the console says so out loud instead of implying a
-// rollback it cannot do.
+// environment for that whole run - it may have called hardware, and nothing
+// can take THAT back: a voice already fed the mixer, a video address the old
+// code has never heard of is already allocated. A write into `state` itself
+// is the one exception - a shape refusal specifically means the console has
+// already put `state` back the way it was before that body ran (see
+// rv_pccl_luajit's snapshot_state_/restore_state_) - but this flag stays
+// conservative anyway, because it cannot tell that refusal apart from any
+// other by the time it is set. The contract is therefore "atomic in code,
+// effects on state undone on a shape refusal, nothing else promised", and
+// this flag is how the console says the pessimistic half of that out loud.
 struct rv_pccl_reload_report {
     const char *phase = "";
     bool effects_possible = false;
@@ -107,10 +111,11 @@ public:
 
     // Replace the entry chunk's code, keeping its handle. Every check runs
     // BEFORE the old code is let go - compile, run the body, demand a table,
-    // and check the live state against the shape the candidate declares - so
-    // a refusal always leaves the running code untouched. On success the
-    // handle the disc holds now names the new chunk and the disc never learns
-    // anything changed.
+    // and compare the live state against the shape the console remembered
+    // from the last accepted one - so a refusal always leaves the running
+    // code untouched, and the state table itself as it was before the
+    // candidate's body ran. On success the handle the disc holds now names
+    // the new chunk and the disc never learns anything changed.
     virtual int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
         rv_pccl_reload_report &report) = 0;
 

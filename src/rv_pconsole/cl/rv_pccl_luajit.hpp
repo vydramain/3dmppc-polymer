@@ -11,6 +11,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -31,18 +32,6 @@ namespace rv_3dmppc
 // budgeted machine was asked for.
 class rv_pccl_luajit final : public rv_pccl
 {
-public:
-    // One key the structural state_shape check added to the live state
-    // table because a chunk declared it and the state lacked it. `parent_ref`
-    // pins the table the key lives in, so a rollback can find it again
-    // without re-walking the tree. Public only so the free walker functions
-    // in rv_pccl_luajit_shape.cpp can name it; nothing outside this class and
-    // that file has a reason to touch it.
-    struct state_shape_insert {
-        int parent_ref;
-        std::string key;
-    };
-
 private:
     rv_pccl_conf conf_;
     rv_pccd &cd_; // BORROWED. Reads the entry asset out of the archive.
@@ -87,6 +76,24 @@ private:
     // 0 means "not created yet" for the same reason chunk_slot has no default:
     // LUA_NOREF cannot be named here. luaL_ref never hands out 0.
     int state_ref_ = 0;
+
+    // What the console remembers about `state`'s own shape: a dotted path
+    // ("enemies.3.hp") to the lua_type() tag it held the last time
+    // capture_state_shape_ accepted it. Filled once, right after the entry
+    // chunk's first disc_initialize call has returned - the moment the script
+    // has finished setting `state` up - and replaced wholesale by every
+    // accepted reload after that; see capture_state_shape_'s own comment for
+    // why a replacement, not a merge. Empty before that first capture, which
+    // is also how shape_captured_ below is redundant in principle but not
+    // worth removing: it says so without a lookup.
+    std::map<std::string, int> state_shape_;
+
+    // Guards capture_state_shape_(initial=true) so the boot capture runs
+    // exactly once, on the FIRST script_call that names "disc_initialize" on
+    // the entry chunk - a disc calls that hook exactly once by contract
+    // (pdklib/rv_dscript/rv_dscript.hpp), but this is a one-shot latch rather
+    // than trusting that from here.
+    bool shape_captured_ = false;
 
     // The entry chunk's own environment (its lua_setfenv target), reused for
     // every raise of the entry - the initial one and every reload candidate
@@ -189,36 +196,39 @@ private:
     int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
         rv_pccl_reload_report &report, bool is_entry);
 
-    // The STRUCTURAL half of the incompatible-state question: does the live
-    // state table match the shape the chunk itself declared, field by field.
-    // A chunk with no state_shape field is unaffected - this returns RV_OK
-    // having touched nothing, the same behaviour as before this check
-    // existed. Inserts declared keys the state lacks; `inserted` records
-    // exactly those keys so a refusal can undo precisely them. Refuses
-    // (message names the field path) on a key the state has and the shape
-    // did not declare, a type mismatch, or a shape value outside the
-    // supported model - and mutates nothing when it refuses.
-    int64_t check_state_shape_(int ref, std::vector<state_shape_insert> &inserted,
-        rv_pccl_reload_report &report);
+    // Builds the shape the console remembers from whatever `state` actually
+    // holds right now - see the definition for the boot/reload split
+    // (`initial`) and why a fresh build simply REPLACES state_shape_ instead
+    // of being merged into it. The value-legality, depth and node protections
+    // capture_walk still enforces can refuse a boot or a reload here; on a
+    // reload the caller (reload_entry_bytes_) is the one that makes a
+    // refusal cost nothing, via snapshot_state_/restore_state_ below.
+    int64_t capture_state_shape_(bool initial, rv_pccl_reload_report &report);
 
-    // Releases check_state_shape_'s registry pins. When `keep` is false it
-    // first nils each key back out of its parent table - undoing exactly the
-    // console's own insertions.
-    void finish_state_shape_(std::vector<state_shape_insert> &inserted, bool keep);
+    // Runs capture_walk under lua_pcall: looking a key up as a string INTERNS
+    // it, and interning allocates, so a machine that has run its script heap
+    // out must turn that allocation failure into a catchable error instead of
+    // reaching the panic handler. Argument 1 is a capture_call_args*
+    // (rv_pccl_luajit_shape.cpp).
+    static int shape_capture_trampoline_(lua_State *L);
 
-    // Runs check_state_shape_ and, once it has approved the whole tree, keeps
-    // every default it planned - there is no further, script-side veto over a
-    // structurally valid state (that used to be attach()'s job; see the
-    // definition for why it is gone). Called on the entry chunk at boot and
-    // on a reload candidate before the swap - the same two moments attach()
-    // used to run at.
-    int64_t accept_state_shape_(int ref, rv_pccl_reload_report &report);
+    // Deep-copies the live state table into a fresh one and hands back its
+    // registry ref, so a reload candidate about to run can be undone even
+    // though its body already had `state` in reach before this console ever
+    // gets to check it. Negative on an allocation failure or on hitting the
+    // walk's own depth/node bound - either way the reload refuses before the
+    // candidate is even raised, and nothing has been snapshotted to clean up.
+    int64_t snapshot_state_(int &ref_out, rv_pccl_reload_report &report);
+    static int state_snapshot_trampoline_(lua_State *L);
 
-    // The state_shape walk, run under lua_pcall: an out-of-budget allocation
-    // while building a default table then surfaces as an ordinary catchable
-    // error instead of reaching the panic handler. Argument 1 is a
-    // shape_call_args* (rv_pccl_luajit_shape.cpp).
-    static int shape_trampoline_(lua_State *L);
+    // The other half of snapshot_state_: empties the live state table in
+    // place (so every existing reference to it, in particular
+    // entry_env_ref_'s `state` field, keeps pointing at a live table) and
+    // refills it from `snapshot_ref`, then releases that ref. Called only
+    // when a reload candidate's shape capture refused - the one case where
+    // whatever the candidate's body wrote to state must not survive it.
+    void restore_state_(int snapshot_ref);
+    static int state_restore_trampoline_(lua_State *L);
 
     // The path walk, run under lua_pcall for the same reason: looking a key up
     // INTERNS it, and interning allocates, so a machine that has run its script

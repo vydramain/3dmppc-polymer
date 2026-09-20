@@ -5,6 +5,7 @@
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 
 #include <cassert>
+#include <cstring>
 #include <string>
 #include <vector>
 
@@ -89,22 +90,11 @@ int64_t rv_pccl_luajit::script_entry()
     entry_ = static_cast<int64_t>(chunks_.size() - 1);
     entry_hash_ = rv_pccl_fnv1a(bytes.data(), read);
 
-    // The state the entry starts with is always empty (this machine has just
-    // come up), so the only way this can refuse is an out-of-budget
-    // allocation while installing state_shape's own defaults - every disc,
-    // with or without a state_shape declaration, boots the same way that
-    // preceded this check.
-    rv_pccl_reload_report report;
-    const int64_t shaped = accept_state_shape_(ref, report);
-    if (shaped < 0) {
-        RV_LOG_ERR("pccl", "entry chunk '{}' failed its state shape check at boot ({}): {}",
-            rv_pdklib::rv_log_escape(conf_.script_entry.c_str()), report.phase,
-            rv_pdklib::rv_log_escape(report.message.c_str(), 256));
-        // No reference is left behind on a boot that will not happen.
-        script_free(entry_);
-        entry_ = -1;
-        return shaped;
-    }
+    // No state-shape action here any more: the chunk body has only just run
+    // (print("Hello from example lua!") and nothing else, by convention), and
+    // `state` is still whatever it was before boot - empty. The shape is
+    // captured later, from script_call, the moment this entry's own
+    // disc_initialize hook has actually populated it.
     return entry_;
 }
 // The caller already pushed argc arguments; the function lands UNDERNEATH them.
@@ -170,6 +160,27 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
         return RV_ERR_IO;
     }
     assert(lua_gettop(L_) == top - static_cast<int>(argc) + static_cast<int>(retc));
+
+    // The entry chunk's disc_initialize, the first time it is ever called, is
+    // the moment the script has finished setting `state` up (see
+    // capture_state_shape_'s own comment) - rv_dscript.hpp calls this hook
+    // exactly once per disc, always before any other one, so this is also the
+    // only place a fresh boot's shape can be learned from. shape_captured_
+    // makes the check one-shot rather than trusting that contract blindly.
+    if (handle == entry_ && !shape_captured_ && std::strcmp(fname, "disc_initialize") == 0) {
+        shape_captured_ = true;
+        rv_pccl_reload_report shape_report;
+        const int64_t captured = capture_state_shape_(/*initial=*/true, shape_report);
+        if (captured < 0) {
+            RV_LOG_ERR("pccl", "entry chunk's state was rejected right after disc_initialize ({}): {}",
+                shape_report.phase, rv_pdklib::rv_log_escape(shape_report.message.c_str(), 256));
+            ++error_seq_;
+            error_text_ = std::string(fname) + ": " + shape_report.message;
+            lua_pop(L_, static_cast<int>(retc)); // whatever disc_initialize returned; retc is 0 in practice
+            assert(lua_gettop(L_) == top - static_cast<int>(argc));
+            return captured;
+        }
+    }
     return RV_OK;
 }
 

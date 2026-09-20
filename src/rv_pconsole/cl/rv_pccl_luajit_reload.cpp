@@ -42,21 +42,40 @@ int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, 
         return RV_ERR_BUSY;
     }
 
+    // Taken BEFORE the candidate is even raised: raise_ compiles AND RUNS the
+    // candidate's chunk body to get the module table back, and that body
+    // already has `state` in reach through entry_env_ref_ - the same wiring
+    // every hook uses. A candidate that writes to state at its top level
+    // (which the entry chunk's own comment on `state` asks scripts not to do)
+    // would otherwise corrupt the table the OLD code is still running on,
+    // with nothing left to put back if the candidate is then refused.
+    int snapshot = 0;
+    const int64_t snapped = snapshot_state_(snapshot, report);
+    if (snapped < 0) {
+        return snapped;
+    }
+
     int candidate = 0;
     const int64_t raised = raise_(bytecode, size, name, candidate, report, /*is_entry=*/true);
     if (raised < 0) {
+        luaL_unref(L_, LUA_REGISTRYINDEX, snapshot);
         return raised;
     }
-    // The shape check runs on the CANDIDATE, before the patch. That order is
-    // the whole guarantee: everything that can refuse has refused by the time
-    // the running tables are touched, so there is no state in which the code
-    // has been replaced but the replacement was never accepted - and
-    // therefore nothing to roll back.
-    const int64_t shaped = accept_state_shape_(candidate, report);
+    // The shape check runs on the LIVE state, after the candidate's body has
+    // run - the reload's one and only equivalent of the moment disc_initialize
+    // fixes the shape at boot, since a reload never calls disc_initialize
+    // again. That order is still the whole guarantee: everything that can
+    // refuse has refused by the time the running tables are patched, so there
+    // is no state in which the code has been replaced but the replacement was
+    // never accepted - and a refusal here also means the snapshot above is
+    // about to give `state` itself back, not just the running code.
+    const int64_t shaped = capture_state_shape_(/*initial=*/false, report);
     if (shaped < 0) {
+        restore_state_(snapshot);
         luaL_unref(L_, LUA_REGISTRYINDEX, candidate);
         return shaped;
     }
+    luaL_unref(L_, LUA_REGISTRYINDEX, snapshot);
 
     // --- the commit: the running tables take the new code in place. The patch
     // can still refuse on its size bounds before it touches anything, or run

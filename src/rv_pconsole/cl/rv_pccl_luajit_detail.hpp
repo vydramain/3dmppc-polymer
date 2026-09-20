@@ -11,6 +11,8 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
+#include <string>
 
 #include "lua.hpp"
 
@@ -94,11 +96,16 @@ private:
     int &depth_;
 };
 
-// Bound the walk itself, independent of what either tree contains: a
-// malformed or adversarial state_shape/state pair must not be able to make
-// this run unbounded, the same reason the reload path bounds VM instructions.
-// The walk is plain C++ and executes no bytecode, so the instruction ceiling
-// cannot see it - these are the only bounds it has.
+// Bound the walk itself, independent of what the live state table contains: a
+// malformed or adversarial state must not be able to make this run unbounded,
+// the same reason the reload path bounds VM instructions. The walk is plain
+// C++ and executes no bytecode, so the instruction ceiling cannot see it -
+// these are the only bounds it has. They also double as the only cycle guard
+// this walk needs: a table that contains itself, directly or through a chain
+// of others, simply recurses until kShapeMaxDepth refuses it - a dedicated
+// cycle check bought nothing a depth cap did not already buy for free, once
+// there was no longer a second, DECLARED tree whose own depth could otherwise
+// run away independent of the live one.
 //
 // One unit is one table visited OR one key examined: counting tables alone
 // left a flat table with a huge key count costing one unit. The number is set
@@ -109,24 +116,28 @@ private:
 constexpr int kShapeMaxDepth = 16;
 constexpr int kShapeMaxNodes = 16384;
 
-// One walk's working state: which pass (validate or apply), the caps, the
-// first refusal found (a walk stops at the first one), and - APPLY only -
-// where inserted keys get recorded so a later refusal can undo them.
-struct shape_walk_ctx {
+// One capture/compare walk's working state. `old_shape` is null at boot (there
+// is nothing yet to compare against - every key found is simply new) and
+// non-null on a reload (the shape remembered since the last accepted state);
+// `fresh` collects the type of every key the walk actually finds, keyed by its
+// dotted path, and REPLACES the remembered shape wholesale once the walk
+// finishes without a refusal - that single replacement is what lets a key the
+// new code stopped using drop out and a key it added join in, with no separate
+// insert/remove bookkeeping. The type stored is a plain lua_type() tag.
+struct shape_capture_ctx {
     lua_State *L = nullptr;
-    bool apply = false;
+    bool initial = false;
+    const std::map<std::string, int> *old_shape = nullptr;
+    std::map<std::string, int> *fresh = nullptr;
     int nodes = 0;
     bool refused = false;
     std::string refuse_path;
     std::string refuse_message;
-    std::vector<const void *> shape_path;  // the shape tables on the CURRENT path: catches a cycle, permits a reused template
-    std::vector<const void *> state_seen;  // every state table already visited: catches a diamond in the game's data
-    std::vector<rv_pccl_luajit::state_shape_insert> *inserted = nullptr;
 };
 
-// Walk function declarations: the structural walk functions from _shapewalk.cpp
-// that are called by shape_trampoline_ in _shape.cpp.
-bool walk_table(shape_walk_ctx &ctx, int shape_idx, int state_idx, const std::string &path, int depth);
+// The structural walk from _shapewalk.cpp, called by capture_state_shape_ in
+// _shape.cpp.
+bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth);
 
 // The in-place patch (dev slot): patch_trampoline_ in _patch.cpp runs the
 // passes, _patchwalk.cpp holds the two walks it calls.

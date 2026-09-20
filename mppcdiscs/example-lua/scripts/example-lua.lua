@@ -9,16 +9,6 @@
 -- machine.
 local M = {}
 
--- Declares the shape of `state` (below). The console checks a reload
--- candidate's live state table against this BEFORE attach() runs: a missing
--- declared key is inserted, a stored key not declared here or with a
--- mismatched type refuses the reload.
-M.state_shape = {
-	frame_count = 0,
-	screen_width = 0,
-	screen_height = 0,
-}
-
 -- `state` is not declared anywhere in this file: the console places its ONE
 -- persistent table into this chunk's own environment, under this plain name,
 -- before any hook of this chunk ever runs - once at boot, right after this
@@ -29,6 +19,11 @@ M.state_shape = {
 -- ONLY thing that survives a reload: a chunk local or a field of M dies with
 -- the code that reload replaces. Everything this script needs to keep is a
 -- field of `state`, never a local and never a field of M.
+--
+-- This script declares no shape for it: the console learns one for itself,
+-- once, right after disc_initialize below has returned - by then `state`
+-- holds exactly the fields this script keeps, which is all the console needs
+-- to hold a later reload candidate to (see README.md's "Code != state").
 --
 -- Not stored: a function or a coroutine. Either would keep the OLD chunk's
 -- bytecode alive and callable after the swap - the state table would quietly
@@ -51,13 +46,21 @@ local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 --
 -- Nothing else runs here: the body must stay PURE (no pdk call, no write to
 -- `state`) because it also runs to VALIDATE a reload candidate, before the
--- console knows whether the candidate will pass its state_shape check. An
--- impure body would leave effects behind even for a candidate that is about
--- to be refused.
+-- console knows whether the candidate will pass its shape check. `state` is
+-- the SAME table the currently running code depends on, reachable here too,
+-- so a write at this level does not merely "leave an effect" - it corrupts
+-- the old code's own data. The console can undo that if this candidate is
+-- then refused, but a body that stays pure never needs it to.
 print("Hello from example lua!")
 
 function M.disc_initialize(o_)
 	local cv = pdk.cv(o_)
+
+	-- Nothing inserts a default for this any more - the console only WATCHES
+	-- `state`'s shape now, it does not manufacture values for it - so the
+	-- field this example exists to demonstrate has to start at 0 here, the
+	-- one time disc_initialize ever runs, or frame_update below finds nil.
+	state.frame_count = 0
 
 	-- Read something real back through pdk and log it: the headless-
 	-- verifiable proof that a Lua call reached the console's own

@@ -67,19 +67,21 @@ entry chunk is raised, and again after every successful reload of that
 chunk's code, always before any hook of the new code runs. A chunk local or a
 field of `M` dies with the code; only a field of `state` survives a reload,
 so that is where this script keeps the screen size and a frame counter it
-increments once per `frame_update`; `M.state_shape` declares both of them,
-and the console checks the live state against it before any hook of the
-candidate runs. Boot the `--unpacked` directory with `--dev`, change
-`frame_render`'s colours in `scripts/example-lua.lua` and send `reload
-entry` - the picture changes but the counter keeps climbing instead of
-resetting to 0, which is the whole point: the code changed, the state did
-not. A reload is atomic in code - either the candidate passes the shape
-check and takes over, or it is refused and the old chunk keeps running
-untouched; the console hands `state` over, it does not ask the script to
-accept it, so there is no further, script-side veto over a structurally
-valid state. Neither a Lua function nor a coroutine is ever stored in
-`state`: either would keep the old chunk's bytecode alive after a reload was
-supposed to have replaced it.
+increments once per `frame_update`. Nothing here declares that shape: the
+console learns it by itself, once, right after `disc_initialize` (below) has
+returned for the first time — by then `state` holds exactly the fields this
+script keeps, and that is what a later reload candidate is held to, field by
+field. Boot the `--unpacked` directory with `--dev`, change `frame_render`'s
+colours in `scripts/example-lua.lua` and send `reload entry` - the picture
+changes but the counter keeps climbing instead of resetting to 0, which is
+the whole point: the code changed, the state did not. A reload is atomic in
+code - either the candidate passes the shape check and takes over, or it is
+refused and the old chunk keeps running, with `state` itself put back exactly
+as it was before the candidate's body ran; the console hands `state` over, it
+does not ask the script to accept it, so there is no further, script-side
+veto over a structurally valid state. Neither a Lua function nor a coroutine
+is ever stored in `state`: either would keep the old chunk's bytecode alive
+after a reload was supposed to have replaced it.
 
 A per-frame script failure does not disable scripting for the rest of the run
 either: the macro keeps calling `frame_update`/`frame_render` every frame, and

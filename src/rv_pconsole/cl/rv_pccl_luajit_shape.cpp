@@ -1,17 +1,22 @@
-// The state_shape check and the bookkeeping around it: the walk itself, and
-// the insertions it makes to the live state table.
+// The state shape the console remembers, and the bookkeeping around it: the
+// trampoline that runs capture_walk (_shapewalk.cpp) under lua_pcall, and the
+// snapshot/restore pair that makes a reload's refusal cost nothing - the live
+// state table reads exactly as it did before the refused candidate's body
+// ever ran.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 
 #include <cassert>
+#include <map>
 #include <string>
-#include <vector>
+#include <utility>
 
 #include "lua.hpp"
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit_detail.hpp"
 
 namespace rv_3dmppc
@@ -19,13 +24,13 @@ namespace rv_3dmppc
 namespace
 {
 
-// Argument bundle for shape_trampoline_, passed as light userdata: the
-// protected call boundary means neither an exception nor a C++ return value
-// crosses it, so the answer travels back through this struct instead.
-struct shape_call_args {
+// Argument bundle for shape_capture_trampoline_, passed as light userdata:
+// the protected call boundary means neither an exception nor a C++ return
+// value crosses it, so the answer travels back through this struct instead.
+struct capture_call_args {
     rv_pccl_luajit *self = nullptr;
-    int ref = 0;
-    std::vector<rv_pccl_luajit::state_shape_insert> *inserted = nullptr;
+    bool initial = false;
+    std::map<std::string, int> fresh;
     bool refused = false;
     std::string refuse_path;
     std::string refuse_message;
@@ -33,131 +38,257 @@ struct shape_call_args {
 
 } // namespace
 
-int rv_pccl_luajit::shape_trampoline_(lua_State *L)
+int rv_pccl_luajit::shape_capture_trampoline_(lua_State *L)
 {
-    auto *args = static_cast<shape_call_args *>(lua_touserdata(L, 1));
+    auto *args = static_cast<capture_call_args *>(lua_touserdata(L, 1));
     rv_pccl_luajit *self = args->self;
 
-    lua_rawgeti(L, LUA_REGISTRYINDEX, args->ref); // [module]
-    lua_pushstring(L, "state_shape");
-    lua_rawget(L, -2); // [module, shape?]
-    const int shape_type = lua_type(L, -1);
-    if (shape_type == LUA_TNIL) {
-        lua_pop(L, 2);
-        return 0; // no declaration: behaviour is exactly what it was before this check existed
-    }
-    if (shape_type != LUA_TTABLE) {
-        lua_pop(L, 2);
-        args->refused = true;
-        args->refuse_path = "state_shape";
-        args->refuse_message = "state_shape must be a table";
-        return 0;
-    }
-    const int shape_idx = lua_gettop(L);
-    lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_); // [module, shape, state]
+    lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_);
     const int state_idx = lua_gettop(L);
 
-    shape_walk_ctx ctx;
+    shape_capture_ctx ctx;
     ctx.L = L;
-    ctx.inserted = args->inserted;
+    ctx.initial = args->initial;
+    ctx.old_shape = args->initial ? nullptr : &self->state_shape_;
+    ctx.fresh = &args->fresh;
 
-    // Pass one: validate the whole tree, mutate nothing.
-    ctx.apply = false;
-    const bool valid = walk_table(ctx, shape_idx, state_idx, "", 0);
-    if (!valid) {
-        args->refused = true;
-        args->refuse_path = ctx.refuse_path;
-        args->refuse_message = ctx.refuse_message;
-        lua_pop(L, 3);
-        return 0;
-    }
-
-    // Pass two: nothing changed since pass one, so the same walk now applies
-    // the insertions it would have planned.
-    ctx.apply = true;
-    ctx.nodes = 0;
-    ctx.shape_path.clear();
-    ctx.state_seen.clear();
-    // Checked, not asserted. An assert is gone in a release build, and this one
-    // was: pass two used to exhaust the node budget on a tree pass one had
-    // accepted, its refusal went unread, and the reload answered ok with the
-    // state HALF grown - 4438 of 5000 fields inserted, and the candidate's own
-    // hooks then running against it. Pass two failing is a console bug either
-    // way, but a refusal the caller can roll back beats a success that is not
-    // one.
-    if (!walk_table(ctx, shape_idx, state_idx, "", 0)) {
+    const bool ok = capture_walk(ctx, state_idx, "", 0);
+    if (!ok) {
         args->refused = true;
         args->refuse_path = ctx.refuse_path;
         args->refuse_message = ctx.refuse_message;
     }
-
-    lua_pop(L, 3);
     return 0;
 }
 
-int64_t rv_pccl_luajit::check_state_shape_(int ref, std::vector<state_shape_insert> &inserted,
-    rv_pccl_reload_report &report)
+// `initial=true` is the boot capture: state has just been populated by the
+// entry chunk's own disc_initialize (see script_call, which is the only
+// caller that passes true, and only once - the moment that hook returns is
+// the moment the script has finished setting up `state`, which is why the
+// console reads the shape FROM state instead of asking the chunk to declare
+// one). `initial=false` is a reload candidate: state is compared against what
+// was remembered from the last accepted capture, and the walk itself is what
+// decides the three cases a PR review asked for by name - a key whose type
+// changed refuses (capture_walk finds it), a brand new key is simply folded
+// into `fresh` with no comparison at all, and a key the new code stopped
+// writing is not visited and therefore silently absent from `fresh`. Either
+// way, once the walk finishes clean, `fresh` REPLACES state_shape_ wholesale -
+// that single assignment is what makes "dropped" and "joined" happen without
+// two more code paths to keep in sync with the walk.
+int64_t rv_pccl_luajit::capture_state_shape_(bool initial, rv_pccl_reload_report &report)
 {
     [[maybe_unused]] const int top = lua_gettop(L_);
 
-    shape_call_args args;
+    capture_call_args args;
     args.self = this;
-    args.ref = ref;
-    args.inserted = &inserted;
+    args.initial = initial;
 
-    const int rc = protected_call_(shape_trampoline_, &args);
+    const int rc = protected_call_(shape_capture_trampoline_, &args);
     if (rc != 0) {
-        // An out-of-budget allocation while building a default table; undo
-        // whatever this call had already written before the failure.
         const char *msg = lua_tostring(L_, -1);
-        finish_state_shape_(inserted, false);
         report.phase = "state_shape";
-        // The console's own pending defaults are all rolled back - but this
-        // check runs AFTER raise_ has executed the candidate's body, and that
-        // body may have written anything it could reach. effects_possible is a
-        // conservative statement about the whole attempt, not about this step.
-        report.effects_possible = true;
-        report.message = std::string("could not install defaults: ") + (msg != nullptr ? msg : "(no message)");
+        report.effects_possible = true; // whatever wrote the offending value already ran
+        report.message = std::string("could not read state: ") + (msg != nullptr ? msg : "(no message)");
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top);
         return RV_ERR_NOMEM;
     }
     assert(lua_gettop(L_) == top);
 
-    // The refusal is checked BEFORE the declaration, because a state_shape
-    // that is not a table is a refusal WITHOUT a shape: asking "was one
-    // declared" first answered no and let `state_shape = 42` install itself
-    // unchecked - the one kind of candidate this whole walk exists to stop.
     if (args.refused) {
-        // A pass-one refusal has nothing pending; a pass-two refusal does, and
-        // this is what takes those insertions back out.
-        finish_state_shape_(inserted, false);
         report.phase = "state_shape";
-        report.effects_possible = true; // the body ran before the walk did; see above
-        // A refusal at the top level has no field path, and a bare ": reason"
-        // reads like a truncated message.
-        report.message = args.refuse_path.empty() ? args.refuse_message : args.refuse_path + ": " + args.refuse_message;
+        report.effects_possible = true;
+        report.message =
+            args.refuse_path.empty() ? args.refuse_message : args.refuse_path + ": " + args.refuse_message;
         return RV_ERR_INVAL;
     }
-    // Reached both when the walk accepted the tree and when the chunk declared
-    // no state_shape at all; the second is the documented unchanged behaviour,
-    // and neither has anything left to report.
+
+    state_shape_ = std::move(args.fresh);
+    report.phase = "ok";
+    report.effects_possible = false;
+    report.message.clear();
     return RV_OK;
 }
 
-void rv_pccl_luajit::finish_state_shape_(std::vector<state_shape_insert> &inserted, bool keep)
+namespace
 {
-    for (const auto &ins : inserted) {
-        if (!keep) {
-            lua_rawgeti(L_, LUA_REGISTRYINDEX, ins.parent_ref);
-            lua_pushstring(L_, ins.key.c_str());
-            lua_pushnil(L_);
-            lua_rawset(L_, -3);
-            lua_pop(L_, 1);
-        }
-        luaL_unref(L_, LUA_REGISTRYINDEX, ins.parent_ref);
+
+// Recursively makes `dst` (assumed EMPTY on entry - a fresh table, or one
+// table_clear_ below just emptied) hold a copy of every key and value `src`
+// has. Used in both directions: state -> a snapshot before a reload
+// candidate's body runs, and snapshot -> state again should that candidate be
+// refused. Bounded by the same depth/node budget capture_walk uses, and for
+// the same reason - this walks data a script put in `state`, which the shape
+// walk itself only ever certified up to that same budget in the first place.
+bool mirror_table_(lua_State *L, int dst_idx, int src_idx, int &nodes, int depth)
+{
+    if (depth > kShapeMaxDepth || ++nodes > kShapeMaxNodes) {
+        return false;
     }
-    inserted.clear();
+    lua_pushnil(L);
+    while (lua_next(L, src_idx) != 0) {
+        // [key, value]
+        if (++nodes > kShapeMaxNodes) {
+            lua_pop(L, 2);
+            return false;
+        }
+        const int value_idx = lua_gettop(L);
+        if (lua_type(L, value_idx) == LUA_TTABLE) {
+            lua_newtable(L); // [key, value, child]
+            const int child_idx = lua_gettop(L);
+            if (!mirror_table_(L, child_idx, value_idx, nodes, depth + 1)) {
+                lua_pop(L, 3); // child, value, key
+                return false;
+            }
+            lua_pushvalue(L, -3); // [key, value, child, key]
+            lua_insert(L, -2);    // [key, value, key, child]
+            lua_rawset(L, dst_idx); // dst[key] = child; [key, value]
+            lua_pop(L, 1);           // drop value; key stays for lua_next
+            continue;
+        }
+        // A scalar - the only other shape a legal state value can have.
+        lua_pushvalue(L, -2);        // [key, value, key]
+        lua_pushvalue(L, value_idx); // [key, value, key, value]
+        lua_rawset(L, dst_idx);      // dst[key] = value; [key, value]
+        lua_pop(L, 1);               // drop value; key stays for lua_next
+    }
+    return true;
+}
+
+// Empties a table IN PLACE, never replacing it: every other reference to this
+// exact table object - in particular entry_env_ref_'s `state` field, and
+// every closure the entry chunk has ever read `state` through - keeps working
+// and simply sees zero keys until mirror_table_ repopulates it right after.
+// Keys are collected into a scratch table first, because deleting one
+// lua_next has not reached yet is not part of its contract.
+void table_clear_(lua_State *L, int idx)
+{
+    lua_newtable(L);
+    const int keys_idx = lua_gettop(L);
+    lua_Integer n = 0;
+    lua_pushnil(L);
+    while (lua_next(L, idx) != 0) {
+        lua_pop(L, 1);                  // value
+        lua_pushvalue(L, -1);           // dup the key
+        lua_rawseti(L, keys_idx, ++n);  // keys[n] = key; key itself stays for lua_next
+    }
+    for (lua_Integer i = 1; i <= n; ++i) {
+        lua_rawgeti(L, keys_idx, i);
+        lua_pushnil(L);
+        lua_rawset(L, idx);
+    }
+    lua_pop(L, 1); // keys
+}
+
+struct snapshot_args {
+    rv_pccl_luajit *self = nullptr;
+    int ref_out = -1;
+    bool ok = false;
+};
+
+struct restore_args {
+    rv_pccl_luajit *self = nullptr;
+    int snapshot_ref = 0;
+    bool ok = false;
+};
+
+} // namespace
+
+int rv_pccl_luajit::state_snapshot_trampoline_(lua_State *L)
+{
+    auto *args = static_cast<snapshot_args *>(lua_touserdata(L, 1));
+    rv_pccl_luajit *self = args->self;
+
+    lua_newtable(L);
+    const int dst_idx = lua_gettop(L);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_);
+    const int src_idx = lua_gettop(L);
+
+    int nodes = 0;
+    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0);
+    lua_pop(L, 1); // src
+    if (args->ok) {
+        args->ref_out = luaL_ref(L, LUA_REGISTRYINDEX); // pops dst
+    } else {
+        lua_pop(L, 1); // dst
+    }
+    return 0;
+}
+
+// Taken BEFORE a reload candidate is raised: raise_ runs the candidate's
+// chunk body as part of compiling it, and that body already has `state`
+// reachable (the same entry_env_ref_ wiring every hook uses) - so a candidate
+// that writes to state at its top level, rather than inside a hook, reaches
+// the SAME table the currently-running old code depends on. This is what lets
+// a later refusal give that table back exactly as it was, instead of only
+// reporting that it was disturbed.
+int64_t rv_pccl_luajit::snapshot_state_(int &ref_out, rv_pccl_reload_report &report)
+{
+    [[maybe_unused]] const int top = lua_gettop(L_);
+
+    snapshot_args args;
+    args.self = this;
+
+    const int rc = protected_call_(state_snapshot_trampoline_, &args);
+    if (rc != 0) {
+        lua_pop(L_, 1);
+        assert(lua_gettop(L_) == top);
+        report.phase = "state_shape";
+        report.effects_possible = false; // nothing of the candidate has run yet
+        report.message = "the running state could not be copied to protect it for this reload; try gc";
+        return RV_ERR_NOMEM;
+    }
+    assert(lua_gettop(L_) == top);
+    if (!args.ok) {
+        report.phase = "state_shape";
+        report.effects_possible = false;
+        report.message = "the running state is too large or too deeply nested to protect for a reload";
+        return RV_ERR_INVAL;
+    }
+    ref_out = args.ref_out;
+    return RV_OK;
+}
+
+int rv_pccl_luajit::state_restore_trampoline_(lua_State *L)
+{
+    auto *args = static_cast<restore_args *>(lua_touserdata(L, 1));
+    rv_pccl_luajit *self = args->self;
+
+    lua_rawgeti(L, LUA_REGISTRYINDEX, self->state_ref_);
+    const int dst_idx = lua_gettop(L);
+    table_clear_(L, dst_idx);
+    lua_rawgeti(L, LUA_REGISTRYINDEX, args->snapshot_ref);
+    const int src_idx = lua_gettop(L);
+
+    int nodes = 0;
+    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0);
+    lua_pop(L, 2); // src, dst
+    return 0;
+}
+
+// Undoes exactly what snapshot_state_ protected: whatever the refused
+// candidate's body wrote into `state` is gone, and the live table reads
+// again as it did the moment before raise_ ran that body - which is what
+// lets the old code keep going with its data intact instead of merely
+// keeping its bytecode. The snapshot ref is released either way; a restore
+// that cannot itself finish (an allocation failure partway through
+// repopulating an already-emptied table) is the one shape of loss this
+// cannot promise against, the same limit every other console-side walk over
+// the script heap already lives with.
+void rv_pccl_luajit::restore_state_(int snapshot_ref)
+{
+    [[maybe_unused]] const int top = lua_gettop(L_);
+    restore_args args;
+    args.self = this;
+    args.snapshot_ref = snapshot_ref;
+    if (protected_call_(state_restore_trampoline_, &args) != 0) {
+        lua_pop(L_, 1);
+        RV_LOG_ERR("pccl", "state rollback ran out of script heap partway through; state may be incomplete");
+    } else if (!args.ok) {
+        RV_LOG_ERR("pccl", "state rollback stopped at its own depth/node bound; state may be incomplete");
+    }
+    assert(lua_gettop(L_) == top);
+    luaL_unref(L_, LUA_REGISTRYINDEX, snapshot_ref);
 }
 
 } // namespace rv_3dmppc

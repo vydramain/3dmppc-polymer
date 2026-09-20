@@ -1,8 +1,10 @@
 // Entering a chunk safely: raising bytecode into a table under the
-// instruction ceiling, wiring the entry's environment in before its body
-// runs, and settling the structural half of the incompatible-state question
-// once it has. Used by both the normal boot (rv_pccl_luajit_chunks.cpp) and
-// the development reload path (rv_pccl_luajit_reload.cpp).
+// instruction ceiling, and wiring the entry's environment in before its body
+// runs. Used by both the normal boot (rv_pccl_luajit_chunks.cpp) and the
+// development reload path (rv_pccl_luajit_reload.cpp) - what either of those
+// callers does about the state shape afterwards is their own concern now
+// (rv_pccl_luajit_shape.cpp), not something raising a chunk triggers by
+// itself.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.
@@ -10,8 +12,6 @@
 
 #include <cassert>
 #include <cstddef>
-#include <string>
-#include <vector>
 
 #include "lua.hpp"
 
@@ -129,32 +129,6 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
     assert(lua_gettop(L_) == top);
     report.phase = "ok";
     report.effects_possible = false;
-    return RV_OK;
-}
-
-// The incompatible-state gate used to be two checks: a STRUCTURAL one the
-// console could run for itself (check_state_shape_) and a SEMANTIC one
-// only the new code could judge - attach(), which could refuse a
-// structurally valid state on meaning alone even though nothing in this repo
-// ever exercised that right. A PR review asked why attach lived in the
-// console's own Lua machinery instead of the disc-facing half of the
-// contract, and the owner's answer was to remove it rather than move it: the
-// console now hands the entry chunk its state (see raise_'s `is_entry`
-// wiring) instead of asking the chunk to accept delivery of it, and there is
-// no replacement for the semantic refusal that went with it. What remains is
-// the structural half: once check_state_shape_ has approved the whole tree,
-// keep every default it planned.
-int64_t rv_pccl_luajit::accept_state_shape_(int ref, rv_pccl_reload_report &report)
-{
-    std::vector<state_shape_insert> inserted;
-    const int64_t shaped = check_state_shape_(ref, inserted, report);
-    if (shaped < 0) {
-        return shaped; // report already named the field path; nothing was left mutated
-    }
-    finish_state_shape_(inserted, true); // keep every default the walk inserted
-    report.phase = "ok";
-    report.effects_possible = false;
-    report.message.clear();
     return RV_OK;
 }
 

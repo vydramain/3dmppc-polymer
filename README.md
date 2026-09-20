@@ -267,17 +267,22 @@ request is refused there rather than answered with a reload of identical bytes
 ### What it promises, and what it does not
 
 A candidate becomes the running code only after all of it passes: it compiles,
-its body runs, it returns a table, and the live state table matches the shape
-the candidate declares (`state_shape`, below — declaring none is a pass by
-default). A failure at any of those leaves the running code exactly where it
-was. **Code is atomic; effects are not** — once a candidate's body has run,
-with `state` already reachable from its own environment, it may have written
-into the state table or called hardware, and nothing can take that back,
-which is what `effects=1` on an error answer says. There is no further,
-script-side veto: the state check is structural only, and the console hands a
-passing candidate's own environment the state table directly rather than
-asking the candidate to accept delivery of it — so nothing here can refuse a
-structurally valid state on meaning alone.
+its body runs, it returns a table, and the live state table still matches the
+shape the console remembers from the last time it checked (below — no shape
+remembered yet, at first boot, is a pass by construction: whatever
+`disc_initialize` leaves in `state` right then IS the shape). A failure at any
+of those leaves the running code exactly where it was, AND leaves `state`
+exactly where it was: the candidate's body already had `state` reachable from
+its own environment before any of this runs, so the console snapshots it
+first and puts it back if the candidate is refused (`rv_pccl_luajit`'s
+`snapshot_state_`/`restore_state_`). **Code is atomic; state is restored on a
+shape refusal; nothing else is** — a candidate's body may still have called
+hardware, and nothing can take THAT back, which is what `effects=1` on an
+error answer says regardless of which check finally refused it. There is no
+further, script-side veto: the shape check is structural only, and the
+console hands a passing candidate's own environment the state table directly
+rather than asking the candidate to accept delivery of it — so nothing here
+can refuse a structurally valid state on meaning alone.
 
 Once every check has passed, the running tables are updated in place rather
 than replaced. The table the file returned, and every table inside it that the
@@ -299,55 +304,49 @@ script author:
 The state table and the modules `require` has loaded are live data, not part of
 the candidate: the in-place walk does not enter them.
 
-Not offered: rolling back effects, hot-swapping C++, interrupting a hung C or
-FFI call, or recovering a session after a restart. A hung Lua hook is
-interrupted in a development build only: every hook call runs under the same
-instruction ceiling as a reload candidate, and a call that runs past it fails
-like any raised error - with `--dev` the loop stops on a `script_error` event.
-The count hook that takes is not free, so a Lua-heavy frame runs measurably
-slower in a development build; a player build arms no ceiling.
+Not offered: rolling back a hardware call, hot-swapping C++, interrupting a
+hung C or FFI call, or recovering a session after a restart. A hung Lua hook
+is interrupted in a development build only: every hook call runs under the
+same instruction ceiling as a reload candidate, and a call that runs past it
+fails like any raised error - with `--dev` the loop stops on a
+`script_error` event. The count hook that takes is not free, so a Lua-heavy
+frame runs measurably slower in a development build; a player build arms no
+ceiling.
 
-A chunk may declare `state_shape`, a table literal describing the persistent
-state it expects:
+No chunk declares a shape any more. The console reads one for itself, once,
+from the live state table itself, right after the entry chunk's first
+`disc_initialize` call has returned - the moment a script has finished
+setting `state` up is also the moment the console has something worth
+remembering. What it remembers is a name and a value type for every key
+`state` holds, at every depth. A later reload candidate is held to exactly
+that:
 
-```lua
-state_shape = {
-    frame_count = 0,
-    tex_name = "",
-    enemies = { ["*"] = { hp = 0, x = 0.0 } },
-}
-```
+- a key whose type changed is refused, naming the field path, e.g.
+  `frame_count: expected number, found string`;
+- a key the new code added is accepted, and joins what the console
+  remembers from then on;
+- a key the new code stopped using is accepted too, and quietly drops out of
+  what the console remembers - the new code is the one that gets to say what
+  `state` still needs.
 
-Before any hook of the candidate runs, the console walks the live state against this shape: a
-declared key already stored keeps its value if the type matches; a declared
-key missing from state is inserted; a stored key that is not declared is
-refused, so nothing is orphaned in silence; a type mismatch is refused, naming
-the field path. A table whose only declared key is `"*"` is an open
-collection — every key of the matching state table is checked against the
-shape under `"*"`, which is how a script declares `enemies` without naming
-every id. Allowed values are number, string, boolean and nested table; a
-function, coroutine, userdata and a cycle are refused. The two sides are
-checked differently, and deliberately: a shape table may be reached again on
-a sibling path — that is what `"*"` IS, one template handed to every element
-in turn — and refuses only when it is its own ancestor, which is a cycle. A
-STATE table reached twice refuses, because two fields holding one table means
-a default inserted through one path silently changes the other. No `state_shape` at all skips the check, so a disc built
-before this keeps working unchanged.
-
-The walk is two passes: the first validates the whole tree without mutating
-anything, the second inserts. If the walk itself refuses, the console removes
-exactly the keys it had inserted so far — a refusal this way leaves the state
-as the old code left it. What the candidate's own body wrote before the walk
-ran is not undone, per the `effects=1` contract above. The walk is bounded by
-a maximum nesting depth and a budget spent per table visited and per key
-examined.
+Allowed values are number, string, boolean and table; a function, a
+coroutine, userdata and a thread are refused outright, wherever in the tree
+they turn up - any of them would keep the old chunk's bytecode alive past a
+reload that was supposed to have replaced it. The walk that finds all this is
+bounded by a maximum nesting depth and a budget spent per table visited and
+per key examined - the same two bounds a runaway or adversarial `state` was
+always going to need, now doing double duty as the only cycle guard the walk
+has: a table containing itself just recurses until the depth bound refuses
+it.
 
 A refusal from the shape check answers with the error token `state_shape` and
-a message naming the field path, e.g. `screen_width: expected string, stored
-number` — with `effects=1`, because the walk runs after the candidate's body
-has already executed. The console takes back its own insertions; it cannot
-take back what the body did. `state_shape` present but not a table is that
-same refusal, not a chunk without a declaration.
+a message naming the field path, e.g. `frame_count: expected number, found
+string` — with `effects=1`, because the walk runs after the candidate's body
+has already executed and may have called hardware; `state` itself, though, is
+exactly what it was before that body ran, because the console snapshots it
+first and puts it back (above). Nothing is remembered from a refused walk: a
+partial reshaping of the console's memory of the shape would be worse than no
+reshaping at all.
 
 ### What still needs a restart
 
@@ -402,14 +401,14 @@ whoever wrote the script:
 4. `pause` stops at a boundary, `step` runs exactly one frame and is answered
    after it, `resume` carries on — with the frame counter agreeing.
 5. A successful reload keeps the state and the next frame runs the new code.
-6. Each refusal — a stored key nothing declares, a retyped key, or a function
-   or a cycle under `"*"` — leaves the old code running, the revision unmoved
-   and the keys the shape inserted taken back. A
-   many-field shape applies whole or not at all. A candidate with no
-   `state_shape` is *accepted*, unchecked, on purpose. A refusal reason too
-   long for one answer is cut rather than dropped, and the channel survives it.
-   A candidate whose body tries to free the running entry is told to try later,
-   and the old code stays callable.
+6. A retyped key refuses a reload — old code running, revision unmoved, and
+   `state` put back exactly as it read before the candidate's body ran. A new
+   key is accepted and remembered; a key the new code stopped using is
+   accepted and forgotten. A candidate is accepted, unchecked, the first time
+   the console has nothing remembered to compare against yet (first boot). A
+   refusal reason too long for one answer is cut rather than dropped, and the
+   channel survives it. A candidate whose body tries to free the running
+   entry is told to try later, and the old code stays callable.
 7. Reload repeats within one run without a stack or resource error.
 8. A texture refreshes with no game hook and reports its new size; a truncated
    candidate, a non-container and a paletted texture carrying no palette are
