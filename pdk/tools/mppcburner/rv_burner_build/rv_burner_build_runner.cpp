@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <format>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -216,11 +217,11 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         return 1;
     }
 
+    const char *scripts_wording =
+        destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
     rv_burner_print_step(3, "assets",
-        std::to_string(plan.texture_count) + " png -> .mppctex, " +
-            std::to_string(plan.script_count) +
-            (destination.kind == rv_burner_destination_kind::directory ? " lua (uncompiled), " : " lua -> .luac, ") +
-            std::to_string(plan.asset_count) + " copied");
+        std::format("{} png -> .mppctex, {} {}, {} copied", plan.texture_count, plan.script_count,
+            scripts_wording, plan.asset_count));
     return 0;
 }
 
