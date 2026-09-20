@@ -35,9 +35,10 @@ local state
 
 -- The one texture this script draws. It never acquires or releases it - it
 -- only ever names it. The drive makes it resident the first time any of the
--- four pdk.cd_texture_* calls asks for this name, keeps it resident and
--- refreshes it in place on a dev reload, and frees it itself when this disc
--- unloads, so this script has nothing to hold onto but the name.
+-- four pdk.cd_resource_* calls asks for this name and RV_CD_RESOURCE_TEXTURE,
+-- keeps it resident and refreshes it in place on a dev reload, and frees it
+-- itself when this disc unloads, so this script has nothing to hold onto but
+-- the name.
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
@@ -129,7 +130,7 @@ function M.frame_render(o_)
 	-- address because the name can fail to resolve (e.g. the asset missing)
 	-- without disc_initialize itself refusing to start.
 	local cd = pdk.cd(o_)
-	local addr_texture = tonumber(pdk.cd_texture_addr(cd, ASSET_TEXTURE_NAME))
+	local addr_texture = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
 	if addr_texture >= 0 then
 		local sprite_primitive = pdk.new("rv_primitive")
 		sprite_primitive.type = pdk.PRIMITIVE_SPRITE
@@ -138,13 +139,13 @@ function M.frame_render(o_)
 		local sprite = sprite_primitive.data.sprite
 		sprite.fill_mode = pdk.PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE
 		sprite.addr_texture = addr_texture
-		sprite.addr_palette = tonumber(pdk.cd_texture_palette_addr(cd, ASSET_TEXTURE_NAME))
+		sprite.addr_palette = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
 		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
 		sprite.mapping = pdk.TEXWRAP_CLAMP
 		sprite.x = 16
 		sprite.y = 16
-		sprite.width = tonumber(pdk.cd_texture_width(cd, ASSET_TEXTURE_NAME))
-		sprite.height = tonumber(pdk.cd_texture_height(cd, ASSET_TEXTURE_NAME))
+		sprite.width = tonumber(pdk.cd_resource_width(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
+		sprite.height = tonumber(pdk.cd_resource_height(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
 
 		pdk.cv_frame_put(cv, sprite_primitive)
 	end

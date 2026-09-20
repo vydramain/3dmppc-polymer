@@ -313,7 +313,14 @@ int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header& header, 
 // resident texture - read, decode, upload, and remember it for every ask
 // that follows, including the ones made through a different one of the four
 // query functions below.
-int64_t rv_pccd_fs::texture_resolve_(const char* resname, texture_record*& record_out) {
+int64_t rv_pccd_fs::texture_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& record_out) {
+    // The one gate every resource_* query routes through. Only the texture
+    // kind is implemented, so anything else is a malformed argument - the
+    // same rv_err a bad handle or a short buffer gets elsewhere in this
+    // contract - and a second kind will add its own branch here rather than
+    // touching the four callers.
+    if (kind != RV_CD_RESOURCE_TEXTURE) return RV_ERR_INVAL;
+
     // No video attached is the same situation as no medium mounted: a legal
     // machine state, not a caller error, so it answers the way asset_open
     // answers an unmounted drive - nothing can be made resident yet.
@@ -363,30 +370,30 @@ int64_t rv_pccd_fs::texture_resolve_(const char* resname, texture_record*& recor
     return RV_OK;
 }
 
-int64_t rv_pccd_fs::texture_addr(const char* resname) {
+int64_t rv_pccd_fs::resource_addr(rv_cd_resource_kind kind, const char* resname) {
     texture_record* record = nullptr;
-    const int64_t rc = texture_resolve_(resname, record);
+    const int64_t rc = texture_resolve_(kind, resname, record);
     if (rc < 0) return rc;
     return record->tex_addr;
 }
 
-int64_t rv_pccd_fs::texture_palette_addr(const char* resname) {
+int64_t rv_pccd_fs::resource_palette_addr(rv_cd_resource_kind kind, const char* resname) {
     texture_record* record = nullptr;
-    const int64_t rc = texture_resolve_(resname, record);
+    const int64_t rc = texture_resolve_(kind, resname, record);
     if (rc < 0) return rc;
     return record->pal_addr;
 }
 
-int64_t rv_pccd_fs::texture_width(const char* resname) {
+int64_t rv_pccd_fs::resource_width(rv_cd_resource_kind kind, const char* resname) {
     texture_record* record = nullptr;
-    const int64_t rc = texture_resolve_(resname, record);
+    const int64_t rc = texture_resolve_(kind, resname, record);
     if (rc < 0) return rc;
     return record->width;
 }
 
-int64_t rv_pccd_fs::texture_height(const char* resname) {
+int64_t rv_pccd_fs::resource_height(rv_cd_resource_kind kind, const char* resname) {
     texture_record* record = nullptr;
-    const int64_t rc = texture_resolve_(resname, record);
+    const int64_t rc = texture_resolve_(kind, resname, record);
     if (rc < 0) return rc;
     return record->height;
 }

@@ -50,8 +50,9 @@ example-lua/
 Past the triangle, the script also draws `example-sprite.mppctex` from the
 drive. It never acquires or releases the texture - it only names it. Every
 `frame_render`, it queries the drive for that name's current address, palette
-address, width and height with `pdk.cd_texture_addr`, `cd_texture_palette_addr`,
-`cd_texture_width`, and `cd_texture_height`. The drive makes the texture
+address, width and height with `pdk.cd_resource_addr`, `cd_resource_palette_addr`,
+`cd_resource_width`, and `cd_resource_height`, each passed `pdk.CD_RESOURCE_TEXTURE`
+as the kind it is asking about. The drive makes the texture
 resident the first time any of those names it, keeps it resident and
 refreshes it in place on a dev reload - the name is stable, the addresses
 change, and the game picks the new texture up by asking for the address fresh

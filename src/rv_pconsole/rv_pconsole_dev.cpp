@@ -328,8 +328,8 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
     // resident, so this is a cache hit that costs no reupload. The editor
     // needs the numbers because a RESIZED texture is the one case its own
     // layout has to follow, and nothing else in the protocol carries them.
-    const int64_t width = cd_->texture_width(key.c_str());
-    const int64_t height = cd_->texture_height(key.c_str());
+    const int64_t width = cd_->resource_width(RV_CD_RESOURCE_TEXTURE, key.c_str());
+    const int64_t height = cd_->resource_height(RV_CD_RESOURCE_TEXTURE, key.c_str());
     dev_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pcdev_hex(key),
         width < 0 ? 0 : width, height < 0 ? 0 : height));
 }

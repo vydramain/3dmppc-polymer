@@ -83,13 +83,13 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
-    int64_t texture_addr(const char* resname) override;
+    int64_t resource_addr(rv_cd_resource_kind kind, const char* resname) override;
 
-    int64_t texture_palette_addr(const char* resname) override;
+    int64_t resource_palette_addr(rv_cd_resource_kind kind, const char* resname) override;
 
-    int64_t texture_width(const char* resname) override;
+    int64_t resource_width(rv_cd_resource_kind kind, const char* resname) override;
 
-    int64_t texture_height(const char* resname) override;
+    int64_t resource_height(rv_cd_resource_kind kind, const char* resname) override;
 
     int64_t texture_reload(const char* resname) override;
 
@@ -123,7 +123,12 @@ class rv_pccd_fs final : public rv_pccd {
     // the return is RV_OK or the negative rv_err reading, decoding or
     // uploading answered (the same rv_err asset_open would give the name,
     // when that is where it failed).
-    int64_t texture_resolve_(const char* resname, texture_record*& record_out);
+    // This is also the ONE gate every resource_* query above routes through,
+    // so it is the one place `kind` is checked: a kind other than
+    // RV_CD_RESOURCE_TEXTURE is refused with RV_ERR_INVAL right here, not in
+    // each of the four callers. A second kind gets its own record type and
+    // its own branch out of this gate, not a rewrite of the four callers.
+    int64_t texture_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& record_out);
 
     // Shared by texture_resolve_() and texture_reload(): open, measure, allocate
     // and read `resname`'s whole current contents into `bytes_out`. Returns

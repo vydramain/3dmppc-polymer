@@ -27,22 +27,22 @@ int64_t rv_pccd_null::asset_read(int64_t /*handle*/, void * /*baddr*/, int64_t /
     return RV_ERR_INVAL;
 }
 
-int64_t rv_pccd_null::texture_addr(const char * /*resname*/)
+int64_t rv_pccd_null::resource_addr(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
 {
     return RV_ERR_INVAL;
 }
 
-int64_t rv_pccd_null::texture_palette_addr(const char * /*resname*/)
+int64_t rv_pccd_null::resource_palette_addr(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
 {
     return RV_ERR_INVAL;
 }
 
-int64_t rv_pccd_null::texture_width(const char * /*resname*/)
+int64_t rv_pccd_null::resource_width(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
 {
     return RV_ERR_INVAL;
 }
 
-int64_t rv_pccd_null::texture_height(const char * /*resname*/)
+int64_t rv_pccd_null::resource_height(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
 {
     return RV_ERR_INVAL;
 }

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "pdk/cd/rv_cd.h"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
 
 namespace rv_3dmppc
@@ -30,18 +31,21 @@ public:
 
     virtual int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) = 0;
 
-    // A disc never acquires or releases a texture - it only ever names one.
+    // A disc never acquires or releases a resource - it only ever names one.
     // The drive makes a name resident on the first of these four calls to ask
     // for it, and keeps it resident until the disc that named it is
     // unloaded, at which point the drive frees everything it made resident
     // (see rv_pccd_fs's destructor) - the disc never frees anything itself.
-    virtual int64_t texture_addr(const char *resname) = 0;
+    // `kind` is rv_cd.h's rv_cd_resource_kind; only RV_CD_RESOURCE_TEXTURE
+    // exists today, and any other value is refused (see rv_pccd_fs's
+    // texture_resolve_, the one place that refusal lives).
+    virtual int64_t resource_addr(rv_cd_resource_kind kind, const char *resname) = 0;
 
-    virtual int64_t texture_palette_addr(const char *resname) = 0;
+    virtual int64_t resource_palette_addr(rv_cd_resource_kind kind, const char *resname) = 0;
 
-    virtual int64_t texture_width(const char *resname) = 0;
+    virtual int64_t resource_width(rv_cd_resource_kind kind, const char *resname) = 0;
 
-    virtual int64_t texture_height(const char *resname) = 0;
+    virtual int64_t resource_height(rv_cd_resource_kind kind, const char *resname) = 0;
 
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;

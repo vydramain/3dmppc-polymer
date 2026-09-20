@@ -22,22 +22,22 @@ extern "C" int64_t rv_cd_asset_read(rv_cd *cd, int64_t handle, void *baddr, int6
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->asset_read(handle, baddr, baddr_size);
 }
 
-extern "C" int64_t rv_cd_texture_addr(rv_cd *cd, const char *resname)
+extern "C" int64_t rv_cd_resource_addr(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_addr(resname);
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_addr(kind, resname);
 }
 
-extern "C" int64_t rv_cd_texture_palette_addr(rv_cd *cd, const char *resname)
+extern "C" int64_t rv_cd_resource_palette_addr(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_palette_addr(resname);
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_palette_addr(kind, resname);
 }
 
-extern "C" int64_t rv_cd_texture_width(rv_cd *cd, const char *resname)
+extern "C" int64_t rv_cd_resource_width(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_width(resname);
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_width(kind, resname);
 }
 
-extern "C" int64_t rv_cd_texture_height(rv_cd *cd, const char *resname)
+extern "C" int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
-    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->texture_height(resname);
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_height(kind, resname);
 }

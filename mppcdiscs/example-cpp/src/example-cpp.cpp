@@ -132,9 +132,10 @@ void rv_dmain::frame_render()
     rv_cv_frame_configure(cv, 0, rv_color{ 20, 24, 40 });
 
     rv_cd *cd = rv_pdko_cd(pdk_);
-    const int64_t addr_texture = rv_cd_texture_addr(cd, RV_EXAMPLE_CPP_TEXTURE_NAME);
+    const int64_t addr_texture = rv_cd_resource_addr(cd, RV_CD_RESOURCE_TEXTURE, RV_EXAMPLE_CPP_TEXTURE_NAME);
     if (addr_texture >= 0) {
-        const int64_t addr_palette = rv_cd_texture_palette_addr(cd, RV_EXAMPLE_CPP_TEXTURE_NAME);
+        const int64_t addr_palette =
+            rv_cd_resource_palette_addr(cd, RV_CD_RESOURCE_TEXTURE, RV_EXAMPLE_CPP_TEXTURE_NAME);
         const rv_texture_mapping_type modes[3] = {
             RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
         };
