@@ -5,8 +5,7 @@
 #include <fstream>
 #include <ios>
 
-#include "rv_burner_common/rv_burner_bytes.hpp"
-#include "rv_burner_zip/rv_burner_zip_format.hpp"
+#include "pdklib/rv_zip/rv_zip_format.hpp"
 
 namespace fs = std::filesystem;
 
@@ -52,7 +51,7 @@ static bool zip_list(
     std::vector<zip_read_entry> &out,
     std::string &error)
 {
-    if (bytes.size() < k_eocd_size) {
+    if (bytes.size() < rv_pdklib::rv_zip_eocd_size) {
         error = "file is too small to be a zip archive";
         return false;
     }
@@ -61,13 +60,18 @@ static bool zip_list(
     //
     // It is the last record in the file, but a comment of up to 64 KiB may
     // follow it, so it is found by scanning backwards for its signature rather
-    // than by seeking to a fixed offset.
+    // than by seeking to a fixed offset. Unlike the console's reader, this one
+    // does not also check that the comment-length field matches the bytes that
+    // actually follow the record: this tool trusts a file the developer just
+    // produced, and the extra check is not worth restating here.
     std::size_t eocd = 0;
     bool found = false;
-    const std::size_t limit = std::min(bytes.size(), k_eocd_size + k_max_comment_size);
-    for (std::size_t back = k_eocd_size; back <= limit; ++back) {
+    const std::size_t limit = std::min(bytes.size(), rv_pdklib::rv_zip_eocd_size + rv_pdklib::rv_zip_max_comment_size);
+    for (std::size_t back = rv_pdklib::rv_zip_eocd_size; back <= limit; ++back) {
         const std::size_t at = bytes.size() - back;
-        if (read_le_u32(bytes.data() + at + ZIP_EOCD_OFF_SIG) == k_sig_eocd) {
+        const rv_pdklib::rv_zip_eocd rec =
+            rv_pdklib::rv_zip_decode_eocd({bytes.data() + at, rv_pdklib::rv_zip_eocd_size});
+        if (rec.signature == rv_pdklib::rv_zip_sig_eocd) {
             eocd = at;
             found = true;
             break;
@@ -80,10 +84,11 @@ static bool zip_list(
 
     // --- walk the directory ---
 
-    const uint16_t count = read_le_u16(bytes.data() + eocd + ZIP_EOCD_OFF_ENTRY_COUNT);
-    const uint32_t directory_size = read_le_u32(bytes.data() + eocd + ZIP_EOCD_OFF_DIRECTORY_SIZE);
-    const uint32_t directory_offset =
-        read_le_u32(bytes.data() + eocd + ZIP_EOCD_OFF_DIRECTORY_OFFSET);
+    const rv_pdklib::rv_zip_eocd eocd_rec =
+        rv_pdklib::rv_zip_decode_eocd({bytes.data() + eocd, rv_pdklib::rv_zip_eocd_size});
+    const uint16_t count = eocd_rec.entries_total;
+    const uint32_t directory_size = eocd_rec.cd_size;
+    const uint32_t directory_offset = eocd_rec.cd_offset;
     if (static_cast<std::size_t>(directory_offset) + directory_size > bytes.size()) {
         error = "central directory runs past the end of the file";
         return false;
@@ -94,32 +99,36 @@ static bool zip_list(
         // Checked before every read: the count and the offsets come from the
         // file itself, so a truncated or edited archive must not be trusted to
         // stay inside its own bounds.
-        if (at + k_central_header_size > bytes.size() ||
-            read_le_u32(bytes.data() + at + ZIP_CENTRAL_OFF_SIG) != k_sig_central) {
+        if (at + rv_pdklib::rv_zip_central_header_size > bytes.size()) {
+            error = "central directory entry " + std::to_string(i) + " is malformed";
+            return false;
+        }
+        const rv_pdklib::rv_zip_central_header ch =
+            rv_pdklib::rv_zip_decode_central_header({bytes.data() + at, rv_pdklib::rv_zip_central_header_size});
+        if (ch.signature != rv_pdklib::rv_zip_sig_central) {
             error = "central directory entry " + std::to_string(i) + " is malformed";
             return false;
         }
 
         zip_read_entry entry;
-        entry.method = read_le_u16(bytes.data() + at + ZIP_CENTRAL_OFF_METHOD);
-        entry.size = read_le_u32(bytes.data() + at + ZIP_CENTRAL_OFF_SIZE);
-        entry.local_offset = read_le_u32(bytes.data() + at + ZIP_CENTRAL_OFF_LOCAL_OFFSET);
+        entry.method = ch.method;
+        entry.size = ch.uncompressed_size;
+        entry.local_offset = ch.local_header_offset;
 
-        const uint16_t name_length = read_le_u16(bytes.data() + at + ZIP_CENTRAL_OFF_NAME_LENGTH);
-        const uint16_t extra_length = read_le_u16(bytes.data() + at + ZIP_CENTRAL_OFF_EXTRA_LENGTH);
-        const uint16_t comment_length =
-            read_le_u16(bytes.data() + at + ZIP_CENTRAL_OFF_COMMENT_LENGTH);
+        const uint16_t name_length = ch.name_length;
+        const uint16_t extra_length = ch.extra_length;
+        const uint16_t comment_length = ch.comment_length;
 
-        if (at + k_central_header_size + name_length > bytes.size()) {
+        if (at + rv_pdklib::rv_zip_central_header_size + name_length > bytes.size()) {
             error = "central directory entry " + std::to_string(i) + " has a runaway name";
             return false;
         }
         entry.name.assign(
-            reinterpret_cast<const char *>(bytes.data()) + at + k_central_header_size,
+            reinterpret_cast<const char *>(bytes.data()) + at + rv_pdklib::rv_zip_central_header_size,
             name_length);
 
         out.push_back(entry);
-        at += k_central_header_size + name_length + extra_length + comment_length;
+        at += rv_pdklib::rv_zip_central_header_size + name_length + extra_length + comment_length;
     }
 
     return true;
@@ -165,13 +174,18 @@ bool rv_pdktools::zip_entry_bytes(
     // The central directory said the local header is here; the local header has
     // to agree. They disagree in exactly one interesting case — an archive
     // edited or truncated after it was written.
-    if (at + k_local_header_size > bytes.size() ||
-        read_le_u32(bytes.data() + at + ZIP_LOCAL_OFF_SIG) != k_sig_local) {
+    if (at + rv_pdklib::rv_zip_local_header_size > bytes.size()) {
+        error = "entry '" + entry.name + "' has no local header where the directory says";
+        return false;
+    }
+    const rv_pdklib::rv_zip_local_header lh =
+        rv_pdklib::rv_zip_decode_local_header({bytes.data() + at, rv_pdklib::rv_zip_local_header_size});
+    if (lh.signature != rv_pdklib::rv_zip_sig_local) {
         error = "entry '" + entry.name + "' has no local header where the directory says";
         return false;
     }
 
-    if (entry.method != k_method_store) {
+    if (entry.method != rv_pdklib::rv_zip_method_store) {
         error = "entry '" + entry.name + "' is compressed; .mppcdisc is store-only";
         return false;
     }
@@ -179,9 +193,7 @@ bool rv_pdktools::zip_entry_bytes(
     // The name and extra fields sit between the header and the data, and their
     // lengths are the local header's own, not the directory's — the two are
     // allowed to differ in the extra field.
-    const std::size_t data = at + k_local_header_size +
-        read_le_u16(bytes.data() + at + ZIP_LOCAL_OFF_NAME_LENGTH) +
-        read_le_u16(bytes.data() + at + ZIP_LOCAL_OFF_EXTRA_LENGTH);
+    const std::size_t data = at + rv_pdklib::rv_zip_local_header_size + lh.name_length + lh.extra_length;
     if (data + static_cast<std::size_t>(entry.size) > bytes.size()) {
         error = "entry '" + entry.name + "' runs past the end of the file";
         return false;
