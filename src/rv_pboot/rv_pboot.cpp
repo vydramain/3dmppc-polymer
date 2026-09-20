@@ -12,11 +12,10 @@
 #include "rv_pboot_budget.hpp"
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
+#include "rv_pboot_discmedium.hpp"
 #include "rv_pboot_machine.hpp"
 #include "rv_pboot_modes.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "rv_pconsole/cd/rv_pcmedium.hpp"
-#include "rv_pconsole/cd/rv_pczipmedium.hpp"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
@@ -35,18 +34,6 @@ namespace rv_3dmppc
 
 namespace
 {
-
-// Whether the positional disc path names a directory rather than a
-// `.mppcdisc` archive. rv_pboot_budget_select() already asked the filesystem
-// this same question to pick mount()/mount_dir(); this run asks it again for
-// medium_live and for which rv_pcmedium to insert, rather than have the
-// loader hand the answer back through a new field of its own.
-bool rv_pboot_disc_is_directory(const char *disc_path)
-{
-    std::error_code ec;
-    return disc_path != nullptr &&
-        std::filesystem::is_directory(std::filesystem::path(disc_path), ec);
-}
 
 // Parses the command line, resolves the mode/slots and the pause/dump
 // combination, and learns the machine - all of it before any disc code, any
@@ -130,7 +117,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
 // continue booting; on false, `exit_code` is what rv_pboot_run must return.
 bool rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
     const rv_pboot_mode_info &machine, const rv_pdklib::rv_manifest_budget *budget,
-    rv_pconsole_conf &conf, int &exit_code)
+    bool medium_live, rv_pconsole_conf &conf, int &exit_code)
 {
     // Resolve cl before evaluation so the row checked below is the row
     // rv_pccl_make later builds.
@@ -154,10 +141,10 @@ bool rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
     // An archive cannot change while it is mounted; an unpacked directory can
     // - that is the whole reason a directory disc exists (see rv_pcloader.hpp
     // and mppcburner's --unpacked). medium_live is what lets the rest of the
-    // console tell those two apart, so it is set here, once, from the same
-    // filesystem answer rv_pboot_budget_select() already used to choose
-    // mount() vs mount_dir(). An archive keeps the default, false.
-    conf.params.medium_live = rv_pboot_disc_is_directory(args.disc_path);
+    // console tell those two apart; it is rv_pboot_budget_select()'s own
+    // verdict, from the one mount rv_pboot_disc_mount() already made, not a
+    // second filesystem answer of this function's own.
+    conf.params.medium_live = medium_live;
     return true;
 }
 
@@ -197,12 +184,13 @@ int rv_pboot_run(int argc, char **argv)
     // service test carries no manifest, so it runs on the reference
     // specification.
     const rv_pdklib::rv_manifest_budget *budget = nullptr;
-    if (rv_pboot_budget_select(args, loader, budget) < 0) {
+    bool medium_live = false;
+    if (rv_pboot_budget_select(args, loader, budget, medium_live) < 0) {
         return 1;
     }
 
     rv_pconsole_conf conf;
-    if (!rv_pboot_prepare_conf(args, slots, machine, budget, conf, exit_code)) {
+    if (!rv_pboot_prepare_conf(args, slots, machine, budget, medium_live, conf, exit_code)) {
         return exit_code;
     }
 
@@ -255,14 +243,11 @@ int rv_pboot_run(int argc, char **argv)
         // The archive is the shipped form and cannot change while mounted; the
         // unpacked directory is the development form, and its entries may be
         // symlinks to the author's own files, which is exactly what makes a
-        // live script reload possible (conf.params.medium_live above).
-        if (conf.params.medium_live) {
-            console->drive().medium_insert(
-                std::make_unique<rv_pcdirmedium>(std::string(args.disc_path)));
-        } else {
-            console->drive().medium_insert(
-                std::make_unique<rv_pczipmedium>(std::string(args.disc_path)));
-        }
+        // live script reload possible (conf.params.medium_live above). Which
+        // medium that is, per this build, is rv_pboot_disc_medium()'s call
+        // (rv_pboot_discmedium.hpp) - a player build's medium_live is always
+        // false, so it always gets the archive medium back.
+        console->drive().medium_insert(rv_pboot_disc_medium(args.disc_path, conf.params.medium_live));
 
         return static_cast<int>(console->disc_run(loader.disc()) < 0 ? 1 : 0);
     }
