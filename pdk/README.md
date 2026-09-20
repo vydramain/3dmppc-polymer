@@ -457,6 +457,17 @@ shorter spelling of the same path, not a layer in front of it: the cast is
 `ffi.cast` on a pointer (no allocation) and the accessor is the very export
 the long form called.
 
+A second chunk, sourced from pdklib rather than the console
+(`pdklib/rv_dscript/rv_dscript_lua.hpp`, `RV_PDKLIB_LUA_HELPERS_SRC`), is
+raised into the same `pdk` table right after: `pdk.resource_resolve(o, name)`
+folds the drive's four `cd_resource_*` calls (kind fixed at
+`RV_CD_RESOURCE_TEXTURE`) behind one asset name, and
+`pdk.primitive_sprite`/`pdk.primitive_polygon` hand back an `rv_primitive`
+with every field the console requires already set. The console only raises
+this chunk, the same `luaL_loadbuffer` + `pcall` shape as its own bootstrap -
+it does not author it, and the line stays where it is everywhere else in PDK:
+position, depth, colour and vertex data are the game's, never pdklib's.
+
 `require` is the console's own, not the stock one, which would read the host
 filesystem. `require("entity")` reads the module off the disc through the
 drive: `entity.luac` in an archive, `entity.lua` in an `--unpacked` directory -

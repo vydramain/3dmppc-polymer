@@ -44,8 +44,10 @@ example-lua/
   differently-coloured vertices Gouraud-interpolate into a red→green→blue
   gradient — the same configure-then-`cv_frame_put` shape `example-cpp.cpp`
   uses for its own
-  sprites, built from a `rv_primitive` the script constructs itself with
-  `pdk.new`. The C++ side flushes the frame right after the hook returns: the
+  sprites, built from an `rv_primitive` that `pdk.primitive_polygon(3)`
+  (pdklib, not this script) hands back with every field the console requires
+  already set; the script only ever sets what that helper leaves alone —
+  depth and the three vertices' positions and colours. The C++ side flushes the frame right after the hook returns: the
   macro's `frame_render()` is one `rv_cl_script_call()` followed by one
   `rv_cv_frame_flush()`, and a failed call skips the flush.
 
@@ -53,14 +55,18 @@ example-lua/
 
 Past the triangle, the script also draws `example-sprite.mppctex` from the
 drive. It never acquires or releases the texture - it only names it. Every
-`frame_render`, it queries the drive for that name's current address, palette
-address, width and height with `pdk.cd_resource_addr`, `cd_resource_palette_addr`,
-`cd_resource_width`, and `cd_resource_height`, each passed `pdk.CD_RESOURCE_TEXTURE`
-as the kind it is asking about. The drive makes the texture
-resident the first time any of those names it, keeps it resident and
+`frame_render`, it asks `pdk.resource_resolve(o, name)` (pdklib) for that
+name, which folds the drive's four separate queries - address, palette
+address, width, height, each against `pdk.CD_RESOURCE_TEXTURE` - behind one
+call and one name; a nil result is the script's own signal to skip the
+sprite for this frame rather than a crash. The drive makes the texture
+resident the first time anything names it, keeps it resident and
 refreshes it in place on a dev reload - the name is stable, the addresses
-change, and the game picks the new texture up by asking for the address fresh
-each draw - and frees it itself when the disc unloads.
+change, and the game picks the new texture up by resolving it fresh
+each draw - and frees it itself when the disc unloads. `pdk.primitive_sprite`
+(pdklib) then turns that resolved table into an `rv_primitive` with every
+field the console requires already set, leaving only screen position, depth
+and colour for the script.
 
 ## Code != state
 

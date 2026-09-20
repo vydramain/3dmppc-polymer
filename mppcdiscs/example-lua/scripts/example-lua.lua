@@ -32,11 +32,11 @@ local M = {}
 -- recreated each frame_render, cheaply, from data already in state).
 
 -- The one texture this script draws. It never acquires or releases it - it
--- only ever names it. The drive makes it resident the first time any of the
--- four pdk.cd_resource_* calls asks for this name and RV_CD_RESOURCE_TEXTURE,
--- keeps it resident and refreshes it in place on a dev reload, and frees it
--- itself when this disc unloads, so this script has nothing to hold onto but
--- the name.
+-- only ever names it. The drive makes it resident the first time
+-- pdk.resource_resolve (pdklib, called below in frame_render) asks for this
+-- name, keeps it resident and refreshes it in place on a dev reload, and
+-- frees it itself when this disc unloads, so this script has nothing to
+-- hold onto but the name.
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
@@ -118,16 +118,16 @@ function M.frame_render(o_)
 	-- right after this hook returns.
 	pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
 
-	local primitive = pdk.new("rv_primitive") -- ffi.new zero-inits every field
-	primitive.type = pdk.PRIMITIVE_POLYGON
+	-- pdk.primitive_polygon(3) (pdklib) hands back an rv_primitive with
+	-- every field the console requires from a flat-coloured triangle
+	-- already set - type, fill_mode, mapping, the zeroed texture/palette
+	-- pair, vertex_count; see that helper's own comment for why those are
+	-- its job and not this script's. depth and the three vertices - their
+	-- positions and their colours - are this game's content, so they are
+	-- set right here, not in pdklib.
+	local primitive = pdk.primitive_polygon(3)
 	primitive.depth = 0
-
 	local polygon = primitive.data.polygon
-	polygon.fill_mode = pdk.PRIMITIVE_FILL_MODE_FLAT_COLOURED
-	polygon.addr_texture = 0
-	polygon.addr_palette = 0
-	polygon.mapping = pdk.TEXWRAP_CLAMP -- unused by a flat-coloured fill, but not optional
-	polygon.vertex_count = 3
 
 	local function set_vertex(i, x, y, r, g, b)
 		local v = polygon.vertexes[i]
@@ -143,29 +143,29 @@ function M.frame_render(o_)
 	pdk.cv_frame_put(cv, primitive)
 
 	-- The sprite next to the triangle: SAMPLE_TEXTURE against ASSET_TEXTURE_NAME,
-	-- asked for by name. The drive resolves the name to a resident texture on
-	-- the first ask (or on every ask, once it already is one) and hands back
-	-- its current address - asked fresh every frame, not cached, because an
-	-- address is only valid until that texture is reloaded. Guarded by the
-	-- address because the name can fail to resolve (e.g. the asset missing)
-	-- without disc_initialize itself refusing to start.
-	local cd = pdk.cd(o_)
-	local addr_texture = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
-	if addr_texture >= 0 then
-		local sprite_primitive = pdk.new("rv_primitive")
-		sprite_primitive.type = pdk.PRIMITIVE_SPRITE
+	-- resolved by name through pdk.resource_resolve (pdklib), which is now
+	-- the one place that speaks RV_CD_RESOURCE_TEXTURE and makes the four
+	-- separate drive calls - see that helper's comment for why the kind is
+	-- pdklib's business and the name stays this script's. Resolved fresh
+	-- every frame, not cached, because an address is only valid until that
+	-- texture is reloaded. A nil result (the asset missing) is this script's
+	-- own decision to skip the sprite rather than crash - disc_initialize
+	-- never has to refuse to start over it, and the triangle above still
+	-- draws either way.
+	local resolved = pdk.resource_resolve(o_, ASSET_TEXTURE_NAME)
+	if resolved ~= nil then
+		-- pdk.primitive_sprite (pdklib) fills in type, fill_mode, mapping
+		-- and the resolved addr_texture/addr_palette, and defaults
+		-- width/height to the texture's own size; see that helper's
+		-- comment for why. depth, position and colour are this game's to
+		-- set, so they are set right here, not in pdklib.
+		local sprite_primitive = pdk.primitive_sprite(resolved)
 		sprite_primitive.depth = 1
 
 		local sprite = sprite_primitive.data.sprite
-		sprite.fill_mode = pdk.PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE
-		sprite.addr_texture = addr_texture
-		sprite.addr_palette = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
 		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
-		sprite.mapping = pdk.TEXWRAP_CLAMP
 		sprite.x = 16
 		sprite.y = 16
-		sprite.width = tonumber(pdk.cd_resource_width(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
-		sprite.height = tonumber(pdk.cd_resource_height(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
 
 		pdk.cv_frame_put(cv, sprite_primitive)
 	end
