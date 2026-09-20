@@ -112,15 +112,24 @@ void rv_console_print_usage(std::FILE *stream)
         "  -M, --mute           Silence the audio output stage.\n"
         "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
+#if RV_DEVTOOLS
+        // A player build still parses --dev by name, to refuse it with a named
+        // diagnostic (rv_pboot.cpp), but it cannot open the channel this text
+        // describes - advertising it here would offer what the build cannot do.
         "      --dev            Attach the development channel to stdin and\n"
         "                       stdout: pause, step, reload of the lua entry\n"
         "                       and state inspection. WHAT this console can do\n"
         "                       is decided by its build (-D3DMPPC_DEVTOOLS);\n"
         "                       this only says where to speak. A console built\n"
         "                       without the development runtime refuses it.\n"
+#endif
         "      --paused         Start with the frame loop stopped, before frame\n"
+#if RV_DEVTOOLS
         "                       0. Lift it with the Pause key, or with the\n"
         "                       resume/step requests when --dev is given.\n"
+#else
+        "                       0. Lift it with the Pause key.\n"
+#endif
         "      --mode=NAME      Preset: the platform plus one implementation\n"
         "                       per slot. Built in: %s. Default:\n"
         "                       default.\n"

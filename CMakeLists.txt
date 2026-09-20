@@ -235,3 +235,4 @@ endif()
 # The console is firmware: it loads a disc and runs it. It must never look like
 # the thing that compiles one, and building it must not drag in a compiler
 # driver, an image decoder, or anything else a player's machine has no use for.
+
