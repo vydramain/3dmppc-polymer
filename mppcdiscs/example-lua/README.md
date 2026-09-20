@@ -45,17 +45,17 @@ example-lua/
   macro's `frame_render()` is one `rv_cl_script_call()` followed by one
   `rv_cv_frame_flush()`, and a failed call skips the flush.
 
-## Owning a texture
+## Asking for a texture
 
 Past the triangle, the script also draws `example-sprite.mppctex` from the
-drive. It acquires the texture once in `disc_initialize` with
-`pdk.cd_texture_acquire`, which returns a residency id; that id is stored in
-`state` where it survives every code reload. Every `frame_render`, it queries
-the drive for the residency id's current address, palette address, width and
-height with `pdk.cd_texture_addr`, `cd_texture_palette_addr`, `cd_texture_width`,
-and `cd_texture_height`, then draws the sprite. The drive refreshes a resident
-texture in place: the id is stable, the addresses change, and the game picks the
-new texture up by asking for the address fresh each draw.
+drive. It never acquires or releases the texture - it only names it. Every
+`frame_render`, it queries the drive for that name's current address, palette
+address, width and height with `pdk.cd_texture_addr`, `cd_texture_palette_addr`,
+`cd_texture_width`, and `cd_texture_height`. The drive makes the texture
+resident the first time any of those names it, keeps it resident and
+refreshes it in place on a dev reload - the name is stable, the addresses
+change, and the game picks the new texture up by asking for the address fresh
+each draw - and frees it itself when the disc unloads.
 
 ## Code != state
 
@@ -64,10 +64,9 @@ of whatever chunk is currently loaded, and hands it to `M.attach(state)` —
 once at boot, right after the entry chunk is raised, and again after every
 successful reload of that chunk's code. A chunk local or a field of `M` dies
 with the code; only a field of `state` survives a reload, so that is where
-this script keeps the screen size, the texture's residency id and a frame
-counter it increments once per `frame_update`; `M.state_shape` declares all
-of them, and the console checks the live state against it before `attach`
-runs. Boot the `--unpacked` directory with `--dev`, change `frame_render`'s
+this script keeps the screen size and a frame counter it increments once per
+`frame_update`; `M.state_shape` declares both of them, and the console checks
+the live state against it before `attach` runs. Boot the `--unpacked` directory with `--dev`, change `frame_render`'s
 colours in `scripts/example-lua.lua` and send `reload entry` - the picture
 changes but the counter keeps climbing instead of resetting to 0, which is
 the whole point: the code changed, the state did not. This `attach` accepts

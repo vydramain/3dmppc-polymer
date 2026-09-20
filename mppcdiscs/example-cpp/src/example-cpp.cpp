@@ -18,6 +18,11 @@ namespace
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_SPRITE = 0;
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_BAR = 400;
 
+// The one texture this disc draws. Never acquired or released, only ever
+// named - the drive makes it resident the first time frame_render asks for
+// this name, and frees it itself when this disc unloads.
+constexpr const char *RV_EXAMPLE_CPP_TEXTURE_NAME = "example-sprite.mppctex";
+
 } // namespace
 
 class rv_dmain
@@ -38,13 +43,10 @@ public:
 
 private:
     bool read_asset(const char *name, std::vector<uint8_t> &out);
-    void load_sprite();
 
     rv_pdko *pdk_ = nullptr;
     int64_t screen_width_ = 0;
     int64_t screen_height_ = 0;
-
-    int64_t tex_res_ = 0;
 
     int64_t text_bytes_ = 0;
     float phase_ = 0.0f;
@@ -79,20 +81,6 @@ bool rv_dmain::read_asset(const char *name, std::vector<uint8_t> &out)
     return true;
 }
 
-void rv_dmain::load_sprite()
-{
-    rv_cd *cd = rv_pdko_cd(pdk_);
-    if (!cd) {
-        return;
-    }
-
-    const int64_t res = rv_cd_texture_acquire(cd, "example-sprite.mppctex");
-    if (res < 0) {
-        return;
-    }
-    tex_res_ = res;
-}
-
 int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
 {
     pdk_ = pdk;
@@ -121,7 +109,6 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
         text_bytes_ = static_cast<int64_t>(text.size());
     }
 
-    load_sprite();
     return RV_OK;
 }
 
@@ -144,10 +131,10 @@ void rv_dmain::frame_render()
 
     rv_cv_frame_configure(cv, 0, rv_color{ 20, 24, 40 });
 
-    if (tex_res_ != 0) {
-        rv_cd *cd = rv_pdko_cd(pdk_);
-        const int64_t addr_texture = rv_cd_texture_addr(cd, tex_res_);
-        const int64_t addr_palette = rv_cd_texture_palette_addr(cd, tex_res_);
+    rv_cd *cd = rv_pdko_cd(pdk_);
+    const int64_t addr_texture = rv_cd_texture_addr(cd, RV_EXAMPLE_CPP_TEXTURE_NAME);
+    if (addr_texture >= 0) {
+        const int64_t addr_palette = rv_cd_texture_palette_addr(cd, RV_EXAMPLE_CPP_TEXTURE_NAME);
         const rv_texture_mapping_type modes[3] = {
             RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
         };
@@ -201,14 +188,9 @@ void rv_dmain::frame_render()
 
 void rv_dmain::disc_shutdown()
 {
-    if (!pdk_) {
-        return;
-    }
-
-    if (tex_res_ != 0) {
-        rv_cd_texture_release(rv_pdko_cd(pdk_), tex_res_);
-        tex_res_ = 0;
-    }
+    // Nothing to release: this disc never acquired the texture it drew, only
+    // named it, and the drive frees everything it made resident on its own
+    // when this disc unloads.
 }
 
 } // namespace example_cpp

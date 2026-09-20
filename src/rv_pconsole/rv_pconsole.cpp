@@ -22,10 +22,10 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     : params_(conf.params)
     , platform_(platform)
     , ca_(rv_pcca_make(conf.slots.ca, conf.ca))
-    , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
     , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
     , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
+    , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
@@ -33,10 +33,10 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {
-    // Here and not in the initialiser list: cd_ is declared before cv_, so
-    // during that list cv_ does not exist yet. Unlike medium_insert, which is
-    // a boot-time choice made in rv_pboot, this is an invariant between two
-    // parts of one console - nothing should be able to forget it.
+    // Here and not in the initialiser list: video_attach() is not itself part
+    // of building cd_, and keeping it out of the list means the invariant it
+    // establishes (rv_pccd.hpp: cv_ outlives cd_) is not tangled with the
+    // ORDER the list happens to be written in.
     cd_->video_attach(*cv_);
 }
 

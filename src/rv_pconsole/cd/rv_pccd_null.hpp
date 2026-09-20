@@ -25,17 +25,13 @@ public:
 
     int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) override;
 
-    int64_t texture_acquire(const char *resname) override;
+    int64_t texture_addr(const char *resname) override;
 
-    int64_t texture_release(int64_t res) override;
+    int64_t texture_palette_addr(const char *resname) override;
 
-    int64_t texture_addr(int64_t res) override;
+    int64_t texture_width(const char *resname) override;
 
-    int64_t texture_palette_addr(int64_t res) override;
-
-    int64_t texture_width(int64_t res) override;
-
-    int64_t texture_height(int64_t res) override;
+    int64_t texture_height(const char *resname) override;
 
     int64_t texture_reload(const char *resname) override;
 

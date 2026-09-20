@@ -212,7 +212,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
-| `asset <name>` | refresh the named texture in place behind its residency id: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh (directory medium only) |
+| `asset <name>` | refresh the named texture in place: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh (directory medium only) |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
@@ -474,10 +474,13 @@ the console allows, assets that overflow the virtual VRAM, or two assets whose
 names collide once flattened. Every one of those is cheaper to hit on your desk
 than on a player's loading screen.
 
-At runtime a disc can ask the drive for a baked texture by name and get back a
-residency id plus its VRAM address, palette address, width and height, instead
-of opening and parsing the container itself. The manual `asset_open` /
-`asset_size` / `asset_read` path remains for anything that isn't a texture.
+At runtime a disc can ask the drive for a baked texture by name and get back
+its VRAM address, palette address, width and height, instead of opening and
+parsing the container itself. A disc never acquires or releases a texture,
+only names one: the drive makes it resident on the first ask and frees every
+texture it made resident, on its own, when the disc unloads. The manual
+`asset_open` / `asset_size` / `asset_read` path remains for anything that
+isn't a texture.
 
 ### What a disc must contain
 

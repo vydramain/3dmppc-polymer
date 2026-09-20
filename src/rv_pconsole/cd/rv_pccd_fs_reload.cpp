@@ -26,7 +26,6 @@ int64_t rv_pccd_fs::texture_reload(const char* resname) {
     auto it = tex_by_name_.find(key);
     if (it == tex_by_name_.end()) return RV_PCCD_NOT_RESIDENT;
     texture_record& record = textures_[static_cast<size_t>(it->second)];
-    if (!record.live) return RV_PCCD_NOT_RESIDENT;
 
     std::vector<std::byte> bytes;
     const int64_t read_rc = texture_read_bytes_(resname, bytes);

@@ -323,20 +323,13 @@ void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq &req)
         dev_->reply(rv_pcdev_err(req.id, "asset", rc, false, "the drive could not reload that asset"));
         return;
     }
-    // The new size, read back through the ordinary contract rather than a
-    // console-only accessor: an acquire of a name already resident bumps the
-    // refcount and hands back the same id, so this costs no upload and the
-    // release below puts the count back exactly where it was. The editor
+    // The new size, read back through the ordinary by-name contract rather
+    // than a console-only accessor: the reload above already left this name
+    // resident, so this is a cache hit that costs no reupload. The editor
     // needs the numbers because a RESIZED texture is the one case its own
     // layout has to follow, and nothing else in the protocol carries them.
-    int64_t width = 0;
-    int64_t height = 0;
-    const int64_t res = cd_->texture_acquire(key.c_str());
-    if (res >= 0) {
-        width = cd_->texture_width(res);
-        height = cd_->texture_height(res);
-        cd_->texture_release(res);
-    }
+    const int64_t width = cd_->texture_width(key.c_str());
+    const int64_t height = cd_->texture_height(key.c_str());
     dev_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pcdev_hex(key),
-        width, height));
+        width < 0 ? 0 : width, height < 0 ? 0 : height));
 }

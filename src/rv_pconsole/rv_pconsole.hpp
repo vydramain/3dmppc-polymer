@@ -49,11 +49,17 @@ private:
     // down, so lua_close() must run BEFORE any controller it might reach is
     // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
     // destruction order, which is a use-after-free.
+    //
+    // cd_ is placed right before cl_ - after cv_, not alphabetically - for the
+    // same reason: ~rv_pccd_fs() frees every texture it made resident through
+    // the borrowed cv_ (rv_pccd.hpp), so cv_ must still be alive when cd_ is
+    // destroyed. cd_ still outlives cl_'s destruction, same as cv_/ca_, in
+    // case a Lua finaliser reaches the drive too.
     std::unique_ptr<rv_pcca> ca_;
-    std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccio> cio_;
     std::unique_ptr<rv_pccm> cm_;
     std::unique_ptr<rv_pccv> cv_;
+    std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccl> cl_;
 
     // BORROWED, never owned. The loader reads the manifest BEFORE this console

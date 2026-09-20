@@ -17,11 +17,6 @@ M.state_shape = {
 	frame_count = 0,
 	screen_width = 0,
 	screen_height = 0,
-	tex_name = "",
-	-- -1, not 0: a residency id is 1-based, and 0 is TRUE in lua - a zero
-	-- default would make the "did the acquire work" guard below pass after a
-	-- failed acquire and draw from an invalid address.
-	tex_res = -1,
 }
 
 -- The console owns ONE persistent table for the whole run and hands it to
@@ -38,10 +33,11 @@ M.state_shape = {
 -- recreated each frame_render, cheaply, from data already in state).
 local state
 
--- The one asset this script OWNS: it acquires it once, in disc_initialize,
--- and remembers only the residency id the drive hands back. The drive
--- refreshes the texture behind that id on its own, so this script never
--- hears about a reload - it just keeps asking for the same id's address.
+-- The one texture this script draws. It never acquires or releases it - it
+-- only ever names it. The drive makes it resident the first time any of the
+-- four pdk.cd_texture_* calls asks for this name, keeps it resident and
+-- refreshes it in place on a dev reload, and frees it itself when this disc
+-- unloads, so this script has nothing to hold onto but the name.
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
@@ -66,7 +62,6 @@ end
 
 function M.disc_initialize(o_)
 	local cv = pdk.cv(o_)
-	local cd = pdk.cd(o_)
 
 	-- Read something real back through pdk and log it: the headless-
 	-- verifiable proof that a Lua call reached the console's own
@@ -77,18 +72,8 @@ function M.disc_initialize(o_)
 	state.screen_height = tonumber(pdk.cv_screen_height(cv))
 	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
 
-	-- Acquired exactly once here, never in attach(): disc_initialize is the
-	-- only hook that runs at boot and never again. The residency id is stored
-	-- so it survives every future code reload - frame_render queries the drive
-	-- for the address each time it draws, not cached across reloads.
-	local res = pdk.cd_texture_acquire(cd, ASSET_TEXTURE_NAME)
-	if res < 0 then
-		print("example-lua: could not acquire texture '" .. ASSET_TEXTURE_NAME .. "'")
-		return
-	end
-
-	state.tex_name = ASSET_TEXTURE_NAME
-	state.tex_res = tonumber(res)
+	-- Nothing to acquire here: the drive makes ASSET_TEXTURE_NAME resident
+	-- the first time frame_render names it, not before.
 end
 function M.frame_update(dt, o_)
 	-- The frame counter: the one field this example exists to demonstrate.
@@ -136,27 +121,30 @@ function M.frame_render(o_)
 
 	pdk.cv_frame_put(cv, primitive)
 
-	-- The sprite next to the triangle: SAMPLE_TEXTURE against the residency
-	-- disc_initialize acquired. Asked fresh every frame for its address, not
-	-- cached: an address is only valid until that texture is reloaded. Guarded
-	-- by tex_res because acquire can fail (e.g. the asset missing) without
-	-- disc_initialize itself refusing to start.
-	if state.tex_res >= 0 then
-		local cd = pdk.cd(o_)
+	-- The sprite next to the triangle: SAMPLE_TEXTURE against ASSET_TEXTURE_NAME,
+	-- asked for by name. The drive resolves the name to a resident texture on
+	-- the first ask (or on every ask, once it already is one) and hands back
+	-- its current address - asked fresh every frame, not cached, because an
+	-- address is only valid until that texture is reloaded. Guarded by the
+	-- address because the name can fail to resolve (e.g. the asset missing)
+	-- without disc_initialize itself refusing to start.
+	local cd = pdk.cd(o_)
+	local addr_texture = tonumber(pdk.cd_texture_addr(cd, ASSET_TEXTURE_NAME))
+	if addr_texture >= 0 then
 		local sprite_primitive = pdk.new("rv_primitive")
 		sprite_primitive.type = pdk.PRIMITIVE_SPRITE
 		sprite_primitive.depth = 1
 
 		local sprite = sprite_primitive.data.sprite
 		sprite.fill_mode = pdk.PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE
-		sprite.addr_texture = tonumber(pdk.cd_texture_addr(cd, state.tex_res))
-		sprite.addr_palette = tonumber(pdk.cd_texture_palette_addr(cd, state.tex_res))
+		sprite.addr_texture = addr_texture
+		sprite.addr_palette = tonumber(pdk.cd_texture_palette_addr(cd, ASSET_TEXTURE_NAME))
 		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
 		sprite.mapping = pdk.TEXWRAP_CLAMP
 		sprite.x = 16
 		sprite.y = 16
-		sprite.width = tonumber(pdk.cd_texture_width(cd, state.tex_res))
-		sprite.height = tonumber(pdk.cd_texture_height(cd, state.tex_res))
+		sprite.width = tonumber(pdk.cd_texture_width(cd, ASSET_TEXTURE_NAME))
+		sprite.height = tonumber(pdk.cd_texture_height(cd, ASSET_TEXTURE_NAME))
 
 		pdk.cv_frame_put(cv, sprite_primitive)
 	end

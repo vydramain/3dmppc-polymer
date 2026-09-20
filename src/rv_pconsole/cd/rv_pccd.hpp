@@ -30,30 +30,31 @@ public:
 
     virtual int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) = 0;
 
-    virtual int64_t texture_acquire(const char *resname) = 0;
+    // A disc never acquires or releases a texture - it only ever names one.
+    // The drive makes a name resident on the first of these four calls to ask
+    // for it, and keeps it resident until the disc that named it is
+    // unloaded, at which point the drive frees everything it made resident
+    // (see rv_pccd_fs's destructor) - the disc never frees anything itself.
+    virtual int64_t texture_addr(const char *resname) = 0;
 
-    virtual int64_t texture_release(int64_t res) = 0;
+    virtual int64_t texture_palette_addr(const char *resname) = 0;
 
-    virtual int64_t texture_addr(int64_t res) = 0;
+    virtual int64_t texture_width(const char *resname) = 0;
 
-    virtual int64_t texture_palette_addr(int64_t res) = 0;
-
-    virtual int64_t texture_width(int64_t res) = 0;
-
-    virtual int64_t texture_height(int64_t res) = 0;
+    virtual int64_t texture_height(const char *resname) = 0;
 
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
     // Refreshes a resident texture in place (same residency id, new addresses
     // and size). Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when
-    // nothing holds that name resident (nothing to refresh - the next
-    // acquire reads the current bytes), a negative rv_err when the refresh
+    // nothing holds that name resident (nothing to refresh - the next name
+    // query reads the current bytes), a negative rv_err when the refresh
     // failed and the old texture stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t texture_reload(const char *resname) = 0;
 
-    // Where texture_acquire uploads to. Borrowed - cv_ outlives cd_ for the
+    // Where a resident texture uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s
     // shutdown-order requirement pins that declaration order), so cd cannot
     // take cv by constructor reference the way rv_pccl_luajit takes cd.

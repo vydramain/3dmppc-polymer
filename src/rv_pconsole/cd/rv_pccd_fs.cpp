@@ -25,18 +25,22 @@ rv_pcbudget_cost rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget& /*bud
 rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf& conf)
     : conf_(conf), medium_(std::make_unique<rv_pcdirmedium>(conf.medium_path)) {}
 
+rv_pccd_fs::~rv_pccd_fs() {
+    // A disc never releases a texture; this is where the drive frees every
+    // one it made resident, all at once, when the disc that named them goes
+    // away. cv_ is null only when video was never attached, which means
+    // nothing was ever uploaded and there is nothing to free.
+    if (cv_ != nullptr) {
+        for (const texture_record& record : textures_) {
+            cv_->video_asset_free(record.tex_addr);
+            if (record.pal_addr != 0) cv_->video_asset_free(record.pal_addr);
+        }
+    }
+}
+
 const char* rv_pccd_fs::handle_name(int64_t handle) const {
     if (handle < 0 || handle >= static_cast<int64_t>(resnames_.size())) return nullptr;
     return resnames_[static_cast<size_t>(handle)].c_str();
-}
-
-rv_pccd_fs::texture_record* rv_pccd_fs::texture_record_of(int64_t res) {
-    if (res <= 0) return nullptr;
-    const int64_t index = res - 1;
-    if (index >= static_cast<int64_t>(textures_.size())) return nullptr;
-    texture_record& record = textures_[static_cast<size_t>(index)];
-    if (!record.live) return nullptr;
-    return &record;
 }
 
 int64_t rv_pccd_fs::asset_open(const char* resname) {
@@ -160,7 +164,7 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
 }
 
 // Reads `resname`'s whole current contents into `bytes_out`: open, measure,
-// allocate, and read the full entry - the preparation texture_acquire() and
+// allocate, and read the full entry - the preparation texture_resolve_() and
 // texture_reload() both need before decoding. Medium re-measures the size on
 // every call (see asset_size()'s comment above), so a short read here means
 // the entry changed between the size call and the read; a reload is asked
@@ -304,7 +308,12 @@ int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header& header, 
     return RV_OK;
 }
 
-int64_t rv_pccd_fs::texture_acquire(const char* resname) {
+// Cache hit: hands back the existing upload, no read and no reupload.
+// Cache miss: this is where a disc's "first ask" for a name becomes a
+// resident texture - read, decode, upload, and remember it for every ask
+// that follows, including the ones made through a different one of the four
+// query functions below.
+int64_t rv_pccd_fs::texture_resolve_(const char* resname, texture_record*& record_out) {
     // No video attached is the same situation as no medium mounted: a legal
     // machine state, not a caller error, so it answers the way asset_open
     // answers an unmounted drive - nothing can be made resident yet.
@@ -313,11 +322,8 @@ int64_t rv_pccd_fs::texture_acquire(const char* resname) {
 
     std::string key(resname);
     if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
-        texture_record& record = textures_[static_cast<size_t>(it->second)];
-        if (record.live) {
-            record.refs += 1;
-            return it->second + 1;
-        }
+        record_out = &textures_[static_cast<size_t>(it->second)];
+        return RV_OK;
     }
 
     std::vector<std::byte> bytes;
@@ -341,8 +347,6 @@ int64_t rv_pccd_fs::texture_acquire(const char* resname) {
     record.pal_addr = pal_addr;
     record.width = header.width;
     record.height = header.height;
-    record.refs = 1;
-    record.live = true;
 
     const int64_t index = static_cast<int64_t>(textures_.size());
     try {
@@ -355,50 +359,35 @@ int64_t rv_pccd_fs::texture_acquire(const char* resname) {
         return RV_ERR_NOMEM;
     }
 
-    return index + 1;
-}
-
-int64_t rv_pccd_fs::texture_release(int64_t res) {
-    if (cv_ == nullptr) return RV_ERR_INVAL;
-
-    texture_record* record = texture_record_of(res);
-    if (record == nullptr) return RV_ERR_INVAL;
-
-    record->refs -= 1;
-    if (record->refs > 0) return RV_OK;
-
-    cv_->video_asset_free(record->tex_addr);
-    if (record->pal_addr != 0) cv_->video_asset_free(record->pal_addr);
-
-    // The slot itself is never reused (see the member comment on textures_):
-    // only the name lookup is undone, so a later acquire of this name starts
-    // fresh instead of colliding with a dead record.
-    tex_by_name_.erase(record->resname);
-    record->live = false;
+    record_out = &textures_[static_cast<size_t>(index)];
     return RV_OK;
 }
 
-int64_t rv_pccd_fs::texture_addr(int64_t res) {
-    const texture_record* record = texture_record_of(res);
-    if (record == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::texture_addr(const char* resname) {
+    texture_record* record = nullptr;
+    const int64_t rc = texture_resolve_(resname, record);
+    if (rc < 0) return rc;
     return record->tex_addr;
 }
 
-int64_t rv_pccd_fs::texture_palette_addr(int64_t res) {
-    const texture_record* record = texture_record_of(res);
-    if (record == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::texture_palette_addr(const char* resname) {
+    texture_record* record = nullptr;
+    const int64_t rc = texture_resolve_(resname, record);
+    if (rc < 0) return rc;
     return record->pal_addr;
 }
 
-int64_t rv_pccd_fs::texture_width(int64_t res) {
-    const texture_record* record = texture_record_of(res);
-    if (record == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::texture_width(const char* resname) {
+    texture_record* record = nullptr;
+    const int64_t rc = texture_resolve_(resname, record);
+    if (rc < 0) return rc;
     return record->width;
 }
 
-int64_t rv_pccd_fs::texture_height(int64_t res) {
-    const texture_record* record = texture_record_of(res);
-    if (record == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::texture_height(const char* resname) {
+    texture_record* record = nullptr;
+    const int64_t rc = texture_resolve_(resname, record);
+    if (rc < 0) return rc;
     return record->height;
 }
 

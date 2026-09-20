@@ -37,19 +37,16 @@ class rv_pccd_fs final : public rv_pccd {
     // resident yet.
     rv_pccv *cv_ = nullptr;
 
-    // One baked texture currently uploaded. The vector only ever grows and a
-    // released record stays in place with `live = false` - the same shape and
-    // reason as `resnames_` above: a residency id is `index + 1` (0 is never
-    // valid) and reusing a slot for a new name would let a stale id silently
-    // address someone else's texture instead of failing.
+    // One baked texture currently uploaded, keyed by name in `tex_by_name_`.
+    // A disc never releases a texture, so the vector only ever grows and a
+    // record lives for as long as the drive does - freed only in ~rv_pccd_fs,
+    // never one at a time.
     struct texture_record {
         std::string resname;
         int64_t tex_addr = 0;
         int64_t pal_addr = 0; // 0 when the format has no palette
         int64_t width = 0;
         int64_t height = 0;
-        int64_t refs = 0;
-        bool live = false;
     };
     std::vector<texture_record> textures_;
     std::unordered_map<std::string, int64_t> tex_by_name_;
@@ -68,7 +65,10 @@ class rv_pccd_fs final : public rv_pccd {
 
    public:
     explicit rv_pccd_fs(const rv_pccd_conf& conf);
-    ~rv_pccd_fs() = default;
+    // The drive's teardown: a disc never releases a texture, so this is the
+    // only place any of them are freed - everything the drive ever made
+    // resident for this disc goes back to video RAM here, all at once.
+    ~rv_pccd_fs() override;
 
     rv_pccd_fs(const rv_pccd_fs&) = delete;
     rv_pccd_fs& operator=(const rv_pccd_fs&) = delete;
@@ -83,17 +83,13 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
-    int64_t texture_acquire(const char* resname) override;
+    int64_t texture_addr(const char* resname) override;
 
-    int64_t texture_release(int64_t res) override;
+    int64_t texture_palette_addr(const char* resname) override;
 
-    int64_t texture_addr(int64_t res) override;
+    int64_t texture_width(const char* resname) override;
 
-    int64_t texture_palette_addr(int64_t res) override;
-
-    int64_t texture_width(int64_t res) override;
-
-    int64_t texture_height(int64_t res) override;
+    int64_t texture_height(const char* resname) override;
 
     int64_t texture_reload(const char* resname) override;
 
@@ -121,16 +117,20 @@ class rv_pccd_fs final : public rv_pccd {
     // Name behind a handle, or nullptr when the handle was never issued.
     const char* handle_name(int64_t handle) const;
 
-    // Record behind a residency id, or nullptr when the id is 0, was never
-    // issued, or names a record already released.
-    texture_record* texture_record_of(int64_t res);
+    // The record behind `resname`: a cache hit returns the existing upload,
+    // a cache miss reads, decodes and uploads it - this is where a disc's
+    // "first ask" becomes resident. `record_out` is set only on success;
+    // the return is RV_OK or the negative rv_err reading, decoding or
+    // uploading answered (the same rv_err asset_open would give the name,
+    // when that is where it failed).
+    int64_t texture_resolve_(const char* resname, texture_record*& record_out);
 
-    // Shared by texture_acquire() and texture_reload(): open, measure, allocate
+    // Shared by texture_resolve_() and texture_reload(): open, measure, allocate
     // and read `resname`'s whole current contents into `bytes_out`. Returns
     // RV_OK or the negative rv_err either step answered.
     int64_t texture_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out);
 
-    // Stages of texture_acquire(), split out to stay under the function-size
+    // Stages of texture_resolve_(), split out to stay under the function-size
     // limit and so a mid-way failure has one clear place to free from.
     int64_t texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
                              const std::byte*& palette_out, const std::byte*& texels_out) const;
