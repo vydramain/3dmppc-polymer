@@ -24,6 +24,24 @@
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
 
+namespace
+{
+
+// What the dispatcher remembers between requests. It belongs to the dispatcher
+// and not to the console, so it lives in the file the build selects: one
+// console runs per process (rv_pboot.cpp holds the only rv_pconsole), and a
+// player build carries neither these values nor the lines that read them.
+
+// The closed channel is reported once, not every frame.
+bool cmd_close_logged = false;
+
+// The last script-error sequence number this file has already reacted to.
+// rv_pccl counts every failed hook call; comparing against that count is how a
+// broken game hook is noticed without the disc having to tell anyone.
+int64_t cmd_error_seq = 0;
+
+} // namespace
+
 // --- the development runtime -------------------------------------------------
 //
 // One answer per request, in request order, on stdout. The shape is
@@ -38,8 +56,8 @@ void rv_3dmppc::rv_pconsole::cmd_service()
         // Said once. The run carries on, and the pause state is deliberately
         // NOT touched: resuming here would restart a game the developer
         // stopped on purpose, at the moment they are least able to see why.
-        if (!cmd_close_logged_) {
-            cmd_close_logged_ = true;
+        if (!cmd_close_logged) {
+            cmd_close_logged = true;
             RV_LOG_WARN("pconsole",
                 "development channel closed ({}); the run continues and the pause state is left as it is",
                 cmd_->closed_reason());
@@ -88,8 +106,8 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
     }
     rv_pccl_status script;
     cl_->script_status(script);
-    if (script.error_seq != cmd_error_seq_) {
-        cmd_error_seq_ = script.error_seq;
+    if (script.error_seq != cmd_error_seq) {
+        cmd_error_seq = script.error_seq;
         paused_ = true;
         cmd_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1,
             rv_pccmd_hex_msg(script.error)));

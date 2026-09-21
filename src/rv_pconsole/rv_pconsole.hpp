@@ -112,22 +112,6 @@ private:
 
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
-#if RV_DEVTOOLS
-    // Touched only by the dev slot (rv_pconsole_cmd_devtools.cpp), and so not present at
-    // all without it. This is the one thing a link-time slot cannot do on its
-    // own - it can leave a build without a line that reads a member, but not
-    // without the member - which is why -D3DMPPC_DEVTOOLS=ON defines exactly
-    // one macro, and defines it for DATA only. Every BEHAVIOUR here is still a
-    // slot, so the frame loop has no #ifdef in it.
-    bool cmd_close_logged_ = false;
-
-    // The last script-error sequence number this console has already reacted
-    // to. rv_pccl counts every failed hook call; comparing against that count
-    // is how the console learns a game hook broke, without the disc having to
-    // tell it and without a contract change.
-    int64_t cmd_error_seq_ = 0;
-#endif
-
     // Move the channel along and execute whatever arrived, on the frame
     // boundary and nowhere else: at that point no script call is in flight and
     // the lua stack is at its base, which is what makes a code swap safe. Pause
