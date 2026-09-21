@@ -1,5 +1,5 @@
 // Internals shared by the rv_pccl_luajit translation units
-// (rv_pccl_luajit.cpp, _stack.cpp, _chunks.cpp, _gate.cpp, _reload.cpp,
+// (rv_pccl_luajit.cpp, _stack.cpp, _chunks.cpp, _gate.cpp, _reload_devtools.cpp,
 // _state.cpp, _shape.cpp, _shapewalk.cpp). The instruction ceiling and both
 // guards are used from more than one of them, and duplicating a guard would
 // mean two copies of the nesting rule its comment records - one of which
@@ -139,8 +139,8 @@ struct shape_capture_ctx {
 // _shape.cpp.
 bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth);
 
-// The in-place patch (dev slot): patch_trampoline_ in _patch.cpp runs the
-// passes, _patchwalk.cpp holds the two walks it calls.
+// The in-place patch (dev slot): patch_trampoline_ in _patch_devtools.cpp runs the
+// passes, _patchwalk_devtools.cpp holds the two walks it calls.
 // One reachable table or function, counted once, is the unit both bounds are
 // measured in - the same reasoning as kShapeMaxNodes: a malformed or merely
 // very large candidate must refuse cleanly rather than run away.

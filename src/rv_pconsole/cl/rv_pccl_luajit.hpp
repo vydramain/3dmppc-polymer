@@ -177,7 +177,7 @@ private:
 
     // The ceiling armed around every script_call: RV_PCCL_INSN_CEILING in a
     // development build, 0 (no guard) in a player build. Defined in the
-    // dev-capability slot (rv_pccl_luajit_reload.cpp / _reload_null.cpp).
+    // dev-capability slot (rv_pccl_luajit_reload_devtools.cpp / _reload_standard.cpp).
     static int hook_insn_ceiling_();
 
     // Compile, run the body and demand a module table, under the instruction
@@ -260,13 +260,13 @@ private:
     // Updates the tables `old_ref` holds to carry `new_ref`'s contents in
     // place, instead of swapping the reference - anything already holding a
     // reference into the old tables keeps it and runs the new code. Defined
-    // only in rv_pccl_luajit_patch.cpp (dev-only, see CMakeLists.txt); a
+    // only in rv_pccl_luajit_patch_devtools.cpp (dev-only, see CMakeLists.txt); a
     // player build never calls this.
     int64_t patch_in_place_(int old_ref, int new_ref, rv_pccl_reload_report &report);
 
     // Runs the whole pair/count/patch walk under one lua_pcall: only an
     // allocation failure can make it fail from the caller's point of view.
-    // Argument 1 is a patch_call_args* (rv_pccl_luajit_patch.cpp).
+    // Argument 1 is a patch_call_args* (rv_pccl_luajit_patch_devtools.cpp).
     static int patch_trampoline_(lua_State *L);
 
     // Builds the console<->script vocabulary: opens ffi, feeds it

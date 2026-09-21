@@ -6,7 +6,7 @@
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp. The two walks it runs live in
-// rv_pccl_luajit_patchwalk.cpp. Dev-only: never built into a player binary (see
+// rv_pccl_luajit_patchwalk_devtools.cpp. Dev-only: never built into a player binary (see
 // CMakeLists.txt), so a player build never pays for this walk.
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 

@@ -1,6 +1,6 @@
 // The in-place patch's two walks: pairing the candidate's tables with the
 // running ones, and counting what the candidate reaches. Dev slot only (see
-// CMakeLists.txt); patch_trampoline_ in rv_pccl_luajit_patch.cpp runs them.
+// CMakeLists.txt); patch_trampoline_ in rv_pccl_luajit_patch_devtools.cpp runs them.
 //
 // lua.hpp is confined to src/rv_pconsole/cl/rv_pccl_luajit* - see
 // rv_pccl_luajit_detail.hpp.

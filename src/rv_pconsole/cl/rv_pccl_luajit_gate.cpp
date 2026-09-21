@@ -1,7 +1,7 @@
 // Entering a chunk safely: raising bytecode into a table under the
 // instruction ceiling, and wiring the entry's environment in before its body
 // runs. Used by both the normal boot (rv_pccl_luajit_chunks.cpp) and the
-// development reload path (rv_pccl_luajit_reload.cpp) - what either of those
+// development reload path (rv_pccl_luajit_reload_devtools.cpp) - what either of those
 // callers does about the state shape afterwards is their own concern now
 // (rv_pccl_luajit_shape.cpp), not something raising a chunk triggers by
 // itself.
