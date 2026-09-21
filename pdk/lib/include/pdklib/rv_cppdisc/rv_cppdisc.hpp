@@ -1,7 +1,6 @@
 // RV_MPPC_DISC_CPP_DEF is the C++ half of the same convenience
 // RV_MPPC_DISC_LUA_DEF (pdklib/rv_dscript/rv_dscript.hpp) gives a disc that
-// hands its hooks to a Lua chunk. There is no pdk-side contract to lean on
-// here the way rv_dv.h's RV_MPPC_DISC_CL_BASE_DEF is one for the Lua case: a
+// hands its hooks to a Lua chunk. It has less to do than that one: a
 // C++ disc's class already IS its own hooks, so pdk's whole contract is
 // "write disc_initialize/frame_update/frame_render/disc_release/
 // disc_shutdown/disc_title and hand the class to RV_MPPC_DISC_ENTRY_DEF" - nothing
@@ -31,15 +30,22 @@
 //     the bytes mean once read are the only things that differ disc to
 //     disc, and those stay the caller's.
 //
-// The trailing rv_cv_frame_flush() in frame_render is NOT here: it is one
-// unconditional call with no logic of its own, already as short written
-// inline as it would be behind a name, and wrapping it would need either a
-// virtual call or a CRTP hook to let a base class run code after a derived
-// class's own frame_render body - machinery this single call does not earn.
-// It stays where every disc's own frame_render ends.
+//   - the screen's size, taken once where it is already being checked.
+//     Every disc that lays anything out asks for it, and it cannot change
+//     under a running disc.
 //
-// class_name is an ordinary identifier, nothing more - the same rule
-// RV_MPPC_DISC_CL_BASE_DEF documents applies here. The macro defines the class
+//   - frame_begin()/frame_end(), texture_resident() and draw_sprite(). A
+//     frame is always opened with a background and closed with a flush; a
+//     named texture is always two questions to the drive with the same name
+//     and kind; and putting a sprite in the frame is always the same four
+//     lines around the one rv_sprite the game actually filled in. None of
+//     that is a choice a game makes - what the sprite SAYS is.
+//
+// frame_render itself is NOT here, and neither is any hook to run code around
+// it: that would need a virtual call or CRTP for no gain. The disc writes its
+// own frame_render and brackets it with frame_begin()/frame_end().
+//
+// class_name is an ordinary identifier, nothing more. The macro defines the class
 // ONLY; a disc using it derives its own class from class_name, adds
 // whatever is its own content, and plants the FINAL class with
 // RV_MPPC_DISC_ENTRY_DEF, exactly as example-cpp.cpp does:
@@ -49,10 +55,8 @@
 //   RV_MPPC_DISC_ENTRY_DEF(rv_dmain)
 //
 // A disc's own overrides of disc_initialize/frame_update call the base
-// class's version first (rv_dmain_base_::disc_initialize(pdk), etc.) the
-// same way RV_MPPC_DISC_LUA_DEF's derived frame_render calls
-// rv_dscript_disc_base_::frame_render before deciding what to do with its
-// result - name hiding, not virtual dispatch, because RV_MPPC_DISC_ENTRY_DEF
+// class's version first (rv_dmain_base_::disc_initialize(pdk), etc.) -
+// name hiding, not virtual dispatch, because RV_MPPC_DISC_ENTRY_DEF
 // already knows the disc's most-derived type and calls it directly. A disc
 // is free to skip this header and write all five hooks by hand, the way
 // example-cpp.cpp did before this header existed.
@@ -89,12 +93,14 @@
             if (rv_cio_iport_count(cio) < 1) {                                     \
                 return RV_ERR_INVAL;                                               \
             }                                                                      \
+            screen_width_ = rv_cv_screen_width(cv);                                \
+            screen_height_ = rv_cv_screen_height(cv);                              \
             return RV_OK;                                                          \
         }                                                                          \
         void frame_update(float dt)                                                \
         {                                                                          \
             (void)dt;                                                              \
-            const uint64_t now = rv_cio_iport_state(rv_pdko_cio(pdk_), 0).buttons;  \
+            const uint64_t now = rv_cio_iport_state(rv_pdko_cio(pdk_), 0).buttons; \
             if ((now & ~prev_buttons_) & RV_ISOURCE_MENU_BTTN_MENU) {              \
                 release_ = true;                                                   \
             }                                                                      \
@@ -104,7 +110,7 @@
         {                                                                          \
             return release_;                                                       \
         }                                                                          \
-                                                                                     \
+                                                                                   \
     protected:                                                                     \
         bool read_asset(const char *name, std::vector<uint8_t> &out)               \
         {                                                                          \
@@ -126,11 +132,41 @@
                 return false;                                                      \
             }                                                                      \
             out.resize(static_cast<std::size_t>(read));                            \
-            return true;                                                          \
+            return true;                                                           \
         }                                                                          \
-                                                                                     \
+                                                                                   \
+        void frame_begin(rv_color background)                                      \
+        {                                                                          \
+            rv_cv_frame_configure(rv_pdko_cv(pdk_), 0, background);                \
+        }                                                                          \
+        void frame_end()                                                           \
+        {                                                                          \
+            rv_cv_frame_flush(rv_pdko_cv(pdk_));                                   \
+        }                                                                          \
+        bool texture_resident(const char *name, int64_t &addr, int64_t &palette)   \
+        {                                                                          \
+            rv_cd *cd = rv_pdko_cd(pdk_);                                          \
+            addr = rv_cd_resource_addr(cd, RV_CD_RESOURCE_TEXTURE, name);          \
+            if (addr < 0) {                                                        \
+                return false;                                                      \
+            }                                                                      \
+            palette = rv_cd_resource_palette_addr(cd, RV_CD_RESOURCE_TEXTURE,      \
+                name);                                                             \
+            return true;                                                           \
+        }                                                                          \
+        void draw_sprite(const rv_sprite &sprite, int32_t depth)                   \
+        {                                                                          \
+            rv_primitive primitive = {};                                           \
+            primitive.type = RV_PRIMITIVE_SPRITE;                                  \
+            primitive.depth = depth;                                               \
+            primitive.data.sprite = sprite;                                        \
+            rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);                         \
+        }                                                                          \
+                                                                                   \
         rv_pdko *pdk_ = nullptr;                                                   \
-                                                                                     \
+        int64_t screen_width_ = 0;                                                 \
+        int64_t screen_height_ = 0;                                                \
+                                                                                   \
     private:                                                                       \
         uint64_t prev_buttons_ = 0;                                                \
         bool release_ = false;                                                     \

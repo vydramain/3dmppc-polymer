@@ -13,21 +13,18 @@ frame with it, not just a "hello world" print.
 ```
 example-lua/
   disc.toml               manifest — declares [scripts] and [budget.pccl]
-  src/example-lua.cpp      the disc: one pdklib macro that forwards every hook into Lua
+  src/example-lua.cpp      the disc: a pdklib macro that forwards every hook into Lua, and the entry points
   scripts/example-lua.lua  the entry chunk: mirrors the disc's hook shape
 ```
 
-- **`src/example-lua.cpp`** is one line, `RV_MPPC_DISC_LUA_DEF("example-lua")`
-  from `pdklib/rv_dscript/rv_dscript.hpp`. That macro derives a class from
-  `RV_MPPC_DISC_CL_BASE_DEF` (`pdk/de/rv_dv.h`), which is where the disc class
-  and its hook-to-Lua forwarding actually come from — the pdk contract every
-  Lua disc reaches one way or another — and adds only a fixed title and a
-  post-`frame_render` flush, the two things `RV_MPPC_DISC_CL_BASE_DEF` leaves
-  to its caller. A disc is free to call `RV_MPPC_DISC_CL_BASE_DEF` and
-  `RV_MPPC_DISC_ENTRY_DEF` itself instead, with no pdklib at all, the same way
-  this pdklib macro does underneath. `RV_MPPC_DISC_CL_BASE_DEF` only defines
-  the class; `RV_MPPC_DISC_ENTRY_DEF` is what plants it, so this is still a real
-  disc, `dlopen`ed like any other. Its `disc_initialize` raises the entry chunk with
+- **`src/example-lua.cpp`** is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua")`
+  from `pdklib/rv_dscript/rv_dscript.hpp`, which defines the disc class and its
+  hook-to-Lua forwarding, and `RV_MPPC_DISC_ENTRY_DEF` from `pdk/de/rv_dv.h`,
+  which plants that class's entry points — the one line no disc may leave out,
+  which is why it is written here rather than hidden inside the pdklib macro.
+  Lua is a convenience: a disc that wants its hooks in C++ or anything else
+  writes its own class and plants it the same way, with no pdklib at all.
+  The generated `disc_initialize` raises the entry chunk with
   `rv_cl_script_entry()`, and from then on every lifecycle hook
   (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) is one
   `rv_cl_script_call()` into the same-named Lua function, handed the organizer

@@ -44,20 +44,20 @@ The same three commands work unchanged against
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
 compiled C++.
 
-A Lua disc's C++ side is one pdklib macro — `RV_MPPC_DISC_LUA_DEF("example-lua")`
-after `#include "pdklib/rv_dscript/rv_dscript.hpp"`. It forwards each `disc_*`
-hook into the same-named Lua function, so the disc's own file carries no
-forwarding of its own. It is a pdklib convenience over `RV_MPPC_DISC_CL_BASE_DEF`
-(pdk/de/rv_dv.h), the pdk contract that already makes every rv_cl call a Lua
-disc's `rv_de` needs: a disc is free to call that macro itself, alongside
-`RV_MPPC_DISC_ENTRY_DEF`, supplying its own title and its own flush, and skip
-pdklib entirely.
+A Lua disc's C++ side is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua")` after
+`#include "pdklib/rv_dscript/rv_dscript.hpp"`, then `RV_MPPC_DISC_ENTRY_DEF` on
+the class it defined. The pdklib macro forwards each `disc_*` hook into the
+same-named Lua function, so the disc's own file carries no forwarding of its
+own. Lua is a convenience, not a layer of the contract: a disc whose hooks are
+C++, Rust or anything else writes its own class and plants the same entry
+points, and never includes this header.
 
 A C++ disc gets the same kind of convenience from `RV_MPPC_DISC_CPP_DEF`
-(`pdklib/rv_cppdisc/rv_cppdisc.hpp`): a base class carrying the startup guards,
-MENU-button press-edge tracking and `read_asset()` every C++ disc repeats, that
+(`pdklib/rv_cppdisc/rv_cppdisc.hpp`): a base class carrying the startup guards, MENU-button press-edge tracking, `read_asset()`, the
+screen's size and the frame plumbing — `frame_begin`/`frame_end`,
+`texture_resident` and `draw_sprite` — every C++ disc repeats, that
 the disc's own class derives from before being handed to `RV_MPPC_DISC_ENTRY_DEF`.
-Unlike the Lua case there is no pdk-side contract class behind it - a C++
+It has less to carry than the Lua one - a C++
 disc's own class already is its `rv_de`, so this macro lives in pdklib alone
 and a disc is just as free to skip it and write all five hooks by hand, the
 way `mppcdiscs/example-cpp/` did before this macro existed. A

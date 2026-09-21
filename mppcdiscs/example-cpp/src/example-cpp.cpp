@@ -42,9 +42,6 @@ public:
             return base_result;
         }
 
-        screen_width_ = rv_cv_screen_width(rv_pdko_cv(pdk_));
-        screen_height_ = rv_cv_screen_height(rv_pdko_cv(pdk_));
-
         std::vector<uint8_t> text;
         if (read_asset("example-text.txt", text)) {
             text_bytes_ = static_cast<int64_t>(text.size());
@@ -76,24 +73,17 @@ public:
     }
 
 private:
-    int64_t screen_width_ = 0;
-    int64_t screen_height_ = 0;
-
     int64_t text_bytes_ = 0;
     float phase_ = 0.0f;
 };
 
 void rv_dmain::frame_render()
 {
-    rv_cv *cv = rv_pdko_cv(pdk_);
+    frame_begin(rv_color{ 20, 24, 40 });
 
-    rv_cv_frame_configure(cv, 0, rv_color{ 20, 24, 40 });
-
-    rv_cd *cd = rv_pdko_cd(pdk_);
-    const int64_t addr_texture = rv_cd_resource_addr(cd, RV_CD_RESOURCE_TEXTURE, RV_EXAMPLE_CPP_TEXTURE_NAME);
-    if (addr_texture >= 0) {
-        const int64_t addr_palette =
-            rv_cd_resource_palette_addr(cd, RV_CD_RESOURCE_TEXTURE, RV_EXAMPLE_CPP_TEXTURE_NAME);
+    int64_t addr_texture = 0;
+    int64_t addr_palette = 0;
+    if (texture_resident(RV_EXAMPLE_CPP_TEXTURE_NAME, addr_texture, addr_palette)) {
         const rv_texture_mapping_type modes[3] = {
             RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
         };
@@ -104,11 +94,7 @@ void rv_dmain::frame_render()
         const float y0 = (static_cast<float>(screen_height_) - size) * 0.5f;
 
         for (int i = 0; i < 3; ++i) {
-            rv_primitive primitive = {};
-            primitive.type = RV_PRIMITIVE_SPRITE;
-            primitive.depth = RV_EXAMPLE_CPP_DEPTH_SPRITE;
-
-            rv_sprite &sprite = primitive.data.sprite;
+            rv_sprite sprite = {};
             sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
             sprite.addr_texture = addr_texture;
             sprite.addr_palette = addr_palette;
@@ -119,16 +105,12 @@ void rv_dmain::frame_render()
             sprite.width = static_cast<uint16_t>(size);
             sprite.height = static_cast<uint16_t>(size);
 
-            rv_cv_frame_put(cv, &primitive);
+            draw_sprite(sprite, RV_EXAMPLE_CPP_DEPTH_SPRITE);
         }
     }
 
     if (text_bytes_ > 0) {
-        rv_primitive primitive = {};
-        primitive.type = RV_PRIMITIVE_SPRITE;
-        primitive.depth = RV_EXAMPLE_CPP_DEPTH_BAR;
-
-        rv_sprite &sprite = primitive.data.sprite;
+        rv_sprite sprite = {};
         sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
         sprite.addr_texture = 0;
         sprite.addr_palette = 0;
@@ -139,10 +121,10 @@ void rv_dmain::frame_render()
         sprite.width = static_cast<uint16_t>(text_bytes_ * 4);
         sprite.height = 8;
 
-        rv_cv_frame_put(cv, &primitive);
+        draw_sprite(sprite, RV_EXAMPLE_CPP_DEPTH_BAR);
     }
 
-    rv_cv_frame_flush(cv);
+    frame_end();
 }
 
 } // namespace example_cpp
