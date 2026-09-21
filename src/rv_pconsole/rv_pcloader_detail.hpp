@@ -1,5 +1,5 @@
 // Internals shared by rv_pcloader.cpp, rv_pcloader_mount.cpp,
-// rv_pcloader_livedir.cpp and rv_pcloader_inspect.cpp.
+// rv_pcloader_livedir_devtools.cpp and rv_pcloader_inspect.cpp.
 #pragma once
 
 #include <cstdint>

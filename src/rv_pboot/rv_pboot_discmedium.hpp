@@ -6,7 +6,7 @@
 // only after the disc's code is up - so this is two functions, one per
 // moment, rather than one question asked twice from two files the way
 // rv_pboot_disc_is_directory() used to. Same shape as the slot one layer
-// down (rv_pcloader_livedir.cpp, dev build only): mount_dir() is not even
+// down (rv_pcloader_livedir_devtools.cpp, dev build only): mount_dir() is not even
 // declared when this binary was built without -D3DMPPC_DEVTOOLS=ON. On top of
 // that build-time gate, a directory is only ever a DRIVE's business when
 // --dev was also given on the command line - see rv_pboot_disc_mount() below.

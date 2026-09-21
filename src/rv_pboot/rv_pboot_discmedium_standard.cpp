@@ -2,7 +2,7 @@
 // disc argument can only be an archive: none of the code that reads a disc out
 // of a loose directory is in this binary - rv_pcloader::mount_dir() is not
 // even DECLARED here (rv_pconsole/rv_pcloader.hpp), so this file cannot route
-// into it the way the dev build's rv_pboot_discmedium.cpp does.
+// into it the way the dev build's rv_pboot_discmedium_devtools.cpp does.
 //
 // The one thing this build still does with a directory is NAME the refusal.
 // std::filesystem::is_directory below is not the development capability - it

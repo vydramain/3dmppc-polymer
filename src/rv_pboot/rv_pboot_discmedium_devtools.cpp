@@ -1,6 +1,6 @@
 // The dev build's disc-medium slot: a positional disc argument may name an
 // unpacked directory, exactly the medium mount_dir()/rv_pcdirmedium already
-// exist to serve (rv_pcloader_livedir.cpp). See rv_pboot_discmedium.hpp for
+// exist to serve (rv_pcloader_livedir_devtools.cpp). See rv_pboot_discmedium.hpp for
 // why this is two functions rather than one is-it-a-directory check shared
 // by both moments.
 #include "rv_pboot_discmedium.hpp"

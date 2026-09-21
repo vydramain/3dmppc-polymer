@@ -101,7 +101,7 @@ public:
     //
     // Not even DECLARED without -D3DMPPC_DEVTOOLS=ON: a player build must not
     // be able to find this entry point by name, let alone call it - see
-    // rv_pboot_discmedium_null.cpp for how a player build names the same
+    // rv_pboot_discmedium_standard.cpp for how a player build names the same
     // refusal without it.
     int64_t mount_dir(const char *dir_path);
 #endif
@@ -165,7 +165,7 @@ public:
 #if RV_DEVTOOLS
     // Two stages of mount_dir(), split out to stay under the function-size
     // rule. Both are development-build only, like mount_dir itself
-    // (rv_pcloader_livedir.cpp), and gone from a player build along with it.
+    // (rv_pcloader_livedir_devtools.cpp), and gone from a player build along with it.
     int64_t read_dir_manifest_(const std::filesystem::path &root, const char *dir_path);
     int64_t check_dir_lua_triple_(const std::filesystem::path &root);
 #endif
