@@ -99,7 +99,7 @@ upload as-is.
 | `pdklib/rv_color/rv_color.hpp` | HSV→RGB, lerp / scale / modulate / add, Lambert shading into vertex colours |
 | `pdklib/rv_font/rv_font.hpp` | text: builds the font atlas and palette for upload, lays a string out as one textured quad per glyph, measures it |
 | `pdklib/rv_font/rv_font_data.hpp` | the bitmap font itself — 5×7 ink in an 8×8 cell, ASCII 32..126 plus a notdef block |
-| `pdklib/rv_dscript/rv_dscript.hpp` | `RV_MPPC_DISC_LUA_DEF`; a fixed title and a post-`frame_render` flush, on top of pdk's own `RV_MPPC_DISC_CL_CLASS` rv_de-hook-to-Lua forwarding |
+| `pdklib/rv_dscript/rv_dscript.hpp` | `RV_MPPC_DISC_LUA_DEF`; a fixed title and a post-`frame_render` flush, on top of pdk's own `RV_MPPC_DISC_CL_BASE_DEF` rv_de-hook-to-Lua forwarding |
 | `pdklib/rv_cppdisc/rv_cppdisc.hpp` | `RV_MPPC_DISC_CPP_DEF`; a base class a hand-written C++ disc derives from for the startup guards, MENU-button press-edge tracking and `read_asset()` every such disc repeats |
 | `pdklib/rv_manifest/rv_manifest.hpp` | manifest data model plus parse / load / render / validate entry points; the parser implementation is compiled into `3dmppc_pdklib` |
 

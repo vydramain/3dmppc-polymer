@@ -163,7 +163,7 @@ _Static_assert(sizeof(struct rv_mppc_note_desc) == 16, "rv_mppc_note_desc must b
         };                                                                     \
     }
 
-// The class RV_MPPC_DISC_CL_CLASS builds below reaches the script chip through
+// The class RV_MPPC_DISC_CL_BASE_DEF builds below reaches the script chip through
 // this accessor, declared here rather than pulled in via a full
 // "pdk/rv_pdko.h" include - that header is the one that includes THIS one,
 // for the version vocabulary above, and closing the loop the other way would
@@ -196,7 +196,7 @@ extern "C" rv_cl *rv_pdko_cl(rv_pdko *o);
 // RV_MPPC_DISC_DEF already exists for that and is called separately, right
 // after it:
 //
-//   RV_MPPC_DISC_CL_CLASS(my_disc, "my-game")
+//   RV_MPPC_DISC_CL_BASE_DEF(my_disc, "my-game")
 //   RV_MPPC_DISC_DEF(my_disc)
 //
 // Splitting the two calls is what lets the class defined here be inherited
@@ -208,7 +208,7 @@ extern "C" rv_cl *rv_pdko_cl(rv_pdko *o);
 // than swallowing that the way disc_shutdown's does) because a class built
 // on top of this one needs to know before it decides whether the frame is
 // worth flushing - flushing itself is not part of this contract, see below.
-#define RV_MPPC_DISC_CL_CLASS(class_name, title_literal)                                 \
+#define RV_MPPC_DISC_CL_BASE_DEF(class_name, title_literal)                              \
     class class_name                                                                     \
     {                                                                                    \
     public:                                                                              \

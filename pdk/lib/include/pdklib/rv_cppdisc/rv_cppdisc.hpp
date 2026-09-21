@@ -1,7 +1,7 @@
 // RV_MPPC_DISC_CPP_DEF is the C++ half of the same convenience
 // RV_MPPC_DISC_LUA_DEF (pdklib/rv_dscript/rv_dscript.hpp) gives a disc that
 // hands its hooks to a Lua chunk. There is no pdk-side contract to lean on
-// here the way rv_dv.h's RV_MPPC_DISC_CL_CLASS is one for the Lua case: a
+// here the way rv_dv.h's RV_MPPC_DISC_CL_BASE_DEF is one for the Lua case: a
 // C++ disc's class already IS its own hooks, so pdk's whole contract is
 // "write disc_initialize/frame_update/frame_render/disc_release/
 // disc_shutdown/disc_title and hand the class to RV_MPPC_DISC_DEF" - nothing
@@ -39,7 +39,7 @@
 // It stays where every disc's own frame_render ends.
 //
 // class_name is an ordinary identifier, nothing more - the same rule
-// RV_MPPC_DISC_CL_CLASS documents applies here. The macro defines the class
+// RV_MPPC_DISC_CL_BASE_DEF documents applies here. The macro defines the class
 // ONLY; a disc using it derives its own class from class_name, adds
 // whatever is its own content, and plants the FINAL class with
 // RV_MPPC_DISC_DEF, exactly as example-cpp.cpp does:
