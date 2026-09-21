@@ -4,19 +4,13 @@
 #include <cstdio>
 
 #include "pdklib/rv_stdio/rv_stdio.hpp"
+#include "pdklib/rv_textures/rv_mppctex.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "rv_baker_quantize.hpp"
 
 namespace {
 
 // --- the file format ----------------------------------------------------------
-
-// Header, little-endian, 16 bytes. Kept at 16 so the palette that follows it is
-// 2-byte aligned in the file and a disc may point a `const uint16_t*` straight
-// at it after a single read.
-constexpr char RV_BAKER_MAGIC[4] = { 'M', 'P', 'T', 'X' };
-constexpr uint16_t RV_BAKER_VERSION = 1;
-constexpr size_t RV_BAKER_HEADER_SIZE = 16;
 
 // A palette is written at FULL length whatever the image needed - 16 entries for
 // IDX4, 256 for IDX8 - so the disc uploads one fixed-shape rv_texture without
@@ -74,26 +68,6 @@ void put_u16(std::vector<uint8_t> &out, uint16_t v)
 {
     out.push_back(static_cast<uint8_t>(v & 0xFF));
     out.push_back(static_cast<uint8_t>(v >> 8));
-}
-
-// The 16 fixed bytes every .mppctex opens with. RV_ERR_INVAL here is an
-// invariant violation, not a user error: the layout is documented at RV_BAKER_HEADER_SIZE
-// and a mismatch means this function and that constant have drifted apart.
-rv_err write_header(rv_texfmt format, const source_image &src, uint16_t palette_entries,
-    std::vector<uint8_t> *out, baker_error *error)
-{
-    out->insert(out->end(), RV_BAKER_MAGIC, RV_BAKER_MAGIC + sizeof(RV_BAKER_MAGIC));
-    put_u16(*out, RV_BAKER_VERSION);
-    put_u16(*out, static_cast<uint16_t>(format));
-    put_u16(*out, static_cast<uint16_t>(src.width));
-    put_u16(*out, static_cast<uint16_t>(src.height));
-    put_u16(*out, palette_entries);
-    put_u16(*out, 0); // reserved
-    if (out->size() != RV_BAKER_HEADER_SIZE) {
-        error->message = "internal: header size drifted from the documented layout";
-        return RV_ERR_INVAL;
-    }
-    return RV_OK;
 }
 
 // DIRECT15 carries no palette: a texel is the colour itself.
@@ -178,10 +152,8 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
         indices[i] = static_cast<uint8_t>(nearest(palette, src.pixels[i].color) + reserved);
     }
 
-    const rv_err header = write_header(*opt.format, src, static_cast<uint16_t>(palette_size), out, error);
-    if (header != RV_OK) {
-        return header;
-    }
+    rv_pdklib::rv_mppctex_write_header(*opt.format, src.width, src.height,
+        static_cast<uint16_t>(palette_size), out);
 
     // Full length always; the unused tail is 0000h, so an index that should
     // never be sampled draws nothing rather than a wrong colour.
@@ -211,10 +183,7 @@ rv_err encode_texture(const options &opt, const source_image &src, std::vector<u
     baker_error *error)
 {
     if (*opt.format == RV_TEXFMT_DIRECT15) {
-        const rv_err header = write_header(*opt.format, src, 0, out, error);
-        if (header != RV_OK) {
-            return header;
-        }
+        rv_pdklib::rv_mppctex_write_header(*opt.format, src.width, src.height, 0, out);
         encode_direct15(src, out);
         return RV_OK;
     }

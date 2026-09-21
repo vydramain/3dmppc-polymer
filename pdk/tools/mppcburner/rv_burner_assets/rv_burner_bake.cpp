@@ -2,13 +2,13 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <system_error>
+#include <vector>
 
 #include "pdklib/rv_textures/rv_mppctex.hpp"
-#include "rv_burner_common/rv_burner_bytes.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_burner_assets/rv_burner_baker_path.hpp"
 #include "rv_burner_common/rv_burner_process.hpp"
@@ -18,10 +18,13 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-// Read back the header mppcbaker just wrote, refusing anything this burner would
-// misparse. Each check answers a different question about the file: is it long
-// enough to hold a header at all, is it a .mppctex, is it a layout we know, and
-// does it claim a format the console implements.
+// Read back the WHOLE file mppcbaker just wrote and hand it to
+// rv_pdklib::rv_mppctex_parse() - the one validator this burner shares with a
+// disc's own loader, so a texture accepted here is a texture the console can
+// actually upload later. This burner used to check only the header's first
+// four fields, which is how a zero-dimension or truncated .mppctex used to
+// pass here and only fail once a disc tried to load it; that gap is closed by
+// asking the same question the console asks, not a looser one of our own.
 static bool read_mppctex_header(
     const fs::path &path,
     rv_pdklib::rv_mppctex_header &out,
@@ -33,39 +36,27 @@ static bool read_mppctex_header(
         return false;
     }
 
-    unsigned char raw[rv_pdklib::rv_mppctex_header_size] = {};
-    file.read(reinterpret_cast<char *>(raw), sizeof(raw));
-    if (file.gcount() != static_cast<std::streamsize>(sizeof(raw))) {
-        error = "baked texture '" + path.string() + "' is shorter than its own header";
+    std::error_code ec;
+    const uintmax_t size = fs::file_size(path, ec);
+    if (ec) {
+        error = "cannot size baked texture '" + path.string() + "'";
         return false;
     }
 
-    if (std::memcmp(raw + rv_pdklib::RV_MPPCTEX_OFF_MAGIC,
-            rv_pdklib::rv_mppctex_magic, sizeof(rv_pdklib::rv_mppctex_magic)) != 0) {
-        error = "baked texture '" + path.string() + "' has no MPTX magic";
+    std::vector<std::byte> bytes(static_cast<size_t>(size));
+    file.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+    if (file.gcount() != static_cast<std::streamsize>(bytes.size())) {
+        error = "baked texture '" + path.string() + "' is shorter than its own reported size";
         return false;
     }
 
-    const uint16_t version = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_VERSION);
-    if (version != rv_pdklib::rv_mppctex_version) {
-        error = "baked texture '" + path.string() + "' is container version " +
-            std::to_string(version) + ", this burner reads version " +
-            std::to_string(rv_pdklib::rv_mppctex_version) +
-            "; mppcbaker and mppcburner are out of step";
+    const std::byte *palette = nullptr;
+    const std::byte *texels = nullptr;
+    std::string reason;
+    if (!rv_pdklib::rv_mppctex_parse(bytes, out, palette, texels, reason)) {
+        error = "baked texture '" + path.string() + "' " + reason;
         return false;
     }
-
-    const uint16_t format = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_FORMAT);
-    if (rv_pdklib::rv_texfmt_name::by_format(static_cast<rv_texfmt>(format)) == nullptr) {
-        error = "baked texture '" + path.string() + "' claims unknown format " +
-            std::to_string(format);
-        return false;
-    }
-
-    out.format = static_cast<rv_texfmt>(format);
-    out.width = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_WIDTH);
-    out.height = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_HEIGHT);
-    out.palette_count = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_PALETTE_COUNT);
     return true;
 }
 

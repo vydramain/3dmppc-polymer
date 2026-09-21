@@ -1,22 +1,13 @@
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
-#include <cstring>
 #include <new>
+#include <string>
 #include <utility>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc {
-
-namespace {
-
-uint16_t read_le_u16(const std::byte* p) {
-    return static_cast<uint16_t>(std::to_integer<uint8_t>(p[0])) |
-           (static_cast<uint16_t>(std::to_integer<uint8_t>(p[1])) << 8);
-}
-
-}  // namespace
 
 rv_pcbudget_cost rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget& /*budget*/) {
     return {};
@@ -193,69 +184,19 @@ int64_t rv_pccd_fs::texture_read_bytes_(const char* resname, std::vector<std::by
 
 // Parses the header this file's caller already read into `bytes`, and hands
 // back pointers INTO `bytes` for the palette and texels - nothing is copied
-// twice. Refuses anything mppcbaker would not have written: bad magic, a
-// version this console does not speak, or fewer bytes than the header
-// promises.
+// twice. Every rule this console enforces on a .mppctex - magic, version,
+// format, palette shape, non-zero dimensions, enough bytes for the payload -
+// lives in rv_pdklib::rv_mppctex_parse() now, because mppcburner and a
+// hot-reload must refuse exactly the same broken file this console would,
+// not a looser subset of it. Only the translation to this contract's rv_err
+// stays here: `error` is the human sentence a CLI would print, and a disc's
+// asset_open() has nowhere to print it, so it is discarded.
 int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
                                      const std::byte*& palette_out, const std::byte*& texels_out) const {
-    if (static_cast<int64_t>(bytes.size()) < rv_pdklib::rv_mppctex_header_size) {
+    std::string error;
+    if (!rv_pdklib::rv_mppctex_parse(bytes, header_out, palette_out, texels_out, error)) {
         return RV_ERR_INVAL;
     }
-
-    const std::byte* raw = bytes.data();
-    if (std::memcmp(raw + rv_pdklib::RV_MPPCTEX_OFF_MAGIC, rv_pdklib::rv_mppctex_magic,
-                     sizeof(rv_pdklib::rv_mppctex_magic)) != 0) {
-        return RV_ERR_INVAL;
-    }
-
-    const uint16_t version = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_VERSION);
-    if (version != rv_pdklib::rv_mppctex_version) {
-        return RV_ERR_INVAL;
-    }
-
-    rv_pdklib::rv_mppctex_header header;
-    header.format = static_cast<rv_texfmt>(read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_FORMAT));
-    header.width = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_WIDTH);
-    header.height = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_HEIGHT);
-    header.palette_count = read_le_u16(raw + rv_pdklib::RV_MPPCTEX_OFF_PALETTE_COUNT);
-
-    // The FORMAT decides whether a palette is required, and how big it may be.
-    // Counting bytes alone is not enough: an IDX8 whose palette was deleted and
-    // whose palette_count was zeroed has exactly the byte count its header
-    // promises, and used to be accepted - the old texture was freed and the new
-    // one sampled palette address 0. A paletted texture with no palette is not
-    // a texture.
-    switch (header.format) {
-    case RV_TEXFMT_IDX4:
-        if (header.palette_count == 0 || header.palette_count > 16) return RV_ERR_INVAL;
-        break;
-    case RV_TEXFMT_IDX8:
-        if (header.palette_count == 0 || header.palette_count > 256) return RV_ERR_INVAL;
-        break;
-    case RV_TEXFMT_DIRECT15:
-        // A direct texture samples no palette, so one here is a header
-        // describing something this console cannot draw.
-        if (header.palette_count != 0) return RV_ERR_INVAL;
-        break;
-    default:
-        return RV_ERR_INVAL; // a format this console does not speak
-    }
-    // Zero of either dimension uploads nothing and draws nothing; it is a
-    // corrupt header, not an empty picture.
-    if (header.width == 0 || header.height == 0) {
-        return RV_ERR_INVAL;
-    }
-
-    const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
-    const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
-    const int64_t need = rv_pdklib::rv_mppctex_header_size + palette_bytes + texel_bytes;
-    if (static_cast<int64_t>(bytes.size()) < need) {
-        return RV_ERR_INVAL;
-    }
-
-    header_out = header;
-    palette_out = header.palette_count > 0 ? raw + rv_pdklib::rv_mppctex_header_size : nullptr;
-    texels_out = raw + rv_pdklib::rv_mppctex_header_size + palette_bytes;
     return RV_OK;
 }
 
