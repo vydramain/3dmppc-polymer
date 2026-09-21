@@ -28,7 +28,7 @@ int64_t rv_pccd_fs::texture_reload(const char* resname) {
     texture_record& record = textures_[static_cast<size_t>(it->second)];
 
     std::vector<std::byte> bytes;
-    const int64_t read_rc = texture_read_bytes_(resname, bytes);
+    const int64_t read_rc = asset_read_bytes_(resname, bytes);
     if (read_rc < 0) return read_rc;
 
     rv_pdklib::rv_mppctex_header header;

@@ -9,7 +9,11 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["assets/*.txt"]
+# .pcm is copied verbatim, same as .txt: raw PCM is read straight off the
+# disc and made resident through RV_CD_RESOURCE_AUDIO - there is no baker
+# and no container for sound, so unlike [textures] below there is nothing
+# to bake it into.
+files = ["assets/*.txt", "assets/*.pcm"]
 
 [textures]
 files = ["assets/*.png"]

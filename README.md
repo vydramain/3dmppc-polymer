@@ -498,13 +498,16 @@ the console allows, assets that overflow the virtual VRAM, or two assets whose
 names collide once flattened. Every one of those is cheaper to hit on your desk
 than on a player's loading screen.
 
-At runtime a disc can ask the drive for a baked texture by name and get back
-its VRAM address, palette address, width and height, instead of opening and
-parsing the container itself. A disc never acquires or releases a texture,
-only names one: the drive makes it resident on the first ask and frees every
-texture it made resident, on its own, when the disc unloads. The manual
-`asset_open` / `asset_size` / `asset_read` path remains for anything that
-isn't a texture.
+At runtime a disc can ask the drive for a resource by kind and name and get
+back where it now lives, instead of opening and parsing the container itself.
+A texture answers a VRAM address, a palette address and its dimensions; a
+sound answers a sound-memory address and its length in bytes, ready for
+`rv_voice_conf.sample_address`. A disc never acquires or releases either, only
+names one: the drive makes it resident on the first ask and frees everything
+it made resident, on its own, when the disc unloads. A sound carries no
+container at all - raw PCM is copied onto the disc as it is, so there is
+nothing to bake and nothing to parse. The manual `asset_open` / `asset_size` /
+`asset_read` path remains for whatever the drive does not make resident.
 
 ### What a disc must contain
 

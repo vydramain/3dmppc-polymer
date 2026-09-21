@@ -12,6 +12,7 @@ namespace rv_3dmppc
 {
 
 class rv_pccv;
+class rv_pcca;
 
 // texture_reload result meaning nothing holds that name resident, so there
 // was nothing to refresh.
@@ -32,14 +33,18 @@ public:
     virtual int64_t asset_read(int64_t handle, void *baddr, int64_t baddr_size) = 0;
 
     // A disc never acquires or releases a resource - it only ever names one.
-    // The drive makes a name resident on the first of these four calls to ask
+    // The drive makes a name resident on the first of these five calls to ask
     // for it, and keeps it resident until the disc that named it is
     // unloaded, at which point the drive frees everything it made resident
     // (see rv_pccd_fs's destructor) - the disc never frees anything itself.
-    // `kind` is rv_cd.h's rv_cd_resource_kind; only RV_CD_RESOURCE_TEXTURE
-    // exists today, and any other value is refused (see rv_pccd_fs's
-    // texture_resolve_, the one place that refusal lives).
+    // `kind` is rv_cd.h's rv_cd_resource_kind; TEXTURE and AUDIO exist today,
+    // and any other value - or a query that does not describe the kind it
+    // was asked of (see rv_cd.h's own comment for the table) - is refused
+    // (see rv_pccd_fs's resource_resolve_, the one place that refusal lives).
     virtual int64_t resource_addr(rv_cd_resource_kind kind, const char *resname) = 0;
+
+    // AUDIO-only: its resident byte length. See rv_cd.h.
+    virtual int64_t resource_size(rv_cd_resource_kind kind, const char *resname) = 0;
 
     virtual int64_t resource_palette_addr(rv_cd_resource_kind kind, const char *resname) = 0;
 
@@ -63,6 +68,12 @@ public:
     // shutdown-order requirement pins that declaration order), so cd cannot
     // take cv by constructor reference the way rv_pccl_luajit takes cd.
     virtual void video_attach(rv_pccv &cv) = 0;
+
+    // audio_attach's twin: where a resident AUDIO resource uploads to.
+    // Borrowed the same way and for the same reason - ca_ outlives cd_ for
+    // the whole run, and rv_pconsole builds cd_ after ca_ already exists but
+    // still cannot take it by constructor reference (see video_attach above).
+    virtual void audio_attach(rv_pcca &ca) = 0;
 
     virtual bool valid() const = 0;
 

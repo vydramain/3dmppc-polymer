@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "pdklib/rv_textures/rv_mppctex.hpp"
+#include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
@@ -32,10 +33,14 @@ class rv_pccd_fs final : public rv_pccd {
 
     // BORROWED, set by video_attach() after construction (rv_pccd.hpp: cd_ is
     // built before cv_ exists, so this cannot be a constructor reference).
-    // Null until attached, which the four rv_cd_resource_* functions (addr,
-    // palette_addr, width, height) treat the same way asset_open treats an
-    // unmounted medium: not an error, just nothing resident yet.
+    // Null until attached, which the five rv_cd_resource_* functions (addr,
+    // size, palette_addr, width, height) treat the same way asset_open treats
+    // an unmounted medium: not an error, just nothing resident yet.
     rv_pccv *cv_ = nullptr;
+
+    // audio_attach()'s twin of cv_ above: same borrow, same reason, same
+    // "nothing resident yet" meaning while null.
+    rv_pcca *ca_ = nullptr;
 
     // One baked texture currently uploaded, keyed by name in `tex_by_name_`.
     // A disc never releases a texture, so the vector only ever grows and a
@@ -50,6 +55,19 @@ class rv_pccd_fs final : public rv_pccd {
     };
     std::vector<texture_record> textures_;
     std::unordered_map<std::string, int64_t> tex_by_name_;
+
+    // AUDIO's counterpart of texture_record above: raw PCM bytes made
+    // resident in sound RAM, verbatim - there is no container to decode, so
+    // there is no width/height/palette to keep, only where the bytes live
+    // and how many of them there are. Same growth/freeing rules as
+    // `textures_`.
+    struct audio_record {
+        std::string resname;
+        int64_t addr = 0;
+        int64_t size = 0;
+    };
+    std::vector<audio_record> audios_;
+    std::unordered_map<std::string, int64_t> audio_by_name_;
 
     // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
@@ -85,6 +103,8 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t resource_addr(rv_cd_resource_kind kind, const char* resname) override;
 
+    int64_t resource_size(rv_cd_resource_kind kind, const char* resname) override;
+
     int64_t resource_palette_addr(rv_cd_resource_kind kind, const char* resname) override;
 
     int64_t resource_width(rv_cd_resource_kind kind, const char* resname) override;
@@ -105,6 +125,8 @@ class rv_pccd_fs final : public rv_pccd {
 
     void video_attach(rv_pccv& cv) override { cv_ = &cv; }
 
+    void audio_attach(rv_pcca& ca) override { ca_ = &ca; }
+
     // An empty or unmountable medium leaves the drive empty, never broken.
     bool valid() const override { return true; }
 
@@ -117,23 +139,42 @@ class rv_pccd_fs final : public rv_pccd {
     // Name behind a handle, or nullptr when the handle was never issued.
     const char* handle_name(int64_t handle) const;
 
-    // The record behind `resname`: a cache hit returns the existing upload,
-    // a cache miss reads, decodes and uploads it - this is where a disc's
-    // "first ask" becomes resident. `record_out` is set only on success;
-    // the return is RV_OK or the negative rv_err reading, decoding or
-    // uploading answered (the same rv_err asset_open would give the name,
-    // when that is where it failed).
-    // This is also the ONE gate every resource_* query above routes through,
-    // so it is the one place `kind` is checked: a kind other than
-    // RV_CD_RESOURCE_TEXTURE is refused with RV_ERR_INVAL right here, not in
-    // each of the four callers. A second kind gets its own record type and
-    // its own branch out of this gate, not a rewrite of the four callers.
-    int64_t texture_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& record_out);
+    // The ONE gate every resource_* query above routes through, so it is the
+    // one place `kind` is checked: a kind other than RV_CD_RESOURCE_TEXTURE
+    // or RV_CD_RESOURCE_AUDIO is refused with RV_ERR_INVAL right here, not in
+    // each of the five callers. Exactly one of `texture_out` / `audio_out` is
+    // set on success, matching the kind that actually resolved; the other is
+    // left null. A caller whose query does not describe that kind (say,
+    // resource_palette_addr against an AUDIO name) reads that from the null
+    // it got back and answers RV_ERR_INVAL itself - it never re-derives the
+    // kind check, it just never learned to read the OTHER record type. A
+    // third kind gets its own record type and its own branch out of this
+    // gate, not a rewrite of the five callers.
+    // On failure both output pointers are left null and the return is the
+    // negative rv_err reading, decoding or uploading answered (the same
+    // rv_err asset_open would give the name, when that is where it failed).
+    int64_t resource_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& texture_out,
+                               audio_record*& audio_out);
 
-    // Shared by texture_resolve_() and texture_reload(): open, measure, allocate
-    // and read `resname`'s whole current contents into `bytes_out`. Returns
-    // RV_OK or the negative rv_err either step answered.
-    int64_t texture_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out);
+    // Cache miss half of resource_resolve_() for TEXTURE: read, decode and
+    // upload `resname`, then remember it in `textures_`. Same
+    // success/failure contract as resource_resolve_() itself.
+    int64_t texture_resolve_(const char* resname, texture_record*& record_out);
+
+    // Cache miss half of resource_resolve_() for AUDIO: read `resname`'s raw
+    // bytes - there is nothing to decode, the on-disc format IS the resident
+    // format - and upload them into sound RAM through the borrowed ca_, then
+    // remember it in `audios_`. Same success/failure contract as
+    // resource_resolve_() itself.
+    int64_t audio_resolve_(const char* resname, audio_record*& record_out);
+
+    // Shared by texture_resolve_(), audio_resolve_() and texture_reload():
+    // open, measure, allocate and read `resname`'s whole current contents
+    // into `bytes_out`. Returns RV_OK or the negative rv_err either step
+    // answered. Named for what it reads (an asset's bytes), not for who
+    // reads them, because both resource kinds and the dev reload path share
+    // it verbatim.
+    int64_t asset_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out);
 
     // Stages of texture_resolve_(), split out to stay under the function-size
     // limit and so a mid-way failure has one clear place to free from.

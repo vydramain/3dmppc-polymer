@@ -39,6 +39,16 @@ local M = {}
 -- hold onto but the name.
 local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
 
+-- The one sound this script plays. Same idea as ASSET_TEXTURE_NAME above,
+-- but AUDIO has no baked container (disc.toml lists it under [assets], not
+-- [textures] - the PR review's decision was raw PCM with no baker), so the
+-- bytes on the disc ARE the bytes the drive makes resident; nothing decodes
+-- them first. This name is asked for once, in disc_initialize below, not
+-- every frame like the sprite: a voice, once armed, keeps its own resolved
+-- address and does not need re-resolving the way a per-frame sprite draw
+-- does.
+local ASSET_TONE_NAME = "example-tone.pcm"
+
 -- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
 -- first raise - before disc_initialize or any other hook is ever called.
 -- print() is routed into the console's stderr logger, not stdout, so this is
@@ -94,6 +104,51 @@ function M.disc_initialize(o_)
 
 	-- Nothing to acquire here: the drive makes ASSET_TEXTURE_NAME resident
 	-- the first time frame_render names it, not before.
+
+	-- The tone, by contrast, is acquired right here: rv_cd_resource_addr and
+	-- rv_cd_resource_size (both against RV_CD_RESOURCE_AUDIO) are what makes
+	-- ASSET_TONE_NAME resident in sound RAM - this script never calls
+	-- rv_ca_sound_asset_malloc itself, the drive owns that the same way it
+	-- owns video RAM for a texture. tonumber() unwraps the cdata int64_t
+	-- both calls return, the same way state.screen_width did above.
+	local cd = pdk.cd(o_)
+	local ca = pdk.ca(o_)
+	local addr_tone = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
+	local size_tone = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
+	print(string.format("example-lua: tone resident at addr=%d size=%d byte(s)", addr_tone, size_tone))
+
+	-- The cross-kind proof this task exists to make: a query that does not
+	-- describe the kind it was asked of must answer a negative rv_err, not a
+	-- fabricated 0 that would read back as "no palette" or "0 bytes". Both
+	-- probes below are expected to be negative.
+	local texture_query_on_audio_name = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TONE_NAME))
+	local size_query_on_texture_name = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
+	print(string.format(
+		"example-lua: cross-kind probe: texture-query(audio name)=%d size-query(texture name)=%d",
+		texture_query_on_audio_name, size_query_on_texture_name))
+
+	if addr_tone >= 0 and ca ~= nil and tonumber(pdk.ca_voice_count(ca)) >= 1 then
+		-- Same ADSR shape rv_dmain_setup.cpp's own build_beep() uses for its
+		-- built-in beep - a known-good envelope, not a value this example
+		-- invented. Set field by field, the way set_vertex above fills a
+		-- vertex, rather than a positional pdk.new(...) table: a voice
+		-- config has eleven fields and reads better named than counted.
+		local voice = pdk.new("rv_voice_conf")
+		voice.voice = 1 -- voice 0
+		voice.loop_type = pdk.LOOP_NONE
+		voice.sample_address = addr_tone
+		voice.ar = 5
+		voice.dr = 40
+		voice.sr = 0
+		voice.rr = 120
+		voice.sl = 26000
+		voice.volume = 32767
+		voice.volume_l = 32767
+		voice.volume_r = 32767
+		if tonumber(pdk.ca_voice_setup(ca, voice)) >= 0 then
+			pdk.ca_voice_play(ca, 1)
+		end
+	end
 end
 function M.frame_update(dt, o_)
 	-- The frame counter: the one field this example exists to demonstrate.

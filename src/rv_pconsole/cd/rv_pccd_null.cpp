@@ -32,6 +32,11 @@ int64_t rv_pccd_null::resource_addr(rv_cd_resource_kind /*kind*/, const char * /
     return RV_ERR_INVAL;
 }
 
+int64_t rv_pccd_null::resource_size(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
+{
+    return RV_ERR_INVAL;
+}
+
 int64_t rv_pccd_null::resource_palette_addr(rv_cd_resource_kind /*kind*/, const char * /*resname*/)
 {
     return RV_ERR_INVAL;

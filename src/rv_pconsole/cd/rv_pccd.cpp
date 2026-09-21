@@ -27,6 +27,11 @@ extern "C" int64_t rv_cd_resource_addr(rv_cd *cd, rv_cd_resource_kind kind, cons
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_addr(kind, resname);
 }
 
+extern "C" int64_t rv_cd_resource_size(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_size(kind, resname);
+}
+
 extern "C" int64_t rv_cd_resource_palette_addr(rv_cd *cd, rv_cd_resource_kind kind, const char *resname)
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->resource_palette_addr(kind, resname);

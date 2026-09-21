@@ -27,6 +27,8 @@ public:
 
     int64_t resource_addr(rv_cd_resource_kind kind, const char *resname) override;
 
+    int64_t resource_size(rv_cd_resource_kind kind, const char *resname) override;
+
     int64_t resource_palette_addr(rv_cd_resource_kind kind, const char *resname) override;
 
     int64_t resource_width(rv_cd_resource_kind kind, const char *resname) override;
@@ -40,6 +42,7 @@ public:
 
     // No drive, so nothing is ever made resident: ignored.
     void video_attach(rv_pccv & /*cv*/) override {}
+    void audio_attach(rv_pcca & /*ca*/) override {}
 
     bool valid() const override { return true; }
 };

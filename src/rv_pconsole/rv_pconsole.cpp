@@ -36,8 +36,10 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     // Here and not in the initialiser list: video_attach() is not itself part
     // of building cd_, and keeping it out of the list means the invariant it
     // establishes (rv_pccd.hpp: cv_ outlives cd_) is not tangled with the
-    // ORDER the list happens to be written in.
+    // ORDER the list happens to be written in. audio_attach() is the same
+    // seam for ca_ - see rv_pccd.hpp's own comment on audio_attach().
     cd_->video_attach(*cv_);
+    cd_->audio_attach(*ca_);
 }
 
 // This is where the contract meets the machine. reinterpret_cast is mandatory
