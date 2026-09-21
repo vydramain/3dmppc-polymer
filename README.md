@@ -142,27 +142,43 @@ nothing at run time, is what makes a console capable of being driven. `--dev`
 is an I/O choice within a console that already is: it hands **stdin and
 stdout** to the protocol. It has to be asked for because those two streams
 have another use — a dev build with no `--dev` is an ordinary console you can
-pipe like any other — and a player binary refuses the option by name rather
-than accepting it and doing nothing. Do not read `--dev` as a feature gate:
-there is no capability behind it that the build did not already grant.
+pipe like any other. A player build does not carry the option at all: its
+field, its `getopt` entry and its parsing exist only under
+`-D3DMPPC_DEVTOOLS=ON`, so `--dev` reaches a player binary's ordinary
+unknown-option path — the same diagnostic and exit code any other flag it has
+never heard of would get, not a diagnostic naming `--dev` in particular. Do
+not read `--dev` as a feature gate: there is no capability behind it that the
+build did not already grant.
 
 What "not in the player build" means, exactly: no implementation, no protocol
-vocabulary and no reachable path. Not compiled there: the command dispatcher,
-the state inspection, the stdin channel, the protocol's hex encoder and error
-line, the entry reload, the texture refresh and the loose-directory mount; the
-ceiling on hook calls is 0 there. `strings` finds none of the verbs and
-none of the answer shapes. What remains is the *name* of each slot's entry
-point, answering "no" in a handful of bytes — that is the price of choosing a
-link-time slot over `#ifdef` in the headers, and it is the same price
-`rv_pccl_null`, `rv_pccd_null` and `rv_pcplatform_null` already pay. A
-symbol-name sweep is therefore the wrong check; the vocabulary, the refusals
-and the size of the remaining stub are the right ones.
+vocabulary and no reachable path. Not compiled there: the `--dev` option
+itself, the command dispatcher, the state inspection, the stdin channel, the
+protocol's hex encoder and error line, the entry reload, the texture refresh
+and `mount_dir()`, the loose-directory mount — not even its declaration is
+visible to a player build any more, so there is no name left to find it by;
+the ceiling on hook calls is 0 there. `strings` finds none of the verbs and
+none of the answer shapes. What remains, for the slots that still have a
+null counterpart to link, is the *name* of each entry point, answering "no"
+in a handful of bytes — that is the price of choosing a link-time slot over
+`#ifdef` in the headers, and it is the same price `rv_pccl_null`,
+`rv_pccd_null` and `rv_pcplatform_null` already pay. A symbol-name sweep is
+therefore the wrong check; the vocabulary, the refusals and the size of the
+remaining stub are the right ones.
 
 The option defines exactly one macro, `RV_DEVTOOLS`, and it guards **data** —
-the two fields only the dev slot touches. A slot can leave a build without a
-line that reads a member; it cannot remove the member. Every *behaviour* stays
-a slot, which is why the frame loop contains no `#ifdef` and a developer tests
-the same loop a player runs.
+the fields and declarations only the dev slot touches, `--dev`'s own field
+among them. A slot can leave a build without a line that reads a member; it
+cannot remove the member. Every *behaviour* stays a slot, which is why the
+frame loop contains no `#ifdef` and a developer tests the same loop a player
+runs.
+
+A loose directory is a **`--dev` privilege on top of the build**, not a
+substitute for it: a dev build handed a directory without `--dev` refuses it
+exactly as a player build always does, by name, rather than mounting what
+`--dev` exists to gate. The dev half of `rv_pboot_disc_mount()`
+(`rv_pboot_discmedium.cpp`) is where that refusal lives, and it is told
+whether `--dev` was given by its caller — never by reaching into a global —
+so the same function stays answerable the same way regardless of who asks.
 
 ### Stopping it
 
@@ -390,10 +406,12 @@ whoever wrote the script:
 
 1. Both configurations build, and both burn and boot an ordinary disc.
 2. The player build contains no verb of the protocol and no hex encoder for
-   one, its texture refresh is a stub of a few bytes, and it refuses `--dev`
-   by name with exit 2 and refuses a loose directory — checked by vocabulary,
-   by refusal and by stub size, never by symbol name alone (see the note at
-   the top of this section).
+   one, its texture refresh is a stub of a few bytes, `--dev` is not an
+   option it recognises at all (exit 2 as an unrecognised flag, not a
+   diagnostic naming it), and it refuses a loose directory by name; a dev
+   build refuses that same directory too, the same way, unless `--dev` was
+   also given — checked by vocabulary, by refusal and by stub size, never by
+   symbol name alone (see the note at the top of this section).
 3. The medium answers for itself: a positional directory is `live`, an archive
    is `fixed`, and no combination of disc arguments is silently ignored. A
    header that is refused still frames away the payload it claimed, so those

@@ -113,9 +113,10 @@ void rv_console_print_usage(std::FILE *stream)
         "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
 #if RV_DEVTOOLS
-        // A player build still parses --dev by name, to refuse it with a named
-        // diagnostic (rv_pboot.cpp), but it cannot open the channel this text
-        // describes - advertising it here would offer what the build cannot do.
+        // A player build does not even reach rv_console_print_usage() with
+        // this line in it: --dev is not in its getopt table at all (see
+        // rv_pboot_args), so printing it there would advertise an option the
+        // build cannot parse, let alone act on.
         "      --dev            Attach the development channel to stdin and\n"
         "                       stdout: pause, step, reload of the lua entry\n"
         "                       and state inspection. WHAT this console can do\n"
@@ -201,7 +202,9 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cl", required_argument, 0, 'l'},
                                         {"mode_cd", required_argument, 0, 'c'},
                                         {"mode_cm", required_argument, 0, 'k'},
+#if RV_DEVTOOLS
                                         {"dev", no_argument, 0, 'E'},
+#endif
                                         {"paused", no_argument, 0, 'Y'},
                                         {0, 0, 0, 0}};
 
@@ -214,9 +217,11 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
             case 'M':
                 args.mute = true;
                 break;
+#if RV_DEVTOOLS
             case 'E':
                 args.dev = true;
                 break;
+#endif
             case 'Y':
                 args.loop_paused = true;
                 break;

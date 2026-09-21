@@ -124,9 +124,10 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     // not have put stdin into non-blocking mode and announced a protocol on
     // stdout.
     if (params_.dev) {
-        // Belt and braces: rv_pboot already refuses --dev in a console built
-        // without the development runtime, so the null factory is unreachable
-        // from here - but an unchecked null would be a crash, not a refusal.
+        // Belt and braces: a player build never declares the --dev field that
+        // could set this true (rv_pboot_args.hpp), so the null factory is
+        // unreachable from here in practice - but an unchecked null would be
+        // a crash, not a refusal.
         dev_ = rv_pcdevchan_make();
         if (!dev_) {
             RV_LOG_ERR("pconsole",

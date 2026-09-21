@@ -53,9 +53,13 @@ struct rv_pboot_args {
     bool fixed_step = false;
     bool mute = false;
 
+#if RV_DEVTOOLS
     // `dev` opens the command channel on stdin (see
-    // rv_pconsole/platform/rv_pcdevchan.hpp).
+    // rv_pconsole/platform/rv_pcdevchan.hpp). Not even a field outside a dev
+    // build: --dev is not an option a player binary's getopt table carries
+    // (rv_pboot_args.cpp), so there is nothing here for it to set.
     bool dev = false;
+#endif
 
     // Start with the frame loop STOPPED, before frame 0, so the first
     // controllable moment comes before the disc has drawn anything.
@@ -89,5 +93,19 @@ struct rv_pboot_args {
 // caller must return `exit_code` immediately (2 for a bad command line)
 // without doing anything else: no disc, no SDL, nothing.
 bool rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &out, int &exit_code);
+
+// Whether --dev was given, answerable in code that runs in EVERY build
+// without itself reaching into a field a player build never declares. A
+// player build always answers false: it never parses --dev, so there is no
+// other honest answer.
+inline bool rv_pboot_args_dev(const rv_pboot_args &args)
+{
+#if RV_DEVTOOLS
+    return args.dev;
+#else
+    (void)args;
+    return false;
+#endif
+}
 
 } // namespace rv_3dmppc

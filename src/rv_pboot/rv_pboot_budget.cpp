@@ -19,7 +19,8 @@ int64_t rv_pboot_budget_select(const rv_pboot_args &args, rv_pcloader &loader,
         // archive go through different rv_pcloader stages from here on, but
         // arrive at the same checked-out manifest; rv_pboot_disc_mount()
         // is the one place that decides which, per this build.
-        const int64_t mount_rc = rv_pboot_disc_mount(args.disc_path, loader, medium_live);
+        const int64_t mount_rc =
+            rv_pboot_disc_mount(args.disc_path, rv_pboot_args_dev(args), loader, medium_live);
         if (mount_rc < 0) {
             rv_console_print_error(std::format(
                 "refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));

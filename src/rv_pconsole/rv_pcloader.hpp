@@ -36,11 +36,6 @@ namespace rv_3dmppc
 // even mounted, not an operation on a loaded disc.
 int64_t rv_pcloader_probe_staging();
 
-// True when this binary was built with 3DMPPC_DEVTOOLS ON, i.e. mount_dir()
-// and the other dev-only capabilities are the real implementations rather
-// than the refusing stubs. Free function so callers need no loader instance.
-bool rv_devtools_built();
-
 // PATTERN: RAII — one object owns the whole loaded-disc state (temporary file,
 // dlopen handle, the disc object) and its destructor is the ONLY teardown path,
 // so the order below cannot be got wrong by a caller taking an early return:
@@ -92,6 +87,7 @@ public:
     // archive is left mounted.
     int64_t mount(const char *archive_path);
 
+#if RV_DEVTOOLS
     // STAGE 1 of load(), for an UNPACKED DIRECTORY disc (disc.toml + disc.so +
     // flat entries) instead of a `.mppcdisc` archive. Runs exactly the same
     // checks as mount(), off the same bytes: the manifest parser, the same
@@ -102,7 +98,13 @@ public:
     // extract from unchanged; see bring_up()'s comment for why they must not
     // be re-read from the path. Returns RV_OK, or a negative rv_err after
     // logging exactly what went wrong; on failure nothing is left mounted.
+    //
+    // Not even DECLARED without -D3DMPPC_DEVTOOLS=ON: a player build must not
+    // be able to find this entry point by name, let alone call it - see
+    // rv_pboot_discmedium_null.cpp for how a player build names the same
+    // refusal without it.
     int64_t mount_dir(const char *dir_path);
+#endif
 
     // STAGE 2 of load(): extract the code entry from the archive mount() left
     // open, dlopen it and create() the disc. Requires a prior successful
@@ -160,18 +162,20 @@ public:
     // rv_dmain), and that one's lifecycle is none of our business.
     void notify_initialized(const rv_de *disc);
 
-    // Idempotent teardown, in the order documented above. Called by the
-    // destructor; public so a caller may end a disc early and see the log lines
-    // in place rather than at some indeterminate point during unwinding.
+#if RV_DEVTOOLS
     // Two stages of mount_dir(), split out to stay under the function-size
     // rule. Both are development-build only, like mount_dir itself
-    // (rv_pcloader_livedir.cpp).
+    // (rv_pcloader_livedir.cpp), and gone from a player build along with it.
     int64_t read_dir_manifest_(const std::filesystem::path &root, const char *dir_path);
     int64_t check_dir_lua_triple_(const std::filesystem::path &root);
+#endif
 
     // The disc's last hook, with its throw contained. See rv_pcloader.cpp.
     void shutdown_disc_();
 
+    // Idempotent teardown, in the order documented above. Called by the
+    // destructor; public so a caller may end a disc early and see the log lines
+    // in place rather than at some indeterminate point during unwinding.
     void unload();
 
 private:
@@ -189,7 +193,10 @@ private:
 
     // True when the current mount came from mount_dir() rather than mount().
     // bring_up() branches on this because the two routes stage the code
-    // differently - see bring_up()'s comment.
+    // differently - see bring_up()'s comment. Stays unconditional, unlike
+    // mount_dir() itself, because bring_up()/unload() read it in EVERY build;
+    // a player build simply never has anything that sets it, so it is always
+    // false there.
     bool from_directory_ = false;
 
     // The directory mount_dir() was given, kept for logging and for

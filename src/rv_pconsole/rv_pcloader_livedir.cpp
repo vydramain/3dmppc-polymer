@@ -86,11 +86,6 @@ std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
 
 } // namespace rv_pcloader_detail
 
-bool rv_devtools_built()
-{
-    return true;
-}
-
 // The manifest of a directory disc: same parser, same ceiling as mount(). Its
 // own step because reading a file and parsing what is in it are two ways to
 // fail and mount_dir has five more of its own.

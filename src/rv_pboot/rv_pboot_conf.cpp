@@ -30,7 +30,7 @@ void rv_pboot_conf_build(
     conf.params.scale = args.scale;
     conf.params.max_frames = args.max_frames;
     conf.params.dump_frame_path = args.dump_frame_path;
-    conf.params.dev = args.dev;
+    conf.params.dev = rv_pboot_args_dev(args);
     conf.params.loop_paused = args.loop_paused;
     conf.ca.mute = args.mute;
     conf.cd.medium_path = args.medium_path;
