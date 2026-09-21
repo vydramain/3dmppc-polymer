@@ -50,13 +50,13 @@ hook into the same-named Lua function, so the disc's own file carries no
 forwarding of its own. It is a pdklib convenience over `RV_MPPC_DISC_CL_BASE_DEF`
 (pdk/de/rv_dv.h), the pdk contract that already makes every rv_cl call a Lua
 disc's `rv_de` needs: a disc is free to call that macro itself, alongside
-`RV_MPPC_DISC_DEF`, supplying its own title and its own flush, and skip
+`RV_MPPC_DISC_ENTRY_DEF`, supplying its own title and its own flush, and skip
 pdklib entirely.
 
 A C++ disc gets the same kind of convenience from `RV_MPPC_DISC_CPP_DEF`
 (`pdklib/rv_cppdisc/rv_cppdisc.hpp`): a base class carrying the startup guards,
 MENU-button press-edge tracking and `read_asset()` every C++ disc repeats, that
-the disc's own class derives from before being handed to `RV_MPPC_DISC_DEF`.
+the disc's own class derives from before being handed to `RV_MPPC_DISC_ENTRY_DEF`.
 Unlike the Lua case there is no pdk-side contract class behind it - a C++
 disc's own class already is its `rv_de`, so this macro lives in pdklib alone
 and a disc is just as free to skip it and write all five hooks by hand, the
@@ -467,7 +467,7 @@ whoever wrote the script:
 ```
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
-  src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_DEF
+  src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
   assets/          PNGs get baked into texels; everything else is copied in
 ```
 
@@ -524,10 +524,10 @@ Two things make a translation unit a disc rather than a library:
 
 ```cpp
 class rv_dmain : public rv_pdk::rv_de { /* ... */ };  // implement the lifecycle
-RV_MPPC_DISC_DEF(mygame::rv_dmain)      // last line of the file
+RV_MPPC_DISC_ENTRY_DEF(mygame::rv_dmain)      // last line of the file
 ```
 
-`RV_MPPC_DISC_DEF` plants the two `extern "C"` symbols the console looks up after
+`RV_MPPC_DISC_ENTRY_DEF` plants the two `extern "C"` symbols the console looks up after
 `dlopen`; everything else in the disc is hidden. It lives in pdk, not pdklib:
 every disc must call it, whether or not it uses any pdklib convenience.
 Release what you acquired in

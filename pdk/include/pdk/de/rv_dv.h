@@ -76,7 +76,7 @@ _Static_assert(sizeof(struct rv_mppc_note_desc) == 16, "rv_mppc_note_desc must b
 
 #ifdef __cplusplus
 
-#define RV_MPPC_DISC_DEF(disc_class)                                                         \
+#define RV_MPPC_DISC_ENTRY_DEF(disc_class)                                                   \
     static int64_t rv_mppc_disc_entry_thunk_disc_initialize_(void *self_, rv_pdko *pdk)      \
     {                                                                                        \
         return static_cast<disc_class *>(self_)->disc_initialize(pdk);                       \
@@ -179,7 +179,7 @@ extern "C" rv_cl *rv_pdko_cl(rv_pdko *o);
 // its contract name with its contract arity, read frame_update's boolean
 // result back and drop it, and free the chunk on shutdown. THAT is the
 // contract - it is what makes a class a lua-flavoured rv_de - so it lives
-// here beside RV_MPPC_DISC_DEF rather than in pdklib. rv_cl is already part
+// here beside RV_MPPC_DISC_ENTRY_DEF rather than in pdklib. rv_cl is already part
 // of pdk (pdk/include/pdk/cl/rv_cl.h), so a disc using only this macro pulls
 // in no pdklib code at all.
 //
@@ -193,11 +193,11 @@ extern "C" rv_cl *rv_pdko_cl(rv_pdko *o);
 // macro - disc_title() is one line to override.
 //
 // This macro defines the class ONLY; it does not plant the entry points -
-// RV_MPPC_DISC_DEF already exists for that and is called separately, right
+// RV_MPPC_DISC_ENTRY_DEF already exists for that and is called separately, right
 // after it:
 //
 //   RV_MPPC_DISC_CL_BASE_DEF(my_disc, "my-game")
-//   RV_MPPC_DISC_DEF(my_disc)
+//   RV_MPPC_DISC_ENTRY_DEF(my_disc)
 //
 // Splitting the two calls is what lets the class defined here be inherited
 // from before anything plants it - see pdklib's RV_MPPC_DISC_LUA_DEF, which

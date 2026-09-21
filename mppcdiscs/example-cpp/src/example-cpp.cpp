@@ -147,4 +147,4 @@ void rv_dmain::frame_render()
 
 } // namespace example_cpp
 
-RV_MPPC_DISC_DEF(example_cpp::rv_dmain);
+RV_MPPC_DISC_ENTRY_DEF(example_cpp::rv_dmain);

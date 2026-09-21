@@ -4,7 +4,7 @@
 // here the way rv_dv.h's RV_MPPC_DISC_CL_BASE_DEF is one for the Lua case: a
 // C++ disc's class already IS its own hooks, so pdk's whole contract is
 // "write disc_initialize/frame_update/frame_render/disc_release/
-// disc_shutdown/disc_title and hand the class to RV_MPPC_DISC_DEF" - nothing
+// disc_shutdown/disc_title and hand the class to RV_MPPC_DISC_ENTRY_DEF" - nothing
 // about that needs a base class to exist. What repeats from one C++ disc to
 // the next instead, and what this header exists to stop retyping, is:
 //
@@ -42,17 +42,17 @@
 // RV_MPPC_DISC_CL_BASE_DEF documents applies here. The macro defines the class
 // ONLY; a disc using it derives its own class from class_name, adds
 // whatever is its own content, and plants the FINAL class with
-// RV_MPPC_DISC_DEF, exactly as example-cpp.cpp does:
+// RV_MPPC_DISC_ENTRY_DEF, exactly as example-cpp.cpp does:
 //
 //   RV_MPPC_DISC_CPP_DEF(rv_dmain_base_)
 //   class rv_dmain : public rv_dmain_base_ { ... };
-//   RV_MPPC_DISC_DEF(rv_dmain)
+//   RV_MPPC_DISC_ENTRY_DEF(rv_dmain)
 //
 // A disc's own overrides of disc_initialize/frame_update call the base
 // class's version first (rv_dmain_base_::disc_initialize(pdk), etc.) the
 // same way RV_MPPC_DISC_LUA_DEF's derived frame_render calls
 // rv_dscript_disc_base_::frame_render before deciding what to do with its
-// result - name hiding, not virtual dispatch, because RV_MPPC_DISC_DEF
+// result - name hiding, not virtual dispatch, because RV_MPPC_DISC_ENTRY_DEF
 // already knows the disc's most-derived type and calls it directly. A disc
 // is free to skip this header and write all five hooks by hand, the way
 // example-cpp.cpp did before this header existed.

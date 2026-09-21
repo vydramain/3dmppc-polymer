@@ -26,4 +26,4 @@
             }                                                      \
         }                                                          \
     };                                                             \
-    RV_MPPC_DISC_DEF(rv_dscript_disc_)
+    RV_MPPC_DISC_ENTRY_DEF(rv_dscript_disc_)

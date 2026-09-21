@@ -24,9 +24,9 @@ example-lua/
   Lua disc reaches one way or another — and adds only a fixed title and a
   post-`frame_render` flush, the two things `RV_MPPC_DISC_CL_BASE_DEF` leaves
   to its caller. A disc is free to call `RV_MPPC_DISC_CL_BASE_DEF` and
-  `RV_MPPC_DISC_DEF` itself instead, with no pdklib at all, the same way
+  `RV_MPPC_DISC_ENTRY_DEF` itself instead, with no pdklib at all, the same way
   this pdklib macro does underneath. `RV_MPPC_DISC_CL_BASE_DEF` only defines
-  the class; `RV_MPPC_DISC_DEF` is what plants it, so this is still a real
+  the class; `RV_MPPC_DISC_ENTRY_DEF` is what plants it, so this is still a real
   disc, `dlopen`ed like any other. Its `disc_initialize` raises the entry chunk with
   `rv_cl_script_entry()`, and from then on every lifecycle hook
   (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) is one
