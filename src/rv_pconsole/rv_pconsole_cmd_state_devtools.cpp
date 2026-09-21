@@ -1,5 +1,5 @@
 // The development channel's state inspection: `get` and `keys`. Dev slot only
-// (see CMakeLists.txt); the dispatcher in rv_pconsole_dev.cpp calls into it.
+// (see CMakeLists.txt); the dispatcher in rv_pconsole_cmd_devtools.cpp calls into it.
 #include "rv_pconsole/rv_pconsole.hpp"
 
 #include <format>
@@ -44,14 +44,14 @@ const char *rv_pccmd_type_name(int64_t type)
 
 } // namespace
 
-void rv_3dmppc::rv_pconsole::dev_get(const rv_pccmdreq &req)
+void rv_3dmppc::rv_pconsole::cmd_get(const rv_pccmdreq &req)
 {
     if (req.args.size() < 2) {
-        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "get needs a key"));
+        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "get needs a key"));
         return;
     }
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -64,21 +64,21 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pccmdreq &req)
         // that has run its script heap out, the read cannot be performed at
         // all. Answered, not fatal - `gc` is the next thing to try, and the
         // client has to be able to reach it.
-        dev_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
+        cmd_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
             "the script heap is exhausted; the key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
-        dev_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
+        cmd_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
         return;
     }
 
     switch (value.type) {
     case RV_CL_TYPE_BOOLEAN:
-        dev_->reply(std::format("{} ok found=1 type=boolean value={}", req.id, value.boolean ? 1 : 0));
+        cmd_->reply(std::format("{} ok found=1 type=boolean value={}", req.id, value.boolean ? 1 : 0));
         return;
     case RV_CL_TYPE_NUMBER:
-        dev_->reply(std::format("{} ok found=1 type=number value={}", req.id, value.number));
+        cmd_->reply(std::format("{} ok found=1 type=number value={}", req.id, value.number));
         return;
     case RV_CL_TYPE_STRING: {
         // Hex doubles the byte count, and the answer queue has its own
@@ -92,40 +92,40 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pccmdreq &req)
         const int64_t line_size =
             static_cast<int64_t>(prefix.size()) + static_cast<int64_t>(value.bytes.size()) * 2 + 1;
         if (line_size > RV_PCCMDCHAN_OUT_MAX) {
-            dev_->reply(rv_pccmd_err(req.id, "answer_size", RV_ERR_INVAL, false,
+            cmd_->reply(rv_pccmd_err(req.id, "answer_size", RV_ERR_INVAL, false,
                 std::format("value is {} bytes; its hex answer does not fit one reply (ceiling {} bytes)",
                     value.bytes.size(), RV_PCCMDCHAN_OUT_MAX)));
             return;
         }
         // Hex, not text: a stored string may hold a NUL or bytes that are not
         // valid UTF-8, and the protocol promises to hand back what is there.
-        dev_->reply(std::format("{} ok found=1 type=string value={}", req.id,
+        cmd_->reply(std::format("{} ok found=1 type=string value={}", req.id,
             rv_pccmd_hex(value.bytes)));
         return;
     }
     case RV_CL_TYPE_TABLE:
-        dev_->reply(std::format("{} ok found=1 type=table count={}", req.id, value.count));
+        cmd_->reply(std::format("{} ok found=1 type=table count={}", req.id, value.count));
         return;
     case RV_CL_TYPE_FUNCTION:
         // Worth its own type name rather than "other": a function in state
         // keeps the old chunk's code alive and callable past a reload, which is
         // the one state-table mistake that looks like nothing at all.
-        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
+        cmd_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     case RV_CL_TYPE_OTHER:
-        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
+        cmd_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     default:
         // A lua table stores no nil, so "no such key" and "nil" are one fact.
-        dev_->reply(std::format("{} ok found=0 type={}", req.id, rv_pccmd_type_name(value.type)));
+        cmd_->reply(std::format("{} ok found=0 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     }
 }
 
-void rv_3dmppc::rv_pconsole::dev_keys(const rv_pccmdreq &req)
+void rv_3dmppc::rv_pconsole::cmd_keys(const rv_pccmdreq &req)
 {
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -135,12 +135,12 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pccmdreq &req)
     std::vector<rv_pccl_key> keys;
     const int64_t rc = cl_->state_keys(path, target, keys);
     if (rc == RV_ERR_NOMEM) {
-        dev_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
+        cmd_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
             "the script heap is exhausted; a key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
-        dev_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
+        cmd_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
         return;
     }
 
@@ -174,5 +174,5 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pccmdreq &req)
         ++shown;
     }
 
-    dev_->reply(std::format("{}{} keys={}", prefix, shown, list));
+    cmd_->reply(std::format("{}{} keys={}", prefix, shown, list));
 }

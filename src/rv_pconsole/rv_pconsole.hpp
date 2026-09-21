@@ -82,7 +82,7 @@ private:
     // without it: one `if` per frame that is not taken, and no second frame
     // loop - a dev path that diverged from the ordinary one would drift, and
     // then the thing the developer tested would not be the thing that ships.
-    std::unique_ptr<rv_pccmdchan> dev_;
+    std::unique_ptr<rv_pccmdchan> cmd_;
 
     // The entry chunk's asset name, kept so a candidate that arrived over the
     // channel can be compiled under the name the developer recognises: it is
@@ -113,19 +113,19 @@ private:
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
 #if RV_DEVTOOLS
-    // Touched only by the dev slot (rv_pconsole_dev.cpp), and so not present at
+    // Touched only by the dev slot (rv_pconsole_cmd_devtools.cpp), and so not present at
     // all without it. This is the one thing a link-time slot cannot do on its
     // own - it can leave a build without a line that reads a member, but not
     // without the member - which is why -D3DMPPC_DEVTOOLS=ON defines exactly
     // one macro, and defines it for DATA only. Every BEHAVIOUR here is still a
     // slot, so the frame loop has no #ifdef in it.
-    bool dev_close_logged_ = false;
+    bool cmd_close_logged_ = false;
 
     // The last script-error sequence number this console has already reacted
     // to. rv_pccl counts every failed hook call; comparing against that count
     // is how the console learns a game hook broke, without the disc having to
     // tell it and without a contract change.
-    int64_t dev_error_seq_ = 0;
+    int64_t cmd_error_seq_ = 0;
 #endif
 
     // Move the channel along and execute whatever arrived, on the frame
@@ -177,7 +177,7 @@ private:
     // four lines inside the loop: the loop body should read as a flat list of
     // what happens per frame, and every `if` nested in it is one more thing a
     // reader has to hold while looking for the timing rule.
-    bool run_dev_commands();
+    bool run_cmd_channel();
 
     // True when this iteration creates NO frame. Also owns what a pause does
     // to the clock, because the two are the same fact seen twice.
@@ -193,25 +193,25 @@ private:
     // The last hook, the frame dump, the audio summary and the last answer.
     void run_finish(rv_de *disc, const run_state &run);
 
-    // Every one of these is a SLOT: rv_pconsole_dev.cpp in a development build,
-    // rv_pconsole_dev_null.cpp in a player build, chosen in CMakeLists.txt.
+    // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
+    // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
     // The frame loop calls them unconditionally so there is one loop and not
     // two - what a developer tested is what ships - and a player binary
     // carries no line of what they say.
-    void dev_service();
+    void cmd_service();
     // What the console owes the channel once the frame is over: the answer to
     // a step, and a game hook that failed this frame.
-    void dev_after_frame();
+    void cmd_after_frame();
     // The Pause KEY moved the machine. The client did not ask, so it hears
     // about it as an event.
-    void dev_note_pause();
-    void dev_dispatch(const rv_pccmdreq &req);
-    void dev_status(int64_t id);
-    void dev_reload(const rv_pccmdreq &req);
-    void dev_reload_module(const rv_pccmdreq &req);
-    void dev_get(const rv_pccmdreq &req);
-    void dev_keys(const rv_pccmdreq &req);
-    void dev_asset(const rv_pccmdreq &req);
+    void cmd_note_pause();
+    void cmd_dispatch(const rv_pccmdreq &req);
+    void cmd_status(int64_t id);
+    void cmd_reload(const rv_pccmdreq &req);
+    void cmd_reload_module(const rv_pccmdreq &req);
+    void cmd_get(const rv_pccmdreq &req);
+    void cmd_keys(const rv_pccmdreq &req);
+    void cmd_asset(const rv_pccmdreq &req);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);

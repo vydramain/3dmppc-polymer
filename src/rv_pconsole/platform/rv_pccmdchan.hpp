@@ -108,7 +108,7 @@ public:
 
     // False once the far end went away or broke the framing. A disconnected
     // channel answers nothing and reads nothing; the run carries on, and the
-    // pause state is deliberately NOT touched - see rv_pconsole::dev_service.
+    // pause state is deliberately NOT touched - see rv_pconsole::cmd_service.
     virtual bool connected() const = 0;
 
     // Why the channel went down, for the log line the caller writes once.

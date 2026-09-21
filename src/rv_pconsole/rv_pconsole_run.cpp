@@ -128,8 +128,8 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
         // could set this true (rv_pboot_args.hpp), so the null factory is
         // unreachable from here in practice - but an unchecked null would be
         // a crash, not a refusal.
-        dev_ = rv_pccmdchan_make();
-        if (!dev_) {
+        cmd_ = rv_pccmdchan_make();
+        if (!cmd_) {
             RV_LOG_ERR("pconsole",
                 "development runtime unavailable: this console was built without it "
                 "(-D3DMPPC_DEVTOOLS=ON)");
@@ -145,7 +145,7 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     paused_ = params_.loop_paused;
     if (paused_) {
         RV_LOG_INFO("pconsole", "stopped before frame 0; lift it with the pause key{}",
-            dev_ ? " or a resume/step request" : "");
+            cmd_ ? " or a resume/step request" : "");
     }
 
     frames_ = 0;
@@ -173,19 +173,19 @@ void rv_pconsole::run_pause_key()
     paused_ = !paused_;
     RV_LOG_INFO("pconsole", "{} by the pause key at frame {}", paused_ ? "stopped" : "running again",
         frames_);
-    dev_note_pause();
+    cmd_note_pause();
 }
 
-bool rv_pconsole::run_dev_commands()
+bool rv_pconsole::run_cmd_channel()
 {
-    if (!dev_) {
+    if (!cmd_) {
         return false;
     }
     // The frame boundary, and the only place a command is executed. Here no
     // script call is in flight and the lua stack is at its base, which is what
     // makes replacing code safe - the pause is for the developer's eyes, never
     // a precondition for the swap.
-    dev_service();
+    cmd_service();
     if (!quit_by_command_) {
         return false;
     }
@@ -348,8 +348,8 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
 
     // Best effort, bounded: the last answer should reach a client that is still
     // there, and a client that is gone must not hold the shutdown open.
-    if (dev_) {
-        dev_->drain(std::chrono::milliseconds(50));
+    if (cmd_) {
+        cmd_->drain(std::chrono::milliseconds(50));
     }
 }
 
@@ -380,7 +380,7 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
 
         run_pause_key();
 
-        if (run_dev_commands()) {
+        if (run_cmd_channel()) {
             break;
         }
 
@@ -389,7 +389,7 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         }
 
         run_frame(disc, run);
-        dev_after_frame();
+        cmd_after_frame();
 
         // Polled every frame, per the contract. Checked after the frame so the
         // disc gets to draw the frame on which it decided to quit.

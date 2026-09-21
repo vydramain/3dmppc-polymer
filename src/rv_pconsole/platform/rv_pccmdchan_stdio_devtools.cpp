@@ -97,12 +97,12 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
     if (in_flags_ < 0 || out_flags_ < 0 ||
         ::fcntl(STDIN_FILENO, F_SETFL, in_flags_ | O_NONBLOCK) < 0 ||
         ::fcntl(STDOUT_FILENO, F_SETFL, out_flags_ | O_NONBLOCK) < 0) {
-        RV_LOG_ERR("pcdev", "cannot put stdin/stdout into non-blocking mode; dev channel is down");
+        RV_LOG_ERR("pccmd", "cannot put stdin/stdout into non-blocking mode; dev channel is down");
         connected_ = false;
         reason_ = "stdin/stdout cannot be made non-blocking";
         return;
     }
-    RV_LOG_INFO("pcdev", "development channel open on stdin/stdout (protocol 1)");
+    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol 1)");
 }
 
 rv_pccmdchan_stdio::~rv_pccmdchan_stdio()
