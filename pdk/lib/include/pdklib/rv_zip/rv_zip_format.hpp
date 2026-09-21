@@ -204,4 +204,102 @@ inline rv_zip_eocd rv_zip_decode_eocd(std::span<const unsigned char> bytes)
     return record;
 }
 
+// --- validating the EOCD record ---
+//
+// Decoding an EOCD record and deciding whether to BELIEVE it are different
+// questions, and the second one is not specific to either reader. Rejecting a
+// split archive, a zip64 sentinel, or a central directory that the record
+// itself places outside the file is knowledge of the zip format, not of the
+// console or the burner: both programs parse the same container and both
+// must refuse the same lies about it, or a file one side calls valid becomes
+// the other side's unexplained crash. The one thing that legitimately
+// differs between the two readers is how large a central directory either is
+// willing to believe before it starts to look like an attempt to force a
+// huge allocation - the console's disc index and the burner's own output are
+// both small by construction, but "small" is a judgment each caller makes
+// about its own inputs, not a fact about zip. That is why the ceiling comes
+// in as a parameter instead of living in this header as another constant.
+//
+// Decoding stays separate from this (see rv_zip_decode_eocd above): this
+// function decodes internally because every one of its checks needs the
+// decoded fields, but a caller that only wants the raw record still has
+// rv_zip_decode_eocd on its own.
+
+/// Why rv_zip_validate_eocd refused a record. `ok` is the only status for
+/// which `rv_zip_eocd_result::fields` is meaningful; every other value names
+/// exactly one of the checks below, so a caller can pick its own sentence
+/// for it without re-deriving what went wrong.
+enum class rv_zip_eocd_status {
+    ok,
+    split_archive,           ///< the record does not describe a single-disk archive
+    zip64,                   ///< a field holds the zip64 "see the real value elsewhere" sentinel
+    directory_outside_file,  ///< the central directory the record points to does not fit in the file
+    directory_too_large,     ///< the central directory is inside the file but bigger than the caller allows
+};
+
+/// The three EOCD fields a reader actually needs, once validated.
+struct rv_zip_eocd_fields {
+    uint32_t cd_offset = 0;
+    uint32_t cd_size = 0;
+    uint16_t entries_total = 0;
+};
+
+/// The outcome of validating one EOCD record.
+struct rv_zip_eocd_result {
+    rv_zip_eocd_status status = rv_zip_eocd_status::ok;
+    rv_zip_eocd_fields fields;
+};
+
+/// Decode and validate an EOCD record, rejecting anything a reader of this
+/// container cannot safely act on.
+///
+/// @param eocd                the rv_zip_eocd_size bytes of the record itself
+/// @param file_size           the REAL size of the file the record came from,
+///                            used to check the central directory actually
+///                            fits, independent of anything the record claims
+/// @param max_directory_bytes the caller's own ceiling on a believable
+///                            central directory size; not a zip format limit
+inline rv_zip_eocd_result rv_zip_validate_eocd(std::span<const unsigned char> eocd, int64_t file_size,
+                                                int64_t max_directory_bytes)
+{
+    const rv_zip_eocd rec = rv_zip_decode_eocd(eocd);
+    const uint16_t disk = rec.disk_number;
+    const uint16_t cd_disk = rec.cd_disk;
+    const uint16_t entries_here = rec.entries_on_disk;
+    const uint16_t entries_total = rec.entries_total;
+    const uint32_t cd_size = rec.cd_size;
+    const uint32_t cd_offset = rec.cd_offset;
+
+    rv_zip_eocd_result result;
+
+    if (disk != 0 || cd_disk != 0 || entries_here != entries_total) {
+        result.status = rv_zip_eocd_status::split_archive;
+        return result;
+    }
+    if (entries_total == rv_zip_zip64_sentinel16 || cd_size == rv_zip_zip64_sentinel32 ||
+        cd_offset == rv_zip_zip64_sentinel32) {
+        result.status = rv_zip_eocd_status::zip64;
+        return result;
+    }
+
+    // Every offset from here on is checked against the REAL file size before
+    // it is used, and the subtraction form avoids the overflow that
+    // `a + b > size` invites on 32-bit fields promoted to 64-bit arithmetic.
+    if (static_cast<int64_t>(cd_offset) > file_size ||
+        static_cast<int64_t>(cd_size) > file_size - static_cast<int64_t>(cd_offset)) {
+        result.status = rv_zip_eocd_status::directory_outside_file;
+        return result;
+    }
+    if (static_cast<int64_t>(cd_size) > max_directory_bytes) {
+        result.status = rv_zip_eocd_status::directory_too_large;
+        return result;
+    }
+
+    result.status = rv_zip_eocd_status::ok;
+    result.fields.cd_offset = cd_offset;
+    result.fields.cd_size = cd_size;
+    result.fields.entries_total = entries_total;
+    return result;
+}
+
 }  // namespace rv_pdklib

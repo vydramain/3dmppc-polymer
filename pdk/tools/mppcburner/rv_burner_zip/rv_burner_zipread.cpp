@@ -12,6 +12,22 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
+namespace {
+
+// A .mppcdisc this tool writes never has a central directory bigger than a
+// few hundred entries' worth of names, so this ceiling is generous by a wide
+// margin; it exists only so a hand-edited or foreign file cannot make this
+// reader believe an enormous allocation before it has checked anything else
+// about the record. The console's own reader uses the same number for the
+// same reason on the far stricter side of this container (see
+// RV_PCZIP_MAX_DIRECTORY_BYTES in src/rv_pconsole/cd/rv_zipreader.cpp) - reusing
+// it here is not a shared format limit, it is this tool agreeing that a
+// number picked for "no real disc index is anywhere close to this" is just as
+// true of what this tool itself produces.
+constexpr int64_t RV_ZIP_MAX_DIRECTORY_BYTES = 32 * 1024 * 1024;
+
+} // namespace
+
 // Read a whole file into memory. Opened at the end (`ate`) so tellg gives the
 // size before a single byte is read, which is what lets the buffer be sized once
 // instead of grown.
@@ -82,17 +98,37 @@ static bool zip_list(
         return false;
     }
 
-    // --- walk the directory ---
-
-    const rv_pdklib::rv_zip_eocd eocd_rec =
-        rv_pdklib::rv_zip_decode_eocd({bytes.data() + eocd, rv_pdklib::rv_zip_eocd_size});
-    const uint16_t count = eocd_rec.entries_total;
-    const uint32_t directory_size = eocd_rec.cd_size;
-    const uint32_t directory_offset = eocd_rec.cd_offset;
-    if (static_cast<std::size_t>(directory_offset) + directory_size > bytes.size()) {
-        error = "central directory runs past the end of the file";
-        return false;
+    // --- validate the record and walk the directory ---
+    //
+    // This used to trust the EOCD fields outright once the signature matched:
+    // it took whichever offset and count the record gave and started reading.
+    // That is no longer honest now that the console's reader and this one
+    // share rv_zip_validate_eocd - a split archive or a zip64 sentinel that
+    // the console refuses would otherwise be something this tool happily
+    // reports on, which is exactly the kind of file the two readers must
+    // agree is not a .mppcdisc.
+    const rv_pdklib::rv_zip_eocd_result validated = rv_pdklib::rv_zip_validate_eocd(
+        {bytes.data() + eocd, rv_pdklib::rv_zip_eocd_size}, static_cast<int64_t>(bytes.size()),
+        RV_ZIP_MAX_DIRECTORY_BYTES);
+    switch (validated.status) {
+        case rv_pdklib::rv_zip_eocd_status::ok:
+            break;
+        case rv_pdklib::rv_zip_eocd_status::split_archive:
+            error = "split archives are not supported";
+            return false;
+        case rv_pdklib::rv_zip_eocd_status::zip64:
+            error = "zip64 archives are not supported";
+            return false;
+        case rv_pdklib::rv_zip_eocd_status::directory_outside_file:
+            error = "central directory runs past the end of the file";
+            return false;
+        case rv_pdklib::rv_zip_eocd_status::directory_too_large:
+            error = "central directory is implausibly large";
+            return false;
     }
+
+    const uint16_t count = validated.fields.entries_total;
+    const uint32_t directory_offset = validated.fields.cd_offset;
 
     std::size_t at = directory_offset;
     for (uint16_t i = 0; i < count; ++i) {
