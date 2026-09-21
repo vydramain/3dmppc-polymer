@@ -1,4 +1,4 @@
-#include "rv_pconsole/cio/rv_pccio_std.hpp"
+#include "rv_pconsole/cio/rv_pccio_platform.hpp"
 
 #include <algorithm>
 
@@ -10,19 +10,19 @@
 namespace rv_3dmppc
 {
 
-rv_pcbudget_cost rv_pccio_std::evaluate(const rv_pdklib::rv_manifest_budget &budget)
+rv_pcbudget_cost rv_pccio_platform::evaluate(const rv_pdklib::rv_manifest_budget &budget)
 {
     rv_pcbudget_cost cost;
     int64_t total = 0;
     if (rv_pcbudget_mul(cost, "budget.pccio.iport_count", budget.pccio.iport_count,
-            static_cast<int64_t>(sizeof(rv_pccio_std_port)), total) ||
+            static_cast<int64_t>(sizeof(rv_pccio_platform_port)), total) ||
         rv_pcbudget_add(cost, "budget.pccio.iport_count", total)) {
         return cost;
     }
     return cost;
 }
 
-int64_t rv_pccio_std::iport_count()
+int64_t rv_pccio_platform::iport_count()
 {
     return conf_.iport_count;
 }
@@ -30,7 +30,7 @@ int64_t rv_pccio_std::iport_count()
 // Release ports of departed pads, then give each arrived pad the first empty
 // port. A pad that arrives while every port is full stays ignored until it
 // reconnects; a reconnect is a new arrival and takes the first empty port.
-void rv_pccio_std::reconcile()
+void rv_pccio_platform::reconcile()
 {
     if (gamepads_.generation() == seen_generation_) {
         return;
@@ -82,7 +82,7 @@ void rv_pccio_std::reconcile()
 // The keyboard is only ever overlaid onto port 0. Logs a change of state
 // (present <-> absent) whenever it flips, so a run's log shows exactly when a
 // window (and so a keyboard) came or went.
-uint64_t rv_pccio_std::keyboard_abilities()
+uint64_t rv_pccio_platform::keyboard_abilities()
 {
     const uint64_t abilities = window_.keyboard_abilities();
     const int present = (abilities != 0) ? 1 : 0;
@@ -101,14 +101,14 @@ uint64_t rv_pccio_std::keyboard_abilities()
 // contract's "the query methods report data, not status": there is no error
 // channel here to report a bad index through, and a disc that probes port 7 on
 // a two-port machine legally gets "this port can do nothing".
-uint64_t rv_pccio_std::iport_abilities(int64_t port)
+uint64_t rv_pccio_platform::iport_abilities(int64_t port)
 {
     if (!port_in_range(port)) {
         return 0;
     }
     reconcile();
 
-    const rv_pccio_std_port &slot = ports_[static_cast<size_t>(port)];
+    const rv_pccio_platform_port &slot = ports_[static_cast<size_t>(port)];
     uint64_t abilities = (slot.pad != 0) ? gamepads_.abilities(slot.pad) : 0;
     if (port == 0) {
         abilities |= keyboard_abilities();
@@ -118,21 +118,21 @@ uint64_t rv_pccio_std::iport_abilities(int64_t port)
 
 // Relative motion since the previous call; the platform window owns the
 // accumulator and clears it here (rv_cio::imouse is a CONSUMING read).
-rv_imouse rv_pccio_std::imouse()
+rv_imouse rv_pccio_platform::imouse()
 {
     return window_.consume_mouse();
 }
 
 // Instantaneous snapshot. Note the contract gives a LEVEL, never an edge: a disc
 // that wants "just pressed" diffs successive snapshots itself.
-rv_istate rv_pccio_std::iport_state(int64_t port)
+rv_istate rv_pccio_platform::iport_state(int64_t port)
 {
     if (!port_in_range(port)) {
         return rv_istate{};
     }
     reconcile();
 
-    const rv_pccio_std_port &slot = ports_[static_cast<size_t>(port)];
+    const rv_pccio_platform_port &slot = ports_[static_cast<size_t>(port)];
     rv_istate state = (slot.pad != 0) ? gamepads_.state(slot.pad) : rv_istate{};
 
     if (port == 0 && keyboard_abilities() != 0) {
@@ -155,7 +155,7 @@ rv_istate rv_pccio_std::iport_state(int64_t port)
 //
 // This is the only method in rv_cio with an error channel, so it is also the
 // only place a bad port index is a failure rather than a zero read.
-int64_t rv_pccio_std::ohaptic(int64_t port, rv_oheffect effect)
+int64_t rv_pccio_platform::ohaptic(int64_t port, rv_oheffect effect)
 {
     if (!port_in_range(port)) {
         RV_LOG_WARN("pccio", "ohaptic on out-of-range port {} (count {})", port, conf_.iport_count);
@@ -164,7 +164,7 @@ int64_t rv_pccio_std::ohaptic(int64_t port, rv_oheffect effect)
 
     reconcile();
 
-    const rv_pccio_std_port &slot = ports_[static_cast<size_t>(port)];
+    const rv_pccio_platform_port &slot = ports_[static_cast<size_t>(port)];
     if (slot.pad == 0) {
         return RV_ERR_INVAL;
     }

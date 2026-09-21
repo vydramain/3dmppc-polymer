@@ -104,7 +104,7 @@ protected:
 };
 
 // The physical gamepads. Which virtual port a pad drives is NOT decided here:
-// that is virtual port state and belongs to cio (rv_pccio_std).
+// that is virtual port state and belongs to cio (rv_pccio_platform).
 class rv_pcgamepads
 {
 public:
