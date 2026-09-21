@@ -14,7 +14,7 @@ Drop as many discs as you like side by side.
 mppcdiscs/
   <disc-id>/
     disc.toml       manifest: id, title, what to compile/bake/copy
-    src/*.cpp       the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
+    src/*.cpp       the game — implements rv_de, exports itself with RV_MPPC_DISC_DEF
     assets/         PNGs get baked into texels; everything else is copied in
 ```
 

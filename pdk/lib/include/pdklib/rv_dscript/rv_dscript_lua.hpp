@@ -1,6 +1,6 @@
 #pragma once
 
-// The lua half of pdklib's disc-author toolbox. RV_MPPC_LUA_DISC_DEF
+// The lua half of pdklib's disc-author toolbox. RV_MPPC_DISC_LUA_DEF
 // (rv_dscript.hpp, beside this file) is the C++ half a disc's own .cpp
 // writes to forward its hooks into a Lua chunk; this is what the SCRIPT
 // SIDE of that same disc gets for free once the chunk is running. Both
@@ -15,7 +15,7 @@
 // luaL_loadbuffer, one protected pcall, run right after that first chunk
 // has finished building the `pdk` table these helpers extend - but the
 // console does not AUTHOR it. Every helper below belongs to pdklib, the
-// same way RV_MPPC_LUA_DISC_DEF's macro belongs to pdklib even though the
+// same way RV_MPPC_DISC_LUA_DEF's macro belongs to pdklib even though the
 // console is what runs the disc it defines; the console only ever lends
 // the Lua machine that already exists for the disc's own entry chunk.
 namespace rv_pdklib

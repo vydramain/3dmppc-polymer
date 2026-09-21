@@ -1,8 +1,10 @@
 // Forwards the six rv_de hooks into a Lua chunk. Every Lua disc repeats the
 // same thirteen-call boilerplate (see example-lua.cpp before this header
-// existed) - RV_MPPC_LUA_DISC_DEF defines the disc class AND raises it via
-// RV_MPPC_DISC_ENTRY_DEF (pdk/include/pdk/de/rv_dv.h), so a disc's own .cpp
-// is left with nothing but the macro call.
+// existed) - RV_MPPC_DISC_LUA_DEF defines the disc class AND raises it via
+// RV_MPPC_DISC_DEF (pdk/include/pdk/de/rv_dv.h), so a disc's own .cpp
+// is left with nothing but the macro call. RV_MPPC_DISC_LUA_DEF is a pdklib
+// convenience, not a contract: a disc is free to ignore it and hand-write the
+// same forwarding a Lua disc would otherwise get for free.
 #pragma once
 
 #include <cstdint>
@@ -18,7 +20,7 @@
 // logged the Lua message with the chunk name and hook name attached (see the
 // contract comment on rv_cl_script_call in pdk/include/pdk/cl/rv_cl.h) - a
 // second line here would only repeat it.
-#define RV_MPPC_LUA_DISC_DEF(title_literal)                                                \
+#define RV_MPPC_DISC_LUA_DEF(title_literal)                                                \
     class rv_dscript_disc_                                                                 \
     {                                                                                      \
     public:                                                                                \
@@ -81,4 +83,4 @@
         int64_t chunk_ = -1;                                                                \
         bool release_ = false;                                                              \
     };                                                                                     \
-    RV_MPPC_DISC_ENTRY_DEF(rv_dscript_disc_)
+    RV_MPPC_DISC_DEF(rv_dscript_disc_)

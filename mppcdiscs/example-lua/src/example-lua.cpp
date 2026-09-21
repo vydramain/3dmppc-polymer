@@ -2,4 +2,4 @@
 // (pdklib/rv_dscript/rv_dscript.hpp) - this file only asks for it.
 #include "pdklib/rv_dscript/rv_dscript.hpp"
 
-RV_MPPC_LUA_DISC_DEF("example-lua")
+RV_MPPC_DISC_LUA_DEF("example-lua")

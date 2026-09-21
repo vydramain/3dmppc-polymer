@@ -356,10 +356,12 @@ struct rv_de {
 By convention a disc still writes its logic as an ordinary C++ class named
 `rv_dmain` — the loader-facing name is fixed, like `main()` for programs — but
 `rv_dmain` implements no interface at all; it merely happens to have methods
-of matching names. `RV_MPPC_DISC_ENTRY_DEF(rv_dmain)` (`pdk/de/rv_dv.h`)
+of matching names. `RV_MPPC_DISC_DEF(rv_dmain)` (`pdk/de/rv_dv.h`)
 generates the six thunks that turn those methods into the function pointers
 above, plus the `create`/`destroy` pair a `.mppcdisc` exports under fixed
-names for the loader to `dlsym`. Thunks, not inheritance, because a C++
+names for the loader to `dlsym`. It lives in pdk, the mandatory contract every
+disc's own .cpp must call — unlike a pdklib macro such as `RV_MPPC_DISC_LUA_DEF`,
+which a disc is free to ignore. Thunks, not inheritance, because a C++
 vtable is not a stable ABI across a `dlopen` boundary — a flat
 function-pointer struct is. `rv_Disc` + `rv_DiscServices` from the old
 `src/platform/disc.hpp` are gone; nothing in `src/` uses them any more.
@@ -624,7 +626,7 @@ Tracked here so they are chosen deliberately rather than by drift:
    `pdk/de/rv_de.h` as a POD table of function pointers (`self` + six hooks:
    `disc_initialize` / `frame_update` / `frame_render` / `disc_release` /
    `disc_shutdown` / `disc_title`); a disc writes an ordinary class named
-   `rv_dmain`, glued to the table by `RV_MPPC_DISC_ENTRY_DEF`'s thunks — no
+   `rv_dmain`, glued to the table by `RV_MPPC_DISC_DEF`'s thunks — no
    inheritance crosses the boundary. See "Three paths across the boundary".
    `rv_Disc` + `rv_DiscServices` are gone from `src/` — the migration is
    done, not merely started.)*
@@ -703,7 +705,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   (power-off query), `disc_shutdown` (the teardown hook — built, wired into
   the loader's `disc_shutdown → mppc_disc_destroy → dlclose → unlink` chain),
   `disc_title`. A disc writes its logic in a class named `rv_dmain`, bound to
-  the table by `RV_MPPC_DISC_ENTRY_DEF`'s generated thunks rather than
+  the table by `RV_MPPC_DISC_DEF`'s generated thunks rather than
   inheritance. `disc_initialize` is where the disc queries the hardware
   geometry and validates its baked assumptions.
 - The migration off the old in-binary path is DONE: `rv_Disc` and

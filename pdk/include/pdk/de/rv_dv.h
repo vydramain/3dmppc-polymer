@@ -75,7 +75,7 @@ _Static_assert(sizeof(struct rv_mppc_note_desc) == 16, "rv_mppc_note_desc must b
 
 #ifdef __cplusplus
 
-#define RV_MPPC_DISC_ENTRY_DEF(disc_class)                                                   \
+#define RV_MPPC_DISC_DEF(disc_class)                                                         \
     static int64_t rv_mppc_disc_entry_thunk_disc_initialize_(void *self_, rv_pdko *pdk)      \
     {                                                                                        \
         return static_cast<disc_class *>(self_)->disc_initialize(pdk);                       \

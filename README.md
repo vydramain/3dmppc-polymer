@@ -44,10 +44,12 @@ The same three commands work unchanged against
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
 compiled C++.
 
-A Lua disc's C++ side is one pdklib macro — `RV_MPPC_LUA_DISC_DEF("example-lua")`
+A Lua disc's C++ side is one pdklib macro — `RV_MPPC_DISC_LUA_DEF("example-lua")`
 after `#include "pdklib/rv_dscript/rv_dscript.hpp"`. It forwards each `disc_*`
 hook into the same-named Lua function, so the disc's own file carries no
-forwarding of its own. A script pulls in another with `require("name")`, which
+forwarding of its own. It is a pdklib convenience, not the pdk contract: a
+disc is free to write that forwarding itself and skip pdklib entirely. A
+script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.
 
@@ -453,7 +455,7 @@ whoever wrote the script:
 ```
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
-  src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
+  src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_DEF
   assets/          PNGs get baked into texels; everything else is copied in
 ```
 
@@ -507,11 +509,13 @@ Two things make a translation unit a disc rather than a library:
 
 ```cpp
 class rv_dmain : public rv_pdk::rv_de { /* ... */ };  // implement the lifecycle
-RV_MPPC_DISC_ENTRY_DEF(mygame::rv_dmain)      // last line of the file
+RV_MPPC_DISC_DEF(mygame::rv_dmain)      // last line of the file
 ```
 
-`RV_MPPC_DISC_ENTRY_DEF` plants the two `extern "C"` symbols the console looks up after
-`dlopen`; everything else in the disc is hidden. Release what you acquired in
+`RV_MPPC_DISC_DEF` plants the two `extern "C"` symbols the console looks up after
+`dlopen`; everything else in the disc is hidden. It lives in pdk, not pdklib:
+every disc must call it, whether or not it uses any pdklib convenience.
+Release what you acquired in
 `disc_shutdown()`, not in a destructor — after that hook returns the console may
 unload your code, and a destructor belonging to unmapped code cannot run.
 

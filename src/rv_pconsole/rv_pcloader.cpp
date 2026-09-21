@@ -101,7 +101,7 @@ int64_t rv_pcloader::bring_up()
     if (create == nullptr || destroy == nullptr) {
         RV_LOG_ERR("pcloader",
             "disc '{}' exports no {}(); it was not built with "
-            "RV_MPPC_DISC_ENTRY_DEF",
+            "RV_MPPC_DISC_DEF",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
             create == nullptr ? RV_MPPC_DISC_ENTRY_CREATE : RV_MPPC_DISC_ENTRY_DESTROY);
         unload();
