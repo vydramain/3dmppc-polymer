@@ -1,16 +1,16 @@
-#include "rv_pconsole/platform/rv_pcdevhex.hpp"
+#include "rv_pconsole/platform/rv_pccmdhex.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <format>
 #include <string>
 
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
 
 namespace rv_3dmppc
 {
 
-std::string rv_pcdev_hex(std::string_view bytes)
+std::string rv_pccmd_hex(std::string_view bytes)
 {
     static constexpr char digits[] = "0123456789abcdef";
     std::string out;
@@ -23,24 +23,24 @@ std::string rv_pcdev_hex(std::string_view bytes)
     return out;
 }
 
-std::string rv_pcdev_hex_msg(std::string_view message)
+std::string rv_pccmd_hex_msg(std::string_view message)
 {
     static constexpr std::string_view cut = " ...(truncated)";
-    if (message.size() <= static_cast<std::size_t>(RV_PCDEVCHAN_MSG_MAX)) {
-        return rv_pcdev_hex(message);
+    if (message.size() <= static_cast<std::size_t>(RV_PCCMDCHAN_MSG_MAX)) {
+        return rv_pccmd_hex(message);
     }
     // The head, not the tail: a lua error puts the chunk name and the line
     // number first, and those are the part worth keeping.
-    std::string cut_down(message.substr(0, static_cast<std::size_t>(RV_PCDEVCHAN_MSG_MAX)));
+    std::string cut_down(message.substr(0, static_cast<std::size_t>(RV_PCCMDCHAN_MSG_MAX)));
     cut_down.append(cut);
-    return rv_pcdev_hex(cut_down);
+    return rv_pccmd_hex(cut_down);
 }
 
-std::string rv_pcdev_err(int64_t id, const char *token, int64_t rc, bool effects,
+std::string rv_pccmd_err(int64_t id, const char *token, int64_t rc, bool effects,
     std::string_view message)
 {
     return std::format("{} err error={} rv_err={} effects={} msg={}", id, token, rc, effects ? 1 : 0,
-        rv_pcdev_hex_msg(message));
+        rv_pccmd_hex_msg(message));
 }
 
 } // namespace rv_3dmppc

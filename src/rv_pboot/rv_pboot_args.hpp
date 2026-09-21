@@ -55,7 +55,7 @@ struct rv_pboot_args {
 
 #if RV_DEVTOOLS
     // `dev` opens the command channel on stdin (see
-    // rv_pconsole/platform/rv_pcdevchan.hpp). Not even a field outside a dev
+    // rv_pconsole/platform/rv_pccmdchan.hpp). Not even a field outside a dev
     // build: --dev is not an option a player binary's getopt table carries
     // (rv_pboot_args.cpp), so there is nothing here for it to set.
     bool dev = false;

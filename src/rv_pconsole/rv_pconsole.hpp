@@ -14,7 +14,7 @@
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -82,7 +82,7 @@ private:
     // without it: one `if` per frame that is not taken, and no second frame
     // loop - a dev path that diverged from the ordinary one would drift, and
     // then the thing the developer tested would not be the thing that ships.
-    std::unique_ptr<rv_pcdevchan> dev_;
+    std::unique_ptr<rv_pccmdchan> dev_;
 
     // The entry chunk's asset name, kept so a candidate that arrived over the
     // channel can be compiled under the name the developer recognises: it is
@@ -205,13 +205,13 @@ private:
     // The Pause KEY moved the machine. The client did not ask, so it hears
     // about it as an event.
     void dev_note_pause();
-    void dev_dispatch(const rv_pcdevreq &req);
+    void dev_dispatch(const rv_pccmdreq &req);
     void dev_status(int64_t id);
-    void dev_reload(const rv_pcdevreq &req);
-    void dev_reload_module(const rv_pcdevreq &req);
-    void dev_get(const rv_pcdevreq &req);
-    void dev_keys(const rv_pcdevreq &req);
-    void dev_asset(const rv_pcdevreq &req);
+    void dev_reload(const rv_pccmdreq &req);
+    void dev_reload_module(const rv_pccmdreq &req);
+    void dev_get(const rv_pccmdreq &req);
+    void dev_keys(const rv_pccmdreq &req);
+    void dev_asset(const rv_pccmdreq &req);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);

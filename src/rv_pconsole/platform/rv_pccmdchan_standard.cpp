@@ -1,4 +1,4 @@
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
 
 namespace rv_3dmppc
 {
@@ -7,7 +7,7 @@ namespace rv_3dmppc
 // set params_.dev true in the first place (rv_pboot_args.hpp), so this is
 // never actually called (see rv_pconsole_run.cpp) - but it still answers
 // nullptr, the channel simply not existing, not a failure to open one.
-std::unique_ptr<rv_pcdevchan> rv_pcdevchan_make()
+std::unique_ptr<rv_pccmdchan> rv_pccmdchan_make()
 {
     return nullptr;
 }

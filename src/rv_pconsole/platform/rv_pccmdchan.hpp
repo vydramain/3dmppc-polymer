@@ -23,7 +23,7 @@
 // for this reason: a chunk that printed to stdout would splice its text into the
 // answer stream, and the editor would parse it as a reply.
 //
-// A pure interface, on purpose: the concrete stdio channel (rv_pcdevchan_stdio)
+// A pure interface, on purpose: the concrete stdio channel (rv_pccmdchan_stdio)
 // carries every buffer this protocol needs, and a player build never compiles
 // that class at all. Splitting the interface away from its state is what keeps
 // a player binary from holding seven fields nothing in it ever touches.
@@ -42,32 +42,32 @@ namespace rv_3dmppc
 // Ceilings. Every one of them exists because the far end of this channel may be
 // a program with a bug: a header that never ends, a payload size typed by hand,
 // a reader that stopped reading. None of them may become an unbounded buffer.
-constexpr int64_t RV_PCDEVCHAN_HEADER_MAX = 4096;          // one request line
-constexpr int64_t RV_PCDEVCHAN_PAYLOAD_MAX = 4 << 20;      // one script
-constexpr int64_t RV_PCDEVCHAN_OUT_MAX = 256 * 1024;       // answers not yet taken
-constexpr int64_t RV_PCDEVCHAN_REQS_PER_TICK = 32;         // the CALLER honours this one
+constexpr int64_t RV_PCCMDCHAN_HEADER_MAX = 4096;          // one request line
+constexpr int64_t RV_PCCMDCHAN_PAYLOAD_MAX = 4 << 20;      // one script
+constexpr int64_t RV_PCCMDCHAN_OUT_MAX = 256 * 1024;       // answers not yet taken
+constexpr int64_t RV_PCCMDCHAN_REQS_PER_TICK = 32;         // the CALLER honours this one
 // One DIAGNOSTIC string inside an answer, before hex doubles it. A lua error
 // message and an attach() refusal reason are written by the disc, so their
 // length is the disc's choice: a 140 KB reason hexed to 280 KB used to overrun
 // the answer queue and close the channel, which loses the very sentence that
 // explained why. Bounded here, truncation announced in the text, and the number
 // leaves the rest of the queue room for the answers already in it.
-constexpr int64_t RV_PCDEVCHAN_MSG_MAX = 4096;             // one diagnostic string
+constexpr int64_t RV_PCCMDCHAN_MSG_MAX = 4096;             // one diagnostic string
 // Comfortably above HEADER_MAX + PAYLOAD_MAX so one legal request plus its
 // payload never trips it, but still a bound: a sender that outruns the
 // console must hit this instead of growing the backlog without limit.
-constexpr int64_t RV_PCDEVCHAN_IN_MAX = RV_PCDEVCHAN_HEADER_MAX + RV_PCDEVCHAN_PAYLOAD_MAX + (1 << 20);
+constexpr int64_t RV_PCCMDCHAN_IN_MAX = RV_PCCMDCHAN_HEADER_MAX + RV_PCCMDCHAN_PAYLOAD_MAX + (1 << 20);
 
 // Payload deadlines. `idle` is "no byte arrived for this long", `total` is "this
 // transfer has gone on long enough" - a sender that dribbles one byte per second
 // would defeat the first check alone.
-constexpr auto RV_PCDEVCHAN_PAYLOAD_IDLE = std::chrono::seconds(5);
-constexpr auto RV_PCDEVCHAN_PAYLOAD_TOTAL = std::chrono::seconds(30);
+constexpr auto RV_PCCMDCHAN_PAYLOAD_IDLE = std::chrono::seconds(5);
+constexpr auto RV_PCCMDCHAN_PAYLOAD_TOTAL = std::chrono::seconds(30);
 
 // One request, already framed. `args` holds the verb and its arguments with the
 // trailing `bytes <n>` pair removed - the channel consumed that itself, because
 // only the channel can know where the next header starts.
-struct rv_pcdevreq {
+struct rv_pccmdreq {
     int64_t id = 0;
     std::vector<std::string> args;
     std::vector<char> payload;
@@ -84,18 +84,18 @@ struct rv_pcdevreq {
     }
 };
 
-class rv_pcdevchan
+class rv_pccmdchan
 {
 public:
-    virtual ~rv_pcdevchan() = default;
+    virtual ~rv_pccmdchan() = default;
 
-    rv_pcdevchan() = default;
-    rv_pcdevchan(const rv_pcdevchan &) = delete;
-    rv_pcdevchan &operator=(const rv_pcdevchan &) = delete;
+    rv_pccmdchan() = default;
+    rv_pccmdchan(const rv_pccmdchan &) = delete;
+    rv_pccmdchan &operator=(const rv_pccmdchan &) = delete;
 
     // Move input and output along, then hand back one framed request if one is
     // ready. False means "nothing complete right now" - never "wait".
-    virtual bool next_request(rv_pcdevreq &out) = 0;
+    virtual bool next_request(rv_pccmdreq &out) = 0;
 
     // Queue one answer line (the newline is added here). Over the queue ceiling
     // the channel disconnects rather than grow: an answer nobody reads is not
@@ -117,6 +117,6 @@ public:
 
 // The one concrete channel, or nullptr where the player build excludes it
 // (see the dev-capability slot in CMakeLists.txt).
-std::unique_ptr<rv_pcdevchan> rv_pcdevchan_make();
+std::unique_ptr<rv_pccmdchan> rv_pccmdchan_make();
 
 } // namespace rv_3dmppc

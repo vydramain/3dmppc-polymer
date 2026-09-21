@@ -1,25 +1,25 @@
 // The concrete development channel: stdin/stdout, non-blocking, framed as
-// described in rv_pcdevchan.hpp. Only compiled into a -D3DMPPC_DEVTOOLS=ON
+// described in rv_pccmdchan.hpp. Only compiled into a -D3DMPPC_DEVTOOLS=ON
 // build (see the dev-capability slot in CMakeLists.txt), so a player binary
 // never carries these fields at all.
 #pragma once
 
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
 
 namespace rv_3dmppc
 {
 
-class rv_pcdevchan_stdio final : public rv_pcdevchan
+class rv_pccmdchan_stdio final : public rv_pccmdchan
 {
 public:
     // Puts stdin and stdout into non-blocking mode and takes SIGPIPE off the
     // default disposition; the destructor puts all three back. Ignoring SIGPIPE
     // is what turns "the editor died mid-answer" into an EPIPE this class can
     // report, instead of a process that vanishes without a log line.
-    rv_pcdevchan_stdio();
-    ~rv_pcdevchan_stdio() override;
+    rv_pccmdchan_stdio();
+    ~rv_pccmdchan_stdio() override;
 
-    bool next_request(rv_pcdevreq &out) override;
+    bool next_request(rv_pccmdreq &out) override;
     void reply(std::string_view line) override;
     void drain(std::chrono::milliseconds budget) override;
 
@@ -38,8 +38,8 @@ private:
 
     void pump_in();
     void pump_out();
-    bool take_header(rv_pcdevreq &out);
-    bool take_payload(rv_pcdevreq &out);
+    bool take_header(rv_pccmdreq &out);
+    bool take_payload(rv_pccmdreq &out);
     void close(const char *why);
     void compact();
     std::size_t available() const
@@ -57,7 +57,7 @@ private:
     std::string out_;
 
     phase phase_ = phase::header;
-    rv_pcdevreq pending_;        // header parsed, payload still arriving
+    rv_pccmdreq pending_;        // header parsed, payload still arriving
     std::size_t need_ = 0;
     // A header that claimed a payload AND was refused. The bytes still have to
     // be eaten - they carry no marker, so anything left in the stream would be

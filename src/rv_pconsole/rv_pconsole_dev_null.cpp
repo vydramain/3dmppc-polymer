@@ -15,7 +15,7 @@ void rv_3dmppc::rv_pconsole::dev_note_pause()
 {
 }
 
-void rv_3dmppc::rv_pconsole::dev_dispatch(const rv_pcdevreq & /*req*/)
+void rv_3dmppc::rv_pconsole::dev_dispatch(const rv_pccmdreq & /*req*/)
 {
 }
 
@@ -23,14 +23,14 @@ void rv_3dmppc::rv_pconsole::dev_status(int64_t /*id*/)
 {
 }
 
-void rv_3dmppc::rv_pconsole::dev_reload(const rv_pcdevreq & /*req*/)
+void rv_3dmppc::rv_pconsole::dev_reload(const rv_pccmdreq & /*req*/)
 {
 }
 
-void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq & /*req*/)
+void rv_3dmppc::rv_pconsole::dev_get(const rv_pccmdreq & /*req*/)
 {
 }
 
-void rv_3dmppc::rv_pconsole::dev_asset(const rv_pcdevreq & /*req*/)
+void rv_3dmppc::rv_pconsole::dev_asset(const rv_pccmdreq & /*req*/)
 {
 }

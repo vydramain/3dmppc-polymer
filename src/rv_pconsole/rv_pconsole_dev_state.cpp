@@ -10,19 +10,19 @@
 #include "pdk/cl/rv_cl.h"
 #include "pdk/rv_err.h"
 #include "rv_pconsole/cl/rv_pccl.hpp"
-#include "rv_pconsole/platform/rv_pcdevchan.hpp"
-#include "rv_pconsole/platform/rv_pcdevhex.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
+#include "rv_pconsole/platform/rv_pccmdhex.hpp"
 
 namespace
 {
 
 // A quarter of the answer queue, so one `keys` listing never crowds out the
 // answers already queued around it.
-constexpr int64_t RV_PCDEV_KEYS_LIST_MAX = rv_3dmppc::RV_PCDEVCHAN_OUT_MAX / 4;
+constexpr int64_t RV_PCCMD_KEYS_LIST_MAX = rv_3dmppc::RV_PCCMDCHAN_OUT_MAX / 4;
 
 // The type name `get` and `keys` both report; -1 (no such key) is "nil", the
 // same fact a lua table stores no nil ever forces onto both commands.
-const char *rv_pcdev_type_name(int64_t type)
+const char *rv_pccmd_type_name(int64_t type)
 {
     switch (type) {
     case RV_CL_TYPE_BOOLEAN:
@@ -44,14 +44,14 @@ const char *rv_pcdev_type_name(int64_t type)
 
 } // namespace
 
-void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
+void rv_3dmppc::rv_pconsole::dev_get(const rv_pccmdreq &req)
 {
     if (req.args.size() < 2) {
-        dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false, "get needs a key"));
+        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "get needs a key"));
         return;
     }
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false,
+        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -64,12 +64,12 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
         // that has run its script heap out, the read cannot be performed at
         // all. Answered, not fatal - `gc` is the next thing to try, and the
         // client has to be able to reach it.
-        dev_->reply(rv_pcdev_err(req.id, "nomem", rc, false,
+        dev_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
             "the script heap is exhausted; the key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
-        dev_->reply(rv_pcdev_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
+        dev_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
         return;
     }
 
@@ -91,16 +91,16 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
         const std::string prefix = std::format("{} ok found=1 type=string value=", req.id);
         const int64_t line_size =
             static_cast<int64_t>(prefix.size()) + static_cast<int64_t>(value.bytes.size()) * 2 + 1;
-        if (line_size > RV_PCDEVCHAN_OUT_MAX) {
-            dev_->reply(rv_pcdev_err(req.id, "answer_size", RV_ERR_INVAL, false,
+        if (line_size > RV_PCCMDCHAN_OUT_MAX) {
+            dev_->reply(rv_pccmd_err(req.id, "answer_size", RV_ERR_INVAL, false,
                 std::format("value is {} bytes; its hex answer does not fit one reply (ceiling {} bytes)",
-                    value.bytes.size(), RV_PCDEVCHAN_OUT_MAX)));
+                    value.bytes.size(), RV_PCCMDCHAN_OUT_MAX)));
             return;
         }
         // Hex, not text: a stored string may hold a NUL or bytes that are not
         // valid UTF-8, and the protocol promises to hand back what is there.
         dev_->reply(std::format("{} ok found=1 type=string value={}", req.id,
-            rv_pcdev_hex(value.bytes)));
+            rv_pccmd_hex(value.bytes)));
         return;
     }
     case RV_CL_TYPE_TABLE:
@@ -110,22 +110,22 @@ void rv_3dmppc::rv_pconsole::dev_get(const rv_pcdevreq &req)
         // Worth its own type name rather than "other": a function in state
         // keeps the old chunk's code alive and callable past a reload, which is
         // the one state-table mistake that looks like nothing at all.
-        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pcdev_type_name(value.type)));
+        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     case RV_CL_TYPE_OTHER:
-        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pcdev_type_name(value.type)));
+        dev_->reply(std::format("{} ok found=1 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     default:
         // A lua table stores no nil, so "no such key" and "nil" are one fact.
-        dev_->reply(std::format("{} ok found=0 type={}", req.id, rv_pcdev_type_name(value.type)));
+        dev_->reply(std::format("{} ok found=0 type={}", req.id, rv_pccmd_type_name(value.type)));
         return;
     }
 }
 
-void rv_3dmppc::rv_pconsole::dev_keys(const rv_pcdevreq &req)
+void rv_3dmppc::rv_pconsole::dev_keys(const rv_pccmdreq &req)
 {
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        dev_->reply(rv_pcdev_err(req.id, "protocol", RV_ERR_INVAL, false,
+        dev_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -135,17 +135,17 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pcdevreq &req)
     std::vector<rv_pccl_key> keys;
     const int64_t rc = cl_->state_keys(path, target, keys);
     if (rc == RV_ERR_NOMEM) {
-        dev_->reply(rv_pcdev_err(req.id, "nomem", rc, false,
+        dev_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
             "the script heap is exhausted; a key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
-        dev_->reply(rv_pcdev_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
+        dev_->reply(rv_pccmd_err(req.id, "no_machine", rc, false, "this disc declared no lua machine"));
         return;
     }
 
     const std::string prefix = std::format("{} ok found={} type={} count={} shown=", req.id,
-        target.type < 0 ? 0 : 1, rv_pcdev_type_name(target.type), target.count);
+        target.type < 0 ? 0 : 1, rv_pccmd_type_name(target.type), target.count);
     // The whole line counts: the prefix, the widest `shown` it can print, " keys=" and the list.
     const std::size_t fixed = prefix.size() + std::to_string(keys.size()).size() + std::string_view(" keys=").size();
     std::string list;
@@ -154,17 +154,17 @@ void rv_3dmppc::rv_pconsole::dev_keys(const rv_pcdevreq &req)
         std::string entry;
         switch (k.kind) {
         case 's':
-            entry = std::format("s{}:{}", rv_pcdev_hex(k.name), rv_pcdev_type_name(k.type));
+            entry = std::format("s{}:{}", rv_pccmd_hex(k.name), rv_pccmd_type_name(k.type));
             break;
         case 'i':
-            entry = std::format("i{}:{}", k.name, rv_pcdev_type_name(k.type));
+            entry = std::format("i{}:{}", k.name, rv_pccmd_type_name(k.type));
             break;
         default:
-            entry = std::format("x:{}", rv_pcdev_type_name(k.type));
+            entry = std::format("x:{}", rv_pccmd_type_name(k.type));
             break;
         }
         const std::size_t added = entry.size() + (list.empty() ? 0 : 1);
-        if (static_cast<int64_t>(fixed + list.size() + added) > RV_PCDEV_KEYS_LIST_MAX) {
+        if (static_cast<int64_t>(fixed + list.size() + added) > RV_PCCMD_KEYS_LIST_MAX) {
             break;
         }
         if (!list.empty()) {

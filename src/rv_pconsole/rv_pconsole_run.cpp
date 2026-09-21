@@ -128,7 +128,7 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
         // could set this true (rv_pboot_args.hpp), so the null factory is
         // unreachable from here in practice - but an unchecked null would be
         // a crash, not a refusal.
-        dev_ = rv_pcdevchan_make();
+        dev_ = rv_pccmdchan_make();
         if (!dev_) {
             RV_LOG_ERR("pconsole",
                 "development runtime unavailable: this console was built without it "
