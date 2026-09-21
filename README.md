@@ -47,8 +47,11 @@ compiled C++.
 A Lua disc's C++ side is one pdklib macro — `RV_MPPC_DISC_LUA_DEF("example-lua")`
 after `#include "pdklib/rv_dscript/rv_dscript.hpp"`. It forwards each `disc_*`
 hook into the same-named Lua function, so the disc's own file carries no
-forwarding of its own. It is a pdklib convenience, not the pdk contract: a
-disc is free to write that forwarding itself and skip pdklib entirely. A
+forwarding of its own. It is a pdklib convenience over `RV_MPPC_DISC_CL_CLASS`
+(pdk/de/rv_dv.h), the pdk contract that already makes every rv_cl call a Lua
+disc's `rv_de` needs: a disc is free to call that macro itself, alongside
+`RV_MPPC_DISC_DEF`, supplying its own title and its own flush, and skip
+pdklib entirely. A
 script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.

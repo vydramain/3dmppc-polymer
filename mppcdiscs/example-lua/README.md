@@ -18,12 +18,16 @@ example-lua/
 ```
 
 - **`src/example-lua.cpp`** is one line, `RV_MPPC_DISC_LUA_DEF("example-lua")`
-  from `pdklib/rv_dscript/rv_dscript.hpp`. The macro defines the disc class
-  and plants it with `RV_MPPC_DISC_DEF`, so this is still a real disc,
-  `dlopen`ed like any other; `RV_MPPC_DISC_LUA_DEF` is the pdklib convenience
-  that saves a Lua disc from writing that forwarding by hand, while
-  `RV_MPPC_DISC_DEF` underneath it is the pdk contract every disc must reach
-  one way or another. Its `disc_initialize` raises the entry chunk with
+  from `pdklib/rv_dscript/rv_dscript.hpp`. That macro derives a class from
+  `RV_MPPC_DISC_CL_CLASS` (`pdk/de/rv_dv.h`), which is where the disc class
+  and its hook-to-Lua forwarding actually come from — the pdk contract every
+  Lua disc reaches one way or another — and adds only a fixed title and a
+  post-`frame_render` flush, the two things `RV_MPPC_DISC_CL_CLASS` leaves
+  to its caller. A disc is free to call `RV_MPPC_DISC_CL_CLASS` and
+  `RV_MPPC_DISC_DEF` itself instead, with no pdklib at all, the same way
+  this pdklib macro does underneath. `RV_MPPC_DISC_CL_CLASS` only defines
+  the class; `RV_MPPC_DISC_DEF` is what plants it, so this is still a real
+  disc, `dlopen`ed like any other. Its `disc_initialize` raises the entry chunk with
   `rv_cl_script_entry()`, and from then on every lifecycle hook
   (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) is one
   `rv_cl_script_call()` into the same-named Lua function, handed the organizer
