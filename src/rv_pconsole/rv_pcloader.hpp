@@ -87,7 +87,6 @@ public:
     // archive is left mounted.
     int64_t mount(const char *archive_path);
 
-#if RV_DEVTOOLS
     // STAGE 1 of load(), for an UNPACKED DIRECTORY disc (disc.toml + disc.so +
     // flat entries) instead of a `.mppcdisc` archive. Runs exactly the same
     // checks as mount(), off the same bytes: the manifest parser, the same
@@ -99,12 +98,12 @@ public:
     // be re-read from the path. Returns RV_OK, or a negative rv_err after
     // logging exactly what went wrong; on failure nothing is left mounted.
     //
-    // Not even DECLARED without -D3DMPPC_DEVTOOLS=ON: a player build must not
-    // be able to find this entry point by name, let alone call it - see
-    // rv_pboot_discmedium_standard.cpp for how a player build names the same
-    // refusal without it.
+    // Declared in both builds, defined only in the devtools one
+    // (rv_pcloader_livedir_devtools.cpp). A declaration nobody calls costs
+    // nothing, and a standard build that reached for it would fail to link
+    // with this name in the error - see rv_pboot_discmedium_standard.cpp for
+    // how that build names the same refusal instead.
     int64_t mount_dir(const char *dir_path);
-#endif
 
     // STAGE 2 of load(): extract the code entry from the archive mount() left
     // open, dlopen it and create() the disc. Requires a prior successful
@@ -162,13 +161,11 @@ public:
     // rv_dmain), and that one's lifecycle is none of our business.
     void notify_initialized(const rv_de *disc);
 
-#if RV_DEVTOOLS
     // Two stages of mount_dir(), split out to stay under the function-size
-    // rule. Both are development-build only, like mount_dir itself
-    // (rv_pcloader_livedir_devtools.cpp), and gone from a player build along with it.
+    // rule. Defined where mount_dir itself is
+    // (rv_pcloader_livedir_devtools.cpp), and unreachable without it.
     int64_t read_dir_manifest_(const std::filesystem::path &root, const char *dir_path);
     int64_t check_dir_lua_triple_(const std::filesystem::path &root);
-#endif
 
     // The disc's last hook, with its throw contained. See rv_pcloader.cpp.
     void shutdown_disc_();
