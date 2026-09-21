@@ -1,6 +1,6 @@
 // rv_pconsole_cmd: the development command dispatcher, player build.
 // 3DMPPC_DEVTOOLS is OFF, so cmd_ is never engaged - every entry point is a
-// no-op, the same shape as rv_pcloader_livedir_null.cpp.
+// no-op.
 #include "rv_pconsole/rv_pconsole.hpp"
 
 void rv_3dmppc::rv_pconsole::cmd_service()
