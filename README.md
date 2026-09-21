@@ -51,7 +51,16 @@ forwarding of its own. It is a pdklib convenience over `RV_MPPC_DISC_CL_CLASS`
 (pdk/de/rv_dv.h), the pdk contract that already makes every rv_cl call a Lua
 disc's `rv_de` needs: a disc is free to call that macro itself, alongside
 `RV_MPPC_DISC_DEF`, supplying its own title and its own flush, and skip
-pdklib entirely. A
+pdklib entirely.
+
+A C++ disc gets the same kind of convenience from `RV_MPPC_DISC_CPP_DEF`
+(`pdklib/rv_cppdisc/rv_cppdisc.hpp`): a base class carrying the startup guards,
+MENU-button press-edge tracking and `read_asset()` every C++ disc repeats, that
+the disc's own class derives from before being handed to `RV_MPPC_DISC_DEF`.
+Unlike the Lua case there is no pdk-side contract class behind it - a C++
+disc's own class already is its `rv_de`, so this macro lives in pdklib alone
+and a disc is just as free to skip it and write all five hooks by hand, the
+way `mppcdiscs/example-cpp/` did before this macro existed. A
 script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.

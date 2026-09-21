@@ -360,8 +360,8 @@ of matching names. `RV_MPPC_DISC_DEF(rv_dmain)` (`pdk/de/rv_dv.h`)
 generates the six thunks that turn those methods into the function pointers
 above, plus the `create`/`destroy` pair a `.mppcdisc` exports under fixed
 names for the loader to `dlsym`. It lives in pdk, the mandatory contract every
-disc's own .cpp must call — unlike a pdklib macro such as `RV_MPPC_DISC_LUA_DEF`,
-which a disc is free to ignore. Thunks, not inheritance, because a C++
+disc's own .cpp must call — unlike a pdklib macro such as `RV_MPPC_DISC_LUA_DEF`
+or `RV_MPPC_DISC_CPP_DEF`, which a disc is free to ignore. Thunks, not inheritance, because a C++
 vtable is not a stable ABI across a `dlopen` boundary — a flat
 function-pointer struct is. `rv_Disc` + `rv_DiscServices` from the old
 `src/platform/disc.hpp` are gone; nothing in `src/` uses them any more.
