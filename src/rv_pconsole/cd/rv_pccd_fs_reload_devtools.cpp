@@ -1,7 +1,7 @@
 // The drive's DEVELOPMENT capability: refreshing a texture that is already
 // resident. Its own translation unit because it is the only part of rv_pccd_fs
 // that exists for the development runtime, and a player build links
-// rv_pccd_fs_reload_null.cpp in its place (see the dev-capability slot in
+// rv_pccd_fs_reload_standard.cpp in its place (see the dev-capability slot in
 // CMakeLists.txt) - so the decoder, the upload and the swap are not in that
 // binary at all.
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
