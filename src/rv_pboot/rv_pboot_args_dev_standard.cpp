@@ -1,0 +1,15 @@
+// The player build's half: there is no such option and no line about one. The
+// row is the terminator itself, so getopt_long stops before it and answers
+// --dev the way it answers any name it does not know.
+#include "rv_pboot_args_dev.hpp"
+
+namespace rv_3dmppc
+{
+
+const struct option RV_PBOOT_ARGS_DEV_OPT = { nullptr, 0, 0, 0 };
+
+const char *const RV_PBOOT_ARGS_DEV_USAGE = "";
+
+const char *const RV_PBOOT_ARGS_DEV_PAUSE_HINT = "";
+
+} // namespace rv_3dmppc

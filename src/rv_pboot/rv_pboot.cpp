@@ -9,6 +9,7 @@
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_pboot_args.hpp"
+#include "rv_pboot_args_dev.hpp"
 #include "rv_pboot_budget.hpp"
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
@@ -78,12 +79,13 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
     // but a signal - refused here rather than delivered as a hang, and checked
     // only now because it depends on the resolved platform and cv slot.
     const bool pause_can_be_lifted =
-        rv_pboot_args_dev(args) ||
+        args.dev ||
         (slots.platform == rv_pcplatform_impl::sdl3 && slots.cv != rv_pccv_impl::null);
     if (args.loop_paused && !pause_can_be_lifted) {
         rv_console_print_error(
-            "--paused would never be lifted: this mode has no window for the pause key, "
-            "and --dev was not given");
+            std::string("--paused would never be lifted: this mode has no window for the "
+                        "pause key") +
+            RV_PBOOT_ARGS_DEV_PAUSE_HINT);
         exit_code = 2;
         return false;
     }

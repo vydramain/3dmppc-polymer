@@ -1,5 +1,7 @@
 #include "rv_pboot_args.hpp"
 
+#include "rv_pboot_args_dev.hpp"
+
 #include <getopt.h>
 
 #include <charconv>
@@ -112,25 +114,11 @@ void rv_console_print_usage(std::FILE *stream)
         "  -M, --mute           Silence the audio output stage.\n"
         "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
-#if RV_DEVTOOLS
-        // A player build does not even reach rv_console_print_usage() with
-        // this line in it: --dev is not in its getopt table at all (see
-        // rv_pboot_args), so printing it there would advertise an option the
-        // build cannot parse, let alone act on.
-        "      --dev            Attach the development channel to stdin and\n"
-        "                       stdout: pause, step, reload of the lua entry\n"
-        "                       and state inspection. WHAT this console can do\n"
-        "                       is decided by its build (-D3DMPPC_DEVTOOLS);\n"
-        "                       this only says where to speak. A console built\n"
-        "                       without the development runtime refuses it.\n"
-#endif
+        // Empty in a player build: an option that build cannot parse is not
+        // an option it may advertise (rv_pboot_args_dev.hpp).
+        "%s"
         "      --paused         Start with the frame loop stopped, before frame\n"
-#if RV_DEVTOOLS
-        "                       0. Lift it with the Pause key, or with the\n"
-        "                       resume/step requests when --dev is given.\n"
-#else
         "                       0. Lift it with the Pause key.\n"
-#endif
         "      --mode=NAME      Preset: the platform plus one implementation\n"
         "                       per slot. Built in: %s. Default:\n"
         "                       default.\n"
@@ -151,8 +139,8 @@ void rv_console_print_usage(std::FILE *stream)
         "                       %s.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
         "                       %s.\n",
-        presets.c_str(), platform_list.c_str(), ca_list.c_str(), cv_list.c_str(), cio_list.c_str(),
-        cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
+        RV_PBOOT_ARGS_DEV_USAGE, presets.c_str(), platform_list.c_str(), ca_list.c_str(),
+        cv_list.c_str(), cio_list.c_str(), cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
 }
 
 namespace {
@@ -202,10 +190,10 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cl", required_argument, 0, 'l'},
                                         {"mode_cd", required_argument, 0, 'c'},
                                         {"mode_cm", required_argument, 0, 'k'},
-#if RV_DEVTOOLS
-                                        {"dev", no_argument, 0, 'E'},
-#endif
                                         {"paused", no_argument, 0, 'Y'},
+                                        // Last, because a player build fills it with the
+                                        // terminator and getopt_long stops reading there.
+                                        RV_PBOOT_ARGS_DEV_OPT,
                                         {0, 0, 0, 0}};
 
     int c;
@@ -217,11 +205,9 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
             case 'M':
                 args.mute = true;
                 break;
-#if RV_DEVTOOLS
             case 'E':
                 args.dev = true;
                 break;
-#endif
             case 'Y':
                 args.loop_paused = true;
                 break;
