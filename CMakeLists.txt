@@ -13,6 +13,12 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
+# The development runtime (the dev command channel, booting a game from a
+# loose directory, ...) is a build-time choice, not a runtime flag: with this
+# OFF the dev sources are not in the compile line at all. Two configurations
+# exist - OFF is the ordinary player console; ON costs nothing a player needs.
+option(3DMPPC_DEVTOOLS "Build the development runtime: the dev command channel and booting a game from a loose directory" OFF)
+
 include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
@@ -40,6 +46,11 @@ target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
 # Discs get it a different way - mppcburner writes the path into the CMakeLists
 # it generates for a disc project - so this target serves only what is built
 # from this file.
+# The 512-line rule, checked at configure time rather than trusted. See
+# cmake/rv_file_length.cmake for why the build is the right place for it.
+include(cmake/rv_file_length.cmake)
+rv_check_file_lengths()
+
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
 )
@@ -81,6 +92,53 @@ endif()
 file(GLOB_RECURSE 3DMPPC_CONSOLE_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/*.cpp)
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_dmain/")
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3/")
+
+# Dev-capability slot: mount_dir() and its helpers have no null half any more
+# - a player build does not declare mount_dir() at all (rv_pcloader.hpp), so
+# there is nothing here for it to define - only the dev source is excluded
+# from the glob and added back by the option below.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir_devtools\\.cpp")
+# The positional disc's mount()/mount_dir() choice and the medium it hands
+# the drive - see src/rv_pboot/rv_pboot_discmedium.hpp for why it is two
+# functions rather than a filesystem check duplicated in rv_pboot.cpp and
+# rv_pboot_budget.cpp.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pboot/rv_pboot_discmedium_(devtools|standard)\\.cpp")
+# The command channel's own option: its getopt row and its help paragraph exist
+# only where the channel does - see src/rv_pboot/rv_pboot_args_cmd.hpp.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pboot/rv_pboot_args_cmd_(devtools|standard)\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_cmd_(devtools|standard)\\.cpp")
+# `get`/`keys` have no null half: only the dev dispatcher calls them.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_cmd_state_devtools\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_reload_(devtools|standard)\\.cpp")
+# The in-place patch has no null half: only the dev reload calls it.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit_patch(walk)?_devtools\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdchan_(devtools|standard)\\.cpp")
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs_reload_(devtools|standard)\\.cpp")
+# The protocol's hex encoder has no null half: nothing in a player build calls
+# it, so that build simply does not compile it. Its declaration stays visible -
+# a header nobody calls costs nothing - but the encoder itself is dev code.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdhex_devtools\\.cpp")
+if(3DMPPC_DEVTOOLS)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_state_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patch_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patchwalk_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdhex_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_devtools.cpp)
+else()
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_standard.cpp)
+endif()
+
 
 # --- the SDL3 platform ----------------------------------------------------------
 # The only code that may see SDL. It is its own library with SDL linked PRIVATE,
@@ -181,3 +239,4 @@ endif()
 # The console is firmware: it loads a disc and runs it. It must never look like
 # the thing that compiles one, and building it must not drag in a compiler
 # driver, an image decoder, or anything else a player's machine has no use for.
+

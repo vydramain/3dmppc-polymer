@@ -18,7 +18,7 @@
 #include "pdk/ca/rv_sample.h"
 #include "pdk/ca/rv_voice_conf.h"
 
-#include "rv_pmem/rv_pcpool.hpp"
+#include "rv_pconsole/mem/rv_pcpool.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/ca/rv_pcmixer.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"

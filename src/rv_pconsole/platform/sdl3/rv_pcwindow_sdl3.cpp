@@ -161,9 +161,21 @@ rv_imouse rv_pcwindow_sdl3::consume_mouse()
     return motion;
 }
 
+uint32_t rv_pcwindow_sdl3::consume_pause_requests()
+{
+    const uint32_t requests = pause_requests_;
+    pause_requests_ = 0;
+    return requests;
+}
+
 void rv_pcwindow_sdl3::note_close()
 {
     close_requested_ = true;
+}
+
+void rv_pcwindow_sdl3::note_pause_request()
+{
+    ++pause_requests_;
 }
 
 void rv_pcwindow_sdl3::add_mouse(float dx, float dy)

@@ -14,7 +14,7 @@
 #include "rv_burner_zipwrite.hpp"
 
 #include "rv_burner_common/rv_burner_bytes.hpp"
-#include "rv_burner_zip/rv_burner_zip_format.hpp"
+#include "pdklib/rv_zip/rv_zip_format.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -275,7 +275,7 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     }
     // Local header + name + data must also stay inside a 32-bit offset, because
     // that is the width of the field the central directory points back with.
-    if (impl_->offset + 30 + name.size() + size > RV_BURNER_ZIP_MAX_SIZE) {
+    if (impl_->offset + rv_pdklib::rv_zip_local_header_size + name.size() + size > RV_BURNER_ZIP_MAX_SIZE) {
         error = "archive would exceed 4 GiB, which needs zip64";
         return false;
     }
@@ -290,10 +290,10 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     // uncompressed sizes are the same number written twice.
     std::vector<uint8_t> header;
     header.reserve(30 + name.size());
-    put_le_u32(header, k_sig_local);
+    put_le_u32(header, rv_pdklib::rv_zip_sig_local);
     put_le_u16(header, RV_BURNER_ZIP_VERSION);     // version needed to extract
     put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);    // general purpose flags
-    put_le_u16(header, k_method_store); // compression method
+    put_le_u16(header, rv_pdklib::rv_zip_method_store); // compression method
     put_le_u16(header, RV_BURNER_ZIP_DOS_TIME);
     put_le_u16(header, RV_BURNER_ZIP_DOS_DATE);
     put_le_u32(header, entry.crc);
@@ -353,11 +353,11 @@ bool rv_zipwriter::finish(std::string &error)
     std::vector<uint8_t> directory;
     for (const zip_write_entry &e : impl_->entries) {
         // Central directory file header, 46 bytes plus the name.
-        put_le_u32(directory, k_sig_central);
+        put_le_u32(directory, rv_pdklib::rv_zip_sig_central);
         put_le_u16(directory, RV_BURNER_ZIP_VERSION_MADE_BY);
         put_le_u16(directory, RV_BURNER_ZIP_VERSION); // version needed to extract
         put_le_u16(directory, RV_BURNER_ZIP_FLAG_UTF8);
-        put_le_u16(directory, k_method_store);
+        put_le_u16(directory, rv_pdklib::rv_zip_method_store);
         put_le_u16(directory, RV_BURNER_ZIP_DOS_TIME);
         put_le_u16(directory, RV_BURNER_ZIP_DOS_DATE);
         put_le_u32(directory, e.crc);
@@ -382,7 +382,7 @@ bool rv_zipwriter::finish(std::string &error)
 
     std::vector<uint8_t> eocd;
     const uint16_t count = static_cast<uint16_t>(impl_->entries.size());
-    put_le_u32(eocd, k_sig_eocd);
+    put_le_u32(eocd, rv_pdklib::rv_zip_sig_eocd);
     put_le_u16(eocd, 0);     // this disk number
     put_le_u16(eocd, 0);     // disk with the start of the central directory
     put_le_u16(eocd, count); // entries on this disk

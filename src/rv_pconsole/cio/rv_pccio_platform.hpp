@@ -16,12 +16,12 @@ namespace rv_3dmppc
 class rv_pcwindow;
 class rv_pcgamepads;
 
-class rv_pccio_std final : public rv_pccio
+class rv_pccio_platform final : public rv_pccio
 {
 public:
     // `window` and `gamepads` are borrowed: the console owns the platform and
     // outlives every controller it hands to a disc.
-    rv_pccio_std(const rv_pccio_conf &conf, rv_pcwindow &window, rv_pcgamepads &gamepads)
+    rv_pccio_platform(const rv_pccio_conf &conf, rv_pcwindow &window, rv_pcgamepads &gamepads)
         : conf_(conf)
         , window_(window)
         , gamepads_(gamepads)
@@ -30,7 +30,7 @@ public:
     }
 
     // The peak host bytes this class allocates for `budget`:
-    // iport_count * sizeof(rv_pccio_std_port) - ports_, one rv_pccio_std_port
+    // iport_count * sizeof(rv_pccio_platform_port) - ports_, one rv_pccio_platform_port
     // per port.
     static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
 
@@ -56,7 +56,7 @@ private:
 
     // A stable virtual port slot. 0 = empty; otherwise the id of the physical
     // pad currently occupying it (rv_pcgamepads ids are never 0).
-    struct rv_pccio_std_port {
+    struct rv_pccio_platform_port {
         uint32_t pad = 0;
     };
 
@@ -73,7 +73,7 @@ private:
     rv_pcwindow &window_;
     rv_pcgamepads &gamepads_;
 
-    std::vector<rv_pccio_std_port> ports_;
+    std::vector<rv_pccio_platform_port> ports_;
 
     // Pads connected at the last reconcile; any other id is an arrival.
     std::vector<uint32_t> seen_pads_;

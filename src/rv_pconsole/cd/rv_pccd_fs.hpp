@@ -5,6 +5,7 @@
 // (rv_pcdirmedium) or a `.mppcdisc` archive (rv_pczipmedium).
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -12,8 +13,11 @@
 #include <utility>
 #include <vector>
 
+#include "pdklib/rv_textures/rv_mppctex.hpp"
+#include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
+#include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
@@ -26,6 +30,44 @@ class rv_pccd_fs final : public rv_pccd {
     // without this class changing (strategy); it is never null, an
     // empty drive is a mounted-less medium rather than a missing one.
     std::unique_ptr<rv_pcmedium> medium_;
+
+    // BORROWED, set by video_attach() after construction (rv_pccd.hpp: cd_ is
+    // built before cv_ exists, so this cannot be a constructor reference).
+    // Null until attached, which the five rv_cd_resource_* functions (addr,
+    // size, palette_addr, width, height) treat the same way asset_open treats
+    // an unmounted medium: not an error, just nothing resident yet.
+    rv_pccv *cv_ = nullptr;
+
+    // audio_attach()'s twin of cv_ above: same borrow, same reason, same
+    // "nothing resident yet" meaning while null.
+    rv_pcca *ca_ = nullptr;
+
+    // One baked texture currently uploaded, keyed by name in `tex_by_name_`.
+    // A disc never releases a texture, so the vector only ever grows and a
+    // record lives for as long as the drive does - freed only in ~rv_pccd_fs,
+    // never one at a time.
+    struct texture_record {
+        std::string resname;
+        int64_t tex_addr = 0;
+        int64_t pal_addr = 0; // 0 when the format has no palette
+        int64_t width = 0;
+        int64_t height = 0;
+    };
+    std::vector<texture_record> textures_;
+    std::unordered_map<std::string, int64_t> tex_by_name_;
+
+    // AUDIO's counterpart of texture_record above: raw PCM bytes made
+    // resident in sound RAM, verbatim - there is no container to decode, so
+    // there is no width/height/palette to keep, only where the bytes live
+    // and how many of them there are. Same growth/freeing rules as
+    // `textures_`.
+    struct audio_record {
+        std::string resname;
+        int64_t addr = 0;
+        int64_t size = 0;
+    };
+    std::vector<audio_record> audios_;
+    std::unordered_map<std::string, int64_t> audio_by_name_;
 
     // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
@@ -41,7 +83,10 @@ class rv_pccd_fs final : public rv_pccd {
 
    public:
     explicit rv_pccd_fs(const rv_pccd_conf& conf);
-    ~rv_pccd_fs() = default;
+    // The drive's teardown: a disc never releases a texture, so this is the
+    // only place any of them are freed - everything the drive ever made
+    // resident for this disc goes back to video RAM here, all at once.
+    ~rv_pccd_fs() override;
 
     rv_pccd_fs(const rv_pccd_fs&) = delete;
     rv_pccd_fs& operator=(const rv_pccd_fs&) = delete;
@@ -56,6 +101,18 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_read(int64_t handle, void* baddr, int64_t baddr_size) override;
 
+    int64_t resource_addr(rv_cd_resource_kind kind, const char* resname) override;
+
+    int64_t resource_size(rv_cd_resource_kind kind, const char* resname) override;
+
+    int64_t resource_palette_addr(rv_cd_resource_kind kind, const char* resname) override;
+
+    int64_t resource_width(rv_cd_resource_kind kind, const char* resname) override;
+
+    int64_t resource_height(rv_cd_resource_kind kind, const char* resname) override;
+
+    int64_t asset_reload(const char* resname, rv_cd_resource_kind& kind_out) override;
+
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the
@@ -65,6 +122,10 @@ class rv_pccd_fs final : public rv_pccd {
     void medium_insert(std::unique_ptr<rv_pcmedium> medium) override {
         if (medium) medium_ = std::move(medium);
     }
+
+    void video_attach(rv_pccv& cv) override { cv_ = &cv; }
+
+    void audio_attach(rv_pcca& ca) override { ca_ = &ca; }
 
     // An empty or unmountable medium leaves the drive empty, never broken.
     bool valid() const override { return true; }
@@ -77,6 +138,54 @@ class rv_pccd_fs final : public rv_pccd {
 
     // Name behind a handle, or nullptr when the handle was never issued.
     const char* handle_name(int64_t handle) const;
+
+    // The ONE gate every resource_* query above routes through, so it is the
+    // one place `kind` is checked: a kind other than RV_CD_RESOURCE_TEXTURE
+    // or RV_CD_RESOURCE_AUDIO is refused with RV_ERR_INVAL right here, not in
+    // each of the five callers. Exactly one of `texture_out` / `audio_out` is
+    // set on success, matching the kind that actually resolved; the other is
+    // left null. A caller whose query does not describe that kind (say,
+    // resource_palette_addr against an AUDIO name) reads that from the null
+    // it got back and answers RV_ERR_INVAL itself - it never re-derives the
+    // kind check, it just never learned to read the OTHER record type. A
+    // third kind gets its own record type and its own branch out of this
+    // gate, not a rewrite of the five callers.
+    // On failure both output pointers are left null and the return is the
+    // negative rv_err reading, decoding or uploading answered (the same
+    // rv_err asset_open would give the name, when that is where it failed).
+    int64_t resource_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& texture_out,
+                               audio_record*& audio_out);
+
+    // Cache miss half of resource_resolve_() for TEXTURE: read, decode and
+    // upload `resname`, then remember it in `textures_`. Same
+    // success/failure contract as resource_resolve_() itself.
+    int64_t texture_resolve_(const char* resname, texture_record*& record_out);
+
+    // Cache miss half of resource_resolve_() for AUDIO: read `resname`'s raw
+    // bytes - there is nothing to decode, the on-disc format IS the resident
+    // format - and upload them into sound RAM through the borrowed ca_, then
+    // remember it in `audios_`. Same success/failure contract as
+    // resource_resolve_() itself.
+    int64_t audio_resolve_(const char* resname, audio_record*& record_out);
+
+    // Shared by texture_resolve_(), audio_resolve_() and texture_reload_():
+    // open, measure, allocate and read `resname`'s whole current contents
+    // into `bytes_out`. Returns RV_OK or the negative rv_err either step
+    // answered. Named for what it reads (an asset's bytes), not for who
+    // reads them, because both resource kinds and the dev reload path share
+    // it verbatim.
+    int64_t asset_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out);
+
+    // Stages of texture_resolve_(), split out to stay under the function-size
+    // limit and so a mid-way failure has one clear place to free from.
+    int64_t texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
+                             const std::byte*& palette_out, const std::byte*& texels_out) const;
+    int64_t texture_upload_(const rv_pdklib::rv_mppctex_header& header, const std::byte* palette,
+                             const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out);
+
+    // asset_reload()'s TEXTURE branch: refreshes `record` from `resname`'s
+    // current bytes. Defined with asset_reload(), in the development half.
+    int64_t texture_reload_(const char* resname, texture_record& record);
 };
 
 }  // namespace rv_3dmppc

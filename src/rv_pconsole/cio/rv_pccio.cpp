@@ -5,7 +5,7 @@
 // --- C contract (pdk/cio/rv_cio.h) -------------------------------------------
 // An rv_cio* handle and the address of an rv_pccio are the same address: which
 // concrete class actually lives there is a console construction-time choice
-// (rv_pccio_std or rv_pccio_null), reached here through a virtual call.
+// (rv_pccio_platform or rv_pccio_null), reached here through a virtual call.
 
 extern "C" int64_t rv_cio_iport_count(rv_cio *cio)
 {

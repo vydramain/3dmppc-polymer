@@ -6,7 +6,7 @@
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
-#include "rv_pconsole/cio/rv_pccio_std.hpp"
+#include "rv_pconsole/cio/rv_pccio_platform.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 #include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_null.hpp"
@@ -32,7 +32,7 @@ constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
 };
 constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
-    { "std", rv_pccio_impl::standard, &rv_pccio_std::evaluate },
+    { "std", rv_pccio_impl::standard, &rv_pccio_platform::evaluate },
 };
 constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL_ROWS[] = {
     { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
@@ -118,7 +118,7 @@ std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf 
 {
     RV_LOG_INFO("pccio", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
     if (impl == rv_pccio_impl::standard) {
-        return std::make_unique<rv_pccio_std>(conf, platform.window(), platform.gamepads());
+        return std::make_unique<rv_pccio_platform>(conf, platform.window(), platform.gamepads());
     }
     return std::make_unique<rv_pccio_null>(conf);
 }

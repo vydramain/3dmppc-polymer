@@ -33,6 +33,30 @@ int compile_scripts(
     const std::filesystem::path &disc_dir,
     std::string &error);
 
+// --- lua left as lua ---
+//
+// An unpacked directory keeps the developer's .lua reachable and live, so it
+// is never compiled to bytecode. The plan already renamed each script to its
+// .luac payload; this undoes that back to the source's own flat name and
+// points the manifest's script_entry (rendered into disc.toml by the caller)
+// at the same name, so rv_manifest_render has nothing stale left to render.
+
+/// Put every planned script's name and payload back to its uncompiled .lua,
+/// and repoint the manifest's script_entry to match.
+///
+/// @param plan      the planned archive; only its script range is touched
+/// @param manifest  script_entry is rewritten in place when it names a
+///                  renamed script
+/// @param disc_dir  absolute disc directory the sources are relative to
+/// @param error     unused today - this cannot fail - but kept so the caller
+///                  can dispatch to either function without knowing which
+/// @return always 0
+int prepare_scripts(
+    archive_plan &plan,
+    rv_pdklib::rv_manifest &manifest,
+    const std::filesystem::path &disc_dir,
+    std::string &error);
+
 /// Compile one .lua file into one .luac file.
 ///
 /// @param lua_path  the source to read

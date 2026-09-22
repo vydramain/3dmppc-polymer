@@ -46,3 +46,7 @@ compile_commands.json
 # Frame dumps (--dump-frame). Keep one deliberately if it ever becomes a golden
 # reference for a test — then commit it with -f and say why in the message.
 *.ppm
+
+# Exported chat transcripts. They are a working artefact of one session on one
+# machine, not a source the repository regenerates anything from.
+conversation-*.txt

@@ -87,6 +87,10 @@ int64_t rv_cl_value_string(rv_cl *cl, int64_t index, char *baddr, int64_t baddr_
 /// failing call leaves the stack otherwise untouched: there is nothing to
 /// drop, and dropping anyway would corrupt it.
 ///
+/// In a console built with the development runtime, a call that runs past the
+/// instruction ceiling fails like any other raised error; a player build sets
+/// no ceiling.
+///
 /// @param cl     the script machine
 /// @param handle chunk to call into
 /// @param fname  name of the hook to call

@@ -116,6 +116,28 @@ int rv_pdktools::compile_simple_script(
     return 0;
 }
 
+int rv_pdktools::prepare_scripts(
+    archive_plan &plan,
+    rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_dir,
+    std::string &)
+{
+    // Two roots meet here, same as in compile_scripts: `source` is relative to
+    // the disc directory, where the author's .lua lives; the payload rebuilt
+    // here points straight back at it, so nothing under the build tree is read.
+    for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
+        archive_item &item = plan.items[i];
+        const std::string lua_name = flat_name(item.source);
+        if (item.name == manifest.budget.pccl.script_entry) {
+            manifest.budget.pccl.script_entry = lua_name;
+        }
+        item.name = lua_name;
+        item.payload = (disc_dir / item.source).string();
+    }
+
+    return 0;
+}
+
 int rv_pdktools::compile_scripts(
     const archive_plan &plan,
     const fs::path &disc_dir,

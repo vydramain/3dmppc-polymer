@@ -1,6 +1,8 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "pdk/de/rv_de.h"
@@ -12,6 +14,7 @@
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -46,11 +49,17 @@ private:
     // down, so lua_close() must run BEFORE any controller it might reach is
     // gone. Alphabetical placement would put cl_ ahead of cm_ and cv_ in
     // destruction order, which is a use-after-free.
+    //
+    // cd_ is placed right before cl_ - after cv_, not alphabetically - for the
+    // same reason: ~rv_pccd_fs() frees every texture it made resident through
+    // the borrowed cv_ (rv_pccd.hpp), so cv_ must still be alive when cd_ is
+    // destroyed. cd_ still outlives cl_'s destruction, same as cv_/ca_, in
+    // case a Lua finaliser reaches the drive too.
     std::unique_ptr<rv_pcca> ca_;
-    std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccio> cio_;
     std::unique_ptr<rv_pccm> cm_;
     std::unique_ptr<rv_pccv> cv_;
+    std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccl> cl_;
 
     // BORROWED, never owned. The loader reads the manifest BEFORE this console
@@ -66,6 +75,127 @@ private:
     // Bresenham accumulator in disc_run never overruns it.
     // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
+
+    // --- the development runtime ------------------------------------------
+    //
+    // Constructed only when the run asked for it. Everything below is inert
+    // without it: one `if` per frame that is not taken, and no second frame
+    // loop - a dev path that diverged from the ordinary one would drift, and
+    // then the thing the developer tested would not be the thing that ships.
+    std::unique_ptr<rv_pccmdchan> cmd_;
+
+    // The entry chunk's asset name, kept so a candidate that arrived over the
+    // channel can be compiled under the name the developer recognises: it is
+    // what lua puts in front of every error message from that chunk.
+    std::string script_entry_;
+
+    // Stopped, whoever asked. Two inputs reach this one flag: the `pause`
+    // request on the development channel, and the physical Pause key, which is
+    // an operator's act on the machine (like closing the window) rather than
+    // game input and therefore needs no --dev. One flag and not two, so there
+    // is one answer to "is this machine running" no matter who stopped it.
+    bool paused_ = false;
+
+    // A step is armed by ONE request and answered after ITS frame, so three
+    // step requests are three frames and three answers. A counter would let
+    // them collapse into one frame; the queue is suspended at a step instead,
+    // which is also why the reply id has to be remembered rather than answered
+    // on the spot.
+    int64_t step_reply_id_ = -1;
+
+    // The picture a stopped console presents: the last frame dimmed, with
+    // CONSOLE PAUSED across it. A copy, so the disc's own last frame - and
+    // therefore --dump-frame - stays exactly what the disc drew. Allocated the
+    // first time the machine is actually stopped, and never in a headless run.
+    std::vector<uint32_t> pause_overlay_;
+    bool pause_overlay_valid_ = false;
+
+    uint64_t frames_ = 0;
+    bool quit_by_command_ = false;
+    // Move the channel along and execute whatever arrived, on the frame
+    // boundary and nowhere else: at that point no script call is in flight and
+    // the lua stack is at its base, which is what makes a code swap safe. Pause
+    // is a convenience for the developer, never a precondition.
+    // --- the frame loop, in named steps -----------------------------------
+    //
+    // How the next frame's START TIME is decided. The frame's DURATION is
+    // always 1/target_fps and never varies with the wall clock or the audio
+    // device; pacing only decides when that frame runs.
+    enum class pacing { none, audio, clock };
+
+    // One run's bookkeeping. A struct handed between the steps below rather
+    // than a row of members: none of it outlives disc_run, and as members a
+    // second run would inherit the first one's audio counters and its stale
+    // deadline.
+    struct run_state {
+        uint64_t target_fps = 60;
+        float dt = 0.0f;
+        std::chrono::duration<double> frame_budget{};
+        pacing mode = pacing::none;
+        int64_t queue_target = 0;
+        std::chrono::steady_clock::time_point deadline{};
+
+        // The previous iteration created no frame, so the pacing deadline is
+        // stale and has to be re-based before it is believed again.
+        bool left_pause = false;
+
+        int64_t audio_phase = 0;
+        int64_t audio_written = 0;
+        int64_t audio_underruns = 0;
+        int64_t audio_peak_queued = 0;
+        bool audio_paced_ever = false;
+    };
+
+    static const char *pacing_name(pacing mode);
+
+    // Open the window, start the disc, settle the timeline and arm the
+    // development runtime. A negative return means the disc refused to start
+    // and there is no loop to enter.
+    int64_t run_start(rv_de *disc, run_state &run);
+
+    // The operator's stop switch, read straight off the platform.
+    void run_pause_key();
+
+    // Serve whatever the development channel has to say on this boundary.
+    // True means it asked the console to stop. A step of its own rather than
+    // four lines inside the loop: the loop body should read as a flat list of
+    // what happens per frame, and every `if` nested in it is one more thing a
+    // reader has to hold while looking for the timing rule.
+    bool run_cmd_channel();
+
+    // True when this iteration creates NO frame. Also owns what a pause does
+    // to the clock, because the two are the same fact seen twice.
+    bool run_hold_paused(run_state &run);
+
+    // One frame of the machine: update, render, present, and the audio of
+    // exactly that step.
+    void run_frame(rv_de *disc, run_state &run);
+
+    // Wait, however this run decides to wait.
+    void run_pace(run_state &run);
+
+    // The last hook, the frame dump, the audio summary and the last answer.
+    void run_finish(rv_de *disc, const run_state &run);
+
+    // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
+    // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
+    // The frame loop calls them unconditionally so there is one loop and not
+    // two - what a developer tested is what ships - and a player binary
+    // carries no line of what they say.
+    void cmd_service();
+    // What the console owes the channel once the frame is over: the answer to
+    // a step, and a game hook that failed this frame.
+    void cmd_after_frame();
+    // The Pause KEY moved the machine. The client did not ask, so it hears
+    // about it as an event.
+    void cmd_note_pause();
+    void cmd_dispatch(const rv_pccmdreq &req);
+    void cmd_status(int64_t id);
+    void cmd_reload(const rv_pccmdreq &req);
+    void cmd_reload_module(const rv_pccmdreq &req);
+    void cmd_get(const rv_pccmdreq &req);
+    void cmd_keys(const rv_pccmdreq &req);
+    void cmd_asset(const rv_pccmdreq &req);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);

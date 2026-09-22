@@ -105,6 +105,13 @@ class rv_zipreader {
     // last bytes of the file. Returns false when there is none.
     static bool find_eocd(const std::vector<unsigned char>& tail, std::size_t& pos);
 
+    // Read the file's tail and locate the EOCD record within it. `tail` and
+    // `eocd_pos` are filled on success.
+    bool locate_eocd(std::string& error, std::vector<unsigned char>& tail, std::size_t& eocd_pos) const;
+
+    // Walk the central directory bytes into `entries_`/`by_name_`.
+    bool parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total, std::string& error);
+
     const rv_zipentry* find(const char* name) const;
 
     // Seek + read exactly `count` bytes at `offset`. False on any short read;

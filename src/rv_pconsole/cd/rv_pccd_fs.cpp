@@ -1,6 +1,7 @@
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
 #include <new>
+#include <string>
 #include <utility>
 
 #include "pdk/rv_err.h"
@@ -14,6 +15,25 @@ rv_pcbudget_cost rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget& /*bud
 
 rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf& conf)
     : conf_(conf), medium_(std::make_unique<rv_pcdirmedium>(conf.medium_path)) {}
+
+rv_pccd_fs::~rv_pccd_fs() {
+    // A disc never releases a texture or a sound; this is where the drive
+    // frees every one it made resident, all at once, when the disc that
+    // named them goes away. cv_/ca_ are null only when video/audio was never
+    // attached, which means nothing of that kind was ever uploaded and there
+    // is nothing to free.
+    if (cv_ != nullptr) {
+        for (const texture_record& record : textures_) {
+            cv_->video_asset_free(record.tex_addr);
+            if (record.pal_addr != 0) cv_->video_asset_free(record.pal_addr);
+        }
+    }
+    if (ca_ != nullptr) {
+        for (const audio_record& record : audios_) {
+            ca_->sound_asset_free(record.addr);
+        }
+    }
+}
 
 const char* rv_pccd_fs::handle_name(int64_t handle) const {
     if (handle < 0 || handle >= static_cast<int64_t>(resnames_.size())) return nullptr;
@@ -138,6 +158,288 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
     // the capacity before it writes anything, so a short buffer costs the caller
     // an error code and not a clobbered allocation.
     return medium_->entry_read(resname, baddr, baddr_size);
+}
+
+// Reads `resname`'s whole current contents into `bytes_out`: open, measure,
+// allocate, and read the full entry - the preparation texture_resolve_(),
+// audio_resolve_() and texture_reload_() all need before doing anything kind-
+// specific with the bytes (decoding, for a texture; nothing at all, for raw
+// PCM audio). Medium re-measures the size on every call (see asset_size()'s
+// comment above), so a short read here means the entry changed between the
+// size call and the read; a reload is asked for precisely because the file
+// changed, so that is where a shrunk entry is the expected case rather than
+// the exotic one, and it is refused here rather than fed to a texture
+// decoder as padding pretending to be pixels, or played back to the SPU as
+// padding pretending to be samples.
+int64_t rv_pccd_fs::asset_read_bytes_(const char* resname, std::vector<std::byte>& bytes_out) {
+    const int64_t handle = asset_open(resname);
+    if (handle < 0) return handle;
+    const int64_t size = asset_size(handle);
+    if (size < 0) return size;
+
+    try {
+        bytes_out.resize(static_cast<size_t>(size));
+    } catch (const std::bad_alloc&) {
+        return RV_ERR_NOMEM;
+    }
+    const int64_t got = asset_read(handle, bytes_out.data(), size);
+    if (got < 0) return got;
+    // Medium re-measures each read; short count means entry shrank.
+    // Padding bytes cannot go to video memory as false pixels.
+    if (got != size) return RV_ERR_INVAL;
+
+    return RV_OK;
+}
+
+// Parses the header this file's caller already read into `bytes`, and hands
+// back pointers INTO `bytes` for the palette and texels - nothing is copied
+// twice. Every rule this console enforces on a .mppctex - magic, version,
+// format, palette shape, non-zero dimensions, enough bytes for the payload -
+// lives in rv_pdklib::rv_mppctex_parse() now, because mppcburner and a
+// hot-reload must refuse exactly the same broken file this console would,
+// not a looser subset of it. Only the translation to this contract's rv_err
+// stays here: `error` is the human sentence a CLI would print, and a disc's
+// asset_open() has nowhere to print it, so it is discarded.
+int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
+                                     const std::byte*& palette_out, const std::byte*& texels_out) const {
+    std::string error;
+    if (!rv_pdklib::rv_mppctex_parse(bytes, header_out, palette_out, texels_out, error)) {
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// Allocates and uploads the palette (if any) and the texels. On any failure
+// AFTER an allocation succeeded, that allocation is freed before returning:
+// a failed acquire must leave video RAM exactly as it found it.
+int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header& header, const std::byte* palette,
+                                     const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out) {
+    int64_t pal_addr = 0;
+    if (header.palette_count > 0) {
+        const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
+        pal_addr = cv_->video_asset_malloc(palette_bytes);
+        if (pal_addr < 0) return pal_addr;
+
+        rv_texture pal_tex{};
+        pal_tex.format = RV_TEXFMT_DIRECT15;
+        pal_tex.data = palette;
+        pal_tex.size = static_cast<uint64_t>(palette_bytes);
+        pal_tex.width = static_cast<uint64_t>(header.palette_count);
+        pal_tex.height = 1;
+        const int64_t rc = cv_->video_asset_write(pal_addr, &pal_tex);
+        if (rc < 0) {
+            cv_->video_asset_free(pal_addr);
+            return rc;
+        }
+    }
+
+    const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
+    const int64_t tex_addr = cv_->video_asset_malloc(texel_bytes);
+    if (tex_addr < 0) {
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        return tex_addr;
+    }
+
+    rv_texture tex{};
+    tex.format = header.format;
+    tex.data = texels;
+    tex.size = static_cast<uint64_t>(texel_bytes);
+    tex.width = static_cast<uint64_t>(header.width);
+    tex.height = static_cast<uint64_t>(header.height);
+    const int64_t rc = cv_->video_asset_write(tex_addr, &tex);
+    if (rc < 0) {
+        cv_->video_asset_free(tex_addr);
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        return rc;
+    }
+
+    tex_addr_out = tex_addr;
+    pal_addr_out = pal_addr;
+    return RV_OK;
+}
+
+// The one gate every resource_* query routes through - see this function's
+// own comment in rv_pccd_fs.hpp for the shape (exactly one of the two output
+// pointers set on success, the other left null) and why it stays one gate
+// rather than five copies of the same kind check.
+int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind, const char* resname, texture_record*& texture_out,
+                                       audio_record*& audio_out) {
+    texture_out = nullptr;
+    audio_out = nullptr;
+    if (resname == nullptr) return RV_ERR_INVAL;
+
+    if (kind == RV_CD_RESOURCE_TEXTURE) {
+        // No video attached is the same situation as no medium mounted: a
+        // legal machine state, not a caller error, so it answers the way
+        // asset_open answers an unmounted drive - nothing can be made
+        // resident yet.
+        if (cv_ == nullptr) return RV_ERR_INVAL;
+
+        std::string key(resname);
+        if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
+            texture_out = &textures_[static_cast<size_t>(it->second)];
+            return RV_OK;
+        }
+        return texture_resolve_(resname, texture_out);
+    }
+
+    if (kind == RV_CD_RESOURCE_AUDIO) {
+        // Same reasoning as cv_ above, for the sound side of the machine.
+        if (ca_ == nullptr) return RV_ERR_INVAL;
+
+        std::string key(resname);
+        if (auto it = audio_by_name_.find(key); it != audio_by_name_.end()) {
+            audio_out = &audios_[static_cast<size_t>(it->second)];
+            return RV_OK;
+        }
+        return audio_resolve_(resname, audio_out);
+    }
+
+    // Neither kind this contract knows about: the same malformed-argument
+    // refusal a bad handle or a short buffer gets elsewhere in this contract.
+    // A third kind adds its own branch here, not a rewrite of the five
+    // callers below.
+    return RV_ERR_INVAL;
+}
+
+// Cache-miss half of resource_resolve_() for TEXTURE: this is where a disc's
+// "first ask" for a texture name becomes resident - read, decode, upload,
+// and remember it for every ask that follows, including the ones made
+// through a different one of the five query functions below. The cache-hit
+// case never reaches here; see resource_resolve_().
+int64_t rv_pccd_fs::texture_resolve_(const char* resname, texture_record*& record_out) {
+    std::vector<std::byte> bytes;
+    const int64_t read_rc = asset_read_bytes_(resname, bytes);
+    if (read_rc < 0) return read_rc;
+
+    rv_pdklib::rv_mppctex_header header;
+    const std::byte* palette = nullptr;
+    const std::byte* texels = nullptr;
+    const int64_t decode_rc = texture_decode_(bytes, header, palette, texels);
+    if (decode_rc < 0) return decode_rc;
+
+    int64_t tex_addr = 0;
+    int64_t pal_addr = 0;
+    const int64_t upload_rc = texture_upload_(header, palette, texels, tex_addr, pal_addr);
+    if (upload_rc < 0) return upload_rc;
+
+    texture_record record;
+    record.resname = resname;
+    record.tex_addr = tex_addr;
+    record.pal_addr = pal_addr;
+    record.width = header.width;
+    record.height = header.height;
+
+    const int64_t index = static_cast<int64_t>(textures_.size());
+    try {
+        std::string key = record.resname;
+        textures_.push_back(std::move(record));
+        tex_by_name_[std::move(key)] = index;
+    } catch (const std::bad_alloc&) {
+        cv_->video_asset_free(tex_addr);
+        if (pal_addr != 0) cv_->video_asset_free(pal_addr);
+        if (static_cast<int64_t>(textures_.size()) > index) textures_.pop_back();
+        return RV_ERR_NOMEM;
+    }
+
+    record_out = &textures_[static_cast<size_t>(index)];
+    return RV_OK;
+}
+
+// Cache-miss half of resource_resolve_() for AUDIO: a disc's "first ask" for
+// a sound name becomes resident here. Unlike a texture there is nothing to
+// decode - the PR review's decision on scope was raw PCM with no baker and
+// no container - so this is read, upload, remember, three steps instead of
+// four.
+int64_t rv_pccd_fs::audio_resolve_(const char* resname, audio_record*& record_out) {
+    std::vector<std::byte> bytes;
+    const int64_t read_rc = asset_read_bytes_(resname, bytes);
+    if (read_rc < 0) return read_rc;
+
+    const int64_t size = static_cast<int64_t>(bytes.size());
+    const int64_t addr = ca_->sound_asset_malloc(size);
+    if (addr < 0) return addr;
+
+    rv_sample sample{};
+    sample.data = bytes.data();
+    sample.size = size;
+    const int64_t write_rc = ca_->sound_asset_write(addr, &sample);
+    if (write_rc < 0) {
+        ca_->sound_asset_free(addr);
+        return write_rc;
+    }
+
+    audio_record record;
+    record.resname = resname;
+    record.addr = addr;
+    record.size = size;
+
+    const int64_t index = static_cast<int64_t>(audios_.size());
+    try {
+        std::string key = record.resname;
+        audios_.push_back(std::move(record));
+        audio_by_name_[std::move(key)] = index;
+    } catch (const std::bad_alloc&) {
+        ca_->sound_asset_free(addr);
+        if (static_cast<int64_t>(audios_.size()) > index) audios_.pop_back();
+        return RV_ERR_NOMEM;
+    }
+
+    record_out = &audios_[static_cast<size_t>(index)];
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::resource_addr(rv_cd_resource_kind kind, const char* resname) {
+    texture_record* texture = nullptr;
+    audio_record* audio = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    if (rc < 0) return rc;
+    // Meaningful for both kinds (rv_cd.h): whichever record resolved is the
+    // one this query answers.
+    return texture != nullptr ? texture->tex_addr : audio->addr;
+}
+
+int64_t rv_pccd_fs::resource_size(rv_cd_resource_kind kind, const char* resname) {
+    texture_record* texture = nullptr;
+    audio_record* audio = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    if (rc < 0) return rc;
+    // AUDIO-only (rv_cd.h): a texture resolved fine, but "size" is not one
+    // of the things this contract lets a game read back about it - its shape
+    // is width/height, below - so a resolved texture still refuses here
+    // rather than making up a byte count nobody defined.
+    if (audio != nullptr) return audio->size;
+    return RV_ERR_INVAL;
+}
+
+int64_t rv_pccd_fs::resource_palette_addr(rv_cd_resource_kind kind, const char* resname) {
+    texture_record* texture = nullptr;
+    audio_record* audio = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    if (rc < 0) return rc;
+    // TEXTURE-only (rv_cd.h): a sound has no palette to answer.
+    if (texture != nullptr) return texture->pal_addr;
+    return RV_ERR_INVAL;
+}
+
+int64_t rv_pccd_fs::resource_width(rv_cd_resource_kind kind, const char* resname) {
+    texture_record* texture = nullptr;
+    audio_record* audio = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    if (rc < 0) return rc;
+    // TEXTURE-only (rv_cd.h): a sound has no pixel dimensions to answer.
+    if (texture != nullptr) return texture->width;
+    return RV_ERR_INVAL;
+}
+
+int64_t rv_pccd_fs::resource_height(rv_cd_resource_kind kind, const char* resname) {
+    texture_record* texture = nullptr;
+    audio_record* audio = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    if (rc < 0) return rc;
+    // TEXTURE-only (rv_cd.h): a sound has no pixel dimensions to answer.
+    if (texture != nullptr) return texture->height;
+    return RV_ERR_INVAL;
 }
 
 }  // namespace rv_3dmppc

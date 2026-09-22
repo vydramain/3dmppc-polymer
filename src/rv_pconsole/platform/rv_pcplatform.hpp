@@ -80,12 +80,31 @@ public:
     // Zero while no window exists.
     virtual rv_imouse consume_mouse() = 0;
 
+    // How many times the operator pressed the physical Pause key since this
+    // was last called; clears the counter. A COUNT and not a bool, because
+    // two presses landing in the same frame (e.g. a pump() called both at the
+    // top of the frame and again while waiting on the audio queue) must not
+    // collapse into one toggle - the console has to see both edges to end up
+    // paused/unpaused the same way it would have if the frames had not
+    // coalesced. An EDGE and not a level like close_requested(): pause is a
+    // request to flip a state the console owns, not a fact about the key
+    // itself, so a held key must not re-request sixty times a second, and the
+    // console must not have to remember the previous frame's key state to
+    // tell a request from a hold.
+    //
+    // This is an operator's act on the machine, the same category as closing
+    // the window, not game input - it therefore never reaches rv_cio's port
+    // snapshot. Do NOT also map SDL_SCANCODE_PAUSE into the keyboard-to-pad
+    // table in rv_pcwindow_sdl3.cpp: a disc would then see a phantom button
+    // press every time the operator paused.
+    virtual uint32_t consume_pause_requests() = 0;
+
 protected:
     rv_pcwindow() = default;
 };
 
 // The physical gamepads. Which virtual port a pad drives is NOT decided here:
-// that is virtual port state and belongs to cio (rv_pccio_std).
+// that is virtual port state and belongs to cio (rv_pccio_platform).
 class rv_pcgamepads
 {
 public:

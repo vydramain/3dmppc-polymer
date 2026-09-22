@@ -52,6 +52,21 @@ void rv_console_print_usage(std::FILE *stream);
 struct rv_pboot_args {
     bool fixed_step = false;
     bool mute = false;
+
+    // `dev` opens the command channel on stdin (see
+    // rv_pconsole/platform/rv_pccmdchan.hpp). A player build never sets it:
+    // --dev is not a name its getopt table carries (rv_pboot_args_cmd.hpp).
+    bool dev = false;
+
+    // Start with the frame loop STOPPED, before frame 0, so the first
+    // controllable moment comes before the disc has drawn anything.
+    //
+    // Named for the loop and not for the development runtime, because the pause
+    // is not a development feature: the Pause key drives the same stop in an
+    // ordinary run. What --paused needs is only a way to be LIFTED - a command
+    // channel or a window that can receive the key - and boot refuses the
+    // combination that has neither.
+    bool loop_paused = false;
     uint64_t scale = 3;
     uint64_t max_frames = 0;
     std::string medium_path;

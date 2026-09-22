@@ -83,7 +83,7 @@ asks the organizer for one.
 | `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads) |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 
@@ -91,7 +91,7 @@ Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
 `rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), the video POD
 is in `cv/` (`rv_color`, `rv_uv`, `rv_vertex`, `rv_texture`, and the primitive
-family in `rv_primitives.hpp`), and the cross-controller error enum is
+family in `rv_primitives.h`), and the cross-controller error enum is
 `rv_err.h` (see *Error convention*). `cl/` carries no separate POD tree —
 its one shared type, `rv_cl_type` (nil/boolean/number/string/function/table/
 other), only tags a value already sitting on the script machine's own stack.
@@ -130,10 +130,14 @@ Subsystem split, PSX-faithful:
   `[budget.pcca]`/`[budget.pccv]` size sound and video RAM, and
   `rv_pdko_cl()` never answers `nullptr` — a disc that never asked for one
   gets a handle whose every `rv_cl_*` call answers `RV_ERR_INVAL`
-  (`src/rv_pconsole/rv_pconsole.cpp`). The console itself never executes a
-  line of Lua and never dispatches through `rv_cl`: it sizes and hands out the
-  machine exactly as it hands out VRAM, and the DISC is the one that decides
-  whether to drive it (see "Three paths across the boundary").
+  (`src/rv_pconsole/rv_pconsole.cpp`). The console IMPLEMENTS the
+  machine: it owns the VM, loads the entry bytecode the manifest names,
+  executes what it is asked to execute, and holds the budget, the instruction
+  ceiling and the error collector. What it does not own is WHICH game function
+  answers a game event — that binding belongs to the disc side, which asks for
+  it through `rv_cl_script_call`. Asking the console to run a Lua function is
+  not owning the machine, the same way asking it to draw a triangle is not
+  owning the rasterizer (see "Three paths across the boundary").
 
 ### Class realization — opaque in `pdk/`, concrete at the edges
 
@@ -315,7 +319,7 @@ texture-combine (raw/modulation) flags, VRAM readback, the display/output stage
 
 **Open — an `src/` decision, not a contract one:** whether the rasterizer
 interpolates uv/colour affine (authentic PSX texture warping) or
-perspective-correct (what `src/gpu/rasterizer.cpp` does today).
+perspective-correct (what `src/rv_pconsole/cv/rv_pcraster_poly.cpp` does today).
 
 ---
 
@@ -355,7 +359,9 @@ By convention a disc still writes its logic as an ordinary C++ class named
 of matching names. `RV_MPPC_DISC_ENTRY_DEF(rv_dmain)` (`pdk/de/rv_dv.h`)
 generates the six thunks that turn those methods into the function pointers
 above, plus the `create`/`destroy` pair a `.mppcdisc` exports under fixed
-names for the loader to `dlsym`. Thunks, not inheritance, because a C++
+names for the loader to `dlsym`. It lives in pdk, the mandatory contract every
+disc's own .cpp must call — unlike a pdklib macro such as `RV_MPPC_DISC_LUA_DEF`
+or `RV_MPPC_DISC_CPP_DEF`, which a disc is free to ignore. Thunks, not inheritance, because a C++
 vtable is not a stable ABI across a `dlopen` boundary — a flat
 function-pointer struct is. `rv_Disc` + `rv_DiscServices` from the old
 `src/platform/disc.hpp` are gone; nothing in `src/` uses them any more.
@@ -407,16 +413,16 @@ console target sets `ENABLE_EXPORTS ON` (`-rdynamic`) —
 `dlsym`/`ffi.C` to find. Take either property away and the third path stops
 existing; neither is incidental.
 
-Because of this, **the console never learns that Lua exists as an execution
-path.** It knows `rv_cl` only as a controller it sizes and hands out, the
-same way it sizes and hands out `rv_cv`'s video RAM: `rv_pconsole::cl()`
-(`src/rv_pconsole/rv_pconsole.cpp`) just returns a pointer or `nullptr`, and
-the frame loop (`rv_pconsole::disc_run`) calls `disc->frame_update`/
-`frame_render` identically whether or not that disc forwards the call into a
-Lua chunk. The DISC drives the machine: every hook in
-`mppcdiscs/example-lua/src/example-lua.cpp` is one `rv_cl_script_call`
-forwarding into `scripts/example-lua.lua`, while the console's own frame
-loop (`rv_pconsole.cpp`) never mentions `rv_cl` or Lua at all.
+Because of this, **the frame loop never learns whether a disc runs Lua.**
+`rv_pconsole::cl()` (`src/rv_pconsole/rv_pconsole.cpp`) hands out the machine
+the same way the console hands out `rv_cv`'s video RAM, and the loop
+(`rv_pconsole::disc_run`) calls `disc->frame_update`/`frame_render`
+identically whether or not that disc forwards the call into a Lua chunk — the
+console's own loop never mentions `rv_cl` or Lua at all. The EXECUTION of Lua
+is the console's: the VM, the entry bytecode the manifest names, the budget
+and the error collector all live in `src/rv_pconsole/cl/`. What stays on the
+disc side is the BINDING — which game function answers `frame_update` — and a
+disc states it by asking, one `rv_cl_script_call` per hook.
 
 **Why `ffi.cdef` cannot just read the header.** LuaJIT's `ffi.cdef()` takes a
 string of C declarations — it is not a preprocessor: it cannot follow
@@ -431,10 +437,10 @@ into the console executable: **two outputs, not one**, because the two
 things `ffi.cdef` cannot read (`#include`, `#define`) need two different
 escape hatches.
 
-**What a script actually sees: exactly one global, `pdk`.** `rv_pccl`'s
-constructor (`src/rv_pconsole/cl/rv_pccl.cpp`) opens only
+**What a script actually sees: two globals of the console's own, `pdk` and `require`.** `rv_pccl`'s
+constructor (`src/rv_pconsole/cl/rv_pccl_luajit.cpp`) opens only
 `base`/`string`/`math`/`table` and LuaJIT's `ffi` — deliberately never `io`,
-`os`, or `package`/`require` — feeds it `rv_pdk_cdef` through `ffi.cdef`,
+`os`, or the stock `package` library — feeds it `rv_pdk_cdef` through `ffi.cdef`,
 turns `rv_pdk_consts` into a table, and installs that table as `_G.pdk` once
 `RV_PCCL_PDK_BOOTSTRAP_SRC` has wired it up: `pdk.cast`/`pdk.new` are
 `ffi.cast`/`ffi.new` directly, and every other key resolves lazily through a
@@ -442,6 +448,38 @@ metatable `__index` that tries `ffi.C["rv_"..k]` then `ffi.C["RV_"..k]` and
 memoizes whichever one hits — so a script writes `pdk.cv_frame_put(cv, prim)`
 or `pdk.TEXWRAP_CLAMP` and never says `ffi` itself, which is never reachable
 any other way.
+
+The same bootstrap installs one accessor per controller — `pdk.cv(o)`,
+`pdk.cd(o)`, and so on for `ca`/`cio`/`cl`/`cm`. Each hook is handed the
+organizer as an untyped pointer, and reaching a controller through it costs
+the identical three steps every time: cast to `rv_pdko*`, call
+`rv_pdko_<slot>`, keep the result. That is the console's plumbing, and a game
+repeating it in every hook is the boilerplate the accessors delete. They are a
+shorter spelling of the same path, not a layer in front of it: the cast is
+`ffi.cast` on a pointer (no allocation) and the accessor is the very export
+the long form called.
+
+A second chunk, sourced from pdklib rather than the console
+(`pdklib/rv_dscript/rv_dscript_lua.hpp`, `RV_PDKLIB_LUA_HELPERS_SRC`), is
+raised into the same `pdk` table right after: `pdk.resource_resolve(o, name)`
+folds the drive's four `cd_resource_*` calls (kind fixed at
+`RV_CD_RESOURCE_TEXTURE`) behind one asset name, and
+`pdk.primitive_sprite`/`pdk.primitive_polygon` hand back an `rv_primitive`
+with every field the console requires already set. The console only raises
+this chunk, the same `luaL_loadbuffer` + `pcall` shape as its own bootstrap -
+it does not author it, and the line stays where it is everywhere else in PDK:
+position, depth, colour and vertex data are the game's, never pdklib's.
+
+`require` is the console's own, not the stock one, which would read the host
+filesystem. `require("entity")` reads the module off the disc through the
+drive: `entity.luac` in an archive, `entity.lua` in an `--unpacked` directory -
+whichever extension the manifest's entry script carries. The burner flattens
+`scripts/` into file names, so a module name is a file name with no extension
+and no directory. The module runs once and must return a table; every later
+`require` of that name, from any file, gets the same table, which is what lets
+`npc.lua` and `player.lua` share one `Entity` to inherit from. A missing
+module, a name with `.`, `/` or `\`, a module that returns no table and two
+modules requiring each other each raise a Lua error naming the module.
 
 This is **hygiene, not a sandbox.** `pdk.cast` and `pdk.new` ARE
 `ffi.cast`/`ffi.new`, so a script can build a pointer from a bare integer and
@@ -537,9 +575,14 @@ bug: the boundary is checked by the toolchain every build.
 ### File conventions
 
 - A source file stays under 512 lines.
-- PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.hpp`
+- PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.h`
   holds line / polygon / sprite and the `rv_primitive` union); otherwise one type
   per file, as in `ca/`.
+- **File names say what they hold.** No suffix: subsystem core (e.g., `rv_pccd.hpp`
+  with `rv_pccd.cpp`) or standalone entity (e.g., `rv_pcvoice`, `rv_pccard`).
+  Suffix `_<job>`: technical role (`_null`, `_posix`) or subsystem part (`_stack`,
+  `_reload`). Suffix `_detail`: subsystem internals. Test: the name must match
+  the contents.
 
 ---
 
@@ -643,7 +686,7 @@ Tracked here so they are chosen deliberately rather than by drift:
   lifecycle (`script_load`/`script_free`/`script_entry`), a shared value
   stack (`stack_push_*`/`stack_drop`/`stack_count`/`value_*`), and one call
   primitive (`script_call`) with a documented stack discipline. Concrete
-  backend `src/rv_pconsole/cl/rv_pccl.cpp` wraps LuaJIT: a private
+  backend `src/rv_pconsole/cl/rv_pccl_luajit.cpp` wraps LuaJIT: a private
   sound-RAM-style allocator caps a script's memory at `[budget.pccl]
   script_memory_size`, only `base`/`string`/`math`/`table`/`ffi` are opened
   (never `io`/`os`/`package`), and the console's own PDK surface reaches the

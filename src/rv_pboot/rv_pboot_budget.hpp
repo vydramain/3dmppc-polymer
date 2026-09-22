@@ -33,9 +33,12 @@ inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
 // What the machine is going to be. A disc declares its requirements in its
 // manifest and those numbers are the machine it gets; the built-in service
 // test carries no manifest, so it runs on the reference specification.
-// Mounts the archive when a disc path was given. Returns
-// RV_OK with `out` set, or a negative rv_err after logging the refusal.
+// Mounts the disc (via rv_pboot_disc_mount(), rv_pboot_discmedium.hpp) when a
+// disc path was given, and reports through `medium_live` whether that mount
+// came from a directory - false, always, when there is no disc path. Returns
+// RV_OK with `out` (and `medium_live`) set, or a negative rv_err after
+// logging the refusal.
 int64_t rv_pboot_budget_select(const rv_pboot_args &args, rv_pcloader &loader,
-    const rv_pdklib::rv_manifest_budget *&out);
+    const rv_pdklib::rv_manifest_budget *&out, bool &medium_live);
 
 } // namespace rv_3dmppc
