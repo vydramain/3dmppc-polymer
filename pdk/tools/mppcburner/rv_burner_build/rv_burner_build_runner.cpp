@@ -72,7 +72,7 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
         return 1;
     }
     rv_burner_print_step(4, "burn",
-        destination.path.filename().string() + " (" + rv_burner_human_size(burned_size) + ")");
+        std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
     return 0;
 }
 
@@ -84,16 +84,17 @@ static int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_mani
     std::string er;
     const fs::path manifest_path = disc_dir / "disc.toml";
     if (rv_pdklib::rv_manifest_load(manifest_path.string(), manifest, er)) {
-        rv_burner_print_error("tmp error text" + er);
+        // The loader already stamps the path on every line it reports.
+        rv_burner_print_error(er);
         return 1;
     }
 
     if (!rv_pdklib::rv_manifest_validate(manifest, error)) {
-        rv_burner_print_error(manifest_path.string() + ": " + error);
+        rv_burner_print_error(std::format("{}: {}", manifest_path.string(), error));
         return 1;
     }
 
-    rv_burner_print_step(1, "manifest", manifest.disc_id + " — " + manifest.disc_title);
+    rv_burner_print_step(1, "manifest", std::format("{} — {}", manifest.disc_id, manifest.disc_title));
     return 0;
 }
 
@@ -119,7 +120,7 @@ static int rv_burner_build_compile(const rv_burner_options &options, const rv_pd
         return 1;
     }
 
-    rv_burner_print_step(2, "compile", std::to_string(source_count) + " source(s) -> " + k_disc_module_name);
+    rv_burner_print_step(2, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
     return 0;
 }
 
@@ -181,8 +182,8 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
             }
         }
         if (!entry_planned) {
-            rv_burner_print_error("[budget.pccl] script_entry '" + manifest.budget.pccl.script_entry +
-                "' is not among the compiled scripts (" + planned + ")");
+            rv_burner_print_error(std::format("[budget.pccl] script_entry '{}' is not among the compiled scripts ({})",
+                manifest.budget.pccl.script_entry, planned));
             return 1;
         }
     }
@@ -239,7 +240,7 @@ static void rv_burner_build_cleanup(const fs::path &project_dir, bool keep_build
     std::error_code ec;
     fs::remove_all(project_dir, ec);
     if (ec) {
-        rv_burner_print_warning("could not remove the build directory '" + project_dir.string() + "'");
+        rv_burner_print_warning(std::format("could not remove the build directory '{}'", project_dir.string()));
     }
 }
 
@@ -254,7 +255,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     const fs::path disc_dir = fs::weakly_canonical(fs::path(options.operand), ec);
     if (ec || !fs::is_directory(disc_dir, ec)) {
-        rv_burner_print_error("'" + options.operand + "' is not a directory");
+        rv_burner_print_error(std::format("'{}' is not a directory", options.operand));
         return 1;
     }
 
@@ -273,7 +274,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         fs::absolute(fs::path(destination_operand), ec)
     };
     if (ec) {
-        rv_burner_print_error("cannot resolve output path '" + destination_operand + "'");
+        rv_burner_print_error(std::format("cannot resolve output path '{}'", destination_operand));
         return 1;
     }
 
@@ -317,7 +318,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     fs::create_directories(scripts_dir, ec);
     fs::create_directories(texture_dir, ec);
     if (ec) {
-        rv_burner_print_error("cannot create build directory '" + project_dir.string() + "'");
+        rv_burner_print_error(std::format("cannot create build directory '{}'", project_dir.string()));
         return 1;
     }
 
