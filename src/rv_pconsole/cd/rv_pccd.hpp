@@ -18,6 +18,12 @@ class rv_pcca;
 // was nothing to refresh.
 constexpr int64_t RV_PCCD_NOT_RESIDENT = 1;
 
+// texture_reload result meaning the name IS resident, but as a sound. The
+// drive cannot refresh one: a voice already plays out of that block, and its
+// read head would follow bytes that moved. Told apart from NOT_RESIDENT so
+// the answer can say "restart" instead of "nothing to refresh".
+constexpr int64_t RV_PCCD_WRONG_KIND = 2;
+
 class rv_pccd
 {
 public:
@@ -58,8 +64,8 @@ public:
     // Refreshes a resident texture in place (same residency id, new addresses
     // and size). Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when
     // nothing holds that name resident (nothing to refresh - the next name
-    // query reads the current bytes), a negative rv_err when the refresh
-    // failed and the old texture stays.
+    // query reads the current bytes), RV_PCCD_WRONG_KIND when a sound holds
+    // it, a negative rv_err when the refresh failed and the old texture stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t texture_reload(const char *resname) = 0;
 

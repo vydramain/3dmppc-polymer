@@ -333,6 +333,11 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // The drive refreshes the resident texture: residency id is stable, but
     // addresses change. The game picks it up by querying for the address each draw.
     const int64_t rc = cd_->texture_reload(key.c_str());
+    if (rc == RV_PCCD_WRONG_KIND) {
+        cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
+            "a sound is resident under that name; its bytes change only across a restart"));
+        return;
+    }
     if (rc == RV_PCCD_NOT_RESIDENT) {
         cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
         return;

@@ -9,7 +9,7 @@
 
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_pboot_args.hpp"
-#include "rv_pboot_args_dev.hpp"
+#include "rv_pboot_args_cmd.hpp"
 #include "rv_pboot_budget.hpp"
 #include "rv_pboot_check.hpp"
 #include "rv_pboot_conf.hpp"
@@ -85,7 +85,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
         rv_console_print_error(
             std::string("--paused would never be lifted: this mode has no window for the "
                         "pause key") +
-            RV_PBOOT_ARGS_DEV_PAUSE_HINT);
+            RV_PBOOT_ARGS_CMD_PAUSE_HINT);
         exit_code = 2;
         return false;
     }

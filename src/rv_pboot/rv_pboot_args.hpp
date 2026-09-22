@@ -55,7 +55,7 @@ struct rv_pboot_args {
 
     // `dev` opens the command channel on stdin (see
     // rv_pconsole/platform/rv_pccmdchan.hpp). A player build never sets it:
-    // --dev is not a name its getopt table carries (rv_pboot_args_dev.hpp).
+    // --dev is not a name its getopt table carries (rv_pboot_args_cmd.hpp).
     bool dev = false;
 
     // Start with the frame loop STOPPED, before frame 0, so the first

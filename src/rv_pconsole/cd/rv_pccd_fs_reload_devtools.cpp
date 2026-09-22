@@ -24,7 +24,13 @@ int64_t rv_pccd_fs::texture_reload(const char* resname) {
 
     std::string key(resname);
     auto it = tex_by_name_.find(key);
-    if (it == tex_by_name_.end()) return RV_PCCD_NOT_RESIDENT;
+    if (it == tex_by_name_.end()) {
+        // A sound the disc made resident is not "nothing to refresh": the
+        // bytes did change, the drive just cannot follow them under a voice
+        // that is already reading the old block.
+        if (audio_by_name_.find(key) != audio_by_name_.end()) return RV_PCCD_WRONG_KIND;
+        return RV_PCCD_NOT_RESIDENT;
+    }
     texture_record& record = textures_[static_cast<size_t>(it->second)];
 
     std::vector<std::byte> bytes;

@@ -1,6 +1,6 @@
 #include "rv_pboot_args.hpp"
 
-#include "rv_pboot_args_dev.hpp"
+#include "rv_pboot_args_cmd.hpp"
 
 #include <getopt.h>
 
@@ -115,7 +115,7 @@ void rv_console_print_usage(std::FILE *stream)
         "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
         // Empty in a player build: an option that build cannot parse is not
-        // an option it may advertise (rv_pboot_args_dev.hpp).
+        // an option it may advertise (rv_pboot_args_cmd.hpp).
         "%s"
         "      --paused         Start with the frame loop stopped, before frame\n"
         "                       0. Lift it with the Pause key.\n"
@@ -139,7 +139,7 @@ void rv_console_print_usage(std::FILE *stream)
         "                       %s.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
         "                       %s.\n",
-        RV_PBOOT_ARGS_DEV_USAGE, presets.c_str(), platform_list.c_str(), ca_list.c_str(),
+        RV_PBOOT_ARGS_CMD_USAGE, presets.c_str(), platform_list.c_str(), ca_list.c_str(),
         cv_list.c_str(), cio_list.c_str(), cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
 }
 
@@ -193,7 +193,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"paused", no_argument, 0, 'Y'},
                                         // Last, because a player build fills it with the
                                         // terminator and getopt_long stops reading there.
-                                        RV_PBOOT_ARGS_DEV_OPT,
+                                        RV_PBOOT_ARGS_CMD_OPT,
                                         {0, 0, 0, 0}};
 
     int c;
