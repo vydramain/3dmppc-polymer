@@ -118,7 +118,7 @@ the compiler they drive.
 | --- | --- |
 | `--scale N` | window magnification over the native 320×240 (default 3) |
 | `--mode=NAME` | preset: `default` (SDL3 window, pads, sound) or `headless` (no window, no pads, no audio device - the same virtual machine) |
-| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`std`), `--mode_cl=` (`null`\|`luajit`) | override one axis of the preset |
+| `--mode_platform=` (`null`\|`sdl3`), `--mode_ca=`/`--mode_cv=` (`null`\|`sw`), `--mode_cio=` (`null`\|`std`), `--mode_cl=` (`null`\|`luajit`), `--mode_cd=` (`null`\|`fs`), `--mode_cm=` (`null`\|`posix`) | override one axis of the preset |
 | `--mode_cv=null` | no GPU at all, and so no window; pair with `--frames` for a smoke test |
 | `--frames N` | stop after N frames (0 = run until quit) |
 | `--fixed-step` | fast run: no real-time wait and no audio output; every mode steps 1/60 s per frame, so runs stay reproducible |
@@ -179,18 +179,19 @@ in a handful of bytes — that is the price of choosing a link-time slot over
 therefore the wrong check; the vocabulary, the refusals and the size of the
 remaining stub are the right ones.
 
-The option defines exactly one macro, `RV_DEVTOOLS`, and it guards **data** —
-the fields and declarations only the dev slot touches, `--dev`'s own field
-among them. A slot can leave a build without a line that reads a member; it
-cannot remove the member. Every *behaviour* stays a slot, which is why the
-frame loop contains no `#ifdef` and a developer tests the same loop a player
-runs.
+The option defines no macro at all: it chooses which files the console is
+built from and nothing else. What a slot cannot remove is a **member** - a
+build can be left without the line that reads a field, but not without the
+field, so `--dev`'s own flag and the handful of members the dev dispatcher
+keeps live in every build's headers and cost a player the bytes they occupy.
+Every *behaviour* stays a slot, which is why the frame loop contains no
+`#ifdef` and a developer tests the same loop a player runs.
 
 A loose directory is a **`--dev` privilege on top of the build**, not a
 substitute for it: a dev build handed a directory without `--dev` refuses it
 exactly as a player build always does, by name, rather than mounting what
 `--dev` exists to gate. The dev half of `rv_pboot_disc_mount()`
-(`rv_pboot_discmedium.cpp`) is where that refusal lives, and it is told
+(`rv_pboot_discmedium_devtools.cpp`) is where that refusal lives, and it is told
 whether `--dev` was given by its caller — never by reaching into a global —
 so the same function stays answerable the same way regardless of who asks.
 
@@ -243,7 +244,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
-| `asset <name>` | refresh the named texture in place: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh (directory medium only) |
+| `asset <name>` | refresh the named texture in place: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh; a name a SOUND holds resident is refused with `unsupported_kind` (directory medium only) |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
@@ -384,7 +385,8 @@ reshaping at all.
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
 | a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
-| an existing asset's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
+| an existing texture's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
+| an existing sound's bytes | **yes**, once it is resident | the client: `asset` on it answers `err unsupported_kind`. A voice is already reading that block, and moving the bytes under its read head is not something the drive can undo |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
 | `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
@@ -398,7 +400,7 @@ the sentence. Framing: `protocol`, `payload_size`, `answer_size`,
 `in_call`, `unsupported_target`,
 `unsupported_medium`, `drive`, `nomem`, `insn_ceiling`. A candidate:
 `bad_request` (no bytes), `compile`, `body`, `not_a_table`, `state_shape`. An
-asset: `no_asset`, `asset`.
+asset: `no_asset`, `asset`, `unsupported_kind`.
 
 A C API stack imbalance is deliberately not among them: that would be a bug in
 the console, not a fault in the script, and reporting it as a script error
@@ -484,13 +486,23 @@ title = "My Game"
 [build]
 sources = ["src/*.cpp"]
 
+[scripts]
+sources = ["scripts/*.lua"]
+
 [assets]
-files = ["assets/*.obj"]
+files = ["assets/*.pcm"]
 
 [textures]
 files = ["assets/*.png"]
 format = "idx8"
 ```
+
+`[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
+both. Every `[budget.*]` section is optional - a disc that states none is held to the
+console's own built-in budget, a default-constructed `rv_manifest_budget`. Both
+example discs state theirs explicitly, and
+[`mppcdiscs/example-lua/disc.toml`](mppcdiscs/example-lua/disc.toml) says why
+each number is what it is.
 
 ### Burning
 
@@ -557,8 +569,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Video** — virtual VRAM pool, ordering table, rasterizer for lines / sprites
   / triangles / quads, Gouraud interpolation, affine texture sampling (4/8-bit
   paletted + 15-bit direct, PSX cut-out transparency), 4×4 ordered dithering.
-- **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer on its own
-  thread.
+- **Audio** — sound-RAM pool, 24 voices with ADSR, saturating mixer, rendered
+  on the console thread once per frame.
 - **Drive** — mounts a directory or a `.mppcdisc` archive behind one interface.
 - **Memory card** — 16 slots in a file image, written atomically.
 - **Input** — gamepads through SDL, keyboard overlaid on port 0.
@@ -567,6 +579,10 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Scripting** — a disc can declare `[budget.pccl]` and raise Lua chunks
   through `rv_cl`; a script calls the same exported console functions a C++
   disc calls, with no wrapper layer and a LuaJIT heap budget of its own.
+- **Development runtime** — an optional build (`-D3DMPPC_DEVTOOLS=ON`) that
+  boots a loose disc directory and answers a line protocol on stdin: pause,
+  step and resume at a frame boundary, reload of the Lua entry chunk and of
+  a required module, state inspection and a texture refresh.
 - **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
   gyro and trackpads, a contracted RAM budget (video and sound RAM are enforced;
   main RAM is not), the 256×224 display mode.

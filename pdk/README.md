@@ -91,7 +91,7 @@ Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
 `rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), the video POD
 is in `cv/` (`rv_color`, `rv_uv`, `rv_vertex`, `rv_texture`, and the primitive
-family in `rv_primitives.hpp`), and the cross-controller error enum is
+family in `rv_primitives.h`), and the cross-controller error enum is
 `rv_err.h` (see *Error convention*). `cl/` carries no separate POD tree —
 its one shared type, `rv_cl_type` (nil/boolean/number/string/function/table/
 other), only tags a value already sitting on the script machine's own stack.
@@ -319,7 +319,7 @@ texture-combine (raw/modulation) flags, VRAM readback, the display/output stage
 
 **Open — an `src/` decision, not a contract one:** whether the rasterizer
 interpolates uv/colour affine (authentic PSX texture warping) or
-perspective-correct (what `src/gpu/rasterizer.cpp` does today).
+perspective-correct (what `src/rv_pconsole/cv/rv_pcraster_poly.cpp` does today).
 
 ---
 
@@ -575,7 +575,7 @@ bug: the boundary is checked by the toolchain every build.
 ### File conventions
 
 - A source file stays under 512 lines.
-- PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.hpp`
+- PODs/contracts united by one idea may share a file (e.g. `cv/rv_primitives.h`
   holds line / polygon / sprite and the `rv_primitive` union); otherwise one type
   per file, as in `ca/`.
 - **File names say what they hold.** No suffix: subsystem core (e.g., `rv_pccd.hpp`
