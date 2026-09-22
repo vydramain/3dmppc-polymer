@@ -160,8 +160,9 @@ pipe like any other. A player build does not carry the option at all: its
 `getopt` entry and its help line exist only under `-D3DMPPC_DEVTOOLS=ON`.
 The field and the `switch` case that sets it are compiled into every build,
 but a player's `getopt` never learns the name, so that case is never reached
-and `--dev` goes down a player binary's ordinary unknown-option path — the same diagnostic and exit code any other flag it has
-never heard of would get, not a diagnostic naming `--dev` in particular. Do
+and `--dev` goes down a player binary's ordinary unknown-option path — the
+same diagnostic and exit code any other flag it has never heard of would get,
+not a diagnostic naming `--dev` in particular. Do
 not read `--dev` as a feature gate: there is no capability behind it that the
 build did not already grant.
 
