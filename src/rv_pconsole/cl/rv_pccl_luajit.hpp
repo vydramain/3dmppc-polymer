@@ -253,6 +253,13 @@ private:
     // 0 ok (out filled), 1 not a module name, 2 the entry is neither .lua nor .luac.
     int module_asset_(const char *name, char *out, std::size_t cap) const;
 
+    // The refusals a module reload owes before any bytes are read: a call in
+    // flight, a name that is not a module, a module nobody has required. On
+    // success `asset` holds the asset name and `ref_out` a registry ref to the
+    // running module table, which the caller releases.
+    int64_t module_find_(const char *name, char *asset, std::size_t cap, int &ref_out,
+        rv_pccl_reload_report &report);
+
     // Shared by both module reload forms once the bytes are in hand.
     int64_t reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
         rv_pccl_reload_report &report);

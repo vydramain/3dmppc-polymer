@@ -169,7 +169,7 @@ static const char *module_asset_refusal(int code)
     return code == 1 ? "not a module name" : "the entry script is neither .lua nor .luac";
 }
 
-int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
+int64_t rv_pccl_luajit::module_find_(const char *name, char *asset, std::size_t cap, int &ref_out,
     rv_pccl_reload_report &report)
 {
     if (call_depth_ > 0) {
@@ -177,8 +177,7 @@ int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytec
         report.message = "a script call is in flight";
         return RV_ERR_BUSY;
     }
-    char asset[256];
-    const int asset_code = name != nullptr ? module_asset_(name, asset, sizeof asset) : 1;
+    const int asset_code = name != nullptr ? module_asset_(name, asset, cap) : 1;
     if (asset_code != 0) {
         report.phase = "no_module";
         report.message = module_asset_refusal(asset_code);
@@ -202,7 +201,19 @@ int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytec
         report.message = "no module by that name has been required";
         return RV_ERR_NOENT;
     }
-    const int old_ref = lookup.ref_out;
+    ref_out = lookup.ref_out;
+    return RV_OK;
+}
+
+int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
+    rv_pccl_reload_report &report)
+{
+    char asset[256];
+    int old_ref = LUA_NOREF;
+    const int64_t found = module_find_(name, asset, sizeof asset, old_ref, report);
+    if (found < 0) {
+        return found;
+    }
 
     // A module has no state of its own: compile, body and a returned table
     // are the whole of its checks - is_entry stays false, so it keeps the
@@ -234,16 +245,18 @@ int64_t rv_pccl_luajit::script_reload_module(const char *name, const void *bytec
     return reload_module_bytes_(name, bytecode, size, report);
 }
 
-// The bytes come off the drive, from the very asset require() would read.
+// The bytes come off the drive, from the very asset require() would read -
+// but only for a module something has required, so a name nobody required
+// answers no_module whether or not the drive has a file by that name.
 int64_t rv_pccl_luajit::script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report)
 {
     char asset[256];
-    const int asset_code = name != nullptr ? module_asset_(name, asset, sizeof asset) : 1;
-    if (asset_code != 0) {
-        report.phase = "no_module";
-        report.message = module_asset_refusal(asset_code);
-        return RV_ERR_INVAL;
+    int old_ref = LUA_NOREF;
+    const int64_t found = module_find_(name, asset, sizeof asset, old_ref, report);
+    if (found < 0) {
+        return found;
     }
+    luaL_unref(L_, LUA_REGISTRYINDEX, old_ref);
     const int64_t handle = cd_.asset_open(asset);
     if (handle < 0) {
         report.phase = "drive";
