@@ -157,9 +157,10 @@ is an I/O choice within a console that already is: it hands **stdin and
 stdout** to the protocol. It has to be asked for because those two streams
 have another use — a dev build with no `--dev` is an ordinary console you can
 pipe like any other. A player build does not carry the option at all: its
-field, its `getopt` entry and its parsing exist only under
-`-D3DMPPC_DEVTOOLS=ON`, so `--dev` reaches a player binary's ordinary
-unknown-option path — the same diagnostic and exit code any other flag it has
+`getopt` entry and its help line exist only under `-D3DMPPC_DEVTOOLS=ON`.
+The field and the `switch` case that sets it are compiled into every build,
+but a player's `getopt` never learns the name, so that case is never reached
+and `--dev` goes down a player binary's ordinary unknown-option path — the same diagnostic and exit code any other flag it has
 never heard of would get, not a diagnostic naming `--dev` in particular. Do
 not read `--dev` as a feature gate: there is no capability behind it that the
 build did not already grant.
@@ -167,7 +168,7 @@ build did not already grant.
 What "not in the player build" means, exactly: no implementation, no protocol
 vocabulary and no reachable path. Not compiled there: the `--dev` option
 itself, the command dispatcher, the state inspection, the stdin channel, the
-protocol's hex encoder and error line, the entry reload, the texture refresh
+protocol's hex encoder and error line, the entry reload, the asset refresh
 and `mount_dir()`, the loose-directory mount — not even its declaration is
 visible to a player build any more, so there is no name left to find it by;
 the ceiling on hook calls is 0 there. `strings` finds none of the verbs and
@@ -244,7 +245,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
-| `asset <name>` | refresh the named texture in place: `resident=1` with the new `width=`/`height=`, or `resident=0` when nothing holds it resident and there is nothing to refresh; a name a SOUND holds resident is refused with `unsupported_kind` (directory medium only) |
+| `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND) is refused with `unsupported_kind` (directory medium only) |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
@@ -265,8 +266,10 @@ tables answers `found=0 type=nil`; at most 32 keys. `keys` answers
 key, `i<n>:<type>` for an integer key and `x:<type>` for a key no path can
 name; `shown` below `count` means the list was cut to fit one answer.
 
-`asset <name>` refreshes a baked texture in place; a
-script that changed a non-texture asset gets no notification at all. The
+`asset <name>` asks the drive which kind holds the name resident and
+refreshes it the way that kind allows; today only a baked texture can be
+refreshed, and a script that changed a non-texture asset gets no
+notification at all. The
 answer carries the texture's size because a RESIZED texture is the one case
 the client's own layout has to follow — the game does not have to hear about
 it at all, since it asks the drive for the address and the size every draw.
@@ -582,7 +585,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 - **Development runtime** — an optional build (`-D3DMPPC_DEVTOOLS=ON`) that
   boots a loose disc directory and answers a line protocol on stdin: pause,
   step and resume at a frame boundary, reload of the Lua entry chunk and of
-  a required module, state inspection and a texture refresh.
+  a required module, state inspection and an asset refresh (textures today).
 - **Not there yet** — semi-transparency and blending, ADPCM / pitch / reverb,
   gyro and trackpads, a contracted RAM budget (video and sound RAM are enforced;
   main RAM is not), the 256×224 display mode.
