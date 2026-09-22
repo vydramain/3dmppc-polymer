@@ -38,7 +38,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "rv_pmem/rv_pcvmem.hpp"
+#include "rv_pconsole/mem/rv_pcvmem.hpp"
 
 namespace rv_3dmppc
 {

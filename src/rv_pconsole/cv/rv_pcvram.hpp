@@ -1,7 +1,7 @@
 // The video RAM the rv_cv contract promises: a fixed-size private pool the disc
 // reserves regions in and gets opaque ADDRESSES back - never pointers.
 //
-// The allocator itself lives in rv_pmem/rv_pcpool.hpp and is shared with sound
+// The allocator itself lives in rv_pconsole/mem/rv_pcpool.hpp and is shared with sound
 // RAM; what remains here is the part that is specific to VIDEO - the texture
 // shape a region carries, and the contract's error vocabulary around it. A
 // primitive names a region by address alone, so its format and dimensions have
@@ -11,7 +11,7 @@
 #include <cstdint>
 
 #include "pdk/cv/rv_texture.h"
-#include "rv_pmem/rv_pcpool.hpp"
+#include "rv_pconsole/mem/rv_pcpool.hpp"
 
 namespace rv_3dmppc
 {

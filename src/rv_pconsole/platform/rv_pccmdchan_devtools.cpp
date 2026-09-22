@@ -6,7 +6,7 @@
 // every partial arrival. Compaction happens when the buffer drains or the dead
 // prefix grows past a threshold, which is the only point where copying is worth
 // it.
-#include "rv_pconsole/platform/rv_pccmdchan_stdio_devtools.hpp"
+#include "rv_pconsole/platform/rv_pccmdchan_devtools.hpp"
 
 #include <fcntl.h>
 #include <unistd.h>

@@ -8,7 +8,7 @@
 #include "rv_pboot_args.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pcslots.hpp"
-#include "rv_pmem/rv_pcvmem.hpp"
+#include "rv_pconsole/mem/rv_pcvmem.hpp"
 
 namespace rv_3dmppc
 {
