@@ -14,15 +14,15 @@ namespace rv_3dmppc
 class rv_pccv;
 class rv_pcca;
 
-// texture_reload result meaning nothing holds that name resident, so there
+// asset_reload result meaning nothing holds that name resident, so there
 // was nothing to refresh.
 constexpr int64_t RV_PCCD_NOT_RESIDENT = 1;
 
-// texture_reload result meaning the name IS resident, but as a sound. The
-// drive cannot refresh one: a voice already plays out of that block, and its
-// read head would follow bytes that moved. Told apart from NOT_RESIDENT so
+// asset_reload result meaning the name IS resident, as a kind the drive cannot
+// refresh in place (a sound: a voice already plays out of that block, and its
+// read head would follow bytes that moved). Told apart from NOT_RESIDENT so
 // the answer can say "restart" instead of "nothing to refresh".
-constexpr int64_t RV_PCCD_WRONG_KIND = 2;
+constexpr int64_t RV_PCCD_UNSUPPORTED_KIND = 2;
 
 class rv_pccd
 {
@@ -61,13 +61,14 @@ public:
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
-    // Refreshes a resident texture in place (same residency id, new addresses
-    // and size). Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when
-    // nothing holds that name resident (nothing to refresh - the next name
-    // query reads the current bytes), RV_PCCD_WRONG_KIND when a sound holds
-    // it, a negative rv_err when the refresh failed and the old texture stays.
+    // Refreshes a resident asset in place, choosing the refresh by the kind
+    // that holds `resname` resident and naming that kind in `kind_out`.
+    // Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when nothing holds
+    // the name (nothing to refresh - the next name query reads the current
+    // bytes), RV_PCCD_UNSUPPORTED_KIND when its kind cannot be refreshed, a
+    // negative rv_err when the refresh failed and the old copy stays.
     // Console-side only, reached by the dev channel, never by a game.
-    virtual int64_t texture_reload(const char *resname) = 0;
+    virtual int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) = 0;
 
     // Where a resident texture uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s

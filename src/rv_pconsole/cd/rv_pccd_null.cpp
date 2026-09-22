@@ -52,7 +52,7 @@ int64_t rv_pccd_null::resource_height(rv_cd_resource_kind /*kind*/, const char *
     return RV_ERR_INVAL;
 }
 
-int64_t rv_pccd_null::texture_reload(const char * /*resname*/)
+int64_t rv_pccd_null::asset_reload(const char * /*resname*/, rv_cd_resource_kind & /*kind_out*/)
 {
     return RV_ERR_INVAL;
 }

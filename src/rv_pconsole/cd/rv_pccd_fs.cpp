@@ -162,7 +162,7 @@ int64_t rv_pccd_fs::asset_read(int64_t handle, void* baddr, int64_t baddr_size) 
 
 // Reads `resname`'s whole current contents into `bytes_out`: open, measure,
 // allocate, and read the full entry - the preparation texture_resolve_(),
-// audio_resolve_() and texture_reload() all need before doing anything kind-
+// audio_resolve_() and texture_reload_() all need before doing anything kind-
 // specific with the bytes (decoding, for a texture; nothing at all, for raw
 // PCM audio). Medium re-measures the size on every call (see asset_size()'s
 // comment above), so a short read here means the entry changed between the

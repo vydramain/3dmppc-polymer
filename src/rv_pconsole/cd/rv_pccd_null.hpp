@@ -35,7 +35,7 @@ public:
 
     int64_t resource_height(rv_cd_resource_kind kind, const char *resname) override;
 
-    int64_t texture_reload(const char *resname) override;
+    int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
     // No drive to put it in: the medium is dropped.
     void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}

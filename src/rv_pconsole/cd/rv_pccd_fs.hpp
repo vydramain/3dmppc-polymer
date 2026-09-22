@@ -111,7 +111,7 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t resource_height(rv_cd_resource_kind kind, const char* resname) override;
 
-    int64_t texture_reload(const char* resname) override;
+    int64_t asset_reload(const char* resname, rv_cd_resource_kind& kind_out) override;
 
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
@@ -168,7 +168,7 @@ class rv_pccd_fs final : public rv_pccd {
     // resource_resolve_() itself.
     int64_t audio_resolve_(const char* resname, audio_record*& record_out);
 
-    // Shared by texture_resolve_(), audio_resolve_() and texture_reload():
+    // Shared by texture_resolve_(), audio_resolve_() and texture_reload_():
     // open, measure, allocate and read `resname`'s whole current contents
     // into `bytes_out`. Returns RV_OK or the negative rv_err either step
     // answered. Named for what it reads (an asset's bytes), not for who
@@ -182,6 +182,10 @@ class rv_pccd_fs final : public rv_pccd {
                              const std::byte*& palette_out, const std::byte*& texels_out) const;
     int64_t texture_upload_(const rv_pdklib::rv_mppctex_header& header, const std::byte* palette,
                              const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out);
+
+    // asset_reload()'s TEXTURE branch: refreshes `record` from `resname`'s
+    // current bytes. Defined with asset_reload(), in the development half.
+    int64_t texture_reload_(const char* resname, texture_record& record);
 };
 
 }  // namespace rv_3dmppc

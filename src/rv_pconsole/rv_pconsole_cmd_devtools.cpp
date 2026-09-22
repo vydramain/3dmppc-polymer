@@ -330,10 +330,12 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
         return;
     }
 
-    // The drive refreshes the resident texture: residency id is stable, but
-    // addresses change. The game picks it up by querying for the address each draw.
-    const int64_t rc = cd_->texture_reload(key.c_str());
-    if (rc == RV_PCCD_WRONG_KIND) {
+    // The drive refreshes the name by the kind it is resident as: residency id
+    // is stable, but addresses change. The game picks it up by querying for the
+    // address each draw.
+    rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
+    const int64_t rc = cd_->asset_reload(key.c_str(), kind);
+    if (rc == RV_PCCD_UNSUPPORTED_KIND) {
         cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
             "a sound is resident under that name; its bytes change only across a restart"));
         return;
@@ -351,8 +353,8 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // resident, so this is a cache hit that costs no reupload. The editor
     // needs the numbers because a RESIZED texture is the one case its own
     // layout has to follow, and nothing else in the protocol carries them.
-    const int64_t width = cd_->resource_width(RV_CD_RESOURCE_TEXTURE, key.c_str());
-    const int64_t height = cd_->resource_height(RV_CD_RESOURCE_TEXTURE, key.c_str());
+    const int64_t width = cd_->resource_width(kind, key.c_str());
+    const int64_t height = cd_->resource_height(kind, key.c_str());
     cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key),
         width < 0 ? 0 : width, height < 0 ? 0 : height));
 }

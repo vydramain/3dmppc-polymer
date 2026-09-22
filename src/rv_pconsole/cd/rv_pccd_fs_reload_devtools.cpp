@@ -1,5 +1,5 @@
-// The drive's DEVELOPMENT capability: refreshing a texture that is already
-// resident. Its own translation unit because it is the only part of rv_pccd_fs
+// The drive's DEVELOPMENT capability: refreshing an asset that is already
+// resident, by the kind it is resident as. Its own translation unit because it is the only part of rv_pccd_fs
 // that exists for the development runtime, and a player build links
 // rv_pccd_fs_reload_standard.cpp in its place (see the dev-capability slot in
 // CMakeLists.txt) - so the decoder, the upload and the swap are not in that
@@ -14,24 +14,32 @@
 
 namespace rv_3dmppc {
 
+// One branch per kind a name can be resident as; a new kind adds its branch
+// here, next to its own residency table.
+int64_t rv_pccd_fs::asset_reload(const char* resname, rv_cd_resource_kind& kind_out) {
+    if (resname == nullptr) return RV_ERR_INVAL;
+
+    const std::string key(resname);
+    if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
+        kind_out = RV_CD_RESOURCE_TEXTURE;
+        return texture_reload_(resname, textures_[static_cast<size_t>(it->second)]);
+    }
+    if (audio_by_name_.find(key) != audio_by_name_.end()) {
+        // A resident sound is not "nothing to refresh": the bytes did change,
+        // the drive just cannot follow them under a voice that is already
+        // reading the old block.
+        kind_out = RV_CD_RESOURCE_AUDIO;
+        return RV_PCCD_UNSUPPORTED_KIND;
+    }
+    return RV_PCCD_NOT_RESIDENT;
+}
+
 // Re-reads and re-decodes `resname` and prepares a whole NEW upload before
 // touching the live record at all: the old blocks are only freed once the
 // new ones are fully written, so a failed reload leaves the old texture
 // exactly as it was rather than a torn or freed-then-hoped-for one.
-int64_t rv_pccd_fs::texture_reload(const char* resname) {
+int64_t rv_pccd_fs::texture_reload_(const char* resname, texture_record& record) {
     if (cv_ == nullptr) return RV_ERR_INVAL;
-    if (resname == nullptr) return RV_ERR_INVAL;
-
-    std::string key(resname);
-    auto it = tex_by_name_.find(key);
-    if (it == tex_by_name_.end()) {
-        // A sound the disc made resident is not "nothing to refresh": the
-        // bytes did change, the drive just cannot follow them under a voice
-        // that is already reading the old block.
-        if (audio_by_name_.find(key) != audio_by_name_.end()) return RV_PCCD_WRONG_KIND;
-        return RV_PCCD_NOT_RESIDENT;
-    }
-    texture_record& record = textures_[static_cast<size_t>(it->second)];
 
     std::vector<std::byte> bytes;
     const int64_t read_rc = asset_read_bytes_(resname, bytes);
