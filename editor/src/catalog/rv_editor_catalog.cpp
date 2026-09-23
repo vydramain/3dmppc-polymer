@@ -23,6 +23,7 @@ void rv_editor_catalog_draw(const rv_editor_theme &theme)
     ImGui::TextUnformatted("Widget Catalog");
     rv_editor_catalog_theme(theme);
     rv_editor_catalog_buttons(theme);
+    rv_editor_catalog_fields(theme);
     ImGui::End();
 }
 
