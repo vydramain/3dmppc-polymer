@@ -20,7 +20,35 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
-add_executable(3dmppc-editor src/main.cpp)
+get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/.. ABSOLUTE)
+
+include(${RV_REPO_ROOT}/cmake/sdl.cmake)
+
+# --- Dear ImGui (vendored) ----------------------------------------------------
+# third_party/imgui/ORIGIN.md says what was taken and why. ImGui has no build
+# system of its own: the consumer compiles its files, which is what this target
+# does. SYSTEM keeps ImGui's warnings out of the editor's own.
+set(RV_IMGUI_DIR ${RV_REPO_ROOT}/third_party/imgui)
+add_library(3dmppc_editor_imgui STATIC
+  ${RV_IMGUI_DIR}/imgui.cpp
+  ${RV_IMGUI_DIR}/imgui_draw.cpp
+  ${RV_IMGUI_DIR}/imgui_tables.cpp
+  ${RV_IMGUI_DIR}/imgui_widgets.cpp
+  ${RV_IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
+  ${RV_IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+)
+target_include_directories(3dmppc_editor_imgui SYSTEM PUBLIC ${RV_IMGUI_DIR} ${RV_IMGUI_DIR}/backends)
+# Build options come from the editor's own header, not from edits to imconfig.h.
+target_include_directories(3dmppc_editor_imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_definitions(3dmppc_editor_imgui PUBLIC IMGUI_USER_CONFIG="rv_editor_imconfig.h")
+target_link_libraries(3dmppc_editor_imgui PUBLIC SDL3::SDL3)
+
+# --- the editor ---------------------------------------------------------------
+file(GLOB_RECURSE RV_EDITOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
+
+add_executable(3dmppc-editor ${RV_EDITOR_SOURCES})
+target_include_directories(3dmppc-editor PRIVATE src)
+target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
 
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
