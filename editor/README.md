@@ -31,4 +31,5 @@ A player build of the console never builds it.
 | --- | --- |
 | `src/` | the editor's sources |
 | [`docs/3dmppc-editor-v0.4-requirements.md`](docs/3dmppc-editor-v0.4-requirements.md) | requirements and acceptance criteria of the editor MVP |
+| [`docs/adr/`](docs/adr/README.md) | architecture decisions: toolkit, tiling, theme, fonts, code editor, Game frame, CMake |
 | `docs/references/` | generated design references: a visual direction, not a specification |
