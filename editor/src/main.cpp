@@ -8,6 +8,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
+#include "catalog/rv_editor_catalog.hpp"
 #include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -16,21 +17,12 @@ namespace
 {
 
 // One frame of the editor's UI. For now the widget catalog fills the window.
-void rv_editor_frame()
+void rv_editor_frame(const rv_editor::rv_editor_theme &theme)
 {
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
-
-    const ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
-
-    constexpr ImGuiWindowFlags flags =
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
-    ImGui::Begin("Widget Catalog", nullptr, flags);
-    ImGui::TextUnformatted("Widget Catalog");
-    ImGui::End();
+    rv_editor::rv_editor_catalog_draw(theme);
 }
 
 // True once the user asked the window to close.
@@ -87,7 +79,7 @@ int main()
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        rv_editor_frame();
+        rv_editor_frame(theme);
         ImGui::Render();
 
         SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff, theme.window & 0xff, 255);
