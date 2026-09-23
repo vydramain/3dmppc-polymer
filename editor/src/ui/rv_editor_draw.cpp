@@ -40,6 +40,15 @@ void rv_editor_draw_bevel(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
     rv_editor_fill(dl, max.x - w, min.y, max.x, max.y - w, dark);
 }
 
+void rv_editor_draw_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t color)
+{
+    const float w = static_cast<float>(theme.bevel_px * theme.scale);
+    rv_editor_fill(dl, min.x, min.y, max.x, min.y + w, color);
+    rv_editor_fill(dl, min.x, max.y - w, max.x, max.y, color);
+    rv_editor_fill(dl, min.x, min.y + w, min.x + w, max.y - w, color);
+    rv_editor_fill(dl, max.x - w, min.y + w, max.x, max.y - w, color);
+}
+
 void rv_editor_draw_panel(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t fill,
     rv_editor_bevel kind)
 {

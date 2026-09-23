@@ -22,6 +22,9 @@ enum class rv_editor_bevel
 // Two-tone edge inside [min, max).
 void rv_editor_draw_bevel(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, rv_editor_bevel kind);
 
+// One-colour edge of bevel width inside [min, max): the brass hover outline.
+void rv_editor_draw_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t color);
+
 // Filled rectangle with a bevel edge.
 void rv_editor_draw_panel(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t fill,
     rv_editor_bevel kind);

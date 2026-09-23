@@ -24,10 +24,12 @@ HiDPI и clipboard. Кандидат из требований - Dear ImGui.
   include-каталоги ImGui подключаются как `SYSTEM`.
 - Настройки ImGui задаются своим заголовком через `IMGUI_USER_CONFIG` из `editor/src/`, а не правкой
   `imconfig.h` в `third_party/`.
-- Вызовы `imgui_internal.h` (`ButtonBehavior`, `ItemAdd`, интерфейс `ImFontLoader`) живут в одном
-  файле редактора. Внутренний API ImGui не стабилен, и обновление тега должно задевать одно место.
-- Сглаживания нет. Backend по умолчанию ставит текстурам `SDL_SCALEMODE_LINEAR`; редактор в начале
-  каждого draw list вызывает стандартный callback `GetPlatformIO().DrawCallback_SetSamplerNearest`
+- `imgui_internal.h` включает один файл редактора - загрузчик шрифта (`ImFontLoader` и упаковка
+  атласа). Виджеты обходятся публичным API. Внутренний API ImGui не стабилен, и обновление тега
+  должно задевать одно место.
+- Сглаживания нет. Backend по умолчанию ставит текстурам `SDL_SCALEMODE_LINEAR`; редактор раз в кадр
+  ставит в background draw list, который рисуется первым, стандартный callback
+  `GetPlatformIO().DrawCallback_SetSamplerNearest`
   (есть в `imgui_impl_sdlrenderer3.cpp` с 2026-04-23).
 
 ## Последствия

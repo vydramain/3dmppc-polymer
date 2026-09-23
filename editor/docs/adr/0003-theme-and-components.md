@@ -25,7 +25,8 @@
 2. Примитивы рисования поверх `ImDrawList`: bevel raised/sunken, stipple, diamond, стрелки
    скроллбара. Ввода не знают.
 3. Виджеты в форме вызовов ImGui: `bool button(label, state)` и т. п. Ввод и состояния
-   hover/pressed/focused/disabled берутся у ImGui (`ButtonBehavior`, `ItemAdd`), рисуются слоем 2.
+   hover/pressed/focused/disabled берутся у ImGui через публичный `InvisibleButton` и
+   `IsItemHovered`/`IsItemActive`/`IsItemFocused`, рисуются слоем 2.
    Disabled-состояние несёт причину недоступности (UI-04).
 
 Widget Catalog (UI-07) - обычная панель, которая рисует каждый виджет во всех состояниях.
