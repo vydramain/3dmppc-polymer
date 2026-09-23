@@ -91,10 +91,34 @@ never names a game, and a game never sees a console header. A disc target links
 fails to compile rather than being caught in review. See
 [`pdk/README.md`](pdk/README.md) for why the contract is shaped this way.
 
-The console and the tools build with **two separate commands** on purpose. The
-console is firmware — it loads a disc and runs it. It must never look like the
-thing that *compiles* one, and a player's machine needs neither the tools nor
-the compiler they drive.
+The player console and the tools build separately on purpose. The console is
+firmware — it loads a disc and runs it. It must never look like the thing that
+*compiles* one, and a player's machine needs neither the tools nor the compiler
+they drive. The development console is the one build that brings them along;
+see below.
+
+---
+
+## Two builds: the player console and the development kit
+
+| Build | Command | What lands in `pconsole/` |
+| --- | --- | --- |
+| player | `cmake -S . -B build -G Ninja && cmake --build build` | `3dmppc` |
+| development kit | `cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev` | `3dmppc` (development), `mppcbaker`, `mppcburner`, `3dmppc-editor` |
+
+```
+build-dev/pconsole/
+    3dmppc          the development console: --dev, loose disc directories, reload
+    mppcbaker       bakes a PNG into a console texture
+    mppcburner      compiles a disc directory and burns a .mppcdisc
+    3dmppc-editor   the editor
+```
+
+The tools and the editor stay separate CMake projects (`pdk/tools/`,
+`editor/`) in the development kit too: the console's build configures each in
+its own subdirectory of `build-dev/` and collects only their binaries, so
+nothing from `src/` reaches them. Both still build on their own with their own
+command. The player build contains the console alone.
 
 ---
 
@@ -147,6 +171,10 @@ stdout — stdout is reserved for the development channel's protocol lines
 The console can be driven while it runs: stopped at a frame boundary, stepped
 one frame at a time, inspected, and - the point of the whole thing - handed
 replacement Lua for the disc's entry script without losing the game's state.
+
+It is the console of the development kit:
+`cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev`
+puts it in `build-dev/pconsole/3dmppc`, next to the tools and the editor.
 
 **The build decides what this console can do; `--dev` only decides where the
 channel is attached.** `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in the
@@ -278,8 +306,9 @@ it at all, since it asks the drive for the address and the size every draw.
 ### A session
 
 ```sh
-mppcburner build mppcdiscs/example-lua --unpacked build/example-lua.discdir --baker …
-3dmppc --dev --paused build/example-lua.discdir
+build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
+    --baker build-dev/pconsole/mppcbaker
+build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
 ```
 
 ```
@@ -560,6 +589,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
+| [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
 | [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
