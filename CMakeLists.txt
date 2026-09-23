@@ -29,34 +29,17 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
 # decoding whatever a disc chose to store is the DISC's business (via rv_cd).
 
-# --- phantasy development kit -------------------------------------------------
-
-add_library(3dmppc_pdk INTERFACE)
-target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
-
-# --- shared helper library (pdklib) -------------------------------------------
-# Disc-side helpers written AGAINST the contract: mostly header-only math,
-# camera, transform, text, and diagnostics, plus the statically linked manifest
-# parser implementation. It is not the contract (the console implements nothing
-# here) and not a game, so it is its own tree.
-#
-# Linking it now delivers both things pdklib owns: the include directory and the
-# manifest parser object code built from pdk/lib/include/pdklib/rv_manifest/.
-#
-# Discs get it a different way - mppcburner writes the path into the CMakeLists
-# it generates for a disc project - so this target serves only what is built
-# from this file.
 # The 512-line rule, checked at configure time rather than trusted. See
 # cmake/rv_file_length.cmake for why the build is the right place for it.
 include(cmake/rv_file_length.cmake)
 rv_check_file_lengths()
 
-file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
-  ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
-)
-add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
-target_include_directories(3dmppc_pdklib PUBLIC ${CMAKE_SOURCE_DIR}/pdk/lib/include)
-target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
+# --- the contract and pdklib --------------------------------------------------
+# 3dmppc_pdk and 3dmppc_pdklib come from one module the tools and the editor
+# include too; see cmake/pdklib.cmake for what each one is. Discs get pdklib a
+# different way - mppcburner writes its path into the CMakeLists it generates
+# for a disc project - so these targets serve only what is built from here.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pdklib.cmake)
 
 # --- the disc -----------------------------------------------------------------
 # rv_dmain is a GAME, not part of the machine, so it is built as its own target
