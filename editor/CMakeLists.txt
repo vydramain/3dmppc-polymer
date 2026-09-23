@@ -54,6 +54,11 @@ target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
 # code the discs and the burner use, never a copy of it.
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 
+# stb_image (vendored, third_party/stb) decodes the icons. The icons are read
+# from the repository at run time, the way mppcburner finds pdk/.
+target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
+target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_ROOT}/third_party/win55-icons")
+
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
 else()

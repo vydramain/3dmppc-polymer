@@ -5,6 +5,7 @@
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "ui/rv_editor_draw.hpp"
+#include "ui/rv_editor_icons.hpp"
 
 namespace rv_editor
 {
@@ -91,6 +92,21 @@ void rv_editor_catalog_primitives(const rv_editor_theme &t)
     rv_editor_draw_focus(dl, min, ImVec2(min.x + cell * 4.0f, min.y + cell), t);
 }
 
+void rv_editor_catalog_icons(const rv_editor_theme &t)
+{
+    const float k = static_cast<float>(rv_editor_icon_scale(t.scale));
+    for (int i = 0; i < static_cast<int>(rv_editor_icon_name::count); ++i) {
+        const rv_editor_icon icon = rv_editor_icon_get(static_cast<rv_editor_icon_name>(i));
+        if (icon.id == 0) {
+            ImGui::TextUnformatted("(missing)");
+        } else {
+            ImGui::Image(ImTextureRef(icon.id), ImVec2(static_cast<float>(icon.w) * k, static_cast<float>(icon.h) * k));
+        }
+        ImGui::SameLine();
+    }
+    ImGui::NewLine();
+}
+
 } // namespace
 
 void rv_editor_catalog_theme(const rv_editor_theme &theme)
@@ -99,6 +115,8 @@ void rv_editor_catalog_theme(const rv_editor_theme &theme)
     rv_editor_catalog_palette(theme);
     ImGui::SeparatorText("Primitives");
     rv_editor_catalog_primitives(theme);
+    ImGui::SeparatorText("Icons");
+    rv_editor_catalog_icons(theme);
     ImGui::TextUnformatted("Cyrillic: \xd0\x9a\xd0\xb0\xd1\x82\xd0\xb0\xd0\xbb\xd0\xbe\xd0\xb3");
 }
 

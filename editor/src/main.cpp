@@ -12,6 +12,7 @@
 #include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_icons.hpp"
 
 namespace
 {
@@ -74,6 +75,7 @@ int main()
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
+    rv_editor::rv_editor_icons_load(renderer);
 
     while (!rv_editor_poll(window)) {
         ImGui_ImplSDLRenderer3_NewFrame();
@@ -88,6 +90,7 @@ int main()
         SDL_RenderPresent(renderer);
     }
 
+    rv_editor::rv_editor_icons_free();
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
