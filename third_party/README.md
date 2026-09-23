@@ -13,6 +13,8 @@ should be justifiable in a sentence.
 | Directory | What | Used by | License |
 | --- | --- | --- | --- |
 | [`stb/`](stb/) | `stb_image.h` — PNG/JPG/… decoder | `pdk/tools/mppcbaker` | public domain / MIT |
+| [`imgui/`](imgui/) | Dear ImGui `v1.92.9b` - core, SDL3 and SDL_Renderer backends | `editor/` | MIT |
+| [`win55-icons/`](win55-icons/) | six 30x30 icons from win-55-ui | `editor/` | MIT |
 
 ## Rules for adding something
 
