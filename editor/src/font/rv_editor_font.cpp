@@ -34,9 +34,13 @@ int rv_editor_font_glyph_index(ImWchar codepoint)
     return static_cast<int>(codepoint) - rv_pdklib::rv_font_first_code;
 }
 
-bool rv_editor_font_contains(ImFontAtlas *, ImFontConfig *, ImWchar)
+// Only what the table really holds. ImGui asks this to pick its ellipsis and
+// fallback characters: claiming U+2026 would draw elided text as a notdef block
+// instead of three dots. Glyph loading still answers every code point, so text
+// outside the table shows notdef blocks rather than '?'.
+bool rv_editor_font_contains(ImFontAtlas *, ImFontConfig *, ImWchar codepoint)
 {
-    return true;
+    return codepoint >= rv_pdklib::rv_font_first_code && codepoint <= rv_pdklib::rv_font_last_code;
 }
 
 bool rv_editor_font_baked_init(ImFontAtlas *, ImFontConfig *, ImFontBaked *baked, void *)
