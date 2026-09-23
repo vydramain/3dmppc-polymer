@@ -231,12 +231,39 @@ endif()
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
 
-# The authoring tools are NOT built here. They live in pdk/tools/ and build with
-# their own command:
+# --- the development kit ------------------------------------------------------
+# A player console builds alone. It is firmware: it loads a disc and runs it,
+# and building it must not drag in a compiler driver, an image decoder, an
+# editor, or anything else a player's machine has no use for.
 #
-#   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build
-#
-# The console is firmware: it loads a disc and runs it. It must never look like
-# the thing that compiles one, and building it must not drag in a compiler
-# driver, an image decoder, or anything else a player's machine has no use for.
+# A development console is a developer's machine by definition, so it also
+# builds the authoring tools (pdk/tools/) and the editor (editor/). Each stays
+# its own CMake project, configured in its own subdirectory of this build tree
+# and linking nothing from here; only their binaries land next to the console
+# in pconsole/. Both still build on their own with their own command.
+if(3DMPPC_DEVTOOLS)
+  include(ExternalProject)
+
+  set(RV_DEVKIT_CMAKE_ARGS
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+  )
+
+  # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
+  # build every time and lets it answer "no work to do".
+  ExternalProject_Add(3dmppc_pdktools
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
+    BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools
+    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+  ExternalProject_Add(3dmppc_editor
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
+    BINARY_DIR ${CMAKE_BINARY_DIR}/editor
+    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+endif()
 
