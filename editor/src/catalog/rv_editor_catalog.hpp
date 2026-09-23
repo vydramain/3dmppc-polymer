@@ -15,6 +15,7 @@ void rv_editor_catalog_draw(const rv_editor_theme &theme);
 void rv_editor_catalog_theme(const rv_editor_theme &theme);
 void rv_editor_catalog_buttons(const rv_editor_theme &theme);
 void rv_editor_catalog_fields(const rv_editor_theme &theme);
+void rv_editor_catalog_panes(const rv_editor_theme &theme);
 
 // Reserves a `size` item in the layout and returns its top-left corner.
 ImVec2 rv_editor_catalog_reserve(ImVec2 size);

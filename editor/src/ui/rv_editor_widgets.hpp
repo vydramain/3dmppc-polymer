@@ -43,4 +43,24 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
 bool rv_editor_dropdown(const char *label, int *current, const char *const items[], int count,
     const rv_editor_theme &theme, const rv_editor_field &field = {});
 
+// --- panes --------------------------------------------------------------------
+// Trees, lists, tables and tab strips are ImGui's own (TreeNodeEx, BeginListBox,
+// BeginTable, BeginTabBar) in the theme's colours; these are the pane pieces
+// ImGui has no public form of.
+
+// The direction a splitter moves in.
+enum class rv_editor_axis
+{
+    x,
+    y,
+};
+
+// Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
+// tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.
+bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
+
+// Full-width pane title bar: stippled when active, dimmed when not.
+void rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme);
+
 } // namespace rv_editor

@@ -24,6 +24,7 @@ void rv_editor_catalog_draw(const rv_editor_theme &theme)
     rv_editor_catalog_theme(theme);
     rv_editor_catalog_buttons(theme);
     rv_editor_catalog_fields(theme);
+    rv_editor_catalog_panes(theme);
     ImGui::End();
 }
 

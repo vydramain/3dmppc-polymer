@@ -50,11 +50,13 @@ void rv_editor_theme_colors(const rv_editor_theme &t, ImVec4 *c)
     c[ImGuiCol_ResizeGripHovered] = rv_editor_vec(t.selection);
     c[ImGuiCol_ResizeGripActive] = rv_editor_vec(t.selection);
     c[ImGuiCol_InputTextCursor] = rv_editor_vec(t.text_bright);
-    c[ImGuiCol_TabHovered] = rv_editor_vec(t.window);
-    c[ImGuiCol_Tab] = rv_editor_vec(t.button);
+    // Unselected tabs sit dark; the selected one takes the pane's own colour and
+    // a brass overline, so it reads as the front of the stack.
+    c[ImGuiCol_TabHovered] = rv_editor_vec(t.button);
+    c[ImGuiCol_Tab] = rv_editor_vec(t.inset);
     c[ImGuiCol_TabSelected] = rv_editor_vec(t.window);
     c[ImGuiCol_TabSelectedOverline] = rv_editor_vec(t.selection);
-    c[ImGuiCol_TabDimmed] = rv_editor_vec(t.button);
+    c[ImGuiCol_TabDimmed] = rv_editor_vec(t.inset);
     c[ImGuiCol_TabDimmedSelected] = rv_editor_vec(t.window);
     c[ImGuiCol_TabDimmedSelectedOverline] = rv_editor_vec(t.bevel_hi);
     c[ImGuiCol_PlotLines] = rv_editor_vec(t.text);
