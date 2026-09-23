@@ -8,6 +8,9 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
+#include "theme/rv_editor_theme.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
+
 namespace
 {
 
@@ -67,6 +70,9 @@ int main()
     // The editor will keep its own layout file; ImGui writes none.
     io.IniFilename = nullptr;
 
+    const rv_editor::rv_editor_theme &theme = rv_editor::rv_editor_theme_olive;
+    rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
+
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
 
@@ -77,7 +83,7 @@ int main()
         rv_editor_frame();
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff, theme.window & 0xff, 255);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
