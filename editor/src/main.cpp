@@ -8,6 +8,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
+#include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -17,6 +18,10 @@ namespace
 // One frame of the editor's UI. For now the widget catalog fills the window.
 void rv_editor_frame()
 {
+    // The background list is rendered first, and the backend resets sampling only
+    // at the start of a render: one request here keeps the whole frame unsmoothed.
+    ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
+
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
@@ -72,6 +77,8 @@ int main()
 
     const rv_editor::rv_editor_theme &theme = rv_editor::rv_editor_theme_olive;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
+    const ImFont *font = rv_editor::rv_editor_font_add(*io.Fonts, theme.scale);
+    ImGui::GetStyle().FontSizeBase = font->LegacySize;
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);

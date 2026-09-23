@@ -23,6 +23,7 @@ endif()
 get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/.. ABSOLUTE)
 
 include(${RV_REPO_ROOT}/cmake/sdl.cmake)
+include(${RV_REPO_ROOT}/cmake/pdklib.cmake)
 
 # --- Dear ImGui (vendored) ----------------------------------------------------
 # third_party/imgui/ORIGIN.md says what was taken and why. ImGui has no build
@@ -49,6 +50,9 @@ file(GLOB_RECURSE RV_EDITOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR
 add_executable(3dmppc-editor ${RV_EDITOR_SOURCES})
 target_include_directories(3dmppc-editor PRIVATE src)
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
+# pdklib: the bitmap font now, the manifest parser later - the same data and
+# code the discs and the burner use, never a copy of it.
+target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
