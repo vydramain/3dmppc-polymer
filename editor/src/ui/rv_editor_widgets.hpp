@@ -63,4 +63,61 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
 // Full-width pane title bar: stippled when active, dimmed when not.
 void rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme);
 
+// --- status, log, transport, dialogs --------------------------------------------
+// Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
+// BeginPopupContextItem) in the theme's colours.
+
+enum class rv_editor_status_kind
+{
+    idle,
+    busy,
+    ok,
+    warning,
+    error,
+};
+
+enum class rv_editor_severity
+{
+    info,
+    warning,
+    error,
+};
+
+// Lamp and label; each kind has its own symbol as well as its own colour.
+void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
+
+// One line of process output: time, source, severity tag, text.
+void rv_editor_log_row(const char *time, const char *source, rv_editor_severity severity, const char *text,
+    const rv_editor_theme &theme);
+
+// Why each transport action is unavailable; nullptr means available.
+struct rv_editor_transport_state
+{
+    const char *build;
+    const char *run;
+    const char *pause;
+    const char *step;
+    const char *stop;
+    const char *reload;
+};
+
+// Which transport action was clicked this frame.
+struct rv_editor_transport_actions
+{
+    bool build;
+    bool run;
+    bool pause;
+    bool step;
+    bool stop;
+    bool reload;
+};
+
+rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
+    const rv_editor_theme &theme);
+
+// Modal dialog with a pane header for its title. Open it with ImGui::OpenPopup(title);
+// call rv_editor_dialog_end() only when begin returned true.
+bool rv_editor_dialog_begin(const char *title, const rv_editor_theme &theme);
+void rv_editor_dialog_end();
+
 } // namespace rv_editor

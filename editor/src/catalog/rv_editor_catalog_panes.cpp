@@ -76,7 +76,7 @@ void rv_editor_catalog_table()
 
 void rv_editor_catalog_tabs()
 {
-    if (!ImGui::BeginTabBar("##tabs")) {
+    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_DrawSelectedOverline)) {
         return;
     }
     if (ImGui::BeginTabItem("Scene")) {
