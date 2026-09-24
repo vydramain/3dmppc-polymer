@@ -149,7 +149,7 @@ bool rv_editor_args_parse(int argc, char **argv, int &scale, int &exit_code)
     return true;
 }
 
-// A fixed strip of the main window: the toolbar or the status bar. End() it
+// A fixed strip of the main window: the status bar or the tiles' host. End() it
 // whatever this returns, as with ImGui::Begin.
 bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
 {
@@ -161,7 +161,7 @@ bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
     return ImGui::Begin(id, nullptr, flags);
 }
 
-// One frame of the editor's UI: menus, the toolbar, the tiles and the status bar.
+// One frame of the editor's UI: menus, the tiles and the status bar.
 void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_editor_theme &theme)
 {
     // The background list is rendered first, and the backend resets sampling only
@@ -169,27 +169,22 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
     rv_editor_menu(ws);
 
-    // The toolbar and the status bar take a row each; the tiles get the rest.
+    // The status bar takes a row; the tiles get the rest.
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImVec2 top = viewport->WorkPos;
     const ImVec2 size = viewport->WorkSize;
     const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
-    if (rv_editor_bar_begin("##toolbar", top, ImVec2(size.x, bar))) {
-        constexpr const char *idle = "No runtime session yet";
-        rv_editor::rv_editor_transport_bar({ idle, idle, idle, idle, idle, idle }, theme);
-    }
-    ImGui::End();
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
         const char *const fields[] = { "Ready.", "Runtime: Stopped" };
         rv_editor::rv_editor_status_bar(fields, 2, theme);
     }
     ImGui::End();
 
-    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x), static_cast<int>(top.y + bar),
-        static_cast<int>(size.x), static_cast<int>(size.y - 2.0f * bar) };
+    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x), static_cast<int>(top.y),
+        static_cast<int>(size.x), static_cast<int>(size.y - bar) };
     // The tiles get a host strip of their own, like the bars around them.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    const bool host = rv_editor_bar_begin("##tiles", ImVec2(top.x, top.y + bar), ImVec2(size.x, size.y - 2.0f * bar));
+    const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
     if (host) {
         rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw, area);
