@@ -43,16 +43,16 @@ rv_editor::rv_editor_workspace rv_editor_workspace_preset(rv_editor::rv_editor_l
     return ws;
 }
 
-// The saved layout, or Code + Game when there is none or it cannot be read (LAY-06).
+// The saved layout, or Code when there is none or it cannot be read (LAY-06).
 rv_editor::rv_editor_workspace rv_editor_workspace_load(const std::filesystem::path &path)
 {
-    rv_editor::rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code_game);
+    rv_editor::rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code);
     if (path.empty() || rv_editor::rv_editor_layout_load(path, ws.panes, ws.layout)) {
         return ws;
     }
     std::error_code ec;
     if (std::filesystem::exists(path, ec)) {
-        std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from Code + Game\n",
+        std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from Code\n",
             path.c_str());
     }
     return ws;
@@ -69,8 +69,9 @@ void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
         return;
     }
     if (ImGui::BeginMenu("Layout")) {
-        constexpr rv_editor::rv_editor_layout_preset presets[] = { rv_editor::rv_editor_layout_preset::scene,
-            rv_editor::rv_editor_layout_preset::code_game, rv_editor::rv_editor_layout_preset::debug_output };
+        constexpr rv_editor::rv_editor_layout_preset presets[] = { rv_editor::rv_editor_layout_preset::code,
+            rv_editor::rv_editor_layout_preset::scene, rv_editor::rv_editor_layout_preset::debug,
+            rv_editor::rv_editor_layout_preset::build };
         for (const rv_editor::rv_editor_layout_preset preset : presets) {
             if (ImGui::MenuItem(rv_editor::rv_editor_layout_preset_name(preset))) {
                 ws = rv_editor_workspace_preset(preset);
@@ -78,7 +79,7 @@ void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Layout")) {
-            ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code_game);
+            ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code);
         }
         ImGui::EndMenu();
     }

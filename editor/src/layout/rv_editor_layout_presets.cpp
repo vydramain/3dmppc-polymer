@@ -1,18 +1,107 @@
-// Starting layouts (requirements LAY-07): Scene, Code + Game, Debug/Output.
+// Starting layouts after the editor's design references: Code, Scene, Debug, Build.
 
 #include "layout/rv_editor_tile.hpp"
 
 namespace rv_editor
 {
+
+namespace
+{
+
+// Builds a tree by inserting panes next to panes already placed.
+struct rv_editor_preset_builder
+{
+    rv_editor_pane_registry panes{};
+    rv_editor_layout layout{};
+
+    explicit rv_editor_preset_builder(rv_editor_pane_kind first)
+    {
+        layout = rv_editor_layout_make(rv_editor_pane_add(panes, first));
+    }
+
+    // Places a new pane of `kind` beside the leaf holding `next_to`; `ratio` is the
+    // first child's share of the split this creates. Returns the new pane.
+    rv_editor_pane_id add(rv_editor_pane_kind kind, rv_editor_pane_id next_to, rv_editor_tile_dock dock, float ratio)
+    {
+        const rv_editor_pane_id pane = rv_editor_pane_add(panes, kind);
+        const uint32_t leaf = rv_editor_tile_insert(layout, rv_editor_tile_find(layout, next_to), pane, dock);
+        if (dock != rv_editor_tile_dock::tab) {
+            rv_editor_tile_set_ratio(layout, layout.nodes[leaf].parent, ratio);
+        }
+        return pane;
+    }
+};
+
+// Reference 0003: tools and files on the left, code with the game and its
+// controls beside it, terminal and runtime output underneath.
+void rv_editor_preset_code(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id code = 0;
+    const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
+    b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.30f);
+    const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.70f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.60f);
+    b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.60f);
+}
+
+// Reference 0005: tools over the hierarchy, the scene over the assets, the game
+// over the inspector over the console.
+void rv_editor_preset_scene(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id scene = 0;
+    const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
+    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.30f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.66f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.68f);
+    b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, assets);
+    const rv_editor_pane_id inspector = b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.35f);
+    b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.55f);
+}
+
+// Reference 0002: game, controls and code on top; output, run configuration and
+// inspector underneath.
+void rv_editor_preset_debug(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id game = 0;
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, game, rv_editor_tile_dock::bottom, 0.62f);
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::right, 0.45f);
+    b.add(rv_editor_pane_kind::code, controls, rv_editor_tile_dock::right, 0.35f);
+    const rv_editor_pane_id run = b.add(rv_editor_pane_kind::run_config, output, rv_editor_tile_dock::right, 0.38f);
+    b.add(rv_editor_pane_kind::inspector, run, rv_editor_tile_dock::right, 0.50f);
+}
+
+// Reference 0004: tools over the project, the code beside the controls over the
+// game; build output, problems and the run configuration over a terminal below.
+void rv_editor_preset_build(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id code = 0;
+    const rv_editor_pane_id project = b.add(rv_editor_pane_kind::project, code, rv_editor_tile_dock::left, 0.16f);
+    b.add(rv_editor_pane_kind::toolchest, project, rv_editor_tile_dock::top, 0.30f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.62f);
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, code, rv_editor_tile_dock::right, 0.60f);
+    b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.35f);
+    b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, output);
+    const rv_editor_pane_id problems = b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::right, 0.40f);
+    const rv_editor_pane_id run = b.add(rv_editor_pane_kind::run_config, problems, rv_editor_tile_dock::right, 0.50f);
+    b.add(rv_editor_pane_kind::terminal, run, rv_editor_tile_dock::bottom, 0.55f);
+}
+
+} // namespace
+
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
 {
     switch (preset) {
+    case rv_editor_layout_preset::code:
+        return "Code";
     case rv_editor_layout_preset::scene:
         return "Scene";
-    case rv_editor_layout_preset::code_game:
-        return "Code + Game";
-    case rv_editor_layout_preset::debug_output:
-        return "Debug/Output";
+    case rv_editor_layout_preset::debug:
+        return "Debug";
+    case rv_editor_layout_preset::build:
+        return "Build";
     }
     return "";
 }
@@ -20,89 +109,29 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
 void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
     rv_editor_layout &layout)
 {
+    rv_editor_pane_kind first = rv_editor_pane_kind::code;
     if (preset == rv_editor_layout_preset::scene) {
-        rv_editor_pane_registry reg{};
-        rv_editor_pane_id scene = rv_editor_pane_add(reg, rv_editor_pane_kind::scene);
-        rv_editor_pane_id game = rv_editor_pane_add(reg, rv_editor_pane_kind::game);
-        rv_editor_pane_id hierarchy = rv_editor_pane_add(reg, rv_editor_pane_kind::hierarchy);
-        rv_editor_pane_id files = rv_editor_pane_add(reg, rv_editor_pane_kind::files);
-        rv_editor_pane_id inspector = rv_editor_pane_add(reg, rv_editor_pane_kind::inspector);
-        rv_editor_pane_id assets = rv_editor_pane_add(reg, rv_editor_pane_kind::assets);
-        rv_editor_pane_id output = rv_editor_pane_add(reg, rv_editor_pane_kind::output);
-        rv_editor_pane_id problems = rv_editor_pane_add(reg, rv_editor_pane_kind::problems);
-
-        rv_editor_layout lay = rv_editor_layout_make(scene);
-        uint32_t scene_leaf = rv_editor_tile_find(lay, scene);
-        uint32_t hierarchy_leaf = rv_editor_tile_insert(lay, scene_leaf, hierarchy, rv_editor_tile_dock::left);
-        rv_editor_tile_set_ratio(lay, lay.nodes[hierarchy_leaf].parent, 0.20f);
-        rv_editor_tile_insert(lay, hierarchy_leaf, files, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, hierarchy);
-        uint32_t inspector_leaf = rv_editor_tile_insert(lay, scene_leaf, inspector, rv_editor_tile_dock::right);
-        rv_editor_tile_set_ratio(lay, lay.nodes[inspector_leaf].parent, 0.75f);
-        uint32_t assets_leaf = rv_editor_tile_insert(lay, scene_leaf, assets, rv_editor_tile_dock::bottom);
-        rv_editor_tile_set_ratio(lay, lay.nodes[assets_leaf].parent, 0.70f);
-        rv_editor_tile_insert(lay, assets_leaf, output, rv_editor_tile_dock::tab);
-        rv_editor_tile_insert(lay, assets_leaf, problems, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, assets);
-        rv_editor_tile_insert(lay, scene_leaf, game, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, scene);
-        panes = reg;
-        layout = lay;
-    } else if (preset == rv_editor_layout_preset::code_game) {
-        rv_editor_pane_registry reg{};
-        rv_editor_pane_id code = rv_editor_pane_add(reg, rv_editor_pane_kind::code);
-        rv_editor_pane_id files = rv_editor_pane_add(reg, rv_editor_pane_kind::files);
-        rv_editor_pane_id project = rv_editor_pane_add(reg, rv_editor_pane_kind::project);
-        rv_editor_pane_id game = rv_editor_pane_add(reg, rv_editor_pane_kind::game);
-        rv_editor_pane_id controls = rv_editor_pane_add(reg, rv_editor_pane_kind::controls);
-        rv_editor_pane_id output = rv_editor_pane_add(reg, rv_editor_pane_kind::output);
-        rv_editor_pane_id problems = rv_editor_pane_add(reg, rv_editor_pane_kind::problems);
-        rv_editor_pane_id terminal = rv_editor_pane_add(reg, rv_editor_pane_kind::terminal);
-
-        rv_editor_layout lay = rv_editor_layout_make(code);
-        uint32_t code_leaf = rv_editor_tile_find(lay, code);
-        uint32_t files_leaf = rv_editor_tile_insert(lay, code_leaf, files, rv_editor_tile_dock::left);
-        rv_editor_tile_set_ratio(lay, lay.nodes[files_leaf].parent, 0.18f);
-        rv_editor_tile_insert(lay, files_leaf, project, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, files);
-        uint32_t game_leaf = rv_editor_tile_insert(lay, code_leaf, game, rv_editor_tile_dock::right);
-        rv_editor_tile_set_ratio(lay, lay.nodes[game_leaf].parent, 0.60f);
-        uint32_t controls_leaf = rv_editor_tile_insert(lay, game_leaf, controls, rv_editor_tile_dock::bottom);
-        rv_editor_tile_set_ratio(lay, lay.nodes[controls_leaf].parent, 0.60f);
-        uint32_t output_leaf = rv_editor_tile_insert(lay, code_leaf, output, rv_editor_tile_dock::bottom);
-        rv_editor_tile_set_ratio(lay, lay.nodes[output_leaf].parent, 0.72f);
-        rv_editor_tile_insert(lay, output_leaf, problems, rv_editor_tile_dock::tab);
-        rv_editor_tile_insert(lay, output_leaf, terminal, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, output);
-        panes = reg;
-        layout = lay;
-    } else if (preset == rv_editor_layout_preset::debug_output) {
-        rv_editor_pane_registry reg{};
-        rv_editor_pane_id game = rv_editor_pane_add(reg, rv_editor_pane_kind::game);
-        rv_editor_pane_id controls = rv_editor_pane_add(reg, rv_editor_pane_kind::controls);
-        rv_editor_pane_id inspector = rv_editor_pane_add(reg, rv_editor_pane_kind::inspector);
-        rv_editor_pane_id run_config = rv_editor_pane_add(reg, rv_editor_pane_kind::run_config);
-        rv_editor_pane_id output = rv_editor_pane_add(reg, rv_editor_pane_kind::output);
-        rv_editor_pane_id terminal = rv_editor_pane_add(reg, rv_editor_pane_kind::terminal);
-        rv_editor_pane_id problems = rv_editor_pane_add(reg, rv_editor_pane_kind::problems);
-
-        rv_editor_layout lay = rv_editor_layout_make(game);
-        uint32_t game_leaf = rv_editor_tile_find(lay, game);
-        uint32_t controls_leaf = rv_editor_tile_insert(lay, game_leaf, controls, rv_editor_tile_dock::right);
-        rv_editor_tile_set_ratio(lay, lay.nodes[controls_leaf].parent, 0.55f);
-        uint32_t inspector_leaf = rv_editor_tile_insert(lay, controls_leaf, inspector,
-            rv_editor_tile_dock::bottom);
-        rv_editor_tile_set_ratio(lay, lay.nodes[inspector_leaf].parent, 0.40f);
-        rv_editor_tile_insert(lay, controls_leaf, run_config, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, controls);
-        uint32_t output_leaf = rv_editor_tile_insert(lay, game_leaf, output, rv_editor_tile_dock::bottom);
-        rv_editor_tile_set_ratio(lay, lay.nodes[output_leaf].parent, 0.55f);
-        rv_editor_tile_insert(lay, output_leaf, terminal, rv_editor_tile_dock::tab);
-        rv_editor_tile_insert(lay, output_leaf, problems, rv_editor_tile_dock::tab);
-        rv_editor_tile_activate(lay, output);
-        panes = reg;
-        layout = lay;
+        first = rv_editor_pane_kind::scene;
+    } else if (preset == rv_editor_layout_preset::debug) {
+        first = rv_editor_pane_kind::game;
     }
+    rv_editor_preset_builder b(first);
+    switch (preset) {
+    case rv_editor_layout_preset::code:
+        rv_editor_preset_code(b);
+        break;
+    case rv_editor_layout_preset::scene:
+        rv_editor_preset_scene(b);
+        break;
+    case rv_editor_layout_preset::debug:
+        rv_editor_preset_debug(b);
+        break;
+    case rv_editor_layout_preset::build:
+        rv_editor_preset_build(b);
+        break;
+    }
+    panes = b.panes;
+    layout = b.layout;
 }
 
 } // namespace rv_editor

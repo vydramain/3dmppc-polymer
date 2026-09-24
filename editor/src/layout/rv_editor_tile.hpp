@@ -196,12 +196,13 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
 
 enum class rv_editor_layout_preset
 {
+    code,
     scene,
-    code_game,
-    debug_output,
+    debug,
+    build,
 };
 
-// Name as a menu shows it: "Scene", "Code + Game", "Debug/Output".
+// Name as a menu shows it: "Code", "Scene", "Debug", "Build".
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 
 // Replaces both outputs with the starting layout `preset` (LAY-07).
