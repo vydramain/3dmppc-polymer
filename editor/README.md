@@ -4,7 +4,7 @@ A separate program from the console and the tools. It works on a game
 directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
-Today it shows its tiled workspace between a toolbar and a status bar: a tile
+Today it shows its tiled workspace between the menu bar and a status bar: a tile
 can be split, closed with its X box, maximized with its M box or turned into
 another kind of pane, and several panes in one tile show as folder tabs. The
 layout is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout`

@@ -6,9 +6,9 @@
 
 Корневой `CMakeLists.txt` и `pdk/tools/CMakeLists.txt` объявляют цели `3dmppc_pdk` и
 `3dmppc_pdklib` каждый у себя, одинаково; отличается только переменная корня (`CMAKE_SOURCE_DIR` и
-`RV_REPO_ROOT`). Редактору нужны те же цели: `rv_font` (0004) и разбор `disc.toml` из `rv_manifest`,
-который скомпилирован внутри `3dmppc_pdklib`. Позже, возможно, `rv_textures` и `rv_zip` для превью
-ассетов и чтения `.mppcdisc`.
+`RV_REPO_ROOT`). Редактору нужны те же цели: разбор `disc.toml` из `rv_manifest`, который
+скомпилирован внутри `3dmppc_pdklib`. Позже, возможно, `rv_textures` и `rv_zip` для превью ассетов и
+чтения `.mppcdisc`. `rv_font` редактор не использует (0004).
 
 ## Решение
 

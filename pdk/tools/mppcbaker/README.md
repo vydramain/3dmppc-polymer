@@ -13,7 +13,7 @@ in both modes).
 
 ---
 
-## `mppcbaker` — PNG → `.mppcbaker`
+## `mppcbaker` — PNG → `.mppctex`
 
 The console does not decode image formats and never will. A disc hands
 `rv_cv::video_asset_write()` **finished texels**, exactly as it would on real
@@ -21,7 +21,7 @@ devkit hardware. So turning a picture into texels is a build-step job, and
 `mppcbaker` is what does it.
 
 ```
-mppcbaker <input.png> <output.mppcbaker> --format idx4|idx8|direct15
+mppcbaker <input.png> <output.mppctex> --format idx4|idx8|direct15
         [--transparent-key RRGGBB]
 ```
 
@@ -41,18 +41,18 @@ Any error gets a readable message on `stderr` and exit code `1`.
 
 ```sh
 # sprite with alpha, 16 colors
-mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppcbaker --format idx4
+mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppctex --format idx4
 
 # sprite without alpha, where the hole is marked with hot pink
-mppcbaker assets/hud.png build/hud.mppcbaker --format idx8 --transparent-key FF00FF
+mppcbaker assets/hud.png build/hud.mppctex --format idx8 --transparent-key FF00FF
 
 # opaque background, full color
-mppcbaker assets/sky.png build/sky.mppcbaker --format direct15
+mppcbaker assets/sky.png build/sky.mppctex --format direct15
 ```
 
 ---
 
-## `.mppcbaker` file layout
+## `.mppctex` file layout
 
 Everything is little-endian. The file is a header, then the palette, then the
 texels; both the palette and the texels are stored **exactly in the form they
@@ -183,7 +183,7 @@ warning on `stderr` (this is not an error — the exit code stays `0`).
 
 ---
 
-## How a disc reads `.mppcbaker`
+## How a disc reads `.mppctex`
 
 Texels and palette are already in their final form in the file, so the loader is
 a read, a header check and two `video_asset_write` calls.

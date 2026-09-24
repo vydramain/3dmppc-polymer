@@ -1,6 +1,6 @@
 # 3dmppc-editor v0.4: технические требования и критерии приёмки
 
-Версия документа: 1.1. Дата: 2026-09-24. Раздел 10 и ARC-05 переписаны под редактор кода на nvim (ADR-0005).
+Версия документа: 1.2. Дата: 2026-09-25. UI-06 и NFR-03 согласованы с ADR-0004: один файл шрифта на две настройки, масштаб только целый.
 
 Статус: проект технических требований, сформированный по обсуждению продукта и документации репозитория. Документ задаёт целевое поведение; он не утверждает, что перечисленные возможности уже реализованы. Нумерация v0.4 относится здесь к Editor MVP. Development runtime является его предварительным условием независимо от номера собственного релиза.
 
@@ -226,7 +226,7 @@ mppcburner build <project-root> -o <output.mppcdisc> --baker <mppcbaker-path>
 - **UI-03 MUST:** библиотека компонентов содержит Button/IconButton/Toggle, text field, numeric spinner, dropdown, checkbox/radio, tree/list/table, tab strip, splitter, pane header, menu/context menu, dialog, status indicator, log row и transport bar.
 - **UI-04 MUST:** каждый интерактивный компонент имеет normal/hover/pressed/focused/disabled; поля дополнительно invalid/read-only/dirty, где применимо. Disabled control объясняет причину недоступности.
 - **UI-05 MUST:** keyboard focus различим; ошибка не кодируется одним цветом; labels не обрезаются без способа прочитать их. UI scale и отдельный размер шрифта поддерживают HiDPI.
-- **UI-06 MUST:** отдельные fonts для UI и monospace. Визуальный ориентир UI - Tahoma/WineTahomaBit, terminal - IBM VGA; поставка конкретного font требует подходящей лицензии и fallback с кириллицей.
+- **UI-06 MUST:** шрифт UI и моноширинный шрифт кода/терминала - отдельные настройки; обе могут указывать на один файл. Сейчас это PxPlus IBM VGA 9x16 (ADR-0004); визуальный ориентир UI - Tahoma/WineTahomaBit - выбирается позже. Поставка конкретного font требует подходящей лицензии и кириллицы.
 - **UI-07 MUST:** реализован экран Widget Catalog для ручной проверки всех компонентов и их состояний. Сгенерированные изображения служат направлением дизайна; их вымышленные API, filenames, toolbar-команды и надписи не являются спецификацией.
 
 ## 12. Состояния и управление
@@ -266,7 +266,7 @@ Shortcut routing учитывает focused pane. Захваченная игр�
 
 - **NFR-01 MUST:** Linux является первой проверяемой платформой. Проверки Game/input выполняются на X11 и Wayland. Поддержка Windows/macOS не объявляется до прохождения тех же сценариев; process/PTY/frame transport изолированы за platform adapters.
 - **NFR-02 MUST:** build/reload/output flood не блокируют ввод и перемещение тайлов. Предлагаемый acceptance budget: видимая реакция UI на локальную команду до 100 ms на зафиксированной тестовой машине, без включения времени compiler/runtime в этот бюджет.
-- **NFR-03 MUST:** проверять layouts при 1280x720 и 1920x1080, scale 100%/150%/200%. На тесном layout допускаются вкладки/сворачивание/Fit; недоступные за пределами окна обязательные кнопки не допускаются.
+- **NFR-03 MUST:** проверять layouts при 1280x720 и 1920x1080, scale 100% и 200% (`--scale 1` и `--scale 2`; масштаб только целый, ADR-0004). На тесном layout допускаются вкладки/сворачивание/Fit; недоступные за пределами окна обязательные кнопки не допускаются.
 - **NFR-04 MUST:** limits для логов, protocol buffers, thumbnails и открытых больших файлов заданы явно; при достижении limit есть понятное поведение. Не требуется читать весь проект в память для отображения дерева.
 - **NFR-05 MUST:** document save и восстановление сессии не зависят от живого runtime. Локальное восстановление dirty buffers после crash editor SHOULD; silent data loss при обычном закрытии недопустим.
 - **NFR-06 MUST:** runtime/tools paths и совместимые версии видны в diagnostics. Изменение исполняемого файла сбрасывает старые предположения о возможностях.
@@ -336,6 +336,6 @@ v0.4 завершён, когда:
 
 Референсы, заданные пользователем: [vgui2-deck](https://github.com/vydramain/vgui2-deck), [nvim-deck](https://github.com/vydramain/nvim-deck), [solid-maid, ветка 3dmppc-polymer-mppcdisc](https://github.com/vydramain/solid-maid/tree/3dmppc-polymer-mppcdisc), предоставленные IRIX screenshots и согласованное направление набора экранов/компонентов.
 
-В документации tools обнаружено расхождение: общий README называет texture artifact `.mppctex`, README baker - `.mppcbaker`. Требования намеренно не фиксируют расширение выходной текстуры: его нужно сверить с кодом и фактическим CLI выбранной версии и устранить расхождение документации. Название бинарника однозначно: `mppcbaker`, не `mppcbacker`.
+Выходная текстура baker - `.mppctex`: так её называют код `mppcbaker`, burner и оба README tools. Название бинарника однозначно: `mppcbaker`, не `mppcbacker`.
 
 До реализации соответствующих блоков обязательны ADR: toolkit/backend; framebuffer/input transport; version/capability policy; scene schema/loader и связь с произвольными играми; metadata storage; asset mapping/publication; platform release matrix. Эти вопросы не решаются содержимым сгенерированных картинок.
