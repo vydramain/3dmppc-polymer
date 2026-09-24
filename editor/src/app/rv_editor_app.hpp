@@ -10,6 +10,7 @@
 #include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
+#include "nvim/rv_editor_nvim.hpp"
 #include "project/rv_editor_project.hpp"
 #include "session/rv_editor_session.hpp"
 
@@ -59,6 +60,10 @@ struct rv_editor_app
     // Files the user asked to open (Files double click, a new file), for the
     // code editor to take.
     std::vector<std::filesystem::path> open_requests;
+    rv_editor_nvim nvim;
+    // A code tile had the keyboard this frame: ImGui's own keyboard navigation
+    // stays off the next one, so arrows and Tab reach nvim.
+    bool text_focus = false;
 };
 
 // Looks for the tools and says what it found.

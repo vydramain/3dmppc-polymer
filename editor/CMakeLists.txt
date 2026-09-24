@@ -58,6 +58,14 @@ target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
 target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_ROOT}/third_party/win55-icons")
 
+# The code editor's nvim config (editor/nvim), read at run time the same way.
+target_compile_definitions(3dmppc-editor PRIVATE
+  RV_EDITOR_NVIM_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua")
+
+# nvim's channel is read on a thread of its own.
+find_package(Threads REQUIRED)
+target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
+
 # The editor's font (third_party/pxplus-ibm-vga), read at run time the same way.
 target_compile_definitions(3dmppc-editor PRIVATE
   RV_EDITOR_FONT_PATH="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf")

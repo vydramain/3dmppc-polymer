@@ -247,6 +247,11 @@ bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path,
 void rv_editor_app_update(rv_editor_app &app)
 {
     app.files.update(app.log);
+    app.nvim.update(app.log);
+    if (!app.files.changed.empty()) {
+        // Clean buffers follow the disk; nvim asks about modified ones (PRJ-07).
+        app.nvim.checktime();
+    }
     for (const std::filesystem::path &changed : app.files.changed) {
         if (app.project.open && changed == app.project.manifest) {
             // disc.toml is the source of truth (PRJ-03): what the Project pane
@@ -272,6 +277,7 @@ void rv_editor_app_shutdown(rv_editor_app &app)
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     app.session.shutdown(app.log);
+    app.nvim.stop();
 }
 
 } // namespace rv_editor

@@ -13,8 +13,8 @@ Scene, Debug and Build starting layouts of the design references.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console with its own window, driven over the console's dev
-channel: Runtime Controls, Output, Project and Files are live panes. The game's
-frame inside the Game tile, the code editor and the terminal are not there yet.
+channel: Runtime Controls, Output, Project, Files and Code are live panes. The
+game's frame inside the Game tile and the terminal are not there yet.
 
 ## Building
 
@@ -77,6 +77,27 @@ removes the link, not what it points to. Links are shown with `->` and never
 entered. The burner's `.mppcburn/` and `.git/` are not shown. A change to
 `disc.toml` is read back into the Project pane at once; a running console keeps
 the manifest it started with.
+
+### Code
+
+A Code tile is a window of one `nvim --embed` the editor starts with the first
+Code tile, using its own config, [`nvim/rv_editor_init.lua`](nvim/rv_editor_init.lua),
+not your `init.lua`. nvim must be on `PATH`; without it only the Code tiles say
+so. A double click in Files opens the file in the focused Code tile, or in a
+new one.
+
+It starts as an ordinary editor: typing inserts, Shift+arrows select, Ctrl+S
+saves, Ctrl+Shift+S saves all, Ctrl+Z / Ctrl+Shift+Z undo and redo, Ctrl+C,
+Ctrl+X, Ctrl+V use the system clipboard, Ctrl+F searches, Ctrl+H replaces,
+Ctrl+G opens nvim's command line. F2 switches to plain Vim and back. Lua, C and
+C++ use real tabs 4 wide with a ruler at 128. F5, F6, F7, Shift+F5 and Ctrl+B
+stay the editor's own while a Code tile has the keyboard.
+
+A Code tile's status line names the file and marks it `[+]` while unsaved.
+Closing a tile whose file is unsaved and shown nowhere else asks Save, Discard
+or Cancel; closing the editor asks the same for every unsaved file. A file
+changed by another program is re-read when its buffer is clean; when it is not,
+nvim asks. Language servers, Problems and search are not connected yet.
 
 ### Where things go
 

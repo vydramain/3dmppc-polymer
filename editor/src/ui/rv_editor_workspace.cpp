@@ -169,10 +169,26 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     ImGui::PopID();
 }
 
-void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &a)
+void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &a, rv_editor_pane_close_fn close_pane,
+    void *context)
 {
     if (a.what == rv_editor_tile_action::op::none) {
         return;
+    }
+    // Every pane the change takes away is asked first; one refusal keeps them all.
+    auto may_close = [&](rv_editor_pane_id pane) { return close_pane == nullptr || close_pane(context, pane); };
+    if (a.what == rv_editor_tile_action::op::close && !may_close(a.pane)) {
+        return;
+    }
+    if (a.what == rv_editor_tile_action::op::set_kind && ws.panes.panes[a.pane].kind != a.kind && !may_close(a.pane)) {
+        return;
+    }
+    if (a.what == rv_editor_tile_action::op::close_leaf) {
+        for (const rv_editor_pane_id pane : ws.layout.nodes[a.leaf].leaf.tabs) {
+            if (!may_close(pane)) {
+                return;
+            }
+        }
     }
 
     if (a.what == rv_editor_tile_action::op::split) {
@@ -209,7 +225,7 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 } // namespace
 
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
-    void *context, rv_editor_rect area)
+    rv_editor_pane_close_fn close_pane, void *context, rv_editor_rect area)
 {
     // A child of the current window, so a workspace can sit inside any pane: the
     // Widget Catalog shows one.
@@ -296,7 +312,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     ImGui::SetCursorScreenPos(origin);
     ImGui::Dummy(ImVec2(static_cast<float>(placed.w), static_cast<float>(placed.h)));
 
-    rv_editor_tile_apply(ws, action);
+    rv_editor_tile_apply(ws, action, close_pane, context);
     ImGui::EndChild();
 }
 

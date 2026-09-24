@@ -40,6 +40,11 @@ public:
     pid_t pid() const { return pid_; }
     // False once the child's stdout reached end of file.
     bool stdout_open() const { return out_ >= 0; }
+    // For a caller that reads on a thread of its own instead of read().
+    int stdout_fd() const { return out_; }
+    int stderr_fd() const { return err_; }
+    // End of input for the child.
+    void close_stdin();
     const rv_editor_exit &exit_status() const { return exit_; }
 
     // Appends whatever the pipes hold now, at most `limit` bytes each. Returns

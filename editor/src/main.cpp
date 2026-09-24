@@ -124,9 +124,11 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
     if (host) {
-        rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane, &shell, area);
+        rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane,
+            rv_editor::rv_editor_shell_close_pane, &shell, area);
     }
     ImGui::End();
+    rv_editor::rv_editor_shell_dialogs(shell, theme);
 }
 
 // True once the user asked the window to close. Pointer coordinates are turned
@@ -223,7 +225,18 @@ int main(int argc, char **argv)
         shell->picked.emplace_back(open_path);
     }
 
-    while (!rv_editor_poll(window, renderer)) {
+    while (!shell->quit_now) {
+        if (rv_editor_poll(window, renderer) && rv_editor::rv_editor_shell_may_quit(*shell)) {
+            break;
+        }
+        // Keyboard navigation is ImGui's use of arrows and Tab: off while a code
+        // tile had the keyboard last frame, so those keys reach nvim.
+        if (shell->app.text_focus) {
+            io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+        } else {
+            io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+        }
+        shell->app.text_focus = false;
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();

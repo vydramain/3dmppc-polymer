@@ -206,6 +206,12 @@ void rv_editor_process::flush()
     }
 }
 
+void rv_editor_process::close_stdin()
+{
+    flush();
+    rv_editor_close(in_);
+}
+
 bool rv_editor_process::poll()
 {
     if (pid_ <= 0 || exit_.exited) {
