@@ -180,9 +180,8 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
     }
     ImGui::End();
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
-        rv_editor::rv_editor_status("Stopped", rv_editor::rv_editor_status_kind::idle, theme);
-        ImGui::SameLine();
-        ImGui::TextUnformatted("Ready.");
+        const char *const fields[] = { "Ready.", "Runtime: Stopped" };
+        rv_editor::rv_editor_status_bar(fields, 2, theme);
     }
     ImGui::End();
 
