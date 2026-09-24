@@ -152,7 +152,7 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     const float bevel = static_cast<float>(theme.bevel_px * theme.scale);
     const ImVec2 inner_min(min.x + bevel, min.y + bevel);
     const ImVec2 inner_max(max.x - bevel, max.y - bevel);
-    rv_editor_draw_stipple(dl, inner_min, inner_max, theme, active ? theme.bevel_hi : theme.window);
+    rv_editor_draw_stipple(dl, inner_min, inner_max, theme, active ? theme.bevel_hi : theme.button);
 
     rv_editor_header_action action = rv_editor_header_action::none;
     float title_x = inner_min.x;
@@ -178,7 +178,7 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     const ImVec2 patch_max(patch_min.x + text.x + pad * 2.0f, inner_max.y);
     dl->AddRectFilled(patch_min, patch_max, rv_editor_col(theme.dark));
     const ImVec2 pos(std::floor(patch_min.x + pad), std::floor((min.y + max.y - text.y) / 2.0f));
-    dl->AddText(pos, rv_editor_col(active ? theme.text_bright : theme.text_disabled), title, end);
+    dl->AddText(pos, rv_editor_col(active ? theme.text_bright : theme.text), title, end);
 
     // The bar as one layout item, so what follows starts below it.
     ImGui::SetCursorScreenPos(min);
