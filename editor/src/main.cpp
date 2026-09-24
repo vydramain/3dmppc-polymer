@@ -2,6 +2,8 @@
 
 #include <charconv>
 #include <cstdio>
+#include <filesystem>
+#include <string>
 #include <string_view>
 
 #include <SDL3/SDL.h>
@@ -34,24 +36,62 @@ void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane
     }
 }
 
-rv_editor::rv_editor_workspace rv_editor_workspace_initial()
+rv_editor::rv_editor_workspace rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset preset)
 {
     rv_editor::rv_editor_workspace ws;
-    rv_editor::rv_editor_pane_id catalog = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::catalog);
-    rv_editor::rv_editor_pane_id project = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::project);
-    rv_editor::rv_editor_pane_id game = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::game);
-    rv_editor::rv_editor_pane_id output = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::output);
-    rv_editor::rv_editor_pane_id code = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::code);
-
-    ws.layout = rv_editor::rv_editor_layout_make(catalog);
-    rv_editor::rv_editor_tile_insert(ws.layout, 0, project, rv_editor::rv_editor_tile_dock::left);
-    uint32_t catalog_leaf = rv_editor::rv_editor_tile_find(ws.layout, catalog);
-    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, game, rv_editor::rv_editor_tile_dock::right);
-    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, output, rv_editor::rv_editor_tile_dock::bottom);
-    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, code, rv_editor::rv_editor_tile_dock::tab);
-    rv_editor::rv_editor_tile_activate(ws.layout, catalog);
-    ws.focused_leaf = catalog_leaf;
+    rv_editor::rv_editor_layout_preset_make(preset, ws.panes, ws.layout);
     return ws;
+}
+
+// The saved layout, or Code + Game when there is none or it cannot be read (LAY-06).
+rv_editor::rv_editor_workspace rv_editor_workspace_load(const std::filesystem::path &path)
+{
+    rv_editor::rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code_game);
+    if (path.empty() || rv_editor::rv_editor_layout_load(path, ws.panes, ws.layout)) {
+        return ws;
+    }
+    std::error_code ec;
+    if (std::filesystem::exists(path, ec)) {
+        std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from Code + Game\n",
+            path.c_str());
+    }
+    return ws;
+}
+
+// Layout and Window menus. Runs before the workspace is drawn, so a change here
+// never lands under a reference the drawing holds.
+void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
+{
+    if (!ImGui::BeginMainMenuBar()) {
+        return;
+    }
+    if (ImGui::BeginMenu("Layout")) {
+        constexpr rv_editor::rv_editor_layout_preset presets[] = { rv_editor::rv_editor_layout_preset::scene,
+            rv_editor::rv_editor_layout_preset::code_game, rv_editor::rv_editor_layout_preset::debug_output };
+        for (const rv_editor::rv_editor_layout_preset preset : presets) {
+            if (ImGui::MenuItem(rv_editor::rv_editor_layout_preset_name(preset))) {
+                ws = rv_editor_workspace_preset(preset);
+            }
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Reset Layout")) {
+            ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code_game);
+        }
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("Window")) {
+        if (ImGui::MenuItem("Widget Catalog")) {
+            const bool focused = ws.focused_leaf < ws.layout.nodes.size() &&
+                ws.layout.nodes[ws.focused_leaf].kind == rv_editor::rv_editor_tile_kind::leaf;
+            const uint32_t leaf = focused ? ws.focused_leaf : ws.layout.root;
+            const rv_editor::rv_editor_pane_id pane =
+                rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::catalog);
+            rv_editor::rv_editor_tile_insert(ws.layout, leaf, pane, rv_editor::rv_editor_tile_dock::tab);
+            rv_editor::rv_editor_tile_activate(ws.layout, pane);
+        }
+        ImGui::EndMenu();
+    }
+    ImGui::EndMainMenuBar();
 }
 
 void rv_editor_usage(std::FILE *out)
@@ -111,6 +151,7 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
+    rv_editor_menu(ws);
     rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw);
 }
 
@@ -196,7 +237,8 @@ int main(int argc, char **argv)
     ImGui_ImplSDLRenderer3_Init(renderer);
     rv_editor::rv_editor_icons_load(renderer);
 
-    rv_editor::rv_editor_workspace workspace = rv_editor_workspace_initial();
+    const std::filesystem::path layout_path = rv_editor::rv_editor_layout_file_path();
+    rv_editor::rv_editor_workspace workspace = rv_editor_workspace_load(layout_path);
 
     while (!rv_editor_poll(window, renderer)) {
         ImGui_ImplSDLRenderer3_NewFrame();
@@ -210,6 +252,11 @@ int main(int argc, char **argv)
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+    }
+
+    std::string error;
+    if (!layout_path.empty() && !rv_editor::rv_editor_layout_save(layout_path, workspace.panes, workspace.layout, error)) {
+        std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
 
     rv_editor::rv_editor_icons_free();

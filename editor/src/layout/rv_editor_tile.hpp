@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -204,5 +205,19 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 // Replaces both outputs with the starting layout `preset` (LAY-07).
 void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
     rv_editor_layout &layout);
+
+// --- the layout file ----------------------------------------------------------
+
+// $XDG_CONFIG_HOME/3dmppc-editor/layout, or $HOME/.config/3dmppc-editor/layout when XDG_CONFIG_HOME is unset, empty
+// or not absolute. Empty when neither gives an absolute directory.
+std::filesystem::path rv_editor_layout_file_path();
+
+// False, with both outputs untouched, when the file is missing, larger than 1 MiB or not one whole valid layout.
+bool rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes, rv_editor_layout &layout);
+
+// Creates the directory, writes "<path>.tmp" and renames it over `path`, so a crash never leaves half a file.
+// False with the reason in `error` when any step fails; the old file then stays as it was.
+bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
+    const rv_editor_layout &layout, std::string &error);
 
 } // namespace rv_editor
