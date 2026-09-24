@@ -12,6 +12,7 @@ namespace
 struct rv_editor_pane_values
 {
     int selected = 1;
+    int tab = 0;
     float left_share = 0.5f; // splitter demo: the left pane's share of the width
     float top = 0.0f;        // splitter demo heights, set on first use
     float bottom = 0.0f;
@@ -74,25 +75,10 @@ void rv_editor_catalog_table()
     ImGui::EndTable();
 }
 
-void rv_editor_catalog_tabs()
+void rv_editor_catalog_tabs(const rv_editor_theme &t)
 {
-    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_DrawSelectedOverline)) {
-        return;
-    }
-    if (ImGui::BeginTabItem("Scene")) {
-        ImGui::TextUnformatted("Scene tab content");
-        ImGui::EndTabItem();
-    }
-    if (ImGui::BeginTabItem("Code")) {
-        ImGui::TextUnformatted("Code tab content");
-        ImGui::EndTabItem();
-    }
-    ImGui::BeginDisabled();
-    if (ImGui::BeginTabItem("Game")) {
-        ImGui::EndTabItem();
-    }
-    ImGui::EndDisabled();
-    ImGui::EndTabBar();
+    const char *const labels[] = {"Project", "Scene", "Assets", "Console"};
+    rv_editor_tab_strip("##tabs", labels, 4, &rv_editor_pane_data.tab, t);
 }
 
 void rv_editor_catalog_splitters(const rv_editor_theme &t)
@@ -155,7 +141,7 @@ void rv_editor_catalog_panes(const rv_editor_theme &theme)
         rv_editor_catalog_table();
         ImGui::EndTable();
     }
-    rv_editor_catalog_tabs();
+    rv_editor_catalog_tabs(theme);
     rv_editor_catalog_splitters(theme);
 }
 

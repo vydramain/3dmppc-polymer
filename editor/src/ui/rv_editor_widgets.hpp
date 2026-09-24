@@ -45,9 +45,13 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
     const rv_editor_theme &theme, const rv_editor_field &field = {});
 
 // --- panes --------------------------------------------------------------------
-// Trees, lists, tables and tab strips are ImGui's own (TreeNodeEx, BeginListBox,
-// BeginTable, BeginTabBar) in the theme's colours; these are the pane pieces
-// ImGui has no public form of.
+// Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)
+// in the theme's colours; these are the pane pieces ImGui has no public form of.
+
+// Slanted folder tabs (UI-02), one per label: the front tab in brass, the rest
+// behind it. Returns true when a click moved *active.
+bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
 
 // Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
 // tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.

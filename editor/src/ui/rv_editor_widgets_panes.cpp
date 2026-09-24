@@ -47,6 +47,27 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
 namespace
 {
 
+// One folder tab: a parallelogram leaning right, drawn a scaled pixel row at a
+// time so its sides stay stepped and unsmoothed. Raised: light left edge, dark
+// right edge; sunken swaps them.
+void rv_editor_draw_tab(ImDrawList *dl, ImVec2 min, ImVec2 max, float slant, const rv_editor_theme &theme,
+    uint32_t fill, bool raised)
+{
+    const float px = static_cast<float>(theme.scale);
+    const float h = max.y - min.y;
+    const ImU32 light = rv_editor_col(raised ? theme.bevel_hi : theme.bevel_lo);
+    const ImU32 dark = rv_editor_col(raised ? theme.bevel_lo : theme.bevel_hi);
+    for (float y = min.y; y < max.y; y += px) {
+        const float shift = std::floor((y - min.y) / h * slant / px) * px;
+        const float left = min.x + shift;
+        const float right = max.x - slant + shift;
+        dl->AddRectFilled(ImVec2(left, y), ImVec2(right, y + px), rv_editor_col(fill));
+        dl->AddRectFilled(ImVec2(left, y), ImVec2(left + px, y + px), light);
+        dl->AddRectFilled(ImVec2(right - px, y), ImVec2(right, y + px), dark);
+    }
+    dl->AddRectFilled(ImVec2(min.x + slant, max.y - px), ImVec2(max.x, max.y), dark);
+}
+
 // One letter box of a pane header: a small button face with hover, press and focus.
 bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float size, bool active,
     const rv_editor_theme &theme, const rv_editor_state &state)
@@ -73,6 +94,51 @@ bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float 
 }
 
 } // namespace
+
+bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
+    const rv_editor_theme &theme, const rv_editor_state &state)
+{
+    const float h = ImGui::GetFrameHeight();
+    const float pad = static_cast<float>(theme.pad_px * theme.scale);
+    const float slant = std::floor(h / 2.0f);
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    bool changed = false;
+
+    ImGui::PushID(id);
+    for (int i = 0; i < count; ++i) {
+        if (i > 0) {
+            ImGui::SameLine(0.0f, 0.0f);
+        }
+        const char *end = rv_editor_label_end(labels[i]);
+        const ImVec2 text = ImGui::CalcTextSize(labels[i], end);
+        ImGui::PushID(i);
+        const rv_editor_item item = rv_editor_item_add("##tab", ImVec2(text.x + pad * 4.0f + slant, h), state);
+        ImGui::PopID();
+        if (item.clicked && *active != i) {
+            *active = i;
+            changed = true;
+        }
+
+        const bool front = i == *active;
+        const bool down = item.held && item.hovered;
+        uint32_t fill = front ? theme.selection : theme.button;
+        if (!front && item.hovered && !item.disabled) {
+            fill = theme.bevel_hi;
+        }
+        rv_editor_draw_tab(dl, item.min, item.max, slant, theme, fill, !down);
+
+        const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
+        const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge),
+            std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge));
+        const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.dark : theme.text);
+        dl->AddText(at, rv_editor_col(ink), labels[i], end);
+        if (item.focused) {
+            rv_editor_draw_focus(dl, ImVec2(at.x - pad, item.min.y), ImVec2(at.x + text.x + pad, item.max.y), theme);
+        }
+    }
+    ImGui::PopID();
+    return changed;
+}
 
 rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
     bool controls, const rv_editor_state &state)
