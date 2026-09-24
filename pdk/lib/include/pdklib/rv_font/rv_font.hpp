@@ -70,6 +70,59 @@ namespace rv_pdklib
 // The subject here is the font; naming it after the font costs nothing and
 // leaves the tex- prefix meaning one thing.
 
+// --- characters ---------------------------------------------------------------
+
+// What a byte that starts no well-formed UTF-8 sequence decodes to: no block holds
+// it, so it draws notdef, one cell per such byte.
+inline constexpr char32_t rv_font_invalid_code = 0xFFFFFFFFU;
+
+// Decode the code point at `pos` and move `pos` past it. Text is UTF-8; ASCII text
+// decodes one byte per character, exactly as before blocks existed.
+inline char32_t rv_font_utf8_next(std::string_view text, std::size_t &pos)
+{
+    const unsigned int lead = static_cast<unsigned char>(text[pos]);
+    ++pos;
+    if (lead < 0x80) {
+        return lead;
+    }
+
+    std::size_t extra = 0;
+    char32_t code = 0;
+    char32_t least = 0;
+    if (lead >= 0xC0 && lead <= 0xDF) {
+        extra = 1;
+        code = lead & 0x1F;
+        least = 0x80;
+    } else if (lead >= 0xE0 && lead <= 0xEF) {
+        extra = 2;
+        code = lead & 0x0F;
+        least = 0x800;
+    } else if (lead >= 0xF0 && lead <= 0xF7) {
+        extra = 3;
+        code = lead & 0x07;
+        least = 0x10000;
+    } else {
+        return rv_font_invalid_code;
+    }
+    if (pos + extra > text.size()) {
+        return rv_font_invalid_code;
+    }
+
+    for (std::size_t i = 0; i < extra; ++i) {
+        const unsigned int next = static_cast<unsigned char>(text[pos + i]);
+        if ((next & 0xC0) != 0x80) {
+            return rv_font_invalid_code;
+        }
+        code = (code << 6) | (next & 0x3F);
+    }
+    // Overlong forms, surrogates and values past U+10FFFF are not characters.
+    if (code < least || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
+        return rv_font_invalid_code;
+    }
+    pos += extra;
+    return code;
+}
+
 // --- measuring ----------------------------------------------------------------
 
 // Cell advance in screen pixels. `scale` is an INTEGER multiplier - 1 draws the
@@ -108,8 +161,8 @@ inline int rv_font_measure_width(std::string_view text, int scale)
 {
     int longest = 0;
     int current = 0;
-    for (const char c : text) {
-        if (c == '\n') {
+    for (std::size_t pos = 0; pos < text.size();) {
+        if (rv_font_utf8_next(text, pos) == '\n') {
             if (current > longest) {
                 longest = current;
             }
@@ -150,8 +203,9 @@ inline int rv_font_measure_height(std::string_view text, int scale)
 inline std::size_t rv_font_primitive_count(std::string_view text)
 {
     std::size_t count = 0;
-    for (const char c : text) {
-        if (c == '\n' || c == ' ') {
+    for (std::size_t pos = 0; pos < text.size();) {
+        const char32_t code = rv_font_utf8_next(text, pos);
+        if (code == '\n' || code == ' ') {
             continue;
         }
         ++count;
@@ -171,16 +225,18 @@ struct rv_font_style {
     int64_t addr_palette; // the 16-entry palette that gives it its colour
     int32_t depth;        // ordering-table key: larger = nearer
     int32_t scale;        // integer pixel multiplier; 1 = an 8x8 cell
+    uint32_t blocks;      // the blocks the atlas was built with; 0 = ASCII only
 };
 
 inline rv_font_style rv_font_style_make(int64_t addr_texture, int64_t addr_palette, int32_t depth,
-    int32_t scale)
+    int32_t scale, uint32_t blocks = 0)
 {
     rv_font_style style{};
     style.addr_texture = addr_texture;
     style.addr_palette = addr_palette;
     style.depth = depth;
     style.scale = scale;
+    style.blocks = blocks;
     return style;
 }
 
@@ -271,9 +327,9 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
 // overload below).
 //
 // '\n' returns the pen to `x` and drops it one line. Spaces advance without
-// producing a primitive. Every other byte draws, including the notdef block for
-// anything outside printable ASCII - a stray '\r' from CRLF text prints a solid
-// slab, which is the file telling you about its line endings.
+// producing a primitive. Every other character draws, including the notdef block
+// for anything the style's blocks do not hold - a stray '\r' from CRLF text prints
+// a solid slab, which is the file telling you about its line endings.
 template <typename Sink>
 inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
     Sink &&sink)
@@ -286,19 +342,20 @@ inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::s
     int pen_y = y;
     std::size_t emitted = 0;
 
-    for (const char c : text) {
-        if (c == '\n') {
+    for (std::size_t pos = 0; pos < text.size();) {
+        const char32_t code = rv_font_utf8_next(text, pos);
+        if (code == '\n') {
             pen_x = x;
             pen_y += line_height;
             continue;
         }
-        if (c == ' ') {
+        if (code == ' ') {
             pen_x += advance;
             continue;
         }
 
         rv_primitive primitive{};
-        rv_font_glyph_quad(style, rv_font_glyph_index(c), pen_x, pen_y, primitive);
+        rv_font_glyph_quad(style, rv_font_glyph_index(code, style.blocks), pen_x, pen_y, primitive);
         sink(static_cast<const rv_primitive &>(primitive));
         ++emitted;
 
