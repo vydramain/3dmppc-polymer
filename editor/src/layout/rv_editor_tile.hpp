@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <string_view>
 #include <vector>
 
 namespace rv_editor
@@ -176,5 +178,31 @@ rv_editor_size rv_editor_tile_min_size(const rv_editor_layout &layout, uint32_t 
 // maximized leaf when one is maximized.
 std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout &layout, rv_editor_rect area,
     const rv_editor_tile_metrics &metrics, const std::vector<rv_editor_size> &pane_min);
+
+// --- text form ----------------------------------------------------------------
+
+// The saved form of a workspace: the pane registry and the tree, one record per
+// line, first line "3dmppc-editor-layout 1".
+std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout);
+
+// Reads what rv_editor_layout_write wrote. False, with both outputs untouched,
+// unless `text` is one whole valid layout.
+bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout);
+
+// --- starting layouts ---------------------------------------------------------
+
+enum class rv_editor_layout_preset
+{
+    scene,
+    code_game,
+    debug_output,
+};
+
+// Name as a menu shows it: "Scene", "Code + Game", "Debug/Output".
+const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
+
+// Replaces both outputs with the starting layout `preset` (LAY-07).
+void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
+    rv_editor_layout &layout);
 
 } // namespace rv_editor
