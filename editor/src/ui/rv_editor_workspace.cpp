@@ -206,11 +206,11 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 
 } // namespace
 
-void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane)
+void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
+    rv_editor_rect area)
 {
-    const ImGuiViewport *viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(viewport->WorkPos);
-    ImGui::SetNextWindowSize(viewport->WorkSize);
+    ImGui::SetNextWindowPos(ImVec2(static_cast<float>(area.x), static_cast<float>(area.y)));
+    ImGui::SetNextWindowSize(ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::Begin("##workspace", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
         ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
@@ -235,8 +235,6 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
         }
     }
 
-    const rv_editor_rect area{ static_cast<int>(viewport->WorkPos.x), static_cast<int>(viewport->WorkPos.y),
-        static_cast<int>(viewport->WorkSize.x), static_cast<int>(viewport->WorkSize.y) };
     std::vector<rv_editor_tile_place> places = rv_editor_layout_place(ws.layout, area, m, pane_min);
 
     std::vector<rv_editor_rect> rect_of(ws.layout.nodes.size());

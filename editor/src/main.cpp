@@ -150,14 +150,46 @@ bool rv_editor_args_parse(int argc, char **argv, int &scale, int &exit_code)
     return true;
 }
 
-// One frame of the editor's UI: the tiled workspace.
+// A fixed strip of the main window: the toolbar or the status bar. End() it
+// whatever this returns, as with ImGui::Begin.
+bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
+{
+    ImGui::SetNextWindowPos(pos);
+    ImGui::SetNextWindowSize(size);
+    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    return ImGui::Begin(id, nullptr, flags);
+}
+
+// One frame of the editor's UI: menus, the toolbar, the tiles and the status bar.
 void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_editor_theme &theme)
 {
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
     rv_editor_menu(ws);
-    rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw);
+
+    // The toolbar and the status bar take a row each; the tiles get the rest.
+    const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    const ImVec2 top = viewport->WorkPos;
+    const ImVec2 size = viewport->WorkSize;
+    const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    if (rv_editor_bar_begin("##toolbar", top, ImVec2(size.x, bar))) {
+        constexpr const char *idle = "No runtime session yet";
+        rv_editor::rv_editor_transport_bar({ idle, idle, idle, idle, idle, idle }, theme);
+    }
+    ImGui::End();
+    if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
+        rv_editor::rv_editor_status("Stopped", rv_editor::rv_editor_status_kind::idle, theme);
+        ImGui::SameLine();
+        ImGui::TextUnformatted("Ready.");
+    }
+    ImGui::End();
+
+    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x), static_cast<int>(top.y + bar),
+        static_cast<int>(size.x), static_cast<int>(size.y - 2.0f * bar) };
+    rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw, area);
 }
 
 // True once the user asked the window to close. Pointer coordinates are turned
