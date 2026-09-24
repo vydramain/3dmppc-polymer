@@ -24,9 +24,9 @@ HiDPI и clipboard. Кандидат из требований - Dear ImGui.
   include-каталоги ImGui подключаются как `SYSTEM`.
 - Настройки ImGui задаются своим заголовком через `IMGUI_USER_CONFIG` из `editor/src/`, а не правкой
   `imconfig.h` в `third_party/`.
-- `imgui_internal.h` включает один файл редактора - загрузчик шрифта (`ImFontLoader` и упаковка
-  атласа). Виджеты обходятся публичным API. Внутренний API ImGui не стабилен, и обновление тега
-  должно задевать одно место.
+- `imgui_internal.h` редактор не включает: шрифт загружается штатным `AddFontFromFileTTF` (0004),
+  виджеты обходятся публичным API. Внутренний API ImGui не стабилен, и обновление тега не должно
+  задевать код редактора.
 - Сглаживания нет. Backend по умолчанию ставит текстурам `SDL_SCALEMODE_LINEAR`; редактор раз в кадр
   ставит в background draw list, который рисуется первым, стандартный callback
   `GetPlatformIO().DrawCallback_SetSamplerNearest`

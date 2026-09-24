@@ -4,8 +4,8 @@ A separate program from the console and the tools. It works on a game
 directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
-Today it is a placeholder that prints one line: the UI toolkit is not chosen
-yet.
+Today it opens one window with the Widget Catalog, and holds the model of its
+tiled workspace (`src/layout/`) that the window does not draw yet.
 
 ## Building
 
@@ -24,6 +24,18 @@ cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev
 ```
 
 A player build of the console never builds it.
+
+## Running
+
+```sh
+./editor/build/3dmppc-editor [-s|--scale N]
+```
+
+The editor draws one of its pixels per screen pixel, on a HiDPI display too.
+`--scale N` (a whole number, 1..8) is the only thing that makes it larger.
+
+Its font is PxPlus IBM VGA 9x16 by VileR (int10h.org), CC BY-SA 4.0: see
+[`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
 ## Layout
 
