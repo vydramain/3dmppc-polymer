@@ -211,12 +211,12 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
     rv_editor_rect area)
 {
-    ImGui::SetNextWindowPos(ImVec2(static_cast<float>(area.x), static_cast<float>(area.y)));
-    ImGui::SetNextWindowSize(ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)));
+    // A child of the current window, so a workspace can sit inside any pane: the
+    // Widget Catalog shows one.
+    ImGui::SetCursorScreenPos(ImVec2(static_cast<float>(area.x), static_cast<float>(area.y)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-    ImGui::Begin("##workspace", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus);
+    ImGui::BeginChild("##workspace", ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)), ImGuiChildFlags_None,
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     ImGui::PopStyleVar();
 
     const float s = theme.scale;
@@ -284,7 +284,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     }
 
     rv_editor_tile_apply(ws, action);
-    ImGui::End();
+    ImGui::EndChild();
 }
 
 } // namespace rv_editor

@@ -89,7 +89,8 @@ using rv_editor_pane_draw_fn = void (*)(rv_editor_pane_id pane, rv_editor_pane_k
 // Title of a pane kind as the tab and header show it.
 const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 
-// Fills `area` (screen pixels) with the workspace. A splitter drag changes its
+// Fills `area` (screen pixels) of the current window with the workspace, a child
+// window of its own. A splitter drag changes its
 // split's ratio.
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
     rv_editor_rect area);

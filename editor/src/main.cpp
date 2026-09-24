@@ -187,7 +187,14 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
 
     const rv_editor::rv_editor_rect area{ static_cast<int>(top.x), static_cast<int>(top.y + bar),
         static_cast<int>(size.x), static_cast<int>(size.y - 2.0f * bar) };
-    rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw, area);
+    // The tiles get a host strip of their own, like the bars around them.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+    const bool host = rv_editor_bar_begin("##tiles", ImVec2(top.x, top.y + bar), ImVec2(size.x, size.y - 2.0f * bar));
+    ImGui::PopStyleVar();
+    if (host) {
+        rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw, area);
+    }
+    ImGui::End();
 }
 
 // True once the user asked the window to close. Pointer coordinates are turned
