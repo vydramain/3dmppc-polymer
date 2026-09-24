@@ -62,7 +62,10 @@ rv_editor::rv_editor_workspace rv_editor_workspace_load(const std::filesystem::p
 // never lands under a reference the drawing holds.
 void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
 {
+    // Menus hover in brass, so an open menu keeps the pressed look under the pointer.
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));
     if (!ImGui::BeginMainMenuBar()) {
+        ImGui::PopStyleColor();
         return;
     }
     if (ImGui::BeginMenu("Layout")) {
@@ -92,6 +95,7 @@ void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
         ImGui::EndMenu();
     }
     ImGui::EndMainMenuBar();
+    ImGui::PopStyleColor();
 }
 
 void rv_editor_usage(std::FILE *out)
