@@ -46,4 +46,5 @@ host would happily pack far more than the console will ever accept.
 
 See [`mppcbaker/README.md`](mppcbaker/README.md) for the `.mppctex` layout and
 the palette traps, and the repository [`README.md`](../README.md) for the whole
-authoring flow. Both tools print `--help`.
+authoring flow. Both tools print `--help`, and `--version` prints one line,
+`<tool> <major>.<minor>`: the PDK version they build for.

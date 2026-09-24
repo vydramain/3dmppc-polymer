@@ -83,8 +83,10 @@ struct rv_editor_workspace
     uint32_t focused_leaf = rv_editor_tile_none;
 };
 
-// Draws one pane's content into the current ImGui window.
-using rv_editor_pane_draw_fn = void (*)(rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
+// Draws one pane's content into the current ImGui window. `context` is what the
+// caller handed rv_editor_workspace_draw: the models the panes are views of.
+using rv_editor_pane_draw_fn = void (*)(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind,
+    const rv_editor_theme &theme);
 
 // Title of a pane kind as the tab and header show it.
 const char *rv_editor_pane_title(rv_editor_pane_kind kind);
@@ -93,7 +95,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 // window of its own. A splitter drag changes its
 // split's ratio.
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
-    rv_editor_rect area);
+    void *context, rv_editor_rect area);
 
 // --- status, log, transport, dialogs --------------------------------------------
 // Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,

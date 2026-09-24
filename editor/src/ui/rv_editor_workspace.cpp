@@ -66,7 +66,7 @@ void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &th
 }
 
 void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, const rv_editor_theme &theme,
-    rv_editor_pane_draw_fn draw_pane, rv_editor_tile_action &action)
+    rv_editor_pane_draw_fn draw_pane, void *context, rv_editor_tile_action &action)
 {
     const auto &leaf = ws.layout.nodes[node].leaf;
     const float s = theme.scale;
@@ -154,7 +154,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     rv_editor_draw_bevel(ImGui::GetWindowDrawList(), well_min, well_max, theme, rv_editor_bevel::sunken);
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
-        draw_pane(active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
+        draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
     ImGui::EndChild();
     if (tabbed) {
@@ -209,7 +209,7 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 } // namespace
 
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
-    rv_editor_rect area)
+    void *context, rv_editor_rect area)
 {
     // A child of the current window, so a workspace can sit inside any pane: the
     // Widget Catalog shows one.
@@ -288,7 +288,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
                 rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
             }
         } else if (node.kind == rv_editor_tile_kind::leaf) {
-            draw_leaf(ws, place.node, place.rect, theme, draw_pane, action);
+            draw_leaf(ws, place.node, place.rect, theme, draw_pane, context, action);
         }
     }
 

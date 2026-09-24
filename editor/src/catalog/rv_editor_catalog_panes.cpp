@@ -119,7 +119,7 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
 }
 
 // Pane content for the tile demo: the pane's own name.
-void rv_editor_catalog_pane_name(rv_editor_pane_id, rv_editor_pane_kind kind, const rv_editor_theme &)
+void rv_editor_catalog_pane_name(void *, rv_editor_pane_id, rv_editor_pane_kind kind, const rv_editor_theme &)
 {
     ImGui::TextUnformatted(rv_editor_pane_title(kind));
 }
@@ -142,7 +142,7 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const rv_editor_rect area{ static_cast<int>(at.x), static_cast<int>(at.y),
         static_cast<int>(ImGui::GetContentRegionAvail().x), static_cast<int>(ImGui::GetFrameHeight() * 8.0f) };
-    rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, area);
+    rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, area);
 }
 
 } // namespace

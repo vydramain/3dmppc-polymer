@@ -13,6 +13,7 @@
 #include "pdk/cv/rv_texel.h"
 #include "pdk/cv/rv_texture.h"
 #include "pdk/cv/rv_vertex.h"
+#include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
@@ -106,7 +107,9 @@ void rv_baker_print_usage(std::FILE *out)
         "                      index, or 15-bit direct colour.\n"
         "  --transparent-key   source colour (hex, e.g. FF00FF) to encode as the\n"
         "                      fully transparent value 0000h. PNG alpha < 128 is\n"
-        "                      treated as transparent as well, always.\n",
+        "                      treated as transparent as well, always.\n"
+        "\n"
+        "mppcbaker --version prints one line, `mppcbaker <major>.<minor>`.\n",
         format_texfmt_names("|").c_str());
 }
 
@@ -337,5 +340,10 @@ int run(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    // One line a front end can show and compare (the editor's diagnostics).
+    if (argc == 2 && std::string_view(argv[1]) == "--version") {
+        rv_pdklib::rv_fprintf(stdout, "mppcbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        return 0;
+    }
     return rv_pdktools::run(argc, argv);
 }

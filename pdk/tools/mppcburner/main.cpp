@@ -19,6 +19,7 @@
 
 #include <getopt.h>
 
+#include "pdk/de/rv_dv.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_build/rv_burner_build_runner.hpp"
@@ -66,7 +67,10 @@ static void print_usage(std::FILE *stream)
         "                           deleting it. PATH must be attached with '='.\n"
         "\n"
         "Options (any command):\n"
-        "  -h, --help               Print this text.\n");
+        "  -h, --help               Print this text.\n"
+        "\n"
+        "  mppcburner --version prints one line, `mppcburner <major>.<minor>`: the\n"
+        "  PDK version the discs it builds are stamped with.\n");
 }
 
 // Every option the tool has, declared once. Letters are unique tool-wide, which
@@ -117,6 +121,11 @@ int main(int argc, char **argv)
     }
 
     const std::string_view command_name = argv[1];
+    // One line a front end can show and compare (the editor's diagnostics).
+    if (command_name == "--version") {
+        rv_pdklib::rv_fprintf(stdout, "mppcburner %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        return 0;
+    }
 
     const rv_pdktools::rv_burner_command_spec *cmd = nullptr;
     for (const rv_pdktools::rv_burner_command_spec &command_intern : rv_pdktools::COMMANDS) {

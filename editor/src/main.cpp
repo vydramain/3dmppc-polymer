@@ -3,6 +3,8 @@
 #include <charconv>
 #include <cstdio>
 #include <filesystem>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -12,7 +14,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 
-#include "catalog/rv_editor_catalog.hpp"
+#include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -24,98 +26,11 @@ namespace
 
 constexpr int rv_editor_scale_max = 8;
 
-// A dimmed note that wraps at the pane's edge instead of running under it (UI-05).
-void rv_editor_note(const std::string &text)
-{
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
-}
-
-void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane_kind kind,
-    const rv_editor::rv_editor_theme &theme)
-{
-    if (kind == rv_editor::rv_editor_pane_kind::catalog) {
-        rv_editor::rv_editor_catalog_draw(theme);
-    } else if (kind == rv_editor::rv_editor_pane_kind::controls) {
-        // Build, run and step the game. No runtime is wired in yet, so every button
-        // says why it is unavailable.
-        constexpr const char *idle = "No runtime session yet";
-        rv_editor::rv_editor_transport_bar({ idle, idle, idle, idle, idle, idle }, theme);
-        rv_editor::rv_editor_status("Stopped", rv_editor::rv_editor_status_kind::idle, theme);
-    } else if (kind == rv_editor::rv_editor_pane_kind::game) {
-        rv_editor_note("Frame size unknown: no console is running.");
-    } else {
-        rv_editor_note(std::string(rv_editor::rv_editor_pane_title(kind)) + ": not implemented yet.");
-    }
-}
-
-rv_editor::rv_editor_workspace rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset preset)
-{
-    rv_editor::rv_editor_workspace ws;
-    rv_editor::rv_editor_layout_preset_make(preset, ws.panes, ws.layout);
-    return ws;
-}
-
-// The saved layout, or Code when there is none or it cannot be read (LAY-06).
-rv_editor::rv_editor_workspace rv_editor_workspace_load(const std::filesystem::path &path)
-{
-    rv_editor::rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code);
-    if (path.empty() || rv_editor::rv_editor_layout_load(path, ws.panes, ws.layout)) {
-        return ws;
-    }
-    std::error_code ec;
-    if (std::filesystem::exists(path, ec)) {
-        std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from Code\n",
-            path.c_str());
-    }
-    return ws;
-}
-
-// Layout and Window menus. Runs before the workspace is drawn, so a change here
-// never lands under a reference the drawing holds.
-void rv_editor_menu(rv_editor::rv_editor_workspace &ws)
-{
-    rv_editor::rv_editor_menu_style_push();
-    if (!ImGui::BeginMainMenuBar()) {
-        rv_editor::rv_editor_menu_style_pop();
-        return;
-    }
-    if (ImGui::BeginMenu("Layout")) {
-        constexpr rv_editor::rv_editor_layout_preset presets[] = { rv_editor::rv_editor_layout_preset::code,
-            rv_editor::rv_editor_layout_preset::scene, rv_editor::rv_editor_layout_preset::debug,
-            rv_editor::rv_editor_layout_preset::build };
-        for (const rv_editor::rv_editor_layout_preset preset : presets) {
-            if (ImGui::MenuItem(rv_editor::rv_editor_layout_preset_name(preset))) {
-                ws = rv_editor_workspace_preset(preset);
-            }
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Layout")) {
-            ws = rv_editor_workspace_preset(rv_editor::rv_editor_layout_preset::code);
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Window")) {
-        if (ImGui::MenuItem("Widget Catalog")) {
-            const bool focused = ws.focused_leaf < ws.layout.nodes.size() &&
-                ws.layout.nodes[ws.focused_leaf].kind == rv_editor::rv_editor_tile_kind::leaf;
-            const uint32_t leaf = focused ? ws.focused_leaf : ws.layout.root;
-            const rv_editor::rv_editor_pane_id pane =
-                rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::catalog);
-            rv_editor::rv_editor_tile_insert(ws.layout, leaf, pane, rv_editor::rv_editor_tile_dock::tab);
-            rv_editor::rv_editor_tile_activate(ws.layout, pane);
-        }
-        ImGui::EndMenu();
-    }
-    ImGui::EndMainMenuBar();
-    rv_editor::rv_editor_menu_style_pop();
-}
-
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
-        "usage: 3dmppc-editor [-s|--scale N]\n"
+        "usage: 3dmppc-editor [-s|--scale N] [PATH]\n"
+        "  PATH            A game directory, or its disc.toml, to open.\n"
         "  -s, --scale N   Integer UI scale, 1..%d. Default: 1. The editor draws one\n"
         "                  of its pixels per screen pixel unless this asks for more.\n",
         rv_editor_scale_max);
@@ -123,7 +38,7 @@ void rv_editor_usage(std::FILE *out)
 
 // Whole-number scale from the command line. False with exit_code set when the
 // program should stop: 0 after --help, 2 after a bad argument.
-bool rv_editor_args_parse(int argc, char **argv, int &scale, int &exit_code)
+bool rv_editor_args_parse(int argc, char **argv, int &scale, std::string &path, int &exit_code)
 {
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -143,6 +58,9 @@ bool rv_editor_args_parse(int argc, char **argv, int &scale, int &exit_code)
             value = argv[++i];
         } else if (arg.starts_with("--scale=")) {
             value = arg.substr(8);
+        } else if (!arg.starts_with("-") && path.empty()) {
+            path = arg;
+            continue;
         } else {
             std::fprintf(stderr, "3dmppc-editor: unknown argument '%s'\n", argv[i]);
             rv_editor_usage(stderr);
@@ -176,12 +94,13 @@ bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
 }
 
 // One frame of the editor's UI: menus, the tiles and the status bar.
-void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_editor_theme &theme)
+void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_editor_theme &theme)
 {
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
-    rv_editor_menu(ws);
+    rv_editor::rv_editor_shell_menu(shell);
+    rv_editor::rv_editor_shell_shortcuts(shell);
 
     // The status bar takes a row; the tiles get the rest.
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
@@ -189,8 +108,12 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
     const ImVec2 size = viewport->WorkSize;
     const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
-        const char *const fields[] = { "Ready.", "Runtime: Stopped" };
-        rv_editor::rv_editor_status_bar(fields, 2, theme);
+        const rv_editor::rv_editor_app &app = shell.app;
+        const std::string where = app.project.open ? app.project.root.string() : "No project: File > Open Folder";
+        const std::string build = std::string("Build: ") + rv_editor::rv_editor_build_state_name(app.build.state());
+        const std::string runtime = std::string("Runtime: ") + rv_editor::rv_editor_run_state_name(app.session.state());
+        const char *const fields[] = { where.c_str(), build.c_str(), runtime.c_str() };
+        rv_editor::rv_editor_status_bar(fields, 3, theme);
     }
     ImGui::End();
 
@@ -201,7 +124,7 @@ void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_edi
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
     if (host) {
-        rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw, area);
+        rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane, &shell, area);
     }
     ImGui::End();
 }
@@ -243,8 +166,9 @@ void rv_editor_display_pixels(SDL_Window *window)
 int main(int argc, char **argv)
 {
     int scale = 1;
+    std::string open_path;
     int exit_code = 0;
-    if (!rv_editor_args_parse(argc, argv, scale, exit_code)) {
+    if (!rv_editor_args_parse(argc, argv, scale, open_path, exit_code)) {
         return exit_code;
     }
 
@@ -289,14 +213,23 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_icons_load(renderer);
 
     const std::filesystem::path layout_path = rv_editor::rv_editor_layout_file_path();
-    rv_editor::rv_editor_workspace workspace = rv_editor_workspace_load(layout_path);
+    // Heap-held: the shell's address goes to SDL's dialogs and to every pane.
+    auto shell = std::make_unique<rv_editor::rv_editor_shell>();
+    shell->window = window;
+    shell->ws = rv_editor::rv_editor_workspace_load(layout_path);
+    rv_editor::rv_editor_app_init(shell->app);
+    if (!open_path.empty()) {
+        const std::lock_guard<std::mutex> lock(shell->picked_mutex);
+        shell->picked.emplace_back(open_path);
+    }
 
     while (!rv_editor_poll(window, renderer)) {
+        rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         rv_editor_display_pixels(window);
         ImGui::NewFrame();
-        rv_editor_frame(workspace, theme);
+        rv_editor_frame(*shell, theme);
         ImGui::Render();
 
         SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff, theme.window & 0xff, 255);
@@ -305,8 +238,11 @@ int main(int argc, char **argv)
         SDL_RenderPresent(renderer);
     }
 
+    // No build and no runtime outlives the window (DEV-09).
+    rv_editor::rv_editor_app_shutdown(shell->app);
+
     std::string error;
-    if (!layout_path.empty() && !rv_editor::rv_editor_layout_save(layout_path, workspace.panes, workspace.layout, error)) {
+    if (!layout_path.empty() && !rv_editor::rv_editor_layout_save(layout_path, shell->ws.panes, shell->ws.layout, error)) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
 
