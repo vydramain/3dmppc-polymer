@@ -81,7 +81,7 @@ rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name)
 
 int rv_editor_icon_scale(int ui_scale)
 {
-    return std::max(1, ui_scale / 2);
+    return std::max(1, ui_scale);
 }
 
 } // namespace rv_editor

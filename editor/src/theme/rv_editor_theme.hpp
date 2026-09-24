@@ -26,7 +26,7 @@ struct rv_editor_theme
     uint32_t ok;
     int32_t bevel_px;       // bevel edge width, before scale
     int32_t pad_px;         // inner padding, before scale
-    int32_t scale;          // integer UI scale: the font is an 8x8 bitmap
+    int32_t scale;          // integer UI scale, from --scale: the font is a pixel font
 };
 
 inline constexpr rv_editor_theme rv_editor_theme_olive = {
@@ -46,7 +46,7 @@ inline constexpr rv_editor_theme rv_editor_theme_olive = {
     .ok = 0x27ae60,
     .bevel_px = 1,
     .pad_px = 4,
-    .scale = 2,
+    .scale = 1,
 };
 
 } // namespace rv_editor

@@ -5,13 +5,11 @@
 namespace rv_editor
 {
 
-// Adds pdklib's 8x8 bitmap font (pdklib/rv_font/rv_font_data.hpp) to an ImGui
-// atlas at 8 * scale pixels. Glyphs are produced by the editor's own
-// ImFontLoader: each font pixel becomes an N x N block for the whole-number N
-// that fits the requested size, so the atlas holds 0/255 alpha only and text is
-// never smoothed.
-//
-// A code point outside ASCII 32..126 draws as the font's notdef block.
+// Cell height of the editor's font, PxPlus IBM VGA 9x16 (third_party/pxplus-ibm-vga).
+inline constexpr int rv_editor_font_height = 16;
+
+// Adds the editor's one font, for interface and code alike, at 16 * scale pixels.
+// Returns nullptr when the font file cannot be read.
 ImFont *rv_editor_font_add(ImFontAtlas &atlas, int scale);
 
 } // namespace rv_editor

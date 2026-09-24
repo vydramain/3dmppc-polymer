@@ -50,14 +50,17 @@ file(GLOB_RECURSE RV_EDITOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR
 add_executable(3dmppc-editor ${RV_EDITOR_SOURCES})
 target_include_directories(3dmppc-editor PRIVATE src)
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
-# pdklib: the bitmap font now, the manifest parser later - the same data and
-# code the discs and the burner use, never a copy of it.
+# pdklib: the manifest parser the discs and the burner use, never a copy of it.
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 
 # stb_image (vendored, third_party/stb) decodes the icons. The icons are read
 # from the repository at run time, the way mppcburner finds pdk/.
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
 target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_ROOT}/third_party/win55-icons")
+
+# The editor's font (third_party/pxplus-ibm-vga), read at run time the same way.
+target_compile_definitions(3dmppc-editor PRIVATE
+  RV_EDITOR_FONT_PATH="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf")
 
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
