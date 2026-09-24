@@ -22,6 +22,15 @@ bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_ed
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});
+// Widths a button and a check box with `label` take, for rv_editor_flow.
+float rv_editor_button_width(const char *label);
+float rv_editor_checkbox_width(const char *label);
+
+// Keeps the next item on the current row when `width` still fits in the window,
+// and starts a new row otherwise, so a row of controls wraps in a narrow pane
+// instead of running out of sight (UI-05). Call it between items, like SameLine.
+void rv_editor_flow(float width);
+
 // Diamond radio: returns true when clicked; the caller owns which one is active.
 bool rv_editor_radio(const char *label, bool active, const rv_editor_theme &theme, const rv_editor_state &state = {});
 

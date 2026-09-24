@@ -13,9 +13,8 @@ Scene, Debug and Build starting layouts of the design references.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console with its own window, driven over the console's dev
-channel: Runtime Controls, Output and Project are live panes. The game's frame
-inside the Game tile, the code editor, the file tree and the terminal are not
-there yet.
+channel: Runtime Controls, Output, Project and Files are live panes. The game's
+frame inside the Game tile, the code editor and the terminal are not there yet.
 
 ## Building
 
@@ -66,6 +65,18 @@ off by default. Closing the editor stops the build and the game it started.
 
 The editor speaks dev protocol 1 and refuses any other console with the
 reason, a player build of the console included.
+
+### Files
+
+The Files pane shows the project directory as it is on disk, reading a
+directory only when it is opened, and follows changes made by any program,
+including a save through a temporary file and a rename. New File, New Folder,
+Rename and Delete work inside the project only: a new file never replaces an
+existing one, a rename never lands on an existing name, and deleting a link
+removes the link, not what it points to. Links are shown with `->` and never
+entered. The burner's `.mppcburn/` and `.git/` are not shown. A change to
+`disc.toml` is read back into the Project pane at once; a running console keeps
+the manifest it started with.
 
 ### Where things go
 

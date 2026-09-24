@@ -4,8 +4,10 @@
 #include <filesystem>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "build/rv_editor_build.hpp"
+#include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
 #include "project/rv_editor_project.hpp"
@@ -23,6 +25,25 @@ struct rv_editor_output_view
     bool follow = true;
 };
 
+// One Files pane's dialog: which operation waits for an answer, on what.
+struct rv_editor_files_view
+{
+    enum class rv_editor_files_dialog
+    {
+        none,
+        new_file,
+        new_dir,
+        rename,
+        remove,
+    };
+
+    rv_editor_files_dialog dialog = rv_editor_files_dialog::none;
+    std::filesystem::path target; // the directory for new entries, the entry otherwise
+    char name[256] = {};
+    std::string error;
+    bool opening = false;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -32,7 +53,12 @@ struct rv_editor_app
     rv_editor_log log;
     rv_editor_build build;
     rv_editor_session session;
+    rv_editor_files files;
     std::map<rv_editor_pane_id, rv_editor_output_view> outputs;
+    std::map<rv_editor_pane_id, rv_editor_files_view> files_views;
+    // Files the user asked to open (Files double click, a new file), for the
+    // code editor to take.
+    std::vector<std::filesystem::path> open_requests;
 };
 
 // Looks for the tools and says what it found.
@@ -60,6 +86,11 @@ void rv_editor_app_run_last(rv_editor_app &app);
 void rv_editor_app_pause(rv_editor_app &app);
 void rv_editor_app_step(rv_editor_app &app);
 void rv_editor_app_stop(rv_editor_app &app);
+
+// Renames or deletes inside the project; false with the reason.
+bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
+    std::string &error);
+bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
 
 // Once a frame, before drawing.
 void rv_editor_app_update(rv_editor_app &app);

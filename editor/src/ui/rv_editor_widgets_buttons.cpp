@@ -155,4 +155,25 @@ bool rv_editor_radio(const char *label, bool active, const rv_editor_theme &them
     return item.clicked;
 }
 
+float rv_editor_button_width(const char *label)
+{
+    return ImGui::CalcTextSize(label, rv_editor_label_end(label)).x + ImGui::GetStyle().FramePadding.x * 4.0f;
+}
+
+float rv_editor_checkbox_width(const char *label)
+{
+    return rv_editor_marked_size(label).x;
+}
+
+void rv_editor_flow(float width)
+{
+    const float right = ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + width;
+    // After an item the cursor waits at the start of the next row: from there
+    // the available width reaches the row's right edge.
+    const float edge = ImGui::GetCursorScreenPos().x + ImGui::GetContentRegionAvail().x;
+    if (right <= edge) {
+        ImGui::SameLine();
+    }
+}
+
 } // namespace rv_editor

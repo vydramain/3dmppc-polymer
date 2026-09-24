@@ -107,18 +107,19 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     const rv_editor_log &log = app.log;
 
     for (size_t i = 0; i < view.show.size(); ++i) {
+        const char *name = rv_editor_log_source_name(static_cast<rv_editor_log_source>(i));
         if (i > 0) {
-            ImGui::SameLine();
+            rv_editor_flow(rv_editor_checkbox_width(name));
         }
         ImGui::PushID(static_cast<int>(i));
-        rv_editor_checkbox(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)), &view.show[i], theme);
+        rv_editor_checkbox(name, &view.show[i], theme);
         ImGui::PopID();
     }
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_checkbox_width("follow"));
     rv_editor_checkbox("follow", &view.follow, theme);
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width("Copy"));
     const bool copy = rv_editor_button("Copy", theme);
-    ImGui::SameLine();
+    rv_editor_flow(rv_editor_button_width("Clear"));
     if (rv_editor_button("Clear", theme)) {
         app.log.clear();
     }

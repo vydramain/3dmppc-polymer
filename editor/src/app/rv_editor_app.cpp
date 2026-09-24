@@ -64,6 +64,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         return false;
     }
     app.project = std::move(project);
+    app.files.open(app.project.root, app.log);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "opened " + app.project.root.string());
     if (!app.project.manifest_error.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.project.manifest_error);
@@ -223,8 +224,37 @@ void rv_editor_app_stop(rv_editor_app &app)
     app.session.stop(app.log);
 }
 
+bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
+    std::string &error)
+{
+    if (!app.files.rename(from, name, error)) {
+        return false;
+    }
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+        "renamed " + from.string() + " to " + name);
+    return true;
+}
+
+bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
+{
+    if (!app.files.remove(path, error)) {
+        return false;
+    }
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "deleted " + path.string());
+    return true;
+}
+
 void rv_editor_app_update(rv_editor_app &app)
 {
+    app.files.update(app.log);
+    for (const std::filesystem::path &changed : app.files.changed) {
+        if (app.project.open && changed == app.project.manifest) {
+            // disc.toml is the source of truth (PRJ-03): what the Project pane
+            // shows follows it; a running console keeps what it loaded.
+            rv_editor_project_reload_manifest(app.project);
+        }
+    }
+    app.files.changed.clear();
     const bool was_busy = app.build.busy();
     app.build.update(app.log);
     app.session.update(app.log);

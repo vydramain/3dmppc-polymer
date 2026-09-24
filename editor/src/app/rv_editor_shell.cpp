@@ -211,6 +211,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::output:
         case rv_editor_pane_kind::console: rv_editor_pane_output(shell.app, pane, theme); return;
         case rv_editor_pane_kind::project: rv_editor_pane_project(shell.app, theme); return;
+        case rv_editor_pane_kind::files: rv_editor_pane_files(shell.app, pane, theme); return;
         case rv_editor_pane_kind::game:
             rv_editor_note(shell.app.session.live()
                     ? "The game runs in the console's own window; the frame inside this tile comes later."
