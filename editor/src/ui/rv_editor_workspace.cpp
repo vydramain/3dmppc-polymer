@@ -50,55 +50,81 @@ struct rv_editor_tile_action
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
 };
 
+// The leaf's panes in the catalog's tab strip (ImGui's tab bar in the theme's
+// colours). ImGui keeps its own selection, so the model's choice is pushed to it
+// whenever the two differ; the last pane shown is remembered in the window's storage.
+void draw_tabs(rv_editor_workspace &ws, uint32_t node)
+{
+    const rv_editor_tile_leaf &leaf = ws.layout.nodes[node].leaf;
+    ImGuiStorage *storage = ImGui::GetStateStorage();
+    const ImGuiID shown_key = ImGui::GetID("##shown");
+    const rv_editor_pane_id wanted = leaf.tabs[leaf.active];
+    const bool push = storage->GetInt(shown_key, -1) != static_cast<int>(wanted);
+
+    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_DrawSelectedOverline)) {
+        return;
+    }
+    rv_editor_pane_id picked = rv_editor_tile_none;
+    for (size_t i = 0; i < leaf.tabs.size(); ++i) {
+        const rv_editor_pane_id pane = leaf.tabs[i];
+        const char *title = rv_editor_pane_title(ws.panes.panes[pane].kind);
+        char label[64];
+        std::snprintf(label, sizeof(label), "%s##%u", title, pane);
+        const ImGuiTabItemFlags flags = push && i == leaf.active ? ImGuiTabItemFlags_SetSelected : 0;
+        if (ImGui::BeginTabItem(label, nullptr, flags)) {
+            picked = pane;
+            ImGui::EndTabItem();
+        }
+        if (ImGui::BeginDragDropSource()) {
+            ImGui::SetDragDropPayload("RV_EDITOR_PANE", &pane, sizeof(pane));
+            ImGui::TextUnformatted(title);
+            ImGui::EndDragDropSource();
+        }
+    }
+    ImGui::EndTabBar();
+
+    // While a push is pending ImGui still reports the old tab; only a click moves the model.
+    if (push || picked == rv_editor_tile_none) {
+        storage->SetInt(shown_key, static_cast<int>(wanted));
+        return;
+    }
+    rv_editor_tile_activate(ws.layout, picked);
+    storage->SetInt(shown_key, static_cast<int>(picked));
+}
+
 void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, const rv_editor_theme &theme,
     rv_editor_pane_draw_fn draw_pane, rv_editor_tile_action &action)
 {
     const auto &leaf = ws.layout.nodes[node].leaf;
     const float s = theme.scale;
     const float bevel = theme.bevel_px * s;
-    const float frame_h = ImGui::GetFrameHeight();
+    // The tile is a window: a raised frame, the pane header, the catalog's tab
+    // strip when the leaf holds more than one pane, then the padded content.
+    const ImVec2 outer_min(static_cast<float>(rect.x), static_cast<float>(rect.y));
+    const ImVec2 outer_max(outer_min.x + rect.w, outer_min.y + rect.h);
+    rv_editor_draw_panel(ImGui::GetWindowDrawList(), outer_min, outer_max, theme, theme.window,
+        rv_editor_bevel::raised);
 
-    ImGui::SetCursorScreenPos(ImVec2(rect.x, rect.y));
+    ImGui::SetCursorScreenPos(ImVec2(outer_min.x + bevel, outer_min.y + bevel));
     ImGui::PushID(node);
-    ImGui::BeginChild("##leaf", ImVec2(rect.w, rect.h), ImGuiChildFlags_None,
+    ImGui::BeginChild("##leaf", ImVec2(rect.w - 2.0f * bevel, rect.h - 2.0f * bevel), ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
-
-    if (leaf.tabs.empty()) {
-        rv_editor_pane_header("Empty", node == ws.focused_leaf, theme);
-    } else if (leaf.tabs.size() == 1) {
-        const char *title = rv_editor_pane_title(ws.panes.panes[leaf.tabs[0]].kind);
-        rv_editor_pane_header(title, node == ws.focused_leaf, theme);
-        if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload("RV_EDITOR_PANE", &leaf.tabs[0], sizeof(leaf.tabs[0]));
-            ImGui::TextUnformatted(title);
-            ImGui::EndDragDropSource();
-        }
-    } else {
-        for (size_t i = 0; i < leaf.tabs.size(); ++i) {
-            if (i > 0) {
-                ImGui::SameLine(0, 0);
-            }
-            const rv_editor_pane_id pane_id = leaf.tabs[i];
-            const char *title = rv_editor_pane_title(ws.panes.panes[pane_id].kind);
-            char buf[128];
-            std::snprintf(buf, sizeof(buf), "%s##%zu", title, i);
-            const ImVec2 size(ImGui::CalcTextSize(title).x + 2.0f * theme.pad_px * s, frame_h);
-            if (ImGui::Selectable(buf, i == leaf.active, 0, size)) {
-                rv_editor_tile_activate(ws.layout, pane_id);
-            }
-            if (ImGui::BeginDragDropSource()) {
-                ImGui::SetDragDropPayload("RV_EDITOR_PANE", &pane_id, sizeof(pane_id));
-                ImGui::TextUnformatted(title);
-                ImGui::EndDragDropSource();
-            }
-        }
+    const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
+    const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_pane_title(ws.panes.panes[active].kind);
+    rv_editor_pane_header(title, node == ws.focused_leaf, theme);
+    if (active != rv_editor_tile_none && ImGui::BeginDragDropSource()) {
+        ImGui::SetDragDropPayload("RV_EDITOR_PANE", &active, sizeof(active));
+        ImGui::TextUnformatted(title);
+        ImGui::EndDragDropSource();
+    }
+    if (leaf.tabs.size() > 1) {
+        draw_tabs(ws, node);
     }
 
-    // A double click on the header or the tab row toggles maximize.
-    const ImVec2 row_min(rect.x, rect.y);
-    const ImVec2 row_max(rect.x + rect.w, rect.y + frame_h + 2.0f * bevel);
+    // A double click on the header or the tab strip toggles maximize.
+    const ImVec2 row_min = outer_min;
+    const ImVec2 row_max(outer_max.x, ImGui::GetCursorScreenPos().y);
     if (ImGui::IsMouseHoveringRect(row_min, row_max) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         rv_editor_tile_toggle_maximize(ws.layout, node);
     }
@@ -143,7 +169,10 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         ImGui::EndPopup();
     }
 
-    ImGui::BeginChild("##pane", ImVec2(0, 0), ImGuiChildFlags_None);
+    // The content keeps the theme's padding off the frame, like every catalog pane.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
+    ImGui::BeginChild("##pane", ImVec2(0, 0), ImGuiChildFlags_AlwaysUseWindowPadding);
+    ImGui::PopStyleVar();
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
@@ -261,8 +290,10 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     const float s = theme.scale;
     const float bevel = theme.bevel_px * s;
     const float frame_h = ImGui::GetFrameHeight();
-    const rv_editor_tile_metrics m{ static_cast<int>(theme.pad_px * s),
-        { static_cast<int>(2.0f * bevel), static_cast<int>(frame_h + 2.0f * bevel) } };
+    // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
+    const float pad = theme.pad_px * s;
+    const rv_editor_tile_metrics m{ static_cast<int>(pad),
+        { static_cast<int>(2.0f * (bevel + pad)), static_cast<int>(2.0f * (bevel + frame_h + pad)) } };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
     const ImVec2 glyph = ImGui::CalcTextSize("M");
