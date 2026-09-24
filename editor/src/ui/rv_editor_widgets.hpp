@@ -2,6 +2,7 @@
 
 #include <cstddef>
 
+#include "layout/rv_editor_tile.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widget_item.hpp"
@@ -47,13 +48,6 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
 // Trees, lists, tables and tab strips are ImGui's own (TreeNodeEx, BeginListBox,
 // BeginTable, BeginTabBar) in the theme's colours; these are the pane pieces
 // ImGui has no public form of.
-
-// The direction a splitter moves in.
-enum class rv_editor_axis
-{
-    x,
-    y,
-};
 
 // Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
 // tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.
