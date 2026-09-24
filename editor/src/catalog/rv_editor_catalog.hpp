@@ -8,7 +8,8 @@ namespace rv_editor
 {
 
 // Widget Catalog (UI-07): every component in every state, drawn with the real
-// theme, for checking the theme by eye. It fills the window.
+// theme, for checking the theme by eye. Draws into the current window, which
+// scrolls once every group is in.
 void rv_editor_catalog_draw(const rv_editor_theme &theme);
 
 // One section per component group, each in its own file.

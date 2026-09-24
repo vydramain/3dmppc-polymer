@@ -57,6 +57,27 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
 // Full-width pane title bar: stippled when active, dimmed when not.
 void rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme);
 
+// --- the tiled workspace ------------------------------------------------------
+
+// What the window shows: the pane registry and the tile tree over it
+// (docs/adr/0002-tiling.md). Views only; no model lives here.
+struct rv_editor_workspace
+{
+    rv_editor_pane_registry panes;
+    rv_editor_layout layout;
+    uint32_t focused_leaf = rv_editor_tile_none;
+};
+
+// Draws one pane's content into the current ImGui window.
+using rv_editor_pane_draw_fn = void (*)(rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
+
+// Title of a pane kind as the tab and header show it.
+const char *rv_editor_pane_title(rv_editor_pane_kind kind);
+
+// Fills the main viewport with the workspace. A splitter drag changes its
+// split's ratio; a double click on a leaf's header or tab row toggles maximize.
+void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane);
+
 // --- status, log, transport, dialogs --------------------------------------------
 // Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
 // BeginPopupContextItem) in the theme's colours.

@@ -15,11 +15,44 @@
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_icons.hpp"
+#include "ui/rv_editor_widgets.hpp"
 
 namespace
 {
 
 constexpr int rv_editor_scale_max = 8;
+
+void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane_kind kind,
+    const rv_editor::rv_editor_theme &theme)
+{
+    if (kind == rv_editor::rv_editor_pane_kind::catalog) {
+        rv_editor::rv_editor_catalog_draw(theme);
+    } else if (kind == rv_editor::rv_editor_pane_kind::game) {
+        ImGui::TextDisabled("Frame size unknown: no console is running.");
+    } else {
+        ImGui::TextDisabled("%s: not implemented yet.", rv_editor::rv_editor_pane_title(kind));
+    }
+}
+
+rv_editor::rv_editor_workspace rv_editor_workspace_initial()
+{
+    rv_editor::rv_editor_workspace ws;
+    rv_editor::rv_editor_pane_id catalog = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::catalog);
+    rv_editor::rv_editor_pane_id project = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::project);
+    rv_editor::rv_editor_pane_id game = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::game);
+    rv_editor::rv_editor_pane_id output = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::output);
+    rv_editor::rv_editor_pane_id code = rv_editor::rv_editor_pane_add(ws.panes, rv_editor::rv_editor_pane_kind::code);
+
+    ws.layout = rv_editor::rv_editor_layout_make(catalog);
+    rv_editor::rv_editor_tile_insert(ws.layout, 0, project, rv_editor::rv_editor_tile_dock::left);
+    uint32_t catalog_leaf = rv_editor::rv_editor_tile_find(ws.layout, catalog);
+    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, game, rv_editor::rv_editor_tile_dock::right);
+    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, output, rv_editor::rv_editor_tile_dock::bottom);
+    rv_editor::rv_editor_tile_insert(ws.layout, catalog_leaf, code, rv_editor::rv_editor_tile_dock::tab);
+    rv_editor::rv_editor_tile_activate(ws.layout, catalog);
+    ws.focused_leaf = catalog_leaf;
+    return ws;
+}
 
 void rv_editor_usage(std::FILE *out)
 {
@@ -72,13 +105,13 @@ bool rv_editor_args_parse(int argc, char **argv, int &scale, int &exit_code)
     return true;
 }
 
-// One frame of the editor's UI. For now the widget catalog fills the window.
-void rv_editor_frame(const rv_editor::rv_editor_theme &theme)
+// One frame of the editor's UI: the tiled workspace.
+void rv_editor_frame(rv_editor::rv_editor_workspace &ws, const rv_editor::rv_editor_theme &theme)
 {
     // The background list is rendered first, and the backend resets sampling only
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
-    rv_editor::rv_editor_catalog_draw(theme);
+    rv_editor::rv_editor_workspace_draw(ws, theme, rv_editor_pane_draw);
 }
 
 // True once the user asked the window to close. Pointer coordinates are turned
@@ -163,12 +196,14 @@ int main(int argc, char **argv)
     ImGui_ImplSDLRenderer3_Init(renderer);
     rv_editor::rv_editor_icons_load(renderer);
 
+    rv_editor::rv_editor_workspace workspace = rv_editor_workspace_initial();
+
     while (!rv_editor_poll(window, renderer)) {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         rv_editor_display_pixels(window);
         ImGui::NewFrame();
-        rv_editor_frame(theme);
+        rv_editor_frame(workspace, theme);
         ImGui::Render();
 
         SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff, theme.window & 0xff, 255);
