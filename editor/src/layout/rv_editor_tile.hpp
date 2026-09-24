@@ -65,8 +65,9 @@ struct rv_editor_pane
     rv_editor_pane_kind kind;
 };
 
-// Pane id -> pane. Ids are indices and are never reused, so a saved layout keeps
-// pointing at the same pane. A pane is shown while the tree holds its id.
+// Pane id -> pane. Ids are indices and are never reused within a session, so a
+// view keeps pointing at the same pane. A pane is shown while the tree holds its
+// id; the saved layout keeps only those, renumbered.
 struct rv_editor_pane_registry
 {
     std::vector<rv_editor_pane> panes;
@@ -163,8 +164,8 @@ struct rv_editor_tile_metrics
 };
 
 // Where one node lands. `overflow` marks a split whose children's minimums do not
-// fit its rectangle: the children are shrunk in proportion to their minimums and
-// the view offers tabs or Fit instead (LAY-04).
+// fit its rectangle: the children are shrunk in proportion to their minimums. The
+// view never asks for that: it places the tree in at least its minimum and scrolls.
 struct rv_editor_tile_place
 {
     uint32_t node;
@@ -184,8 +185,8 @@ std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout 
 
 // --- text form ----------------------------------------------------------------
 
-// The saved form of a workspace: the pane registry and the tree, one record per
-// line, first line "3dmppc-editor-layout 1".
+// The saved form of a workspace: the panes the tree shows and the tree, one
+// record per line, first line "3dmppc-editor-layout 1".
 std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout);
 
 // Reads what rv_editor_layout_write wrote. False, with both outputs untouched,

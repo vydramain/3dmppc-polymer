@@ -215,8 +215,9 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     // Widget Catalog shows one.
     ImGui::SetCursorScreenPos(ImVec2(static_cast<float>(area.x), static_cast<float>(area.y)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    // Scrollbars appear only when the window is smaller than the tree's minimum.
     ImGui::BeginChild("##workspace", ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)), ImGuiChildFlags_None,
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+        ImGuiWindowFlags_HorizontalScrollbar);
     ImGui::PopStyleVar();
 
     const float s = theme.scale;
@@ -237,7 +238,15 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
         }
     }
 
-    std::vector<rv_editor_tile_place> places = rv_editor_layout_place(ws.layout, area, m, pane_min);
+    // A window smaller than the tree's minimum scrolls instead of squeezing tiles
+    // below their minimums, so every control stays reachable (LAY-04).
+    const uint32_t shown = ws.layout.maximized_leaf < ws.layout.nodes.size() ? ws.layout.maximized_leaf : ws.layout.root;
+    const rv_editor_size need = rv_editor_tile_min_size(ws.layout, shown, m, pane_min);
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const rv_editor_rect placed{ static_cast<int>(origin.x), static_cast<int>(origin.y),
+        std::max(static_cast<int>(avail.x), need.w), std::max(static_cast<int>(avail.y), need.h) };
+    std::vector<rv_editor_tile_place> places = rv_editor_layout_place(ws.layout, placed, m, pane_min);
 
     std::vector<rv_editor_rect> rect_of(ws.layout.nodes.size());
     for (const auto &place : places) {
@@ -282,6 +291,10 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
             draw_leaf(ws, place.node, place.rect, theme, draw_pane, action);
         }
     }
+
+    // The content size the scrollbars measure.
+    ImGui::SetCursorScreenPos(origin);
+    ImGui::Dummy(ImVec2(static_cast<float>(placed.w), static_cast<float>(placed.h)));
 
     rv_editor_tile_apply(ws, action);
     ImGui::EndChild();

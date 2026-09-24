@@ -132,10 +132,22 @@ std::vector<std::string_view> split_text(std::string_view text)
 
 std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout)
 {
-    std::string r = "3dmppc-editor-layout 1\n";
-    for (const auto &p : panes.panes) {
-        r += "pane " + std::string(kind_name(p.kind)) + "\n";
+    // Only the panes the tree still shows are written, numbered in tree order: a
+    // closed pane stays in the registry for the session, never in the file.
+    std::vector<uint32_t> renumber(panes.panes.size(), rv_editor_tile_none);
+    std::string pane_lines;
+    uint32_t written = 0;
+    for (const auto &n : layout.nodes) {
+        if (n.kind != rv_editor_tile_kind::leaf) {
+            continue;
+        }
+        for (const rv_editor_pane_id x : n.leaf.tabs) {
+            renumber[x] = written++;
+            pane_lines += "pane " + std::string(kind_name(panes.panes[x].kind)) + "\n";
+        }
     }
+
+    std::string r = "3dmppc-editor-layout 1\n" + pane_lines;
     for (const auto &n : layout.nodes) {
         if (n.kind == rv_editor_tile_kind::free) {
             r += "node free\n";
@@ -144,7 +156,7 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
                 (n.parent == rv_editor_tile_none ? std::string("-") : std::to_string(n.parent));
             r += " " + std::to_string(n.leaf.active);
             for (auto x : n.leaf.tabs) {
-                r += " " + std::to_string(x);
+                r += " " + std::to_string(renumber[x]);
             }
             r += "\n";
         } else {

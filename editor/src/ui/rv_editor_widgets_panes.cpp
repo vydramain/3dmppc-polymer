@@ -161,6 +161,7 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
 
     rv_editor_header_action action = rv_editor_header_action::none;
     float title_x = inner_min.x;
+    float title_limit = inner_max.x;
     if (controls) {
         const float box = inner_max.y - inner_min.y;
         ImGui::PushID(title);
@@ -173,17 +174,30 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
         }
         ImGui::PopID();
         title_x += box;
+        title_limit -= box;
     }
 
     // The title sits on a solid patch so the stipple never runs through letters.
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
+    // A title longer than the room between the boxes ends in "..." and shows whole
+    // in a tooltip (UI-05).
     const char *end = rv_editor_label_end(title);
-    const ImVec2 text = ImGui::CalcTextSize(title, end);
     const ImVec2 patch_min(title_x + pad, inner_min.y);
-    const ImVec2 patch_max(patch_min.x + text.x + pad * 2.0f, inner_max.y);
+    const char *shown = rv_editor_text_fit(title, end, std::max(0.0f, title_limit - patch_min.x - pad * 3.0f));
+    const bool elided = shown != end;
+    const float text_w = ImGui::CalcTextSize(title, shown).x + (elided ? ImGui::CalcTextSize("...").x : 0.0f);
+    const float text_h = ImGui::GetFontSize();
+    const ImVec2 patch_max(patch_min.x + text_w + pad * 2.0f, inner_max.y);
     dl->AddRectFilled(patch_min, patch_max, rv_editor_col(theme.dark));
-    const ImVec2 pos(std::floor(patch_min.x + pad), std::floor((min.y + max.y - text.y) / 2.0f));
-    dl->AddText(pos, rv_editor_col(active ? theme.text_bright : theme.text), title, end);
+    const ImVec2 pos(std::floor(patch_min.x + pad), std::floor((min.y + max.y - text_h) / 2.0f));
+    const ImU32 ink = rv_editor_col(active ? theme.text_bright : theme.text);
+    dl->AddText(pos, ink, title, shown);
+    if (elided) {
+        dl->AddText(ImVec2(pos.x + ImGui::CalcTextSize(title, shown).x, pos.y), ink, "...");
+        if (ImGui::IsMouseHoveringRect(patch_min, patch_max)) {
+            ImGui::SetTooltip("%.*s", static_cast<int>(end - title), title);
+        }
+    }
 
     // The bar as one layout item, so what follows starts below it.
     ImGui::SetCursorScreenPos(min);

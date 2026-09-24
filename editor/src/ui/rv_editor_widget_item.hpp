@@ -50,4 +50,8 @@ uint32_t rv_editor_item_text(const rv_editor_theme &theme, const rv_editor_item 
 // End of the visible part of a label: ImGui's "##" suffix is an id, not text.
 const char *rv_editor_label_end(const char *label);
 
+// End of the longest prefix of [text, end) that still fits `width` with "..."
+// after it, or `end` when the whole text fits. Never splits a UTF-8 character.
+const char *rv_editor_text_fit(const char *text, const char *end, float width);
+
 } // namespace rv_editor

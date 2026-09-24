@@ -64,4 +64,24 @@ const char *rv_editor_label_end(const char *label)
     return hash != nullptr ? hash : label + std::strlen(label);
 }
 
+const char *rv_editor_text_fit(const char *text, const char *end, float width)
+{
+    if (ImGui::CalcTextSize(text, end).x <= width) {
+        return end;
+    }
+    const float room = width - ImGui::CalcTextSize("...").x;
+    const char *fit = text;
+    while (fit < end) {
+        const char *next = fit + 1;
+        while (next < end && (static_cast<unsigned char>(*next) & 0xC0) == 0x80) {
+            ++next;
+        }
+        if (ImGui::CalcTextSize(text, next).x > room) {
+            break;
+        }
+        fit = next;
+    }
+    return fit;
+}
+
 } // namespace rv_editor

@@ -24,6 +24,14 @@ namespace
 
 constexpr int rv_editor_scale_max = 8;
 
+// A dimmed note that wraps at the pane's edge instead of running under it (UI-05).
+void rv_editor_note(const std::string &text)
+{
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("%s", text.c_str());
+    ImGui::PopStyleColor();
+}
+
 void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane_kind kind,
     const rv_editor::rv_editor_theme &theme)
 {
@@ -36,9 +44,9 @@ void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane
         rv_editor::rv_editor_transport_bar({ idle, idle, idle, idle, idle, idle }, theme);
         rv_editor::rv_editor_status("Stopped", rv_editor::rv_editor_status_kind::idle, theme);
     } else if (kind == rv_editor::rv_editor_pane_kind::game) {
-        ImGui::TextDisabled("Frame size unknown: no console is running.");
+        rv_editor_note("Frame size unknown: no console is running.");
     } else {
-        ImGui::TextDisabled("%s: not implemented yet.", rv_editor::rv_editor_pane_title(kind));
+        rv_editor_note(std::string(rv_editor::rv_editor_pane_title(kind)) + ": not implemented yet.");
     }
 }
 
