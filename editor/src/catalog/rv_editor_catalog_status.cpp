@@ -19,6 +19,7 @@ rv_editor_status_values rv_editor_status_data;
 
 void rv_editor_catalog_menus()
 {
+    rv_editor_menu_style_push();
     ImGui::BeginChild("##menus", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
         ImGuiWindowFlags_MenuBar);
     if (ImGui::BeginMenuBar()) {
@@ -45,6 +46,7 @@ void rv_editor_catalog_menus()
         ImGui::EndPopup();
     }
     ImGui::EndChild();
+    rv_editor_menu_style_pop();
 }
 
 // The dialog's look inline, so it can be checked without opening it; the button

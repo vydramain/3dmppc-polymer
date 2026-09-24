@@ -103,6 +103,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     if (ImGui::IsMouseHoveringRect(row_min, row_max) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         ImGui::OpenPopup("##tile");
     }
+    rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##tile")) {
         if (ImGui::MenuItem("Split Right")) {
             action.what = rv_editor_tile_action::op::split;
@@ -138,6 +139,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         }
         ImGui::EndPopup();
     }
+    rv_editor_menu_style_pop();
 
     // The content keeps the theme's padding off the frame, like every catalog pane.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
