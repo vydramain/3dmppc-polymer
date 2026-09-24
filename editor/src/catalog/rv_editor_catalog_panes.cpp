@@ -118,6 +118,33 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     ImGui::EndGroup();
 }
 
+// Pane content for the tile demo: the pane's own name.
+void rv_editor_catalog_pane_name(rv_editor_pane_id, rv_editor_pane_kind kind, const rv_editor_theme &)
+{
+    ImGui::TextUnformatted(rv_editor_pane_title(kind));
+}
+
+// A live workspace of three panes, so the tile window is checked as the editor
+// draws it: frame, header boxes, content well and folder tabs.
+void rv_editor_catalog_tiles(const rv_editor_theme &t)
+{
+    static rv_editor_workspace ws = [] {
+        rv_editor_workspace w;
+        const rv_editor_pane_id code = rv_editor_pane_add(w.panes, rv_editor_pane_kind::code);
+        const rv_editor_pane_id output = rv_editor_pane_add(w.panes, rv_editor_pane_kind::output);
+        const rv_editor_pane_id terminal = rv_editor_pane_add(w.panes, rv_editor_pane_kind::terminal);
+        w.layout = rv_editor_layout_make(code);
+        rv_editor_tile_insert(w.layout, rv_editor_tile_find(w.layout, code), output, rv_editor_tile_dock::right);
+        rv_editor_tile_insert(w.layout, rv_editor_tile_find(w.layout, output), terminal, rv_editor_tile_dock::tab);
+        return w;
+    }();
+    ImGui::SeparatorText("Tile windows");
+    const ImVec2 at = ImGui::GetCursorScreenPos();
+    const rv_editor_rect area{ static_cast<int>(at.x), static_cast<int>(at.y),
+        static_cast<int>(ImGui::GetContentRegionAvail().x), static_cast<int>(ImGui::GetFrameHeight() * 8.0f) };
+    rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, area);
+}
+
 } // namespace
 
 void rv_editor_catalog_panes(const rv_editor_theme &theme)
@@ -143,6 +170,7 @@ void rv_editor_catalog_panes(const rv_editor_theme &theme)
     }
     rv_editor_catalog_tabs(theme);
     rv_editor_catalog_splitters(theme);
+    rv_editor_catalog_tiles(theme);
 }
 
 } // namespace rv_editor
