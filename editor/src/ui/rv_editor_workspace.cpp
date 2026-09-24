@@ -42,7 +42,7 @@ namespace
 // A change to the tree, recorded while drawing and applied after it.
 struct rv_editor_tile_action
 {
-    enum class op { none, split, set_kind, maximize, close } what = op::none;
+    enum class op { none, split, set_kind, maximize, close, close_leaf } what = op::none;
     uint32_t leaf = rv_editor_tile_none; // the leaf acted on (split, maximize)
     rv_editor_pane_id pane = rv_editor_tile_none;
     rv_editor_pane_kind kind = rv_editor_pane_kind::empty;
@@ -106,7 +106,15 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
     const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_pane_title(ws.panes.panes[active].kind);
-    rv_editor_pane_header(title, node == ws.focused_leaf, theme);
+    // X takes the tile off the screen, M maximizes it.
+    const rv_editor_header_action clicked = rv_editor_pane_header(title, node == ws.focused_leaf, theme, true);
+    if (clicked == rv_editor_header_action::close) {
+        action.what = rv_editor_tile_action::op::close_leaf;
+        action.leaf = node;
+    } else if (clicked == rv_editor_header_action::maximize) {
+        action.what = rv_editor_tile_action::op::maximize;
+        action.leaf = node;
+    }
     if (leaf.tabs.size() > 1) {
         draw_tabs(ws, node);
     }
@@ -188,6 +196,12 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
         rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
     } else if (a.what == rv_editor_tile_action::op::close) {
         rv_editor_tile_remove(ws.layout, a.pane);
+    } else if (a.what == rv_editor_tile_action::op::close_leaf) {
+        // A copy: removing the last pane frees the leaf the list lives in.
+        const std::vector<rv_editor_pane_id> tabs = ws.layout.nodes[a.leaf].leaf.tabs;
+        for (const rv_editor_pane_id pane : tabs) {
+            rv_editor_tile_remove(ws.layout, pane);
+        }
     }
 
     // Update focused_leaf if it is no longer valid.
