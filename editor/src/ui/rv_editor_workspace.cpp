@@ -111,12 +111,9 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         draw_tabs(ws, node);
     }
 
-    // A double click on the header or the tab strip toggles maximize.
+    // The header and the tab strip: a right click there opens the tile's menu.
     const ImVec2 row_min = outer_min;
     const ImVec2 row_max(outer_max.x, ImGui::GetCursorScreenPos().y);
-    if (ImGui::IsMouseHoveringRect(row_min, row_max) && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        rv_editor_tile_toggle_maximize(ws.layout, node);
-    }
 
     // Context menu.
     if (ImGui::IsMouseHoveringRect(row_min, row_max) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {

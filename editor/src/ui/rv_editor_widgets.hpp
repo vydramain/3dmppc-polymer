@@ -75,7 +75,7 @@ using rv_editor_pane_draw_fn = void (*)(rv_editor_pane_id pane, rv_editor_pane_k
 const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 
 // Fills the main viewport with the workspace. A splitter drag changes its
-// split's ratio; a double click on a leaf's header or tab row toggles maximize.
+// split's ratio.
 void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane);
 
 // --- status, log, transport, dialogs --------------------------------------------
