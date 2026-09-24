@@ -29,6 +29,12 @@ void rv_editor_pane_draw(rv_editor::rv_editor_pane_id, rv_editor::rv_editor_pane
 {
     if (kind == rv_editor::rv_editor_pane_kind::catalog) {
         rv_editor::rv_editor_catalog_draw(theme);
+    } else if (kind == rv_editor::rv_editor_pane_kind::controls) {
+        // Build, run and step the game. No runtime is wired in yet, so every button
+        // says why it is unavailable.
+        constexpr const char *idle = "No runtime session yet";
+        rv_editor::rv_editor_transport_bar({ idle, idle, idle, idle, idle, idle }, theme);
+        rv_editor::rv_editor_status("Stopped", rv_editor::rv_editor_status_kind::idle, theme);
     } else if (kind == rv_editor::rv_editor_pane_kind::game) {
         ImGui::TextDisabled("Frame size unknown: no console is running.");
     } else {
