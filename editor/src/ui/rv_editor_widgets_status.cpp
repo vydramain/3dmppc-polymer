@@ -131,4 +131,14 @@ void rv_editor_dialog_end()
     ImGui::EndPopup();
 }
 
+void rv_editor_menu_style_push()
+{
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, ImGui::GetStyleColorVec4(ImGuiCol_Header));
+}
+
+void rv_editor_menu_style_pop()
+{
+    ImGui::PopStyleColor();
+}
+
 } // namespace rv_editor

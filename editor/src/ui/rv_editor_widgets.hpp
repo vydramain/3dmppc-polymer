@@ -98,6 +98,11 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
 // Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
 // BeginPopupContextItem) in the theme's colours.
 
+// Menus hover in brass, so an open menu keeps its pressed look under the
+// pointer. Every menu bar and popup menu is drawn between these two calls.
+void rv_editor_menu_style_push();
+void rv_editor_menu_style_pop();
+
 enum class rv_editor_status_kind
 {
     idle,
