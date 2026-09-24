@@ -49,4 +49,5 @@ Its font is PxPlus IBM VGA 9x16 by VileR (int10h.org), CC BY-SA 4.0: see
 | `src/` | the editor's sources |
 | [`docs/3dmppc-editor-v0.4-requirements.md`](docs/3dmppc-editor-v0.4-requirements.md) | requirements and acceptance criteria of the editor MVP |
 | [`docs/adr/`](docs/adr/README.md) | architecture decisions: toolkit, tiling, theme, fonts, code editor, Game frame, CMake |
+| [`docs/sgi-irix-ux.md`](docs/sgi-irix-ux.md) | research: how SGI IRIX technical applications looked and behaved, with sources |
 | `docs/references/` | generated design references: a visual direction, not a specification |
