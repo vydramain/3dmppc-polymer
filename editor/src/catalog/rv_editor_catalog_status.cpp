@@ -113,6 +113,8 @@ void rv_editor_catalog_transport(const rv_editor_theme &t)
     ImGui::SameLine();
     // Run is also Resume, so a paused session can run again.
     rv_editor_transport_bar({nullptr, nullptr, "Already paused", nullptr, nullptr, nullptr}, t);
+    const char *const status_fields[] = {"Ready.", "Runtime: Stopped", "Line 24, Col 17"};
+    rv_editor_status_bar(status_fields, 3, t);
 }
 
 } // namespace

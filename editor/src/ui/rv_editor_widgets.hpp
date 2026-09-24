@@ -119,6 +119,10 @@ enum class rv_editor_severity
     error,
 };
 
+// Status bar: one sunken field per text, left to right; the first field takes
+// the width the others leave.
+void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme);
+
 // Lamp and label; each kind has its own symbol as well as its own colour.
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
 

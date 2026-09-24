@@ -1,5 +1,6 @@
 // Status indicators, log rows, the transport bar and dialogs.
 
+#include <algorithm>
 #include <cmath>
 
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -129,6 +130,36 @@ bool rv_editor_dialog_begin(const char *title, const rv_editor_theme &theme)
 void rv_editor_dialog_end()
 {
     ImGui::EndPopup();
+}
+
+void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme)
+{
+    if (count <= 0) {
+        return;
+    }
+    const float h = ImGui::GetFrameHeight();
+    const float pad = static_cast<float>(theme.pad_px * theme.scale);
+    const float gap = static_cast<float>(2 * theme.scale);
+    float rest = 0.0f;
+    for (int i = 1; i < count; ++i) {
+        rest += ImGui::CalcTextSize(fields[i]).x + pad * 4.0f + gap;
+    }
+
+    const ImVec2 origin = ImGui::GetCursorScreenPos();
+    const float width = ImGui::GetContentRegionAvail().x;
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    float x = origin.x;
+    for (int i = 0; i < count; ++i) {
+        const ImVec2 text = ImGui::CalcTextSize(fields[i]);
+        const float w = i == 0 ? std::max(width - rest, pad * 4.0f) : text.x + pad * 4.0f;
+        const ImVec2 min(x, origin.y);
+        const ImVec2 max(x + w, origin.y + h);
+        rv_editor_draw_panel(dl, min, max, theme, theme.window, rv_editor_bevel::sunken);
+        const ImVec2 at(std::floor(min.x + pad * 2.0f), std::floor((min.y + max.y - text.y) / 2.0f));
+        dl->AddText(at, rv_editor_col(theme.text), fields[i]);
+        x = max.x + gap;
+    }
+    ImGui::Dummy(ImVec2(width, h));
 }
 
 void rv_editor_menu_style_push()
