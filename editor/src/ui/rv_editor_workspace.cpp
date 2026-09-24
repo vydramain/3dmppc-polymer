@@ -145,6 +145,11 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
     ImGui::BeginChild("##pane", ImVec2(0, -tabs_h), ImGuiChildFlags_AlwaysUseWindowPadding);
     ImGui::PopStyleVar();
+    // A sunken well inside the raised frame: the window's double edge. Drawn by
+    // the content window itself, whose background would cover the parent's lines.
+    const ImVec2 well_min = ImGui::GetWindowPos();
+    const ImVec2 well_max(well_min.x + ImGui::GetWindowWidth(), well_min.y + ImGui::GetWindowHeight());
+    rv_editor_draw_bevel(ImGui::GetWindowDrawList(), well_min, well_max, theme, rv_editor_bevel::sunken);
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
