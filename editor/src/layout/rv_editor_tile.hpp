@@ -56,6 +56,8 @@ enum class rv_editor_pane_kind : uint32_t
     terminal,
     problems,
     search,
+    toolchest,
+    console,
 };
 
 struct rv_editor_pane

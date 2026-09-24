@@ -32,6 +32,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::terminal: return "Terminal";
         case rv_editor_pane_kind::problems: return "Problems";
         case rv_editor_pane_kind::search: return "Search Results";
+        case rv_editor_pane_kind::toolchest: return "Toolchest";
+        case rv_editor_pane_kind::console: return "Console";
     }
     return "?";
 }
@@ -113,7 +115,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
             action.dock = rv_editor_tile_dock::bottom;
         }
         if (ImGui::BeginMenu("Change To", active != rv_editor_tile_none)) {
-            for (uint32_t k = 0; k <= static_cast<uint32_t>(rv_editor_pane_kind::search); ++k) {
+            for (uint32_t k = 0; k <= static_cast<uint32_t>(rv_editor_pane_kind::console); ++k) {
                 const auto kind = static_cast<rv_editor_pane_kind>(k);
                 const char *label = rv_editor_pane_title(kind);
                 const bool selected = (ws.panes.panes[active].kind == kind);

@@ -19,7 +19,8 @@ namespace
 
 constexpr std::string_view kind_names[] = {
     "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
-    "game", "code", "controls", "run_config", "output", "terminal", "problems", "search"};
+    "game", "code", "controls", "run_config", "output", "terminal", "problems", "search",
+    "toolchest", "console"};
 
 std::string_view kind_name(rv_editor_pane_kind k)
 {
