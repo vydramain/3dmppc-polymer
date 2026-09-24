@@ -49,41 +49,18 @@ struct rv_editor_tile_action
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
 };
 
-// The leaf's panes in the catalog's tab strip (ImGui's tab bar in the theme's
-// colours). ImGui keeps its own selection, so the model's choice is pushed to it
-// whenever the two differ; the last pane shown is remembered in the window's storage.
-void draw_tabs(rv_editor_workspace &ws, uint32_t node)
+// The leaf's panes as the catalog's folder tabs; a click makes that pane the active one.
+void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &theme)
 {
     const rv_editor_tile_leaf &leaf = ws.layout.nodes[node].leaf;
-    ImGuiStorage *storage = ImGui::GetStateStorage();
-    const ImGuiID shown_key = ImGui::GetID("##shown");
-    const rv_editor_pane_id wanted = leaf.tabs[leaf.active];
-    const bool push = storage->GetInt(shown_key, -1) != static_cast<int>(wanted);
-
-    if (!ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_DrawSelectedOverline)) {
-        return;
+    std::vector<const char *> labels;
+    for (const rv_editor_pane_id pane : leaf.tabs) {
+        labels.push_back(rv_editor_pane_title(ws.panes.panes[pane].kind));
     }
-    rv_editor_pane_id picked = rv_editor_tile_none;
-    for (size_t i = 0; i < leaf.tabs.size(); ++i) {
-        const rv_editor_pane_id pane = leaf.tabs[i];
-        const char *title = rv_editor_pane_title(ws.panes.panes[pane].kind);
-        char label[64];
-        std::snprintf(label, sizeof(label), "%s##%u", title, pane);
-        const ImGuiTabItemFlags flags = push && i == leaf.active ? ImGuiTabItemFlags_SetSelected : 0;
-        if (ImGui::BeginTabItem(label, nullptr, flags)) {
-            picked = pane;
-            ImGui::EndTabItem();
-        }
+    int active = static_cast<int>(leaf.active);
+    if (rv_editor_tab_strip("##tabs", labels.data(), static_cast<int>(labels.size()), &active, theme)) {
+        rv_editor_tile_activate(ws.layout, leaf.tabs[static_cast<size_t>(active)]);
     }
-    ImGui::EndTabBar();
-
-    // While a push is pending ImGui still reports the old tab; only a click moves the model.
-    if (push || picked == rv_editor_tile_none) {
-        storage->SetInt(shown_key, static_cast<int>(wanted));
-        return;
-    }
-    rv_editor_tile_activate(ws.layout, picked);
-    storage->SetInt(shown_key, static_cast<int>(picked));
 }
 
 void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, const rv_editor_theme &theme,
@@ -92,8 +69,8 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     const auto &leaf = ws.layout.nodes[node].leaf;
     const float s = theme.scale;
     const float bevel = theme.bevel_px * s;
-    // The tile is a window: a raised frame, the pane header, the catalog's tab
-    // strip when the leaf holds more than one pane, then the padded content.
+    // The tile is a window: a raised frame, the pane header, the padded content
+    // and, when the leaf holds more than one pane, folder tabs under it.
     const ImVec2 outer_min(static_cast<float>(rect.x), static_cast<float>(rect.y));
     const ImVec2 outer_max(outer_min.x + rect.w, outer_min.y + rect.h);
     rv_editor_draw_panel(ImGui::GetWindowDrawList(), outer_min, outer_max, theme, theme.window,
@@ -114,9 +91,6 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     } else if (clicked == rv_editor_header_action::maximize) {
         action.what = rv_editor_tile_action::op::maximize;
         action.leaf = node;
-    }
-    if (leaf.tabs.size() > 1) {
-        draw_tabs(ws, node);
     }
 
     // The header and the tab strip: a right click there opens the tile's menu.
@@ -165,13 +139,18 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
 
     // The content keeps the theme's padding off the frame, like every catalog pane.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
-    ImGui::BeginChild("##pane", ImVec2(0, 0), ImGuiChildFlags_AlwaysUseWindowPadding);
+    const bool tabbed = leaf.tabs.size() > 1;
+    const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
+    ImGui::BeginChild("##pane", ImVec2(0, -tabs_h), ImGuiChildFlags_AlwaysUseWindowPadding);
     ImGui::PopStyleVar();
     if (!leaf.tabs.empty()) {
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
     ImGui::EndChild();
+    if (tabbed) {
+        draw_tabs(ws, node, theme);
+    }
 
     if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         ws.focused_leaf = node;
