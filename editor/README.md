@@ -4,8 +4,11 @@ A separate program from the console and the tools. It works on a game
 directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
-Today it opens one window with the Widget Catalog, and holds the model of its
-tiled workspace (`src/layout/`) that the window does not draw yet.
+Today it shows its tiled workspace: a pane can be split, tabbed, dragged to
+another tile, maximized, closed or turned into another kind of pane. The layout
+is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout` (`~/.config/...`
+without the variable), and the Layout menu holds the Scene, Code + Game and
+Debug/Output starting layouts. Only the Widget Catalog pane has content yet.
 
 ## Building
 
