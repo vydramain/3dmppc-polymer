@@ -23,7 +23,7 @@ void rv_editor_theme_colors(const rv_editor_theme &t, ImVec4 *c)
     c[ImGuiCol_Border] = rv_editor_vec(t.bevel_lo);
     c[ImGuiCol_BorderShadow] = rv_editor_vec(t.bevel_hi, 0.0f);
     c[ImGuiCol_FrameBg] = rv_editor_vec(t.inset);
-    c[ImGuiCol_FrameBgHovered] = rv_editor_vec(t.inset);
+    c[ImGuiCol_FrameBgHovered] = rv_editor_vec(t.button);
     c[ImGuiCol_FrameBgActive] = rv_editor_vec(t.inset);
     c[ImGuiCol_TitleBg] = rv_editor_vec(t.dark);
     c[ImGuiCol_TitleBgActive] = rv_editor_vec(t.dark);
@@ -38,10 +38,10 @@ void rv_editor_theme_colors(const rv_editor_theme &t, ImVec4 *c)
     c[ImGuiCol_SliderGrab] = rv_editor_vec(t.button);
     c[ImGuiCol_SliderGrabActive] = rv_editor_vec(t.selection);
     c[ImGuiCol_Button] = rv_editor_vec(t.button);
-    c[ImGuiCol_ButtonHovered] = rv_editor_vec(t.button);
+    c[ImGuiCol_ButtonHovered] = rv_editor_vec(t.bevel_hi);
     c[ImGuiCol_ButtonActive] = rv_editor_vec(t.inset);
     c[ImGuiCol_Header] = rv_editor_vec(t.selection);
-    c[ImGuiCol_HeaderHovered] = rv_editor_vec(t.button);
+    c[ImGuiCol_HeaderHovered] = rv_editor_vec(t.bevel_hi);
     c[ImGuiCol_HeaderActive] = rv_editor_vec(t.selection);
     c[ImGuiCol_Separator] = rv_editor_vec(t.bevel_lo);
     c[ImGuiCol_SeparatorHovered] = rv_editor_vec(t.selection);
