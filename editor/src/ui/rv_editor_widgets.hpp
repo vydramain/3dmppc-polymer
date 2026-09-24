@@ -54,8 +54,19 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
 bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 
-// Full-width pane title bar: stippled when active, dimmed when not.
-void rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme);
+// What a click on a pane header's boxes asked for.
+enum class rv_editor_header_action
+{
+    none,
+    close,
+    maximize,
+};
+
+// Full-width pane title bar: stippled when active, dimmed when not. With
+// `controls` it carries a close box (X) on the left and a maximize box (M) on
+// the right, each a button with every state, and returns the one clicked.
+rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
+    bool controls = false, const rv_editor_state &state = {});
 
 // --- the tiled workspace ------------------------------------------------------
 

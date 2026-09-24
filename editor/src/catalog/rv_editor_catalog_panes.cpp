@@ -137,8 +137,11 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
 void rv_editor_catalog_panes(const rv_editor_theme &theme)
 {
     ImGui::SeparatorText("Panes");
-    rv_editor_pane_header("Hierarchy", true, theme);
-    rv_editor_pane_header("Inspector", false, theme);
+    rv_editor_pane_header("Hierarchy", true, theme, true);
+    rv_editor_pane_header("Inspector", false, theme, true);
+    rv_editor_pane_header("Boxes hovered", true, theme, true, { rv_editor_look::hovered });
+    rv_editor_pane_header("Boxes pressed", true, theme, true, { rv_editor_look::pressed });
+    rv_editor_pane_header("Boxes focused", true, theme, true, { rv_editor_look::focused });
 
     const float height = ImGui::GetFrameHeight() * 6.0f;
     if (ImGui::BeginTable("##panes", 3)) {
