@@ -28,16 +28,21 @@ void rv_editor_label_centred(ImDrawList *dl, const char *label, ImVec2 min, ImVe
     dl->AddText(rv_editor_floor(pos), rv_editor_col(rv_editor_item_text(t, item)), label, end);
 }
 
-// The shared face of every push button: bevel, brass outline on hover, focus dots.
+// The shared face of every push button: a dark outline that sets it off the
+// window behind it, the bevel inside, brass on hover, focus dots.
 void rv_editor_button_face(ImDrawList *dl, const rv_editor_item &item, const rv_editor_theme &t, bool down)
 {
-    rv_editor_draw_panel(dl, item.min, item.max, t, down ? t.inset : t.button,
+    const float px = static_cast<float>(t.scale);
+    const ImVec2 min(item.min.x + px, item.min.y + px);
+    const ImVec2 max(item.max.x - px, item.max.y - px);
+    dl->AddRectFilled(item.min, item.max, rv_editor_col(t.dark));
+    rv_editor_draw_panel(dl, min, max, t, down ? t.inset : t.button,
         down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
     if (item.hovered && !item.disabled) {
-        rv_editor_draw_frame(dl, item.min, item.max, t, t.selection);
+        rv_editor_draw_frame(dl, min, max, t, t.selection);
     }
     if (item.focused) {
-        rv_editor_draw_focus(dl, item.min, item.max, t);
+        rv_editor_draw_focus(dl, min, max, t);
     }
 }
 

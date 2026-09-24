@@ -69,27 +69,32 @@ void rv_editor_draw_tab(ImDrawList *dl, ImVec2 min, ImVec2 max, float slant, con
 }
 
 // One letter box of a pane header: a small button face with hover, press and focus.
-bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float size, bool active,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float size, const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     ImGui::SetCursorScreenPos(pos);
     const rv_editor_item item = rv_editor_item_add(id, ImVec2(size, size), state);
     const bool down = item.held && item.hovered;
 
+    // Dark outline, then the bevel inside it, as on every push button.
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_draw_panel(dl, item.min, item.max, theme, down ? theme.inset : theme.button,
+    const float px = static_cast<float>(theme.scale);
+    const ImVec2 min(item.min.x + px, item.min.y + px);
+    const ImVec2 max(item.max.x - px, item.max.y - px);
+    dl->AddRectFilled(item.min, item.max, rv_editor_col(theme.dark));
+    rv_editor_draw_panel(dl, min, max, theme, down ? theme.inset : theme.button,
         down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
     if (item.hovered && !item.disabled) {
-        rv_editor_draw_frame(dl, item.min, item.max, theme, theme.selection);
+        rv_editor_draw_frame(dl, min, max, theme, theme.selection);
     }
     if (item.focused) {
-        rv_editor_draw_focus(dl, item.min, item.max, theme);
+        rv_editor_draw_focus(dl, min, max, theme);
     }
     const ImVec2 text = ImGui::CalcTextSize(letter);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
     const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge),
         std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge));
-    dl->AddText(at, rv_editor_col(active ? theme.text : theme.text_disabled), letter);
+    dl->AddText(at, rv_editor_col(theme.text), letter);
     return item.clicked;
 }
 
@@ -159,11 +164,11 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     if (controls) {
         const float box = inner_max.y - inner_min.y;
         ImGui::PushID(title);
-        if (rv_editor_header_box("##close", "X", inner_min, box, active, theme, state)) {
+        if (rv_editor_header_box("##close", "X", inner_min, box, theme, state)) {
             action = rv_editor_header_action::close;
         }
         const ImVec2 right(inner_max.x - box, inner_min.y);
-        if (rv_editor_header_box("##maximize", "M", right, box, active, theme, state)) {
+        if (rv_editor_header_box("##maximize", "M", right, box, theme, state)) {
             action = rv_editor_header_action::maximize;
         }
         ImGui::PopID();
