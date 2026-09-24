@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <cstring>
 #include <vector>
 
 #include "imgui.h"
@@ -43,8 +42,8 @@ namespace
 // A change to the tree, recorded while drawing and applied after it.
 struct rv_editor_tile_action
 {
-    enum class op { none, split, set_kind, maximize, close, move } what = op::none;
-    uint32_t leaf = rv_editor_tile_none;      // the leaf acted on (split, maximize, move target)
+    enum class op { none, split, set_kind, maximize, close } what = op::none;
+    uint32_t leaf = rv_editor_tile_none; // the leaf acted on (split, maximize)
     rv_editor_pane_id pane = rv_editor_tile_none;
     rv_editor_pane_kind kind = rv_editor_pane_kind::empty;
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
@@ -74,11 +73,6 @@ void draw_tabs(rv_editor_workspace &ws, uint32_t node)
         if (ImGui::BeginTabItem(label, nullptr, flags)) {
             picked = pane;
             ImGui::EndTabItem();
-        }
-        if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload("RV_EDITOR_PANE", &pane, sizeof(pane));
-            ImGui::TextUnformatted(title);
-            ImGui::EndDragDropSource();
         }
     }
     ImGui::EndTabBar();
@@ -113,11 +107,6 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
     const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_pane_title(ws.panes.panes[active].kind);
     rv_editor_pane_header(title, node == ws.focused_leaf, theme);
-    if (active != rv_editor_tile_none && ImGui::BeginDragDropSource()) {
-        ImGui::SetDragDropPayload("RV_EDITOR_PANE", &active, sizeof(active));
-        ImGui::TextUnformatted(title);
-        ImGui::EndDragDropSource();
-    }
     if (leaf.tabs.size() > 1) {
         draw_tabs(ws, node);
     }
@@ -179,60 +168,6 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     }
     ImGui::EndChild();
 
-    // Drag and drop target.
-    if (ImGui::BeginDragDropTarget()) {
-        const ImGuiPayload *p = ImGui::AcceptDragDropPayload("RV_EDITOR_PANE",
-            ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect);
-        if (p != nullptr) {
-            const ImVec2 mouse = ImGui::GetMousePos();
-            const ImVec2 rect_pos(rect.x, rect.y);
-            const ImVec2 rect_size(rect.w, rect.h);
-            const float fx = (mouse.x - rect_pos.x) / rect_size.x;
-            const float fy = (mouse.y - rect_pos.y) / rect_size.y;
-
-            rv_editor_tile_dock dock_target = rv_editor_tile_dock::tab;
-            if (fx < 0.25f) {
-                dock_target = rv_editor_tile_dock::left;
-            } else if (fx > 0.75f) {
-                dock_target = rv_editor_tile_dock::right;
-            } else if (fy < 0.25f) {
-                dock_target = rv_editor_tile_dock::top;
-            } else if (fy > 0.75f) {
-                dock_target = rv_editor_tile_dock::bottom;
-            }
-
-            // Draw preview rectangle.
-            ImDrawList *draw_list = ImGui::GetForegroundDrawList();
-            ImVec2 preview_min = rect_pos;
-            ImVec2 preview_max = ImVec2(rect_pos.x + rect_size.x, rect_pos.y + rect_size.y);
-            if (dock_target == rv_editor_tile_dock::left) {
-                preview_max.x = rect_pos.x + rect_size.x * 0.5f;
-            } else if (dock_target == rv_editor_tile_dock::right) {
-                preview_min.x = rect_pos.x + rect_size.x * 0.5f;
-            } else if (dock_target == rv_editor_tile_dock::top) {
-                preview_max.y = rect_pos.y + rect_size.y * 0.5f;
-            } else if (dock_target == rv_editor_tile_dock::bottom) {
-                preview_min.y = rect_pos.y + rect_size.y * 0.5f;
-            }
-
-            // Tokens are 0xRRGGBB; IM_COL32 takes red first.
-            const ImU32 col_selection = IM_COL32((theme.selection >> 16) & 0xff, (theme.selection >> 8) & 0xff,
-                theme.selection & 0xff, 0x60);
-            draw_list->AddRectFilled(preview_min, preview_max, col_selection);
-            rv_editor_draw_frame(draw_list, preview_min, preview_max, theme, theme.selection);
-
-            if (p->IsDelivery()) {
-                rv_editor_pane_id pane_id;
-                std::memcpy(&pane_id, p->Data, sizeof(pane_id));
-                action.what = rv_editor_tile_action::op::move;
-                action.pane = pane_id;
-                action.leaf = node;
-                action.dock = dock_target;
-            }
-        }
-        ImGui::EndDragDropTarget();
-    }
-
     if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         ws.focused_leaf = node;
     }
@@ -256,8 +191,6 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
         rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
     } else if (a.what == rv_editor_tile_action::op::close) {
         rv_editor_tile_remove(ws.layout, a.pane);
-    } else if (a.what == rv_editor_tile_action::op::move) {
-        rv_editor_tile_move(ws.layout, a.pane, a.leaf, a.dock);
     }
 
     // Update focused_leaf if it is no longer valid.
