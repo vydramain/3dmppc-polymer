@@ -9,7 +9,7 @@ namespace rv_editor
 // 5x7 font in an 8 px line; code and logs in one of three code sizes.
 inline constexpr int rv_editor_font_ui_height = 8;
 
-// small: the editor's own 6x11 table; normal and large: PxPlus IBM VGA 9x16 at
+// small: PxPlus IBM EGA 8x14 at 14 px; normal and large: PxPlus IBM VGA 9x16 at
 // 16 and 32 px. Each is multiplied by --scale.
 enum class rv_editor_code_size
 {
@@ -19,13 +19,14 @@ enum class rv_editor_code_size
 };
 
 // Adds the fonts at their heights times `scale`; the interface font becomes
-// ImGui's default. False when ImGui refuses the interface or the 6x11 font; a
-// missing PxPlus file only leaves small as the one code size, and says so.
+// ImGui's default. False when ImGui refuses the interface font or both code
+// fonts; a code font file that does not load leaves the other's sizes, and says so.
 bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale);
 
 ImFont *rv_editor_font_ui();
 
-// The code size Code and Output draw in; one PxPlus could not load stays small.
+// The code size Code and Output draw in; a size whose font did not load takes
+// the other font.
 void rv_editor_font_code_size_set(rv_editor_code_size size);
 rv_editor_code_size rv_editor_font_code_size();
 // "small", "normal", "large", as the view file and the menu name them.

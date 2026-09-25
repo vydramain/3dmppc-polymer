@@ -209,7 +209,7 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
             {
                 rv_editor_code_size size;
                 const char *label;
-            } sizes[] = { { rv_editor_code_size::small, "Small (6x11)" }, { rv_editor_code_size::normal, "Normal (9x16)" },
+            } sizes[] = { { rv_editor_code_size::small, "Small (8x14)" }, { rv_editor_code_size::normal, "Normal (9x16)" },
                 { rv_editor_code_size::large, "Large (9x16, doubled)" } };
             for (const auto &s : sizes) {
                 if (ImGui::MenuItem(s.label, nullptr, rv_editor_font_code_size() == s.size)) {

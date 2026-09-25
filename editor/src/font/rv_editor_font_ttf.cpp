@@ -1,5 +1,5 @@
-// TrueType builders for pdklib's 5x7 font and the editor's 6x11 code font, in
-// memory so ImGui loads them with AddFontFromMemoryTTF (0001: no imgui_internal.h).
+// A TrueType builder for pdklib's 5x7 font, in memory so ImGui loads it with
+// AddFontFromMemoryTTF (0001: no imgui_internal.h).
 // Every lit pixel becomes a square outline on a whole-unit grid, as in PxPlus:
 // edges land on pixel boundaries and nothing is smoothed.
 
@@ -11,7 +11,6 @@
 #include <string>
 #include <vector>
 
-#include "font/rv_editor_font_code_data.hpp"
 #include "pdklib/rv_font/rv_font_cyrillic.hpp"
 #include "pdklib/rv_font/rv_font_data.hpp"
 
@@ -303,21 +302,6 @@ std::string rv_editor_font_ttf()
     // Every glyph but notdef keeps its ink in the cell's left five columns: a
     // 6 px advance leaves one column between letters instead of three.
     return rv_editor_ttf_build(glyphs, map, rv_editor_font_ui_advance, rv_pdklib::rv_font_cell_height);
-}
-
-std::string rv_editor_font_code_ttf()
-{
-    // Glyph k is table entry k; entry 0 is notdef.
-    std::vector<rv_editor_ttf_glyph> glyphs;
-    std::vector<std::pair<uint32_t, uint16_t>> map;
-    for (size_t k = 0; k < std::size(rv_editor_code_glyphs); ++k) {
-        glyphs.push_back({ rv_editor_code_glyphs[k].rows });
-        if (k != 0) {
-            map.push_back({ static_cast<uint32_t>(rv_editor_code_glyphs[k].code), static_cast<uint16_t>(k) });
-        }
-    }
-    std::sort(map.begin(), map.end());
-    return rv_editor_ttf_build(glyphs, map, rv_editor_code_cell_width, rv_editor_code_cell_height);
 }
 
 } // namespace rv_editor

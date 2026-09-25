@@ -1,7 +1,8 @@
-# PxPlus IBM VGA 9x16
+# PxPlus IBM VGA 9x16 and IBM EGA 8x14
 
-The IBM VGA 9x16 text-mode font as an outline TTF. Used by `editor/` as its only
-font, for the interface and for code.
+The IBM VGA 9x16 and IBM EGA 8x14 text-mode fonts as outline TTFs, from the same
+pack. Used by `editor/` for code and Output: 9x16 for the normal and large sizes,
+8x14 for the small one.
 
 | | |
 | --- | --- |
@@ -11,7 +12,7 @@ font, for the interface and for code.
 | Taken | 2026-09-24 |
 | Licence | CC BY-SA 4.0 - see `LICENSE` |
 
-Attribution: "PxPlus IBM VGA 9x16" by VileR, int10h.org, licensed under
+Attribution: "PxPlus IBM VGA 9x16" and "PxPlus IBM EGA 8x14" by VileR, int10h.org, licensed under
 Creative Commons Attribution-ShareAlike 4.0 International
 (https://creativecommons.org/licenses/by-sa/4.0/).
 
@@ -20,6 +21,7 @@ Creative Commons Attribution-ShareAlike 4.0 International
 | File | SHA-256 |
 | --- | --- |
 | `PxPlus_IBM_VGA_9x16.ttf` | `632f4409b32af37e5bbd5adc683c0f4a53d4a7b4707943c9f52a1eb3bfab14e3` |
+| `PxPlus_IBM_EGA_8x14.ttf` | `488b3b785230a7f402c93609201d9e6c88419de45d3c984e04a6dfa6c796cf85` (taken 2026-09-25) |
 | `LICENSE` | `9348ddfd44da5a127c59141981954746a860ec8e03e0412cf3af7134af0f97e2` |
 
 Unmodified. No patches applied.

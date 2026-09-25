@@ -226,7 +226,7 @@ mppcburner build <project-root> -o <output.mppcdisc> --baker <mppcbaker-path>
 - **UI-03 MUST:** библиотека компонентов содержит Button/IconButton/Toggle, text field, numeric spinner, dropdown, checkbox/radio, tree/list/table, tab strip, splitter, pane header, menu/context menu, dialog, status indicator, log row и transport bar.
 - **UI-04 MUST:** каждый интерактивный компонент имеет normal/hover/pressed/focused/disabled; поля дополнительно invalid/read-only/dirty, где применимо. Disabled control объясняет причину недоступности.
 - **UI-05 MUST:** keyboard focus различим; ошибка не кодируется одним цветом; labels не обрезаются без способа прочитать их. UI scale и отдельный размер шрифта поддерживают HiDPI.
-- **UI-06 MUST:** шрифт UI и моноширинный шрифт кода/терминала - отдельные настройки на отдельных файлах. UI - растровый шрифт 5x7 в клетке 8x8 из pdklib (`rv_font`, с блоком кириллицы), без масштаба сверх `--scale`; код, терминал и логи - PxPlus IBM VGA 9x16 в 16 px, варианты 32 px и 6x11 (ADR-0004). Поставка конкретного font требует подходящей лицензии и кириллицы.
+- **UI-06 MUST:** шрифт UI и моноширинный шрифт кода/терминала - отдельные настройки на отдельных файлах. UI - растровый шрифт 5x7 в клетке 8x8 из pdklib (`rv_font`, с блоком кириллицы), без масштаба сверх `--scale`; код, терминал и логи - PxPlus IBM VGA 9x16 в 16 px, варианты 32 px и IBM EGA 8x14 (ADR-0004). Поставка конкретного font требует подходящей лицензии и кириллицы.
 - **UI-07 MUST:** реализован экран Widget Catalog для ручной проверки всех компонентов и их состояний. Сгенерированные изображения служат направлением дизайна; их вымышленные API, filenames, toolbar-команды и надписи не являются спецификацией.
 
 ## 12. Состояния и управление

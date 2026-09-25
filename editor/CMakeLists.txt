@@ -60,7 +60,8 @@ target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_R
 
 # The code font, PxPlus IBM VGA 9x16 (third_party), read at run time the same way.
 target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_CODE_FONT_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf")
+  RV_EDITOR_CODE_FONT_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf"
+  RV_EDITOR_CODE_FONT_SMALL_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf")
 
 # The code editor's nvim config (editor/nvim), read at run time the same way.
 target_compile_definitions(3dmppc-editor PRIVATE

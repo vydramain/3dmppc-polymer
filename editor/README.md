@@ -167,9 +167,9 @@ Project pane shows each path and the version the tool reports
 The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8 px high, one
 blank column between letters) with no magnification beyond `--scale`. Code and
 Output draw in PxPlus IBM VGA 9x16 by VileR (int10h.org): View > Code Text Size
-picks Normal (16 px, the default), Large (32 px) or Small (the older 6x11 table,
-`src/font/rv_editor_font_code_data.hpp`), each times `--scale`, and the choice
-is kept. The font file, the 6x11 table and the Cyrillic of the 5x7 font carry
+picks Normal (16 px, the default), Large (32 px) or Small (PxPlus IBM EGA 8x14
+at 14 px), each times `--scale`, and the choice is kept. The two font files and
+the Cyrillic of the 5x7 font carry
 PxPlus's CC BY-SA 4.0 licence: see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
