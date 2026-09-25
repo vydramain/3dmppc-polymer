@@ -47,14 +47,21 @@ public:
     int stderr_fd() const { return err_; }
     // End of input for the child.
     void close_stdin();
+    // False once stdin is closed: the child is gone or stopped reading for good.
+    bool stdin_open() const { return in_ >= 0; }
     const rv_editor_exit &exit_status() const { return exit_; }
 
     // Appends whatever the pipes hold now, at most `limit` bytes each. Returns
     // false once both pipes reached end of file.
     bool read(std::string &out, std::string &err, size_t limit);
 
+    // What stdin may hold unwritten: past it the child is not reading.
+    static constexpr size_t input_max = 1 << 20;
+
     // Queues bytes for stdin and writes as much as the pipe takes; the rest goes
-    // on the next flush. False when stdin is closed or the child is gone.
+    // on the next flush. Whole or nothing, so a message is never cut: false, with
+    // nothing queued, when the bytes would take the queue past input_max, when
+    // stdin is closed or when the child is gone. Never waits for the child.
     bool write(std::string_view bytes);
     void flush();
 

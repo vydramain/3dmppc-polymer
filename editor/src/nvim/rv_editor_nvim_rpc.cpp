@@ -135,8 +135,17 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
     w.integer(id);
     w.string(method);
     out += args;
+    if (!proc_.write(out)) {
+        // Never sent, so never answered: the caller hears it now.
+        if (reply) {
+            rv_editor_mpack error;
+            error.type = rv_editor_mpack::rv_editor_mpack_type::string;
+            error.s = proc_.stdin_open() ? "nvim is not reading its input" : "nvim's input is closed";
+            reply(error, rv_editor_mpack{});
+        }
+        return;
+    }
     pending_[id] = std::move(reply);
-    proc_.write(out);
 }
 
 void rv_editor_nvim_rpc::notify(const std::string &method, const std::string &args)

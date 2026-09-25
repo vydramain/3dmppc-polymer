@@ -185,6 +185,12 @@ bool rv_editor_process::write(std::string_view bytes)
     if (in_ < 0) {
         return false;
     }
+    if (pending_.size() + bytes.size() > input_max) {
+        flush();
+        if (pending_.size() + bytes.size() > input_max) {
+            return false;
+        }
+    }
     pending_.append(bytes);
     flush();
     return in_ >= 0;

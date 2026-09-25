@@ -82,6 +82,8 @@ public:
 
 private:
     int64_t send(const std::string &verb, rv_editor_log &log);
+    // The protocol trace from stdout bytes, without the frame events.
+    void trace(std::string_view bytes, rv_editor_log &log);
     void handle(const rv_editor_devmsg &msg, rv_editor_log &log);
     void handle_mode(std::string_view mode);
     void finish(rv_editor_log &log);
@@ -106,6 +108,7 @@ private:
     bool forced_ = false;
     bool handshake_done_ = false;
     bool channel_open_ = false;
+    bool input_full_ = false; // said once: the runtime stopped reading its input
     uint32_t build_number_ = 0;
     std::filesystem::path disc_dir_;
     std::string end_reason_;

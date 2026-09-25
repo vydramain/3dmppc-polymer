@@ -84,6 +84,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     uncertain_ = false;
     quit_sent_ = false;
     forced_ = false;
+    input_full_ = false;
     handshake_done_ = false;
     channel_open_ = true;
     build_number_ = build_number;
@@ -108,13 +109,45 @@ int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log)
     const int64_t id = next_id_++;
     const std::string line = std::to_string(id) + " " + verb + "\n";
     if (!proc_.write(line)) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-            "cannot send '" + verb + "': the runtime's input is closed");
+        if (!proc_.stdin_open()) {
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+                "cannot send '" + verb + "': the runtime's input is closed");
+        } else if (!input_full_) {
+            // Said once; pad keeps the newest state and tries again every frame.
+            input_full_ = true;
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+                "cannot send '" + verb + "': the runtime is not reading its input (" +
+                    std::to_string(rv_editor_process::input_max / 1024) + " KiB waiting)");
+        }
         return 0;
+    }
+    if (input_full_) {
+        input_full_ = false;
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "the runtime reads its input again");
     }
     pending_[id] = { verb, std::chrono::steady_clock::now(), false };
     log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, "> " + line.substr(0, line.size() - 1));
     return id;
+}
+
+void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
+{
+    // Sixty frame events a second would push every other line out of the bounded
+    // log; the frame number they carry is in the session's state instead.
+    out_partial_.append(bytes);
+    size_t start = 0;
+    for (size_t nl = out_partial_.find('\n'); nl != std::string::npos; nl = out_partial_.find('\n', start)) {
+        const std::string_view line(out_partial_.data() + start, nl - start);
+        if (!line.starts_with("0 event=frame ")) {
+            log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, line);
+        }
+        start = nl + 1;
+    }
+    out_partial_.erase(0, start);
+    if (out_partial_.size() > rv_editor_log::line_max) {
+        log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, out_partial_);
+        out_partial_.clear();
+    }
 }
 
 void rv_editor_session::pause(rv_editor_log &log)
@@ -146,8 +179,9 @@ void rv_editor_session::stop(rv_editor_log &log)
     quit_sent_ = true;
     stop_sent_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::stopping;
-    if (send("quit", log) == 0) {
-        // Nobody reads the channel any more: the process can only be ended.
+    if (send("quit", log) == 0 && !proc_.stdin_open()) {
+        // Nobody reads the channel any more: the process can only be ended. One
+        // that only stopped reading shows as hung and gets Force Stop.
         force_stop(log);
     }
 }
@@ -278,7 +312,7 @@ void rv_editor_session::update(rv_editor_log &log)
     proc_.flush();
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err);
     if (!out.empty()) {
-        log.add_stream(rv_editor_log_source::protocol, out_partial_, out);
+        trace(out, log);
         std::vector<rv_editor_devmsg> msgs;
         std::vector<std::string> errors;
         parser_.feed(out, msgs, errors);
@@ -349,7 +383,7 @@ void rv_editor_session::finish(rv_editor_log &log)
     proc_.read(out, err, 1 << 20);
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err);
     log.flush_stream(rv_editor_log_source::runtime, err_partial_);
-    log.add_stream(rv_editor_log_source::protocol, out_partial_, out);
+    trace(out, log);
     log.flush_stream(rv_editor_log_source::protocol, out_partial_);
     pending_.clear();
     channel_open_ = false;
