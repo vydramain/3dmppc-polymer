@@ -143,5 +143,6 @@ redrawn from PxPlus and carries the same licence: see
 | `src/` | the editor's sources |
 | [`docs/3dmppc-editor-v0.4-requirements.md`](docs/3dmppc-editor-v0.4-requirements.md) | requirements and acceptance criteria of the editor MVP |
 | [`docs/adr/`](docs/adr/README.md) | architecture decisions: toolkit, tiling, theme, fonts, code editor, Game frame, CMake |
+| [`docs/icons.md`](docs/icons.md) | every place the editor needs an icon, and the coloured letter that stands in for it until icons are drawn |
 | [`docs/sgi-irix-ux.md`](docs/sgi-irix-ux.md) | research: how SGI IRIX technical applications looked and behaved, with sources |
 | `docs/references/` | generated design references: a visual direction, not a specification |

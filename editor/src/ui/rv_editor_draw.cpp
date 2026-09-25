@@ -153,4 +153,21 @@ void rv_editor_draw_focus(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
     }
 }
 
+void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter,
+    uint32_t color)
+{
+    rv_editor_fill(dl, min.x, min.y, max.x, max.y, theme.dark);
+    const float px = static_cast<float>(theme.scale);
+    rv_editor_fill(dl, min.x + px, min.y + px, max.x - px, max.y - px, color);
+    // Perceived brightness decides the ink.
+    const uint32_t r = (color >> 16) & 0xff;
+    const uint32_t g = (color >> 8) & 0xff;
+    const uint32_t b = color & 0xff;
+    const uint32_t ink = r * 299 + g * 587 + b * 114 > 128000 ? theme.dark : theme.text_bright;
+    const char text[2] = { letter, '\0' };
+    const ImVec2 size = ImGui::CalcTextSize(text);
+    dl->AddText(ImVec2(std::floor((min.x + max.x - size.x) / 2.0f) + px, std::floor((min.y + max.y - size.y) / 2.0f) + px),
+        rv_editor_col(ink), text);
+}
+
 } // namespace rv_editor

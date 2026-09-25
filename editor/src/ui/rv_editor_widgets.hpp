@@ -19,6 +19,13 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
+// A tall button with a picture over its label, as in a transport bar or a tool
+// palette. Until the icons of editor/docs/icons.md exist the picture is a
+// letter on a tile of `color`; a disabled button dims it.
+bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
+float rv_editor_tool_button_width(const char *label);
+
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_checkbox(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});

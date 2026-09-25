@@ -43,6 +43,12 @@ void rv_editor_draw_arrow(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
 // 7x7 pixel check mark centred in [min, max).
 void rv_editor_draw_check(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t color);
 
+// A letter on a coloured tile in [min, max): the stand-in for an icon until the
+// icons of editor/docs/icons.md are drawn. The letter is dark on a light colour
+// and light on a dark one; a dark outline keeps the tile off the background.
+void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter,
+    uint32_t color);
+
 // Dotted one-pixel rectangle just inside [min, max): keyboard focus.
 void rv_editor_draw_focus(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme);
 

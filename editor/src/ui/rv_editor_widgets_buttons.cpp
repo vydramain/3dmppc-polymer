@@ -1,5 +1,6 @@
 // Buttons, icon buttons, toggles, check boxes and diamond radios.
 
+#include <algorithm>
 #include <cmath>
 
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -78,6 +79,43 @@ bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
     rv_editor_label_centred(dl, label, item.min, item.max, theme, item, down);
+    return item.clicked;
+}
+
+float rv_editor_tool_button_width(const char *label)
+{
+    const float text = ImGui::CalcTextSize(label, rv_editor_label_end(label)).x;
+    return std::max(text, ImGui::GetTextLineHeight() * 2.0f) + ImGui::GetStyle().FramePadding.x * 4.0f;
+}
+
+bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const rv_editor_theme &theme,
+    const rv_editor_state &state)
+{
+    const float line = ImGui::GetTextLineHeight();
+    const float pad = ImGui::GetStyle().FramePadding.y;
+    const float chip = line * 2.0f;
+    const ImVec2 size(rv_editor_tool_button_width(label), pad * 3.0f + chip + line);
+    const rv_editor_item item = rv_editor_item_add(label, size, state);
+    const bool down = item.held && item.hovered;
+
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    rv_editor_button_face(dl, item, theme, down);
+    const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
+    const float cx = std::floor((item.min.x + item.max.x - chip) / 2.0f + nudge);
+    const float cy = std::floor(item.min.y + pad + nudge);
+    // Dimmed: halfway to the window colour.
+    const uint32_t dim = item.disabled
+        ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
+            (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
+        : color;
+    rv_editor_draw_chip(dl, ImVec2(cx, cy), ImVec2(cx + chip, cy + chip), theme, letter, dim);
+    const char *end = rv_editor_label_end(label);
+    const ImVec2 text = ImGui::CalcTextSize(label, end);
+    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge), cy + chip + pad),
+        rv_editor_col(rv_editor_item_text(theme, item)), label, end);
+    if (item.focused) {
+        rv_editor_draw_focus(dl, item.min, item.max, theme);
+    }
     return item.clicked;
 }
 

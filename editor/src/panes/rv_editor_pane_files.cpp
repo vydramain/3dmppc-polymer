@@ -1,11 +1,13 @@
 // Files: the project tree and the file operations on it.
 
+#include <cmath>
 #include <cstring>
 #include <string>
 
 #include "imgui.h"
 
 #include "panes/rv_editor_panes.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -69,6 +71,46 @@ void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const 
     }
 }
 
+// The letter and colour that stand in for a file's icon (editor/docs/icons.md).
+void rv_editor_files_chip(const rv_editor_file_node &node, char &letter, uint32_t &color)
+{
+    if (node.symlink) {
+        letter = '@';
+        color = 0x6c7086;
+        return;
+    }
+    if (node.dir) {
+        letter = 'D';
+        color = 0x958831;
+        return;
+    }
+    const std::string ext = node.path.extension().string();
+    struct kind
+    {
+        const char *ext;
+        char letter;
+        uint32_t color;
+    };
+    static constexpr kind kinds[] = { { ".lua", 'L', 0xcba6f7 }, { ".cpp", 'C', 0x89b4fa }, { ".c", 'C', 0x89b4fa },
+        { ".cc", 'C', 0x89b4fa }, { ".hpp", 'H', 0x74c7ec }, { ".h", 'H', 0x74c7ec }, { ".toml", 'T', 0xfab387 },
+        { ".png", 'I', 0xa6e3a1 }, { ".pcm", 'S', 0x94e2d5 }, { ".wav", 'S', 0x94e2d5 }, { ".md", 'D', 0xcdd6f4 },
+        { ".txt", 'D', 0xcdd6f4 } };
+    letter = 'F';
+    color = 0xa6adc8;
+    if (node.name == "disc.toml") {
+        letter = 'M';
+        color = 0xfab387;
+        return;
+    }
+    for (const kind &k : kinds) {
+        if (ext == k.ext) {
+            letter = k.letter;
+            color = k.color;
+            return;
+        }
+    }
+}
+
 void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node)
 {
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow |
@@ -80,12 +122,24 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     if (app.files.selected == node.path) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
-    const std::string label = node.name + (node.dir && !node.symlink ? "/" : "") + (node.symlink ? " ->" : "");
+    // Two leading spaces keep a cell for the icon's stand-in and one for a gap.
+    const std::string label = "  " + node.name + (node.symlink ? " ->" : "");
     ImGui::PushID(node.path.c_str());
     if (branch) {
         ImGui::SetNextItemOpen(node.expanded);
     }
     const bool open = ImGui::TreeNodeEx("##node", flags, "%s", label.c_str());
+    {
+        char letter = 'F';
+        uint32_t color = 0;
+        rv_editor_files_chip(node, letter, color);
+        // A row is one cell high: the stand-in is the letter itself, in its colour.
+        const char text[2] = { letter, '\0' };
+        const float cell = ImGui::GetTextLineHeight();
+        const ImVec2 at(ImGui::GetItemRectMin().x + ImGui::GetTreeNodeToLabelSpacing(),
+            std::floor((ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y - cell) / 2.0f));
+        ImGui::GetWindowDrawList()->AddText(at, rv_editor_col(color), text);
+    }
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
         app.files.selected = node.path;
     }
