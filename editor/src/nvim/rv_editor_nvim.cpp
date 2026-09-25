@@ -353,19 +353,6 @@ bool rv_editor_nvim::modified_only_in(int64_t win) const
     return false;
 }
 
-void rv_editor_nvim::save(int64_t win)
-{
-    if (!running()) {
-        return;
-    }
-    if (win == 0) {
-        exec_lua("vim.cmd('silent! wall')", {});
-        return;
-    }
-    exec_lua("local win = tonumber(...); vim.api.nvim_win_call(win, function() vim.cmd('write') end)",
-        { std::to_string(win) });
-}
-
 void rv_editor_nvim::discard(int64_t win)
 {
     if (!running()) {

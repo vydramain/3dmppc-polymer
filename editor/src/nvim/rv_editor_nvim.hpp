@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -23,6 +24,20 @@ struct rv_editor_nvim_buffer
     bool modified = false;
     std::vector<int64_t> windows; // windows showing it
 };
+
+// What one buffer's save came to, as nvim reports it after the write.
+struct rv_editor_nvim_saved
+{
+    int64_t id = 0;    // 0: nvim itself did not answer
+    std::string name;  // full path; empty for an Untitled buffer
+    bool ok = false;
+    std::string error; // nvim's message when not ok
+};
+
+// The outcome of a save: one entry per buffer, and `failure` when nvim did not
+// answer at all.
+using rv_editor_nvim_save_done =
+    std::function<void(const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure)>;
 
 // The code editor (docs/adr/0005-code-editor-nvim.md): one `nvim --embed`
 // per editor window, started with the first code tile. Each code tile is one
@@ -63,10 +78,21 @@ public:
     // Buffers with unsaved changes, and those only `win` shows.
     std::vector<rv_editor_nvim_buffer> modified() const;
     bool modified_only_in(int64_t win) const;
-    // Save, Discard: `:write` or `:bdelete!` for the buffer `win` shows, or
-    // for every modified buffer when `win` is 0.
-    void save(int64_t win);
+    // Writes the modified buffers `ids`, or every modified one when `ids` is
+    // empty, and reports each to `done` once nvim has answered. A buffer counts
+    // as saved only when its write returned and nvim no longer marks it
+    // modified; an Untitled one fails with "no file name". Nothing is dropped.
+    void save(const std::vector<int64_t> &ids, rv_editor_nvim_save_done done);
+    // Writes buffer `id` under `path` (`:saveas`, which never replaces an
+    // existing file) and reports like save().
+    void save_as(int64_t id, const std::filesystem::path &path, rv_editor_nvim_save_done done);
+    // Discard, on the user's word only: `:bdelete!` for the buffer `win` shows,
+    // or for every modified buffer when `win` is 0.
     void discard(int64_t win);
+    // Another project: every window gets an empty buffer, the old buffers go,
+    // and nvim's directory becomes `root`. Refused, with the reason in `done`,
+    // while any buffer is modified.
+    void switch_root(const std::filesystem::path &root, std::function<void(const std::string &failure)> done);
 
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;

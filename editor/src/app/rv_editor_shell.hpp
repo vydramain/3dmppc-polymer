@@ -29,8 +29,26 @@ struct rv_editor_shell
 
     // A code tile with unsaved changes waiting for Save, Discard or Cancel.
     rv_editor_pane_id closing = rv_editor_tile_none;
-    bool quit_asked = false; // the same question for the whole window
-    bool quit_now = false;   // answered: the window closes
+    // Unsaved buffers stand between the user and leaving: the window closing or
+    // another project opening. Nothing leaves until they are saved or discarded.
+    enum class rv_editor_leave
+    {
+        none,
+        quit,
+        open,
+    };
+    rv_editor_leave leaving = rv_editor_leave::none;
+    std::filesystem::path leaving_to; // the project Open waits to open
+    bool quit_now = false;            // answered: the window closes
+    // A save is out to nvim; what came back failed, file by file; and a save
+    // that succeeded whole, for the next frame to act on.
+    bool saving = false;
+    std::vector<rv_editor_nvim_saved> save_failed;
+    bool save_done = false;
+    // Save As: the buffer being named (0: none), the path typed, why it failed.
+    int64_t save_as_buffer = 0;
+    char save_as_path[512] = {};
+    std::string save_as_error;
     // The window has the keyboard, as SDL's focus events say.
     bool window_focused = true;
     // The file Files last followed, so a selection the user makes there stays
@@ -52,6 +70,15 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 
 // Once a frame before drawing: opens what a dialog picked and updates the models.
 void rv_editor_shell_update(rv_editor_shell &shell);
+
+// Opens a picked project, or asks first when buffers are unsaved (the question
+// is rv_editor_shell_dialogs').
+void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path);
+// What waits for a finished save: the tile closes, the window closes, the
+// project opens. Once a frame, from rv_editor_shell_update.
+void rv_editor_shell_after_save(rv_editor_shell &shell);
+// File > Save As for the buffer in the focused code tile.
+void rv_editor_shell_save_as_start(rv_editor_shell &shell);
 
 // rv_editor_pane_close_fn for the window's workspace: a code tile whose buffer
 // is modified and shown nowhere else asks first (TXT-07).

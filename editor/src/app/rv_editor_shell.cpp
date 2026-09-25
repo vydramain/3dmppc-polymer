@@ -89,18 +89,6 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws)
     return pane;
 }
 
-// A buffer's file as the project sees it: relative to the root when inside it.
-std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &name)
-{
-    if (name.empty()) {
-        return "(unnamed)";
-    }
-    std::error_code ec;
-    const std::filesystem::path rel = std::filesystem::relative(name, app.project.root, ec);
-    const bool inside = app.project.open && !ec && !rel.empty() && *rel.begin() != "..";
-    return inside ? rel.string() : name;
-}
-
 // A menu item that is disabled with its reason shown on hover (UI-04).
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
 {
@@ -172,6 +160,10 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         }
         if (ImGui::MenuItem("Open disc.toml...")) {
             rv_editor_open_manifest(shell);
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Save As...")) {
+            rv_editor_shell_save_as_start(shell);
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Quit")) {
@@ -303,14 +295,10 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         picked.swap(shell.picked);
     }
     for (const std::filesystem::path &path : picked) {
-        if (rv_editor_app_open(shell.app, path)) {
-            const std::string title = "3dmppc-editor - " +
-                (shell.app.project.disc_title.empty() ? shell.app.project.root.filename().string()
-                                                      : shell.app.project.disc_title);
-            SDL_SetWindowTitle(shell.window, title.c_str());
-        }
+        rv_editor_shell_request_open(shell, path);
     }
     rv_editor_app_update(shell.app);
+    rv_editor_shell_after_save(shell);
 
 
     // A code pane that left the tree, whatever took it (close, another kind, a
@@ -356,94 +344,6 @@ void rv_editor_shell_update(rv_editor_shell &shell)
                 app.files.reveal(buf->name);
             }
         }
-    }
-}
-
-bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane)
-{
-    rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
-    if (shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::code || !shell.app.nvim.running()) {
-        return true;
-    }
-    const int64_t win = shell.app.nvim.window_for(pane);
-    if (win == 0 || !shell.app.nvim.modified_only_in(win)) {
-        return true;
-    }
-    shell.closing = pane;
-    return false;
-}
-
-bool rv_editor_shell_may_quit(rv_editor_shell &shell)
-{
-    if (shell.quit_now || !shell.app.nvim.running() || shell.app.nvim.modified().empty()) {
-        return true;
-    }
-    shell.quit_asked = true;
-    return false;
-}
-
-void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &theme)
-{
-    rv_editor_app &app = shell.app;
-    const char *const tile_title = "Unsaved Changes";
-    const char *const quit_title = "Quit with Unsaved Changes";
-    if (shell.closing != rv_editor_tile_none && !ImGui::IsPopupOpen(tile_title)) {
-        ImGui::OpenPopup(tile_title);
-    }
-    if (rv_editor_dialog_begin(tile_title, theme)) {
-        const int64_t win = app.nvim.window_for(shell.closing);
-        std::string name = "This file";
-        for (const rv_editor_nvim_buffer &b : app.nvim.modified()) {
-            if (b.windows.size() == 1 && b.windows[0] == win) {
-                name = rv_editor_buffer_label(app, b.name);
-            }
-        }
-        ImGui::TextWrapped("%s has unsaved changes.", name.c_str());
-        const bool save = rv_editor_button("Save", theme);
-        ImGui::SameLine();
-        const bool discard = rv_editor_button("Discard", theme);
-        ImGui::SameLine();
-        const bool cancel = rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape);
-        if (save || discard) {
-            if (save) {
-                app.nvim.save(win);
-            } else {
-                app.nvim.discard(win);
-            }
-            // The window closes after the write in nvim's own order.
-            rv_editor_tile_remove(shell.ws.layout, shell.closing);
-        }
-        if (save || discard || cancel) {
-            shell.closing = rv_editor_tile_none;
-            ImGui::CloseCurrentPopup();
-        }
-        rv_editor_dialog_end();
-    }
-
-    if (shell.quit_asked && !ImGui::IsPopupOpen(quit_title)) {
-        ImGui::OpenPopup(quit_title);
-    }
-    if (rv_editor_dialog_begin(quit_title, theme)) {
-        ImGui::TextUnformatted("These files have unsaved changes:");
-        for (const rv_editor_nvim_buffer &b : app.nvim.modified()) {
-            ImGui::BulletText("%s", rv_editor_buffer_label(app, b.name).c_str());
-        }
-        const bool save = rv_editor_button("Save All", theme);
-        ImGui::SameLine();
-        const bool discard = rv_editor_button("Discard All", theme);
-        ImGui::SameLine();
-        const bool cancel = rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape);
-        if (save) {
-            app.nvim.save(0);
-        }
-        if (save || discard) {
-            shell.quit_now = true;
-        }
-        if (save || discard || cancel) {
-            shell.quit_asked = false;
-            ImGui::CloseCurrentPopup();
-        }
-        rv_editor_dialog_end();
     }
 }
 
