@@ -9,7 +9,7 @@ o.termguicolors = true
 o.hidden = true
 o.autoread = true
 o.clipboard = "unnamedplus"
-o.mouse = ""
+o.mouse = "a" -- the editor sends clicks and drags in a code tile (nvim_input_mouse)
 -- Each tile draws its own status line; nvim would put one in grid 1, outside the tile.
 o.laststatus = 0
 o.showmode = true

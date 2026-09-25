@@ -77,6 +77,10 @@ void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem:
 // What waits for a finished save: the tile closes, the window closes, the
 // project opens. Once a frame, from rv_editor_shell_update.
 void rv_editor_shell_after_save(rv_editor_shell &shell);
+// A buffer's file as the project sees it: relative to the root when inside it,
+// "Untitled" without a name.
+std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name);
+
 // File > Save As for the buffer in the focused code tile.
 void rv_editor_shell_save_as_start(rv_editor_shell &shell);
 

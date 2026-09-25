@@ -71,6 +71,9 @@ struct rv_editor_app
     // Game tile closed or behind another tab holds no keys.
     bool game_captured = false;
     bool game_drawn = false;
+    // What a Game tile needs to show the frame at 1x, with its rows above it;
+    // 0 x 0 before the first frame.
+    rv_editor_size game_need{ 0, 0 };
 };
 
 // Looks for the tools and says what it found.

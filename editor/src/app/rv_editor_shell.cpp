@@ -332,6 +332,30 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
     }
 
+    // What the tiles say this frame: a code tile's file and its unsaved mark in
+    // the header, and the Game's frame at 1x as its minimum.
+    shell.ws.titles.clear();
+    shell.ws.minimums.clear();
+    for (const rv_editor_tile_node &node : shell.ws.layout.nodes) {
+        if (node.kind != rv_editor_tile_kind::leaf) {
+            continue;
+        }
+        for (const rv_editor_pane_id pane : node.leaf.tabs) {
+            const rv_editor_pane_kind kind = shell.ws.panes.panes[pane].kind;
+            if (kind == rv_editor_pane_kind::game && app.game_need.w > 0) {
+                shell.ws.minimums[pane] = app.game_need;
+            }
+            if (kind != rv_editor_pane_kind::code || !app.nvim.running()) {
+                continue;
+            }
+            const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(pane));
+            if (buf != nullptr) {
+                shell.ws.titles[pane] =
+                    "Code - " + rv_editor_shell_buffer_label(app, buf->name) + (buf->modified ? " [+]" : "");
+            }
+        }
+    }
+
     // Files follows the document in the focused code tile.
     const rv_editor_workspace &ws = shell.ws;
     if (app.files.is_open() && ws.focused_leaf < ws.layout.nodes.size() &&

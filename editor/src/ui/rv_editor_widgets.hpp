@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <map>
 #include <string>
 
 #include "layout/rv_editor_tile.hpp"
@@ -113,6 +114,11 @@ struct rv_editor_workspace
     rv_editor_pane_registry panes;
     rv_editor_layout layout;
     uint32_t focused_leaf = rv_editor_tile_none;
+    // What the owner says about panes this frame, filled before each draw: a
+    // title in place of the kind's (a code tile names its file), and the least
+    // content size a pane needs (the Game's frame at 1x, LAY-03).
+    std::map<rv_editor_pane_id, std::string> titles;
+    std::map<rv_editor_pane_id, rv_editor_size> minimums;
 };
 
 // Draws one pane's content into the current ImGui window. `context` is what the

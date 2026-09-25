@@ -158,6 +158,11 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
 
 } // namespace
 
+std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name)
+{
+    return rv_editor_buffer_label(app, name);
+}
+
 void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path)
 {
     if (shell.app.nvim.running() && !shell.app.nvim.modified().empty()) {

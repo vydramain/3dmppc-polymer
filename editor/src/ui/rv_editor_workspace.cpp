@@ -51,13 +51,20 @@ struct rv_editor_tile_action
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
 };
 
+// A pane's title: the owner's for this frame, or its kind's.
+const char *rv_editor_title_of(const rv_editor_workspace &ws, rv_editor_pane_id pane)
+{
+    const auto it = ws.titles.find(pane);
+    return it != ws.titles.end() ? it->second.c_str() : rv_editor_pane_title(ws.panes.panes[pane].kind);
+}
+
 // The leaf's panes as the catalog's folder tabs; a click makes that pane the active one.
 void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &theme)
 {
     const rv_editor_tile_leaf &leaf = ws.layout.nodes[node].leaf;
     std::vector<const char *> labels;
     for (const rv_editor_pane_id pane : leaf.tabs) {
-        labels.push_back(rv_editor_pane_title(ws.panes.panes[pane].kind));
+        labels.push_back(rv_editor_title_of(ws, pane));
     }
     int active = static_cast<int>(leaf.active);
     if (rv_editor_tab_strip("##tabs", labels.data(), static_cast<int>(labels.size()), &active, theme)) {
@@ -89,7 +96,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
-    const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_pane_title(ws.panes.panes[active].kind);
+    const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_title_of(ws, active);
     // X takes the tile off the screen, M maximizes it.
     const rv_editor_header_action clicked = rv_editor_pane_header(title, node == ws.focused_leaf, theme, true);
     if (clicked == rv_editor_header_action::close) {
@@ -255,7 +262,10 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     const ImVec2 glyph = ImGui::CalcTextSize("M");
     for (size_t i = 0; i < pane_min.size(); ++i) {
         if (ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
-            pane_min[i] = {0, 0};
+            // The frame at 1x once the console has sent one (LAY-03); smaller
+            // until then, and Fit shows what fits.
+            const auto it = ws.minimums.find(static_cast<rv_editor_pane_id>(i));
+            pane_min[i] = it != ws.minimums.end() ? it->second : rv_editor_size{ 0, 0 };
         } else {
             pane_min[i] = {static_cast<int>(glyph.x * 20), static_cast<int>(frame_h * 4)};
         }

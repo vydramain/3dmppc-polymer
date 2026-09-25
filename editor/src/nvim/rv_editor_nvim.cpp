@@ -289,6 +289,22 @@ void rv_editor_nvim::focus(int64_t win)
     switch_at_ = std::chrono::steady_clock::now();
 }
 
+void rv_editor_nvim::mouse(int32_t grid, const char *action, int32_t row, int32_t col)
+{
+    if (!running()) {
+        return;
+    }
+    rpc_.notify("nvim_input_mouse", rv_editor_args([&](rv_editor_mpack_writer &w) {
+        w.array(6);
+        w.string("left");
+        w.string(action);
+        w.string("");
+        w.integer(grid);
+        w.integer(row);
+        w.integer(col);
+    }));
+}
+
 void rv_editor_nvim::input(const std::string &keys)
 {
     if (!running()) {

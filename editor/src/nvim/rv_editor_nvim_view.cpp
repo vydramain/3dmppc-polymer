@@ -226,6 +226,24 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     if (ImGui::IsItemClicked()) {
         nvim.focus(win);
     }
+    // The left button goes to nvim as a mouse event in this window's grid, at the
+    // cell under the pointer: a click moves the cursor, a drag selects.
+    if (grid != nullptr) {
+        static int32_t last_row = -1;
+        static int32_t last_col = -1;
+        const ImVec2 m = ImGui::GetMousePos();
+        const int32_t row = std::clamp(static_cast<int32_t>((m.y - at.y) / cell.y), 0, rows - 1);
+        const int32_t col = std::clamp(static_cast<int32_t>((m.x - at.x) / cell.x), 0, cols - 1);
+        if (ImGui::IsItemActivated()) {
+            nvim.mouse(grid_id, "press", row, col);
+        } else if (ImGui::IsItemActive() && (row != last_row || col != last_col)) {
+            nvim.mouse(grid_id, "drag", row, col);
+        } else if (ImGui::IsItemDeactivated()) {
+            nvim.mouse(grid_id, "release", row, col);
+        }
+        last_row = row;
+        last_col = col;
+    }
     ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), IM_COL32(0x1e, 0x1e, 0x2e, 255));
     if (grid == nullptr) {

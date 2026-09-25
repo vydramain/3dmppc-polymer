@@ -163,6 +163,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     // One status line, then the picture area to the tile's bottom edge.
     ImVec2 area = ImGui::GetContentRegionAvail();
     area.y -= ImGui::GetTextLineHeightWithSpacing();
+    // The tile's minimum: the frame at 1x plus whatever this pane puts around the
+    // picture (rows above it, padding), measured rather than guessed.
+    app.game_need = { static_cast<int32_t>(static_cast<float>(rv_editor_game_w) + ImGui::GetWindowWidth() - area.x),
+        static_cast<int32_t>(static_cast<float>(rv_editor_game_h) + ImGui::GetWindowHeight() - area.y) };
     const rv_editor_game_view view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
         static_cast<int>(rv_editor_game_h), area.x, area.y, app.game_scale);
 
