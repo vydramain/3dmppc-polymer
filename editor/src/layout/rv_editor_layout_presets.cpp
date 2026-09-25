@@ -33,17 +33,17 @@ struct rv_editor_preset_builder
     }
 };
 
-// Reference 0003: tools and files on the left, code with the game and its
-// controls beside it, terminal and runtime output underneath.
+// Reference 0003, without its Toolchest: files on the left, the code beside the
+// game over its controls, the terminal and the runtime output underneath.
+// Ratios are the picture's, measured in pixels.
 void rv_editor_preset_code(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
-    const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.30f);
-    const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.70f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
-    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.60f);
-    b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.60f);
+    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
+    const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.74f);
+    b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.54f);
 }
 
 // Reference 0005: tools over the hierarchy, the scene over the assets, the game
@@ -52,42 +52,43 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
     const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.30f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.66f);
-    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.68f);
+    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.29f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.61f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.70f);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, assets);
-    const rv_editor_pane_id inspector = b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.35f);
-    b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.55f);
+    const rv_editor_pane_id inspector = b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.42f);
+    b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.62f);
 }
 
-// Reference 0002: game, controls and code on top; output, run configuration and
-// inspector underneath.
+// Reference 0002: the game, its controls and the code on top; output, run
+// configuration and inspector underneath.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id game = 0;
-    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, game, rv_editor_tile_dock::bottom, 0.62f);
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::right, 0.45f);
-    b.add(rv_editor_pane_kind::code, controls, rv_editor_tile_dock::right, 0.35f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, game, rv_editor_tile_dock::bottom, 0.64f);
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::right, 0.51f);
+    b.add(rv_editor_pane_kind::code, controls, rv_editor_tile_dock::right, 0.31f);
     const rv_editor_pane_id run = b.add(rv_editor_pane_kind::run_config, output, rv_editor_tile_dock::right, 0.38f);
-    b.add(rv_editor_pane_kind::inspector, run, rv_editor_tile_dock::right, 0.50f);
+    b.add(rv_editor_pane_kind::inspector, run, rv_editor_tile_dock::right, 0.47f);
 }
 
 // Reference 0004: tools over the project, the code beside the controls over the
-// game; build output, problems and the run configuration over a terminal below.
+// game; build output with search, then problems and the run configuration over
+// a terminal below.
 void rv_editor_preset_build(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
     const rv_editor_pane_id project = b.add(rv_editor_pane_kind::project, code, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, project, rv_editor_tile_dock::top, 0.30f);
-    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.62f);
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, code, rv_editor_tile_dock::right, 0.60f);
-    b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.35f);
+    b.add(rv_editor_pane_kind::toolchest, project, rv_editor_tile_dock::top, 0.28f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.56f);
+    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, code, rv_editor_tile_dock::right, 0.61f);
+    b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.37f);
     b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, output);
-    const rv_editor_pane_id problems = b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::right, 0.40f);
-    const rv_editor_pane_id run = b.add(rv_editor_pane_kind::run_config, problems, rv_editor_tile_dock::right, 0.50f);
-    b.add(rv_editor_pane_kind::terminal, run, rv_editor_tile_dock::bottom, 0.55f);
+    const rv_editor_pane_id problems = b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::right, 0.38f);
+    b.add(rv_editor_pane_kind::terminal, problems, rv_editor_tile_dock::bottom, 0.62f);
+    b.add(rv_editor_pane_kind::run_config, problems, rv_editor_tile_dock::right, 0.50f);
 }
 
 // The working default, of panes that exist: files on the left, code in the middle
