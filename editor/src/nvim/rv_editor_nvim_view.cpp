@@ -4,6 +4,7 @@
 #include <SDL3/SDL.h>
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <string>
 
@@ -57,15 +58,21 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_edit
         grid.cursor_col >= grid.width) {
         return;
     }
-    // A block in normal mode, a bar while inserting.
+    // The shape nvim gives the current mode (guicursor, mode_info_set).
     const rv_editor_nvim_cell &under = grid.cells[static_cast<size_t>(grid.cursor_row * grid.width + grid.cursor_col)];
     uint32_t fg = 0;
     uint32_t bg = 0;
     screen.colors(under.hl, fg, bg);
     const ImVec2 p0(at.x + grid.cursor_col * cell.x, at.y + grid.cursor_row * cell.y);
-    const bool bar = screen.mode().starts_with("insert") || screen.mode().starts_with("cmdline");
-    if (bar) {
-        dl->AddRectFilled(p0, ImVec2(p0.x + std::max(2.0f, cell.x / 5.0f), p0.y + cell.y), rv_editor_rgb(fg));
+    const rv_editor_nvim_cursor shape = screen.cursor_shape();
+    if (shape.kind == rv_editor_nvim_cursor_kind::vertical) {
+        const float w = std::max(2.0f, std::floor(cell.x * static_cast<float>(shape.percent) / 100.0f));
+        dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + cell.y), rv_editor_rgb(fg));
+        return;
+    }
+    if (shape.kind == rv_editor_nvim_cursor_kind::horizontal) {
+        const float h = std::max(2.0f, std::floor(cell.y * static_cast<float>(shape.percent) / 100.0f));
+        dl->AddRectFilled(ImVec2(p0.x, p0.y + cell.y - h), ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
         return;
     }
     dl->AddRectFilled(p0, ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
@@ -235,14 +242,26 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         const int32_t row = std::clamp(static_cast<int32_t>((m.y - at.y) / cell.y), 0, rows - 1);
         const int32_t col = std::clamp(static_cast<int32_t>((m.x - at.x) / cell.x), 0, cols - 1);
         if (ImGui::IsItemActivated()) {
-            nvim.mouse(grid_id, "press", row, col);
+            nvim.mouse("left", "press", grid_id, row, col);
         } else if (ImGui::IsItemActive() && (row != last_row || col != last_col)) {
-            nvim.mouse(grid_id, "drag", row, col);
+            nvim.mouse("left", "drag", grid_id, row, col);
         } else if (ImGui::IsItemDeactivated()) {
-            nvim.mouse(grid_id, "release", row, col);
+            nvim.mouse("left", "release", grid_id, row, col);
         }
         last_row = row;
         last_col = col;
+        // The wheel scrolls the window under the pointer, one nvim wheel event a
+        // notch; Shift or a sideways wheel scrolls it left and right.
+        const ImGuiIO &io = ImGui::GetIO();
+        if (ImGui::IsItemHovered()) {
+            const bool sideways = io.MouseWheelH != 0.0f || io.KeyShift;
+            const float amount = io.MouseWheelH != 0.0f ? io.MouseWheelH : io.MouseWheel;
+            const int notches = static_cast<int>(std::lround(std::fabs(amount)));
+            const char *dir = sideways ? (amount > 0.0f ? "left" : "right") : (amount > 0.0f ? "up" : "down");
+            for (int i = 0; amount != 0.0f && i < std::max(1, notches); ++i) {
+                nvim.mouse("wheel", dir, grid_id, row, col);
+            }
+        }
     }
     ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), IM_COL32(0x1e, 0x1e, 0x2e, 255));

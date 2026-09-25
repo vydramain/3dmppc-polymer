@@ -6,6 +6,25 @@ local o = vim.opt
 
 o.number = true
 o.termguicolors = true
+-- The owner's everyday settings (~/.config/nvim/lua/options.lua), without plugins.
+o.relativenumber = true
+o.cursorline = true
+o.signcolumn = "yes"
+o.scrolloff = 8
+o.sidescrolloff = 8
+o.wrap = false
+o.splitbelow = true
+o.splitright = true
+o.ignorecase = true
+o.smartcase = true
+o.hlsearch = false
+o.updatetime = 250
+o.timeoutlen = 500
+o.expandtab = true
+o.tabstop = 2
+o.shiftwidth = 2
+o.softtabstop = 2
+o.smartindent = true
 o.hidden = true
 o.autoread = true
 o.clipboard = "unnamedplus"
@@ -36,6 +55,8 @@ hl("Normal", { fg = c.text, bg = c.base })
 hl("NormalNC", { fg = c.text, bg = c.base })
 hl("LineNr", { fg = c.overlay0, bg = c.base })
 hl("CursorLineNr", { fg = c.lavender, bg = c.base })
+hl("CursorLine", { bg = "#2a2b3c" })
+hl("SignColumn", { bg = c.base })
 hl("StatusLine", { fg = c.text, bg = c.surface1 })
 hl("StatusLineNC", { fg = c.subtext, bg = c.surface0 })
 hl("WinSeparator", { fg = c.surface0 })
@@ -66,12 +87,11 @@ hl("Delimiter", { fg = c.subtext })
 hl("Todo", { fg = c.base, bg = c.yellow })
 hl("@variable", { fg = c.text })
 
--- Per language (TXT-04): C and C++ real tabs of 4, ruler at 128, no wrap.
+-- Per language (TXT-04): two spaces everywhere, four for C and C++ with the ruler
+-- at 129, the first column past 128 (the owner's options.lua).
 local profiles = {
-    c = { expandtab = false, tabstop = 4, shiftwidth = 4, colorcolumn = "128", wrap = false },
-    cpp = { expandtab = false, tabstop = 4, shiftwidth = 4, colorcolumn = "128", wrap = false },
-    lua = { expandtab = false, tabstop = 4, shiftwidth = 4, colorcolumn = "128", wrap = false },
-    toml = { expandtab = true, tabstop = 2, shiftwidth = 2, colorcolumn = "", wrap = false },
+    c = { expandtab = true, tabstop = 4, shiftwidth = 4, softtabstop = 4, colorcolumn = "129" },
+    cpp = { expandtab = true, tabstop = 4, shiftwidth = 4, softtabstop = 4, colorcolumn = "129" },
 }
 vim.api.nvim_create_autocmd("FileType", {
     callback = function(ev)

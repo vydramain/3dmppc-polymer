@@ -66,6 +66,14 @@ void rv_editor_nvim_screen::apply(const rv_editor_mpack &batches)
     }
 }
 
+rv_editor_nvim_cursor rv_editor_nvim_screen::cursor_shape() const
+{
+    if (mode_index_ < 0 || static_cast<size_t>(mode_index_) >= mode_info_.size()) {
+        return {};
+    }
+    return mode_info_[static_cast<size_t>(mode_index_)];
+}
+
 void rv_editor_nvim_screen::grid_resize(int32_t id, int32_t w, int32_t h)
 {
     rv_editor_nvim_grid &g = grids_[id];
@@ -197,8 +205,23 @@ void rv_editor_nvim_screen::event(const std::string &name, const rv_editor_mpack
         default_.fg = static_cast<uint32_t>(a[0].i);
         default_.bg = static_cast<uint32_t>(a[1].i);
         default_.has_fg = default_.has_bg = true;
+    } else if (name == "mode_info_set" && a.size() >= 2) {
+        mode_info_.clear();
+        for (const rv_editor_mpack &m : a[1].items) {
+            rv_editor_nvim_cursor c;
+            if (const rv_editor_mpack *v = m.get("cursor_shape")) {
+                c.kind = v->s == "vertical"   ? rv_editor_nvim_cursor_kind::vertical
+                    : v->s == "horizontal" ? rv_editor_nvim_cursor_kind::horizontal
+                                           : rv_editor_nvim_cursor_kind::block;
+            }
+            if (const rv_editor_mpack *v = m.get("cell_percentage"); v != nullptr && v->i > 0 && v->i <= 100) {
+                c.percent = static_cast<int32_t>(v->i);
+            }
+            mode_info_.push_back(c);
+        }
     } else if (name == "mode_change" && !a.empty()) {
         mode_ = a[0].s;
+        mode_index_ = a.size() >= 2 ? rv_editor_int(a[1]) : -1;
     } else if (name == "flush") {
         flushed_ = true;
     }

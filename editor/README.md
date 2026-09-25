@@ -115,8 +115,9 @@ new one.
 It starts as an ordinary editor: typing inserts, Shift+arrows select, Ctrl+S
 saves, Ctrl+Shift+S saves all, Ctrl+Z / Ctrl+Shift+Z undo and redo, Ctrl+C,
 Ctrl+X, Ctrl+V use the system clipboard, Ctrl+F searches, Ctrl+H replaces,
-Ctrl+G opens nvim's command line. F2 switches to plain Vim and back. Lua, C and
-C++ use real tabs 4 wide with a ruler at 128. F5, F6, F7, Shift+F5 and Ctrl+B
+Ctrl+G opens nvim's command line. F2 switches to plain Vim and back. C and
+C++ indent with 4 spaces and a ruler at column 129, everything else with 2
+spaces; the wheel scrolls, and the cursor takes nvim's shape for each mode. F5, F6, F7, Shift+F5 and Ctrl+B
 stay the editor's own while a Code tile has the keyboard.
 
 A Code tile's header and status line name the file and mark it `[+]` while

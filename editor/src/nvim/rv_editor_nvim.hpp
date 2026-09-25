@@ -69,8 +69,10 @@ public:
     void focus(int64_t win);
     // Keys in nvim_input notation ("<C-s>", "a", "<lt>").
     void input(const std::string &keys);
-    // The left button in `grid` at cell (row, col): "press", "drag" or "release".
-    void mouse(int32_t grid, const char *action, int32_t row, int32_t col);
+    // A mouse event in `grid` at cell (row, col), as nvim_input_mouse takes it:
+    // button "left" with "press", "drag" or "release", or "wheel" with "up",
+    // "down", "left" or "right".
+    void mouse(const char *button, const char *action, int32_t grid, int32_t row, int32_t col);
     // Opens `path` in `win`, at `line` when it is above 0.
     void open(int64_t win, const std::filesystem::path &path, int32_t line);
     // `:checktime`: re-reads buffers changed on disk (PRJ-06/PRJ-07 go through

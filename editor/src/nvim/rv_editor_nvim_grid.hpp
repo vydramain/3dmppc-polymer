@@ -14,6 +14,20 @@ namespace rv_editor
 // (docs/adr/0005-code-editor-nvim.md): highlight attributes, the default
 // colours, and one grid per window plus grid 1 with the command line.
 
+// The cursor's shape in one mode, as nvim's mode_info_set gives it (guicursor).
+enum class rv_editor_nvim_cursor_kind
+{
+    block,
+    vertical,   // a bar at the cell's left
+    horizontal, // a bar at the cell's bottom
+};
+
+struct rv_editor_nvim_cursor
+{
+    rv_editor_nvim_cursor_kind kind = rv_editor_nvim_cursor_kind::block;
+    int32_t percent = 100; // of the cell's width (vertical) or height (horizontal)
+};
+
 struct rv_editor_nvim_attr
 {
     uint32_t fg = 0;
@@ -61,6 +75,8 @@ public:
 
     int32_t cursor_grid() const { return cursor_grid_; }
     const std::string &mode() const { return mode_; }
+    // The cursor's shape in the current mode; a block before nvim has said.
+    rv_editor_nvim_cursor cursor_shape() const;
     // Grid of the message area (msg_set_pos), 0 when none is shown.
     int32_t message_grid() const { return msg_grid_; }
     int32_t message_row() const { return msg_row_; }
@@ -80,6 +96,8 @@ private:
     int32_t msg_grid_ = 0;
     int32_t msg_row_ = 0;
     std::string mode_;
+    int32_t mode_index_ = -1;
+    std::vector<rv_editor_nvim_cursor> mode_info_;
     bool flushed_ = false;
 };
 
