@@ -219,6 +219,13 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     const int32_t grid_id = nvim.screen().grid_of_window(win);
     const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
 
+    // The tile's own row: Vim or the ordinary editor, the switch F2 also makes.
+    bool vim = nvim.vim_mode();
+    if (rv_editor_toggle("Vim##mode", &vim, theme)) {
+        nvim.toggle_vim_mode();
+    }
+    ImGui::SetItemTooltip("Full Vim: normal mode and Vim keys. Off: an ordinary editor. F2 switches too.");
+
     // The code area fills the tile in whole cells, two rows kept under it: the
     // tile's status line and the command line.
     const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());

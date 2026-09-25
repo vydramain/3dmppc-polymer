@@ -98,6 +98,11 @@ public:
     // while any buffer is modified.
     void switch_root(const std::filesystem::path &root, std::function<void(const std::string &failure)> done);
 
+    // Full Vim (normal mode, Vim keys) instead of the ordinary editor: the same
+    // switch as F2 in a code tile, which it follows.
+    bool vim_mode() const { return vim_mode_; }
+    void toggle_vim_mode();
+
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;
 
@@ -123,6 +128,7 @@ private:
     std::map<uint32_t, bool> asked_;      // a window was requested for this pane
     std::vector<int64_t> spare_;          // windows no pane shows, the first is nvim's own
     std::vector<rv_editor_nvim_buffer> buffers_;
+    bool vim_mode_ = false;
     std::map<int64_t, std::pair<int32_t, int32_t>> sizes_;
     std::set<int64_t> shown_;             // windows whose grid has been seen
     // Keys typed right after a window switch wait until nvim has made it, since

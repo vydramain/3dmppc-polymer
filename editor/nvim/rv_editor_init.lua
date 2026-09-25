@@ -124,8 +124,12 @@ local function toggle_vim_mode()
         vim.notify("Editor mode")
         stay_inserting()
     end
+    -- The editor's Vim toggle shows what F2 did.
+    vim.rpcnotify(0, "rv_mode", vim.g.rv_vim_mode)
 end
 vim.keymap.set({ "n", "i", "v", "s" }, "<F2>", toggle_vim_mode)
+-- The same switch for the editor's Vim toggle.
+_G.rv_toggle_vim_mode = toggle_vim_mode
 
 -- The usual keys, in every mode (TXT-01).
 local map = vim.keymap.set

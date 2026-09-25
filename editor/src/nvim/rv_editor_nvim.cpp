@@ -154,6 +154,10 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
         screen_.apply(params);
         return;
     }
+    if (method == "rv_mode" && !params.items.empty()) {
+        vim_mode_ = params.items[0].b;
+        return;
+    }
     if (method != "rv_buffers" || params.items.empty()) {
         return;
     }
@@ -339,6 +343,13 @@ void rv_editor_nvim::open(int64_t win, const std::filesystem::path &path, int32_
              "vim.cmd.edit(vim.fn.fnameescape(path))\n"
              "if line > 0 then pcall(vim.api.nvim_win_set_cursor, win, { line, 0 }) end",
         { std::to_string(win), path.string(), std::to_string(line) });
+}
+
+void rv_editor_nvim::toggle_vim_mode()
+{
+    if (running()) {
+        exec_lua("_G.rv_toggle_vim_mode()", {});
+    }
 }
 
 void rv_editor_nvim::checktime()
