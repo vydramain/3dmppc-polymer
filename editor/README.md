@@ -8,13 +8,18 @@ Today it shows its tiled workspace between the menu bar and a status bar: a tile
 can be split, closed with its X box, maximized with its M box or turned into
 another kind of pane, and several panes in one tile show as folder tabs. The
 layout is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout`
-(`~/.config/...` without the variable), and the Layout menu holds the Code,
-Scene, Debug and Build starting layouts of the design references.
+(`~/.config/...` without the variable) and read back as it was. Without a saved
+layout, or after Layout > Reset to Default, the editor starts from Files on the
+left, Code over Output in the middle, and Game over Runtime Controls on the
+right. Layout > Reference Layouts holds the Code, Scene, Debug and Build layouts
+of the design references, whose Scene, Terminal and other panes are not written
+yet. The tile with the focus wears a brass frame.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console that draws into the Game tile, driven over the console's
-dev channel: Game, Runtime Controls, Output, Project, Files and Code are live
-panes. The terminal is not there yet.
+dev channel: Game, Runtime Controls, Output, Files and Code are live panes, and
+Window > Project Settings shows the paths and versions of the project and the
+tools. The terminal is not there yet.
 
 ## Building
 
@@ -70,8 +75,13 @@ reason, a player build of the console included.
 
 The Game tile shows the console's own frame. The editor makes a shared memory
 object and hands it to the console as `--frame-fd`; the console writes each
-finished frame there instead of opening a window, and the tile draws it in whole
-multiples without smoothing. A click on the picture gives the game the keyboard,
+finished frame there instead of opening a window, and the tile draws it without
+smoothing at the size its Fit, Integer, 1x, 2x and 3x buttons (or View > Game
+Scale) choose: Fit, the default, is the largest size that keeps the frame's
+proportions, fractional scales included; Integer the largest whole multiple;
+a fixed multiple that does not fit is lowered to one that does, and the status
+line says so. What the frame leaves over is dark. A click on the picture gives
+the game the keyboard,
 with the console's own keys (arrows, Space or Z, X, C, V, Q, E, Tab, Esc);
 Shift+Esc or a click elsewhere takes it back. Paused, the tile shows the
 console's pause picture. Sound still comes from the console.
@@ -115,6 +125,7 @@ nvim asks. Language servers, Problems and search are not connected yet.
 | --- | --- |
 | Layout | `$XDG_CONFIG_HOME/3dmppc-editor/layout` |
 | Settings | `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` |
+| Code text size, Game scale | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
 | Builds | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/builds/<n>` |
 | Memory card | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/memcard.mppccard` |
 
@@ -140,11 +151,13 @@ Project pane shows each path and the version the tool reports
 
 ### Fonts
 
-The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8x8 cell) with no
-magnification beyond `--scale`; code, Output and logs draw in PxPlus IBM VGA
-9x16 by VileR (int10h.org) squashed into a 6x11 cell
-(`src/font/rv_editor_font_code_data.hpp`). That table and the Cyrillic of the 5x7
-font are adaptations of PxPlus and carry its CC BY-SA 4.0 licence: see
+The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8 px high, one
+blank column between letters) with no magnification beyond `--scale`. Code and
+Output draw in PxPlus IBM VGA 9x16 by VileR (int10h.org): View > Code Text Size
+picks Normal (16 px, the default), Large (32 px) or Small (the older 6x11 table,
+`src/font/rv_editor_font_code_data.hpp`), each times `--scale`, and the choice
+is kept. The font file, the 6x11 table and the Cyrillic of the 5x7 font carry
+PxPlus's CC BY-SA 4.0 licence: see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
 ## Layout
@@ -154,6 +167,6 @@ font are adaptations of PxPlus and carry its CC BY-SA 4.0 licence: see
 | `src/` | the editor's sources |
 | [`docs/3dmppc-editor-v0.4-requirements.md`](docs/3dmppc-editor-v0.4-requirements.md) | requirements and acceptance criteria of the editor MVP |
 | [`docs/adr/`](docs/adr/README.md) | architecture decisions: toolkit, tiling, theme, fonts, code editor, Game frame, CMake |
-| [`docs/icons.md`](docs/icons.md) | every place the editor needs an icon, and the coloured letter that stands in for it until icons are drawn |
+| [`docs/icons.md`](docs/icons.md) | every place the editor needs an icon, and the picture or coloured letter it has now |
 | [`docs/sgi-irix-ux.md`](docs/sgi-irix-ux.md) | research: how SGI IRIX technical applications looked and behaved, with sources |
 | `docs/references/` | generated design references: a visual direction, not a specification |
