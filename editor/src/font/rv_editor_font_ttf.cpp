@@ -300,7 +300,9 @@ std::string rv_editor_font_ttf()
         }
     }
 
-    return rv_editor_ttf_build(glyphs, map, rv_pdklib::rv_font_cell_width, rv_pdklib::rv_font_cell_height);
+    // Every glyph but notdef keeps its ink in the cell's left five columns: a
+    // 6 px advance leaves one column between letters instead of three.
+    return rv_editor_ttf_build(glyphs, map, rv_editor_font_ui_advance, rv_pdklib::rv_font_cell_height);
 }
 
 std::string rv_editor_font_code_ttf()
