@@ -1,15 +1,19 @@
-// The Game tile (docs/adr/0006-game-frame.md): the console's own frame and, while the tile holds the keyboard, its pad.
+// The Game tile (docs/adr/0006-game-frame.md): the console's own frame scaled as
+// View > Game Scale says, and, while the tile holds the keyboard, its pad.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <string>
 #include <vector>
 
 #include "imgui.h"
+#include "panes/rv_editor_game_fit.hpp"
 #include "pdk/cio/rv_isource.h"
+#include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
 {
@@ -21,17 +25,96 @@ SDL_Texture *rv_editor_game_texture = nullptr;
 uint32_t rv_editor_game_w = 0, rv_editor_game_h = 0;
 uint64_t rv_editor_game_frame = 0;
 std::vector<uint32_t> rv_editor_game_pixels;
-bool rv_editor_game_captured = false;
 int rv_editor_game_fd = -1;
+
+// The console's own keys (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
+uint64_t rv_editor_game_keys()
+{
+    uint64_t buttons = 0;
+    if (!ImGui::GetIO().KeyShift && ImGui::IsKeyDown(ImGuiKey_Escape)) {
+        buttons |= RV_ISOURCE_MENU_BTTN_MENU;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_Tab)) {
+        buttons |= RV_ISOURCE_MENU_BTTN_VIEW;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_Space) || ImGui::IsKeyDown(ImGuiKey_Z)) {
+        buttons |= RV_ISOURCE_FRONT_BTTN_SOUTH;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_X)) {
+        buttons |= RV_ISOURCE_FRONT_BTTN_EAST;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_C)) {
+        buttons |= RV_ISOURCE_FRONT_BTTN_WEST;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_V)) {
+        buttons |= RV_ISOURCE_FRONT_BTTN_NORTH;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_Q)) {
+        buttons |= RV_ISOURCE_BUMPER_LEFT;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_E)) {
+        buttons |= RV_ISOURCE_BUMPER_RIGHT;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_UpArrow)) {
+        buttons |= RV_ISOURCE_DPAD_NORTH | RV_ISOURCE_DPAD_MOVE;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_DownArrow)) {
+        buttons |= RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_MOVE;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_LeftArrow)) {
+        buttons |= RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_MOVE;
+    }
+    if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) {
+        buttons |= RV_ISOURCE_DPAD_EAST | RV_ISOURCE_DPAD_MOVE;
+    }
+    return buttons;
+}
+
+// Fit, Integer, 1x, 2x, 3x: the same choice as View > Game Scale.
+void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit, rv_editor_game_scale::integer,
+        rv_editor_game_scale::x1, rv_editor_game_scale::x2, rv_editor_game_scale::x3 };
+    constexpr const char *labels[] = { "Fit", "Integer", "1x", "2x", "3x" };
+    for (size_t i = 0; i < std::size(modes); ++i) {
+        if (i > 0) {
+            rv_editor_flow(rv_editor_button_width(labels[i]));
+        }
+        bool on = app.game_scale == modes[i];
+        if (rv_editor_toggle(labels[i], &on, theme)) {
+            app.game_scale = modes[i];
+        }
+    }
+}
+
+// "Fit 2.37x", "Integer 2x", "3x, lowered to 2x to fit".
+std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor_game_view &view)
+{
+    char buf[64];
+    switch (mode) {
+        case rv_editor_game_scale::fit: std::snprintf(buf, sizeof(buf), "Fit %.2fx", view.scale); break;
+        case rv_editor_game_scale::integer:
+            std::snprintf(buf, sizeof(buf), view.reduced ? "Integer: %.2fx, below 1x to fit" : "Integer %.0fx",
+                view.scale);
+            break;
+        default:
+            std::snprintf(buf, sizeof(buf), view.reduced ? "%s, lowered to %.2fx to fit" : "%s",
+                rv_editor_game_scale_name(mode), view.scale);
+            break;
+    }
+    return buf;
+}
 
 } // namespace
 
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
     rv_editor_session &s = app.session;
+    app.game_drawn = true;
+    rv_editor_game_modes(app, theme);
 
     if (!s.live()) {
-        rv_editor_game_captured = false;
+        app.game_captured = false;
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("No console is running: Run (F5) starts the game here.");
         ImGui::PopStyleColor();
@@ -73,90 +156,49 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         return;
     }
 
-    // The state line goes above the picture, so a tight tile never cuts it off.
-    if (s.state() == rv_editor_run_state::paused) {
-        ImGui::TextUnformatted(("Paused, frame " + std::to_string(s.frame())).c_str());
-    } else if (rv_editor_game_captured) {
-        ImGui::TextUnformatted("Playing: Shift+Esc gives the keyboard back");
-    } else {
-        ImGui::TextUnformatted("Click the picture to play");
-    }
+    // One status line, then the picture area to the tile's bottom edge.
+    ImVec2 area = ImGui::GetContentRegionAvail();
+    area.y -= ImGui::GetTextLineHeightWithSpacing();
+    const rv_editor_game_view view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+        static_cast<int>(rv_editor_game_h), area.x, area.y, app.game_scale);
 
-    // Whole multiples only, nearest sampling: the console's pixels stay square (LAY-05).
-    ImVec2 avail = ImGui::GetContentRegionAvail();
-    int k = std::max(1, static_cast<int>(std::floor(
-        std::min(avail.x / static_cast<float>(rv_editor_game_w), avail.y / static_cast<float>(rv_editor_game_h)))));
-    ImVec2 size(static_cast<float>(rv_editor_game_w * k), static_cast<float>(rv_editor_game_h * k));
+    const char *state = s.state() == rv_editor_run_state::paused ? "paused"
+        : app.game_captured ? "playing: Shift+Esc gives the keyboard back"
+                            : "click the picture to play";
+    const std::string line = std::to_string(rv_editor_game_w) + "x" + std::to_string(rv_editor_game_h) + "  " +
+        rv_editor_game_scale_text(app.game_scale, view) + "  frame " + std::to_string(s.frame()) + ", " + state;
+    ImGui::TextUnformatted(line.c_str());
 
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() +
-        std::max(0.0f, (avail.x - size.x) * 0.5f));
-
-    // A click on the picture takes the keyboard.
+    // The whole area is dark, so what the frame leaves over is not the tile's olive.
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    if (ImGui::InvisibleButton("##game", size)) {
-        rv_editor_game_captured = true;
-    }
-
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), p0,
-        ImVec2(p0.x + size.x, p0.y + size.y));
-
-    if (rv_editor_game_captured) {
-        ImVec2 p1(p0.x + size.x, p0.y + size.y);
-        dl->AddRect(ImVec2(p0.x - 1, p0.y - 1), ImVec2(p1.x + 1, p1.y + 1),
-            IM_COL32((theme.selection >> 16) & 0xff, (theme.selection >> 8) & 0xff,
-                theme.selection & 0xff, 255),
-            0.0f, 2.0f);
+    dl->AddRectFilled(p0, ImVec2(p0.x + area.x, p0.y + area.y), rv_editor_col(theme.code_base));
+    if (area.x < 1.0f || area.y < 1.0f) {
+        return;
+    }
+    // A click on the picture takes the keyboard.
+    if (ImGui::InvisibleButton("##game", area)) {
+        app.game_captured = true;
+    }
+    const ImVec2 i0(p0.x + view.x, p0.y + view.y);
+    const ImVec2 i1(i0.x + view.w, i0.y + view.h);
+    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), i0, i1);
+    if (app.game_captured) {
+        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1), ImVec2(i1.x + 1, i1.y + 1), rv_editor_col(theme.selection), 0.0f,
+            2.0f);
     }
 
     // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
-    if (rv_editor_game_captured &&
+    if (app.game_captured &&
         (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_Escape) ||
-            !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows |
-                ImGuiFocusedFlags_RootAndChildWindows))) {
-        rv_editor_game_captured = false;
+            !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_RootAndChildWindows))) {
+        app.game_captured = false;
     }
 
     // Paused, released or elsewhere: all buttons up, so nothing stays held (GAM-04).
     uint64_t buttons = 0;
-    if (rv_editor_game_captured && s.state() == rv_editor_run_state::running) {
-        // The console's own keys (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
-        if (!ImGui::GetIO().KeyShift && ImGui::IsKeyDown(ImGuiKey_Escape)) {
-            buttons |= RV_ISOURCE_MENU_BTTN_MENU;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_Tab)) {
-            buttons |= RV_ISOURCE_MENU_BTTN_VIEW;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_Space) || ImGui::IsKeyDown(ImGuiKey_Z)) {
-            buttons |= RV_ISOURCE_FRONT_BTTN_SOUTH;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_X)) {
-            buttons |= RV_ISOURCE_FRONT_BTTN_EAST;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_C)) {
-            buttons |= RV_ISOURCE_FRONT_BTTN_WEST;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_V)) {
-            buttons |= RV_ISOURCE_FRONT_BTTN_NORTH;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_Q)) {
-            buttons |= RV_ISOURCE_BUMPER_LEFT;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_E)) {
-            buttons |= RV_ISOURCE_BUMPER_RIGHT;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_UpArrow)) {
-            buttons |= RV_ISOURCE_DPAD_NORTH | RV_ISOURCE_DPAD_MOVE;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_DownArrow)) {
-            buttons |= RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_MOVE;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_LeftArrow)) {
-            buttons |= RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_MOVE;
-        }
-        if (ImGui::IsKeyDown(ImGuiKey_RightArrow)) {
-            buttons |= RV_ISOURCE_DPAD_EAST | RV_ISOURCE_DPAD_MOVE;
-        }
+    if (app.game_captured && s.state() == rv_editor_run_state::running) {
+        buttons = rv_editor_game_keys();
         app.text_focus = true;
     }
     s.pad(buttons, app.log);

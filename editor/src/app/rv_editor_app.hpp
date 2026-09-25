@@ -67,6 +67,10 @@ struct rv_editor_app
     bool text_focus = false;
     // How the Game tile scales the frame; kept in the view file.
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
+    // The Game tile has the keyboard; and whether one was drawn this frame: a
+    // Game tile closed or behind another tab holds no keys.
+    bool game_captured = false;
+    bool game_drawn = false;
 };
 
 // Looks for the tools and says what it found.

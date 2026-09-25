@@ -286,6 +286,14 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     }
     rv_editor_app_update(shell.app);
 
+    // No Game tile was drawn last frame (closed, or behind another tab): the game
+    // gets every button up, so nothing stays held (GAM-04).
+    if (!shell.app.game_drawn) {
+        shell.app.game_captured = false;
+        shell.app.session.pad(0, shell.app.log);
+    }
+    shell.app.game_drawn = false;
+
     // A code pane that left the tree, whatever took it (close, another kind, a
     // layout from the menu), gives its nvim window back.
     const std::vector<rv_editor_pane_id> shown = rv_editor_code_panes(shell.ws);
