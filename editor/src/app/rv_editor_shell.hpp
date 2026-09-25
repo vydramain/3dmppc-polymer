@@ -20,6 +20,7 @@ struct rv_editor_shell
     rv_editor_workspace ws;
     rv_editor_app app;
     SDL_Window *window = nullptr;
+    SDL_Renderer *renderer = nullptr; // the Game tile's texture lives on it
 
     // Paths SDL's file dialogs returned, possibly from another thread; opened
     // on the next frame.

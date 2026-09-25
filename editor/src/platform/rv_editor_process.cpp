@@ -84,7 +84,7 @@ void rv_editor_process::close_fds()
 }
 
 bool rv_editor_process::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &error)
+    std::string &error, int inherit_fd)
 {
     rv_editor_ignore_sigpipe();
     if (argv.empty() || running()) {
@@ -114,6 +114,10 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     posix_spawn_file_actions_adddup2(&actions, in[0], 0);
     posix_spawn_file_actions_adddup2(&actions, out[1], 1);
     posix_spawn_file_actions_adddup2(&actions, err[1], 2);
+    // dup2 leaves the copy without close-on-exec, so this one descriptor crosses.
+    if (inherit_fd >= 0) {
+        posix_spawn_file_actions_adddup2(&actions, inherit_fd, 3);
+    }
     if (!cwd.empty()) {
         posix_spawn_file_actions_addchdir_np(&actions, cwd.c_str());
     }

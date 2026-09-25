@@ -3,6 +3,7 @@
 #include "session/rv_editor_session.hpp"
 
 #include <charconv>
+#include <cstdio>
 #include <thread>
 #include <vector>
 
@@ -65,9 +66,13 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
         error = "a runtime is already running in this window";
         return false;
     }
-    const std::vector<std::string> argv = { console.string(), "--dev", "--memcard", memcard.string(),
+    if (!frame_mem_.create(error)) {
+        return false;
+    }
+    // The console writes its frames into frame_mem_, handed over as descriptor 3.
+    const std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string(),
         disc_dir.string() };
-    if (!proc_.start(argv, cwd, error)) {
+    if (!proc_.start(argv, cwd, error, frame_mem_.fd())) {
         return false;
     }
 
@@ -75,6 +80,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     pending_.clear();
     next_id_ = 1;
     frame_ = 0;
+    pad_sent_ = 0;
     uncertain_ = false;
     quit_sent_ = false;
     forced_ = false;
@@ -90,7 +96,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     started_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::starting;
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-        "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --memcard " +
+        "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --frame-fd 3 --memcard " +
             memcard.string() + " " + disc_dir.string());
     // Nothing is enabled until this answers (DEV-02).
     send("status", log);
@@ -155,6 +161,18 @@ void rv_editor_session::force_stop(rv_editor_log &log)
     log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
         "force-stopping runtime pid " + std::to_string(proc_.pid()));
     proc_.stop(true);
+}
+
+void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
+{
+    if (!handshake_done_ || !live() || quit_sent_ || buttons == pad_sent_) {
+        return;
+    }
+    char hex[17];
+    std::snprintf(hex, sizeof(hex), "%llx", static_cast<unsigned long long>(buttons));
+    if (send(std::string("pad 0 ") + hex, log) != 0) {
+        pad_sent_ = buttons;
+    }
 }
 
 void rv_editor_session::handle_mode(std::string_view mode)
@@ -354,7 +372,7 @@ void rv_editor_session::finish(rv_editor_log &log)
         end_reason_ = how;
     } else {
         state_ = rv_editor_run_state::exited;
-        end_reason_ = quit_sent_ ? "stopped" : "the console ended by itself (its window was closed)";
+        end_reason_ = quit_sent_ ? "stopped" : "the console ended by itself";
     }
     log.add(rv_editor_log_source::editor,
         state_ == rv_editor_run_state::crashed || state_ == rv_editor_run_state::refused ? rv_editor_log_level::error

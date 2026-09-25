@@ -217,6 +217,7 @@ int main(int argc, char **argv)
     // Heap-held: the shell's address goes to SDL's dialogs and to every pane.
     auto shell = std::make_unique<rv_editor::rv_editor_shell>();
     shell->window = window;
+    shell->renderer = renderer;
     shell->ws = rv_editor::rv_editor_workspace_load(layout_path);
     rv_editor::rv_editor_app_init(shell->app);
     if (!open_path.empty()) {

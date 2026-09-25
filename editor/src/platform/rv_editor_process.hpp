@@ -32,9 +32,11 @@ public:
     // Kills and reaps a child still running: the editor leaves no orphan.
     ~rv_editor_process();
 
-    // argv[0] is the executable path, run as is (no PATH search). False with the
-    // reason in `error` when it cannot start.
-    bool start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error);
+    // argv[0] is the executable path, run as is (no PATH search). `inherit_fd`,
+    // when not -1, reaches the child as its descriptor 3. False with the reason in
+    // `error` when it cannot start.
+    bool start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error,
+        int inherit_fd = -1);
 
     bool running() const { return pid_ > 0 && !exit_.exited; }
     pid_t pid() const { return pid_; }

@@ -385,11 +385,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::project: rv_editor_pane_project(shell.app, theme); return;
         case rv_editor_pane_kind::files: rv_editor_pane_files(shell.app, pane, theme); return;
         case rv_editor_pane_kind::code: rv_editor_pane_code(shell.app, pane, theme); return;
-        case rv_editor_pane_kind::game:
-            rv_editor_note(shell.app.session.live()
-                    ? "The game runs in the console's own window; the frame inside this tile comes later."
-                    : "Frame size unknown: no console is running.");
-            return;
+        case rv_editor_pane_kind::game: rv_editor_pane_game(shell.app, shell.renderer, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

@@ -8,6 +8,7 @@
 
 #include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_process.hpp"
+#include "platform/rv_editor_shm.hpp"
 #include "session/rv_editor_devproto.hpp"
 
 namespace rv_editor
@@ -41,7 +42,7 @@ class rv_editor_session
 {
 public:
     // Protocol versions this client speaks (docs/adr/0008-protocol-version.md).
-    static constexpr int protocol_supported = 1;
+    static constexpr int protocol_supported = 2;
 
     // False with the reason when a session cannot start now.
     bool start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
@@ -55,6 +56,12 @@ public:
     void stop(rv_editor_log &log);
     // SIGKILL to a process this session owns, for one that does not end.
     void force_stop(rv_editor_log &log);
+    // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
+    // what the Game tile's keyboard holds (docs/adr/0006-game-frame.md).
+    void pad(uint64_t buttons, rv_editor_log &log);
+
+    // The frames the console writes (--frame-fd); the Game tile reads them.
+    rv_editor_frame_memory &frame_memory() { return frame_mem_; }
 
     // Once a frame: reads the channel and the log, notices timeouts and the end.
     void update(rv_editor_log &log);
@@ -87,6 +94,8 @@ private:
     };
 
     rv_editor_process proc_;
+    rv_editor_frame_memory frame_mem_;
+    uint64_t pad_sent_ = 0;
     rv_editor_devparser parser_;
     rv_editor_run_state state_ = rv_editor_run_state::stopped;
     std::map<int64_t, rv_editor_request> pending_;

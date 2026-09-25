@@ -12,9 +12,9 @@ layout is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout`
 Scene, Debug and Build starting layouts of the design references.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
-a development console with its own window, driven over the console's dev
-channel: Runtime Controls, Output, Project, Files and Code are live panes. The
-game's frame inside the Game tile and the terminal are not there yet.
+a development console that draws into the Game tile, driven over the console's
+dev channel: Game, Runtime Controls, Output, Project, Files and Code are live
+panes. The terminal is not there yet.
 
 ## Building
 
@@ -51,7 +51,7 @@ The editor draws one of its pixels per screen pixel, on a HiDPI display too.
 | Command | Key | What it does |
 | --- | --- | --- |
 | Build | Ctrl+B | `mppcburner build <root> --unpacked <cache>/builds/<n> --baker <mppcbaker>` in the background |
-| Run / Resume | F5 | `3dmppc --dev --memcard <state>/memcard.mppccard <cache>/builds/<n>` for the last build, which must have succeeded; on a paused game, `resume` |
+| Run / Resume | F5 | `3dmppc --dev --frame-fd 3 --memcard <state>/memcard.mppccard <cache>/builds/<n>` for the last build, which must have succeeded; on a paused game, `resume` |
 | Pause | F6 | `pause`, shown as Pausing until the console confirms it |
 | Step Frame | F7 | `step`: one frame of a paused game |
 | Stop | Shift+F5 | `quit`, then waits; Force Stop kills a console that does not end |
@@ -63,8 +63,18 @@ keeps running while the next build is made. Output shows the editor's, the
 build's and the runtime's lines; the dev channel's own lines are there too,
 off by default. Closing the editor stops the build and the game it started.
 
-The editor speaks dev protocol 1 and refuses any other console with the
+The editor speaks dev protocol 2 and refuses any other console with the
 reason, a player build of the console included.
+
+### Game
+
+The Game tile shows the console's own frame. The editor makes a shared memory
+object and hands it to the console as `--frame-fd`; the console writes each
+finished frame there instead of opening a window, and the tile draws it in whole
+multiples without smoothing. A click on the picture gives the game the keyboard,
+with the console's own keys (arrows, Space or Z, X, C, V, Q, E, Tab, Esc);
+Shift+Esc or a click elsewhere takes it back. Paused, the tile shows the
+console's pause picture. Sound still comes from the console.
 
 ### Files
 
@@ -131,10 +141,10 @@ Project pane shows each path and the version the tool reports
 ### Fonts
 
 The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8x8 cell) with no
-magnification beyond `--scale`; code, Output and logs draw in the editor's own
-6x11 bitmap font (`src/font/rv_editor_font_code_data.hpp`, 5x10 ink with
-descenders). The Cyrillic of the 5x7 font is redrawn from PxPlus IBM VGA 9x16 by
-VileR (int10h.org) and carries its CC BY-SA 4.0 licence: see
+magnification beyond `--scale`; code, Output and logs draw in PxPlus IBM VGA
+9x16 by VileR (int10h.org) squashed into a 6x11 cell
+(`src/font/rv_editor_font_code_data.hpp`). That table and the Cyrillic of the 5x7
+font are adaptations of PxPlus and carry its CC BY-SA 4.0 licence: see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
 ## Layout
