@@ -17,6 +17,7 @@
 #include "rv_pboot_machine.hpp"
 #include "rv_pboot_modes.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "rv_pconsole/platform/rv_pcframe.hpp"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 #include "rv_pconsole/rv_pcloader.hpp"
 #include "rv_pconsole/rv_pconsole.hpp"
@@ -190,7 +191,18 @@ int rv_pboot_run(int argc, char **argv)
     wants.window = slots.cv != rv_pccv_impl::null;
     wants.gamepads = slots.cio != rv_pccio_impl::null;
     wants.audio = slots.ca != rv_pcca_impl::null;
+    // --frame-fd: the embedding program shows the frames, so no window opens here.
+    if (args.frame_fd >= 0) {
+        if (!args.dev) {
+            rv_console_print_error("--frame-fd needs --dev: the pad buttons arrive over its channel");
+            return 2;
+        }
+        wants.window = false;
+    }
     platform = rv_pcplatform_make(slots.platform, wants);
+    if (args.frame_fd >= 0) {
+        platform = rv_pcframe_wrap(std::move(platform), static_cast<int>(args.frame_fd));
+    }
 
     // Reserve and prepare memory. The resource check above only compared
     // MemAvailable against the declared budget, which is a forecast, not a

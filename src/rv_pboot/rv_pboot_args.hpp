@@ -58,6 +58,11 @@ struct rv_pboot_args {
     // --dev is not a name its getopt table carries (rv_pboot_args_cmd.hpp).
     bool dev = false;
 
+    // --frame-fd: the descriptor of the shared memory an embedding program shows
+    // the frames from (rv_pconsole/platform/rv_pcframe.hpp); -1 when absent.
+    // Like --dev, a player build never sets it.
+    int64_t frame_fd = -1;
+
     // Start with the frame loop STOPPED, before frame 0, so the first
     // controllable moment comes before the disc has drawn anything.
     //

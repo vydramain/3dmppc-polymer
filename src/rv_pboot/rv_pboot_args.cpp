@@ -191,9 +191,10 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                                         {"mode_cd", required_argument, 0, 'c'},
                                         {"mode_cm", required_argument, 0, 'k'},
                                         {"paused", no_argument, 0, 'Y'},
-                                        // Last, because a player build fills it with the
-                                        // terminator and getopt_long stops reading there.
-                                        RV_PBOOT_ARGS_CMD_OPT,
+                                        // Last, because a player build fills them with
+                                        // terminators and getopt_long stops reading there.
+                                        RV_PBOOT_ARGS_CMD_OPTS[0],
+                                        RV_PBOOT_ARGS_CMD_OPTS[1],
                                         {0, 0, 0, 0}};
 
     int c;
@@ -208,6 +209,12 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
             case 'E':
                 args.dev = true;
                 break;
+            case 'G': {
+                uint64_t fd = 0;
+                if (!option_u64("frame-fd", optarg, 0, fd, exit_code)) return false;
+                args.frame_fd = static_cast<int64_t>(fd);
+                break;
+            }
             case 'Y':
                 args.loop_paused = true;
                 break;

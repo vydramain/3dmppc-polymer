@@ -13,6 +13,7 @@
 // dependency to speak it.
 #include "rv_pconsole/rv_pconsole.hpp"
 
+#include <charconv>
 #include <format>
 #include <string>
 #include <string_view>
@@ -23,6 +24,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
+#include "rv_pconsole/platform/rv_pcframe.hpp"
 
 namespace
 {
@@ -95,6 +97,14 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
         step_reply_id_ = -1;
     }
 
+    // The embedding program's cue that a new frame is in shared memory
+    // (--frame-fd): the frame's number and the slot it was published in.
+    uint32_t slot = 0;
+    uint64_t presented = 0; // the slot's own count, which pause pictures raise too: not sent
+    if (rv_pcframe_latest(platform_, slot, presented)) {
+        cmd_->reply(std::format("0 event=frame frame={} slot={}", frames_ + 1, slot));
+    }
+
     // Did a game hook fail this frame? rv_pccl counts every failed call, so
     // comparing that count is how the console finds out without the disc having
     // to tell it and without a contract change. In a development run the machine
@@ -161,6 +171,24 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
         cmd_->reply(std::format("{} ok mode=stopped frame={}", req.id, frames_));
         return;
     }
+    if (verb == "pad") {
+        // `pad <port> <buttons-hex>`: what the embedding program's keyboard holds
+        // now. Port 0 only, the port the console's own keyboard drives.
+        uint64_t buttons = 0;
+        const std::string_view port = req.arg(0);
+        const std::string_view hex = req.arg(1);
+        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), buttons, 16);
+        if (port != "0" || hex.empty() || ec != std::errc{} || end != hex.data() + hex.size()) {
+            cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "pad takes port 0 and hex buttons"));
+            return;
+        }
+        if (!rv_pcframe_set_pad(platform_, buttons)) {
+            cmd_->reply(rv_pccmd_err(req.id, "no_frame", RV_ERR_INVAL, false, "pad needs --frame-fd"));
+            return;
+        }
+        cmd_->reply(std::format("{} ok port=0 buttons={:x}", req.id, buttons));
+        return;
+    }
     if (verb == "gc") {
         int64_t used = 0;
         const int64_t rc = cl_->state_collect(&used);
@@ -192,7 +220,7 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
     }
 
     cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
-        "unknown request; this console speaks status pause resume step reload asset get keys gc quit"));
+        "unknown request; this console speaks status pause resume step pad reload asset get keys gc quit"));
 }
 
 void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
@@ -215,7 +243,7 @@ void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
         loader_ != nullptr && !loader_->code_hash().empty() ? loader_->code_hash() : std::string("none");
 
     cmd_->reply(std::format(
-        "{} ok protocol=1 frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
+        "{} ok protocol=2 frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
         "entry_reloadable={} entry_revision={} entry_hash={:016x} lua_used={} lua_budget={} "
         "chunks={} error_seq={} script_error={}",
         id, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",

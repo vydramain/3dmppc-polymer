@@ -30,6 +30,8 @@ function(rv_check_file_lengths)
         ${CMAKE_SOURCE_DIR}/pdk/lib/*.hpp
         ${CMAKE_SOURCE_DIR}/pdk/tools/*.cpp
         ${CMAKE_SOURCE_DIR}/pdk/tools/*.hpp
+        ${CMAKE_SOURCE_DIR}/editor/*.cpp
+        ${CMAKE_SOURCE_DIR}/editor/*.hpp
         ${CMAKE_SOURCE_DIR}/mppcdiscs/*.cpp
         ${CMAKE_SOURCE_DIR}/mppcdiscs/*.hpp)
 
