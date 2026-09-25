@@ -125,7 +125,8 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
     f.want_x = ImGui::GetID("##want_x");
     f.want_y = ImGui::GetID("##want_y");
     f.horizontal = horizontal;
-    f.bar = ImGui::GetFrameHeight();
+    // In step with the interface text, not with a button's height.
+    f.bar = std::floor(ImGui::GetTextLineHeight() * 1.25f);
     f.min = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     // As for BeginChild: 0 takes what is left, a negative size leaves that much.

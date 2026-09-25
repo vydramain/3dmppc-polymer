@@ -250,23 +250,25 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
 
     const bool has_sel = !app.files.selected.empty() && app.files.selected != app.files.root().path;
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, "Select a file or folder first" };
-    if (rv_editor_button("New File", theme)) {
+    // Square buttons, a coloured letter each until the icons are drawn (editor/docs/icons.md).
+    const float side = ImGui::GetFrameHeight();
+    if (rv_editor_letter_button("##new_file", 'N', theme.code_green, "New File", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
     }
-    rv_editor_flow(rv_editor_button_width("New Folder"));
-    if (rv_editor_button("New Folder", theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##new_dir", 'D', theme.code_yellow, "New Folder", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app), "");
     }
-    rv_editor_flow(rv_editor_button_width("Rename"));
-    if (rv_editor_button("Rename", theme, need_sel)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##rename", 'R', theme.code_blue, "Rename", theme, need_sel)) {
         rv_editor_files_ask(view, dialog_kind::rename, app.files.selected, app.files.selected.filename().string());
     }
-    rv_editor_flow(rv_editor_button_width("Delete"));
-    if (rv_editor_button("Delete", theme, need_sel)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##delete", 'X', theme.code_red, "Delete", theme, need_sel)) {
         rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
-    rv_editor_flow(rv_editor_button_width("Refresh"));
-    if (rv_editor_button("Refresh", theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##refresh", 'U', 0x94e2d5, "Refresh", theme)) {
         app.files.refresh();
     }
 

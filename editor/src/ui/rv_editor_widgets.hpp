@@ -22,12 +22,17 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A transport button: a pixel picture in `color` and its label beside it. The
-// tooltip names `shortcut` (nullptr: none); a disabled button dims the picture
-// and its tooltip says why instead.
+// A square transport button: a pixel picture in `color` over its label, every
+// one the same size (rv_editor_tool_button_width). The tooltip names `shortcut`
+// (nullptr: none); a disabled button dims the picture and its tooltip says why.
 bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
+
+// A square button of frame height with one coloured letter standing in for an
+// icon (editor/docs/icons.md); `tooltip` names what it does.
+bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const char *tooltip,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
 
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});
