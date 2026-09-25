@@ -49,6 +49,22 @@ void rv_editor_draw_check(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
 void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter,
     uint32_t color);
 
+// The transport bar's pictures.
+enum class rv_editor_glyph
+{
+    build,  // a hammer
+    run,    // a triangle
+    pause,  // two bars
+    step,   // a triangle against a bar: one frame
+    stop,   // a square
+    reload, // a turning arrow
+};
+
+// An 8x8 pixel picture of `glyph` in `color`, as large as whole pixels allow in
+// [min, max), with a dark shadow down-right that keeps it off any face.
+void rv_editor_draw_glyph(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, rv_editor_glyph glyph,
+    uint32_t color);
+
 // Dotted one-pixel rectangle just inside [min, max): keyboard focus.
 void rv_editor_draw_focus(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme);
 

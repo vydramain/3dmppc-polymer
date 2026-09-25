@@ -43,7 +43,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_session &s = app.session;
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        "Hot reload is not wired to the editor yet" };
+        "Hot reload is not wired to the editor yet", s.state() == rv_editor_run_state::paused };
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme);
     if (clicked.build) {
         rv_editor_app_build(app);
@@ -61,18 +61,18 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_app_stop(app);
     }
 
-    // The runtime: its confirmed state, and what is still pending.
+    // One line: the runtime's confirmed state, and what is still pending.
     rv_editor_status(rv_editor_run_state_name(s.state()), rv_editor_run_lamp(s), theme);
     if (s.live()) {
         ImGui::SameLine();
         ImGui::Text("frame %lld, pid %d, build #%u", static_cast<long long>(s.frame()), static_cast<int>(s.pid()),
             s.build_number());
+    } else if (!s.end_reason().empty()) {
+        ImGui::SameLine();
+        rv_editor_wrapped(s.end_reason());
     }
     if (s.uncertain()) {
         rv_editor_wrapped("A request went unanswered; the state shown is the last one the console confirmed.");
-    }
-    if (!s.live() && !s.end_reason().empty()) {
-        rv_editor_wrapped("Ended: " + s.end_reason());
     }
     if (s.hung() || s.state() == rv_editor_run_state::disconnected) {
         if (rv_editor_button("Force Stop", theme)) {
@@ -82,16 +82,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::TextUnformatted(s.hung() ? "the runtime did not end after quit" : "the channel is gone");
     }
 
-    // The build job, independent of the runtime (section 12).
-    ImGui::Separator();
-    std::string build = "Build: " + std::string(rv_editor_build_state_name(app.build.state()));
-    if (app.build.number() != 0) {
-        build += " (#" + std::to_string(app.build.number()) + ")";
-    }
-    if (app.build.last_success()) {
-        build += ", last good #" + std::to_string(app.build.last_success()->number);
-    }
-    rv_editor_wrapped(build);
+    // The build's outcome is in the status bar and its lines in Output; here only
+    // what can be done about a running one.
     if (app.build.busy()) {
         const rv_editor_state cancel = app.build.state() == rv_editor_build_state::cancelling
             ? rv_editor_state{ rv_editor_look::live, "Already cancelling" }

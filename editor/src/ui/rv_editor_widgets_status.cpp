@@ -106,21 +106,22 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     const rv_editor_theme &theme)
 {
     rv_editor_transport_actions out = {};
-    // Letters and colours stand in for the icons of editor/docs/icons.md.
+    // Step and Stop differ in picture and colour, not in the label alone.
     const struct
     {
         const char *label;
-        char letter;
+        rv_editor_glyph glyph;
         uint32_t color;
+        const char *shortcut;
         const char *disabled;
         bool *clicked;
     } buttons[] = {
-        {"Build", 'B', 0xf9e2af, state.build, &out.build},
-        {"Run", 'R', 0xa6e3a1, state.run, &out.run},
-        {"Pause", 'P', 0xf9e2af, state.pause, &out.pause},
-        {"Step", 'S', 0x89b4fa, state.step, &out.step},
-        {"Stop", 'X', 0xf38ba8, state.stop, &out.stop},
-        {"Reload", 'H', 0xcba6f7, state.reload, &out.reload},
+        {"Build", rv_editor_glyph::build, 0xfab387, "Ctrl+B", state.build, &out.build},
+        {state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, "F5", state.run, &out.run},
+        {"Pause", rv_editor_glyph::pause, theme.code_yellow, "F6", state.pause, &out.pause},
+        {"Step", rv_editor_glyph::step, theme.code_blue, "F7", state.step, &out.step},
+        {"Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", state.stop, &out.stop},
+        {"Reload", rv_editor_glyph::reload, 0xcba6f7, nullptr, state.reload, &out.reload},
     };
     bool first = true;
     for (const auto &b : buttons) {
@@ -128,7 +129,8 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
             rv_editor_flow(rv_editor_tool_button_width(b.label));
         }
         first = false;
-        *b.clicked = rv_editor_tool_button(b.label, b.letter, b.color, theme, {rv_editor_look::live, b.disabled});
+        *b.clicked =
+            rv_editor_tool_button(b.label, b.glyph, b.color, b.shortcut, theme, {rv_editor_look::live, b.disabled});
     }
     return out;
 }

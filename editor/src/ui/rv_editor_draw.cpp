@@ -170,4 +170,33 @@ void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor
         rv_editor_col(ink), text);
 }
 
+void rv_editor_draw_glyph(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, rv_editor_glyph glyph,
+    uint32_t color)
+{
+    // One byte per row, top row first, bit 7 the leftmost column.
+    static constexpr uint8_t pictures[][8] = {
+        { 0x7e, 0x7f, 0x7e, 0x18, 0x18, 0x18, 0x18, 0x18 }, // build
+        { 0x40, 0x60, 0x70, 0x78, 0x78, 0x70, 0x60, 0x40 }, // run
+        { 0x00, 0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x00 }, // pause
+        { 0x43, 0x63, 0x73, 0x7b, 0x7b, 0x73, 0x63, 0x43 }, // step
+        { 0x00, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x00 }, // stop
+        { 0x3d, 0x43, 0x87, 0x80, 0x80, 0x81, 0x42, 0x3c }, // reload
+    };
+    const uint8_t *rows = pictures[static_cast<int>(glyph)];
+    const float px = std::max(1.0f, std::floor(std::min(max.x - min.x, max.y - min.y) / 8.0f));
+    const ImVec2 at = rv_editor_grid_origin(min, max, 8, px);
+    const float shadow = static_cast<float>(theme.scale);
+    for (const float off : { shadow, 0.0f }) {
+        const uint32_t ink = off != 0.0f ? theme.dark : color;
+        for (int y = 0; y < 8; ++y) {
+            for (int x = 0; x < 8; ++x) {
+                if ((rows[y] & (0x80u >> x)) != 0) {
+                    rv_editor_fill(dl, at.x + x * px + off, at.y + y * px + off, at.x + (x + 1) * px + off,
+                        at.y + (y + 1) * px + off, ink);
+                }
+            }
+        }
+    }
+}
+
 } // namespace rv_editor

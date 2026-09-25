@@ -84,34 +84,37 @@ bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_
 
 float rv_editor_tool_button_width(const char *label)
 {
-    const float text = ImGui::CalcTextSize(label, rv_editor_label_end(label)).x;
-    return std::max(text, ImGui::GetTextLineHeight() * 2.0f) + ImGui::GetStyle().FramePadding.x * 4.0f;
+    // Picture, gap, label, and padding on both sides.
+    return ImGui::GetTextLineHeight() * 2.0f + ImGui::CalcTextSize(label, rv_editor_label_end(label)).x +
+        ImGui::GetStyle().FramePadding.x * 3.0f;
 }
 
-bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const rv_editor_theme &theme,
-    const rv_editor_state &state)
+bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
+    const rv_editor_theme &theme, const rv_editor_state &state)
 {
-    const float line = ImGui::GetTextLineHeight();
-    const float pad = ImGui::GetStyle().FramePadding.y;
-    const float chip = line * 2.0f;
-    const ImVec2 size(rv_editor_tool_button_width(label), pad * 3.0f + chip + line);
+    const float icon = ImGui::GetTextLineHeight() * 2.0f;
+    const float pad = ImGui::GetStyle().FramePadding.x;
+    const ImVec2 size(rv_editor_tool_button_width(label), icon + ImGui::GetStyle().FramePadding.y * 2.0f);
     const rv_editor_item item = rv_editor_item_add(label, size, state);
+    const char *end = rv_editor_label_end(label);
+    if (!item.disabled && shortcut != nullptr) {
+        ImGui::SetItemTooltip("%.*s (%s)", static_cast<int>(end - label), label, shortcut);
+    }
     const bool down = item.held && item.hovered;
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    const float cx = std::floor((item.min.x + item.max.x - chip) / 2.0f + nudge);
-    const float cy = std::floor(item.min.y + pad + nudge);
+    const float x = std::floor(item.min.x + pad + nudge);
+    const float y = std::floor((item.min.y + item.max.y - icon) / 2.0f + nudge);
     // Dimmed: halfway to the window colour.
     const uint32_t dim = item.disabled
         ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
             (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
         : color;
-    rv_editor_draw_chip(dl, ImVec2(cx, cy), ImVec2(cx + chip, cy + chip), theme, letter, dim);
-    const char *end = rv_editor_label_end(label);
+    rv_editor_draw_glyph(dl, ImVec2(x, y), ImVec2(x + icon, y + icon), theme, glyph, dim);
     const ImVec2 text = ImGui::CalcTextSize(label, end);
-    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge), cy + chip + pad),
+    dl->AddText(ImVec2(x + icon + pad, std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge)),
         rv_editor_col(rv_editor_item_text(theme, item)), label, end);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);

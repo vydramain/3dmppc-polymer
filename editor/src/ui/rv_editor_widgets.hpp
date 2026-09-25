@@ -3,6 +3,7 @@
 #include <cstddef>
 
 #include "layout/rv_editor_tile.hpp"
+#include "ui/rv_editor_draw.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widget_item.hpp"
@@ -19,11 +20,11 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A tall button with a picture over its label, as in a transport bar or a tool
-// palette. Until the icons of editor/docs/icons.md exist the picture is a
-// letter on a tile of `color`; a disabled button dims it.
-bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const rv_editor_theme &theme,
-    const rv_editor_state &state = {});
+// A transport button: a pixel picture in `color` and its label beside it. The
+// tooltip names `shortcut` (nullptr: none); a disabled button dims the picture
+// and its tooltip says why instead.
+bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
 
 // A button that stays pressed while *on.
@@ -178,6 +179,7 @@ struct rv_editor_transport_state
     const char *step;
     const char *stop;
     const char *reload;
+    bool resume = false; // the machine is paused: Run reads Resume
 };
 
 // Which transport action was clicked this frame.
