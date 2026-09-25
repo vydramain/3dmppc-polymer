@@ -1,4 +1,5 @@
-// Starting layouts after the editor's design references: Code, Scene, Debug, Build.
+// Starting layouts: the working default, and the editor's design references Code,
+// Scene, Debug and Build.
 
 #include "layout/rv_editor_tile.hpp"
 
@@ -89,6 +90,17 @@ void rv_editor_preset_build(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::terminal, run, rv_editor_tile_dock::bottom, 0.55f);
 }
 
+// The working default, of panes that exist: files on the left, code in the middle
+// over its output, the game with compact runtime controls on the right.
+void rv_editor_preset_workspace(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id code = 0;
+    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.18f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.80f);
+    b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.70f);
+}
+
 } // namespace
 
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
@@ -102,6 +114,8 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
         return "Debug";
     case rv_editor_layout_preset::build:
         return "Build";
+    case rv_editor_layout_preset::workspace:
+        return "Default";
     }
     return "";
 }
@@ -128,6 +142,9 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
         break;
     case rv_editor_layout_preset::build:
         rv_editor_preset_build(b);
+        break;
+    case rv_editor_layout_preset::workspace:
+        rv_editor_preset_workspace(b);
         break;
     }
     panes = b.panes;

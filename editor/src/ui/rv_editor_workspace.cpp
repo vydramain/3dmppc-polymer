@@ -18,7 +18,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
     switch (kind) {
         case rv_editor_pane_kind::empty: return "Empty";
         case rv_editor_pane_kind::catalog: return "Widget Catalog";
-        case rv_editor_pane_kind::project: return "Project";
+        case rv_editor_pane_kind::project: return "Project Settings";
         case rv_editor_pane_kind::files: return "Files";
         case rv_editor_pane_kind::assets: return "Assets";
         case rv_editor_pane_kind::scene: return "Scene";
@@ -77,7 +77,9 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     // and, when the leaf holds more than one pane, folder tabs under it.
     const ImVec2 outer_min(static_cast<float>(rect.x), static_cast<float>(rect.y));
     const ImVec2 outer_max(outer_min.x + rect.w, outer_min.y + rect.h);
-    ImGui::GetWindowDrawList()->AddRectFilled(outer_min, outer_max, rv_editor_col(theme.dark));
+    // The outline is brass around the tile that has the focus.
+    ImGui::GetWindowDrawList()->AddRectFilled(outer_min, outer_max,
+        rv_editor_col(node == ws.focused_leaf ? theme.selection : theme.dark));
     rv_editor_draw_panel(ImGui::GetWindowDrawList(), ImVec2(outer_min.x + s, outer_min.y + s),
         ImVec2(outer_max.x - s, outer_max.y - s), theme, theme.window, rv_editor_bevel::raised);
 
@@ -164,7 +166,10 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         draw_tabs(ws, node, theme);
     }
 
-    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows) && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+    // The click that focuses a tile also activates the widget under it, in a child
+    // window: hover must count while that widget holds the mouse.
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+        ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
         ws.focused_leaf = node;
     }
 

@@ -111,6 +111,29 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
     return clicked;
 }
 
+// Brings a pane of `kind` to the front where the tree already shows one, or adds
+// one as a tab of the focused tile.
+void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
+{
+    for (const rv_editor_tile_node &node : ws.layout.nodes) {
+        if (node.kind != rv_editor_tile_kind::leaf) {
+            continue;
+        }
+        for (const rv_editor_pane_id pane : node.leaf.tabs) {
+            if (ws.panes.panes[pane].kind == kind) {
+                rv_editor_tile_activate(ws.layout, pane);
+                return;
+            }
+        }
+    }
+    const bool focused =
+        ws.focused_leaf < ws.layout.nodes.size() && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf;
+    const uint32_t leaf = focused ? ws.focused_leaf : ws.layout.root;
+    const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
+    rv_editor_tile_insert(ws.layout, leaf, pane, rv_editor_tile_dock::tab);
+    rv_editor_tile_activate(ws.layout, pane);
+}
+
 } // namespace
 
 rv_editor_workspace rv_editor_workspace_preset(rv_editor_layout_preset preset)
@@ -122,7 +145,7 @@ rv_editor_workspace rv_editor_workspace_preset(rv_editor_layout_preset preset)
 
 rv_editor_workspace rv_editor_workspace_load(const std::filesystem::path &path)
 {
-    rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor_layout_preset::code);
+    rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor_layout_preset::workspace);
     if (path.empty() || rv_editor_layout_load(path, ws.panes, ws.layout)) {
         return ws;
     }
@@ -220,27 +243,30 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Layout")) {
-        constexpr rv_editor_layout_preset presets[] = { rv_editor_layout_preset::code, rv_editor_layout_preset::scene,
-            rv_editor_layout_preset::debug, rv_editor_layout_preset::build };
-        for (const rv_editor_layout_preset preset : presets) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset))) {
-                ws = rv_editor_workspace_preset(preset);
-            }
+        if (ImGui::MenuItem("Reset to Default")) {
+            ws = rv_editor_workspace_preset(rv_editor_layout_preset::workspace);
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Layout")) {
-            ws = rv_editor_workspace_preset(rv_editor_layout_preset::code);
+        // The design references' layouts hold panes that are not written yet.
+        if (ImGui::BeginMenu("Reference Layouts")) {
+            constexpr rv_editor_layout_preset presets[] = { rv_editor_layout_preset::code,
+                rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::build };
+            for (const rv_editor_layout_preset preset : presets) {
+                if (ImGui::MenuItem(rv_editor_layout_preset_name(preset))) {
+                    ws = rv_editor_workspace_preset(preset);
+                }
+            }
+            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Window")) {
+        if (ImGui::MenuItem("Project Settings")) {
+            rv_editor_shell_show(ws, rv_editor_pane_kind::project);
+        }
+        rv_editor_menu_item("Run Configuration", nullptr, "Run Configuration is not written yet");
+        ImGui::Separator();
         if (ImGui::MenuItem("Widget Catalog")) {
-            const bool focused =
-                ws.focused_leaf < ws.layout.nodes.size() && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf;
-            const uint32_t leaf = focused ? ws.focused_leaf : ws.layout.root;
-            const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::catalog);
-            rv_editor_tile_insert(ws.layout, leaf, pane, rv_editor_tile_dock::tab);
-            rv_editor_tile_activate(ws.layout, pane);
+            rv_editor_shell_show(ws, rv_editor_pane_kind::catalog);
         }
         ImGui::EndMenu();
     }

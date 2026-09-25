@@ -201,9 +201,10 @@ enum class rv_editor_layout_preset
     scene,
     debug,
     build,
+    workspace, // the default: only panes that work
 };
 
-// Name as a menu shows it: "Code", "Scene", "Debug", "Build".
+// Name as a menu shows it: "Code", "Scene", "Debug", "Build", "Default".
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 
 // Replaces both outputs with the starting layout `preset` (LAY-07).
