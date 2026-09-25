@@ -159,7 +159,13 @@ void rv_editor_status_bar(const char *const fields[], int count, const rv_editor
 // Lamp and label; each kind has its own symbol as well as its own colour.
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
 
-// One line of process output: time, source, severity tag, text.
+// A log's text area: Mocha base under Mocha text, with the Motif scrollbars of
+// rv_editor_scroll_begin. Rows go between the two calls; always pair them.
+bool rv_editor_log_begin(const char *id, ImVec2 size, const rv_editor_theme &theme);
+void rv_editor_log_end(const rv_editor_theme &theme);
+
+// One line of process output inside a log area: time and source dimmed, the
+// severity as a coloured tag (INF, WRN, ERR), the text in the log's colour.
 void rv_editor_log_row(const char *time, const char *source, rv_editor_severity severity, const char *text,
     const rv_editor_theme &theme);
 

@@ -151,7 +151,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 
     // Process output reads in the code font (0004).
     rv_editor_font_code_push();
-    rv_editor_scroll_begin("##lines", ImVec2(0, 0), true);
+    rv_editor_log_begin("##lines", ImVec2(0, 0), theme);
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(shown.size()));
     while (clipper.Step()) {
@@ -167,7 +167,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     if (view.follow && ImGui::GetScrollY() < ImGui::GetScrollMaxY()) {
         ImGui::SetScrollHereY(1.0f);
     }
-    rv_editor_scroll_end(theme);
+    rv_editor_log_end(theme);
     rv_editor_font_code_pop();
 }
 

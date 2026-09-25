@@ -41,13 +41,13 @@ rv_editor_mark rv_editor_severity_mark(rv_editor_severity severity, const rv_edi
 {
     switch (severity) {
     case rv_editor_severity::info:
-        return {"INF", t.text_disabled};
+        return {"INF", t.code_blue};
     case rv_editor_severity::warning:
-        return {"WRN", t.warning};
+        return {"WRN", t.code_yellow};
     case rv_editor_severity::error:
-        return {"ERR", t.error};
+        return {"ERR", t.code_red};
     }
-    return {"???", t.text};
+    return {"???", t.code_text};
 }
 
 } // namespace
@@ -72,11 +72,24 @@ void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_ed
     ImGui::TextUnformatted(label);
 }
 
+bool rv_editor_log_begin(const char *id, ImVec2 size, const rv_editor_theme &theme)
+{
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, rv_editor_col(theme.code_base));
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_text));
+    return rv_editor_scroll_begin(id, size, true);
+}
+
+void rv_editor_log_end(const rv_editor_theme &theme)
+{
+    rv_editor_scroll_end(theme);
+    ImGui::PopStyleColor(2);
+}
+
 void rv_editor_log_row(const char *time, const char *source, rv_editor_severity severity, const char *text,
     const rv_editor_theme &theme)
 {
     const rv_editor_mark mark = rv_editor_severity_mark(severity, theme);
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_subtext));
     ImGui::TextUnformatted(time);
     ImGui::SameLine();
     ImGui::Text("[%s]", source);

@@ -92,12 +92,13 @@ void rv_editor_catalog_indicators(const rv_editor_theme &t)
 
 void rv_editor_catalog_log(const rv_editor_theme &t)
 {
-    ImGui::BeginChild("##log", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
+    const float rows = 4.0f * ImGui::GetTextLineHeightWithSpacing() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
     rv_editor_log_row("12:00:01", "burn", rv_editor_severity::info, "[4/4] burn build/example-lua.discdir", t);
     rv_editor_log_row("12:00:02", "mppc", rv_editor_severity::info, "entry_revision=1 frame=120 mode=paused", t);
     rv_editor_log_row("12:00:03", "disc", rv_editor_severity::warning, "texture 'tone' is not resident", t);
     rv_editor_log_row("12:00:04", "mppc", rv_editor_severity::error, "script_error: main.lua:12: ')' expected", t);
-    ImGui::EndChild();
+    rv_editor_log_end(t);
 }
 
 void rv_editor_catalog_transport(const rv_editor_theme &t)
