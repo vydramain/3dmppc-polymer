@@ -44,7 +44,7 @@ inline constexpr rv_editor_theme rv_editor_theme_olive = {
     .error = 0xda4453,
     .warning = 0xf67400,
     .ok = 0x27ae60,
-    .bevel_px = 1,
+    .bevel_px = 2, // Motif: a two-pixel shadow on every raised or sunken edge
     .pad_px = 4,
     .scale = 1,
 };

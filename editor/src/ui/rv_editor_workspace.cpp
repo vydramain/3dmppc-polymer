@@ -70,13 +70,16 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
 {
     const auto &leaf = ws.layout.nodes[node].leaf;
     const float s = theme.scale;
-    const float bevel = theme.bevel_px * s;
+    // A black outline, then the raised frame inside it: the frame the tile's
+    // content sits in is bevel plus outline wide.
+    const float bevel = theme.bevel_px * s + s;
     // The tile is a window: a raised frame, the pane header, the padded content
     // and, when the leaf holds more than one pane, folder tabs under it.
     const ImVec2 outer_min(static_cast<float>(rect.x), static_cast<float>(rect.y));
     const ImVec2 outer_max(outer_min.x + rect.w, outer_min.y + rect.h);
-    rv_editor_draw_panel(ImGui::GetWindowDrawList(), outer_min, outer_max, theme, theme.window,
-        rv_editor_bevel::raised);
+    ImGui::GetWindowDrawList()->AddRectFilled(outer_min, outer_max, rv_editor_col(theme.dark));
+    rv_editor_draw_panel(ImGui::GetWindowDrawList(), ImVec2(outer_min.x + s, outer_min.y + s),
+        ImVec2(outer_max.x - s, outer_max.y - s), theme, theme.window, rv_editor_bevel::raised);
 
     ImGui::SetCursorScreenPos(ImVec2(outer_min.x + bevel, outer_min.y + bevel));
     ImGui::PushID(node);
@@ -145,7 +148,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
     const bool tabbed = leaf.tabs.size() > 1;
     const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
-    ImGui::BeginChild("##pane", ImVec2(0, -tabs_h), ImGuiChildFlags_AlwaysUseWindowPadding);
+    rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
     ImGui::PopStyleVar();
     // A sunken well inside the raised frame: the window's double edge. Drawn by
     // the content window itself, whose background would cover the parent's lines.
@@ -156,7 +159,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         rv_editor_pane_id active_pane_id = leaf.tabs[leaf.active];
         draw_pane(context, active_pane_id, ws.panes.panes[active_pane_id].kind, theme);
     }
-    ImGui::EndChild();
+    rv_editor_scroll_end(theme);
     if (tabbed) {
         draw_tabs(ws, node, theme);
     }
@@ -232,12 +235,11 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     ImGui::SetCursorScreenPos(ImVec2(static_cast<float>(area.x), static_cast<float>(area.y)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     // Scrollbars appear only when the window is smaller than the tree's minimum.
-    ImGui::BeginChild("##workspace", ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)), ImGuiChildFlags_None,
-        ImGuiWindowFlags_HorizontalScrollbar);
+    rv_editor_scroll_begin("##workspace", ImVec2(static_cast<float>(area.w), static_cast<float>(area.h)), true);
     ImGui::PopStyleVar();
 
     const float s = theme.scale;
-    const float bevel = theme.bevel_px * s;
+    const float bevel = theme.bevel_px * s + s; // with the tile's outline
     const float frame_h = ImGui::GetFrameHeight();
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
@@ -313,7 +315,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     ImGui::Dummy(ImVec2(static_cast<float>(placed.w), static_cast<float>(placed.h)));
 
     rv_editor_tile_apply(ws, action, close_pane, context);
-    ImGui::EndChild();
+    rv_editor_scroll_end(theme);
 }
 
 } // namespace rv_editor

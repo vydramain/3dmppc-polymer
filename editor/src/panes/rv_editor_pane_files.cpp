@@ -216,9 +216,9 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
         app.files.refresh();
     }
 
-    ImGui::BeginChild("##tree", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
+    rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
     rv_editor_files_node(app, view, app.files.root());
-    ImGui::EndChild();
+    rv_editor_scroll_end(theme);
     rv_editor_files_dialog(app, view, theme);
 }
 

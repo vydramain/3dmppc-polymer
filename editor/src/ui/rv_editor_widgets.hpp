@@ -62,6 +62,15 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
 bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 
+// A scrolling area with Motif scrollbars (UI-02) instead of ImGui's: arrow boxes
+// at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
+// the content does not fit. `size` works as for BeginChild; `horizontal` also
+// allows the horizontal bar. Always pair with rv_editor_scroll_end, whatever
+// begin returned, as with BeginChild/EndChild.
+bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal = false,
+    ImGuiChildFlags child_flags = ImGuiChildFlags_None);
+void rv_editor_scroll_end(const rv_editor_theme &theme);
+
 // Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
 // tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.
 bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
