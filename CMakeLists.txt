@@ -101,6 +101,8 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs
 # it, so that build simply does not compile it. Its declaration stays visible -
 # a header nobody calls costs nothing - but the encoder itself is dev code.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdhex_devtools\\.cpp")
+# The embedded screen: --frame-fd exists only in a development build.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcframe_(devtools|standard)\\.cpp")
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_devtools.cpp)
@@ -113,6 +115,7 @@ if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdhex_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcframe_devtools.cpp)
 else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_standard.cpp)
@@ -120,6 +123,7 @@ else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcframe_standard.cpp)
 endif()
 
 
