@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <SDL3/SDL.h>
 
 #include "app/rv_editor_app.hpp"
@@ -24,6 +26,10 @@ void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_ed
 // pad while the tile holds the keyboard (docs/adr/0006-game-frame.md). Shift+Esc
 // lets the keyboard go.
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
+
+// The console's own keys held now, as rv_isource bits
+// (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
+uint64_t rv_editor_game_keys();
 
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);

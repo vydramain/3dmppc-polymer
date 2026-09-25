@@ -27,7 +27,8 @@ uint64_t rv_editor_game_frame = 0;
 std::vector<uint32_t> rv_editor_game_pixels;
 int rv_editor_game_fd = -1;
 
-// The console's own keys (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
+} // namespace
+
 uint64_t rv_editor_game_keys()
 {
     uint64_t buttons = 0;
@@ -69,6 +70,9 @@ uint64_t rv_editor_game_keys()
     }
     return buttons;
 }
+
+namespace
+{
 
 // Fit, Integer, 1x, 2x, 3x: the same choice as View > Game Scale.
 void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
@@ -176,7 +180,8 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     if (area.x < 1.0f || area.y < 1.0f) {
         return;
     }
-    // A click on the picture takes the keyboard.
+    // A click on the picture takes the keyboard; the frame loop sends the keys
+    // (rv_editor_shell_game_input).
     if (ImGui::InvisibleButton("##game", area)) {
         app.game_captured = true;
     }
@@ -194,14 +199,6 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_RootAndChildWindows))) {
         app.game_captured = false;
     }
-
-    // Paused, released or elsewhere: all buttons up, so nothing stays held (GAM-04).
-    uint64_t buttons = 0;
-    if (app.game_captured && s.state() == rv_editor_run_state::running) {
-        buttons = rv_editor_game_keys();
-        app.text_focus = true;
-    }
-    s.pad(buttons, app.log);
 }
 
 } // namespace rv_editor

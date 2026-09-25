@@ -312,13 +312,6 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     }
     rv_editor_app_update(shell.app);
 
-    // No Game tile was drawn last frame (closed, or behind another tab): the game
-    // gets every button up, so nothing stays held (GAM-04).
-    if (!shell.app.game_drawn) {
-        shell.app.game_captured = false;
-        shell.app.session.pad(0, shell.app.log);
-    }
-    shell.app.game_drawn = false;
 
     // A code pane that left the tree, whatever took it (close, another kind, a
     // layout from the menu), gives its nvim window back.
@@ -452,6 +445,27 @@ void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &them
         }
         rv_editor_dialog_end();
     }
+}
+
+void rv_editor_shell_game_input(rv_editor_shell &shell)
+{
+    rv_editor_app &app = shell.app;
+    // A Game tile closed or behind another tab, a window without the keyboard or
+    // no console: the capture ends here, whatever the pane saw.
+    if (!app.game_drawn || !shell.window_focused || !app.session.live()) {
+        app.game_captured = false;
+    }
+    app.game_drawn = false;
+    uint64_t buttons = 0;
+    if (app.game_captured) {
+        // ImGui's keyboard navigation stays off the next frame, so arrows stay the game's.
+        app.text_focus = true;
+        if (app.session.state() == rv_editor_run_state::running) {
+            buttons = rv_editor_game_keys();
+        }
+    }
+    // Only a change is sent; one the runtime cannot take yet goes again next frame.
+    app.session.pad(buttons, app.log);
 }
 
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme)

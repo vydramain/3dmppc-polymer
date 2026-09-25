@@ -33,6 +33,8 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact)
         return false;
     }
     app.build.prune(artifact.dir);
+    // A new console starts with every key up: no capture carries over.
+    app.game_captured = false;
     std::string error;
     if (!app.session.start(app.tools.console.path, artifact.dir, app.project.state_dir / "memcard.mppccard",
             app.project.root, artifact.number, app.log, error)) {
@@ -64,6 +66,9 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         return false;
     }
     app.project = std::move(project);
+    // Another project takes the keyboard back from the game.
+    app.game_captured = false;
+    app.session.pad(0, app.log);
     app.files.open(app.project.root, app.log);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "opened " + app.project.root.string());
     if (!app.project.manifest_error.empty()) {

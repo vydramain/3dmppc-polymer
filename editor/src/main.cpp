@@ -139,11 +139,13 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     }
     ImGui::End();
     rv_editor::rv_editor_shell_dialogs(shell, theme);
+    rv_editor::rv_editor_shell_game_input(shell);
 }
 
 // True once the user asked the window to close. Pointer coordinates are turned
 // into render pixels first: ImGui works in pixels, not in the desktop's points.
-bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer)
+// `focused` follows the window's keyboard focus.
+bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer, bool &focused)
 {
     bool quit = false;
     SDL_Event event;
@@ -152,6 +154,9 @@ bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer)
         ImGui_ImplSDL3_ProcessEvent(&event);
         if (event.type == SDL_EVENT_QUIT) {
             quit = true;
+        }
+        if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST || event.type == SDL_EVENT_WINDOW_FOCUS_GAINED) {
+            focused = event.type == SDL_EVENT_WINDOW_FOCUS_GAINED;
         }
         if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED && event.window.windowID == SDL_GetWindowID(window)) {
             quit = true;
@@ -241,7 +246,7 @@ int main(int argc, char **argv)
     }
 
     while (!shell->quit_now) {
-        if (rv_editor_poll(window, renderer) && rv_editor::rv_editor_shell_may_quit(*shell)) {
+        if (rv_editor_poll(window, renderer, shell->window_focused) && rv_editor::rv_editor_shell_may_quit(*shell)) {
             break;
         }
         // Keyboard navigation is ImGui's use of arrows and Tab: off while a code

@@ -31,6 +31,8 @@ struct rv_editor_shell
     rv_editor_pane_id closing = rv_editor_tile_none;
     bool quit_asked = false; // the same question for the whole window
     bool quit_now = false;   // answered: the window closes
+    // The window has the keyboard, as SDL's focus events say.
+    bool window_focused = true;
     // The file Files last followed, so a selection the user makes there stays
     // until the document in front changes.
     std::string revealed;
@@ -61,6 +63,11 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 
 // The shell's own dialogs, drawn after the workspace.
 void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &theme);
+
+// Once a frame after drawing: sends the Game's keys while a drawn Game tile
+// holds the keyboard of a focused window and a console runs, and every key up
+// the moment any of that stops (GAM-04).
+void rv_editor_shell_game_input(rv_editor_shell &shell);
 
 // rv_editor_pane_draw_fn for the window's workspace; `context` is the shell.
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
