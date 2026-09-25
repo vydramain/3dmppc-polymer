@@ -9,6 +9,8 @@
 
 #include "imgui.h"
 
+#include "font/rv_editor_font.hpp"
+
 #include "panes/rv_editor_panes.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -175,7 +177,25 @@ std::string rv_editor_nvim_keys()
 
 } // namespace
 
+namespace
+{
+
+void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+
+} // namespace
+
+// Code is drawn in the code font (0004), the tile's buttons in the interface font.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+{
+    rv_editor_font_code_push();
+    rv_editor_pane_code_body(app, pane, theme);
+    rv_editor_font_code_pop();
+}
+
+namespace
+{
+
+void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     rv_editor_nvim &nvim = app.nvim;
     if (!nvim.running()) {
@@ -260,5 +280,7 @@ void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_ed
     }
     nvim.input(rv_editor_nvim_keys());
 }
+
+} // namespace
 
 } // namespace rv_editor

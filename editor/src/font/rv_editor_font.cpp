@@ -2,22 +2,62 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
+
+#include "font/rv_editor_font_ttf.hpp"
 
 namespace rv_editor
 {
 
-ImFont *rv_editor_font_add(ImFontAtlas &atlas, int scale)
+namespace
 {
-    // The outlines sit on a grid of 100 font units per font pixel, so at a whole
-    // multiple of 16 px every edge lands on a pixel boundary: coverage is 0 or 255
-    // and nothing is smoothed. Oversampling would only blur that.
+
+ImFont *rv_editor_ui = nullptr;
+ImFont *rv_editor_code = nullptr;
+
+// Both fonts are pixel outlines on whole units, so at a whole multiple of their
+// cell every edge lands on a pixel boundary and nothing is smoothed.
+ImFontConfig rv_editor_font_config(const char *name)
+{
     ImFontConfig config;
     config.OversampleH = 1;
     config.OversampleV = 1;
     config.PixelSnapH = true;
-    std::strncpy(config.Name, "PxPlus IBM VGA 9x16", sizeof(config.Name) - 1);
-    const float size = static_cast<float>(rv_editor_font_height * std::max(1, scale));
-    return atlas.AddFontFromFileTTF(RV_EDITOR_FONT_PATH, size, &config);
+    std::strncpy(config.Name, name, sizeof(config.Name) - 1);
+    return config;
+}
+
+} // namespace
+
+bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
+{
+    const int k = std::max(1, scale);
+    // The atlas keeps a pointer to the bytes for as long as it lives.
+    static const std::string ui_ttf = rv_editor_font_ttf();
+    ImFontConfig ui = rv_editor_font_config("rv_font 5x7");
+    ui.FontDataOwnedByAtlas = false;
+    rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
+        static_cast<float>(rv_editor_font_ui_height * k), &ui);
+
+    ImFontConfig code = rv_editor_font_config("PxPlus IBM VGA 9x16");
+    rv_editor_code = atlas.AddFontFromFileTTF(RV_EDITOR_FONT_PATH, static_cast<float>(rv_editor_font_code_height * k),
+        &code);
+    return rv_editor_ui != nullptr && rv_editor_code != nullptr;
+}
+
+ImFont *rv_editor_font_ui()
+{
+    return rv_editor_ui;
+}
+
+void rv_editor_font_code_push()
+{
+    ImGui::PushFont(rv_editor_code, rv_editor_code->LegacySize);
+}
+
+void rv_editor_font_code_pop()
+{
+    ImGui::PopFont();
 }
 
 } // namespace rv_editor

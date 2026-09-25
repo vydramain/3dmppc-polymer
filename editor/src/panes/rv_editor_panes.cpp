@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "font/rv_editor_font.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -148,6 +149,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::SetClipboardText(text.c_str());
     }
 
+    // Process output reads in the code font (0004).
+    rv_editor_font_code_push();
     ImGui::BeginChild("##lines", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(shown.size()));
@@ -165,6 +168,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::SetScrollHereY(1.0f);
     }
     ImGui::EndChild();
+    rv_editor_font_code_pop();
 }
 
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)

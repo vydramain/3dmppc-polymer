@@ -199,8 +199,7 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
     theme.scale = scale;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-    const ImFont *font = rv_editor::rv_editor_font_add(*io.Fonts, theme.scale);
-    if (font == nullptr) {
+    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, theme.scale)) {
         std::fprintf(stderr, "3dmppc-editor: cannot load the font %s\n", RV_EDITOR_FONT_PATH);
         ImGui::DestroyContext();
         SDL_DestroyRenderer(renderer);
@@ -208,7 +207,7 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 1;
     }
-    ImGui::GetStyle().FontSizeBase = font->LegacySize;
+    ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
