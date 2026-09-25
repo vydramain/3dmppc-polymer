@@ -170,26 +170,31 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_wrapped("No project is open. File > Open Folder opens a game directory, File > Open disc.toml "
                           "its manifest; both open the same workspace.");
     } else {
-        rv_editor_wrapped("Root: " + p.root.string());
         rv_editor_wrapped("Disc: " + (p.disc_id.empty() ? std::string("?") : p.disc_id) +
             (p.disc_title.empty() ? "" : " - " + p.disc_title));
         if (!p.manifest_error.empty()) {
             rv_editor_wrapped("disc.toml does not parse:\n" + p.manifest_error);
         }
-        rv_editor_wrapped("Builds: " + p.cache_dir.string() + "/builds");
-        rv_editor_wrapped("Memory card: " + p.state_dir.string() + "/memcard.mppccard");
+        rv_editor_path_row("Root", p.root.string(), theme);
+        rv_editor_path_row("Builds", (p.cache_dir / "builds").string(), theme);
+        rv_editor_path_row("Memory card", (p.state_dir / "memcard.mppccard").string(), theme);
     }
 
-    ImGui::Separator();
+    ImGui::SeparatorText("Toolchain");
     const rv_editor_tool *tools[] = { &app.tools.console, &app.tools.burner, &app.tools.baker };
     const char *names[] = { "Runtime", "Burner", "Baker" };
     for (int i = 0; i < 3; ++i) {
         const rv_editor_tool &t = *tools[i];
         rv_editor_status(names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
         ImGui::SameLine();
-        rv_editor_wrapped(t.problem.empty()
-                ? t.path.string() + " (" + t.origin + ")" + (t.version.empty() ? "" : " - " + t.version)
-                : t.problem);
+        if (!t.problem.empty()) {
+            rv_editor_wrapped(t.problem);
+            continue;
+        }
+        rv_editor_wrapped(t.version.empty() ? "found in " + t.origin : t.version + ", found in " + t.origin);
+        ImGui::PushID(i);
+        rv_editor_path_row("Path", t.path.string(), theme);
+        ImGui::PopID();
     }
     const rv_editor_state look_again = app.build.busy() || app.session.live()
         ? rv_editor_state{ rv_editor_look::live, "Not while a build or the runtime is running" }
@@ -197,7 +202,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_button("Look for Tools Again", theme, look_again)) {
         rv_editor_app_init(app);
     }
-    rv_editor_wrapped("Settings: " + app.tools.settings_path.string());
+    rv_editor_path_row("Settings", app.tools.settings_path.string(), theme);
     if (!app.tools.settings_error.empty()) {
         rv_editor_wrapped(app.tools.settings_error);
     }

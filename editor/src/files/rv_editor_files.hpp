@@ -42,6 +42,9 @@ public:
     // Reads a directory's entries now, keeping what was expanded under it.
     void list(rv_editor_file_node &dir);
     void refresh();
+    // Selects `path` and opens the directories down to it, reading them when
+    // needed; the rest of the tree keeps what was open. Nothing outside the root.
+    void reveal(const std::filesystem::path &path);
 
     // Name checks shared by every operation: one path component, no "/", no NUL.
     static bool valid_name(const std::string &name, std::string &error);

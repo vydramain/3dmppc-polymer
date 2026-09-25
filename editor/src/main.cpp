@@ -110,11 +110,20 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
         const rv_editor::rv_editor_app &app = shell.app;
-        const std::string where = app.project.open ? app.project.root.string() : "No project: File > Open Folder";
+        // The project's name and the toolchain in brief; paths and versions are in
+        // Window > Project Settings, the build's lines in Output.
+        const std::string where = !app.project.open ? "No project: File > Open Folder"
+            : app.project.disc_title.empty()        ? app.project.root.filename().string()
+                                                    : app.project.disc_title;
+        int missing = 0;
+        for (const rv_editor::rv_editor_tool *t : { &app.tools.console, &app.tools.burner, &app.tools.baker }) {
+            missing += t->problem.empty() ? 0 : 1;
+        }
+        const std::string tools = missing == 0 ? "Tools: ready" : "Tools: " + std::to_string(missing) + " missing";
         const std::string build = std::string("Build: ") + rv_editor::rv_editor_build_state_name(app.build.state());
         const std::string runtime = std::string("Runtime: ") + rv_editor::rv_editor_run_state_name(app.session.state());
-        const char *const fields[] = { where.c_str(), build.c_str(), runtime.c_str() };
-        rv_editor::rv_editor_status_bar(fields, 3, theme);
+        const char *const fields[] = { where.c_str(), tools.c_str(), build.c_str(), runtime.c_str() };
+        rv_editor::rv_editor_status_bar(fields, 4, theme);
     }
     ImGui::End();
 

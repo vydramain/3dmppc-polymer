@@ -238,13 +238,13 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     // The tile's status line: the file, and whether it is saved (TXT-07).
     const ImVec2 status(at.x, at.y + rows * cell.y);
     dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), IM_COL32(0x45, 0x47, 0x5a, 255));
-    std::string label = "[No Name]";
+    std::string label = "Untitled";
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win)) {
         std::error_code ec;
         const std::filesystem::path rel = app.project.open && !buf->name.empty()
             ? std::filesystem::relative(buf->name, app.project.root, ec)
             : std::filesystem::path(buf->name);
-        label = buf->name.empty() ? "[No Name]" : (ec || rel.empty() ? buf->name : rel.string());
+        label = buf->name.empty() ? "Untitled" : (ec || rel.empty() ? buf->name : rel.string());
         label += buf->modified ? " [+]" : "";
     }
     dl->AddText(ImVec2(status.x + cell.x, status.y), IM_COL32(0xcd, 0xd6, 0xf4, 255), label.c_str());

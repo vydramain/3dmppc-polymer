@@ -81,6 +81,38 @@ void rv_editor_files::list(rv_editor_file_node &dir)
     }
 }
 
+void rv_editor_files::reveal(const std::filesystem::path &path)
+{
+    const std::filesystem::path rel = path.lexically_relative(root_.path);
+    if (!is_open() || rel.empty() || *rel.begin() == "..") {
+        return;
+    }
+    rv_editor_file_node *node = &root_;
+    for (auto it = rel.begin(); it != rel.end(); ++it) {
+        if (!node->listed) {
+            list(*node);
+        }
+        node->expanded = true;
+        rv_editor_file_node *next = nullptr;
+        for (rv_editor_file_node &child : node->children) {
+            if (child.name == it->string()) {
+                next = &child;
+            }
+        }
+        if (next == nullptr) {
+            return;
+        }
+        if (std::next(it) == rel.end()) {
+            break;
+        }
+        if (!next->dir || next->symlink) {
+            return;
+        }
+        node = next;
+    }
+    selected = path;
+}
+
 void rv_editor_files::refresh()
 {
     if (is_open()) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 
 #include "layout/rv_editor_tile.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -60,6 +61,11 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
     const rv_editor_field &field = {});
 bool rv_editor_dropdown(const char *label, int *current, const char *const items[], int count,
     const rv_editor_theme &theme, const rv_editor_field &field = {});
+
+// A read-only path: its label, then the path itself, cut at the front with
+// "..." when it does not fit (the tail names the file), the whole of it in a
+// tooltip, and a Copy button that puts it on the clipboard.
+void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme);
 
 // --- panes --------------------------------------------------------------------
 // Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)

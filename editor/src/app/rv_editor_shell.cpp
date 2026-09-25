@@ -350,6 +350,20 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             }
         }
     }
+
+    // Files follows the document in the focused code tile.
+    const rv_editor_workspace &ws = shell.ws;
+    if (app.files.is_open() && ws.focused_leaf < ws.layout.nodes.size() &&
+        ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf) {
+        const rv_editor_tile_leaf &leaf = ws.layout.nodes[ws.focused_leaf].leaf;
+        if (!leaf.tabs.empty() && ws.panes.panes[leaf.tabs[leaf.active]].kind == rv_editor_pane_kind::code) {
+            const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(leaf.tabs[leaf.active]));
+            if (buf != nullptr && !buf->name.empty() && buf->name != shell.revealed) {
+                shell.revealed = buf->name;
+                app.files.reveal(buf->name);
+            }
+        }
+    }
 }
 
 bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane)

@@ -31,6 +31,9 @@ struct rv_editor_shell
     rv_editor_pane_id closing = rv_editor_tile_none;
     bool quit_asked = false; // the same question for the whole window
     bool quit_now = false;   // answered: the window closes
+    // The file Files last followed, so a selection the user makes there stays
+    // until the document in front changes.
+    std::string revealed;
 };
 
 rv_editor_workspace rv_editor_workspace_preset(rv_editor_layout_preset preset);
