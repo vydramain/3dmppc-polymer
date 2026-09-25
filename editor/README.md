@@ -66,7 +66,11 @@ Each build goes to a new numbered directory and counts only when the burner
 exits 0; a failed or cancelled build is deleted and never runs. A running game
 keeps running while the next build is made. Output shows the editor's, the
 build's and the runtime's lines; the dev channel's own lines are there too,
-off by default. Closing the editor stops the build and the game it started.
+off by default, without the frame events the console sends sixty times a
+second. A console that stops reading its input gets at most 1 MiB of queued
+commands; past that a command is refused and Output says so once, and Stop
+then offers Force Stop. Closing the editor stops the build and the game it
+started.
 
 The editor speaks dev protocol 2 and refuses any other console with the
 reason, a player build of the console included.
@@ -83,7 +87,9 @@ a fixed multiple that does not fit is lowered to one that does, and the status
 line says so. What the frame leaves over is dark. A click on the picture gives
 the game the keyboard,
 with the console's own keys (arrows, Space or Z, X, C, V, Q, E, Tab, Esc);
-Shift+Esc or a click elsewhere takes it back. Paused, the tile shows the
+Shift+Esc, a click elsewhere, closing or hiding the Game tile, another window
+taking the keyboard, opening another project and starting a new console take it
+back, and the game gets every key up at once. Paused, the tile shows the
 console's pause picture. Sound still comes from the console.
 
 ### Files
@@ -113,11 +119,17 @@ Ctrl+G opens nvim's command line. F2 switches to plain Vim and back. Lua, C and
 C++ use real tabs 4 wide with a ruler at 128. F5, F6, F7, Shift+F5 and Ctrl+B
 stay the editor's own while a Code tile has the keyboard.
 
-A Code tile's status line names the file and marks it `[+]` while unsaved.
-Closing a tile whose file is unsaved and shown nowhere else asks Save, Discard
-or Cancel; closing the editor asks the same for every unsaved file. A file
-changed by another program is re-read when its buffer is clean; when it is not,
-nvim asks. Language servers, Problems and search are not connected yet.
+A Code tile's header and status line name the file and mark it `[+]` while
+unsaved; a new one is Untitled. A click puts the cursor where it lands, a drag
+selects. Closing a tile whose file is unsaved and shown nowhere else asks Save,
+Discard or Cancel; closing the editor or opening another project asks Save All,
+Discard All or Cancel for every unsaved file. A file counts as saved only when
+nvim reports the write: one it could not write stays unsaved and open, listed
+with nvim's reason, and nothing closes until each is saved or the user says
+Discard. An Untitled file gets a name through Save As, here or in File, which
+never replaces an existing file. A file changed by another program is re-read
+when its buffer is clean; when it is not, nvim asks. Language servers, Problems
+and search are not connected yet.
 
 ### Where things go
 
