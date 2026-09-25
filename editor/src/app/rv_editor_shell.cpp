@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_panes.hpp"
 
 namespace rv_editor
@@ -184,6 +185,37 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         }
         if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {
             app.session.force_stop(app.log);
+        }
+        ImGui::EndMenu();
+    }
+    if (ImGui::BeginMenu("View")) {
+        if (ImGui::BeginMenu("Code Text Size")) {
+            constexpr struct
+            {
+                rv_editor_code_size size;
+                const char *label;
+            } sizes[] = { { rv_editor_code_size::small, "Small (6x11)" }, { rv_editor_code_size::normal, "Normal (9x16)" },
+                { rv_editor_code_size::large, "Large (9x16, doubled)" } };
+            for (const auto &s : sizes) {
+                if (ImGui::MenuItem(s.label, nullptr, rv_editor_font_code_size() == s.size)) {
+                    rv_editor_font_code_size_set(s.size);
+                }
+            }
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Game Scale")) {
+            constexpr struct
+            {
+                rv_editor_game_scale scale;
+                const char *label;
+            } scales[] = { { rv_editor_game_scale::fit, "Fit" }, { rv_editor_game_scale::integer, "Integer" },
+                { rv_editor_game_scale::x1, "1x" }, { rv_editor_game_scale::x2, "2x" }, { rv_editor_game_scale::x3, "3x" } };
+            for (const auto &s : scales) {
+                if (ImGui::MenuItem(s.label, nullptr, app.game_scale == s.scale)) {
+                    app.game_scale = s.scale;
+                }
+            }
+            ImGui::EndMenu();
         }
         ImGui::EndMenu();
     }

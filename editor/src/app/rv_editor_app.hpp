@@ -11,6 +11,7 @@
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
 #include "nvim/rv_editor_nvim.hpp"
+#include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_project.hpp"
 #include "session/rv_editor_session.hpp"
 
@@ -64,6 +65,8 @@ struct rv_editor_app
     // A code tile had the keyboard this frame: ImGui's own keyboard navigation
     // stays off the next one, so arrows and Tab reach nvim.
     bool text_focus = false;
+    // How the Game tile scales the frame; kept in the view file.
+    rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
 };
 
 // Looks for the tools and says what it found.
