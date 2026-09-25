@@ -200,7 +200,7 @@ int main(int argc, char **argv)
     theme.scale = scale;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
     if (!rv_editor::rv_editor_fonts_add(*io.Fonts, theme.scale)) {
-        std::fprintf(stderr, "3dmppc-editor: cannot load the font %s\n", RV_EDITOR_FONT_PATH);
+        std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
         ImGui::DestroyContext();
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);

@@ -131,9 +131,10 @@ Project pane shows each path and the version the tool reports
 ### Fonts
 
 The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8x8 cell) with no
-magnification beyond `--scale`; code, Output and logs draw in PxPlus IBM VGA
-9x16 by VileR (int10h.org), CC BY-SA 4.0. The Cyrillic of the 5x7 font is
-redrawn from PxPlus and carries the same licence: see
+magnification beyond `--scale`; code, Output and logs draw in the editor's own
+6x11 bitmap font (`src/font/rv_editor_font_code_data.hpp`, 5x10 ink with
+descenders). The Cyrillic of the 5x7 font is redrawn from PxPlus IBM VGA 9x16 by
+VileR (int10h.org) and carries its CC BY-SA 4.0 licence: see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
 ## Layout

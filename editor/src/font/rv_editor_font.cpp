@@ -39,9 +39,11 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
         static_cast<float>(rv_editor_font_ui_height * k), &ui);
 
-    ImFontConfig code = rv_editor_font_config("PxPlus IBM VGA 9x16");
-    rv_editor_code = atlas.AddFontFromFileTTF(RV_EDITOR_FONT_PATH, static_cast<float>(rv_editor_font_code_height * k),
-        &code);
+    static const std::string code_ttf = rv_editor_font_code_ttf();
+    ImFontConfig code = rv_editor_font_config("rv_editor code 6x11");
+    code.FontDataOwnedByAtlas = false;
+    rv_editor_code = atlas.AddFontFromMemoryTTF(const_cast<char *>(code_ttf.data()), static_cast<int>(code_ttf.size()),
+        static_cast<float>(rv_editor_font_code_height * k), &code);
     return rv_editor_ui != nullptr && rv_editor_code != nullptr;
 }
 

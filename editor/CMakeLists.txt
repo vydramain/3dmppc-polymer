@@ -66,10 +66,6 @@ target_compile_definitions(3dmppc-editor PRIVATE
 find_package(Threads REQUIRED)
 target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)
 
-# The editor's font (third_party/pxplus-ibm-vga), read at run time the same way.
-target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_FONT_PATH="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf")
-
 if(MSVC)
   target_compile_options(3dmppc-editor PRIVATE /W4)
 else()

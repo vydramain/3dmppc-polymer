@@ -8,7 +8,7 @@
 | [0001-ui-toolkit.md](0001-ui-toolkit.md) | Dear ImGui `v1.92.9b`, SDL3 и SDL_Renderer, копия в `third_party/` | принято |
 | [0002-tiling.md](0002-tiling.md) | своё дерево раскладки, доли, минимумы от панелей | принято |
 | [0003-theme-and-components.md](0003-theme-and-components.md) | токены, примитивы, виджеты; иконки из win-55-ui | принято |
-| [0004-fonts.md](0004-fonts.md) | интерфейс - `rv_font` 5x7 из pdklib, код - PxPlus IBM VGA 9x16, масштаб только `--scale`; кириллица - блок `rv_font` | принято |
+| [0004-fonts.md](0004-fonts.md) | интерфейс - `rv_font` 5x7 из pdklib, код - растровый 6x11 редактора, масштаб только `--scale`; кириллица - блок `rv_font` | принято |
 | [0005-code-editor-nvim.md](0005-code-editor-nvim.md) | один процесс `nvim --embed` на окно, `ext_multigrid` | принято |
 | [0006-game-frame.md](0006-game-frame.md) | кадр в разделяемой памяти, номер кадра и ввод по dev-протоколу | принято |
 | [0007-pdklib-cmake.md](0007-pdklib-cmake.md) | общий `cmake/pdklib.cmake` | принято |
