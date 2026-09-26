@@ -100,6 +100,7 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     const uint32_t number = rv_editor_candidate_next(dir);
     std::string error;
     r.build_first_seq = app.log.revision() + 1;
+    app.build_first_seq = r.build_first_seq;
     if (!app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + ".mppcdisc"))) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
         return;

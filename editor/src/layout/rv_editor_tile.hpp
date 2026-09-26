@@ -64,10 +64,11 @@ enum class rv_editor_pane_kind : uint32_t
     findings,    // captured frames and written-down observations
     candidate,   // the release candidate: its identity, checks and decision
     release_controls, // Build Candidate, Run Candidate, Stop, Export Report
+    build_result,     // the last build job: outcome, diagnostics, next action
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::release_controls;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::build_result;
 
 struct rv_editor_pane
 {
@@ -175,6 +176,7 @@ struct rv_editor_tile_metrics
 {
     int32_t bar;
     rv_editor_size chrome;
+    int32_t tabs; // the tab strip under a leaf of more than one pane
 };
 
 // Where one node lands. `overflow` marks a split whose children's minimums do not
@@ -214,7 +216,8 @@ enum class rv_editor_layout_preset
     code,
     scene,
     debug, // playing the game and looking at it
-    burn,  // building a disc image and checking it
+    burn,  // Burn: Candidate & Verify - checking one disc image
+    burn_diagnose, // Burn: Build & Diagnose - getting a build to succeed
 };
 
 // Name as a menu shows it: "Code", "Scene", "Debug", "Burn".

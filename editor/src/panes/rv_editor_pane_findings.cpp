@@ -145,6 +145,15 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const std::filesystem::path dir = app.project.state_dir / "findings";
+    // The Toolchest's Capture: done here, where the frame is saved.
+    if (app.capture_request) {
+        app.capture_request = false;
+        if (app.session.live()) {
+            std::error_code ec;
+            std::filesystem::create_directories(dir, ec);
+            rv_editor_capture(app, dir);
+        }
+    }
 
     const char *why_not_capture = app.session.live() ? nullptr : "No session is running: there is no frame to capture";
     if (rv_editor_button("Capture Frame", theme, { rv_editor_look::live, why_not_capture })) {

@@ -219,9 +219,9 @@ void rv_editor_menu_window(rv_editor_shell &shell)
     ImGui::Separator();
     // The same four the bar's right end switches between; each keeps its tiles.
     if (ImGui::BeginMenu("Reference Layouts")) {
-        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
-                rv_editor_shell_switch(shell, preset);
+        for (const rv_editor_layout_preset preset : rv_editor_switcher) {
+            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, rv_editor_shell_chosen(shell, preset))) {
+                rv_editor_shell_choose(shell, preset);
             }
         }
         ImGui::EndMenu();
@@ -262,15 +262,15 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
     }
     // The layout switch at the bar's right end, as in the references: one place, always.
     float names = 0.0f;
-    for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
+    for (const rv_editor_layout_preset preset : rv_editor_switcher) {
         names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
     }
     const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
     if (at > ImGui::GetCursorPosX()) {
         ImGui::SetCursorPosX(at);
-        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
-                rv_editor_shell_switch(shell, preset);
+        for (const rv_editor_layout_preset preset : rv_editor_switcher) {
+            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, rv_editor_shell_chosen(shell, preset))) {
+                rv_editor_shell_choose(shell, preset);
             }
         }
     }
@@ -300,6 +300,11 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (ImGui::IsKeyChordPressed(ImGuiKey_F8)) {
         rv_editor_app_reload(app);
     }
+}
+
+void rv_editor_shell_new_file(rv_editor_shell &shell)
+{
+    rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
 }
 
 void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &theme)

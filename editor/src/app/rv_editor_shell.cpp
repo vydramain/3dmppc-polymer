@@ -175,7 +175,24 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_shell_after_save(shell);
 
 
-    shell.app.release_view = shell.active == rv_editor_layout_preset::burn;
+    rv_editor_app &requests = shell.app;
+    requests.preset = shell.active;
+    requests.release_view = shell.active == rv_editor_layout_preset::burn;
+    if (shell.active == rv_editor_layout_preset::burn || shell.active == rv_editor_layout_preset::burn_diagnose) {
+        shell.burn_last = shell.active;
+    }
+    if (requests.burn_submode_request != rv_editor_layout_preset::code) {
+        rv_editor_shell_switch(shell, requests.burn_submode_request);
+        requests.burn_submode_request = rv_editor_layout_preset::code;
+    }
+    if (requests.show_request != rv_editor_pane_kind::empty) {
+        rv_editor_shell_show(shell.ws, requests.show_request);
+        requests.show_request = rv_editor_pane_kind::empty;
+    }
+    if (requests.new_file_request) {
+        requests.new_file_request = false;
+        rv_editor_shell_new_file(shell);
+    }
     if (shell.app.open_folder_request) {
         shell.app.open_folder_request = false;
         rv_editor_open_folder(shell);
@@ -312,12 +329,16 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     switch (kind) {
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
+        case rv_editor_pane_kind::build_result: rv_editor_pane_build_result(shell.app, theme); return;
         case rv_editor_pane_kind::controls:
-        case rv_editor_pane_kind::release_controls: {
-            // Measured each frame: the strip's minimum is what it drew.
+        case rv_editor_pane_kind::release_controls:
+        case rv_editor_pane_kind::toolchest: {
+            // Measured each frame: a strip's minimum is what it drew.
             const float top = ImGui::GetCursorPosY();
             if (kind == rv_editor_pane_kind::controls) {
                 rv_editor_pane_controls(shell.app, theme);
+            } else if (kind == rv_editor_pane_kind::toolchest) {
+                rv_editor_pane_toolchest(shell.app, theme);
             } else {
                 rv_editor_pane_release_controls(shell.app, theme);
             }

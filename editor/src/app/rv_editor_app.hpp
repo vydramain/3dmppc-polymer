@@ -138,8 +138,18 @@ struct rv_editor_app
     rv_editor_observe observe;
     rv_editor_findings findings;
     rv_editor_release release;
-    // Burn is the layout in front: panes shared with Debug speak of candidates.
+    // The layout in front, for panes that differ by it (Toolchest, Game in Burn).
+    rv_editor_layout_preset preset = rv_editor_layout_preset::code;
+    // Burn's Candidate & Verify is in front: panes shared with Debug speak of candidates.
     bool release_view = false;
+    // Asked by a pane, done by the window next frame: a pane to bring forward, a new
+    // Untitled buffer, a Burn mode, a frame capture for Findings.
+    rv_editor_pane_kind show_request = rv_editor_pane_kind::empty;
+    bool new_file_request = false;
+    rv_editor_layout_preset burn_submode_request = rv_editor_layout_preset::code;
+    bool capture_request = false;
+    // The first log line of the latest build job, for its diagnostics.
+    uint64_t build_first_seq = 0;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
 };

@@ -24,7 +24,9 @@ struct rv_editor_shell
     // nvim window or process goes with it. `ws.layout` is the chosen one's tree;
     // `trees` keeps the others (the chosen one's slot is stale).
     rv_editor_workspace ws;
-    std::array<rv_editor_layout, 4> trees;
+    std::array<rv_editor_layout, 5> trees;
+    // The Burn mode shown last: the switcher's Burn goes back to it.
+    rv_editor_layout_preset burn_last = rv_editor_layout_preset::burn;
     rv_editor_layout_preset active = rv_editor_layout_preset::code;
     rv_editor_app app;
     SDL_Window *window = nullptr;
@@ -73,9 +75,20 @@ struct rv_editor_shell
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
 
-// The layouts in menu order: Code, Scene, Debug, Burn.
+// Every tree a window keeps: Code, Scene, Debug and Burn's two modes.
 inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_layout_preset::code,
+    rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::burn,
+    rv_editor_layout_preset::burn_diagnose };
+
+// What the switcher and Window > Reference Layouts offer: the four layouts, Burn
+// in the mode shown last.
+inline constexpr rv_editor_layout_preset rv_editor_switcher[] = { rv_editor_layout_preset::code,
     rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::burn };
+
+// Chooses one of rv_editor_switcher: Burn goes to the Burn mode shown last.
+void rv_editor_shell_choose(rv_editor_shell &shell, rv_editor_layout_preset preset);
+// True when `preset` of the switcher is the one in front (either Burn mode for Burn).
+bool rv_editor_shell_chosen(const rv_editor_shell &shell, rv_editor_layout_preset preset);
 
 // Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
@@ -124,6 +137,9 @@ void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);
+
+// A new Untitled buffer in the code tile used last.
+void rv_editor_shell_new_file(rv_editor_shell &shell);
 
 // File > Save All: every modified buffer.
 void rv_editor_shell_save_all(rv_editor_shell &shell);

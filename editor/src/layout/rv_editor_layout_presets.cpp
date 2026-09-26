@@ -1,5 +1,5 @@
-// Starting layouts of Code, Scene, Debug and Burn: what each shows the first
-// time it is chosen and after Layout > Reset Layout.
+// Starting layouts of Code, Scene, Debug and Burn's two modes: what each shows
+// the first time it is chosen and after Window > Reset Layout.
 
 #include "layout/rv_editor_tile.hpp"
 
@@ -33,17 +33,19 @@ struct rv_editor_preset_builder
     }
 };
 
-// Reference 0003, without its Toolchest: files on the left, the code beside the
-// game over its controls, the terminal and the runtime output underneath.
-// Ratios are the picture's, measured in pixels.
+// Code (COD-01): the Toolchest over Files on the left (18 %); the code beside the
+// game (62/38) over Output and a Terminal as tabs (74/26); the runtime controls
+// under the game, as tall as they draw.
 void rv_editor_preset_code(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
-    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
-    const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
-    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.74f);
-    b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.54f);
+    const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.18f);
+    b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.0f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.74f);
+    b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, output);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.62f);
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
 }
 
 // Reference 0005: tools over the hierarchy, the scene over the assets, the game
@@ -61,35 +63,54 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.62f);
 }
 
-// Debug (reference 0008): a strip of runtime controls as tall as its content over
-// the game beside Observe, the source and the files; the session's log, findings
-// and a terminal underneath. The
-// ratios are the requirements' (72/28, 62/38); the strip's is its minimum.
+// Debug (DBG-01): the runtime controls as tall as they draw over the Toolchest
+// with the session in brief, the game, the source and the runtime Inspector
+// (12 %, then 44/32/24 of the rest); the runtime log, findings and a terminal
+// underneath (72/28).
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, game, rv_editor_tile_dock::bottom, 0.72f);
-    const rv_editor_pane_id observe = b.add(rv_editor_pane_kind::observe, game, rv_editor_tile_dock::right, 0.62f);
-    b.add(rv_editor_pane_kind::code, observe, rv_editor_tile_dock::tab, 0.0f);
-    b.add(rv_editor_pane_kind::files, observe, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, observe);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
+    b.add(rv_editor_pane_kind::toolchest, game, rv_editor_tile_dock::left, 0.12f);
+    const rv_editor_pane_id code = b.add(rv_editor_pane_kind::code, game, rv_editor_tile_dock::right, 0.44f);
+    b.add(rv_editor_pane_kind::observe, code, rv_editor_tile_dock::right, 0.57f);
 }
 
-// Burn (reference 0007): the release controls over the candidate beside its
-// playtest, the build's and the playtest's logs underneath (72/28, 35/65).
+// Burn, Candidate & Verify (BRN-03): the release controls over the Toolchest, the
+// candidate and its playtest (12 %, then 35/65); the build's log, the playtest's
+// log and findings underneath (72/28).
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id candidate =
         b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.72f);
-    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
+    b.add(rv_editor_pane_kind::toolchest, candidate, rv_editor_tile_dock::left, 0.12f);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
+}
+
+// Burn, Build & Diagnose (BRN-02): the release controls over the Toolchest and
+// Files (18 %) beside the build's result with the source as a tab; the build's
+// log and a terminal underneath (70/30).
+void rv_editor_preset_burn_diagnose(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id result =
+        b.add(rv_editor_pane_kind::build_result, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, result, rv_editor_tile_dock::bottom, 0.70f);
+    b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, log);
+    const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, result, rv_editor_tile_dock::left, 0.18f);
+    b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.0f);
+    b.add(rv_editor_pane_kind::code, result, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, result);
 }
 
 } // namespace
@@ -104,6 +125,7 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
     case rv_editor_layout_preset::debug:
         return "Debug";
     case rv_editor_layout_preset::burn:
+    case rv_editor_layout_preset::burn_diagnose:
         return "Burn";
     }
     return "";
@@ -115,7 +137,7 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
     rv_editor_pane_kind first = rv_editor_pane_kind::code;
     if (preset == rv_editor_layout_preset::scene) {
         first = rv_editor_pane_kind::scene;
-    } else if (preset == rv_editor_layout_preset::debug || preset == rv_editor_layout_preset::burn) {
+    } else if (preset != rv_editor_layout_preset::code) {
         first = preset == rv_editor_layout_preset::debug ? rv_editor_pane_kind::controls
                                                          : rv_editor_pane_kind::release_controls;
     }
@@ -132,6 +154,9 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
         break;
     case rv_editor_layout_preset::burn:
         rv_editor_preset_burn(b);
+        break;
+    case rv_editor_layout_preset::burn_diagnose:
+        rv_editor_preset_burn_diagnose(b);
         break;
     }
     panes = b.panes;

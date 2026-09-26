@@ -55,6 +55,12 @@ bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &pat
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The layout's command palette (spec 7): Code, Debug and Burn each their few.
+void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme);
+
+// The last build job's outcome and diagnostics, and the next action (BRN-02).
+void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 

@@ -287,7 +287,8 @@ rv_editor_size rv_editor_tile_min_size(const rv_editor_layout &layout, uint32_t 
                 inner.h = std::max(inner.h, pane_min[pane].h);
             }
         }
-        return { inner.w + metrics.chrome.w, inner.h + metrics.chrome.h };
+        const int32_t tabs = n.leaf.tabs.size() > 1 ? metrics.tabs : 0;
+        return { inner.w + metrics.chrome.w, inner.h + metrics.chrome.h + tabs };
     }
 
     const rv_editor_size a = rv_editor_tile_min_size(layout, n.split.first, metrics, pane_min);

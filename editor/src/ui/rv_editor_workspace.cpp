@@ -37,10 +37,11 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::console: return "Console";
         case rv_editor_pane_kind::runtime_log: return "Runtime Log";
         case rv_editor_pane_kind::build_log: return "Build Log";
-        case rv_editor_pane_kind::observe: return "Observe";
+        case rv_editor_pane_kind::observe: return "Inspector: state (Runtime, read-only)";
         case rv_editor_pane_kind::findings: return "Findings";
         case rv_editor_pane_kind::candidate: return "Release Candidate";
         case rv_editor_pane_kind::release_controls: return "Release Controls";
+        case rv_editor_pane_kind::build_result: return "Build Result";
     }
     return "?";
 }
@@ -272,7 +273,9 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
     const rv_editor_tile_metrics m{ static_cast<int>(std::floor(static_cast<float>(theme.splitter_px) * s)),
-        { static_cast<int>(2.0f * (bevel + pad)), static_cast<int>(2.0f * (bevel + frame_h + pad)) } };
+        { static_cast<int>(2.0f * (bevel + pad)),
+            static_cast<int>(2.0f * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
+        static_cast<int>(frame_h) };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
     const ImVec2 glyph = ImGui::CalcTextSize("M");

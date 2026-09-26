@@ -211,6 +211,7 @@ void rv_editor_app_build(rv_editor_app &app)
         return;
     }
     std::string error;
+    app.build_first_seq = app.log.revision() + 1;
     if (!app.build.start(app.project, app.tools, app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
     }

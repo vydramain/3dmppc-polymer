@@ -36,6 +36,11 @@ float rv_editor_tool_button_width(const char *label);
 bool rv_editor_image_button(const char *id, const char *icon, const char *tooltip, const rv_editor_theme &theme,
     const rv_editor_state &state = {}, bool danger = false);
 
+// One row of a Toolchest: a 16 px icon and its label across the pane's width,
+// `tooltip` saying what it does (a disabled row says why instead).
+bool rv_editor_command_button(const char *id, const char *icon, const char *label, const char *tooltip,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
+
 // A 16 px icon from editor/icons at `at` (top left), dimmed when `disabled`.
 void rv_editor_icon_draw(ImDrawList *dl, const char *icon, ImVec2 at, const rv_editor_theme &theme,
     bool disabled = false);

@@ -153,6 +153,35 @@ bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t co
     return item.clicked;
 }
 
+bool rv_editor_command_button(const char *id, const char *icon, const char *label, const char *tooltip,
+    const rv_editor_theme &theme, const rv_editor_state &state)
+{
+    const ImVec2 pad = ImGui::GetStyle().FramePadding;
+    // Compact: a 16 px icon on a row of control height, so a palette stays short.
+    const float art = std::floor(16.0f * theme.scale);
+    const float width = std::max(ImGui::GetContentRegionAvail().x, art + pad.x * 3.0f + ImGui::CalcTextSize(label).x);
+    const rv_editor_item item = rv_editor_item_add(id, ImVec2(width, ImGui::GetFrameHeight()), state);
+    if (!item.disabled && tooltip != nullptr) {
+        ImGui::SetItemTooltip("%s", tooltip);
+    }
+    const bool down = item.held && item.hovered;
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    rv_editor_button_face(dl, item, theme, down);
+    const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
+    const rv_editor_icon picture = rv_editor_icon_find(icon, static_cast<int>(art));
+    const ImVec2 p0 = rv_editor_floor(ImVec2(item.min.x + pad.x + nudge, (item.min.y + item.max.y - art) / 2.0f + nudge));
+    if (picture.id != 0) {
+        const ImU32 tint = item.disabled ? IM_COL32(255, 255, 255, 96) : IM_COL32_WHITE;
+        dl->AddImage(ImTextureRef(picture.id), p0, ImVec2(p0.x + art, p0.y + art), ImVec2(0, 0), ImVec2(1, 1), tint);
+    }
+    const float text_y = std::floor((item.min.y + item.max.y - ImGui::GetFontSize()) / 2.0f + nudge);
+    dl->AddText(ImVec2(p0.x + art + pad.x, text_y), rv_editor_col(rv_editor_item_text(theme, item)), label);
+    if (item.focused) {
+        rv_editor_draw_focus(dl, item.min, item.max, theme);
+    }
+    return item.clicked;
+}
+
 void rv_editor_icon_draw(ImDrawList *dl, const char *icon, ImVec2 at, const rv_editor_theme &theme, bool disabled)
 {
     // 16 logical px: the drawn size nearest the scale, 24 at 1.5, 32 at 2.
