@@ -119,9 +119,24 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
     if (!s.live()) {
         app.game_captured = false;
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("No console is running: Run (F5) starts the game here.");
-        ImGui::PopStyleColor();
+        if (!app.project.open) {
+            rv_editor_open_project_row(app, theme);
+            return;
+        }
+        // Stopped: what Run starts, and Run itself (or Build, with nothing built).
+        const std::string target = app.build.last_success()
+            ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
+            : "Stopped. Nothing is built yet: Build, then Run.";
+        ImGui::TextWrapped("%s", target.c_str());
+        const bool built = app.build.last_success().has_value();
+        const char *why_not = built ? rv_editor_app_why_not_run(app) : rv_editor_app_why_not_build(app);
+        if (rv_editor_button(built ? "Run" : "Build", theme, { rv_editor_look::live, why_not })) {
+            if (built) {
+                rv_editor_app_run(app);
+            } else {
+                rv_editor_app_build(app);
+            }
+        }
         return;
     }
 

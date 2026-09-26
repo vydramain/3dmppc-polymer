@@ -1,4 +1,4 @@
-// The view file: the code text size and the Game scale, one line each.
+// The view file: the code text size, the Game scale and the workspace, one line each.
 
 #include "prefs/rv_editor_prefs.hpp"
 
@@ -51,6 +51,8 @@ std::string rv_editor_prefs_write(const rv_editor_prefs &prefs)
     out += rv_editor_code_size_name(prefs.code_size);
     out += "\ngame-scale ";
     out += rv_editor_game_scale_name(prefs.game_scale);
+    out += "\nworkspace ";
+    out += prefs.workspace;
     out += "\n";
     return out;
 }
@@ -74,6 +76,8 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
             rv_editor_code_size_parse(value.c_str(), prefs.code_size);
         } else if (key == "game-scale") {
             rv_editor_game_scale_parse(value, prefs.game_scale);
+        } else if (key == "workspace") {
+            prefs.workspace = value;
         }
     }
     return prefs;

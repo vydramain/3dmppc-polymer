@@ -31,6 +31,7 @@ struct rv_editor_prefs
 {
     rv_editor_code_size code_size = rv_editor_code_size::normal;
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
+    std::string workspace = "default"; // the one shown last: "default", "test" or "release"
 };
 
 // "3dmppc-editor-view 1", then one "key value" line per setting.

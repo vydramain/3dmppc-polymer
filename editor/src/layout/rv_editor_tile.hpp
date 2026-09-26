@@ -58,7 +58,12 @@ enum class rv_editor_pane_kind : uint32_t
     search,
     toolchest,
     console,
+    runtime_log, // Output over the runtime's stderr alone
+    build_log,   // Output over the build's lines alone
 };
+
+// The last kind, for loops over all of them.
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::build_log;
 
 struct rv_editor_pane
 {
@@ -131,6 +136,11 @@ enum class rv_editor_tile_dock
 // One leaf holding `pane`, or an empty leaf for rv_editor_tile_none.
 rv_editor_layout rv_editor_layout_make(rv_editor_pane_id pane);
 
+// Moves the panes `layout` shows from `from` into `into` under new ids, and
+// renumbers `layout` to match: a tree read on its own joins a shared registry.
+void rv_editor_pane_adopt(rv_editor_pane_registry &into, const rv_editor_pane_registry &from,
+    rv_editor_layout &layout);
+
 // The leaf that holds `pane`, or rv_editor_tile_none.
 uint32_t rv_editor_tile_find(const rv_editor_layout &layout, rv_editor_pane_id pane);
 
@@ -199,12 +209,12 @@ enum class rv_editor_layout_preset
 {
     code,
     scene,
-    debug,
-    build,
+    test,      // playing the game and looking at it
+    release,   // building a disc image and checking it
     workspace, // the default: only panes that work
 };
 
-// Name as a menu shows it: "Code", "Scene", "Debug", "Build", "Default".
+// Name as a menu shows it: "Code", "Scene", "Test", "Release", "Default".
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 
 // Replaces both outputs with the starting layout `preset` (LAY-07).

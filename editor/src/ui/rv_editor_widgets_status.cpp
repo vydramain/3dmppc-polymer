@@ -125,6 +125,9 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     };
     bool first = true;
     for (const auto &b : buttons) {
+        if (b.clicked == &out.reload && !state.reload_shown) {
+            continue;
+        }
         if (!first) {
             rv_editor_flow(rv_editor_tool_button_width(b.label));
         }

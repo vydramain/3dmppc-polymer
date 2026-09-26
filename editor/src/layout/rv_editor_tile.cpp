@@ -120,6 +120,19 @@ bool rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_i
     return true;
 }
 
+void rv_editor_pane_adopt(rv_editor_pane_registry &into, const rv_editor_pane_registry &from,
+    rv_editor_layout &layout)
+{
+    for (rv_editor_tile_node &node : layout.nodes) {
+        if (node.kind != rv_editor_tile_kind::leaf) {
+            continue;
+        }
+        for (rv_editor_pane_id &pane : node.leaf.tabs) {
+            pane = rv_editor_pane_add(into, from.panes[pane].kind);
+        }
+    }
+}
+
 // --- the tree -----------------------------------------------------------------
 
 rv_editor_layout rv_editor_layout_make(rv_editor_pane_id pane)

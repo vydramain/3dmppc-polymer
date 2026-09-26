@@ -1,5 +1,5 @@
-// Starting layouts: the working default, and the editor's design references Code,
-// Scene, Debug and Build.
+// Starting layouts: the working default, Test and Release, and the editor's design
+// references Code and Scene.
 
 #include "layout/rv_editor_tile.hpp"
 
@@ -61,34 +61,30 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.62f);
 }
 
-// Reference 0002: the game, its controls and the code on top; output, run
-// configuration and inspector underneath.
-void rv_editor_preset_debug(rv_editor_preset_builder &b)
+// Test (reference 0008): a strip of runtime controls as tall as its content over
+// the game beside the source and the files, the session's log underneath. The
+// ratios are the requirements' (72/28, 62/38); the strip's is its minimum.
+void rv_editor_preset_test(rv_editor_preset_builder &b)
 {
-    const rv_editor_pane_id game = 0;
-    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, game, rv_editor_tile_dock::bottom, 0.64f);
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::right, 0.51f);
-    b.add(rv_editor_pane_kind::code, controls, rv_editor_tile_dock::right, 0.31f);
-    const rv_editor_pane_id run = b.add(rv_editor_pane_kind::run_config, output, rv_editor_tile_dock::right, 0.38f);
-    b.add(rv_editor_pane_kind::inspector, run, rv_editor_tile_dock::right, 0.47f);
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, game, rv_editor_tile_dock::bottom, 0.72f);
+    const rv_editor_pane_id code = b.add(rv_editor_pane_kind::code, game, rv_editor_tile_dock::right, 0.62f);
+    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, code);
+    b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, log);
 }
 
-// Reference 0004: tools over the project, the code beside the controls over the
-// game; build output with search, then problems and the run configuration over
-// a terminal below.
-void rv_editor_preset_build(rv_editor_preset_builder &b)
+// Release (reference 0007): the release controls over the build's log beside
+// the playtest, the runtime's log as a tab under it (72/28, 35/65).
+void rv_editor_preset_release(rv_editor_preset_builder &b)
 {
-    const rv_editor_pane_id code = 0;
-    const rv_editor_pane_id project = b.add(rv_editor_pane_kind::project, code, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, project, rv_editor_tile_dock::top, 0.28f);
-    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.56f);
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, code, rv_editor_tile_dock::right, 0.61f);
-    b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.37f);
-    b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, output);
-    const rv_editor_pane_id problems = b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::right, 0.38f);
-    b.add(rv_editor_pane_kind::terminal, problems, rv_editor_tile_dock::bottom, 0.62f);
-    b.add(rv_editor_pane_kind::run_config, problems, rv_editor_tile_dock::right, 0.50f);
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id build = b.add(rv_editor_pane_kind::build_log, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, build, rv_editor_tile_dock::bottom, 0.72f);
+    b.add(rv_editor_pane_kind::game, build, rv_editor_tile_dock::right, 0.35f);
+    rv_editor_tile_activate(b.layout, log);
 }
 
 // The working default, of panes that exist: files on the left, code in the middle
@@ -114,10 +110,10 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
         return "Code";
     case rv_editor_layout_preset::scene:
         return "Scene";
-    case rv_editor_layout_preset::debug:
-        return "Debug";
-    case rv_editor_layout_preset::build:
-        return "Build";
+    case rv_editor_layout_preset::test:
+        return "Test";
+    case rv_editor_layout_preset::release:
+        return "Release";
     case rv_editor_layout_preset::workspace:
         return "Default";
     }
@@ -130,8 +126,8 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
     rv_editor_pane_kind first = rv_editor_pane_kind::code;
     if (preset == rv_editor_layout_preset::scene) {
         first = rv_editor_pane_kind::scene;
-    } else if (preset == rv_editor_layout_preset::debug) {
-        first = rv_editor_pane_kind::game;
+    } else if (preset == rv_editor_layout_preset::test || preset == rv_editor_layout_preset::release) {
+        first = rv_editor_pane_kind::controls;
     }
     rv_editor_preset_builder b(first);
     switch (preset) {
@@ -141,11 +137,11 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
     case rv_editor_layout_preset::scene:
         rv_editor_preset_scene(b);
         break;
-    case rv_editor_layout_preset::debug:
-        rv_editor_preset_debug(b);
+    case rv_editor_layout_preset::test:
+        rv_editor_preset_test(b);
         break;
-    case rv_editor_layout_preset::build:
-        rv_editor_preset_build(b);
+    case rv_editor_layout_preset::release:
+        rv_editor_preset_release(b);
         break;
     case rv_editor_layout_preset::workspace:
         rv_editor_preset_workspace(b);

@@ -13,8 +13,12 @@ namespace rv_editor
 // The panes that look at the editor's models. Each draws into the current ImGui
 // window and changes the models only through rv_editor_app's commands.
 
-// Build, Run/Resume, Pause, Step, Stop; the session and the build job's state.
+// Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
+// wraps when narrow; Open Project without a project.
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme);
+
+// "No project is open." and an Open Project button, for a pane's empty state.
+void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The shared log, through this pane's own filters.
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);

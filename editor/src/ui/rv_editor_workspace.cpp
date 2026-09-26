@@ -34,6 +34,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::search: return "Search Results";
         case rv_editor_pane_kind::toolchest: return "Toolchest";
         case rv_editor_pane_kind::console: return "Console";
+        case rv_editor_pane_kind::runtime_log: return "Runtime Log";
+        case rv_editor_pane_kind::build_log: return "Build Log";
     }
     return "?";
 }
@@ -128,7 +130,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
             action.dock = rv_editor_tile_dock::bottom;
         }
         if (ImGui::BeginMenu("Change To", active != rv_editor_tile_none)) {
-            for (uint32_t k = 0; k <= static_cast<uint32_t>(rv_editor_pane_kind::console); ++k) {
+            for (uint32_t k = 0; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
                 const auto kind = static_cast<rv_editor_pane_kind>(k);
                 const char *label = rv_editor_pane_title(kind);
                 const bool selected = (ws.panes.panes[active].kind == kind);
@@ -267,11 +269,14 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
     const ImVec2 glyph = ImGui::CalcTextSize("M");
     for (size_t i = 0; i < pane_min.size(); ++i) {
-        if (ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
-            // The frame at 1x once the console has sent one (LAY-03); smaller
-            // until then, and Fit shows what fits.
-            const auto it = ws.minimums.find(static_cast<rv_editor_pane_id>(i));
-            pane_min[i] = it != ws.minimums.end() ? it->second : rv_editor_size{ 0, 0 };
+        // What the owner measured: the Game's frame at 1x once the console has
+        // sent one (LAY-03), a strip of controls as tall as its rows.
+        const auto it = ws.minimums.find(static_cast<rv_editor_pane_id>(i));
+        if (it != ws.minimums.end()) {
+            pane_min[i] = it->second;
+        } else if (ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
+            // Smaller until the first frame, and Fit shows what fits.
+            pane_min[i] = { 0, 0 };
         } else {
             pane_min[i] = {static_cast<int>(glyph.x * 20), static_cast<int>(frame_h * 4)};
         }

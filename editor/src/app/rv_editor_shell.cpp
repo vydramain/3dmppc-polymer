@@ -128,27 +128,6 @@ void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
 
 } // namespace
 
-rv_editor_workspace rv_editor_workspace_preset(rv_editor_layout_preset preset)
-{
-    rv_editor_workspace ws;
-    rv_editor_layout_preset_make(preset, ws.panes, ws.layout);
-    return ws;
-}
-
-rv_editor_workspace rv_editor_workspace_load(const std::filesystem::path &path)
-{
-    rv_editor_workspace ws = rv_editor_workspace_preset(rv_editor_layout_preset::workspace);
-    if (path.empty() || rv_editor_layout_load(path, ws.panes, ws.layout)) {
-        return ws;
-    }
-    std::error_code ec;
-    if (std::filesystem::exists(path, ec)) {
-        std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from Code\n",
-            path.c_str());
-    }
-    return ws;
-}
-
 void rv_editor_shell_menu(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
@@ -239,16 +218,22 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Layout")) {
-        if (ImGui::MenuItem("Reset to Default")) {
-            ws = rv_editor_workspace_preset(rv_editor_layout_preset::workspace);
+        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
+            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
+                rv_editor_shell_switch(shell, preset);
+            }
+        }
+        ImGui::Separator();
+        const std::string reset = std::string("Reset ") + rv_editor_layout_preset_name(shell.active) + " Layout";
+        if (ImGui::MenuItem(reset.c_str())) {
+            rv_editor_shell_reset_layout(shell, shell.active);
         }
         // The design references' layouts hold panes that are not written yet.
         if (ImGui::BeginMenu("Reference Layouts")) {
-            constexpr rv_editor_layout_preset presets[] = { rv_editor_layout_preset::code,
-                rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::build };
+            constexpr rv_editor_layout_preset presets[] = { rv_editor_layout_preset::code, rv_editor_layout_preset::scene };
             for (const rv_editor_layout_preset preset : presets) {
                 if (ImGui::MenuItem(rv_editor_layout_preset_name(preset))) {
-                    ws = rv_editor_workspace_preset(preset);
+                    rv_editor_shell_reset_layout(shell, preset);
                 }
             }
             ImGui::EndMenu();
@@ -265,6 +250,20 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
             rv_editor_shell_show(ws, rv_editor_pane_kind::catalog);
         }
         ImGui::EndMenu();
+    }
+    // The workspace switch at the bar's right end, as in the references.
+    float names = 0.0f;
+    for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
+        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+    }
+    const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
+    if (at > ImGui::GetCursorPosX()) {
+        ImGui::SetCursorPosX(at);
+        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
+            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
+                rv_editor_shell_switch(shell, preset);
+            }
+        }
     }
     ImGui::EndMainMenuBar();
     rv_editor_menu_style_pop();
@@ -305,11 +304,16 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_shell_after_save(shell);
 
 
-    // A code pane that left the tree, whatever took it (close, another kind, a
-    // layout from the menu), gives its nvim window back.
-    const std::vector<rv_editor_pane_id> shown = rv_editor_code_panes(shell.ws);
+    if (shell.app.open_folder_request) {
+        shell.app.open_folder_request = false;
+        rv_editor_open_folder(shell);
+    }
+
+    // A code pane that left every workspace's tree, whatever took it (close,
+    // another kind, a layout from the menu), gives its nvim window back; one in a
+    // workspace not shown keeps it.
     for (const uint32_t pane : shell.app.nvim.panes()) {
-        if (std::find(shown.begin(), shown.end(), pane) == shown.end()) {
+        if (shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::code || !rv_editor_shell_pane_kept(shell, pane)) {
             shell.app.nvim.release(pane);
             shell.app.code_tabs.erase(pane);
         }
@@ -324,12 +328,12 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
     }
 
-    // A Terminal tile that left the tree, or became another kind, ends its shell.
+    // A Terminal tile that left every workspace's tree, or became another kind,
+    // ends its shell.
     std::erase_if(shell.app.terminals, [&shell](const auto &entry) {
         const rv_editor_pane_id pane = entry.first;
         return pane >= shell.ws.panes.panes.size() ||
-            shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal ||
-            rv_editor_tile_find(shell.ws.layout, pane) == rv_editor_tile_none;
+            shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal || !rv_editor_shell_pane_kept(shell, pane);
     });
 
     // Files the user opened go to a code tile once its window exists.
@@ -366,6 +370,17 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             const rv_editor_pane_kind kind = shell.ws.panes.panes[pane].kind;
             if (kind == rv_editor_pane_kind::game && app.game_need.w > 0) {
                 shell.ws.minimums[pane] = app.game_need;
+            }
+            // A strip of controls is as tall as its rows, whatever its split's ratio says.
+            const auto strip = shell.strips.find(pane);
+            if (strip != shell.strips.end()) {
+                shell.ws.minimums[pane] = strip->second;
+            }
+            if (shell.active == rv_editor_layout_preset::release && kind == rv_editor_pane_kind::game) {
+                shell.ws.titles[pane] = "Candidate Playtest";
+            }
+            if (shell.active == rv_editor_layout_preset::release && kind == rv_editor_pane_kind::runtime_log) {
+                shell.ws.titles[pane] = "Playtest Log";
             }
             if (kind != rv_editor_pane_kind::code || !app.nvim.running()) {
                 continue;
@@ -419,7 +434,24 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
     switch (kind) {
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
-        case rv_editor_pane_kind::controls: rv_editor_pane_controls(shell.app, theme); return;
+        case rv_editor_pane_kind::controls: {
+            // Measured each frame: the strip's minimum is what it drew.
+            const float top = ImGui::GetCursorPosY();
+            rv_editor_pane_controls(shell.app, theme);
+            const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
+            shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * 20), static_cast<int32_t>(tall) };
+            return;
+        }
+        case rv_editor_pane_kind::runtime_log:
+        case rv_editor_pane_kind::build_log: {
+            // One source each, until the user ticks more (TRM-02).
+            const bool runtime = kind == rv_editor_pane_kind::runtime_log;
+            rv_editor_output_view view;
+            view.show = { false, !runtime, runtime, false };
+            shell.app.outputs.try_emplace(pane, view);
+            rv_editor_pane_output(shell.app, pane, theme);
+            return;
+        }
         case rv_editor_pane_kind::output:
         case rv_editor_pane_kind::console: rv_editor_pane_output(shell.app, pane, theme); return;
         case rv_editor_pane_kind::project: rv_editor_pane_project(shell.app, theme); return;

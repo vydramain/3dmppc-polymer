@@ -22,8 +22,8 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A square transport button: a pixel picture in `color` over its label, every
-// one the same size (rv_editor_tool_button_width). The tooltip names `shortcut`
+// A transport button of frame height: a pixel picture in `color` beside its label,
+// as wide as rv_editor_tool_button_width says. The tooltip names `shortcut`
 // (nullptr: none); a disabled button dims the picture and its tooltip says why.
 bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
@@ -197,6 +197,7 @@ struct rv_editor_transport_state
     const char *stop;
     const char *reload;
     bool resume = false; // the machine is paused: Run reads Resume
+    bool reload_shown = true; // false: the runtime cannot reload, so no Reload button at all
 };
 
 // Which transport action was clicked this frame.

@@ -41,9 +41,13 @@ void rv_editor_wrapped(const std::string &text)
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_session &s = app.session;
+    if (!app.project.open) {
+        rv_editor_open_project_row(app, theme);
+        return;
+    }
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        "Hot reload is not wired to the editor yet", s.state() == rv_editor_run_state::paused };
+        "Hot reload is not wired to the editor yet", s.state() == rv_editor_run_state::paused, false };
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme);
     if (clicked.build) {
         rv_editor_app_build(app);
@@ -61,15 +65,25 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_app_stop(app);
     }
 
-    // One line: the runtime's confirmed state, and what is still pending.
-    rv_editor_status(rv_editor_run_state_name(s.state()), rv_editor_run_lamp(s), theme);
+    // On the same row while it fits: the runtime's confirmed state, its frame and
+    // what it runs, or, stopped, what Run would start.
+    const char *name = rv_editor_run_state_name(s.state());
+    rv_editor_flow(rv_editor_checkbox_width(name));
+    rv_editor_status(name, rv_editor_run_lamp(s), theme);
+    std::string facts;
     if (s.live()) {
-        ImGui::SameLine();
-        ImGui::Text("frame %lld, pid %d, build #%u", static_cast<long long>(s.frame()), static_cast<int>(s.pid()),
-            s.build_number());
-    } else if (!s.end_reason().empty()) {
-        ImGui::SameLine();
-        rv_editor_wrapped(s.end_reason());
+        facts = "frame " + std::to_string(s.frame()) + " | build #" + std::to_string(s.build_number()) + " | pid " +
+            std::to_string(static_cast<int>(s.pid()));
+    } else if (app.build.last_success()) {
+        facts = "Target: build #" + std::to_string(app.build.last_success()->number);
+    } else {
+        facts = "Target: nothing built yet";
+    }
+    rv_editor_flow(ImGui::CalcTextSize(facts.c_str()).x);
+    ImGui::TextUnformatted(facts.c_str());
+
+    if (!s.live() && !s.end_reason().empty()) {
+        rv_editor_wrapped("Last run: " + s.end_reason());
     }
     if (s.uncertain()) {
         rv_editor_wrapped("A request went unanswered; the state shown is the last one the console confirmed.");
@@ -82,8 +96,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::TextUnformatted(s.hung() ? "the runtime did not end after quit" : "the channel is gone");
     }
 
-    // The build's outcome is in the status bar and its lines in Output; here only
-    // what can be done about a running one.
+    // The build's outcome is in the status bar and its lines in the Build Log;
+    // here only what can be done about a running one.
     if (app.build.busy()) {
         const rv_editor_state cancel = app.build.state() == rv_editor_build_state::cancelling
             ? rv_editor_state{ rv_editor_look::live, "Already cancelling" }
@@ -91,6 +105,15 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         if (rv_editor_button("Cancel Build", theme, cancel)) {
             app.build.cancel();
         }
+    }
+}
+
+void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    ImGui::TextUnformatted("No project is open.");
+    ImGui::SameLine();
+    if (rv_editor_button("Open Project...", theme)) {
+        app.open_folder_request = true;
     }
 }
 

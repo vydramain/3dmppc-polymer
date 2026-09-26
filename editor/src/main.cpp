@@ -233,11 +233,11 @@ int main(int argc, char **argv)
     auto shell = std::make_unique<rv_editor::rv_editor_shell>();
     shell->window = window;
     shell->renderer = renderer;
-    shell->ws = rv_editor::rv_editor_workspace_load(layout_path);
     rv_editor::rv_editor_app_init(shell->app);
-    // The view the user chose last time: code text size and Game scale.
+    // The view the user chose last time: code text size, Game scale, workspace.
     const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
     const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
+    rv_editor::rv_editor_shell_load_layouts(*shell, layout_path, prefs.workspace);
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
     shell->app.game_scale = prefs.game_scale;
     if (!open_path.empty()) {
@@ -275,10 +275,11 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_app_shutdown(shell->app);
 
     std::string error;
-    if (!layout_path.empty() && !rv_editor::rv_editor_layout_save(layout_path, shell->ws.panes, shell->ws.layout, error)) {
+    if (!layout_path.empty() && !rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error)) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
-    const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(), shell->app.game_scale };
+    const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(), shell->app.game_scale,
+        rv_editor::rv_editor_shell_workspace_key(*shell) };
     if (!prefs_path.empty() && !rv_editor::rv_editor_prefs_save(prefs_path, chosen, error)) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }
