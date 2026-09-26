@@ -28,6 +28,9 @@ struct rv_editor_theme
     uint32_t code_red;      // errors
     uint32_t code_green;
     uint32_t code_blue;     // information
+    uint32_t code_magenta;  // pink, cyan (teal) and surface2: the rest of a terminal's ANSI colours
+    uint32_t code_cyan;
+    uint32_t code_surface;
     uint32_t error;
     uint32_t warning;
     uint32_t ok;
@@ -54,6 +57,9 @@ inline constexpr rv_editor_theme rv_editor_theme_olive = {
     .code_red = 0xf38ba8,
     .code_green = 0xa6e3a1,
     .code_blue = 0x89b4fa,
+    .code_magenta = 0xf5c2e7,
+    .code_cyan = 0x94e2d5,
+    .code_surface = 0x585b70,
     .error = 0xda4453,
     .warning = 0xf67400,
     .ok = 0x27ae60,

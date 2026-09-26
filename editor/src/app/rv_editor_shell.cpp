@@ -324,6 +324,14 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
     }
 
+    // A Terminal tile that left the tree, or became another kind, ends its shell.
+    std::erase_if(shell.app.terminals, [&shell](const auto &entry) {
+        const rv_editor_pane_id pane = entry.first;
+        return pane >= shell.ws.panes.panes.size() ||
+            shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal ||
+            rv_editor_tile_find(shell.ws.layout, pane) == rv_editor_tile_none;
+    });
+
     // Files the user opened go to a code tile once its window exists.
     rv_editor_app &app = shell.app;
     if (!app.open_requests.empty() && !app.nvim.problem.empty()) {
@@ -417,6 +425,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::project: rv_editor_pane_project(shell.app, theme); return;
         case rv_editor_pane_kind::files: rv_editor_pane_files(shell.app, pane, theme); return;
         case rv_editor_pane_kind::code: rv_editor_pane_code(shell.app, pane, theme); return;
+        case rv_editor_pane_kind::terminal: rv_editor_pane_terminal(shell.app, pane, theme); return;
         case rv_editor_pane_kind::game: rv_editor_pane_game(shell.app, shell.renderer, theme); return;
         default: break;
     }

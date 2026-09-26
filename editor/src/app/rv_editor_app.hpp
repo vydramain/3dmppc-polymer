@@ -3,6 +3,7 @@
 #include <array>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_project.hpp"
 #include "session/rv_editor_session.hpp"
+#include "terminal/rv_editor_terminal.hpp"
 
 namespace rv_editor
 {
@@ -54,6 +56,15 @@ struct rv_editor_code_tabs
     std::string dropped;
 };
 
+// A Terminal tile's shell, started when the tile is first drawn, and how many
+// lines above the screen the tile shows.
+struct rv_editor_terminal_view
+{
+    std::unique_ptr<rv_editor_terminal> term;
+    std::string error; // why the shell did not start
+    int scroll = 0;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -70,6 +81,7 @@ struct rv_editor_app
     // code editor to take.
     std::vector<std::filesystem::path> open_requests;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
+    std::map<rv_editor_pane_id, rv_editor_terminal_view> terminals;
     rv_editor_nvim nvim;
     // A code tile had the keyboard this frame: ImGui's own keyboard navigation
     // stays off the next one, so arrows and Tab reach nvim.

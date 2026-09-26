@@ -92,14 +92,17 @@ void rv_editor_preset_build(rv_editor_preset_builder &b)
 }
 
 // The working default, of panes that exist: files on the left, code in the middle
-// over its output, the game with compact runtime controls on the right.
+// over its output and a terminal as tabs, the game with compact runtime controls
+// on the right.
 void rv_editor_preset_workspace(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
     b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.18f);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.80f);
-    b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.70f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.70f);
+    b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, output);
 }
 
 } // namespace

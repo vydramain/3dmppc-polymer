@@ -253,6 +253,12 @@ void rv_editor_app_update(rv_editor_app &app)
 {
     app.files.update(app.log);
     app.nvim.update(app.log);
+    // Every shell reads on, behind another tab too, so none stalls on a full terminal.
+    for (auto &[pane, view] : app.terminals) {
+        if (view.term != nullptr) {
+            view.term->update();
+        }
+    }
     if (!app.files.changed.empty()) {
         // Clean buffers follow the disk; nvim asks about modified ones (PRJ-07).
         app.nvim.checktime();
@@ -283,6 +289,7 @@ void rv_editor_app_shutdown(rv_editor_app &app)
     }
     app.session.shutdown(app.log);
     app.nvim.stop();
+    app.terminals.clear(); // each shell hangs up and is reaped
 }
 
 } // namespace rv_editor
