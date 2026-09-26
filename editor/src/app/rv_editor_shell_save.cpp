@@ -192,6 +192,11 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
     shell.leaving = leave::none;
 }
 
+void rv_editor_shell_save_all(rv_editor_shell &shell)
+{
+    rv_editor_shell_save(shell, {});
+}
+
 void rv_editor_shell_save_as_start(rv_editor_shell &shell)
 {
     const rv_editor_workspace &ws = shell.ws;

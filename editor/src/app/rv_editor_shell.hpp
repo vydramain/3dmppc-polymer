@@ -64,6 +64,8 @@ struct rv_editor_shell
     std::string revealed;
     // The code tile used last: what Files opens goes there while Files has the focus.
     rv_editor_pane_id last_code = rv_editor_tile_none;
+    // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
+    bool help_open = false;
     // What each strip of controls drew last frame: its minimum in the tree.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
@@ -96,12 +98,29 @@ const char *rv_editor_shell_workspace_key(const rv_editor_shell &shell);
 // and its shell stay.
 bool rv_editor_shell_pane_kept(const rv_editor_shell &shell, rv_editor_pane_id pane);
 
-// File, Run, Layout and Window menus. Runs before the workspace is drawn, so a
-// change here never lands under a reference the drawing holds.
+// The menu bar (rv_editor_shell_menu.cpp). Runs before the workspace is drawn, so
+// a change here never lands under a reference the drawing holds.
 void rv_editor_shell_menu(rv_editor_shell &shell);
 
-// The shortcuts of section 12 of the requirements that have a command today.
+// The shortcuts of the spec's section 13 that have a command today.
 void rv_editor_shell_shortcuts(rv_editor_shell &shell);
+
+// Help > Keyboard Shortcuts, drawn after the workspace.
+void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme);
+
+// The folder and disc.toml dialogs; what they pick opens next frame.
+void rv_editor_shell_open_folder(rv_editor_shell &shell);
+void rv_editor_shell_open_manifest(rv_editor_shell &shell);
+
+// A pane of `kind` in front: the one the tree shows, or a new tab of the focused
+// tile, or of the first tile when none is focused.
+void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind);
+
+// A new tile of `kind` beside the focused tile (or the first), half and half.
+void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);
+
+// File > Save All: every modified buffer.
+void rv_editor_shell_save_all(rv_editor_shell &shell);
 
 // Once a frame before drawing: opens what a dialog picked and updates the models.
 void rv_editor_shell_update(rv_editor_shell &shell);

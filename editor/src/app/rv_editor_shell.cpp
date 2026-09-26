@@ -1,4 +1,4 @@
-// The window's menus, shortcuts and pane dispatch.
+// The window's models loop and pane dispatch.
 
 #include "app/rv_editor_shell.hpp"
 
@@ -93,18 +93,28 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_
     return pane;
 }
 
-// A menu item that is disabled with its reason shown on hover (UI-04).
-bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
+// The leaf a new pane goes to: the focused one, else the maximized one, else the
+// first leaf of the tree, so a menu command works with no tile focused (CAT-01).
+uint32_t rv_editor_target_leaf(const rv_editor_workspace &ws)
 {
-    const bool clicked = ImGui::MenuItem(label, shortcut, false, why_not == nullptr);
-    if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", why_not);
+    const auto is_leaf = [&ws](uint32_t n) {
+        return n < ws.layout.nodes.size() && ws.layout.nodes[n].kind == rv_editor_tile_kind::leaf;
+    };
+    if (is_leaf(ws.focused_leaf)) {
+        return ws.focused_leaf;
     }
-    return clicked;
+    if (is_leaf(ws.layout.maximized_leaf)) {
+        return ws.layout.maximized_leaf;
+    }
+    uint32_t n = ws.layout.root;
+    while (n < ws.layout.nodes.size() && ws.layout.nodes[n].kind == rv_editor_tile_kind::split) {
+        n = ws.layout.nodes[n].split.first;
+    }
+    return n;
 }
 
 // Brings a pane of `kind` to the front where the tree already shows one, or adds
-// one as a tab of the focused tile.
+// one as a tab of the target leaf.
 void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
 {
     for (const rv_editor_tile_node &node : ws.layout.nodes) {
@@ -118,176 +128,36 @@ void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
             }
         }
     }
-    const bool focused =
-        ws.focused_leaf < ws.layout.nodes.size() && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf;
-    const uint32_t leaf = focused ? ws.focused_leaf : ws.layout.root;
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
-    rv_editor_tile_insert(ws.layout, leaf, pane, rv_editor_tile_dock::tab);
+    rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::tab);
     rv_editor_tile_activate(ws.layout, pane);
 }
 
 } // namespace
 
-void rv_editor_shell_menu(rv_editor_shell &shell)
+void rv_editor_shell_open_folder(rv_editor_shell &shell)
 {
-    rv_editor_app &app = shell.app;
-    rv_editor_workspace &ws = shell.ws;
-    rv_editor_menu_style_push();
-    if (!ImGui::BeginMainMenuBar()) {
-        rv_editor_menu_style_pop();
-        return;
-    }
-    if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("Open Folder...")) {
-            rv_editor_open_folder(shell);
-        }
-        if (ImGui::MenuItem("Open disc.toml...")) {
-            rv_editor_open_manifest(shell);
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Save As...")) {
-            rv_editor_shell_save_as_start(shell);
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Quit")) {
-            SDL_Event quit{};
-            quit.type = SDL_EVENT_QUIT;
-            SDL_PushEvent(&quit);
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Run")) {
-        if (rv_editor_menu_item("Build", "Ctrl+B", rv_editor_app_why_not_build(app))) {
-            rv_editor_app_build(app);
-        }
-        const char *why_not_cancel = app.build.state() == rv_editor_build_state::building ? nullptr : "No build to cancel";
-        if (rv_editor_menu_item("Cancel Build", nullptr, why_not_cancel)) {
-            app.build.cancel();
-        }
-        ImGui::Separator();
-        const bool paused = app.session.state() == rv_editor_run_state::paused;
-        if (rv_editor_menu_item(paused ? "Resume" : "Run", "F5", rv_editor_app_why_not_run(app))) {
-            rv_editor_app_run(app);
-        }
-        if (rv_editor_menu_item("Run Last Successful Build", nullptr, rv_editor_app_why_not_run_last(app))) {
-            rv_editor_app_run_last(app);
-        }
-        if (rv_editor_menu_item("Pause", "F6", rv_editor_app_why_not_pause(app))) {
-            rv_editor_app_pause(app);
-        }
-        if (rv_editor_menu_item("Step Frame", "F7", rv_editor_app_why_not_step(app))) {
-            rv_editor_app_step(app);
-        }
-        if (rv_editor_menu_item("Stop", "Shift+F5", rv_editor_app_why_not_stop(app))) {
-            rv_editor_app_stop(app);
-        }
-        const char *why_not_reload = rv_editor_app_can_reload(app)
-            ? rv_editor_app_why_not_reload(app)
-            : "The running disc cannot reload: it runs from an image, or has no entry script";
-        if (rv_editor_menu_item("Reload Entry Script", "F8", why_not_reload)) {
-            rv_editor_app_reload(app);
-        }
-        if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {
-            app.session.force_stop(app.log);
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("View")) {
-        if (ImGui::BeginMenu("Code Text Size")) {
-            constexpr struct
-            {
-                rv_editor_code_size size;
-                const char *label;
-            } sizes[] = { { rv_editor_code_size::small, "Small (8x14)" }, { rv_editor_code_size::normal, "Normal (9x16)" },
-                { rv_editor_code_size::large, "Large (9x16, doubled)" } };
-            for (const auto &s : sizes) {
-                if (ImGui::MenuItem(s.label, nullptr, rv_editor_font_code_size() == s.size)) {
-                    rv_editor_font_code_size_set(s.size);
-                }
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Game Scale")) {
-            constexpr struct
-            {
-                rv_editor_game_scale scale;
-                const char *label;
-            } scales[] = { { rv_editor_game_scale::fit, "Fit" }, { rv_editor_game_scale::integer, "Integer" },
-                { rv_editor_game_scale::x1, "1x" }, { rv_editor_game_scale::x2, "2x" }, { rv_editor_game_scale::x3, "3x" } };
-            for (const auto &s : scales) {
-                if (ImGui::MenuItem(s.label, nullptr, app.game_scale == s.scale)) {
-                    app.game_scale = s.scale;
-                }
-            }
-            ImGui::EndMenu();
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Layout")) {
-        // The same four the bar's right end switches between; each keeps its tiles.
-        if (ImGui::BeginMenu("Reference Layouts")) {
-            for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-                if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
-                    rv_editor_shell_switch(shell, preset);
-                }
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::MenuItem("Reset Layout")) {
-            rv_editor_shell_reset_layout(shell, shell.active);
-        }
-        ImGui::EndMenu();
-    }
-    if (ImGui::BeginMenu("Window")) {
-        if (ImGui::MenuItem("Project Settings")) {
-            rv_editor_shell_show(ws, rv_editor_pane_kind::project);
-        }
-        rv_editor_menu_item("Run Configuration", nullptr, "Run Configuration is not written yet");
-        ImGui::Separator();
-        if (ImGui::MenuItem("Widget Catalog")) {
-            rv_editor_shell_show(ws, rv_editor_pane_kind::catalog);
-        }
-        ImGui::EndMenu();
-    }
-    // The layout switch at the bar's right end, as in the references.
-    float names = 0.0f;
-    for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
-    }
-    const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
-    if (at > ImGui::GetCursorPosX()) {
-        ImGui::SetCursorPosX(at);
-        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
-                rv_editor_shell_switch(shell, preset);
-            }
-        }
-    }
-    ImGui::EndMainMenuBar();
-    rv_editor_menu_style_pop();
+    rv_editor_open_folder(shell);
 }
 
-void rv_editor_shell_shortcuts(rv_editor_shell &shell)
+void rv_editor_shell_open_manifest(rv_editor_shell &shell)
 {
-    rv_editor_app &app = shell.app;
-    // A text field keeps its own keys; F-keys are never text.
-    if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_B)) {
-        rv_editor_app_build(app);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiKey_F5)) {
-        rv_editor_app_run(app);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_F5)) {
-        rv_editor_app_stop(app);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiKey_F6)) {
-        rv_editor_app_pause(app);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiKey_F7)) {
-        rv_editor_app_step(app);
-    }
-    if (ImGui::IsKeyChordPressed(ImGuiKey_F8)) {
-        rv_editor_app_reload(app);
+    rv_editor_open_manifest(shell);
+}
+
+void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
+{
+    rv_editor_shell_show(shell.ws, kind);
+}
+
+void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
+{
+    rv_editor_workspace &ws = shell.ws;
+    const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
+    const uint32_t leaf = rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::right);
+    if (leaf != rv_editor_tile_none) {
+        rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, 0.5f);
+        ws.focused_leaf = leaf;
     }
 }
 
