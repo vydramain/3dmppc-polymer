@@ -7,6 +7,7 @@
 #include <cmath>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 #include "imgui.h"
 
@@ -189,6 +190,86 @@ namespace
 
 void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 
+// The files this code tile has shown and nvim still holds, one tab each, the one
+// in front in brass. A click shows that file in the tile; a file opened again
+// only brings its tab forward, as :edit switches to the buffer it already has.
+void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t win, const rv_editor_theme &theme)
+{
+    rv_editor_nvim &nvim = app.nvim;
+    const auto held = [&nvim](const std::string &name) -> const rv_editor_nvim_buffer * {
+        for (const rv_editor_nvim_buffer &b : nvim.buffers()) {
+            if (!name.empty() && b.name == name) {
+                return &b;
+            }
+        }
+        return nullptr;
+    };
+    rv_editor_code_tabs &tabs = app.code_tabs[pane];
+    std::erase_if(tabs.names, [&held](const std::string &name) { return held(name) == nullptr; });
+    const rv_editor_nvim_buffer *front = nvim.buffer_in(win);
+    const std::string shown = front != nullptr ? front->name : std::string();
+    if (shown != tabs.dropped) {
+        tabs.dropped.clear();
+    }
+    if (!shown.empty() && tabs.dropped.empty() &&
+        std::find(tabs.names.begin(), tabs.names.end(), shown) == tabs.names.end()) {
+        tabs.names.push_back(shown);
+    }
+
+    std::vector<std::string> text;
+    int active = -1;
+    for (const std::string &name : tabs.names) {
+        if (name == shown) {
+            active = static_cast<int>(text.size());
+        }
+        text.push_back(std::filesystem::path(name).filename().string() + (held(name)->modified ? " [+]" : "") + "##" +
+            name);
+    }
+    if (front != nullptr && shown.empty()) {
+        active = static_cast<int>(text.size());
+        text.push_back(std::string("Untitled") + (front->modified ? " [+]" : ""));
+    }
+    if (text.empty()) {
+        return;
+    }
+    std::vector<const char *> labels;
+    for (const std::string &t : text) {
+        labels.push_back(t.c_str());
+    }
+    ImGui::SameLine();
+    const ImVec2 row_min = ImGui::GetCursorScreenPos();
+    int picked = active;
+    if (rv_editor_tab_strip("##files", labels.data(), static_cast<int>(labels.size()), &picked, theme) &&
+        picked < static_cast<int>(tabs.names.size())) {
+        nvim.open(win, tabs.names[static_cast<size_t>(picked)], 0);
+    }
+
+    // A right click on the tabs: Close Tab lets go of the file in front, which
+    // nvim keeps loaded; an unsaved one stays until it is saved.
+    if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
+        ImGui::OpenPopup("##tabmenu");
+    }
+    rv_editor_menu_style_push();
+    if (ImGui::BeginPopup("##tabmenu")) {
+        const bool named = active >= 0 && active < static_cast<int>(tabs.names.size());
+        const char *why_not = !named                   ? "An Untitled document has no tab to close; save it first."
+            : tabs.names.size() < 2                    ? "The tile's only file stays in front."
+            : held(tabs.names[static_cast<size_t>(active)])->modified ? "The file has unsaved changes; save it first."
+                                                       : nullptr;
+        if (ImGui::MenuItem("Close Tab", nullptr, false, why_not == nullptr)) {
+            const size_t at = static_cast<size_t>(active);
+            tabs.dropped = tabs.names[at];
+            tabs.names.erase(tabs.names.begin() + static_cast<std::ptrdiff_t>(at));
+            nvim.open(win, tabs.names[std::min(at, tabs.names.size() - 1)], 0);
+        }
+        if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+            ImGui::SetTooltip("%s", why_not);
+        }
+        ImGui::EndPopup();
+    }
+    rv_editor_menu_style_pop();
+}
+
 } // namespace
 
 // Code is drawn in the code font (0004), the tile's buttons in the interface font.
@@ -219,12 +300,16 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     const int32_t grid_id = nvim.screen().grid_of_window(win);
     const rv_editor_nvim_grid *grid = nvim.screen().grid(grid_id);
 
-    // The tile's own row: Vim or the ordinary editor, the switch F2 also makes.
+    // The tile's own row, in the interface font: Vim or the ordinary editor (the
+    // switch F2 also makes), then the tile's files as tabs.
+    rv_editor_font_code_pop();
     bool vim = nvim.vim_mode();
     if (rv_editor_toggle("Vim##mode", &vim, theme)) {
         nvim.toggle_vim_mode();
     }
     ImGui::SetItemTooltip("Full Vim: normal mode and Vim keys. Off: an ordinary editor. F2 switches too.");
+    rv_editor_code_tab_row(app, pane, win, theme);
+    rv_editor_font_code_push();
 
     // The code area fills the tile in whole cells, two rows kept under it: the
     // tile's status line and the command line.

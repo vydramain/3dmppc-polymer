@@ -166,7 +166,7 @@ local function report()
     vim.rpcnotify(0, "rv_buffers", out)
 end
 vim.api.nvim_create_autocmd({ "BufModifiedSet", "BufWritePost", "BufDelete", "BufWipeout", "BufWinEnter",
-    "BufWinLeave", "BufEnter", "WinClosed", "VimEnter" }, {
+    "BufWinLeave", "BufEnter", "WinNew", "WinClosed", "VimEnter" }, {
     callback = function() vim.schedule(report) end,
 })
 

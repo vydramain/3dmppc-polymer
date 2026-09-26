@@ -207,7 +207,13 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
     }
 
     if (a.what == rv_editor_tile_action::op::split) {
-        rv_editor_pane_id id = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::empty);
+        // A code tile splits into another code tile, a second nvim window on its
+        // file; any other tile into an empty one to choose a kind for.
+        const rv_editor_tile_leaf &from = ws.layout.nodes[a.leaf].leaf;
+        const bool code =
+            !from.tabs.empty() && ws.panes.panes[from.tabs[from.active]].kind == rv_editor_pane_kind::code;
+        rv_editor_pane_id id =
+            rv_editor_pane_add(ws.panes, code ? rv_editor_pane_kind::code : rv_editor_pane_kind::empty);
         rv_editor_tile_insert(ws.layout, a.leaf, id, a.dock);
     } else if (a.what == rv_editor_tile_action::op::set_kind) {
         rv_editor_pane_set_kind(ws.panes, a.pane, a.kind);

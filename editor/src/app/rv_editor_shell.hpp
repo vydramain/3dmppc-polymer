@@ -54,6 +54,8 @@ struct rv_editor_shell
     // The file Files last followed, so a selection the user makes there stays
     // until the document in front changes.
     std::string revealed;
+    // The code tile used last: what Files opens goes there while Files has the focus.
+    rv_editor_pane_id last_code = rv_editor_tile_none;
 };
 
 rv_editor_workspace rv_editor_workspace_preset(rv_editor_layout_preset preset);

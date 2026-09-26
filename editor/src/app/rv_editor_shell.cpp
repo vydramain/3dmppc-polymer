@@ -66,9 +66,9 @@ std::vector<rv_editor_pane_id> rv_editor_code_panes(const rv_editor_workspace &w
     return out;
 }
 
-// Where a file the user opened goes: the focused tile's code pane, any code
-// pane, or a new one in the focused tile.
-rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws)
+// Where a file the user opened goes: the focused tile's code pane, the code
+// pane used last, any code pane, or a new one in the focused tile.
+rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_id last)
 {
     if (ws.focused_leaf < ws.layout.nodes.size() && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf) {
         const rv_editor_tile_leaf &leaf = ws.layout.nodes[ws.focused_leaf].leaf;
@@ -77,6 +77,10 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws)
         }
     }
     const std::vector<rv_editor_pane_id> code = rv_editor_code_panes(ws);
+    if (std::find(code.begin(), code.end(), last) != code.end()) {
+        rv_editor_tile_activate(ws.layout, last);
+        return last;
+    }
     if (!code.empty()) {
         rv_editor_tile_activate(ws.layout, code.front());
         return code.front();
@@ -307,6 +311,16 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     for (const uint32_t pane : shell.app.nvim.panes()) {
         if (std::find(shown.begin(), shown.end(), pane) == shown.end()) {
             shell.app.nvim.release(pane);
+            shell.app.code_tabs.erase(pane);
+        }
+    }
+
+    // The code tile in front of the focused tile is the one used last.
+    if (shell.ws.focused_leaf < shell.ws.layout.nodes.size() &&
+        shell.ws.layout.nodes[shell.ws.focused_leaf].kind == rv_editor_tile_kind::leaf) {
+        const rv_editor_tile_leaf &leaf = shell.ws.layout.nodes[shell.ws.focused_leaf].leaf;
+        if (!leaf.tabs.empty() && shell.ws.panes.panes[leaf.tabs[leaf.active]].kind == rv_editor_pane_kind::code) {
+            shell.last_code = leaf.tabs[leaf.active];
         }
     }
 
@@ -318,7 +332,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         app.open_requests.clear();
     }
     if (!app.open_requests.empty()) {
-        const rv_editor_pane_id pane = rv_editor_code_target(shell.ws);
+        const rv_editor_pane_id pane = rv_editor_code_target(shell.ws, shell.last_code);
         const int64_t win = app.nvim.window_for(pane);
         if (win != 0) {
             for (const std::filesystem::path &path : app.open_requests) {

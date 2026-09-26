@@ -105,6 +105,8 @@ public:
 
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;
+    // Every buffer nvim holds, loaded and backed by a file or Untitled.
+    const std::vector<rv_editor_nvim_buffer> &buffers() const { return buffers_; }
 
     // Code panes that hold a window now.
     std::vector<uint32_t> panes() const;

@@ -46,6 +46,14 @@ struct rv_editor_files_view
     bool opening = false;
 };
 
+// The files a code tile has shown, one tab each, and the one its Close Tab let
+// go of until nvim has moved the window on.
+struct rv_editor_code_tabs
+{
+    std::vector<std::string> names;
+    std::string dropped;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -61,6 +69,7 @@ struct rv_editor_app
     // Files the user asked to open (Files double click, a new file), for the
     // code editor to take.
     std::vector<std::filesystem::path> open_requests;
+    std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
     rv_editor_nvim nvim;
     // A code tile had the keyboard this frame: ImGui's own keyboard navigation
     // stays off the next one, so arrows and Tab reach nvim.
