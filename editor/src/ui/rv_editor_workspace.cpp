@@ -38,6 +38,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::build_log: return "Build Log";
         case rv_editor_pane_kind::observe: return "Observe";
         case rv_editor_pane_kind::findings: return "Findings";
+        case rv_editor_pane_kind::candidate: return "Release Candidate";
+        case rv_editor_pane_kind::release_controls: return "Release Controls";
     }
     return "?";
 }

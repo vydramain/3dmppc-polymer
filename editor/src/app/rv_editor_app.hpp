@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "build/rv_editor_build.hpp"
+#include "release/rv_editor_candidate.hpp"
 #include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
@@ -86,6 +87,22 @@ struct rv_editor_findings
     std::string error;
 };
 
+// Release candidates made in this window, oldest first, and the one shown. Kept
+// in memory only: the images stay on disk, their checks go with the window.
+struct rv_editor_release
+{
+    std::vector<rv_editor_candidate> candidates;
+    size_t selected = 0;
+    bool building = false;     // the build job writes a candidate now
+    uint32_t building_number = 0;
+    uint64_t build_first_seq = 0;
+    bool tree_changed_during = false;
+    std::string last_failure;  // the newest candidate build did not make one
+    int playing = -1;          // the candidate the session runs, or -1
+    std::string report;        // the last report written
+    std::string error;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -120,6 +137,9 @@ struct rv_editor_app
     bool open_folder_request = false;
     rv_editor_observe observe;
     rv_editor_findings findings;
+    rv_editor_release release;
+    // Release is the workspace in front: panes shared with Test speak of candidates.
+    bool release_view = false;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
 };
@@ -146,6 +166,20 @@ const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
 bool rv_editor_app_can_reload(const rv_editor_app &app);
 
 void rv_editor_app_build(rv_editor_app &app);
+// Starts a console on `artifact` with memory card `card` (empty: the project's).
+bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
+
+// Release (editor/src/app/rv_editor_app_release.cpp): Build Candidate writes a new
+// numbered image; Run Candidate runs the one shown on the development console.
+void rv_editor_app_build_candidate(rv_editor_app &app);
+const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app);
+void rv_editor_app_run_candidate(rv_editor_app &app);
+void rv_editor_app_export_report(rv_editor_app &app);
+// Once a frame: a finished candidate build, hashes, the playtest's end.
+void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
+// A project file changed: every candidate's sources now differ from the tree.
+void rv_editor_app_release_changed(rv_editor_app &app);
+
 // Runs the last build, which succeeded; on a paused session this resumes it.
 void rv_editor_app_run(rv_editor_app &app);
 // Runs the last successful build after a later build failed (BLD-05).

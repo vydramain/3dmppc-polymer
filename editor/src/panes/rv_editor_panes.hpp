@@ -50,6 +50,11 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
 // no frame of the running session has arrived or the file cannot be written.
 bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
 
+// Release: Build Candidate, Run Candidate, Stop, Export Report and the shown
+// candidate's state on one row; and the Candidate pane.
+void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 

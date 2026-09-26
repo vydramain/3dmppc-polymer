@@ -55,7 +55,7 @@ const char *rv_editor_build_state_name(rv_editor_build_state state)
 }
 
 bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
-    std::string &error)
+    std::string &error, const std::filesystem::path &image)
 {
     if (busy()) {
         error = "a build is already running";
@@ -83,6 +83,28 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
     if (builds != builds_) {
         builds_ = builds;
         last_success_.reset();
+        dev_state_ = rv_editor_build_state::idle;
+    }
+    image_ = image;
+    if (!image_.empty()) {
+        // An image is never overwritten: a number already used is refused.
+        std::error_code ec;
+        if (std::filesystem::exists(image_, ec)) {
+            error = image_.string() + " already exists";
+            return false;
+        }
+        const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "-o",
+            image_.string(), "--baker", tools.baker.path.string() };
+        if (!proc_.start(argv, project.root, error)) {
+            return false;
+        }
+        state_ = rv_editor_build_state::building;
+        out_partial_.clear();
+        err_partial_.clear();
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            "candidate image started: " + tools.burner.path.string() + " build " + project.root.string() + " -o " +
+                image_.string());
+        return true;
     }
     std::error_code ec;
     std::filesystem::create_directories(builds_, ec);
@@ -146,9 +168,24 @@ void rv_editor_build::update(rv_editor_log &log)
     log.flush_stream(rv_editor_log_source::build, err_partial_);
 
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
+    if (!image_.empty()) {
+        const bool ok = state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0;
+        state_ = ok ? rv_editor_build_state::succeeded
+            : state_ == rv_editor_build_state::cancelling ? rv_editor_build_state::cancelled
+                                                           : rv_editor_build_state::failed;
+        if (!ok) {
+            // A partial image is never a candidate (BLD-06).
+            std::error_code ec;
+            std::filesystem::remove(image_, ec);
+        }
+        log.add(rv_editor_log_source::editor, ok ? rv_editor_log_level::info : rv_editor_log_level::error,
+            "candidate image " + image_.string() + (ok ? " written" : " not written: " + rv_editor_exit_text(exit)));
+        return;
+    }
     const std::string label = "build #" + std::to_string(number_);
     if (state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0) {
         state_ = rv_editor_build_state::succeeded;
+        dev_state_ = state_;
         last_success_ = rv_editor_artifact{ dir_, number_ };
         log.add(rv_editor_log_source::editor, rv_editor_log_level::info, label + " succeeded: " + dir_.string());
         return;
@@ -159,10 +196,12 @@ void rv_editor_build::update(rv_editor_log &log)
     std::filesystem::remove_all(dir_, ec);
     if (state_ == rv_editor_build_state::cancelling) {
         state_ = rv_editor_build_state::cancelled;
+        dev_state_ = state_;
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, label + " cancelled");
         return;
     }
     state_ = rv_editor_build_state::failed;
+    dev_state_ = state_;
     log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
         label + " failed: " + rv_editor_exit_text(exit));
 }

@@ -23,7 +23,9 @@ void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_edit
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string(name) + ": " + tool.problem);
 }
 
-bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact)
+} // namespace
+
+bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
 {
     std::error_code ec;
     std::filesystem::create_directories(app.project.state_dir, ec);
@@ -38,15 +40,14 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact)
     app.session_first_seq = app.log.revision() + 1;
     app.observe.read_frame = -1;
     std::string error;
-    if (!app.session.start(app.tools.console.path, artifact.dir, app.project.state_dir / "memcard.mppccard",
-            app.project.root, artifact.number, app.log, error)) {
+    if (!app.session.start(app.tools.console.path, artifact.dir,
+            card.empty() ? app.project.state_dir / "memcard.mppccard" : card, app.project.root, artifact.number,
+            app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return false;
     }
     return true;
 }
-
-} // namespace
 
 void rv_editor_app_init(rv_editor_app &app)
 {
@@ -68,6 +69,10 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
         return false;
     }
     app.project = std::move(project);
+    // Candidates, Observe's pins and findings belong to the project they came from.
+    app.release = {};
+    app.observe = {};
+    app.findings = {};
     // Another project takes the keyboard back from the game.
     app.game_captured = false;
     app.session.pad(0, app.log);
@@ -117,7 +122,7 @@ const char *rv_editor_app_why_not_run(const rv_editor_app &app)
     if (app.build.busy()) {
         return "Waiting for the build to finish";
     }
-    switch (app.build.state()) {
+    switch (app.build.dev_state()) {
         case rv_editor_build_state::idle: return "Nothing built yet: Build first";
         case rv_editor_build_state::failed:
             return "The last build failed; Run > Run Last Successful Build starts the one before";
@@ -290,6 +295,9 @@ void rv_editor_app_update(rv_editor_app &app)
         // Clean buffers follow the disk; nvim asks about modified ones (PRJ-07).
         app.nvim.checktime();
     }
+    if (!app.files.changed.empty()) {
+        rv_editor_app_release_changed(app);
+    }
     for (const std::filesystem::path &changed : app.files.changed) {
         if (app.project.open && changed == app.project.manifest) {
             // disc.toml is the source of truth (PRJ-03): what the Project pane
@@ -304,6 +312,7 @@ void rv_editor_app_update(rv_editor_app &app)
     if (was_busy && !app.build.busy()) {
         app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
     }
+    rv_editor_app_release_update(app, was_busy && !app.build.busy());
 }
 
 void rv_editor_app_shutdown(rv_editor_app &app)

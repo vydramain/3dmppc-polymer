@@ -26,8 +26,9 @@ enum class rv_editor_build_state
 // "not built", "building", ..., as the status bar and Controls show it.
 const char *rv_editor_build_state_name(rv_editor_build_state state);
 
-// A development disc the burner finished: an unpacked directory under the
-// project's cache, never rewritten once published.
+// A disc the burner finished, never rewritten once published: an unpacked
+// directory under the project's cache, or a release candidate's image; the
+// console takes either as its disc argument.
 struct rv_editor_artifact
 {
     std::filesystem::path dir;
@@ -43,15 +44,21 @@ struct rv_editor_artifact
 class rv_editor_build
 {
 public:
-    // False with the reason when a build cannot start now.
+    // False with the reason when a build cannot start now. With `image` the
+    // burner writes that disc image (-o) instead of a numbered directory: a
+    // release candidate, which Run never picks up.
     bool start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
-        std::string &error);
+        std::string &error, const std::filesystem::path &image = {});
     // Stops the burner and everything it started.
     void cancel();
     // Once a frame: moves output into the log and notices the end.
     void update(rv_editor_log &log);
 
     rv_editor_build_state state() const { return state_; }
+    // How the last development build (not an image) went: what Run goes by.
+    rv_editor_build_state dev_state() const { return dev_state_; }
+    // The image the current or last job writes; empty for a development build.
+    const std::filesystem::path &image() const { return image_; }
     bool busy() const { return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling; }
     uint32_t number() const { return number_; }
     const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
@@ -64,6 +71,8 @@ public:
 private:
     rv_editor_process proc_;
     rv_editor_build_state state_ = rv_editor_build_state::idle;
+    rv_editor_build_state dev_state_ = rv_editor_build_state::idle;
+    std::filesystem::path image_;
     std::filesystem::path builds_;
     std::filesystem::path dir_;
     uint32_t number_ = 0;

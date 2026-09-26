@@ -79,14 +79,16 @@ void rv_editor_preset_test(rv_editor_preset_builder &b)
     rv_editor_tile_activate(b.layout, log);
 }
 
-// Release (reference 0007): the release controls over the build's log beside
-// the playtest, the runtime's log as a tab under it (72/28, 35/65).
+// Release (reference 0007): the release controls over the candidate beside its
+// playtest, the build's and the playtest's logs underneath (72/28, 35/65).
 void rv_editor_preset_release(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id build = b.add(rv_editor_pane_kind::build_log, controls, rv_editor_tile_dock::bottom, 0.0f);
-    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, build, rv_editor_tile_dock::bottom, 0.72f);
-    b.add(rv_editor_pane_kind::game, build, rv_editor_tile_dock::right, 0.35f);
+    const rv_editor_pane_id candidate =
+        b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.72f);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
+    b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
 }
 
@@ -130,7 +132,8 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
     if (preset == rv_editor_layout_preset::scene) {
         first = rv_editor_pane_kind::scene;
     } else if (preset == rv_editor_layout_preset::test || preset == rv_editor_layout_preset::release) {
-        first = rv_editor_pane_kind::controls;
+        first = preset == rv_editor_layout_preset::test ? rv_editor_pane_kind::controls
+                                                         : rv_editor_pane_kind::release_controls;
     }
     rv_editor_preset_builder b(first);
     switch (preset) {

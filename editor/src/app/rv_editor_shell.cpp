@@ -313,6 +313,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_shell_after_save(shell);
 
 
+    shell.app.release_view = shell.active == rv_editor_layout_preset::release;
     if (shell.app.open_folder_request) {
         shell.app.open_folder_request = false;
         rv_editor_open_folder(shell);
@@ -443,10 +444,16 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
     switch (kind) {
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
-        case rv_editor_pane_kind::controls: {
+        case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
+        case rv_editor_pane_kind::controls:
+        case rv_editor_pane_kind::release_controls: {
             // Measured each frame: the strip's minimum is what it drew.
             const float top = ImGui::GetCursorPosY();
-            rv_editor_pane_controls(shell.app, theme);
+            if (kind == rv_editor_pane_kind::controls) {
+                rv_editor_pane_controls(shell.app, theme);
+            } else {
+                rv_editor_pane_release_controls(shell.app, theme);
+            }
             const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
             shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * 20), static_cast<int32_t>(tall) };
             return;

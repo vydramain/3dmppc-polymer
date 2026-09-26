@@ -144,6 +144,18 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             rv_editor_open_project_row(app, theme);
             return;
         }
+        if (app.release_view) {
+            // Release plays the candidate's image, never a development build.
+            const std::string what = app.release.candidates.empty()
+                ? "Stopped. No candidate yet: Build Candidate, then Run Candidate plays it here."
+                : "Stopped. Run Candidate plays candidate #" +
+                    std::to_string(app.release.candidates[app.release.selected].number) + "'s image here.";
+            ImGui::TextWrapped("%s", what.c_str());
+            if (rv_editor_button("Run Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
+                rv_editor_app_run_candidate(app);
+            }
+            return;
+        }
         // Stopped: what Run starts, and Run itself (or Build, with nothing built).
         const std::string target = app.build.last_success()
             ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
