@@ -7,13 +7,20 @@ directory, drives `mppcburner` to build it and a development console
 Today it shows its tiled workspace between the menu bar and a status bar: a tile
 can be split, closed with its X box, maximized with its M box or turned into
 another kind of pane, and several panes in one tile show as folder tabs. The
-layout is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout`
-(`~/.config/...` without the variable) and read back as it was. Without a saved
-layout, or after Layout > Reset to Default, the editor starts from Files on the
-left, Code over Output and Terminal (two tabs) in the middle, and Game over
-Runtime Controls on the right. Layout > Reference Layouts holds the Code, Scene,
-Debug and Build layouts of the design references, whose Scene and other panes
-are not written yet. The tile with the focus wears a brass frame.
+tile with the focus wears a brass frame.
+
+Three workspaces share the same panes, documents, build and runtime: Default,
+Test and Release, switched at the right end of the menu bar or in the Layout
+menu. Each keeps its own tiles; switching changes only what is shown, never a
+process, a build, a buffer or the log. Each is saved on exit to its own file,
+`$XDG_CONFIG_HOME/3dmppc-editor/layout`, `layout-test` and `layout-release`
+(`~/.config/...` without the variable), and the one in front is remembered.
+Without a saved file a workspace starts from its preset; Layout > Reset resets
+only the workspace in front. Default is Files on the left, Code over Output and
+Terminal (two tabs) in the middle, and Game over Runtime Controls on the right;
+a layout saved by an earlier editor stays Default's. Layout > Reference Layouts
+puts the Code or Scene layout of the design references, whose Scene and other
+panes are not written yet, into the workspace in front.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console that draws into the Game tile, driven over the console's
@@ -65,7 +72,8 @@ The editor draws one of its pixels per screen pixel, on a HiDPI display too.
 Each build goes to a new numbered directory and counts only when the burner
 exits 0; a failed or cancelled build is deleted and never runs. A running game
 keeps running while the next build is made. Output shows the editor's, the
-build's and the runtime's lines; the dev channel's own lines are there too,
+build's and the runtime's lines, the Runtime Log and the Build Log one source
+each until more are ticked; the dev channel's own lines are there too,
 off by default, without the frame events the console sends sixty times a
 second. A console that stops reading its input gets at most 1 MiB of queued
 commands; past that a command is refused and Output says so once, and Stop
@@ -74,6 +82,63 @@ started.
 
 The editor speaks dev protocol 2 and refuses any other console with the
 reason, a player build of the console included.
+
+### Test
+
+For playing the game and finding out what it does. A one-row strip of Runtime
+Controls (Build, Run/Resume, Pause, Step, Stop, and Reload while the running
+disc can take one) sits over the Game, with Observe, Code and Files as tabs
+beside it and the Runtime Log, Findings and a Terminal underneath.
+
+- **Observe** shows what the console says about itself in its status: session,
+  frame, disc, code hash, PDK, the entry script's revision and whether a reload
+  changed it, Lua memory. On a disc with a Lua machine it lists the persistent
+  state with `keys` and reads pinned values with `get`, read-only. Each value
+  says when it is true: `frame N` for a read on a paused machine (the console
+  answers in order, so nothing ran in between), `sampled <time>, running`
+  otherwise; the reads are never one snapshot. A paused machine is read again
+  after every Step. A disc without a Lua machine says there is no state to
+  inspect.
+- **Reload** (F8, Run > Reload Entry Script) sends `reload entry`; it is offered
+  only for a disc running from a directory with an entry script, and the answer
+  or the refusal is in the Runtime Log.
+- **Findings**: Capture Frame writes the frame the Game shows as a PNG; Record
+  Finding writes a title, steps, expected and actual behaviour with the session,
+  frame, build, runtime, disc, code hash and entry revision, and the log since
+  the session started.
+
+### Release
+
+For checking one disc image before it is released. Release Controls (Build
+Candidate, Run Candidate, Stop, Export Report) sit over the Release Candidate
+beside the Candidate Playtest, a Game tile, with the Build Log and the Playtest
+Log underneath.
+
+- **Build Candidate** runs `mppcburner build <root> -o <cache>/candidates/<n>.mppcdisc
+  --baker <mppcbaker>`: a new number each time, never written over. A failed
+  build makes no candidate and says so; the older ones stay.
+- A candidate shows its image, SHA-256, size, build time, command and tool
+  versions, and whether a project file changed since its build started.
+- **Run Candidate** runs that image on the development console with a memory
+  card of its own, `<n>.mppccard`; the unpacked development build never stands
+  in for it.
+- Seven checks, all required: Build and Disc loads are set by the editor
+  (the burner exited 0; the console mounted the image and answered its
+  status), Launch, Input, Audio, Main scenario and Exit by the operator after
+  playing it. Each is Not run, Running, Passed, Failed, Blocked or Skipped, and
+  Skipped does not count. Exit cannot pass after a run that was killed,
+  crashed or force-stopped. They cover only what each says, not the whole game.
+- Results belong to the image's SHA-256. Verify Bytes, Run Candidate and Approve
+  read the image again; different bytes make every result and the decision void.
+- Build succeeded, the checks passed and the decision are three separate
+  lines. Approve needs every check passed on the verified bytes; Reject and
+  Undecide are always there.
+- **Export Report** writes `<cache>/candidates/<n>-report-<time>.txt` with the
+  candidate, the checks, the decision and the build and playtest logs. It sends
+  nothing anywhere.
+
+Candidates and their checks live in the window's memory: the images stay on
+disk, their checks go when the editor closes.
 
 ### Game
 
@@ -155,11 +220,13 @@ own shell.
 
 | What | Where |
 | --- | --- |
-| Layout | `$XDG_CONFIG_HOME/3dmppc-editor/layout` |
+| Layouts | `$XDG_CONFIG_HOME/3dmppc-editor/layout` (Default), `layout-test`, `layout-release` |
 | Settings | `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` |
-| Code text size, Game scale | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
+| Code text size, Game scale, workspace | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
 | Builds | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/builds/<n>` |
 | Memory card | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/memcard.mppccard` |
+| Findings | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/findings/` |
+| Release candidates, their memory cards and reports | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/candidates/` |
 
 Without the variables: `~/.config`, `~/.cache`, `~/.local/state`. Nothing is
 written into the game directory except what `mppcburner` itself leaves there
