@@ -58,6 +58,10 @@ enum class rv_editor_glyph
     step,   // a triangle against a bar: one frame
     stop,   // a square
     reload, // a turning arrow
+    pane_menu, // a bar: the pane's menu, as 4Dwm's window-menu button
+    maximize,  // a window with a heavy title
+    restore,   // two windows, one behind the other
+    close,     // an X
 };
 
 // An 8x8 pixel picture of `glyph` in `color`, as large as whole pixels allow in

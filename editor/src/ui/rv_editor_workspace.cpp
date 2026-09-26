@@ -104,9 +104,12 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
     const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_title_of(ws, active);
-    // X takes the tile off the screen, M maximizes it.
-    const rv_editor_header_action clicked = rv_editor_pane_header(title, node == ws.focused_leaf, theme, true);
-    if (clicked == rv_editor_header_action::close) {
+    // The left box opens the tile's menu; on the right, maximize or restore, and close.
+    const rv_editor_header_action clicked = rv_editor_pane_header(title, node == ws.focused_leaf, theme, true, {},
+        ws.layout.maximized_leaf == node);
+    if (clicked == rv_editor_header_action::menu) {
+        ImGui::OpenPopup("##tile");
+    } else if (clicked == rv_editor_header_action::close) {
         action.what = rv_editor_tile_action::op::close_leaf;
         action.leaf = node;
     } else if (clicked == rv_editor_header_action::maximize) {
