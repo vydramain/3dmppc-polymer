@@ -45,9 +45,10 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
+    // Reload shows only while the running disc can take one (a directory with a Lua entry).
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        "Hot reload is not wired to the editor yet", s.state() == rv_editor_run_state::paused, false };
+        rv_editor_app_why_not_reload(app), s.state() == rv_editor_run_state::paused, rv_editor_app_can_reload(app) };
     const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme);
     if (clicked.build) {
         rv_editor_app_build(app);
@@ -64,6 +65,9 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     if (clicked.stop) {
         rv_editor_app_stop(app);
     }
+    if (clicked.reload) {
+        rv_editor_app_reload(app);
+    }
 
     // On the same row while it fits: the runtime's confirmed state, its frame and
     // what it runs, or, stopped, what Run would start.
@@ -72,8 +76,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_status(name, rv_editor_run_lamp(s), theme);
     std::string facts;
     if (s.live()) {
-        facts = "frame " + std::to_string(s.frame()) + " | build #" + std::to_string(s.build_number()) + " | pid " +
-            std::to_string(static_cast<int>(s.pid()));
+        facts = "frame " + std::to_string(s.frame()) + " | session #" + std::to_string(s.number()) + " | build #" +
+            std::to_string(s.build_number());
+        if (s.facts().lua_budget > 0) {
+            facts += " | script revision " + std::to_string(s.facts().revision) +
+                (s.facts().revision != s.facts().first_revision ? " (reloaded)" : "");
+        }
     } else if (app.build.last_success()) {
         facts = "Target: build #" + std::to_string(app.build.last_success()->number);
     } else {

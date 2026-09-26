@@ -62,16 +62,17 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
 }
 
 // Test (reference 0008): a strip of runtime controls as tall as its content over
-// the game beside the source and the files, the session's log underneath. The
+// the game beside Observe, the source and the files, the session's log underneath. The
 // ratios are the requirements' (72/28, 62/38); the strip's is its minimum.
 void rv_editor_preset_test(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, game, rv_editor_tile_dock::bottom, 0.72f);
-    const rv_editor_pane_id code = b.add(rv_editor_pane_kind::code, game, rv_editor_tile_dock::right, 0.62f);
-    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, code);
+    const rv_editor_pane_id observe = b.add(rv_editor_pane_kind::observe, game, rv_editor_tile_dock::right, 0.62f);
+    b.add(rv_editor_pane_kind::code, observe, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::files, observe, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, observe);
     b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
 }

@@ -65,6 +65,27 @@ struct rv_editor_terminal_view
     int scroll = 0;
 };
 
+// What Observe reads: the table it lists and the paths pinned to watch, each a
+// request's keys ("player x"). `read_frame` is the frame it last read on.
+struct rv_editor_observe
+{
+    std::vector<std::string> path;
+    std::vector<std::string> pins;
+    int64_t read_frame = -1;
+};
+
+// The finding being written and the ones saved in this window.
+struct rv_editor_findings
+{
+    char title[160] = {};
+    char steps[2048] = {};
+    char expected[1024] = {};
+    char actual[1024] = {};
+    std::filesystem::path capture; // the frame captured for it, if any
+    std::vector<std::filesystem::path> saved;
+    std::string error;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -97,6 +118,10 @@ struct rv_editor_app
     rv_editor_size game_need{ 0, 0 };
     // A pane's Open Project button was clicked: the window shows its folder dialog.
     bool open_folder_request = false;
+    rv_editor_observe observe;
+    rv_editor_findings findings;
+    // The first log line of the current session, for a finding's log.
+    uint64_t session_first_seq = 0;
 };
 
 // Looks for the tools and says what it found.
@@ -115,6 +140,10 @@ const char *rv_editor_app_why_not_run_last(const rv_editor_app &app);
 const char *rv_editor_app_why_not_pause(const rv_editor_app &app);
 const char *rv_editor_app_why_not_step(const rv_editor_app &app);
 const char *rv_editor_app_why_not_stop(const rv_editor_app &app);
+// Why Reload cannot run now; nullptr when it can. Only asked when the session can reload at all.
+const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
+// The running console can reload its entry script: a directory medium and a Lua entry.
+bool rv_editor_app_can_reload(const rv_editor_app &app);
 
 void rv_editor_app_build(rv_editor_app &app);
 // Runs the last build, which succeeded; on a paused session this resumes it.
@@ -124,6 +153,7 @@ void rv_editor_app_run_last(rv_editor_app &app);
 void rv_editor_app_pause(rv_editor_app &app);
 void rv_editor_app_step(rv_editor_app &app);
 void rv_editor_app_stop(rv_editor_app &app);
+void rv_editor_app_reload(rv_editor_app &app);
 
 // Renames or deletes inside the project; false with the reason.
 bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,

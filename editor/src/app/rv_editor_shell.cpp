@@ -181,6 +181,12 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         if (rv_editor_menu_item("Stop", "Shift+F5", rv_editor_app_why_not_stop(app))) {
             rv_editor_app_stop(app);
         }
+        const char *why_not_reload = rv_editor_app_can_reload(app)
+            ? rv_editor_app_why_not_reload(app)
+            : "The running disc cannot reload: it runs from an image, or has no entry script";
+        if (rv_editor_menu_item("Reload Entry Script", "F8", why_not_reload)) {
+            rv_editor_app_reload(app);
+        }
         if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {
             app.session.force_stop(app.log);
         }
@@ -287,6 +293,9 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     }
     if (ImGui::IsKeyChordPressed(ImGuiKey_F7)) {
         rv_editor_app_step(app);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiKey_F8)) {
+        rv_editor_app_reload(app);
     }
 }
 
@@ -459,6 +468,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::code: rv_editor_pane_code(shell.app, pane, theme); return;
         case rv_editor_pane_kind::terminal: rv_editor_pane_terminal(shell.app, pane, theme); return;
         case rv_editor_pane_kind::game: rv_editor_pane_game(shell.app, shell.renderer, theme); return;
+        case rv_editor_pane_kind::observe: rv_editor_pane_observe(shell.app, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

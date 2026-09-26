@@ -36,6 +36,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::console: return "Console";
         case rv_editor_pane_kind::runtime_log: return "Runtime Log";
         case rv_editor_pane_kind::build_log: return "Build Log";
+        case rv_editor_pane_kind::observe: return "Observe";
     }
     return "?";
 }

@@ -35,6 +35,8 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact)
     app.build.prune(artifact.dir);
     // A new console starts with every key up: no capture carries over.
     app.game_captured = false;
+    app.session_first_seq = app.log.revision() + 1;
+    app.observe.read_frame = -1;
     std::string error;
     if (!app.session.start(app.tools.console.path, artifact.dir, app.project.state_dir / "memcard.mppccard",
             app.project.root, artifact.number, app.log, error)) {
@@ -180,6 +182,24 @@ const char *rv_editor_app_why_not_stop(const rv_editor_app &app)
     return nullptr;
 }
 
+bool rv_editor_app_can_reload(const rv_editor_app &app)
+{
+    const rv_editor_session_facts &f = app.session.facts();
+    return app.session.connected() && f.medium == "live" && f.reloadable;
+}
+
+const char *rv_editor_app_why_not_reload(const rv_editor_app &app)
+{
+    if (app.session.reloading()) {
+        return "Waiting for the last reload's answer";
+    }
+    const rv_editor_run_state s = app.session.state();
+    if (s != rv_editor_run_state::running && s != rv_editor_run_state::paused) {
+        return "Waiting for the runtime to answer";
+    }
+    return nullptr;
+}
+
 void rv_editor_app_build(rv_editor_app &app)
 {
     if (rv_editor_app_why_not_build(app) != nullptr) {
@@ -227,6 +247,13 @@ void rv_editor_app_step(rv_editor_app &app)
 void rv_editor_app_stop(rv_editor_app &app)
 {
     app.session.stop(app.log);
+}
+
+void rv_editor_app_reload(rv_editor_app &app)
+{
+    if (rv_editor_app_can_reload(app) && rv_editor_app_why_not_reload(app) == nullptr) {
+        app.session.reload(app.log);
+    }
 }
 
 bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,

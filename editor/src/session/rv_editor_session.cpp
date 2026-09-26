@@ -88,6 +88,11 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     handshake_done_ = false;
     channel_open_ = true;
     build_number_ = build_number;
+    ++number_;
+    reloading_ = false;
+    facts_ = {};
+    answers_.clear();
+    started_wall_ = std::chrono::system_clock::now();
     disc_dir_ = disc_dir;
     end_reason_.clear();
     refusal_.clear();
@@ -125,7 +130,7 @@ int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log)
         input_full_ = false;
         log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "the runtime reads its input again");
     }
-    pending_[id] = { verb, std::chrono::steady_clock::now(), false };
+    pending_[id] = { verb, std::chrono::steady_clock::now(), false, state_ == rv_editor_run_state::paused, frame_ };
     log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, "> " + line.substr(0, line.size() - 1));
     return id;
 }
@@ -245,8 +250,12 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             "answer to request " + std::to_string(msg.id) + ", which was never sent");
         return;
     }
-    const std::string verb = it->second.verb;
+    const rv_editor_request req = it->second;
+    const std::string &verb = req.verb;
     pending_.erase(it);
+    if (handle_query(req, msg, log)) {
+        return;
+    }
 
     if (msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::err) {
         log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,
@@ -279,6 +288,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                     rv_editor_hex_decode(msg.get("disc")) + ", pdk " + std::string(msg.get("pdk")) + ", medium " +
                     std::string(msg.get("medium")));
         }
+        note_facts(msg);
         if (state_ != rv_editor_run_state::stopping) {
             handle_mode(msg.get("mode"));
         }
@@ -359,6 +369,8 @@ void rv_editor_session::update(rv_editor_log &log)
             break;
         }
         uncertain_ = true;
+        // Whether it ran is unknown; the user may ask again, the editor never does.
+        reloading_ = reloading_ && req.verb != "reload entry";
         ask_status = ask_status || (req.verb != "status" && req.verb != "quit");
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
             "no answer to '" + req.verb + "' after " + std::to_string(rv_editor_request_timeout.count()) +
