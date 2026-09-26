@@ -24,6 +24,9 @@ enum class rv_editor_code_size
 // upright, a missing code font leaves the other's sizes, and each says so.
 bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale);
 
+// The UI scale the code sizes are multiplied by, after View > UI Scale.
+void rv_editor_font_scale_set(float scale);
+
 ImFont *rv_editor_font_ui();
 // The interface font's italic, for pane and dialog titles.
 ImFont *rv_editor_font_ui_italic();

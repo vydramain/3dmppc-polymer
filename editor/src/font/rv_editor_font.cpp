@@ -80,6 +80,11 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     return rv_editor_ui != nullptr && (rv_editor_code_small != nullptr || rv_editor_code_vga != nullptr);
 }
 
+void rv_editor_font_scale_set(float scale)
+{
+    rv_editor_font_scale = std::max(1.0f, scale);
+}
+
 ImFont *rv_editor_font_ui()
 {
     return rv_editor_ui;

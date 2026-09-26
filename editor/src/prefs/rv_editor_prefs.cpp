@@ -53,6 +53,8 @@ std::string rv_editor_prefs_write(const rv_editor_prefs &prefs)
     out += rv_editor_game_scale_name(prefs.game_scale);
     out += "\nworkspace ";
     out += prefs.workspace;
+    out += "\nui-scale ";
+    out += prefs.ui_scale == 1.5f ? "1.5" : prefs.ui_scale == 2.0f ? "2" : "1";
     out += "\n";
     return out;
 }
@@ -78,6 +80,8 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
             rv_editor_game_scale_parse(value, prefs.game_scale);
         } else if (key == "workspace") {
             prefs.workspace = value;
+        } else if (key == "ui-scale") {
+            prefs.ui_scale = value == "1.5" ? 1.5f : value == "2" ? 2.0f : 1.0f;
         }
     }
     return prefs;

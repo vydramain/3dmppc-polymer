@@ -136,6 +136,20 @@ void rv_editor_menu_view(rv_editor_shell &shell)
         }
         ImGui::EndMenu();
     }
+    // Independent of the code text size and of the Game scale (VIS-03).
+    if (ImGui::BeginMenu("UI Scale")) {
+        constexpr struct
+        {
+            float scale;
+            const char *label;
+        } scales[] = { { 1.0f, "100 %" }, { 1.5f, "150 %" }, { 2.0f, "200 %" } };
+        for (const auto &s : scales) {
+            if (ImGui::MenuItem(s.label, nullptr, shell.ui_scale == s.scale)) {
+                shell.ui_scale_request = s.scale;
+            }
+        }
+        ImGui::EndMenu();
+    }
     ImGui::Separator();
     // Independent of the focused tile and of a project (CAT-01).
     if (ImGui::MenuItem("Widget Catalog")) {

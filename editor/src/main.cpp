@@ -192,7 +192,7 @@ void rv_editor_display_pixels(SDL_Window *window)
 
 int main(int argc, char **argv)
 {
-    float scale = 1.0f;
+    float scale = 0.0f; // 0: --scale was not given, the view file's choice stands
     std::string open_path;
     int exit_code = 0;
     if (!rv_editor_args_parse(argc, argv, scale, open_path, exit_code)) {
@@ -221,8 +221,11 @@ int main(int argc, char **argv)
     // The editor will keep its own layout file; ImGui writes none.
     io.IniFilename = nullptr;
 
+    // The view the user chose last time: code text size, Game scale, layout, UI scale.
+    const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
+    const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
-    theme.scale = scale;
+    theme.scale = scale > 0.0f ? scale : prefs.ui_scale;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
     if (!rv_editor::rv_editor_fonts_add(*io.Fonts, theme.scale)) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
@@ -244,9 +247,7 @@ int main(int argc, char **argv)
     shell->window = window;
     shell->renderer = renderer;
     rv_editor::rv_editor_app_init(shell->app);
-    // The view the user chose last time: code text size, Game scale, workspace.
-    const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
-    const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
+    shell->ui_scale = theme.scale;
     rv_editor::rv_editor_shell_load_layouts(*shell, layout_path, prefs.workspace);
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
     shell->app.game_scale = prefs.game_scale;
@@ -267,6 +268,15 @@ int main(int argc, char **argv)
             io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         }
         shell->app.text_focus = false;
+        // View > UI Scale between frames: the style and every size follow (VIS-04).
+        if (shell->ui_scale_request > 0.0f) {
+            theme.scale = shell->ui_scale_request;
+            shell->ui_scale = theme.scale;
+            shell->ui_scale_request = 0.0f;
+            rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
+            ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui_px * theme.scale;
+            rv_editor::rv_editor_font_scale_set(theme.scale);
+        }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
@@ -289,7 +299,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
     const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(), shell->app.game_scale,
-        rv_editor::rv_editor_shell_workspace_key(*shell) };
+        rv_editor::rv_editor_shell_workspace_key(*shell), shell->ui_scale };
     if (!prefs_path.empty() && !rv_editor::rv_editor_prefs_save(prefs_path, chosen, error)) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }

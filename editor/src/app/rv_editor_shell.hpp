@@ -66,6 +66,9 @@ struct rv_editor_shell
     rv_editor_pane_id last_code = rv_editor_tile_none;
     // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
     bool help_open = false;
+    // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
+    float ui_scale = 1.0f;
+    float ui_scale_request = 0.0f;
     // What each strip of controls drew last frame: its minimum in the tree.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
