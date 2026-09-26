@@ -12,8 +12,8 @@ PRJ-04 делит данные редактора на три вида и зап
 | Что | Где | Переносится с проектом |
 | --- | --- | --- |
 | Пользовательские настройки: пути к tools, шрифты интерфейса и кода, keymap | `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` | нет |
-| Раскладки пространств Default, Test, Release | `$XDG_CONFIG_HOME/3dmppc-editor/layout`, `layout-test`, `layout-release` | нет |
-| Вид: размер текста кода, масштаб Game, показанное пространство | `$XDG_CONFIG_HOME/3dmppc-editor/view`, пишет только редактор | нет |
+| Раскладки Code, Scene, Debug, Burn | `$XDG_CONFIG_HOME/3dmppc-editor/layout-code`, `layout-scene`, `layout-debug`, `layout-burn` | нет |
+| Вид: размер текста кода, масштаб Game, показанная раскладка | `$XDG_CONFIG_HOME/3dmppc-editor/view`, пишет только редактор | нет |
 | Настройки проекта: конфигурации запуска, политика reload | `<root>/.3dmppc-editor/project.toml` | да |
 | Локальная сессия: открытые документы, последняя раскладка проекта | `$XDG_STATE_HOME/3dmppc-editor/<hash root>/session.toml` | нет |
 | Сборка, кэш, логи | `$XDG_CACHE_HOME/3dmppc-editor/<hash root>/` | нет |

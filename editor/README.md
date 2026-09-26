@@ -9,18 +9,17 @@ can be split, closed with its X box, maximized with its M box or turned into
 another kind of pane, and several panes in one tile show as folder tabs. The
 tile with the focus wears a brass frame.
 
-Three workspaces share the same panes, documents, build and runtime: Default,
-Test and Release, switched at the right end of the menu bar or in the Layout
-menu. Each keeps its own tiles; switching changes only what is shown, never a
-process, a build, a buffer or the log. Each is saved on exit to its own file,
-`$XDG_CONFIG_HOME/3dmppc-editor/layout`, `layout-test` and `layout-release`
-(`~/.config/...` without the variable), and the one in front is remembered.
-Without a saved file a workspace starts from its preset; Layout > Reset resets
-only the workspace in front. Default is Files on the left, Code over Output and
-Terminal (two tabs) in the middle, and Game over Runtime Controls on the right;
-a layout saved by an earlier editor stays Default's. Layout > Reference Layouts
-puts the Code or Scene layout of the design references, whose Scene and other
-panes are not written yet, into the workspace in front.
+Four layouts share the same panes, documents, build and runtime: Code, Scene,
+Debug and Burn, chosen at the right end of the menu bar or in Layout >
+Reference Layouts. The first time a layout is chosen it shows its standard
+tiles; after that it keeps whatever the user made of it - sizes, new tiles,
+tabs - saved on exit to its own file, `$XDG_CONFIG_HOME/3dmppc-editor/layout-code`,
+`layout-scene`, `layout-debug` and `layout-burn` (`~/.config/...` without the
+variable), and the one shown last is remembered. Choosing another layout changes
+only what is shown, never a process, a build, a buffer or the log. Layout >
+Reset Layout puts the chosen layout back to its standard tiles; the others keep
+theirs. A layout saved by an earlier editor in `layout` is read as Code's. Scene
+holds panes that are not written yet.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console that draws into the Game tile, driven over the console's
@@ -83,7 +82,7 @@ started.
 The editor speaks dev protocol 2 and refuses any other console with the
 reason, a player build of the console included.
 
-### Test
+### Debug
 
 For playing the game and finding out what it does. A one-row strip of Runtime
 Controls (Build, Run/Resume, Pause, Step, Stop, and Reload while the running
@@ -107,7 +106,7 @@ beside it and the Runtime Log, Findings and a Terminal underneath.
   frame, build, runtime, disc, code hash and entry revision, and the log since
   the session started.
 
-### Release
+### Burn
 
 For checking one disc image before it is released. Release Controls (Build
 Candidate, Run Candidate, Stop, Export Report) sit over the Release Candidate
@@ -220,9 +219,9 @@ own shell.
 
 | What | Where |
 | --- | --- |
-| Layouts | `$XDG_CONFIG_HOME/3dmppc-editor/layout` (Default), `layout-test`, `layout-release` |
+| Layouts | `$XDG_CONFIG_HOME/3dmppc-editor/layout-code`, `layout-scene`, `layout-debug`, `layout-burn` |
 | Settings | `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` |
-| Code text size, Game scale, workspace | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
+| Code text size, Game scale, layout shown | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
 | Builds | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/builds/<n>` |
 | Memory card | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/memcard.mppccard` |
 | Findings | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/findings/` |
