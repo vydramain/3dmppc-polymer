@@ -9,12 +9,13 @@
 cmake_minimum_required(VERSION 3.24)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-project(3dmppc_editor LANGUAGES CXX)
+project(3dmppc_editor LANGUAGES C CXX)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
@@ -43,6 +44,15 @@ target_include_directories(3dmppc_editor_imgui SYSTEM PUBLIC ${RV_IMGUI_DIR} ${R
 target_include_directories(3dmppc_editor_imgui PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_definitions(3dmppc_editor_imgui PUBLIC IMGUI_USER_CONFIG="rv_editor_imconfig.h")
 target_link_libraries(3dmppc_editor_imgui PUBLIC SDL3::SDL3)
+
+# --- libvterm (vendored) -----------------------------------------------------
+# third_party/libvterm/ORIGIN.md. The Terminal tile's screen: C99, compiled the
+# way its own Makefile does, its warnings kept out of the editor's.
+set(RV_VTERM_DIR ${RV_REPO_ROOT}/third_party/libvterm)
+file(GLOB RV_VTERM_SOURCES CONFIGURE_DEPENDS ${RV_VTERM_DIR}/src/*.c)
+add_library(3dmppc_editor_vterm STATIC ${RV_VTERM_SOURCES})
+set_target_properties(3dmppc_editor_vterm PROPERTIES C_STANDARD 99 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(3dmppc_editor_vterm SYSTEM PUBLIC ${RV_VTERM_DIR}/include)
 
 # --- the editor ---------------------------------------------------------------
 file(GLOB_RECURSE RV_EDITOR_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
