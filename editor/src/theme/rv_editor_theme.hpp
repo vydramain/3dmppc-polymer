@@ -36,7 +36,7 @@ struct rv_editor_theme
     uint32_t ok;
     int32_t bevel_px;       // bevel edge width, before scale
     int32_t pad_px;         // inner padding, before scale
-    int32_t scale;          // integer UI scale, from --scale: the font is a pixel font
+    float scale;            // UI scale, from --scale and View > UI Scale: 1, 1.5, 2 ...
 };
 
 inline constexpr rv_editor_theme rv_editor_theme_olive = {

@@ -79,9 +79,10 @@ rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name)
     return rv_editor_icons[static_cast<int>(name)];
 }
 
-int rv_editor_icon_scale(int ui_scale)
+int rv_editor_icon_scale(float ui_scale)
 {
-    return std::max(1, ui_scale);
+    // Bitmaps grow by whole pixels only: 1.5 draws them at 1x, 2.5 at 2x.
+    return std::max(1, static_cast<int>(ui_scale));
 }
 
 } // namespace rv_editor

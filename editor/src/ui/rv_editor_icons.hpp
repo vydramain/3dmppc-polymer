@@ -37,6 +37,6 @@ rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name);
 
 // Whole-number size multiplier for the icons at a UI scale: they are drawn for
 // a 1x desktop, which is the editor's scale 1 (its 16 px font).
-int rv_editor_icon_scale(int ui_scale);
+int rv_editor_icon_scale(float ui_scale);
 
 } // namespace rv_editor

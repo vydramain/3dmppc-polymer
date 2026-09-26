@@ -25,21 +25,21 @@
 namespace
 {
 
-constexpr int rv_editor_scale_max = 8;
+constexpr float rv_editor_scale_max = 4.0f;
 
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
         "usage: 3dmppc-editor [-s|--scale N] [PATH]\n"
         "  PATH            A game directory, or its disc.toml, to open.\n"
-        "  -s, --scale N   Integer UI scale, 1..%d. Default: 1. The editor draws one\n"
+        "  -s, --scale N   UI scale in halves, 1..%.0f: 1, 1.5, 2 ... Default: 1. The editor draws one\n"
         "                  of its pixels per screen pixel unless this asks for more.\n",
         rv_editor_scale_max);
 }
 
-// Whole-number scale from the command line. False with exit_code set when the
+// Scale from the command line, in halves. False with exit_code set when the
 // program should stop: 0 after --help, 2 after a bad argument.
-bool rv_editor_args_parse(int argc, char **argv, int &scale, std::string &path, int &exit_code)
+bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path, int &exit_code)
 {
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -69,10 +69,12 @@ bool rv_editor_args_parse(int argc, char **argv, int &scale, std::string &path, 
             return false;
         }
 
-        int parsed = 0;
+        float parsed = 0.0f;
         const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if (ec != std::errc{} || end != value.data() + value.size() || parsed < 1 || parsed > rv_editor_scale_max) {
-            std::fprintf(stderr, "3dmppc-editor: --scale takes a whole number 1..%d, not '%.*s'\n",
+        const bool halves = parsed * 2.0f == static_cast<float>(static_cast<int>(parsed * 2.0f));
+        if (ec != std::errc{} || end != value.data() + value.size() || parsed < 1.0f || parsed > rv_editor_scale_max ||
+            !halves) {
+            std::fprintf(stderr, "3dmppc-editor: --scale takes 1, 1.5, 2 ... %.0f, not '%.*s'\n",
                 rv_editor_scale_max, static_cast<int>(value.size()), value.data());
             exit_code = 2;
             return false;
@@ -182,7 +184,7 @@ void rv_editor_display_pixels(SDL_Window *window)
 
 int main(int argc, char **argv)
 {
-    int scale = 1;
+    float scale = 1.0f;
     std::string open_path;
     int exit_code = 0;
     if (!rv_editor_args_parse(argc, argv, scale, open_path, exit_code)) {

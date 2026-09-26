@@ -5,8 +5,6 @@
 #include <cstring>
 #include <string>
 
-#include "font/rv_editor_font_ttf.hpp"
-
 namespace rv_editor
 {
 
@@ -14,17 +12,18 @@ namespace
 {
 
 ImFont *rv_editor_ui = nullptr;
+ImFont *rv_editor_ui_italic = nullptr;
 ImFont *rv_editor_code_small = nullptr;
 ImFont *rv_editor_code_vga = nullptr;
-int rv_editor_font_scale = 1;
+float rv_editor_font_scale = 1.0f;
 rv_editor_code_size rv_editor_code_current = rv_editor_code_size::normal;
 
 // PxPlus IBM VGA 9x16 and IBM EGA 8x14: pixel outlines on a 16 and a 14 px em.
 constexpr int rv_editor_code_vga_height = 16;
 constexpr int rv_editor_code_ega_height = 14;
 
-// Every font here is pixel outlines on whole units, so at a whole multiple of its
-// cell every edge lands on a pixel boundary and nothing is smoothed.
+// The code fonts are pixel outlines on whole units, so at a whole multiple of
+// their cell every edge lands on a pixel boundary and nothing is smoothed.
 ImFontConfig rv_editor_font_config(const char *name)
 {
     ImFontConfig config;
@@ -35,25 +34,41 @@ ImFontConfig rv_editor_font_config(const char *name)
     return config;
 }
 
+// The interface font is an outline font: smoothed, on whole pixels vertically.
+ImFontConfig rv_editor_font_config_ui(const char *name)
+{
+    ImFontConfig config;
+    config.OversampleH = 2;
+    config.OversampleV = 1;
+    config.PixelSnapH = true;
+    std::strncpy(config.Name, name, sizeof(config.Name) - 1);
+    return config;
+}
+
 } // namespace
 
-bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
+bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
 {
-    const int k = std::max(1, scale);
+    const float k = std::max(1.0f, scale);
     rv_editor_font_scale = k;
-    // The atlas keeps a pointer to the bytes for as long as it lives.
-    static const std::string ui_ttf = rv_editor_font_ttf();
-    ImFontConfig ui = rv_editor_font_config("rv_font 5x7");
-    ui.FontDataOwnedByAtlas = false;
-    rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
-        static_cast<float>(rv_editor_font_ui_height * k), &ui);
+    ImFontConfig ui = rv_editor_font_config_ui("Liberation Sans");
+    rv_editor_ui = atlas.AddFontFromFileTTF(RV_EDITOR_UI_FONT_FILE, rv_editor_font_ui_px * k, &ui);
+    ImFontConfig italic = rv_editor_font_config_ui("Liberation Sans Italic");
+    rv_editor_ui_italic = atlas.AddFontFromFileTTF(RV_EDITOR_UI_ITALIC_FONT_FILE, rv_editor_font_ui_px * k, &italic);
+    if (rv_editor_ui == nullptr) {
+        std::fprintf(stderr, "3dmppc-editor: %s does not load\n", RV_EDITOR_UI_FONT_FILE);
+    }
+    if (rv_editor_ui_italic == nullptr) {
+        std::fprintf(stderr, "3dmppc-editor: %s does not load; titles draw upright\n", RV_EDITOR_UI_ITALIC_FONT_FILE);
+        rv_editor_ui_italic = rv_editor_ui;
+    }
 
     ImFontConfig ega = rv_editor_font_config("PxPlus IBM EGA 8x14");
     rv_editor_code_small = atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_SMALL_FILE,
-        static_cast<float>(rv_editor_code_ega_height * k), &ega);
+        static_cast<float>(rv_editor_code_ega_height) * k, &ega);
     ImFontConfig vga = rv_editor_font_config("PxPlus IBM VGA 9x16");
     rv_editor_code_vga =
-        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, static_cast<float>(rv_editor_code_vga_height * k), &vga);
+        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, static_cast<float>(rv_editor_code_vga_height) * k, &vga);
     if (rv_editor_code_small == nullptr) {
         std::fprintf(stderr, "3dmppc-editor: %s does not load; the small code size draws in 9x16\n",
             RV_EDITOR_CODE_FONT_SMALL_FILE);
@@ -68,6 +83,11 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
 ImFont *rv_editor_font_ui()
 {
     return rv_editor_ui;
+}
+
+ImFont *rv_editor_font_ui_italic()
+{
+    return rv_editor_ui_italic;
 }
 
 void rv_editor_font_code_size_set(rv_editor_code_size size)
@@ -109,7 +129,7 @@ bool rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
 
 void rv_editor_font_code_push()
 {
-    const float k = static_cast<float>(rv_editor_font_scale);
+    const float k = rv_editor_font_scale;
     switch (rv_editor_code_current) {
         case rv_editor_code_size::small:
             ImGui::PushFont(rv_editor_code_small, rv_editor_code_ega_height * k);
