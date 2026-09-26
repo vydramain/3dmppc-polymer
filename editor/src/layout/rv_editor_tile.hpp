@@ -213,12 +213,11 @@ enum class rv_editor_layout_preset
 {
     code,
     scene,
-    test,      // playing the game and looking at it
-    release,   // building a disc image and checking it
-    workspace, // the default: only panes that work
+    debug, // playing the game and looking at it
+    burn,  // building a disc image and checking it
 };
 
-// Name as a menu shows it: "Code", "Scene", "Test", "Release", "Default".
+// Name as a menu shows it: "Code", "Scene", "Debug", "Burn".
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 
 // Replaces both outputs with the starting layout `preset` (LAY-07).

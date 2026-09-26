@@ -1,4 +1,4 @@
-// The named workspaces: switching, resetting, and their layout files.
+// The layouts Code, Scene, Debug and Burn: choosing one, resetting it, their files.
 
 #include "app/rv_editor_shell.hpp"
 
@@ -22,24 +22,33 @@ size_t rv_editor_workspace_slot(rv_editor_layout_preset preset)
     return 0;
 }
 
-// "default", "test", "release": the view file's names and the layout files' suffixes.
+// "code", "scene", "debug", "burn": the view file's names and the layout files' suffixes.
 const char *rv_editor_workspace_key_of(rv_editor_layout_preset preset)
 {
     switch (preset) {
-        case rv_editor_layout_preset::test: return "test";
-        case rv_editor_layout_preset::release: return "release";
-        default: return "default";
+        case rv_editor_layout_preset::scene: return "scene";
+        case rv_editor_layout_preset::debug: return "debug";
+        case rv_editor_layout_preset::burn: return "burn";
+        default: return "code";
     }
 }
 
-// The Default workspace keeps the file earlier editors wrote, so a layout made
-// before workspaces existed stays the user's.
 std::filesystem::path rv_editor_workspace_file(const std::filesystem::path &path, rv_editor_layout_preset preset)
 {
-    if (preset == rv_editor_layout_preset::workspace) {
-        return path;
-    }
     return path.parent_path() / (path.filename().string() + "-" + rv_editor_workspace_key_of(preset));
+}
+
+// Where a layout was kept before it had a file of its own: the single layout
+// file for Code, the Test and Release files for Debug and Burn. Read only when
+// the layout's own file is missing; never written.
+std::filesystem::path rv_editor_workspace_old_file(const std::filesystem::path &path, rv_editor_layout_preset preset)
+{
+    switch (preset) {
+        case rv_editor_layout_preset::code: return path;
+        case rv_editor_layout_preset::debug: return path.parent_path() / (path.filename().string() + "-test");
+        case rv_editor_layout_preset::burn: return path.parent_path() / (path.filename().string() + "-release");
+        default: return {};
+    }
 }
 
 // `preset`'s starting tree, its panes joined to `panes`.
@@ -78,22 +87,27 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
         rv_editor_layout &tree = shell.trees[rv_editor_workspace_slot(preset)];
         rv_editor_pane_registry own;
         rv_editor_layout layout;
-        const std::filesystem::path file = path.empty() ? path : rv_editor_workspace_file(path, preset);
+        std::filesystem::path file = path.empty() ? path : rv_editor_workspace_file(path, preset);
+        std::error_code ec;
+        if (!file.empty() && !std::filesystem::exists(file, ec) && !rv_editor_workspace_old_file(path, preset).empty()) {
+            file = rv_editor_workspace_old_file(path, preset);
+        }
         if (!file.empty() && rv_editor_layout_load(file, own, layout)) {
             rv_editor_pane_adopt(shell.ws.panes, own, layout);
             tree = std::move(layout);
             continue;
         }
-        std::error_code ec;
         if (!file.empty() && std::filesystem::exists(file, ec)) {
             std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from %s\n",
                 file.c_str(), rv_editor_layout_preset_name(preset));
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);
     }
-    shell.active = rv_editor_layout_preset::workspace;
+    // "test" and "release" are what an earlier editor wrote for Debug and Burn.
+    const std::string key = active == "test" ? "debug" : active == "release" ? "burn" : active;
+    shell.active = rv_editor_layout_preset::code;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-        if (active == rv_editor_workspace_key_of(preset)) {
+        if (key == rv_editor_workspace_key_of(preset)) {
             shell.active = preset;
         }
     }

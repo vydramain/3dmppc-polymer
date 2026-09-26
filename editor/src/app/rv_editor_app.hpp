@@ -138,7 +138,7 @@ struct rv_editor_app
     rv_editor_observe observe;
     rv_editor_findings findings;
     rv_editor_release release;
-    // Release is the workspace in front: panes shared with Test speak of candidates.
+    // Burn is the layout in front: panes shared with Debug speak of candidates.
     bool release_view = false;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;

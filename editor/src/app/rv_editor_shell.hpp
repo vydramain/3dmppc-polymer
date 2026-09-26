@@ -19,13 +19,13 @@ namespace rv_editor
 // from the menus and the keyboard.
 struct rv_editor_shell
 {
-    // The named workspaces, Default, Test and Release, each a tile tree of its own
-    // over the one pane registry in `ws`: switching swaps trees only, so no pane,
-    // shell, nvim window or process goes with it. `ws.layout` is the active one's
-    // tree; `trees` keeps the others (the active one's slot is stale).
+    // The layouts Code, Scene, Debug and Burn, each a tile tree of its own over the
+    // one pane registry in `ws`: choosing one swaps trees only, so no pane, shell,
+    // nvim window or process goes with it. `ws.layout` is the chosen one's tree;
+    // `trees` keeps the others (the chosen one's slot is stale).
     rv_editor_workspace ws;
-    std::array<rv_editor_layout, 3> trees;
-    rv_editor_layout_preset active = rv_editor_layout_preset::workspace;
+    std::array<rv_editor_layout, 4> trees;
+    rv_editor_layout_preset active = rv_editor_layout_preset::code;
     rv_editor_app app;
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr; // the Game tile's texture lives on it
@@ -68,24 +68,24 @@ struct rv_editor_shell
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
 
-// The workspaces in menu order: Default, Test, Release.
-inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_layout_preset::workspace,
-    rv_editor_layout_preset::test, rv_editor_layout_preset::release };
+// The layouts in menu order: Code, Scene, Debug, Burn.
+inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_layout_preset::code,
+    rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::burn };
 
-// Shows workspace `to`: the tree the user left it with. Nothing else changes.
+// Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
 
-// Replaces the active workspace's tree with the starting layout `preset`; the
-// other workspaces keep theirs (Layout > Reset Layout, LAY-06).
+// Layout > Reset Layout: the chosen layout's tree becomes its starting one; the
+// others keep theirs (LAY-06).
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset);
 
-// Each workspace's saved tree from its file next to `path` (the Default one's is
-// `path` itself, the file earlier editors wrote), or its starting layout when
-// there is none or it cannot be read; then shows `active` ("default", "test",
-// "release"; anything else is Default).
+// Each layout's saved tree from `path`-<name> (read from the file an earlier
+// editor kept it in while that is missing), or its starting one when there is
+// none or it cannot be read; then shows `active` ("code", "scene", "debug",
+// "burn"; anything else is Code).
 void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem::path &path, const std::string &active);
 
-// Writes every workspace's tree next to `path`. False with the reason of the
+// Writes every layout's tree to `path`-<name>. False with the reason of the
 // first that failed; the others are still written.
 bool rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesystem::path &path, std::string &error);
 

@@ -224,25 +224,17 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu("Layout")) {
-        for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-            if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
-                rv_editor_shell_switch(shell, preset);
-            }
-        }
-        ImGui::Separator();
-        const std::string reset = std::string("Reset ") + rv_editor_layout_preset_name(shell.active) + " Layout";
-        if (ImGui::MenuItem(reset.c_str())) {
-            rv_editor_shell_reset_layout(shell, shell.active);
-        }
-        // The design references' layouts hold panes that are not written yet.
+        // The same four the bar's right end switches between; each keeps its tiles.
         if (ImGui::BeginMenu("Reference Layouts")) {
-            constexpr rv_editor_layout_preset presets[] = { rv_editor_layout_preset::code, rv_editor_layout_preset::scene };
-            for (const rv_editor_layout_preset preset : presets) {
-                if (ImGui::MenuItem(rv_editor_layout_preset_name(preset))) {
-                    rv_editor_shell_reset_layout(shell, preset);
+            for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
+                if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
+                    rv_editor_shell_switch(shell, preset);
                 }
             }
             ImGui::EndMenu();
+        }
+        if (ImGui::MenuItem("Reset Layout")) {
+            rv_editor_shell_reset_layout(shell, shell.active);
         }
         ImGui::EndMenu();
     }
@@ -257,7 +249,7 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         }
         ImGui::EndMenu();
     }
-    // The workspace switch at the bar's right end, as in the references.
+    // The layout switch at the bar's right end, as in the references.
     float names = 0.0f;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
         names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
@@ -313,7 +305,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_shell_after_save(shell);
 
 
-    shell.app.release_view = shell.active == rv_editor_layout_preset::release;
+    shell.app.release_view = shell.active == rv_editor_layout_preset::burn;
     if (shell.app.open_folder_request) {
         shell.app.open_folder_request = false;
         rv_editor_open_folder(shell);
@@ -386,10 +378,10 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             if (strip != shell.strips.end()) {
                 shell.ws.minimums[pane] = strip->second;
             }
-            if (shell.active == rv_editor_layout_preset::release && kind == rv_editor_pane_kind::game) {
+            if (shell.active == rv_editor_layout_preset::burn && kind == rv_editor_pane_kind::game) {
                 shell.ws.titles[pane] = "Candidate Playtest";
             }
-            if (shell.active == rv_editor_layout_preset::release && kind == rv_editor_pane_kind::runtime_log) {
+            if (shell.active == rv_editor_layout_preset::burn && kind == rv_editor_pane_kind::runtime_log) {
                 shell.ws.titles[pane] = "Playtest Log";
             }
             if (kind != rv_editor_pane_kind::code || !app.nvim.running()) {
