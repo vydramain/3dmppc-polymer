@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 #include "imgui.h"
 
 struct SDL_Renderer;
@@ -34,6 +36,11 @@ void rv_editor_icons_load(SDL_Renderer *renderer);
 void rv_editor_icons_free();
 
 rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name);
+
+// The editor's own icons (editor/icons, spec section 16) by name and pixel size,
+// "folder" at 16: the largest drawn size not above `px` (16, 24, 32, 48), or the
+// smallest when `px` is below all. An unknown name gives an empty icon.
+rv_editor_icon rv_editor_icon_find(std::string_view name, int px);
 
 // Whole-number size multiplier for the icons at a UI scale: they are drawn for
 // a 1x desktop, which is the editor's scale 1 (its 16 px font).

@@ -29,10 +29,15 @@ bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t co
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
 
-// A square button of frame height with one coloured letter standing in for an
-// icon (editor/docs/icons.md); `tooltip` names what it does.
-bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const char *tooltip,
-    const rv_editor_theme &theme, const rv_editor_state &state = {});
+// A square button of frame height with a 16 px icon from editor/icons;
+// `tooltip` names what it does. A `danger` button (Delete) wears a red outline so
+// it never passes for a harmless one.
+bool rv_editor_image_button(const char *id, const char *icon, const char *tooltip, const rv_editor_theme &theme,
+    const rv_editor_state &state = {}, bool danger = false);
+
+// A 16 px icon from editor/icons at `at` (top left), dimmed when `disabled`.
+void rv_editor_icon_draw(ImDrawList *dl, const char *icon, ImVec2 at, const rv_editor_theme &theme,
+    bool disabled = false);
 
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});

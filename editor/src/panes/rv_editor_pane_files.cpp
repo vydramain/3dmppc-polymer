@@ -71,47 +71,38 @@ void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const 
     }
 }
 
-// The letter and colour that stand in for a file's icon (editor/docs/icons.md).
-void rv_editor_files_chip(const rv_editor_file_node &node, char &letter, uint32_t &color)
+// The icon of a file's row (spec section 16): its kind by extension, never a guess.
+const char *rv_editor_files_icon(const rv_editor_file_node &node)
 {
     if (node.symlink) {
-        letter = '@';
-        color = 0x6c7086;
-        return;
+        return "symlink";
     }
     if (node.dir) {
-        letter = 'D';
-        color = 0x958831;
-        return;
+        return node.expanded ? "folder-open" : "folder";
+    }
+    if (node.name == "disc.toml") {
+        return "file-disc";
     }
     const std::string ext = node.path.extension().string();
     struct kind
     {
         const char *ext;
-        char letter;
-        uint32_t color;
+        const char *icon;
     };
-    static constexpr kind kinds[] = { { ".lua", 'L', 0xcba6f7 }, { ".cpp", 'C', 0x89b4fa }, { ".c", 'C', 0x89b4fa },
-        { ".cc", 'C', 0x89b4fa }, { ".hpp", 'H', 0x74c7ec }, { ".h", 'H', 0x74c7ec }, { ".toml", 'T', 0xfab387 },
-        { ".png", 'I', 0xa6e3a1 }, { ".pcm", 'S', 0x94e2d5 }, { ".wav", 'S', 0x94e2d5 }, { ".md", 'D', 0xcdd6f4 },
-        { ".txt", 'D', 0xcdd6f4 } };
-    letter = 'F';
-    color = 0xa6adc8;
-    if (node.name == "disc.toml") {
-        letter = 'M';
-        color = 0xfab387;
-        return;
-    }
+    static constexpr kind kinds[] = { { ".lua", "file-lua" }, { ".cpp", "file-cpp" }, { ".c", "file-cpp" },
+        { ".cc", "file-cpp" }, { ".hpp", "file-header" }, { ".h", "file-header" }, { ".toml", "file-toml" },
+        { ".png", "file-image" }, { ".pcm", "file-sound" }, { ".wav", "file-sound" }, { ".md", "file-doc" },
+        { ".txt", "file-doc" } };
     for (const kind &k : kinds) {
         if (ext == k.ext) {
-            letter = k.letter;
-            color = k.color;
-            return;
+            return k.icon;
         }
     }
+    return "file-unknown";
 }
 
-void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node)
+void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node,
+    const rv_editor_theme &theme)
 {
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow |
         ImGuiTreeNodeFlags_OpenOnDoubleClick;
@@ -122,23 +113,29 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     if (app.files.selected == node.path) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
-    // Two leading spaces keep a cell for the icon's stand-in and one for a gap.
-    const std::string label = "  " + node.name + (node.symlink ? " ->" : "");
     ImGui::PushID(node.path.c_str());
     if (branch) {
         ImGui::SetNextItemOpen(node.expanded);
     }
-    const bool open = ImGui::TreeNodeEx("##node", flags, "%s", label.c_str());
+    // A row is at least 20 px (VIS-05); the icon and the name are drawn over it.
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, 3.0f * theme.scale));
+    const bool open = ImGui::TreeNodeEx("##node", flags | ImGuiTreeNodeFlags_FramePadding, "%s", "");
+    ImGui::PopStyleVar();
     {
-        char letter = 'F';
-        uint32_t color = 0;
-        rv_editor_files_chip(node, letter, color);
-        // A row is one cell high: the stand-in is the letter itself, in its colour.
-        const char text[2] = { letter, '\0' };
-        const float cell = ImGui::GetTextLineHeight();
-        const ImVec2 at(ImGui::GetItemRectMin().x + ImGui::GetTreeNodeToLabelSpacing(),
-            std::floor((ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y - cell) / 2.0f));
-        ImGui::GetWindowDrawList()->AddText(at, rv_editor_col(color), text);
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        const float art = std::floor(16.0f * theme.scale);
+        const ImVec2 row_min = ImGui::GetItemRectMin();
+        const ImVec2 row_max = ImGui::GetItemRectMax();
+        const float x = row_min.x + ImGui::GetTreeNodeToLabelSpacing();
+        rv_editor_icon_draw(dl, rv_editor_files_icon(node), ImVec2(x, std::floor((row_min.y + row_max.y - art) / 2.0f)),
+            theme);
+        const std::string label = node.name + (node.symlink ? " ->" : "");
+        const bool selected = app.files.selected == node.path;
+        dl->AddText(ImVec2(x + art + 4.0f * theme.scale, std::floor((row_min.y + row_max.y - ImGui::GetFontSize()) / 2.0f)),
+            rv_editor_col(selected ? theme.text_on_selection : theme.text), label.c_str());
+        if (ImGui::IsItemHovered() && !node.symlink) {
+            ImGui::SetItemTooltip("%s", node.path.c_str());
+        }
     }
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
         app.files.selected = node.path;
@@ -163,7 +160,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
                 app.files.list(node);
             }
             for (rv_editor_file_node &child : node.children) {
-                rv_editor_files_node(app, view, child);
+                rv_editor_files_node(app, view, child, theme);
             }
             ImGui::TreePop();
         }
@@ -250,30 +247,33 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
 
     const bool has_sel = !app.files.selected.empty() && app.files.selected != app.files.root().path;
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, "Select a file or folder first" };
-    // Square buttons, a coloured letter each until the icons are drawn (editor/docs/icons.md).
+    // Navigation and creation first; Delete last, set apart and outlined in red.
     const float side = ImGui::GetFrameHeight();
-    if (rv_editor_letter_button("##new_file", 'N', theme.code_green, "New File", theme)) {
+    if (rv_editor_image_button("##new_file", "new-file", "New File", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##new_dir", 'D', theme.code_yellow, "New Folder", theme)) {
+    if (rv_editor_image_button("##new_dir", "new-folder", "New Folder", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##rename", 'R', theme.code_blue, "Rename", theme, need_sel)) {
+    if (rv_editor_image_button("##rename", "rename", "Rename", theme, need_sel)) {
         rv_editor_files_ask(view, dialog_kind::rename, app.files.selected, app.files.selected.filename().string());
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##delete", 'X', theme.code_red, "Delete", theme, need_sel)) {
-        rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
-    }
-    rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh", 'U', 0x94e2d5, "Refresh", theme)) {
+    if (rv_editor_image_button("##refresh", "refresh", "Refresh", theme)) {
         app.files.refresh();
+    }
+    // A gap sets Delete apart from the rest.
+    rv_editor_flow(side * 1.5f);
+    ImGui::Dummy(ImVec2(side * 0.5f, side));
+    ImGui::SameLine(0.0f, 0.0f);
+    if (rv_editor_image_button("##delete", "delete", "Delete (asks first)", theme, need_sel, true)) {
+        rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
 
     rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
-    rv_editor_files_node(app, view, app.files.root());
+    rv_editor_files_node(app, view, app.files.root(), theme);
     rv_editor_scroll_end(theme);
     rv_editor_files_dialog(app, view, theme);
 }

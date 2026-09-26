@@ -122,28 +122,41 @@ bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t co
     return item.clicked;
 }
 
-bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const char *tooltip,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+void rv_editor_icon_draw(ImDrawList *dl, const char *icon, ImVec2 at, const rv_editor_theme &theme, bool disabled)
+{
+    // 16 logical px: the drawn size nearest the scale, 24 at 1.5, 32 at 2.
+    const float side = std::floor(16.0f * theme.scale);
+    const rv_editor_icon art = rv_editor_icon_find(icon, static_cast<int>(side));
+    if (art.id == 0) {
+        return;
+    }
+    const ImVec2 p0 = rv_editor_floor(at);
+    const ImU32 tint = disabled ? IM_COL32(255, 255, 255, 96) : IM_COL32_WHITE;
+    dl->AddImage(ImTextureRef(art.id), p0, ImVec2(p0.x + side, p0.y + side), ImVec2(0, 0), ImVec2(1, 1), tint);
+}
+
+bool rv_editor_image_button(const char *id, const char *icon, const char *tooltip, const rv_editor_theme &theme,
+    const rv_editor_state &state, bool danger)
 {
     const float side = ImGui::GetFrameHeight();
     const rv_editor_item item = rv_editor_item_add(id, ImVec2(side, side), state);
-    if (!item.disabled && tooltip != nullptr) {
-        ImGui::SetItemTooltip("%s", tooltip);
+    if (tooltip != nullptr) {
+        // A disabled button says why in its own tooltip; an enabled one says what it does.
+        if (!item.disabled) {
+            ImGui::SetItemTooltip("%s", tooltip);
+        }
     }
     const bool down = item.held && item.hovered;
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
-    // Dimmed like a disabled picture: halfway to the window colour.
-    const uint32_t ink = item.disabled
-        ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
-            (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
-        : color;
-    const char text[2] = { letter, '\0' };
-    const ImVec2 size = ImGui::CalcTextSize(text);
+    if (danger && !item.disabled) {
+        rv_editor_draw_frame(dl, item.min, item.max, theme, theme.error);
+    }
+    const float art = std::floor(16.0f * theme.scale);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - size.x) / 2.0f + nudge),
-                    std::floor((item.min.y + item.max.y - size.y) / 2.0f + nudge)),
-        rv_editor_col(ink), text);
+    rv_editor_icon_draw(dl, icon,
+        ImVec2((item.min.x + item.max.x - art) / 2.0f + nudge, (item.min.y + item.max.y - art) / 2.0f + nudge), theme,
+        item.disabled);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);
     }
