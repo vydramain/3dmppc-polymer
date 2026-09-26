@@ -469,6 +469,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::terminal: rv_editor_pane_terminal(shell.app, pane, theme); return;
         case rv_editor_pane_kind::game: rv_editor_pane_game(shell.app, shell.renderer, theme); return;
         case rv_editor_pane_kind::observe: rv_editor_pane_observe(shell.app, theme); return;
+        case rv_editor_pane_kind::findings: rv_editor_pane_findings(shell.app, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

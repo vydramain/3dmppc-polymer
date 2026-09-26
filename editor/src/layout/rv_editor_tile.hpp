@@ -61,10 +61,11 @@ enum class rv_editor_pane_kind : uint32_t
     runtime_log, // Output over the runtime's stderr alone
     build_log,   // Output over the build's lines alone
     observe,     // the running session's facts and Lua state, read-only
+    findings,    // captured frames and written-down observations
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::observe;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::findings;
 
 struct rv_editor_pane
 {

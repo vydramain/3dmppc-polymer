@@ -111,6 +111,27 @@ std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor
 
 } // namespace
 
+bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
+{
+    // Only a frame this session's console wrote: the pixels a stopped or older one left are not it.
+    if (!app.session.live() || app.session.frame_memory().fd() != rv_editor_game_fd || rv_editor_game_frame == 0) {
+        error = "no frame of the running session has arrived yet";
+        return false;
+    }
+    SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h),
+        SDL_PIXELFORMAT_ARGB8888, rv_editor_game_pixels.data(), static_cast<int>(rv_editor_game_w * 4));
+    if (surface == nullptr) {
+        error = SDL_GetError();
+        return false;
+    }
+    const bool saved = SDL_SavePNG(surface, path.c_str());
+    if (!saved) {
+        error = path.string() + ": " + SDL_GetError();
+    }
+    SDL_DestroySurface(surface);
+    return saved;
+}
+
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
     rv_editor_session &s = app.session;

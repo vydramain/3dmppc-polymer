@@ -62,7 +62,8 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
 }
 
 // Test (reference 0008): a strip of runtime controls as tall as its content over
-// the game beside Observe, the source and the files, the session's log underneath. The
+// the game beside Observe, the source and the files; the session's log, findings
+// and a terminal underneath. The
 // ratios are the requirements' (72/28, 62/38); the strip's is its minimum.
 void rv_editor_preset_test(rv_editor_preset_builder &b)
 {
@@ -73,6 +74,7 @@ void rv_editor_preset_test(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::code, observe, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::files, observe, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, observe);
+    b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
 }
