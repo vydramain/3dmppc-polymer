@@ -68,6 +68,9 @@ struct rv_editor_terminal_view
     std::unique_ptr<rv_editor_terminal> term;
     std::string error; // why the shell did not start
     int scroll = 0;
+    std::filesystem::path cwd; // where the shell started
+    bool focus_request = false; // Window > Terminal: take the keyboard next frame
+    std::string paste;          // several lines waiting for Paste or Cancel
 };
 
 // What Observe reads: the table it lists and the paths pinned to watch, each a

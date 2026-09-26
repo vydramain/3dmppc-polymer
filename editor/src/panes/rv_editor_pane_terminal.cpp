@@ -87,6 +87,31 @@ VTermKey rv_editor_term_key(ImGuiKey key)
     }
 }
 
+// UTF-8 text to the shell as if typed.
+void rv_editor_term_type(rv_editor_terminal &term, const std::string &text)
+{
+    size_t i = 0;
+    while (i < text.size()) {
+        // One code point; a byte that starts none is skipped.
+        const auto b = static_cast<unsigned char>(text[i]);
+        const size_t n = b < 0x80 ? 1 : (b >> 5) == 0x6 ? 2 : (b >> 4) == 0xe ? 3 : (b >> 3) == 0x1e ? 4 : 0;
+        if (n == 0 || i + n > text.size()) {
+            ++i;
+            continue;
+        }
+        uint32_t ch = n == 1 ? b : b & (0x7fu >> n);
+        for (size_t k = 1; k < n; ++k) {
+            ch = (ch << 6) | (static_cast<unsigned char>(text[i + k]) & 0x3fu);
+        }
+        i += n;
+        if (ch == '\n') {
+            term.key(VTERM_KEY_ENTER, VTERM_MOD_NONE);
+        } else if (ch != '\r') {
+            term.text(ch, VTERM_MOD_NONE);
+        }
+    }
+}
+
 // This frame's keyboard to the shell. Returns true when anything was typed.
 bool rv_editor_term_keys(rv_editor_terminal &term)
 {
@@ -157,17 +182,16 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         }
     }
 
-    // The screen fills the tile in whole cells, one row kept under it for the
-    // tile's status line.
+    // The screen fills the tile in whole cells (TRM-01: no permanent status row).
     const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const int cols = std::max(2, static_cast<int>(avail.x / cell.x));
-    const int rows = std::max(3, static_cast<int>(avail.y / cell.y)) - 1;
+    const int rows = std::max(3, static_cast<int>(avail.y / cell.y));
     if (view.term == nullptr && view.error.empty()) {
         view.term = std::make_unique<rv_editor_terminal>();
-        const std::filesystem::path cwd = app.project.open ? app.project.root : std::filesystem::current_path();
-        if (!view.term->start(cwd, cols, rows, theme, view.error) && view.error.empty()) {
+        view.cwd = app.project.open ? app.project.root : std::filesystem::current_path();
+        if (!view.term->start(view.cwd, cols, rows, theme, view.error) && view.error.empty()) {
             view.error = "unknown error";
         }
     }
@@ -176,7 +200,11 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         term.resize(cols, rows);
     }
 
-    ImGui::InvisibleButton("##terminal", ImVec2(cols * cell.x, (rows + 1) * cell.y));
+    ImGui::InvisibleButton("##terminal", ImVec2(cols * cell.x, rows * cell.y));
+    if (view.focus_request) {
+        view.focus_request = false;
+        ImGui::SetWindowFocus();
+    }
     const bool focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     const auto &back = term.scrollback();
     // The wheel scrolls back through the lines above the screen, three a notch.
@@ -211,14 +239,43 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         }
     }
 
-    // The tile's status line: the size, and how far back the view is.
-    const ImVec2 status(at.x, at.y + rows * cell.y);
-    dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_rgb(theme.code_surface));
-    std::string label = std::to_string(term.cols()) + "x" + std::to_string(term.rows());
+    // Only while the view is scrolled back: how far, over the last row. The grid's
+    // size is in the tooltip, not on screen.
     if (view.scroll > 0) {
-        label += "  " + std::to_string(view.scroll) + " lines back";
+        const ImVec2 status(at.x, at.y + (rows - 1) * cell.y);
+        dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_rgb(theme.code_surface));
+        const std::string label = std::to_string(view.scroll) + " lines back: type or scroll down to return";
+        dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_rgb(theme.code_text), label.c_str());
     }
-    dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_rgb(theme.code_text), label.c_str());
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+        ImGui::SetTooltip("%s\n%d x %d", view.cwd.c_str(), term.cols(), term.rows());
+    }
+
+    // Several lines are shown before they reach the shell (TRM-02).
+    if (!view.paste.empty()) {
+        rv_editor_font_code_pop();
+        ImGui::OpenPopup("Paste into the terminal");
+        if (rv_editor_dialog_begin("Paste into the terminal", theme)) {
+            ImGui::TextUnformatted("These lines will run as typed:");
+            rv_editor_font_code_push();
+            ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1,
+                ImVec2(ImGui::GetFontSize() * 40.0f, ImGui::GetTextLineHeightWithSpacing() * 8.0f),
+                ImGuiInputTextFlags_ReadOnly);
+            rv_editor_font_code_pop();
+            if (rv_editor_button("Paste", theme)) {
+                rv_editor_term_type(term, view.paste);
+                view.paste.clear();
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+                view.paste.clear();
+                ImGui::CloseCurrentPopup();
+            }
+            rv_editor_dialog_end();
+        }
+        rv_editor_font_code_push();
+    }
 
     if (!focused || !term.running()) {
         return;
@@ -227,6 +284,18 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     app.text_focus = true;
     if (SDL_Window *w = SDL_GetKeyboardFocus(); w != nullptr && !SDL_TextInputActive(w)) {
         SDL_StartTextInput(w);
+    }
+    // Ctrl+Shift+V pastes; one line goes straight in, several wait for a look.
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_V)) {
+        const char *clip = ImGui::GetClipboardText();
+        const std::string text = clip != nullptr ? clip : "";
+        if (text.find('\n') == std::string::npos) {
+            rv_editor_term_type(term, text);
+        } else {
+            view.paste = text;
+        }
+        view.scroll = 0;
+        return;
     }
     if (rv_editor_term_keys(term)) {
         view.scroll = 0;

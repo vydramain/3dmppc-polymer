@@ -206,6 +206,10 @@ void rv_editor_menu_run(rv_editor_shell &shell)
 
 void rv_editor_menu_window(rv_editor_shell &shell)
 {
+    if (ImGui::MenuItem("Terminal")) {
+        rv_editor_shell_focus_terminal(shell);
+    }
+    ImGui::Separator();
     // Every kind of tile, beside the focused one (LAY-01).
     if (ImGui::BeginMenu("New Tile")) {
         for (uint32_t k = 1; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
@@ -332,6 +336,31 @@ void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &them
     if (rv_editor_image_button("##redo", "redo", "Redo (Ctrl+Shift+Z)", theme, code_state)) {
         rv_editor_menu_code_keys(shell, "<C-S-z>");
     }
+}
+
+void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    if (shell.closing_terminal == rv_editor_tile_none) {
+        return;
+    }
+    const char *title = "End the shell?";
+    ImGui::OpenPopup(title);
+    if (!rv_editor_dialog_begin(title, theme)) {
+        return;
+    }
+    ImGui::TextUnformatted("The shell in this terminal is still running. Closing the tile ends it");
+    ImGui::TextUnformatted("and everything started in it. Another tab keeps it running instead.");
+    if (rv_editor_button("End Shell", theme)) {
+        rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
+        shell.closing_terminal = rv_editor_tile_none;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::SameLine();
+    if (rv_editor_button("Keep", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        shell.closing_terminal = rv_editor_tile_none;
+        ImGui::CloseCurrentPopup();
+    }
+    rv_editor_dialog_end();
 }
 
 void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)

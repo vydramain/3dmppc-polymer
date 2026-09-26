@@ -68,6 +68,8 @@ struct rv_editor_shell
     rv_editor_pane_id last_code = rv_editor_tile_none;
     // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
     bool help_open = false;
+    // A terminal tile with a live shell waiting for End Shell or Keep.
+    rv_editor_pane_id closing_terminal = rv_editor_tile_none;
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
@@ -134,6 +136,12 @@ void rv_editor_shell_open_manifest(rv_editor_shell &shell);
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
 // tile, or of the first tile when none is focused.
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind);
+
+// Window > Terminal: the terminal in front, with the keyboard.
+void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
+
+// A live shell's tile closes only after this question (TRM-02); drawn after the workspace.
+void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);

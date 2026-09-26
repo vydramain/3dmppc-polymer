@@ -115,7 +115,7 @@ uint32_t rv_editor_target_leaf(const rv_editor_workspace &ws)
 
 // Brings a pane of `kind` to the front where the tree already shows one, or adds
 // one as a tab of the target leaf.
-void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
+rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
 {
     for (const rv_editor_tile_node &node : ws.layout.nodes) {
         if (node.kind != rv_editor_tile_kind::leaf) {
@@ -124,13 +124,53 @@ void rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
         for (const rv_editor_pane_id pane : node.leaf.tabs) {
             if (ws.panes.panes[pane].kind == kind) {
                 rv_editor_tile_activate(ws.layout, pane);
-                return;
+                return pane;
             }
         }
     }
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::tab);
     rv_editor_tile_activate(ws.layout, pane);
+    return pane;
+}
+
+// A pane's title with its context (spec 6.1): what it shows, from which session,
+// build or candidate; nothing when the plain kind says it all.
+void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind)
+{
+    rv_editor_app &app = shell.app;
+    const bool burn = shell.active == rv_editor_layout_preset::burn;
+    const rv_editor_session &s = app.session;
+    const std::string session = s.number() == 0 ? std::string()
+                                                 : "session " + std::to_string(s.number()) + " (" +
+            rv_editor_run_state_name(s.state()) + ")";
+    const std::string candidate = app.release.candidates.empty()
+        ? std::string()
+        : "#" + std::to_string(app.release.candidates[app.release.selected].number);
+    std::string title;
+    if (kind == rv_editor_pane_kind::game) {
+        title = burn ? "Candidate Playtest" + (candidate.empty() ? "" : ": " + candidate)
+                     : "Game" + (session.empty() ? "" : ": " + session);
+    } else if (kind == rv_editor_pane_kind::runtime_log) {
+        title = burn ? "Playtest Log" + (candidate.empty() ? "" : ": " + candidate)
+                     : "Runtime Log" + (session.empty() ? "" : ": " + session);
+    } else if (kind == rv_editor_pane_kind::build_log && app.build.number() != 0) {
+        title = "Build Log: build " + std::to_string(app.build.number());
+    } else if (kind == rv_editor_pane_kind::terminal) {
+        const auto it = app.terminals.find(pane);
+        if (it != app.terminals.end() && it->second.term != nullptr) {
+            title = it->second.term->running() ? "Terminal: " + it->second.cwd.filename().string()
+                                               : "Terminal: ended (" + it->second.term->ended() + ")";
+        }
+    } else if (kind == rv_editor_pane_kind::code && app.nvim.running()) {
+        const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(pane));
+        if (buf != nullptr) {
+            title = "Code: " + rv_editor_shell_buffer_label(app, buf->name) + (buf->modified ? " *" : "");
+        }
+    }
+    if (!title.empty()) {
+        shell.ws.titles[pane] = title;
+    }
 }
 
 } // namespace
@@ -148,6 +188,16 @@ void rv_editor_shell_open_manifest(rv_editor_shell &shell)
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
 {
     rv_editor_shell_show(shell.ws, kind);
+}
+
+void rv_editor_shell_focus_terminal(rv_editor_shell &shell)
+{
+    const rv_editor_pane_id pane = rv_editor_shell_show(shell.ws, rv_editor_pane_kind::terminal);
+    const uint32_t leaf = rv_editor_tile_find(shell.ws.layout, pane);
+    if (leaf != rv_editor_tile_none) {
+        shell.ws.focused_leaf = leaf;
+    }
+    shell.app.terminals[pane].focus_request = true;
 }
 
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
@@ -270,20 +320,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             if (strip != shell.strips.end()) {
                 shell.ws.minimums[pane] = strip->second;
             }
-            if (shell.active == rv_editor_layout_preset::burn && kind == rv_editor_pane_kind::game) {
-                shell.ws.titles[pane] = "Candidate Playtest";
-            }
-            if (shell.active == rv_editor_layout_preset::burn && kind == rv_editor_pane_kind::runtime_log) {
-                shell.ws.titles[pane] = "Playtest Log";
-            }
-            if (kind != rv_editor_pane_kind::code || !app.nvim.running()) {
-                continue;
-            }
-            const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(pane));
-            if (buf != nullptr) {
-                shell.ws.titles[pane] =
-                    "Code - " + rv_editor_shell_buffer_label(app, buf->name) + (buf->modified ? " [+]" : "");
-            }
+            rv_editor_shell_title(shell, pane, kind);
         }
     }
 
