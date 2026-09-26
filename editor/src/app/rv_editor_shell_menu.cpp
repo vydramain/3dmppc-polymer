@@ -288,6 +288,33 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     }
 }
 
+void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    const float side = ImGui::GetFrameHeight();
+    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? "No code tile yet: Window > New Tile > Code" : nullptr;
+    const rv_editor_state code_state{ rv_editor_look::live, no_code };
+    if (rv_editor_image_button("##new", "new-file", "New File", theme, code_state)) {
+        rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
+    }
+    ImGui::SameLine();
+    if (rv_editor_image_button("##open", "open", "Open Directory...", theme)) {
+        rv_editor_shell_open_folder(shell);
+    }
+    ImGui::SameLine();
+    if (rv_editor_image_button("##save", "save", "Save (Ctrl+S)", theme, code_state)) {
+        rv_editor_menu_code_keys(shell, "<C-s>");
+    }
+    // A gap between the file actions and the edit actions.
+    ImGui::SameLine(0.0f, side);
+    if (rv_editor_image_button("##undo", "undo", "Undo (Ctrl+Z)", theme, code_state)) {
+        rv_editor_menu_code_keys(shell, "<C-z>");
+    }
+    ImGui::SameLine();
+    if (rv_editor_image_button("##redo", "redo", "Redo (Ctrl+Shift+Z)", theme, code_state)) {
+        rv_editor_menu_code_keys(shell, "<C-S-z>");
+    }
+}
+
 void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     if (shell.help_open) {

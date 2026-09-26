@@ -84,19 +84,40 @@ bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_
 
 float rv_editor_tool_button_width(const char *label)
 {
-    // The picture, a gap and the label, on one row of frame height.
+    // A transport key (VIS-06): at least 56 px, wider for a long label.
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
-    const float line = ImGui::GetTextLineHeight();
-    return std::floor(pad.x * 3.0f + line + ImGui::CalcTextSize(label, rv_editor_label_end(label)).x);
+    const float text = ImGui::CalcTextSize(label, rv_editor_label_end(label)).x;
+    return std::floor(std::max(56.0f * ImGui::GetFontSize() / 14.0f, text + pad.x * 2.0f));
 }
+
+namespace
+{
+
+// The icon a transport glyph is drawn with, from editor/icons.
+const char *rv_editor_glyph_icon(rv_editor_glyph glyph)
+{
+    switch (glyph) {
+        case rv_editor_glyph::build: return "build";
+        case rv_editor_glyph::run: return "run";
+        case rv_editor_glyph::pause: return "pause";
+        case rv_editor_glyph::step: return "step";
+        case rv_editor_glyph::stop: return "stop";
+        case rv_editor_glyph::reload: return "reload";
+        default: return nullptr;
+    }
+}
+
+} // namespace
 
 bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
-    const float icon = ImGui::GetTextLineHeight();
-    const rv_editor_item item =
-        rv_editor_item_add(label, ImVec2(rv_editor_tool_button_width(label), ImGui::GetFrameHeight()), state);
+    // A 24 px picture over the label, 52 px tall at 100 % (VIS-06).
+    const float icon = std::floor(24.0f * theme.scale);
+    const float line = ImGui::GetTextLineHeight();
+    const float tall = std::max(std::floor(52.0f * theme.scale), icon + line + pad.y * 3.0f);
+    const rv_editor_item item = rv_editor_item_add(label, ImVec2(rv_editor_tool_button_width(label), tall), state);
     const char *end = rv_editor_label_end(label);
     if (!item.disabled && shortcut != nullptr) {
         ImGui::SetItemTooltip("%.*s (%s)", static_cast<int>(end - label), label, shortcut);
@@ -106,16 +127,26 @@ bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t co
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    // The picture, then the label beside it.
-    const float x = std::floor(item.min.x + pad.x + nudge);
+    // The picture centred over the label.
+    const float x = std::floor((item.min.x + item.max.x - icon) / 2.0f + nudge);
     const float y = std::floor(item.min.y + pad.y + nudge);
-    // Dimmed: halfway to the window colour.
-    const uint32_t dim = item.disabled
-        ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
-            (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
-        : color;
-    rv_editor_draw_glyph(dl, ImVec2(x, y), ImVec2(x + icon, y + icon), theme, glyph, dim);
-    dl->AddText(ImVec2(x + icon + pad.x, y), rv_editor_col(rv_editor_item_text(theme, item)), label, end);
+    const rv_editor_icon art = rv_editor_icon_find(rv_editor_glyph_icon(glyph) ? rv_editor_glyph_icon(glyph) : "",
+        static_cast<int>(icon));
+    if (art.id != 0) {
+        const ImU32 tint = item.disabled ? IM_COL32(255, 255, 255, 96) : IM_COL32_WHITE;
+        dl->AddImage(ImTextureRef(art.id), ImVec2(x, y), ImVec2(x + icon, y + icon), ImVec2(0, 0), ImVec2(1, 1), tint);
+    } else {
+        // Dimmed: halfway to the window colour.
+        const uint32_t dim = item.disabled
+            ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
+                (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) |
+                (((color & 0xff) + (theme.window & 0xff)) / 2)
+            : color;
+        rv_editor_draw_glyph(dl, ImVec2(x, y), ImVec2(x + icon, y + icon), theme, glyph, dim);
+    }
+    const ImVec2 text = ImGui::CalcTextSize(label, end);
+    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge), y + icon + pad.y),
+        rv_editor_col(rv_editor_item_text(theme, item)), label, end);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);
     }

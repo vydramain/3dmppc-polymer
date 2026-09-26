@@ -199,6 +199,11 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             shell.last_code = leaf.tabs[leaf.active];
         }
     }
+    // Until one is used, the first code tile is the one Save, Undo and Redo act on.
+    if (shell.last_code == rv_editor_tile_none || !rv_editor_shell_pane_kept(shell, shell.last_code)) {
+        const std::vector<rv_editor_pane_id> code = rv_editor_code_panes(shell.ws);
+        shell.last_code = code.empty() ? rv_editor_tile_none : code.front();
+    }
 
     // A Terminal tile that left every workspace's tree, or became another kind,
     // ends its shell.

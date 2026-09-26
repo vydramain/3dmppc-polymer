@@ -22,8 +22,9 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A transport button of frame height: a pixel picture in `color` beside its label,
-// as wide as rv_editor_tool_button_width says. The tooltip names `shortcut`
+// A transport key (VIS-06): a 24 px picture over its label, 52 px tall, as wide
+// as rv_editor_tool_button_width says. `color` draws the fallback glyph when the
+// icon is missing. The tooltip names `shortcut`
 // (nullptr: none); a disabled button dims the picture and its tooltip says why.
 bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state = {});

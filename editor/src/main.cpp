@@ -105,11 +105,15 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     rv_editor::rv_editor_shell_menu(shell);
     rv_editor::rv_editor_shell_shortcuts(shell);
 
-    // The status bar takes a row; the tiles get the rest.
+    // The toolbar and the status bar take a row each; the tiles get the rest.
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
-    const ImVec2 top = viewport->WorkPos;
-    const ImVec2 size = viewport->WorkSize;
     const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    if (rv_editor_bar_begin("##toolbar", viewport->WorkPos, ImVec2(viewport->WorkSize.x, bar))) {
+        rv_editor::rv_editor_shell_toolbar(shell, theme);
+    }
+    ImGui::End();
+    const ImVec2 top(viewport->WorkPos.x, viewport->WorkPos.y + bar);
+    const ImVec2 size(viewport->WorkSize.x, viewport->WorkSize.y - bar);
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
         const rv_editor::rv_editor_app &app = shell.app;
         // The project's name and the toolchain in brief; paths and versions are in
@@ -122,8 +126,11 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
             missing += t->problem.empty() ? 0 : 1;
         }
         const std::string tools = missing == 0 ? "Tools: ready" : "Tools: " + std::to_string(missing) + " missing";
-        const std::string build = std::string("Build: ") + rv_editor::rv_editor_build_state_name(app.build.state());
-        const std::string runtime = std::string("Runtime: ") + rv_editor::rv_editor_run_state_name(app.session.state());
+        // Build and runtime are separate facts (DAT-02), each with the job or session it is about.
+        const std::string build = std::string("Build: ") + rv_editor::rv_editor_build_state_name(app.build.state()) +
+            (app.build.number() != 0 ? " #" + std::to_string(app.build.number()) : "");
+        const std::string runtime = std::string("Runtime: ") + rv_editor::rv_editor_run_state_name(app.session.state()) +
+            (app.session.number() != 0 ? ", session " + std::to_string(app.session.number()) : "");
         const char *const fields[] = { where.c_str(), tools.c_str(), build.c_str(), runtime.c_str() };
         rv_editor::rv_editor_status_bar(fields, 4, theme);
     }
