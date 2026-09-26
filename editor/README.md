@@ -10,16 +10,16 @@ another kind of pane, and several panes in one tile show as folder tabs. The
 layout is saved on exit to `$XDG_CONFIG_HOME/3dmppc-editor/layout`
 (`~/.config/...` without the variable) and read back as it was. Without a saved
 layout, or after Layout > Reset to Default, the editor starts from Files on the
-left, Code over Output in the middle, and Game over Runtime Controls on the
-right. Layout > Reference Layouts holds the Code, Scene, Debug and Build layouts
-of the design references, whose Scene, Terminal and other panes are not written
-yet. The tile with the focus wears a brass frame.
+left, Code over Output and Terminal (two tabs) in the middle, and Game over
+Runtime Controls on the right. Layout > Reference Layouts holds the Code, Scene,
+Debug and Build layouts of the design references, whose Scene and other panes
+are not written yet. The tile with the focus wears a brass frame.
 
 It opens a game directory, builds it with `mppcburner` and runs the result in
 a development console that draws into the Game tile, driven over the console's
-dev channel: Game, Runtime Controls, Output, Files and Code are live panes, and
-Window > Project Settings shows the paths and versions of the project and the
-tools. The terminal is not there yet.
+dev channel: Game, Runtime Controls, Output, Terminal, Files and Code are live
+panes, and Window > Project Settings shows the paths and versions of the project
+and the tools.
 
 ## Building
 
@@ -109,8 +109,14 @@ the manifest it started with.
 A Code tile is a window of one `nvim --embed` the editor starts with the first
 Code tile, using its own config, [`nvim/rv_editor_init.lua`](nvim/rv_editor_init.lua),
 not your `init.lua`. nvim must be on `PATH`; without it only the Code tiles say
-so. A double click in Files opens the file in the focused Code tile, or in a
-new one.
+so. A double click in Files opens the file in the focused Code tile, else in
+the Code tile used last, else in a new one.
+
+A Code tile keeps the files it has shown as tabs above the text: a click on a
+tab shows that file again, opening a file that already has a tab brings the tab
+forward, and a right click offers Close Tab (the file stays loaded; an unsaved
+one keeps its tab). Split Right or Split Down on a Code tile makes a second Code
+tile, another nvim window on the same file.
 
 It starts as an ordinary editor: typing inserts, Shift+arrows select, Ctrl+S
 saves, Ctrl+Shift+S saves all, Ctrl+Z / Ctrl+Shift+Z undo and redo, Ctrl+C,
@@ -131,6 +137,19 @@ Discard. An Untitled file gets a name through Save As, here or in File, which
 never replaces an existing file. A file changed by another program is re-read
 when its buffer is clean; when it is not, nvim asks. Language servers, Problems
 and search are not connected yet.
+
+### Terminal
+
+A Terminal tile runs your `$SHELL` (else `/bin/sh`) on a pseudo-terminal of its
+own, in the project's directory, with `TERM=xterm-256color`. The screen is kept
+by [libvterm](../third_party/libvterm/ORIGIN.md) and drawn in the code font on
+Catppuccin Mocha. Ctrl+C interrupts, the terminal takes the tile's size, the
+wheel scrolls back through up to 5000 lines and typing returns to the bottom.
+F5, F6, F7 and Ctrl+B stay the editor's own. It is a session of its own that
+never sees the console's dev channel. When the shell ends the tile says how and
+offers Start Again; closing the tile or the editor hangs up the shell and ends
+everything started in it, background jobs included. Every Terminal tile is its
+own shell.
 
 ### Where things go
 
