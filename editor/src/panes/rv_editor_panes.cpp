@@ -1,4 +1,4 @@
-// Runtime Controls, Output and Project: views of the editor's models.
+// Runtime Controls and Project: views of the editor's models.
 
 #include "panes/rv_editor_panes.hpp"
 
@@ -123,75 +123,6 @@ void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme
     if (rv_editor_button("Open Project...", theme)) {
         app.open_folder_request = true;
     }
-}
-
-void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
-{
-    rv_editor_output_view &view = app.outputs[pane];
-    const rv_editor_log &log = app.log;
-
-    for (size_t i = 0; i < view.show.size(); ++i) {
-        const char *name = rv_editor_log_source_name(static_cast<rv_editor_log_source>(i));
-        if (i > 0) {
-            rv_editor_flow(rv_editor_checkbox_width(name));
-        }
-        ImGui::PushID(static_cast<int>(i));
-        rv_editor_checkbox(name, &view.show[i], theme);
-        ImGui::PopID();
-    }
-    rv_editor_flow(rv_editor_checkbox_width("follow"));
-    rv_editor_checkbox("follow", &view.follow, theme);
-    rv_editor_flow(rv_editor_button_width("Copy"));
-    const bool copy = rv_editor_button("Copy", theme);
-    rv_editor_flow(rv_editor_button_width("Clear"));
-    if (rv_editor_button("Clear", theme)) {
-        app.log.clear();
-    }
-    if (log.dropped() != 0) {
-        ImGui::SameLine();
-        ImGui::Text("%llu oldest lines dropped", static_cast<unsigned long long>(log.dropped()));
-    }
-
-    std::vector<const rv_editor_log_line *> shown;
-    for (const rv_editor_log_line &line : log.lines()) {
-        if (view.show[static_cast<size_t>(line.source)]) {
-            shown.push_back(&line);
-        }
-    }
-    auto stamp = [](const rv_editor_log_line &line) {
-        char buf[16];
-        std::snprintf(buf, sizeof(buf), "%02lld:%02lld.%03lld", static_cast<long long>(line.ms / 60000),
-            static_cast<long long>(line.ms / 1000 % 60), static_cast<long long>(line.ms % 1000));
-        return std::string(buf);
-    };
-    if (copy) {
-        std::string text;
-        for (const rv_editor_log_line *line : shown) {
-            text += stamp(*line) + " " + rv_editor_log_source_name(line->source) + " " + line->text + "\n";
-        }
-        ImGui::SetClipboardText(text.c_str());
-    }
-
-    // Process output reads in the code font (0004).
-    rv_editor_font_code_push();
-    rv_editor_log_begin("##lines", ImVec2(0, 0), theme);
-    ImGuiListClipper clipper;
-    clipper.Begin(static_cast<int>(shown.size()));
-    while (clipper.Step()) {
-        for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
-            const rv_editor_log_line &line = *shown[static_cast<size_t>(i)];
-            const rv_editor_severity severity = line.level == rv_editor_log_level::error ? rv_editor_severity::error
-                : line.level == rv_editor_log_level::warning                          ? rv_editor_severity::warning
-                                                                                      : rv_editor_severity::info;
-            rv_editor_log_row(stamp(line).c_str(), rv_editor_log_source_name(line.source), severity, line.text.c_str(),
-                theme);
-        }
-    }
-    if (view.follow && ImGui::GetScrollY() < ImGui::GetScrollMaxY()) {
-        ImGui::SetScrollHereY(1.0f);
-    }
-    rv_editor_log_end(theme);
-    rv_editor_font_code_pop();
 }
 
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)

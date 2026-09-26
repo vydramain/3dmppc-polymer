@@ -28,6 +28,10 @@ struct rv_editor_output_view
 {
     std::array<bool, 4> show = { true, true, true, false };
     bool follow = true;
+    bool wrap = false;
+    char search[128] = {};
+    uint64_t hide_before = 0;  // Clear View: lines older than this seq are not shown here
+    std::string exported;      // where Export wrote, or why it could not
 };
 
 // One Files pane's dialog: which operation waits for an answer, on what.
