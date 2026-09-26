@@ -17,6 +17,7 @@ should be justifiable in a sentence.
 | [`win55-icons/`](win55-icons/) | six 30x30 icons from win-55-ui | `editor/` | MIT |
 | [`libvterm/`](libvterm/) | libvterm `0.3.3` - terminal emulator library (C) | `editor/` | MIT |
 | [`pxplus-ibm-vga/`](pxplus-ibm-vga/) | PxPlus IBM VGA 9x16 font (TTF) | `editor/`; pdklib's Cyrillic block is redrawn after it | CC BY-SA 4.0 |
+| [`liberation-sans/`](liberation-sans/) | Liberation Sans 2.1.5 Regular and Italic (TTF) | `editor/` interface text | OFL 1.1 |
 
 ## Rules for adding something
 
