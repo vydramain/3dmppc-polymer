@@ -1,6 +1,7 @@
 // Tiled workspace: layout, splitting, tab rows, maximize, focus.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <vector>
 
@@ -267,7 +268,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     const float frame_h = ImGui::GetFrameHeight();
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
-    const rv_editor_tile_metrics m{ static_cast<int>(pad),
+    const rv_editor_tile_metrics m{ static_cast<int>(std::floor(static_cast<float>(theme.splitter_px) * s)),
         { static_cast<int>(2.0f * (bevel + pad)), static_cast<int>(2.0f * (bevel + frame_h + pad)) } };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());

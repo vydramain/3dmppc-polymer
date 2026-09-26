@@ -13,7 +13,9 @@ namespace rv_editor
 bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
     const rv_editor_theme &theme, const rv_editor_state &state)
 {
-    const float thickness = static_cast<float>(theme.pad_px * theme.scale);
+    // Grabbed by the whole bar, drawn as its middle pad_px.
+    const float thickness = std::floor(static_cast<float>(theme.splitter_px) * theme.scale);
+    const float drawn = std::floor(static_cast<float>(theme.pad_px) * theme.scale);
     const bool across_x = axis == rv_editor_axis::x;
     const ImVec2 size = across_x ? ImVec2(thickness, length) : ImVec2(length, thickness);
     const rv_editor_item item = rv_editor_item_add(id, size, state);
@@ -36,10 +38,12 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
     }
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_draw_panel(dl, item.min, item.max, theme, item.held ? theme.selection : theme.window,
-        rv_editor_bevel::raised);
+    const float inset = std::floor((thickness - drawn) / 2.0f);
+    const ImVec2 min = across_x ? ImVec2(item.min.x + inset, item.min.y) : ImVec2(item.min.x, item.min.y + inset);
+    const ImVec2 max = across_x ? ImVec2(min.x + drawn, item.max.y) : ImVec2(item.max.x, min.y + drawn);
+    rv_editor_draw_panel(dl, min, max, theme, item.held ? theme.selection : theme.window, rv_editor_bevel::raised);
     if (item.hovered && !item.held && !item.disabled) {
-        rv_editor_draw_frame(dl, item.min, item.max, theme, theme.selection);
+        rv_editor_draw_frame(dl, min, max, theme, theme.selection);
     }
     return changed;
 }
@@ -135,7 +139,7 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
         const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
         const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge),
             std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge));
-        const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.dark : theme.text);
+        const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.text_on_selection : theme.text);
         dl->AddText(at, rv_editor_col(ink), labels[i], end);
         if (item.focused) {
             rv_editor_draw_focus(dl, ImVec2(at.x - pad, item.min.y), ImVec2(at.x + text.x + pad, item.max.y), theme);

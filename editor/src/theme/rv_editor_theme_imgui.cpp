@@ -90,7 +90,8 @@ void rv_editor_theme_apply(const rv_editor_theme &theme, ImGuiStyle &style)
     const float pad = static_cast<float>(theme.pad_px);
     const float bevel = static_cast<float>(theme.bevel_px);
     style.WindowPadding = ImVec2(pad * 2.0f, pad * 2.0f);
-    style.FramePadding = ImVec2(pad, pad);
+    // A 14 px line in 5 px above and below: every button and field is 24 px tall.
+    style.FramePadding = ImVec2(pad * 1.5f, pad + 1.0f);
     style.ItemSpacing = ImVec2(pad * 2.0f, pad);
     style.ItemInnerSpacing = ImVec2(pad, pad);
     style.CellPadding = ImVec2(pad, pad / 2.0f);
@@ -99,6 +100,7 @@ void rv_editor_theme_apply(const rv_editor_theme &theme, ImGuiStyle &style)
     style.PopupBorderSize = bevel;
     style.FrameBorderSize = 0.0f;
     style.TabBorderSize = 0.0f;
+    style.ScrollbarSize = static_cast<float>(theme.scrollbar_px);
 
     style.WindowRounding = 0.0f;
     style.ChildRounding = 0.0f;
