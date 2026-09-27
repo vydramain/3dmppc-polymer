@@ -14,27 +14,6 @@ namespace
 
 using mtype = rv_editor_mpack::rv_editor_mpack_type;
 
-// nvim from PATH: it is the user's own editor, not one this repository ships.
-std::filesystem::path rv_editor_nvim_find()
-{
-    const char *path = std::getenv("PATH");
-    if (path == nullptr) {
-        return {};
-    }
-    std::stringstream dirs(path);
-    std::string dir;
-    while (std::getline(dirs, dir, ':')) {
-        std::error_code ec;
-        const std::filesystem::path p = std::filesystem::path(dir.empty() ? "." : dir) / "nvim";
-        const auto st = std::filesystem::status(p, ec);
-        if (!ec && std::filesystem::is_regular_file(st) &&
-            (st.permissions() & std::filesystem::perms::owner_exec) != std::filesystem::perms::none) {
-            return p;
-        }
-    }
-    return {};
-}
-
 std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &fill)
 {
     std::string out;
@@ -50,7 +29,8 @@ bool rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_
     if (started_ || !problem.empty()) {
         return started_;
     }
-    const std::filesystem::path nvim = rv_editor_nvim_find();
+    // From PATH: it is the user's own editor, not one this repository ships.
+    const std::filesystem::path nvim = rv_editor_process_find("nvim");
     if (nvim.empty()) {
         problem = "nvim is not installed or not on PATH; the code editor needs it";
         return false;

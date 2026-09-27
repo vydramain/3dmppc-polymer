@@ -82,6 +82,7 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.burner = app.tools.burner.version;
     c.baker = app.tools.baker.version;
     c.tree_changed = r.tree_changed_during;
+    c.source_revision = r.building_revision;
     c.checks = rv_editor_checks_make();
     std::string error;
     if (!rv_editor_file_replace(rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "build"),
@@ -116,6 +117,8 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     r.building = true;
     r.building_number = number;
     r.tree_changed_during = false;
+    // ponytail: git runs on the UI thread, at most 3 s each; a job of its own if that shows.
+    r.building_revision = rv_editor_source_revision(app.project.root);
 }
 
 const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
@@ -233,6 +236,7 @@ void rv_editor_app_export_report(rv_editor_app &app)
     t += "built by: " + c.command + "\n";
     t += "burner: " + c.burner + "\nbaker: " + c.baker + "\n";
     t += "runtime: " + app.tools.console.path.string() + " (development console)\n";
+    t += "source revision: " + (c.source_revision.empty() ? std::string("not recorded") : c.source_revision) + "\n";
     t += std::string("sources: ") + (c.tree_changed ? "changed after the build started" : "no change seen") + "\n\n";
     t += "checks (all required; Skipped does not count as Passed):\n";
     for (const rv_editor_check &check : c.checks) {

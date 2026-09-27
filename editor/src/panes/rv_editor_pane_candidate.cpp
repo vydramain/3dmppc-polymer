@@ -242,6 +242,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_row("Built by", "mppcburner build -o, the whole command on hover");
         ImGui::SetItemTooltip("%s", c.command.c_str());
         rv_editor_row("Tools", c.burner + "; " + c.baker);
+        rv_editor_row("Revision", c.source_revision.empty() ? "not recorded" : c.source_revision);
         rv_editor_row("Sources", c.tree_changed ? "changed since this build started: this candidate stays as built"
                                                 : "no change seen since this build started");
         const bool playing = app.session.live() && r.playing >= 0 && static_cast<size_t>(r.playing) == r.selected;

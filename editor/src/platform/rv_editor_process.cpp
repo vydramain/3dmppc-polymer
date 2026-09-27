@@ -4,6 +4,10 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
+#include <cstdlib>
+#include <sstream>
+#include <thread>
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
@@ -282,6 +286,45 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit)
         return std::string("killed by SIG") + (name != nullptr ? name : std::to_string(exit.signal));
     }
     return "exit code " + std::to_string(exit.code);
+}
+
+std::filesystem::path rv_editor_process_find(const char *name)
+{
+    const char *path = std::getenv("PATH");
+    if (path == nullptr) {
+        return {};
+    }
+    std::stringstream dirs(path);
+    std::string dir;
+    while (std::getline(dirs, dir, ':')) {
+        std::error_code ec;
+        const std::filesystem::path p = std::filesystem::path(dir.empty() ? "." : dir) / name;
+        const auto st = std::filesystem::status(p, ec);
+        if (!ec && std::filesystem::is_regular_file(st) &&
+            (st.permissions() & std::filesystem::perms::owner_exec) != std::filesystem::perms::none) {
+            return p;
+        }
+    }
+    return {};
+}
+
+bool rv_editor_process_output(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
+    std::string &out, int seconds)
+{
+    rv_editor_process proc;
+    std::string error;
+    if (!proc.start(argv, cwd, error)) {
+        return false;
+    }
+    std::string err;
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+    while (!proc.poll() && std::chrono::steady_clock::now() < until) {
+        proc.read(out, err, 65536);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    proc.read(out, err, 65536);
+    const rv_editor_process::rv_editor_exit exit = proc.exit_status();
+    return exit.exited && exit.signal == 0 && exit.code == 0;
 }
 
 } // namespace rv_editor

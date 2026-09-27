@@ -85,4 +85,12 @@ private:
 // Human-readable reason an exit happened: "exit code 2", "killed by SIGSEGV".
 std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit);
 
+// The first executable `name` on PATH, or empty: for the user's own tools (nvim, git).
+std::filesystem::path rv_editor_process_find(const char *name);
+
+// Runs argv to its end, at most `seconds`, and gives its stdout. False when it could
+// not start, did not end in time (it is killed then) or ended other than with exit 0.
+bool rv_editor_process_output(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
+    std::string &out, int seconds);
+
 } // namespace rv_editor

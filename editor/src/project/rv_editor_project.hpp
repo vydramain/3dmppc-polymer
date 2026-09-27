@@ -43,6 +43,10 @@ struct rv_editor_toolchain
 // so a replaced executable drops what was known about the old one (NFR-06).
 rv_editor_toolchain rv_editor_toolchain_find();
 
+// The sources' version for a candidate record (REL-01): "git <commit>", then
+// " + uncommitted changes" when the project's files differ from it; else why unknown.
+std::string rv_editor_source_revision(const std::filesystem::path &root);
+
 // The game directory the window works on (PRJ-01): a directory holding
 // disc.toml, whichever of the two was opened.
 struct rv_editor_project

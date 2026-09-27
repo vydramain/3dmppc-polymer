@@ -98,6 +98,25 @@ std::filesystem::path rv_editor_xdg_dir(const char *var, const char *home_fallba
     return {};
 }
 
+std::string rv_editor_source_revision(const std::filesystem::path &root)
+{
+    const std::filesystem::path git = rv_editor_process_find("git");
+    if (git.empty()) {
+        return "unknown: git is not on PATH";
+    }
+    std::string head;
+    if (!rv_editor_process_output({ git.string(), "rev-parse", "--verify", "HEAD" }, root, head, 3) || head.empty()) {
+        return "unknown: not in a git work tree with a commit";
+    }
+    head = head.substr(0, head.find('\n'));
+    // Only this project's files: a project may sit in a larger repository.
+    std::string status;
+    if (!rv_editor_process_output({ git.string(), "status", "--porcelain", "--", "." }, root, status, 3)) {
+        return "git " + head + ", whether the files differ from it is unknown";
+    }
+    return "git " + head + (status.empty() ? "" : " + uncommitted changes");
+}
+
 rv_editor_toolchain rv_editor_toolchain_find()
 {
     rv_editor_toolchain tc;
