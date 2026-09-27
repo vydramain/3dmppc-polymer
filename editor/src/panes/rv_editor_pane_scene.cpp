@@ -49,13 +49,10 @@ void rv_editor_pane_scene(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::PopStyleColor();
         return;
     }
-    // The viewport draws here; until then, what the document holds.
-    const rv_editor_scene &scene = app.scene->scene;
-    ImGui::Text("%s: %zu objects%s", rv_editor_app_scene_name(app).c_str(), scene.objects.size(),
-        app.scene->dirty ? ", unsaved" : "");
-    if (!scene.read_only.empty()) {
-        ImGui::TextWrapped("Read-only: %s", scene.read_only.c_str());
+    if (!app.scene->scene.read_only.empty()) {
+        ImGui::TextWrapped("Read-only: %s", app.scene->scene.read_only.c_str());
     }
+    rv_editor_scene_viewport(app, theme);
 }
 
 } // namespace rv_editor

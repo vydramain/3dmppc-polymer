@@ -101,8 +101,12 @@ void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme)
         case rv_editor_layout_preset::burn_diagnose: rv_editor_toolchest_burn(app, theme); return;
         default: break;
     }
-    // Scene's tools act on a scene document; none is open, so none is offered.
-    ImGui::TextWrapped("Select, Move, Rotate and Scale act on a scene document. This project has none open.");
+    // Scene's tools act on a scene document; without one, none is offered.
+    if (app.scene != nullptr) {
+        rv_editor_scene_tools(app, theme);
+        return;
+    }
+    ImGui::TextWrapped("Select, Move, Rotate and Scale act on a scene document: Scene > New Scene or Open Scene.");
 }
 
 } // namespace rv_editor

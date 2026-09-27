@@ -43,6 +43,8 @@ rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o);
 rv_editor_affine rv_editor_scene_world(const rv_editor_scene &scene, int index);
 rv_editor_affine rv_editor_affine_mul(const rv_editor_affine &a, const rv_editor_affine &b);
 std::array<double, 3> rv_editor_affine_point(const rv_editor_affine &a, const std::array<double, 3> &p);
+// A direction in `a`'s outer space brought into its inner one (`a` inverted, no translation).
+std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const std::array<double, 3> &dir);
 
 // True when `ancestor` is `id` or above it.
 bool rv_editor_scene_under(const rv_editor_scene &scene, const std::string &id, const std::string &ancestor);

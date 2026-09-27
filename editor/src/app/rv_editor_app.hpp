@@ -76,8 +76,31 @@ struct rv_editor_run_form
     char env[1024] = {};
 };
 
+// The Scene viewport's tool and view (SCN-05, SCL-02): the editor's, never the game's camera.
+enum class rv_editor_scene_tool
+{
+    select,
+    move,
+    rotate,
+    scale,
+};
+
+struct rv_editor_scene_camera
+{
+    rv_editor_scene_tool tool = rv_editor_scene_tool::select;
+    bool snap = false;
+    double snap_step = 0.25;
+    bool grid = true;
+    double yaw = 30.0;
+    double pitch = 25.0;
+    double distance = 8.0;
+    rv_editor_vec3 target{ 0.0, 0.0, 0.0 };
+    bool seeking = false; // Seek pressed: the next click picks the point to turn about
+};
+
 // The scene panes' own state: Inspector's text for the object shown, the drag
-// being made and the values before it, the last refusal to say.
+// being made and the values before it, the last refusal to say; the viewport's
+// view and its drag of a tool.
 struct rv_editor_scene_ui
 {
     std::string shown;
@@ -88,6 +111,13 @@ struct rv_editor_scene_ui
     rv_editor_vec3 before{};
     bool cancelled = false; // Escape took the drag back; it ends when the button is let go
     std::string note;
+    rv_editor_scene_camera camera;
+    bool gizmo_dragging = false;
+    int gizmo_axis = -1;
+    std::array<float, 2> gizmo_from{};
+    rv_editor_vec3 gizmo_before_position{};
+    rv_editor_vec3 gizmo_before_rotation{};
+    rv_editor_vec3 gizmo_before_scale{};
 };
 
 // The files a code tile has shown, one tab each, and the one its Close Tab let

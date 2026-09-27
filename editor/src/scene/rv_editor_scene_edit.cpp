@@ -150,6 +150,18 @@ std::array<double, 3> rv_editor_affine_point(const rv_editor_affine &a, const st
         a[2][0] * p[0] + a[2][1] * p[1] + a[2][2] * p[2] + a[2][3] };
 }
 
+std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const std::array<double, 3> &dir)
+{
+    bool ok = false;
+    const rv_editor_affine inv = rv_editor_affine_inverse(a, ok);
+    if (!ok) {
+        return dir;
+    }
+    return { inv[0][0] * dir[0] + inv[0][1] * dir[1] + inv[0][2] * dir[2],
+        inv[1][0] * dir[0] + inv[1][1] * dir[1] + inv[1][2] * dir[2],
+        inv[2][0] * dir[0] + inv[2][1] * dir[1] + inv[2][2] * dir[2] };
+}
+
 rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o)
 {
     const mat3 r = rv_editor_rotation(o.rotation);
