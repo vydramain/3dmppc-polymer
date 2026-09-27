@@ -22,10 +22,10 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A transport button of frame height: a pixel picture in `color` beside its label,
-// as wide as rv_editor_tool_button_width says. The tooltip names `shortcut`
-// (nullptr: none); a disabled button dims the picture and its tooltip says why.
-bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
+// A square transport button as wide as rv_editor_tool_button_width says: a large
+// `letter` in `color` over a short label. The tooltip is `name` (nullptr: the label)
+// and `shortcut` (nullptr: none); a disabled button dims the letter and says why.
+bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const char *name, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
 

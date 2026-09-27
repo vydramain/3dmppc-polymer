@@ -106,22 +106,25 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     const rv_editor_theme &theme)
 {
     rv_editor_transport_actions out = {};
-    // Step and Stop differ in picture and colour, not in the label alone.
+    // Step and Stop differ in letter and colour, not in the label alone; the
+    // square's label is short, its tooltip and the More menu say the whole name.
     const struct
     {
         const char *label;
-        rv_editor_glyph glyph;
+        char letter;
         uint32_t color;
+        const char *name;
         const char *shortcut;
         const char *disabled;
         bool *clicked;
     } buttons[] = {
-        {"Build", rv_editor_glyph::build, 0xfab387, "Ctrl+B", state.build, &out.build},
-        {state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, "F5", state.run, &out.run},
-        {"Pause", rv_editor_glyph::pause, theme.code_yellow, "F6", state.pause, &out.pause},
-        {"Step Frame", rv_editor_glyph::step, theme.code_blue, "F7", state.step, &out.step},
-        {"Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", state.stop, &out.stop},
-        {"Reload", rv_editor_glyph::reload, 0xcba6f7, nullptr, state.reload, &out.reload},
+        {"Build", 'B', 0xfab387, "Build", "Ctrl+B", state.build, &out.build},
+        {state.resume ? "Resume" : "Run", 'R', theme.code_green, state.resume ? "Resume" : "Run", "F5", state.run,
+            &out.run},
+        {"Pause", 'P', theme.code_yellow, "Pause", "F6", state.pause, &out.pause},
+        {"Step", 'S', theme.code_blue, "Step Frame", "F7", state.step, &out.step},
+        {"Stop", 'X', theme.code_red, "Stop", "Shift+F5", state.stop, &out.stop},
+        {"Reload", 'U', 0x94e2d5, "Reload Entry Script", "F8", state.reload, &out.reload},
     };
     const size_t shown = state.reload_shown ? std::size(buttons) : std::size(buttons) - 1;
     // One row, never a second (LAY-04): what does not fit goes behind a labelled More,
@@ -156,7 +159,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         }
         first = false;
         *b.clicked =
-            rv_editor_tool_button(b.label, b.glyph, b.color, b.shortcut, theme, {rv_editor_look::live, b.disabled});
+            rv_editor_tool_button(b.label, b.letter, b.color, b.name, b.shortcut, theme, {rv_editor_look::live, b.disabled});
     }
     if (!any_hidden) {
         return out;
@@ -164,7 +167,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     if (!first) {
         ImGui::SameLine();
     }
-    if (rv_editor_tool_button("More", rv_editor_glyph::pane_menu, theme.text, nullptr, theme)) {
+    if (rv_editor_tool_button("More", '+', theme.text, "The buttons that do not fit", nullptr, theme)) {
         ImGui::OpenPopup("##transport_more");
     }
     rv_editor_menu_style_push();
@@ -174,7 +177,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
             if (!hidden[i]) {
                 continue;
             }
-            *b.clicked = ImGui::MenuItem(b.label, b.shortcut, false, b.disabled == nullptr);
+            *b.clicked = ImGui::MenuItem(b.name, b.shortcut, false, b.disabled == nullptr);
             if (b.disabled != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                 ImGui::SetTooltip("%s", b.disabled);
             }

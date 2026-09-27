@@ -177,28 +177,29 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         rv_editor_open_project_row(app, theme);
         return;
     }
-    if (rv_editor_tool_button("Build Candidate", rv_editor_glyph::build, 0xfab387, nullptr, theme,
+    if (rv_editor_tool_button("Build", 'B', 0xfab387, "Build Candidate", nullptr, theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build_candidate(app);
     }
-    rv_editor_flow(rv_editor_tool_button_width("Run Candidate"));
-    if (rv_editor_tool_button("Run Candidate", rv_editor_glyph::run, theme.code_green, nullptr, theme,
+    rv_editor_flow(rv_editor_tool_button_width("Run"));
+    if (rv_editor_tool_button("Run", 'R', theme.code_green, "Run Candidate", nullptr, theme,
             { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
         rv_editor_app_run_candidate(app);
     }
-    rv_editor_flow(rv_editor_tool_button_width("Run in Player"));
-    if (rv_editor_tool_button("Run in Player", rv_editor_glyph::run, theme.code_blue, nullptr, theme,
+    rv_editor_flow(rv_editor_tool_button_width("Player"));
+    if (rv_editor_tool_button("Player", 'P', 0xcba6f7, "Run in Player", nullptr, theme,
             { rv_editor_look::live, rv_editor_app_why_not_play(app) })) {
         rv_editor_app_play_candidate(app);
     }
     rv_editor_flow(rv_editor_tool_button_width("Stop"));
-    if (rv_editor_tool_button("Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", theme,
+    if (rv_editor_tool_button("Stop", 'X', theme.code_red, "Stop", "Shift+F5", theme,
             { rv_editor_look::live, rv_editor_app_why_not_stop(app) })) {
         rv_editor_app_stop(app);
     }
-    rv_editor_flow(rv_editor_button_width("Export Report"));
+    rv_editor_flow(rv_editor_tool_button_width("Report"));
     const char *why_not_export = app.release.candidates.empty() ? "No candidate to report on" : nullptr;
-    if (rv_editor_button("Export Report", theme, { rv_editor_look::live, why_not_export })) {
+    if (rv_editor_tool_button("Report", 'E', theme.code_blue, "Export Report", nullptr, theme,
+            { rv_editor_look::live, why_not_export })) {
         rv_editor_app_export_report(app);
     }
 
