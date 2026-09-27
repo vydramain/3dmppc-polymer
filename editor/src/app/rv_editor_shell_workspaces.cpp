@@ -63,6 +63,22 @@ rv_editor_layout rv_editor_workspace_start(rv_editor_pane_registry &panes, rv_ed
     return layout;
 }
 
+// A leaf of controls only: a strip as tall as its buttons, never stretched for the Game.
+bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
+{
+    const rv_editor_tile_node &n = ws.layout.nodes[node];
+    if (n.kind != rv_editor_tile_kind::leaf || n.leaf.tabs.empty()) {
+        return false;
+    }
+    for (const rv_editor_pane_id pane : n.leaf.tabs) {
+        const rv_editor_pane_kind kind = ws.panes.panes[pane].kind;
+        if (kind != rv_editor_pane_kind::controls && kind != rv_editor_pane_kind::release_controls) {
+            return false;
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
@@ -142,7 +158,9 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     for (uint32_t parent = layout.nodes[node].parent; parent != rv_editor_tile_none;
          node = parent, parent = layout.nodes[parent].parent) {
         const rv_editor_tile_split &split = layout.nodes[parent].split;
-        if (layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis) {
+        const uint32_t sibling = node == split.first ? split.second : split.first;
+        if (layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
+            rv_editor_strip_leaf(shell.ws, sibling)) {
             continue;
         }
         const rv_editor_rect &a = shell.ws.rects[split.first];

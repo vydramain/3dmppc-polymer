@@ -42,7 +42,8 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
     const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
-    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.74f);
+    // The controls are a strip as tall as their buttons: the game takes the rest.
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
     b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.54f);
 }
 
@@ -70,7 +71,7 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
     b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
     const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.54f);
-    b.add(rv_editor_pane_kind::output, controls, rv_editor_tile_dock::bottom, 0.41f);
+    b.add(rv_editor_pane_kind::output, controls, rv_editor_tile_dock::bottom, 0.0f);
 }
 
 // Burn (reference 0007): the release controls over the candidate beside its

@@ -114,7 +114,7 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 
 // Once a frame: a starting tree's Game tile takes the proportions of the disc's
 // screen, by the split under or over it, else beside it, until the user drags a
-// splitter. Saved trees are left as they are.
+// splitter; a strip of controls keeps its height. Saved trees are left as they are.
 void rv_editor_shell_fit_game(rv_editor_shell &shell);
 
 // Each layout's saved tree from `path`-<name> (read from the file an earlier
