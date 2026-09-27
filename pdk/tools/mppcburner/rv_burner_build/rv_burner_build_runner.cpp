@@ -12,6 +12,7 @@
 #include "rv_burner_assets/rv_burner_bake.hpp"
 #include "rv_burner_assets/rv_burner_compile_scripts.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
+#include "rv_burner_build/rv_burner_map.hpp"
 #include "rv_burner_burn/rv_burner_burn.hpp"
 #include "rv_burner_common/rv_burner_globs.hpp"
 #include "rv_burner_compile/rv_burner_check.hpp"
@@ -339,6 +340,11 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     // --- [4/4] burn ---
 
     if (rv_burner_destination_burn(destination, manifest, disc_module, plan, error) != 0) {
+        rv_burner_print_error(error);
+        return 1;
+    }
+    // Only a build that succeeded replaces the map (ADR 0011).
+    if (!options.map.empty() && write_map(fs::absolute(options.map, ec), manifest, sources, plan, error) != 0) {
         rv_burner_print_error(error);
         return 1;
     }

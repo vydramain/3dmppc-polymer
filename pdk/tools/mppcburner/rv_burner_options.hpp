@@ -30,6 +30,7 @@ struct rv_burner_options {
 	std::string build_dir = "";                        // -k=PATH, empty: <operand>/.mppcburn
 	int jobs = 0;                                      // -j, 0: let cmake decide
 	bool keep_build = false;                           // -k
+	std::string map = "";                              // -m, where to write the source-to-entry map
 };
 
 // One bit per subcommand. Lets an option name the commands that accept it.

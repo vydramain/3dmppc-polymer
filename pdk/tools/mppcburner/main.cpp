@@ -65,6 +65,8 @@ static void print_usage(std::FILE *stream)
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
         "  -k, --keep-build[=PATH]  Keep the generated CMake project instead of\n"
         "                           deleting it. PATH must be attached with '='.\n"
+        "  -m, --map PATH           After a build that succeeded, write which entry\n"
+        "                           of the disc each of its files became to PATH.\n"
         "\n"
         "Options (any command):\n"
         "  -h, --help               Print this text.\n"
@@ -93,6 +95,8 @@ constexpr rv_burner_option_spec OPTIONS[] = {
         RV_BURNER_MASK_BUILD },
     { 'k', "keep-build", optional_argument,
         "keep the generated CMake project, optionally at PATH",
+        RV_BURNER_MASK_BUILD },
+    { 'm', "map", required_argument, "write the source-to-entry map to PATH",
         RV_BURNER_MASK_BUILD },
 };
 
@@ -212,6 +216,10 @@ int main(int argc, char **argv)
                 return 1;
             }
             burner_options.jobs = static_cast<int>(value);
+            break;
+        }
+        case 'm': {
+            burner_options.map = optarg;
             break;
         }
         case 'k': {
