@@ -184,6 +184,9 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     }
     rv_editor_scroll_end(theme);
     if (tabbed) {
+        // Right under the well: EndChild leaves the cursor an item spacing lower,
+        // which would push the tabs' bottom under the tile's frame.
+        ImGui::SetCursorScreenPos(ImVec2(well_min.x, well_max.y));
         draw_tabs(ws, node, theme);
     }
 
