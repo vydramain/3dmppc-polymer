@@ -77,9 +77,11 @@ public:
     static constexpr int protocol_supported = 2;
 
     // False with the reason when a session cannot start now.
+    // `options` go before the disc, `env` over the editor's environment (a run profile).
     bool start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
         const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
-        rv_editor_log &log, std::string &error);
+        const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
+        std::string &error);
 
     void pause(rv_editor_log &log);
     void resume(rv_editor_log &log);

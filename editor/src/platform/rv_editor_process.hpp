@@ -33,10 +33,10 @@ public:
     ~rv_editor_process();
 
     // argv[0] is the executable path, run as is (no PATH search). `inherit_fd`,
-    // when not -1, reaches the child as its descriptor 3. False with the reason in
-    // `error` when it cannot start.
+    // when not -1, reaches the child as its descriptor 3; `env` (KEY=VALUE) goes over
+    // the editor's environment. False with the reason in `error` when it cannot start.
     bool start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error,
-        int inherit_fd = -1);
+        int inherit_fd = -1, const std::vector<std::string> &env = {});
 
     bool running() const { return pid_ > 0 && !exit_.exited; }
     pid_t pid() const { return pid_; }

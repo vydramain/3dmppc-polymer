@@ -59,7 +59,8 @@ bool rv_editor_session::hung() const
 }
 
 bool rv_editor_session::start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
-    const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number, rv_editor_log &log,
+    const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
+    const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
     std::string &error)
 {
     if (live()) {
@@ -70,9 +71,10 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
         return false;
     }
     // The console writes its frames into frame_mem_, handed over as descriptor 3.
-    const std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string(),
-        disc_dir.string() };
-    if (!proc_.start(argv, cwd, error, frame_mem_.fd())) {
+    std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string() };
+    argv.insert(argv.end(), options.begin(), options.end());
+    argv.push_back(disc_dir.string());
+    if (!proc_.start(argv, cwd, error, frame_mem_.fd(), env)) {
         return false;
     }
 

@@ -211,6 +211,10 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {
         app.session.force_stop(app.log);
     }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Run Configuration...")) {
+        rv_editor_shell_show_pane(shell, rv_editor_pane_kind::run_config);
+    }
 }
 
 void rv_editor_menu_window(rv_editor_shell &shell)

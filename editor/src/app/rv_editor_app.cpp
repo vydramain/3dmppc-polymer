@@ -41,9 +41,20 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
     app.game_captured = false;
     app.session_first_seq = app.log.revision() + 1;
     app.observe.read_frame = -1;
+    // A development run follows the active profile; a candidate, with its own card, does not.
+    const rv_editor_run_profile none;
+    const rv_editor_run_profile &profile = card.empty() ? app.run_config.profiles[app.run_config.active] : none;
+    const std::filesystem::path runtime = rv_editor_run_profile_path(profile.runtime, app.project.root);
+    const std::filesystem::path own_card = rv_editor_run_profile_path(profile.memcard, app.project.root);
+    const std::filesystem::path cwd = rv_editor_run_profile_path(profile.cwd, app.project.root);
+    if (card.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            "run profile " + profile.name + ": build #" + std::to_string(artifact.number));
+    }
     std::string error;
-    if (!app.session.start(app.tools.console.path, artifact.dir,
-            card.empty() ? app.project.state_dir / "memcard.mppccard" : card, app.project.root, artifact.number,
+    if (!app.session.start(runtime.empty() ? app.tools.console.path : runtime, artifact.dir,
+            !card.empty() ? card : !own_card.empty() ? own_card : app.project.state_dir / "memcard.mppccard",
+            cwd.empty() ? app.project.root : cwd, artifact.number, rv_editor_run_profile_args(profile), profile.env,
             app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return false;
@@ -79,6 +90,12 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.game_captured = false;
     app.session.pad(0, app.log);
     app.files.open(app.project.root, app.log);
+    app.run_config = rv_editor_run_config_load(app.project.root);
+    if (!app.run_config.error.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.run_config.error);
+    }
+    app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
+    ++app.run_config_revision;
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "opened " + app.project.root.string());
     rv_editor_recent_add(app.project.root);
     if (!app.project.manifest_error.empty()) {
@@ -116,7 +133,11 @@ const char *rv_editor_app_why_not_run(const rv_editor_app &app)
     if (!app.project.open) {
         return "No project is open: File > Open Folder";
     }
-    if (!app.tools.console.problem.empty()) {
+    if (!app.run_problem.empty()) {
+        return app.run_problem.c_str();
+    }
+    // A profile's own runtime stands in for Settings' one.
+    if (app.run_config.profiles[app.run_config.active].runtime.empty() && !app.tools.console.problem.empty()) {
         return app.tools.console.problem.c_str();
     }
     if (app.project.state_dir.empty()) {
@@ -274,6 +295,17 @@ void rv_editor_app_run_saved(rv_editor_app &app)
     app.run_after_build = app.build.busy();
 }
 
+void rv_editor_app_profiles_save(rv_editor_app &app)
+{
+    std::string error;
+    if (!rv_editor_run_config_save(app.project.root, app.run_config, error)) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "run profiles not saved: " + error);
+    }
+    app.run_config.error.clear();
+    app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
+    ++app.run_config_revision;
+}
+
 void rv_editor_app_run_last(rv_editor_app &app)
 {
     if (rv_editor_app_why_not_run_last(app) != nullptr) {
@@ -383,6 +415,10 @@ void rv_editor_app_update(rv_editor_app &app)
         }
     }
     rv_editor_app_release_update(app, was_busy && !app.build.busy());
+    if (app.run_after_stop && !app.session.live()) {
+        app.run_after_stop = false;
+        rv_editor_app_run(app);
+    }
 }
 
 void rv_editor_app_shutdown(rv_editor_app &app)

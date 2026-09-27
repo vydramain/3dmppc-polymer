@@ -84,7 +84,7 @@ void rv_editor_process::close_fds()
 }
 
 bool rv_editor_process::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &error, int inherit_fd)
+    std::string &error, int inherit_fd, const std::vector<std::string> &env)
 {
     rv_editor_ignore_sigpipe();
     if (argv.empty() || running()) {
@@ -139,7 +139,26 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     args.push_back(nullptr);
 
     pid_t pid = -1;
-    const int rc = posix_spawn(&pid, argv[0].c_str(), &actions, &attr, args.data(), environ);
+    // The inherited environment, less each key `env` sets again, then `env`.
+    std::vector<std::string> merged;
+    for (char **e = environ; *e != nullptr; ++e) {
+        const std::string_view entry(*e);
+        const std::string_view key = entry.substr(0, entry.find('='));
+        const bool replaced = std::any_of(env.begin(), env.end(), [key](const std::string &o) {
+            return o.size() > key.size() && o.compare(0, key.size(), key) == 0 && o[key.size()] == '=';
+        });
+        if (!replaced) {
+            merged.emplace_back(entry);
+        }
+    }
+    merged.insert(merged.end(), env.begin(), env.end());
+    std::vector<char *> envp;
+    for (std::string &e : merged) {
+        envp.push_back(e.data());
+    }
+    envp.push_back(nullptr);
+
+    const int rc = posix_spawn(&pid, argv[0].c_str(), &actions, &attr, args.data(), envp.data());
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attr);
     ::close(in[0]);

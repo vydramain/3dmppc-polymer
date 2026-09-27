@@ -16,6 +16,7 @@
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
+#include "project/rv_editor_run_profile.hpp"
 #include "project/rv_editor_search.hpp"
 #include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
@@ -53,6 +54,22 @@ struct rv_editor_files_view
     char name[256] = {};
     std::string error;
     bool opening = false;
+};
+
+// Run Configuration's form: the active profile as edited until Apply (CFG-02),
+// filled again whenever the profiles change.
+struct rv_editor_run_form
+{
+    uint64_t loaded = 0; // the run_config_revision it was filled at
+    char name[64] = {};
+    char runtime[512] = {};
+    char memcard[512] = {};
+    char cwd[512] = {};
+    bool mute = false;
+    bool paused = false;
+    bool fixed_step = false;
+    char args[1024] = {};
+    char env[1024] = {};
 };
 
 // The files a code tile has shown, one tab each, and the one its Close Tab let
@@ -180,7 +197,18 @@ struct rv_editor_app
     rv_editor_unsaved_ask unsaved_ask = rv_editor_unsaved_ask::none;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
+    // Run profiles (CFG-01), what stops the active one, and a count of their changes
+    // for the form; Apply and Restart waits for the session to end, then runs.
+    rv_editor_run_config run_config;
+    std::string run_problem;
+    uint64_t run_config_revision = 1;
+    rv_editor_run_form run_form;
+    bool run_after_stop = false;
 };
+
+// Writes the profiles to the project, checks the active one again and refills the
+// form; a failed write goes to the log.
+void rv_editor_app_profiles_save(rv_editor_app &app);
 
 // Looks for the tools and says what it found.
 void rv_editor_app_init(rv_editor_app &app);

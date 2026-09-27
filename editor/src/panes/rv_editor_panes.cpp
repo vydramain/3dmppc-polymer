@@ -89,6 +89,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_flow(ImGui::CalcTextSize(facts.c_str()).x);
     ImGui::TextUnformatted(facts.c_str());
+    const std::string profile = "Profile: " + app.run_config.profiles[app.run_config.active].name;
+    rv_editor_flow(rv_editor_button_width(profile.c_str()));
+    if (rv_editor_button(profile.c_str(), theme)) {
+        app.show_request = rv_editor_pane_kind::run_config;
+    }
+    ImGui::SetItemTooltip("Run Configuration: how Run starts the runtime");
 
     if (!s.live() && !s.end_reason().empty()) {
         rv_editor_wrapped("Last run: " + s.end_reason());

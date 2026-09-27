@@ -67,6 +67,9 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 // Find in Project: the query, its scope, and each place, opening it (TXT-06).
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The project's run profiles as a form: Apply, Apply and Restart (CFG-01/02).
+void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 
