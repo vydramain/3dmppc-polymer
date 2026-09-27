@@ -37,8 +37,8 @@ void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const r
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 // Assets: the project's resource files as an Icon Catalog (SCL-03); its PNG pictures live on `renderer`.
 void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
-// The editor icon of a file's kind, by its extension (spec section 16).
-const char *rv_editor_file_kind_icon(const std::filesystem::path &path);
+// The letter and colour that stand in for a file's icon, by its extension.
+void rv_editor_file_chip(const std::filesystem::path &path, char &letter, uint32_t &color);
 
 // The console's own keys held now, as rv_isource bits
 // (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).

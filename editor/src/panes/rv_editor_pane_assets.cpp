@@ -7,7 +7,9 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <cfloat>
 #include <chrono>
+#include <cmath>
 #include <map>
 #include <string>
 #include <system_error>
@@ -230,8 +232,15 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             const ImVec2 q0(at.x + (art - size.x) * 0.5f, at.y + (art - size.y) * 0.5f);
             dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
         } else {
-            rv_editor_icon_draw(dl, rv_editor_file_kind_icon(a.path), ImVec2(at.x + art * 0.25f, at.y + art * 0.25f),
-                theme);
+            // The file's letter at twice the font: whole pixels of the 5x7 cell.
+            char letter = 'F';
+            uint32_t color = 0;
+            rv_editor_file_chip(a.path, letter, color);
+            const char text[2] = { letter, '\0' };
+            const float size = ImGui::GetFontSize() * 2.0f;
+            const float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text).x;
+            dl->AddText(ImGui::GetFont(), size, ImVec2(std::floor(at.x + (art - w) * 0.5f),
+                std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), text);
         }
         // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
         std::string label = a.path.filename().string();

@@ -144,9 +144,6 @@ void rv_editor_shell_menu(rv_editor_shell &shell);
 // The shortcuts of the spec's section 13 that have a command today.
 void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 
-// The shared toolbar under the menu: New, Open, Save, Undo, Redo (LAY-08).
-void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &theme);
-
 // Help > Keyboard Shortcuts, drawn after the workspace.
 void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 

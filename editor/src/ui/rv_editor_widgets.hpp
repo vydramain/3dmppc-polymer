@@ -22,28 +22,22 @@ namespace rv_editor
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
 bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
     const rv_editor_state &state = {});
-// A transport key (VIS-06): a 24 px picture over its label, 52 px tall, as wide
-// as rv_editor_tool_button_width says. `color` draws the fallback glyph when the
-// icon is missing. The tooltip names `shortcut`
+// A transport button of frame height: a pixel picture in `color` beside its label,
+// as wide as rv_editor_tool_button_width says. The tooltip names `shortcut`
 // (nullptr: none); a disabled button dims the picture and its tooltip says why.
 bool rv_editor_tool_button(const char *label, rv_editor_glyph glyph, uint32_t color, const char *shortcut,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
 
-// A square button of frame height with a 16 px icon from editor/icons;
-// `tooltip` names what it does. A `danger` button (Delete) wears a red outline so
-// it never passes for a harmless one.
-bool rv_editor_image_button(const char *id, const char *icon, const char *tooltip, const rv_editor_theme &theme,
-    const rv_editor_state &state = {}, bool danger = false);
-
-// One row of a Toolchest: a 16 px icon and its label across the pane's width,
-// `tooltip` saying what it does (a disabled row says why instead).
-bool rv_editor_command_button(const char *id, const char *icon, const char *label, const char *tooltip,
+// A square button of frame height with one coloured letter standing in for an
+// icon; `tooltip` names what it does.
+bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const char *tooltip,
     const rv_editor_theme &theme, const rv_editor_state &state = {});
 
-// A 16 px icon from editor/icons at `at` (top left), dimmed when `disabled`.
-void rv_editor_icon_draw(ImDrawList *dl, const char *icon, ImVec2 at, const rv_editor_theme &theme,
-    bool disabled = false);
+// One row of a Toolchest across the pane's width: a coloured letter and the label,
+// `tooltip` saying what it does (a disabled row says why instead).
+bool rv_editor_command_button(const char *id, char letter, uint32_t color, const char *label, const char *tooltip,
+    const rv_editor_theme &theme, const rv_editor_state &state = {});
 
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});

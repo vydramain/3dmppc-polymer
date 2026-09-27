@@ -10,6 +10,7 @@
 
 #include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_game_fit.hpp"
+#include "panes/rv_editor_panes.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -184,8 +185,7 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
 {
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
     // Catalog cells of each kind, one whose picture failed, and a drop pocket to drop them on.
-    const char *files[][2] = { { "file-image", "sprite.png" }, { "file-sound", "tone.pcm" }, { "file-lua", "main.lua" },
-        { "file-toml", "main.scene.toml" }, { "file-image", "broken.png (no picture)" } };
+    const char *files[] = { "sprite.png", "tone.pcm", "main.lua", "main.scene.toml", "broken.png (no picture)" };
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float cell = ImGui::GetFontSize() * 6.0f;
     for (int i = 0; i < 5; ++i) {
@@ -196,13 +196,16 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
         const ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImGui::InvisibleButton("##cell", ImVec2(cell, cell * 0.7f));
         if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload("RV_ASSET", files[i][1], std::strlen(files[i][1]) + 1);
-            ImGui::TextUnformatted(files[i][1]);
+            ImGui::SetDragDropPayload("RV_ASSET", files[i], std::strlen(files[i]) + 1);
+            ImGui::TextUnformatted(files[i]);
             ImGui::EndDragDropSource();
         }
-        rv_editor_icon_draw(dl, files[i][0], ImVec2(p0.x + cell * 0.4f, p0.y + 4.0f), theme, i == 4);
+        char letter[2] = { 'F', '\0' };
+        uint32_t color = 0;
+        rv_editor_file_chip(files[i], letter[0], color);
+        dl->AddText(ImVec2(p0.x + cell * 0.4f, p0.y + 4.0f), rv_editor_col(i == 4 ? theme.text_disabled : color), letter);
         dl->AddText(ImVec2(p0.x + 2.0f, p0.y + cell * 0.45f), rv_editor_col(i == 4 ? theme.warning : theme.text),
-            files[i][1]);
+            files[i]);
         ImGui::PopID();
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0f);

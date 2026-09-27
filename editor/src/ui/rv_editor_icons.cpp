@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
-#include <map>
 #include <string>
 
 #include <SDL3/SDL.h>
@@ -31,8 +30,6 @@ constexpr const char *rv_editor_icon_files[rv_editor_icon_count] = {
 };
 
 rv_editor_icon rv_editor_icons[rv_editor_icon_count] = {};
-// editor/icons by file stem, "folder-16".
-std::map<std::string, rv_editor_icon, std::less<>> rv_editor_own_icons;
 
 rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &path)
 {
@@ -70,15 +67,6 @@ void rv_editor_icons_load(SDL_Renderer *renderer)
     for (int i = 0; i < rv_editor_icon_count; ++i) {
         rv_editor_icons[i] = rv_editor_icon_load(renderer, std::string(RV_EDITOR_ICON_DIR) + "/" + rv_editor_icon_files[i]);
     }
-    std::error_code ec;
-    for (std::filesystem::directory_iterator it(RV_EDITOR_OWN_ICON_DIR, ec), end; !ec && it != end; it.increment(ec)) {
-        if (it->path().extension() == ".png") {
-            rv_editor_own_icons[it->path().stem().string()] = rv_editor_icon_load(renderer, it->path().string());
-        }
-    }
-    if (rv_editor_own_icons.empty()) {
-        std::fprintf(stderr, "3dmppc-editor: no icons in %s\n", RV_EDITOR_OWN_ICON_DIR);
-    }
 }
 
 void rv_editor_icons_free()
@@ -89,27 +77,6 @@ void rv_editor_icons_free()
         }
         icon = {};
     }
-    for (auto &[name, icon] : rv_editor_own_icons) {
-        if (icon.id != 0) {
-            SDL_DestroyTexture(reinterpret_cast<SDL_Texture *>(static_cast<intptr_t>(icon.id)));
-        }
-    }
-    rv_editor_own_icons.clear();
-}
-
-rv_editor_icon rv_editor_icon_find(std::string_view name, int px)
-{
-    constexpr int sizes[] = { 48, 32, 24, 16 };
-    for (const int size : sizes) {
-        if (size > px && size != 16) {
-            continue;
-        }
-        const auto it = rv_editor_own_icons.find(std::string(name) + "-" + std::to_string(size));
-        if (it != rv_editor_own_icons.end()) {
-            return it->second;
-        }
-    }
-    return {};
 }
 
 rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name)

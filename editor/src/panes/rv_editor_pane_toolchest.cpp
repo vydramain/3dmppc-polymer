@@ -17,15 +17,15 @@ namespace
 
 void rv_editor_toolchest_code(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (rv_editor_command_button("##new", "new-file", "New File", "A new Untitled buffer in the code tile", theme)) {
+    if (rv_editor_command_button("##new", 'N', theme.code_green, "New File", "A new Untitled buffer in the code tile", theme)) {
         app.new_file_request = true;
     }
-    if (rv_editor_command_button("##find", "search", "Find in Project", "Search the project's files (Ctrl+Shift+F)",
+    if (rv_editor_command_button("##find", 'F', theme.code_blue, "Find in Project", "Search the project's files (Ctrl+Shift+F)",
             theme)) {
         app.project_search.focus = true;
         app.show_request = rv_editor_pane_kind::search;
     }
-    if (rv_editor_command_button("##build", "build", "Build", "Build the project (Ctrl+B)", theme,
+    if (rv_editor_command_button("##build", 'B', theme.code_yellow, "Build", "Build the project (Ctrl+B)", theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build(app);
     }
@@ -34,19 +34,19 @@ void rv_editor_toolchest_code(rv_editor_app &app, const rv_editor_theme &theme)
 void rv_editor_toolchest_debug(rv_editor_app &app, const rv_editor_theme &theme)
 {
     // Each brings its pane forward or does its one thing; the session itself is below.
-    if (rv_editor_command_button("##source", "source", "Source", "The code tile", theme)) {
+    if (rv_editor_command_button("##source", 'S', theme.code_blue, "Source", "The code tile", theme)) {
         app.show_request = rv_editor_pane_kind::code;
     }
-    if (rv_editor_command_button("##inspect", "inspector", "Inspect", "The runtime Inspector", theme)) {
+    if (rv_editor_command_button("##inspect", 'I', theme.code_cyan, "Inspect", "The runtime Inspector", theme)) {
         app.show_request = rv_editor_pane_kind::observe;
     }
     const char *why_not_capture = app.session.live() ? nullptr : "No session is running: there is no frame to capture";
-    if (rv_editor_command_button("##capture", "capture", "Capture", "Save the Game's frame as a PNG in Findings", theme,
+    if (rv_editor_command_button("##capture", 'C', theme.code_magenta, "Capture", "Save the Game's frame as a PNG in Findings", theme,
             { rv_editor_look::live, why_not_capture })) {
         app.show_request = rv_editor_pane_kind::findings;
         app.capture_request = true;
     }
-    if (rv_editor_command_button("##record", "record", "Record Finding", "Findings: steps, expected, actual", theme)) {
+    if (rv_editor_command_button("##record", 'R', theme.code_red, "Record Finding", "Findings: steps, expected, actual", theme)) {
         app.show_request = rv_editor_pane_kind::findings;
     }
     // The session in brief, as its facts say it: nothing invented when there is none.
@@ -70,21 +70,21 @@ void rv_editor_toolchest_debug(rv_editor_app &app, const rv_editor_theme &theme)
 
 void rv_editor_toolchest_burn(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (rv_editor_command_button("##candidate", "candidate", "Build Candidate", "A new numbered disc image", theme,
+    if (rv_editor_command_button("##candidate", 'B', theme.code_yellow, "Build Candidate", "A new numbered disc image", theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build_candidate(app);
     }
     const char *none = app.release.candidates.empty() ? "No candidate yet: Build Candidate first" : nullptr;
-    if (rv_editor_command_button("##inspect", "inspect", "Inspect Artifact", "The shown candidate's identity", theme,
+    if (rv_editor_command_button("##inspect", 'I', theme.code_cyan, "Inspect Artifact", "The shown candidate's identity", theme,
             { rv_editor_look::live, none })) {
         app.burn_submode_request = rv_editor_layout_preset::burn;
         app.show_request = rv_editor_pane_kind::candidate;
     }
-    if (rv_editor_command_button("##verify", "verify", "Verify", "Read the image's bytes again", theme,
+    if (rv_editor_command_button("##verify", 'V', theme.code_green, "Verify", "Read the image's bytes again", theme,
             { rv_editor_look::live, none })) {
         rv_editor_candidate_hash(app.release.candidates[app.release.selected]);
     }
-    if (rv_editor_command_button("##report", "report", "Report", "Export the candidate's report", theme,
+    if (rv_editor_command_button("##report", 'R', theme.code_blue, "Report", "Export the candidate's report", theme,
             { rv_editor_look::live, none })) {
         rv_editor_app_export_report(app);
     }

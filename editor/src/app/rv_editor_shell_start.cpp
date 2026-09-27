@@ -176,13 +176,14 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     ImGui::Dummy(ImVec2(0.0f, pad));
     const float column = ImGui::GetFontSize() * 14.0f;
     ImGui::BeginChild("##start_commands", ImVec2(column, 0.0f), ImGuiChildFlags_AutoResizeY);
-    if (rv_editor_command_button("##new", "new-folder", "New Project...", "A new disc from a starting template", theme)) {
+    if (rv_editor_command_button("##new", 'N', theme.code_green, "New Project...", "A new disc from a starting template", theme)) {
         shell.start.form_open = true;
     }
-    if (rv_editor_command_button("##open", "open", "Open Directory...", "A game directory with a disc.toml", theme)) {
+    if (rv_editor_command_button("##open", 'D', 0x958831, "Open Directory...", "A game directory with a disc.toml", theme)) {
         rv_editor_shell_open_folder(shell);
     }
-    if (rv_editor_command_button("##manifest", "file-disc", "Open disc.toml...", "A disc.toml: its directory opens", theme)) {
+    if (rv_editor_command_button("##manifest", 'M', 0xfab387, "Open disc.toml...", "A disc.toml: its directory opens",
+            theme)) {
         rv_editor_shell_open_manifest(shell);
     }
     ImGui::EndChild();

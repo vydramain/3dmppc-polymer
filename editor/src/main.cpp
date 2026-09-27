@@ -103,15 +103,11 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     rv_editor::rv_editor_shell_menu(shell);
     rv_editor::rv_editor_shell_shortcuts(shell);
 
-    // The toolbar and the status bar take a row each; the tiles get the rest.
+    // The status bar takes a row; the tiles get the rest.
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
+    const ImVec2 top = viewport->WorkPos;
+    const ImVec2 size = viewport->WorkSize;
     const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
-    if (rv_editor_bar_begin("##toolbar", viewport->WorkPos, ImVec2(viewport->WorkSize.x, bar))) {
-        rv_editor::rv_editor_shell_toolbar(shell, theme);
-    }
-    ImGui::End();
-    const ImVec2 top(viewport->WorkPos.x, viewport->WorkPos.y + bar);
-    const ImVec2 size(viewport->WorkSize.x, viewport->WorkSize.y - bar);
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
         const rv_editor::rv_editor_app &app = shell.app;
         // The project's name and the toolchain in brief; paths and versions are in
