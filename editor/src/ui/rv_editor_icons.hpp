@@ -37,6 +37,10 @@ void rv_editor_icons_free();
 
 rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name);
 
+// Any PNG as a texture on `renderer`, drawn with nearest sampling (Assets' pictures);
+// an empty icon when it does not load. The caller keeps it for the session.
+rv_editor_icon rv_editor_image_load(SDL_Renderer *renderer, const std::string &path);
+
 // The editor's own icons (editor/icons, spec section 16) by name and pixel size,
 // "folder" at 16: the largest drawn size not above `px` (16, 24, 32, 48), or the
 // smallest when `px` is below all. An unknown name gives an empty icon.

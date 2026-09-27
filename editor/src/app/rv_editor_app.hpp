@@ -120,6 +120,14 @@ struct rv_editor_scene_ui
     rv_editor_vec3 gizmo_before_scale{};
 };
 
+// Assets' own view: the folder shown (0: all), the filter, icons or details.
+struct rv_editor_assets_ui
+{
+    int folder = 0;
+    char filter[64] = {};
+    bool details = false;
+};
+
 // The files a code tile has shown, one tab each, and the one its Close Tab let
 // go of until nvim has moved the window on.
 struct rv_editor_code_tabs
@@ -266,6 +274,7 @@ struct rv_editor_app
     std::unique_ptr<rv_editor_scene_doc> scene;
     std::string scene_error;
     rv_editor_scene_ui scene_ui;
+    rv_editor_assets_ui assets_ui;
     // Reload On Save: when the last .lua change settled enough to reload; zero: none due.
     std::chrono::steady_clock::time_point reload_due{};
 };

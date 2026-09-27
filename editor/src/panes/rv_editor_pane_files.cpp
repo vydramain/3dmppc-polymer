@@ -80,10 +80,17 @@ const char *rv_editor_files_icon(const rv_editor_file_node &node)
     if (node.dir) {
         return node.expanded ? "folder-open" : "folder";
     }
-    if (node.name == "disc.toml") {
+    return rv_editor_file_kind_icon(node.path);
+}
+
+} // namespace
+
+const char *rv_editor_file_kind_icon(const std::filesystem::path &path)
+{
+    if (path.filename() == "disc.toml") {
         return "file-disc";
     }
-    const std::string ext = node.path.extension().string();
+    const std::string ext = path.extension().string();
     struct kind
     {
         const char *ext;
@@ -100,6 +107,9 @@ const char *rv_editor_files_icon(const rv_editor_file_node &node)
     }
     return "file-unknown";
 }
+
+namespace
+{
 
 void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node,
     const rv_editor_theme &theme)

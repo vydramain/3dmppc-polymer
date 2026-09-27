@@ -60,6 +60,11 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
 
 } // namespace
 
+rv_editor_icon rv_editor_image_load(SDL_Renderer *renderer, const std::string &path)
+{
+    return rv_editor_icon_load(renderer, path);
+}
+
 void rv_editor_icons_load(SDL_Renderer *renderer)
 {
     for (int i = 0; i < rv_editor_icon_count; ++i) {
