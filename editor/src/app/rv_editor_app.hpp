@@ -271,6 +271,8 @@ struct rv_editor_app
     uint64_t run_config_revision = 1;
     rv_editor_run_form run_form;
     bool run_after_stop = false;
+    // The Profile button or Run > Run Configuration asked for its window.
+    bool run_config_open = false;
     // The scene the Scene layout edits, if one is open, and why the last open failed.
     std::unique_ptr<rv_editor_scene_doc> scene;
     std::string scene_error;

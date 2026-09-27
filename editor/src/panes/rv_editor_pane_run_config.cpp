@@ -1,8 +1,10 @@
-// Run Configuration: the project's run profiles (CFG-01) as a form. Nothing here
-// touches a running session: Apply is for the next Run, Apply and Restart says so.
+// Run Configuration: the project's run profiles (CFG-01), a list beside a form, in a
+// window of its own. Nothing here touches a running session: Apply is for the next
+// Run, Apply and Restart says so.
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <string>
 #include <string_view>
@@ -76,76 +78,69 @@ void rv_editor_run_path(const char *label, char *buf, size_t size, const char *e
     ImGui::SetItemTooltip("Empty: %s. Relative: to the project root.", empty_means);
 }
 
-} // namespace
-
-void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
+// The profiles as a list on the left, with New and Delete under it; choosing one
+// is itself applied: Run uses the one shown.
+void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const rv_editor_theme &theme)
 {
-    if (!app.project.open) {
-        rv_editor_open_project_row(app, theme);
-        return;
-    }
     rv_editor_run_config &config = app.run_config;
-    rv_editor_run_form &form = app.run_form;
-    if (form.loaded != app.run_config_revision) {
-        rv_editor_run_form_fill(form, config.profiles[config.active]);
-        form.loaded = app.run_config_revision;
+    ImGui::BeginGroup();
+    const float side = ImGui::GetFrameHeight();
+    rv_editor_scroll_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y));
+    for (size_t i = 0; i < config.profiles.size(); ++i) {
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::Selectable(config.profiles[i].name.c_str(), i == config.active) && i != config.active) {
+            config.active = i;
+            rv_editor_app_profiles_save(app);
+        }
+        ImGui::PopID();
     }
-    if (!config.error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s: the defaults below are used; Apply writes the file anew.", config.error.c_str());
-        ImGui::PopStyleColor();
-    }
-
-    // Choosing a profile is itself applied: Run uses the one shown.
-    std::vector<const char *> names;
-    for (const rv_editor_run_profile &p : config.profiles) {
-        names.push_back(p.name.c_str());
-    }
-    int current = static_cast<int>(config.active);
-    ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Profile");
-    ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12.0f);
-    if (rv_editor_dropdown("##profile", &current, names.data(), static_cast<int>(names.size()), theme)) {
-        config.active = static_cast<size_t>(current);
-        rv_editor_app_profiles_save(app);
-    }
-    ImGui::SameLine();
-    if (rv_editor_button("New", theme)) {
+    rv_editor_scroll_end(theme);
+    if (rv_editor_letter_button("##new", 'N', theme.code_green, "New profile: a copy of this one, as last applied",
+            theme)) {
         rv_editor_run_profile copy = config.profiles[config.active];
         copy.name = "Profile" + std::to_string(config.profiles.size() + 1);
         config.profiles.push_back(std::move(copy));
         config.active = config.profiles.size() - 1;
         rv_editor_app_profiles_save(app);
     }
-    ImGui::SetItemTooltip("A copy of this profile, as last applied");
     ImGui::SameLine();
-    if (rv_editor_button("Delete", theme,
+    if (rv_editor_letter_button("##delete", 'X', theme.code_red, "Delete this profile", theme,
             { rv_editor_look::live, config.profiles.size() == 1 ? "The last profile stays" : nullptr })) {
         config.profiles.erase(config.profiles.begin() + static_cast<std::ptrdiff_t>(config.active));
         config.active = 0;
         rv_editor_app_profiles_save(app);
     }
+    ImGui::EndGroup();
+}
+
+// The shown profile's fields, as edited until Apply.
+void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
+{
+    rv_editor_run_form &form = app.run_form;
+    rv_editor_scroll_begin("##fields", size);
+    if (!app.run_config.error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
+        ImGui::TextWrapped("%s: the defaults below are used; Apply writes the file anew.", app.run_config.error.c_str());
+        ImGui::PopStyleColor();
+    }
     if (app.session.live()) {
         ImGui::TextWrapped("Session %u keeps what it started with: Apply is for the next Run.", app.session.number());
     }
-
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Name");
     ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12.0f);
+    ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
     rv_editor_run_path("Runtime", form.runtime, sizeof(form.runtime), "the runtime in File > Settings", theme);
     rv_editor_run_path("Memory card", form.memcard, sizeof(form.memcard), "the project's own card", theme);
     rv_editor_run_path("Working dir", form.cwd, sizeof(form.cwd), "the project root", theme);
     rv_editor_checkbox("Mute", &form.mute, theme);
-    ImGui::SameLine();
+    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
     rv_editor_checkbox("Start Paused", &form.paused, theme);
     ImGui::SetItemTooltip("Stopped before frame 0: Run, then Resume or Step");
-    ImGui::SameLine();
     rv_editor_checkbox("Fixed Step", &form.fixed_step, theme);
     ImGui::SetItemTooltip("No real-time wait and no audio: every frame is 1/60 s of machine time");
-    ImGui::SameLine();
+    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
     rv_editor_checkbox("Reload On Save", &form.reload_on_save, theme);
     ImGui::SetItemTooltip("A saved .lua file reloads the entry script of a running session that can reload");
     const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * 3.5f);
@@ -153,7 +148,15 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::InputTextMultiline("##args", form.args, sizeof(form.args), box);
     ImGui::TextUnformatted("Environment, KEY=VALUE per line, over the editor's own");
     ImGui::InputTextMultiline("##env", form.env, sizeof(form.env), box);
+    rv_editor_scroll_end(theme);
+}
 
+// What is wrong with the edited profile, then Apply, Apply and Restart and Revert.
+// True when the form was applied.
+bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    rv_editor_run_config &config = app.run_config;
+    rv_editor_run_form &form = app.run_form;
     const rv_editor_run_profile edited = rv_editor_run_form_profile(form);
     std::string problem = rv_editor_run_profile_problem(edited, app.project.root);
     for (size_t i = 0; i < config.profiles.size() && problem.empty(); ++i) {
@@ -185,6 +188,59 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
         app.run_after_stop = true;
         rv_editor_app_stop(app);
     }
+    return apply || restart;
+}
+
+// The list beside the fields in `size`, the actions under both.
+void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
+{
+    rv_editor_run_config &config = app.run_config;
+    if (app.run_form.loaded != app.run_config_revision) {
+        rv_editor_run_form_fill(app.run_form, config.profiles[config.active]);
+        app.run_form.loaded = app.run_config_revision;
+    }
+    const float list = ImGui::GetFontSize() * 12.0f;
+    rv_editor_run_profiles(app, list, size.y, theme);
+    ImGui::SameLine();
+    rv_editor_run_fields(app, ImVec2(std::max(1.0f, size.x - list - ImGui::GetStyle().ItemSpacing.x), size.y), theme);
+}
+
+} // namespace
+
+void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    if (!app.project.open) {
+        rv_editor_open_project_row(app, theme);
+        return;
+    }
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const float actions = ImGui::GetFrameHeightWithSpacing() * 2.0f;
+    rv_editor_run_editor(app, ImVec2(avail.x, std::max(ImGui::GetFrameHeight() * 6.0f, avail.y - actions)), theme);
+    rv_editor_run_actions(app, theme);
+}
+
+void rv_editor_run_config_dialog(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    const char *const title = "Run Configuration";
+    if (app.run_config_open) {
+        app.run_config_open = false;
+        if (app.project.open) {
+            ImGui::OpenPopup(title);
+        }
+    }
+    if (!rv_editor_dialog_begin(title, theme)) {
+        return;
+    }
+    // Sized for the form, not for a tile: the list, then the fields beside it.
+    const float em = ImGui::GetFontSize();
+    rv_editor_run_editor(app, ImVec2(em * 56.0f, em * 26.0f), theme);
+    ImGui::Separator();
+    const bool applied = rv_editor_run_actions(app, theme);
+    ImGui::SameLine();
+    if (rv_editor_button("Close", theme) || applied || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        ImGui::CloseCurrentPopup();
+    }
+    rv_editor_dialog_end();
 }
 
 } // namespace rv_editor

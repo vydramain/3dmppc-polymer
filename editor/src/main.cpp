@@ -16,6 +16,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
+#include "panes/rv_editor_panes.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -148,6 +149,7 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     rv_editor::rv_editor_shell_dialogs(shell, theme);
     rv_editor::rv_editor_shell_help(shell, theme);
     rv_editor::rv_editor_shell_settings(shell, theme);
+    rv_editor::rv_editor_run_config_dialog(shell.app, theme);
     rv_editor::rv_editor_shell_terminal_dialog(shell, theme);
     rv_editor::rv_editor_shell_game_input(shell);
 }
