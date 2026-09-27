@@ -150,7 +150,7 @@ void rv_editor_menu_view(rv_editor_shell &shell)
         {
             float scale;
             const char *label;
-        } scales[] = { { 1.0f, "100 %" }, { 1.5f, "150 %" }, { 2.0f, "200 %" } };
+        } scales[] = { { 1.0f, "1x" }, { 2.0f, "2x" }, { 3.0f, "3x" } };
         for (const auto &s : scales) {
             if (ImGui::MenuItem(s.label, nullptr, shell.ui_scale == s.scale)) {
                 shell.ui_scale_request = s.scale;

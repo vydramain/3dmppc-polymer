@@ -192,7 +192,6 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     }
 
     // The title sits on a solid patch so the stipple never runs through letters.
-    ImGui::PushFont(rv_editor_font_ui_italic(), 0.0f);
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
     // A title longer than the room between the boxes ends in "..." and shows whole
     // in a tooltip (UI-05).
@@ -213,7 +212,6 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
             ImGui::SetTooltip("%.*s", static_cast<int>(end - title), title);
         }
     }
-    ImGui::PopFont();
 
     // The bar as one layout item, so what follows starts below it.
     ImGui::SetCursorScreenPos(min);

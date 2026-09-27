@@ -40,7 +40,7 @@ struct rv_editor_theme
     int32_t pad_px;         // inner padding, before scale
     int32_t scrollbar_px;   // scrollbar thickness, before scale
     int32_t splitter_px;    // the bar a splitter is grabbed by; it draws pad_px of it
-    float scale;            // UI scale, from --scale and View > UI Scale: 1, 1.5, 2 ...
+    float scale;            // whole UI scale, from --scale and View > UI Scale: the font is a pixel font
 };
 
 inline constexpr rv_editor_theme rv_editor_theme_olive = {

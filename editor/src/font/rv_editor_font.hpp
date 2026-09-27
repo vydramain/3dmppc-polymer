@@ -5,13 +5,12 @@
 namespace rv_editor
 {
 
-// The editor's fonts (docs/adr/0004-fonts.md): the interface draws in Liberation
-// Sans, pane titles in its italic; code and logs in PxPlus in one of three sizes.
-// Every size is multiplied by the UI scale.
-inline constexpr float rv_editor_font_ui_px = 14.0f;
+// The editor's fonts (docs/adr/0004-fonts.md): the interface draws in pdklib's
+// 5x7 font in an 8 px line; code and logs in one of three code sizes.
+inline constexpr int rv_editor_font_ui_height = 8;
 
 // small: PxPlus IBM EGA 8x14 at 14 px; normal and large: PxPlus IBM VGA 9x16 at
-// 16 and 32 px.
+// 16 and 32 px. Each is multiplied by --scale.
 enum class rv_editor_code_size
 {
     small,
@@ -19,17 +18,15 @@ enum class rv_editor_code_size
     large,
 };
 
-// Adds the fonts; the interface font becomes ImGui's default. False when the
-// interface font or both code fonts do not load; a missing italic draws titles
-// upright, a missing code font leaves the other's sizes, and each says so.
-bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale);
+// Adds the fonts at their heights times `scale`; the interface font becomes
+// ImGui's default. False when ImGui refuses the interface font or both code
+// fonts; a code font file that does not load leaves the other's sizes, and says so.
+bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale);
 
-// The UI scale the code sizes are multiplied by, after View > UI Scale.
-void rv_editor_font_scale_set(float scale);
+// The whole scale the code sizes are multiplied by, after View > UI Scale.
+void rv_editor_font_scale_set(int scale);
 
 ImFont *rv_editor_font_ui();
-// The interface font's italic, for pane and dialog titles.
-ImFont *rv_editor_font_ui_italic();
 
 // The code size Code and Output draw in; a size whose font did not load takes
 // the other font.

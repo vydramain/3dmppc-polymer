@@ -32,7 +32,7 @@ struct rv_editor_prefs
     rv_editor_code_size code_size = rv_editor_code_size::normal;
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
     std::string workspace = "code"; // the layout shown last: "code", "scene", "debug" or "burn"
-    float ui_scale = 1.0f;          // View > UI Scale: 1, 1.5 or 2
+    float ui_scale = 1.0f;          // View > UI Scale: 1, 2 or 3
 };
 
 // "3dmppc-editor-view 1", then one "key value" line per setting.

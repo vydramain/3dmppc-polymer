@@ -222,9 +222,7 @@ void rv_editor_catalog_type(const rv_editor_theme &theme)
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
     ImGui::Text("UI font %.0f px at this scale; the code text has its own size (View > Code Text Size).",
         ImGui::GetFontSize());
-    ImGui::PushFont(rv_editor_font_ui_italic(), ImGui::GetFontSize());
-    ImGui::TextUnformatted("Pane titles are italic");
-    ImGui::PopFont();
+    ImGui::TextUnformatted("Interface: pdklib's 5x7 font in an 8 px line, 0O 1lI");
     rv_editor_font_code_push();
     ImGui::TextUnformatted("Code and logs: PxPlus IBM VGA 9x16, 0O 1lI");
     rv_editor_font_code_pop();

@@ -72,11 +72,8 @@ target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_R
   RV_EDITOR_OWN_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons"
   RV_EDITOR_TEMPLATE_DIR="${RV_REPO_ROOT}/mppcdiscs")
 
-# The interface font, Liberation Sans, and the code font, PxPlus IBM VGA 9x16
-# (third_party), read at run time the same way.
+# The code font, PxPlus IBM VGA 9x16 (third_party), read at run time the same way.
 target_compile_definitions(3dmppc-editor PRIVATE
-  RV_EDITOR_UI_FONT_FILE="${RV_REPO_ROOT}/third_party/liberation-sans/LiberationSans-Regular.ttf"
-  RV_EDITOR_UI_ITALIC_FONT_FILE="${RV_REPO_ROOT}/third_party/liberation-sans/LiberationSans-Italic.ttf"
   RV_EDITOR_CODE_FONT_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_VGA_9x16.ttf"
   RV_EDITOR_CODE_FONT_SMALL_FILE="${RV_REPO_ROOT}/third_party/pxplus-ibm-vga/PxPlus_IBM_EGA_8x14.ttf")
 

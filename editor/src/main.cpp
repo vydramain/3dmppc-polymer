@@ -25,19 +25,19 @@
 namespace
 {
 
-constexpr float rv_editor_scale_max = 4.0f;
+constexpr int rv_editor_scale_max = 8;
 
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
         "usage: 3dmppc-editor [-s|--scale N] [PATH]\n"
         "  PATH            A game directory, or its disc.toml, to open.\n"
-        "  -s, --scale N   UI scale in halves, 1..%.0f: 1, 1.5, 2 ... Default: 1. The editor draws one\n"
+        "  -s, --scale N   Integer UI scale, 1..%d. Default: 1. The editor draws one\n"
         "                  of its pixels per screen pixel unless this asks for more.\n",
         rv_editor_scale_max);
 }
 
-// Scale from the command line, in halves. False with exit_code set when the
+// Whole-number scale from the command line. False with exit_code set when the
 // program should stop: 0 after --help, 2 after a bad argument.
 bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path, int &exit_code)
 {
@@ -69,17 +69,15 @@ bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path
             return false;
         }
 
-        float parsed = 0.0f;
+        int parsed = 0;
         const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        const bool halves = parsed * 2.0f == static_cast<float>(static_cast<int>(parsed * 2.0f));
-        if (ec != std::errc{} || end != value.data() + value.size() || parsed < 1.0f || parsed > rv_editor_scale_max ||
-            !halves) {
-            std::fprintf(stderr, "3dmppc-editor: --scale takes 1, 1.5, 2 ... %.0f, not '%.*s'\n",
+        if (ec != std::errc{} || end != value.data() + value.size() || parsed < 1 || parsed > rv_editor_scale_max) {
+            std::fprintf(stderr, "3dmppc-editor: --scale takes a whole number 1..%d, not '%.*s'\n",
                 rv_editor_scale_max, static_cast<int>(value.size()), value.data());
             exit_code = 2;
             return false;
         }
-        scale = parsed;
+        scale = static_cast<float>(parsed);
     }
     return true;
 }
@@ -233,7 +231,7 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
     theme.scale = scale > 0.0f ? scale : prefs.ui_scale;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, theme.scale)) {
+    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, static_cast<int>(theme.scale))) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
         ImGui::DestroyContext();
         SDL_DestroyRenderer(renderer);
@@ -280,8 +278,8 @@ int main(int argc, char **argv)
             shell->ui_scale = theme.scale;
             shell->ui_scale_request = 0.0f;
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-            ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui_px * theme.scale;
-            rv_editor::rv_editor_font_scale_set(theme.scale);
+            ImGui::GetStyle().FontSizeBase = static_cast<float>(rv_editor::rv_editor_font_ui_height) * theme.scale;
+            rv_editor::rv_editor_font_scale_set(static_cast<int>(theme.scale));
         }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
