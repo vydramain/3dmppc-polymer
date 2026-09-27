@@ -4,10 +4,11 @@ A separate program from the console and the tools. It works on a game
 directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
-It shows its tiled workspace between the menu bar, a toolbar and a status bar.
-A tile's header has its menu box on the left and Maximize and Close on the
-right; a tile can be split, closed, maximized or turned into another kind of
-pane (Window > New Tile lists every kind), and several panes in one tile show
+It shows its tiled workspace between the menu bar and a status bar. A tile's
+header has X on the left to close it and M on the right to maximize it, and a
+right click on it opens the tile's menu; a tile can be split, closed, maximized
+or turned into another kind of pane (Window > New Tile lists every kind), and
+several panes in one tile show
 as folder tabs. The tile with the focus wears a brass frame; Ctrl+F6 and
 Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move the keyboard between
 tiles, as Tab belongs to the code editor and the terminal.
@@ -58,8 +59,8 @@ A player build of the console never builds it.
 File > Open Folder and File > Open disc.toml do the same from the menu.
 
 The editor draws one of its pixels per screen pixel, on a HiDPI display too.
-View > UI Scale sets 100, 150 or 200 % and keeps it; `--scale N` (1..4, in
-halves) does the same for one run. The code text size and the Game scale are
+View > UI Scale sets 1x, 2x or 3x and keeps it; `--scale N` (a whole number,
+1..8) does the same for one run. The code text size and the Game scale are
 separate choices.
 
 ### Building and running a game
@@ -97,8 +98,9 @@ reason, a player build of the console included.
 
 ### Code
 
-Toolchest (New File, Find in Project, Build) over Files, the code tile beside
-the Game, and Output, Problems, Terminal and Search Results underneath.
+Files on the left, the code tile beside the Game over its Runtime Controls,
+and the Terminal beside Output underneath. Problems and Search Results open from
+Window > New Tile, Edit > Find in Project and a build's diagnostics.
 
 - **Problems** lists the file, line and message of each error and warning the
   latest build printed; a double click or Enter opens the file at that line, and
@@ -111,11 +113,10 @@ the Game, and Output, Problems, Terminal and Search Results underneath.
 
 ### Debug
 
-For playing the game and finding out what it does. A strip of Runtime Controls
-sits over the Game, the code tile and the Inspector, with a Toolchest (Source,
-Inspect, Capture, Record Finding and the session in brief) on the left and the
-Runtime Log, Findings, Problems and a Terminal underneath. The transport keeps
-one row: what does not fit goes behind a labelled More.
+For playing the game and finding out what it does. Files on the left, the code
+tile over the Terminal, and the Game over its Runtime Controls over Output on
+the right; the Inspector, Runtime Log and Findings open from Window > New Tile.
+The transport keeps one row: what does not fit goes behind a labelled More.
 
 - **Inspector** shows what the console says about itself in its status: session,
   frame, disc, code hash, PDK, the entry script's revision and whether a reload
@@ -138,11 +139,11 @@ one row: what does not fit goes behind a labelled More.
 
 ### Burn
 
-For checking one disc image before it is released, in two modes: Build &
-Diagnose (Problems, the Build Log and the result of the build) and Candidate &
-Verify. Release Controls (Build Candidate, Run Candidate, Run in Player, Stop,
-Export Report) sit over the Release Candidate beside the Candidate Playtest,
-with the Build Log, Checks, Playtest Log and Findings underneath.
+For checking one disc image before it is released. Release Controls (Build
+Candidate, Run Candidate, Run in Player, Stop, Export Report) sit over the
+Release Candidate beside the Candidate Playtest, with the Build Log and the
+Playtest Log underneath; Checks, Findings and Build Result open from Window >
+New Tile.
 
 - **Build Candidate** runs `mppcburner build <root> -o <cache>/candidates/<n>.mppcdisc
   --baker <mppcbaker>`: a new number each time, never written over. A failed
@@ -204,7 +205,7 @@ does not know are written back as read, and a newer format opens read-only.
 
 Every change is one undo step, one drag included, and Escape takes a drag back;
 Ctrl+Z, Ctrl+Shift+Z, Delete and Ctrl+D work in the scene's tiles, and the
-toolbar's Save, Undo and Redo act on the scene in this layout. An unsaved scene
+Scene menu saves, undoes and redoes. An unsaved scene
 takes part in Save All and in the questions before Build, Run, Quit and Open.
 A game shows a scene only if its code reads it: example-cpp ships
 `scenes/main.scene.toml` through `[assets]` and draws each box with
@@ -329,12 +330,13 @@ sections, drawn by the editor's own code on fixed data.
 
 ### Fonts
 
-The interface draws in Liberation Sans at 14 px, italic for pane titles, times
-the UI scale: see [`third_party/liberation-sans/`](../third_party/liberation-sans/ORIGIN.md)
-(SIL OFL 1.1). Code, Output and the terminal draw in PxPlus IBM VGA 9x16 by
-VileR (int10h.org): View > Code Text Size picks Normal (16 px, the default),
-Large (32 px) or Small (PxPlus IBM EGA 8x14 at 14 px), and the choice is kept.
-The two font files carry PxPlus's CC BY-SA 4.0 licence: see
+The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8 px high, one
+blank column between letters) with no magnification beyond the UI scale. Code,
+Output and the terminal draw in PxPlus IBM VGA 9x16 by VileR (int10h.org): View >
+Code Text Size picks Normal (16 px, the default), Large (32 px) or Small (PxPlus
+IBM EGA 8x14 at 14 px), each times the UI scale, and the choice is kept. The two
+font files and the Cyrillic of the 5x7 font carry PxPlus's CC BY-SA 4.0 licence:
+see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
 ## Layout
