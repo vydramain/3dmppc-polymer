@@ -97,6 +97,7 @@ struct rv_editor_candidate
     std::string source_revision; // the sources' commit and whether they differed from it (REL-01)
     std::string operator_name;   // who approved or rejected it (REL-05)
     bool dirty = false;          // changed since its record was written
+    bool save_failed = false;    // the last write failed: tried again, said once
 };
 
 // The candidate's checks, all Not run.

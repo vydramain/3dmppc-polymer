@@ -182,6 +182,7 @@ std::vector<rv_editor_candidate> rv_editor_candidates_load(const std::filesystem
             if (check.state == rv_editor_check_state::running) {
                 check.state = rv_editor_check_state::not_run;
                 check.note = "interrupted: the editor closed while it ran";
+                c.dirty = true;
             }
         }
         out.push_back(std::move(c));

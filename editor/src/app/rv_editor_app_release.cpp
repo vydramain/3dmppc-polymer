@@ -174,11 +174,18 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     for (rv_editor_candidate &c : r.candidates) {
         rv_editor_candidate_poll(c);
         // Written as soon as it changes: a closed window loses nothing (DAT-03).
-        std::string error;
-        if (c.dirty && !rv_editor_candidate_save(rv_editor_candidates_dir(app), c, error)) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not kept: " + error);
+        if (!c.dirty) {
+            continue;
         }
-        c.dirty = false;
+        std::string error;
+        if (rv_editor_candidate_save(rv_editor_candidates_dir(app), c, error)) {
+            c.dirty = false;
+            c.save_failed = false;
+        } else if (!c.save_failed) {
+            c.save_failed = true;
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+                "candidate record not kept, trying again: " + error);
+        }
     }
     if (r.playing < 0 || static_cast<size_t>(r.playing) >= r.candidates.size()) {
         return;
