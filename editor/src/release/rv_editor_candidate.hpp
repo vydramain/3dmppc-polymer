@@ -12,7 +12,7 @@ namespace rv_editor
 
 // A release candidate: one disc image mppcburner wrote, under a number no other
 // image in the directory holds, identified by the SHA-256 of its bytes. What was checked on it
-// belongs to that hash; the editor keeps it in memory for this window only.
+// belongs to that hash and is kept on disk beside it (release/rv_editor_candidate_store.hpp).
 
 enum class rv_editor_check_state
 {
@@ -90,10 +90,12 @@ struct rv_editor_candidate
     // Approve asked: the bytes are read once more and the decision taken only
     // if they are still the ones checked.
     bool approve_pending = false;
-    std::pair<uint64_t, uint64_t> build_lines{ 0, 0 };  // the build's log lines, by seq
-    std::vector<std::pair<uint64_t, uint64_t>> runs;    // each playtest's log lines
+    uint32_t playtests = 0;    // how many ran; each one's log is kept beside the record
     std::string last_run_end;  // how the last playtest ended
     bool last_run_clean = false; // ended by quit or by itself, not forced, crashed or refused
+    std::string source_revision; // the sources' commit and whether they differed from it (REL-01)
+    std::string operator_name;   // who approved or rejected it (REL-05)
+    bool dirty = false;          // changed since its record was written
 };
 
 // The candidate's checks, all Not run.
@@ -121,5 +123,8 @@ void rv_editor_candidate_poll(rv_editor_candidate &c);
 
 // "2026-09-26 21:04:05".
 std::string rv_editor_wall_clock();
+
+// Who decides: the login name the session gives ($USER), else "unknown operator".
+std::string rv_editor_operator();
 
 } // namespace rv_editor

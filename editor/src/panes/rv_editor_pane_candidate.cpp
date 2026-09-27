@@ -52,11 +52,18 @@ std::string rv_editor_decision_text(const rv_editor_candidate &c)
     if (c.bytes_changed && c.decision != rv_editor_decision::none) {
         return "Decision void: it was made on bytes the image no longer holds";
     }
+    // Build succeeded, checks passed and approved are three facts (REL-05).
     switch (c.decision) {
-        case rv_editor_decision::approved: return "Approved for release at " + c.decided_at;
-        case rv_editor_decision::rejected: return "Rejected at " + c.decided_at;
-        default: return c.approve_pending ? "Not decided: verifying the bytes before approving" : "Not decided";
+        case rv_editor_decision::approved:
+            return "Approved for release by " + c.operator_name + " at " + c.decided_at + ", sha256 " +
+                c.sha256.substr(0, 12) + "...";
+        case rv_editor_decision::rejected: return "Rejected by " + c.operator_name + " at " + c.decided_at;
+        default: break;
     }
+    if (c.approve_pending) {
+        return "Awaiting approval: verifying the bytes before approving";
+    }
+    return rv_editor_why_not_approve(c) == nullptr ? "Awaiting approval" : "Not ready";
 }
 
 // Why the operator cannot pass manual check `id` now; nullptr when they can.
@@ -65,7 +72,7 @@ const char *rv_editor_why_not_pass(const rv_editor_app &app, const rv_editor_can
     if (c.bytes_changed || c.sha256.empty()) {
         return "These bytes are not the ones built";
     }
-    if (c.runs.empty()) {
+    if (c.playtests == 0) {
         return "Run the candidate first: a result is for what was seen playing it";
     }
     if (id != rv_editor_check_exit) {
@@ -193,10 +200,10 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_status(r.last_failure.c_str(), rv_editor_status_kind::error, theme);
     }
     if (r.candidates.empty()) {
-        ImGui::TextWrapped("No candidate built in this window. Build Candidate has mppcburner write a disc image "
-                           "under a new number; the checks below are then kept for exactly its bytes.");
-        rv_editor_dim_text("Candidates and their checks live in this window's memory; the images stay in " +
-            (app.project.cache_dir / "candidates").string() + ". Export Report writes a summary next to them.");
+        ImGui::TextWrapped("No candidate yet. Build Candidate has mppcburner write a disc image under a new "
+                           "number; the checks below are then kept for exactly its bytes.");
+        rv_editor_dim_text("Each candidate's image, record, logs and reports are kept in " +
+            (app.project.cache_dir / "candidates").string() + " and come back when the project opens.");
         return;
     }
 
@@ -240,8 +247,8 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         const bool playing = app.session.live() && r.playing >= 0 && static_cast<size_t>(r.playing) == r.selected;
         rv_editor_row("Playtest", playing ? "session #" + std::to_string(app.session.number()) + ", " +
                     rv_editor_run_state_name(app.session.state()) + ", on the development console"
-                : c.runs.empty() ? std::string("not run yet")
-                                 : std::to_string(c.runs.size()) + " run(s); last ended: " + c.last_run_end);
+                : c.playtests == 0 ? std::string("not run yet")
+                                   : std::to_string(c.playtests) + " run(s); last ended: " + c.last_run_end);
         ImGui::EndTable();
     }
     rv_editor_path_row("Image", c.image.string(), theme);
@@ -282,11 +289,15 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_button("Reject", theme)) {
         c.decision = rv_editor_decision::rejected;
         c.decided_at = rv_editor_wall_clock();
+        c.operator_name = rv_editor_operator();
+        c.dirty = true;
     }
     ImGui::SameLine();
     if (rv_editor_button("Undecide", theme)) {
         c.decision = rv_editor_decision::none;
         c.decided_at.clear();
+        c.operator_name.clear();
+        c.dirty = true;
     }
     if (!r.report.empty()) {
         rv_editor_path_row("Report", r.report, theme);

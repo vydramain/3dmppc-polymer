@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "project/rv_editor_templates.hpp"
+#include "release/rv_editor_candidate_store.hpp"
 
 namespace rv_editor
 {
@@ -90,6 +91,16 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.game_captured = false;
     app.session.pad(0, app.log);
     app.files.open(app.project.root, app.log);
+    std::vector<std::string> unread;
+    app.release.candidates = rv_editor_candidates_load(app.project.cache_dir / "candidates", unread);
+    for (const std::string &why : unread) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not read: " + why);
+    }
+    // Their identity is checked again: the bytes may have changed while no window watched (REL-02).
+    for (rv_editor_candidate &c : app.release.candidates) {
+        rv_editor_candidate_hash(c);
+    }
+    app.release.selected = app.release.candidates.empty() ? 0 : app.release.candidates.size() - 1;
     app.run_config = rv_editor_run_config_load(app.project.root);
     if (!app.run_config.error.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.run_config.error);

@@ -3,6 +3,9 @@
 
 #include "app/rv_editor_app.hpp"
 
+#include "release/rv_editor_candidate_store.hpp"
+#include "project/rv_editor_toml.hpp"
+
 #include <charconv>
 #include <fstream>
 #include <system_error>
@@ -80,7 +83,12 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.baker = app.tools.baker.version;
     c.tree_changed = r.tree_changed_during;
     c.checks = rv_editor_checks_make();
-    c.build_lines = { r.build_first_seq, app.log.revision() };
+    std::string error;
+    if (!rv_editor_file_replace(rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "build"),
+            rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error)) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "build log not kept: " + error);
+    }
+    c.dirty = true;
     rv_editor_candidate_hash(c);
     r.candidates.push_back(std::move(c));
     r.selected = r.candidates.size() - 1;
@@ -144,12 +152,11 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
     // Its own memory card, so no save of the development builds reaches it.
     std::filesystem::path card = c.image;
     card.replace_extension(".mppccard");
-    const uint64_t first = app.log.revision() + 1;
+    r.playtest_first_seq = app.log.revision() + 1;
     if (!rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card)) {
         return;
     }
     r.playing = static_cast<int>(r.selected);
-    c.runs.push_back({ first, 0 });
     rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::running, "session #" +
         std::to_string(app.session.number()), app.tools.console.path.string());
 }
@@ -162,6 +169,12 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     }
     for (rv_editor_candidate &c : r.candidates) {
         rv_editor_candidate_poll(c);
+        // Written as soon as it changes: a closed window loses nothing (DAT-03).
+        std::string error;
+        if (c.dirty && !rv_editor_candidate_save(rv_editor_candidates_dir(app), c, error)) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not kept: " + error);
+        }
+        c.dirty = false;
     }
     if (r.playing < 0 || static_cast<size_t>(r.playing) >= r.candidates.size()) {
         return;
@@ -182,7 +195,14 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     if (loads.state == rv_editor_check_state::running) {
         rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::failed, s.end_reason(), env);
     }
-    c.runs.back().second = app.log.revision();
+    ++c.playtests;
+    std::string error;
+    if (!rv_editor_file_replace(
+            rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "playtest-" + std::to_string(c.playtests)),
+            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()), error)) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest log not kept: " + error);
+    }
+    c.dirty = true;
     c.last_run_end = s.end_reason();
     c.last_run_clean = s.state() == rv_editor_run_state::exited && s.end_reason().rfind("force", 0) != 0;
     r.playing = -1;
@@ -224,14 +244,18 @@ void rv_editor_app_export_report(rv_editor_app &app)
     t += "\n" + rv_editor_checks_summary(c) + "\n";
     const bool void_decision = c.bytes_changed && c.decision != rv_editor_decision::none;
     t += std::string("decision: ") + (void_decision ? "void (other bytes); was " : "");
-    t += c.decision == rv_editor_decision::approved ? "approved at " + c.decided_at
-        : c.decision == rv_editor_decision::rejected ? "rejected at " + c.decided_at
-                                                     : std::string("not decided");
+    t += c.decision == rv_editor_decision::approved ? "approved by " + c.operator_name + " at " + c.decided_at
+        : c.decision == rv_editor_decision::rejected ? "rejected by " + c.operator_name + " at " + c.decided_at
+        : rv_editor_why_not_approve(c) == nullptr    ? std::string("awaiting approval")
+                                                     : std::string("not ready");
     t += "\n";
-    t += "\n--- build log ---\n" + rv_editor_lines(app.log, c.build_lines.first, c.build_lines.second);
-    for (size_t i = 0; i < c.runs.size(); ++i) {
-        t += "\n--- playtest " + std::to_string(i + 1) + " log ---\n" +
-            rv_editor_lines(app.log, c.runs[i].first, c.runs[i].second);
+    // The logs kept beside the record, so a report written days later still has them.
+    const std::filesystem::path dir = rv_editor_candidates_dir(app);
+    t += "\n--- build log (" + rv_editor_candidate_log(dir, c.number, "build").string() + ") ---\n" +
+        rv_editor_file_text(rv_editor_candidate_log(dir, c.number, "build"));
+    for (uint32_t i = 1; i <= c.playtests; ++i) {
+        const std::filesystem::path log = rv_editor_candidate_log(dir, c.number, "playtest-" + std::to_string(i));
+        t += "\n--- playtest " + std::to_string(i) + " log (" + log.string() + ") ---\n" + rv_editor_file_text(log);
     }
     const std::filesystem::path path = rv_editor_candidates_dir(app) /
         (std::to_string(c.number) + "-report-" + std::to_string(std::time(nullptr)) + ".txt");

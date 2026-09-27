@@ -3,32 +3,14 @@
 
 #include "project/rv_editor_settings.hpp"
 
-#include <fstream>
-#include <sstream>
-#include <system_error>
+#include "project/rv_editor_toml.hpp"
+
 
 namespace rv_editor
 {
 
 namespace
 {
-
-// The escapes the disc.toml lexer reads back, and no others.
-std::string rv_editor_settings_quote(std::string_view s)
-{
-    std::string out = "\"";
-    for (const char c : s) {
-        switch (c) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r': out += "\\r"; break;
-            default: out += c; break;
-        }
-    }
-    return out + "\"";
-}
 
 // True for a "[name]" header line, with the name between the brackets.
 bool rv_editor_settings_header(std::string_view line, std::string_view &name)
@@ -54,7 +36,7 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
     std::string section = "[tools]\n";
     for (const auto &[key, path] : tools) {
         if (!path.empty()) {
-            section += key + " = " + rv_editor_settings_quote(path) + "\n";
+            section += key + " = " + rv_editor_toml_quote(path) + "\n";
         }
     }
     std::string out;
@@ -91,28 +73,7 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
 bool rv_editor_settings_save_tools(const std::filesystem::path &path, const std::vector<rv_editor_settings_tool> &tools,
     std::string &error)
 {
-    std::string text;
-    if (std::ifstream in(path, std::ios::binary); in) {
-        std::ostringstream all;
-        all << in.rdbuf();
-        text = all.str();
-    }
-    std::error_code ec;
-    std::filesystem::create_directories(path.parent_path(), ec);
-    const std::filesystem::path tmp = path.string() + ".tmp";
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << rv_editor_settings_with_tools(text, tools);
-    out.close();
-    if (!out) {
-        error = "cannot write " + tmp.string();
-        return false;
-    }
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) {
-        error = path.string() + ": " + ec.message();
-        return false;
-    }
-    return true;
+    return rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
 }
 
 } // namespace rv_editor

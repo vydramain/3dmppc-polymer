@@ -3,6 +3,7 @@
 #include "release/rv_editor_candidate.hpp"
 
 #include <chrono>
+#include <cstdlib>
 #include <ctime>
 
 #include "release/rv_editor_sha256.hpp"
@@ -66,6 +67,7 @@ void rv_editor_check_set(rv_editor_candidate &c, size_t id, rv_editor_check_stat
     check.env = env;
     check.at = rv_editor_wall_clock();
     check.hash = c.sha256;
+    c.dirty = true;
     if (c.decision != rv_editor_decision::rejected) {
         c.decision = rv_editor_decision::none;
         c.decided_at.clear();
@@ -121,6 +123,7 @@ void rv_editor_candidate_poll(rv_editor_candidate &c)
         return;
     }
     const rv_editor_hash_result r = c.hashing.get();
+    c.dirty = true;
     if (c.sha256.empty()) {
         c.sha256 = r.hex;
         c.size = r.size;
@@ -141,8 +144,15 @@ void rv_editor_candidate_poll(rv_editor_candidate &c)
     if (c.approve_pending && rv_editor_why_not_approve(c) == nullptr) {
         c.decision = rv_editor_decision::approved;
         c.decided_at = c.verified_at;
+        c.operator_name = rv_editor_operator();
     }
     c.approve_pending = false;
+}
+
+std::string rv_editor_operator()
+{
+    const char *user = std::getenv("USER");
+    return user != nullptr && user[0] != '\0' ? user : "unknown operator";
 }
 
 std::string rv_editor_wall_clock()

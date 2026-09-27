@@ -11,6 +11,7 @@
 #include <system_error>
 
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
+#include "project/rv_editor_toml.hpp"
 
 namespace rv_editor
 {
@@ -23,28 +24,11 @@ std::filesystem::path rv_editor_run_config_path(const std::filesystem::path &roo
     return root / ".3dmppc-editor" / "project.toml";
 }
 
-// The escapes the disc.toml lexer reads back, and no others.
-std::string rv_editor_run_quote(std::string_view s)
-{
-    std::string out = "\"";
-    for (const char c : s) {
-        switch (c) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r': out += "\\r"; break;
-            default: out += c; break;
-        }
-    }
-    return out + "\"";
-}
-
 std::string rv_editor_run_array(const std::vector<std::string> &items)
 {
     std::string out = "[";
     for (size_t i = 0; i < items.size(); ++i) {
-        out += (i == 0 ? "" : ", ") + rv_editor_run_quote(items[i]);
+        out += (i == 0 ? "" : ", ") + rv_editor_toml_quote(items[i]);
     }
     return out + "]";
 }
@@ -136,12 +120,12 @@ bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_edito
     std::string &error)
 {
     std::string t = "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
-    t += "[run]\nactive = " + rv_editor_run_quote(config.profiles[config.active].name) + "\n";
+    t += "[run]\nactive = " + rv_editor_toml_quote(config.profiles[config.active].name) + "\n";
     for (const rv_editor_run_profile &p : config.profiles) {
         t += "\n[profile." + p.name + "]\n";
-        t += "runtime = " + rv_editor_run_quote(p.runtime) + "\n";
-        t += "memcard = " + rv_editor_run_quote(p.memcard) + "\n";
-        t += "cwd = " + rv_editor_run_quote(p.cwd) + "\n";
+        t += "runtime = " + rv_editor_toml_quote(p.runtime) + "\n";
+        t += "memcard = " + rv_editor_toml_quote(p.memcard) + "\n";
+        t += "cwd = " + rv_editor_toml_quote(p.cwd) + "\n";
         t += "mute = " + std::to_string(p.mute ? 1 : 0) + "\n";
         t += "paused = " + std::to_string(p.paused ? 1 : 0) + "\n";
         t += "fixed_step = " + std::to_string(p.fixed_step ? 1 : 0) + "\n";
@@ -149,23 +133,7 @@ bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_edito
         t += "env = " + rv_editor_run_array(p.env) + "\n";
         t += "reload_on_save = " + std::to_string(p.reload_on_save ? 1 : 0) + "\n";
     }
-    const std::filesystem::path path = rv_editor_run_config_path(root);
-    std::error_code ec;
-    std::filesystem::create_directories(path.parent_path(), ec);
-    const std::filesystem::path tmp = path.string() + ".tmp";
-    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << t;
-    out.close();
-    if (!out) {
-        error = "cannot write " + tmp.string();
-        return false;
-    }
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) {
-        error = path.string() + ": " + ec.message();
-        return false;
-    }
-    return true;
+    return rv_editor_file_replace(rv_editor_run_config_path(root), t, error);
 }
 
 std::filesystem::path rv_editor_run_profile_path(const std::string &path, const std::filesystem::path &root)

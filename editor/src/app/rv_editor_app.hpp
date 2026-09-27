@@ -115,8 +115,8 @@ struct rv_editor_findings
     std::string error;
 };
 
-// Release candidates made in this window, oldest first, and the one shown. Kept
-// in memory only: the images stay on disk, their checks go with the window.
+// The project's release candidates, oldest first, and the one shown; their records
+// are read back when the project opens (DAT-03).
 struct rv_editor_release
 {
     std::vector<rv_editor_candidate> candidates;
@@ -127,6 +127,7 @@ struct rv_editor_release
     bool tree_changed_during = false;
     std::string last_failure;  // the newest candidate build did not make one
     int playing = -1;          // the candidate the session runs, or -1
+    uint64_t playtest_first_seq = 0; // the first log line of that playtest
     std::string report;        // the last report written
     std::string error;
 };
