@@ -76,18 +76,30 @@ bool rv_manifest_parser::parse_section()
 {
     const int line = peek().line;
     get(); // '['
+    // [[name]] opens one more table of an array of them.
+    const bool array = at(tk::LBRACKET);
+    if (array) {
+        get();
+    }
+    const std::string open = array ? "[[" : "[";
     if (!at(tk::IDENT)) {
         open_section(std::string(), line, true);
         return failer_.fail(line,
-            at(tk::RBRACKET) ? "empty section header" : "expected a section name after '['");
+            at(tk::RBRACKET) ? std::string("empty section header") : "expected a section name after '" + open + "'");
     }
     std::string name = get().text;
-    if (!at(tk::RBRACKET)) {
+    const bool closed = at(tk::RBRACKET) && (!array || tokens_[pos_ + 1].kind == tk::RBRACKET);
+    if (!closed) {
         open_section(name, line, true);
-        return failer_.fail(line, "section header '[" + name + "' is missing its closing ']'");
+        return failer_.fail(line, "section header '" + open + name + "' is missing its closing " +
+            (array ? "']]'" : "']'"));
     }
     get(); // ']'
+    if (array) {
+        get(); // ']'
+    }
     open_section(std::move(name), line, false);
+    current_section().array = array;
     return expect_line_end("section header");
 }
 
@@ -129,6 +141,10 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
         out.kind = rv_manifest_value_kind::integer;
         out.num = get().num;
         return true;
+    case tk::REAL:
+        out.kind = rv_manifest_value_kind::real;
+        out.real = get().real;
+        return true;
     case tk::LBRACKET:
         out.kind = rv_manifest_value_kind::array;
         return parse_array(out);
@@ -140,8 +156,8 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
     case tk::IDENT:
         if (token.text == "true" || token.text == "false") {
             return failer_.fail(token.line,
-                "booleans are not supported — this manifest holds strings, "
-                "integers and arrays of strings only");
+                "booleans are not supported — this dialect holds strings, numbers and "
+                "arrays of either");
         }
         break;
     default:
@@ -149,7 +165,7 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
     }
     return failer_.fail(token.line,
         "unsupported value " + rv_manifest_token_spelling(token) +
-            " — expected a quoted string, an integer or an array of quoted strings");
+            " — expected a quoted string, a number or an array");
 }
 
 // Newlines inside the brackets are skipped, which is the whole of the
@@ -172,12 +188,26 @@ bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
             return failer_.fail(peek().line, peek().text);
         }
         if (at(tk::COMMA)) {
-            return failer_.fail(peek().line, "empty element in array — expected a quoted string");
+            return failer_.fail(peek().line, "empty element in array — expected a value");
         }
-        if (!at(tk::STRING)) {
-            return failer_.fail(peek().line, "array elements must be quoted strings");
+        // The first element decides: strings, or numbers; never both.
+        const bool number = at(tk::INTEGER) || at(tk::REAL);
+        if (!number && !at(tk::STRING)) {
+            return failer_.fail(peek().line, "array elements must be quoted strings or numbers");
         }
-        out.arr.push_back(get().text);
+        const bool first = out.arr.empty() && out.nums.empty();
+        if (first && number) {
+            out.kind = rv_manifest_value_kind::numbers;
+        }
+        if (number != (out.kind == rv_manifest_value_kind::numbers)) {
+            return failer_.fail(peek().line, "an array holds strings or numbers, not both");
+        }
+        if (number) {
+            const rv_manifest_token &t = get();
+            out.nums.push_back(t.kind == tk::REAL ? t.real : static_cast<double>(t.num));
+        } else {
+            out.arr.push_back(get().text);
+        }
 
         while (at(tk::NEWLINE)) {
             get();

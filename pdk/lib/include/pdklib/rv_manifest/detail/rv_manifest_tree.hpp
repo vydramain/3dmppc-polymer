@@ -25,6 +25,8 @@ struct rv_manifest_tree_section {
 	// parser has already reported it; semantic analysis skips the section so one
 	// mistake is not counted twice.
 	bool poisoned = false;
+	// Opened by [[name]]: one table of an array of them, each [[name]] a new one.
+	bool array = false;
 	std::vector<rv_manifest_tree_entry> entries;
 };
 

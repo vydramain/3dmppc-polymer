@@ -183,13 +183,32 @@ rv_manifest_token rv_manifest_lexer::lex_integer()
 	while (!eof() && rv_manifest_is_digit(peek())) {
 		get();
 	}
+	// A point and digits make it a number with a fraction; a bare "1." or ".5" does not.
+	const bool fraction = peek() == '.' && rv_manifest_is_digit(peek(1));
+	if (fraction) {
+		get();
+		while (!eof() && rv_manifest_is_digit(peek())) {
+			get();
+		}
+	}
 	// A trailing word means something like `256px` or `0x20` — a value this
 	// dialect does not have, and one that must not silently become 256 or 0.
 	if (!eof() && rv_manifest_is_ident(peek())) {
 		while (!eof() && rv_manifest_is_ident(peek())) {
 			get();
 		}
-		return invalid(line, "'" + text_.substr(begin, pos_ - begin) + "' is not a decimal integer");
+		return invalid(line, "'" + text_.substr(begin, pos_ - begin) + "' is not a decimal number");
+	}
+	if (fraction) {
+		const std::string text = text_.substr(begin, pos_ - begin);
+		errno = 0;
+		const double parsed = std::strtod(text.c_str(), nullptr);
+		if (errno == ERANGE) {
+			return invalid(line, "number '" + text + "' is out of range");
+		}
+		rv_manifest_token token = token_of(tk::REAL, line);
+		token.real = parsed;
+		return token;
 	}
 
 	const std::string digits = text_.substr(begin, pos_ - begin);
