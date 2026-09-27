@@ -120,16 +120,24 @@ void rv_editor_catalog_transport(const rv_editor_theme &t)
 
 } // namespace
 
-void rv_editor_catalog_status(const rv_editor_theme &theme)
+void rv_editor_catalog_menus_dialogs(const rv_editor_theme &theme)
 {
-    ImGui::SeparatorText("Menus");
     rv_editor_catalog_menus();
-    ImGui::SeparatorText("Dialog");
     rv_editor_catalog_dialog(theme);
-    ImGui::SeparatorText("Status");
+}
+
+void rv_editor_catalog_lamps(const rv_editor_theme &theme)
+{
     rv_editor_catalog_indicators(theme);
+}
+
+void rv_editor_catalog_logs(const rv_editor_theme &theme)
+{
     rv_editor_catalog_log(theme);
-    ImGui::SeparatorText("Transport");
+}
+
+void rv_editor_catalog_transports(const rv_editor_theme &theme)
+{
     rv_editor_catalog_transport(theme);
 }
 

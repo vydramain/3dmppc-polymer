@@ -92,7 +92,6 @@ void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
 
 void rv_editor_catalog_buttons(const rv_editor_theme &theme)
 {
-    ImGui::SeparatorText("Buttons");
     if (!ImGui::BeginTable("buttons", rv_editor_column_count + 1)) {
         return;
     }

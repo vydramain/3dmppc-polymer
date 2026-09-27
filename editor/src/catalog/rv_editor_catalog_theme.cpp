@@ -115,15 +115,16 @@ void rv_editor_catalog_icons(const rv_editor_theme &t)
 
 } // namespace
 
-void rv_editor_catalog_theme(const rv_editor_theme &theme)
+void rv_editor_catalog_colours(const rv_editor_theme &theme)
 {
-    ImGui::SeparatorText("Palette");
     rv_editor_catalog_palette(theme);
-    ImGui::SeparatorText("Primitives");
     rv_editor_catalog_primitives(theme);
-    ImGui::SeparatorText("Icons");
-    rv_editor_catalog_icons(theme);
     ImGui::TextUnformatted("Cyrillic: \xd0\x9a\xd0\xb0\xd1\x82\xd0\xb0\xd0\xbb\xd0\xbe\xd0\xb3");
+}
+
+void rv_editor_catalog_icon_set(const rv_editor_theme &theme)
+{
+    rv_editor_catalog_icons(theme);
 }
 
 } // namespace rv_editor

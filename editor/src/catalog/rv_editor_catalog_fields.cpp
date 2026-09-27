@@ -57,7 +57,6 @@ rv_editor_field_values rv_editor_field_data;
 
 void rv_editor_catalog_fields(const rv_editor_theme &theme)
 {
-    ImGui::SeparatorText("Fields");
     if (!ImGui::BeginTable("fields", rv_editor_field_column_count + 1)) {
         return;
     }

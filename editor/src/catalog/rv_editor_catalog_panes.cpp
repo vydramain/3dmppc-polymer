@@ -147,15 +147,19 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
 
 } // namespace
 
-void rv_editor_catalog_panes(const rv_editor_theme &theme)
+void rv_editor_catalog_headers(const rv_editor_theme &theme)
 {
-    ImGui::SeparatorText("Panes");
     rv_editor_pane_header("Hierarchy", true, theme, true);
     rv_editor_pane_header("Inspector", false, theme, true);
     rv_editor_pane_header("Boxes hovered", true, theme, true, { rv_editor_look::hovered });
     rv_editor_pane_header("Boxes pressed", true, theme, true, { rv_editor_look::pressed });
     rv_editor_pane_header("Boxes focused", true, theme, true, { rv_editor_look::focused });
+    rv_editor_catalog_splitters(theme);
+    rv_editor_catalog_tiles(theme);
+}
 
+void rv_editor_catalog_lists(const rv_editor_theme &)
+{
     const float height = ImGui::GetFrameHeight() * 6.0f;
     if (ImGui::BeginTable("##panes", 3)) {
         ImGui::TableNextColumn();
@@ -168,9 +172,11 @@ void rv_editor_catalog_panes(const rv_editor_theme &theme)
         rv_editor_catalog_table();
         ImGui::EndTable();
     }
+}
+
+void rv_editor_catalog_tab_strips(const rv_editor_theme &theme)
+{
     rv_editor_catalog_tabs(theme);
-    rv_editor_catalog_splitters(theme);
-    rv_editor_catalog_tiles(theme);
 }
 
 } // namespace rv_editor
