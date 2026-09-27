@@ -2,7 +2,9 @@
 
 #include "app/rv_editor_shell.hpp"
 
+#include <algorithm>
 #include <cstdio>
+#include <numeric>
 #include <string>
 #include <system_error>
 
@@ -72,12 +74,87 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
     shell.ws.layout = std::move(shell.trees[rv_editor_workspace_slot(to)]);
     shell.active = to;
     shell.ws.focused_leaf = rv_editor_tile_none;
+    // The Game's area and the rectangles are the other tree's until the next draw.
+    shell.app.game_area = { 0, 0 };
+    shell.ws.rects.clear();
+    shell.game_fit_tries = 8;
 }
 
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset)
 {
     shell.ws.layout = rv_editor_workspace_start(shell.ws.panes, preset);
     shell.ws.focused_leaf = rv_editor_tile_none;
+    shell.game_fit[rv_editor_workspace_slot(preset)] = true;
+    shell.game_fit_tries = 8;
+    shell.app.game_area = { 0, 0 };
+}
+
+void rv_editor_shell_fit_game(rv_editor_shell &shell)
+{
+    const size_t slot = rv_editor_workspace_slot(shell.active);
+    // A splitter the user dragged is the user's: the tree keeps it from then on.
+    if (shell.ws.dragged) {
+        shell.ws.dragged = false;
+        shell.game_fit[slot] = false;
+    }
+    const rv_editor_layout &layout = shell.ws.layout;
+    const rv_editor_size area = shell.app.game_area;
+    // Nothing drawn yet (the start screen, no project, a tree just shown): wait.
+    if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || layout.maximized_leaf != rv_editor_tile_none ||
+        shell.ws.rects.size() != layout.nodes.size()) {
+        return;
+    }
+    uint32_t node = rv_editor_tile_none;
+    for (size_t i = 0; i < shell.ws.panes.panes.size() && node == rv_editor_tile_none; ++i) {
+        if (shell.ws.panes.panes[i].kind == rv_editor_pane_kind::game) {
+            node = rv_editor_tile_find(layout, static_cast<rv_editor_pane_id>(i));
+        }
+    }
+    if (node == rv_editor_tile_none) {
+        return;
+    }
+    // Whole steps of the screen's proportion, 4 x 3 for 320 x 240: a picture area of
+    // whole steps takes the frame at Fit with not one pixel over.
+    const int64_t sw = std::max<int64_t>(1, shell.app.project.screen_w);
+    const int64_t sh = std::max<int64_t>(1, shell.app.project.screen_h);
+    const int64_t step_w = sw / std::gcd(sw, sh);
+    const int64_t step_h = sh / std::gcd(sw, sh);
+    const int64_t steps = area.w / step_w;
+    const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
+    const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
+    if (delta_h == 0 && delta_w == 0) {
+        shell.game_fit_tries = 8;
+        return;
+    }
+    // Eight tries to settle, then the tree is left alone: minimums may allow no exact fit.
+    if (shell.game_fit_tries == 0) {
+        shell.game_fit[slot] = false;
+        return;
+    }
+    --shell.game_fit_tries;
+    // The height first; when the last try left the area as it was, minimums hold
+    // the height, and the width gives way instead.
+    const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
+    const rv_editor_axis axis = held || delta_h == 0 ? rv_editor_axis::x : rv_editor_axis::y;
+    const int32_t delta = held ? static_cast<int32_t>(area.h / step_h * step_w - area.w)
+                               : (delta_h == 0 ? delta_w : delta_h);
+    shell.game_fit_last = area;
+    for (uint32_t parent = layout.nodes[node].parent; parent != rv_editor_tile_none;
+         node = parent, parent = layout.nodes[parent].parent) {
+        const rv_editor_tile_split &split = layout.nodes[parent].split;
+        if (layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis) {
+            continue;
+        }
+        const rv_editor_rect &a = shell.ws.rects[split.first];
+        const rv_editor_rect &b = shell.ws.rects[split.second];
+        const int32_t first = axis == rv_editor_axis::x ? a.w : a.h;
+        const int32_t total = first + (axis == rv_editor_axis::x ? b.w : b.h);
+        if (total > 0) {
+            const int32_t want = first + (node == split.first ? delta : -delta);
+            rv_editor_tile_set_ratio(shell.ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
+        }
+        return;
+    }
 }
 
 void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem::path &path, const std::string &active)
@@ -102,6 +179,7 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
                 file.c_str(), rv_editor_layout_preset_name(preset));
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);
+        shell.game_fit[rv_editor_workspace_slot(preset)] = true;
     }
     // "test" and "release" are what an earlier editor wrote for Debug and Burn.
     const std::string key = active == "test" ? "debug" : active == "release" ? "burn" : active;

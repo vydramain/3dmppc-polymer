@@ -255,6 +255,7 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
 
 void rv_editor_shell_update(rv_editor_shell &shell)
 {
+    rv_editor_shell_fit_game(shell);
     std::vector<std::filesystem::path> picked;
     {
         const std::lock_guard<std::mutex> lock(shell.picked_mutex);

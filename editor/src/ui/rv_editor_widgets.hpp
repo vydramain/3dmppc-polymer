@@ -131,6 +131,9 @@ struct rv_editor_workspace
     // content size a pane needs (the Game's frame at 1x, LAY-03).
     std::map<rv_editor_pane_id, std::string> titles;
     std::map<rv_editor_pane_id, rv_editor_size> minimums;
+    // Each node's rectangle at the last draw, by node index; a splitter was dragged.
+    std::vector<rv_editor_rect> rects;
+    bool dragged = false;
 };
 
 // Draws one pane's content into the current ImGui window. `context` is what the

@@ -233,6 +233,8 @@ struct rv_editor_app
     // What a Game tile needs to show the frame at 1x, with its rows above it;
     // 0 x 0 before the first frame.
     rv_editor_size game_need{ 0, 0 };
+    // The picture area the Game tile gives a running game, measured at every draw.
+    rv_editor_size game_area{ 0, 0 };
     // A pane's Open Project button was clicked: the window shows its folder dialog.
     bool open_folder_request = false;
     rv_editor_observe observe;

@@ -39,6 +39,11 @@ struct rv_editor_shell
     // `trees` keeps the others (the chosen one's slot is stale).
     rv_editor_workspace ws;
     std::array<rv_editor_layout, 4> trees;
+    // By slot: a starting tree whose Game tile keeps the screen's proportions until
+    // a splitter is dragged; the tries left to settle, and the area at the last one.
+    std::array<bool, 4> game_fit{};
+    int game_fit_tries = 8;
+    rv_editor_size game_fit_last{ 0, 0 };
     rv_editor_layout_preset active = rv_editor_layout_preset::code;
     rv_editor_app app;
     SDL_Window *window = nullptr;
@@ -106,6 +111,11 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
 // Layout > Reset Layout: the chosen layout's tree becomes its starting one; the
 // others keep theirs (LAY-06).
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset);
+
+// Once a frame: a starting tree's Game tile takes the proportions of the disc's
+// screen, by the split under or over it, else beside it, until the user drags a
+// splitter. Saved trees are left as they are.
+void rv_editor_shell_fit_game(rv_editor_shell &shell);
 
 // Each layout's saved tree from `path`-<name> (read from the file an earlier
 // editor kept it in while that is missing), or its starting one when there is

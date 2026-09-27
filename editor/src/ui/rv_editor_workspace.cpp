@@ -344,11 +344,14 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
             std::snprintf(id, sizeof(id), "##split%u", place.node);
             if (rv_editor_splitter(id, sp.axis, length, &fa, &fb, min_a, min_b, theme) && fa + fb > 0) {
                 rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
+                ws.dragged = true;
             }
         } else if (node.kind == rv_editor_tile_kind::leaf) {
             draw_leaf(ws, place.node, place.rect, theme, draw_pane, context, action);
         }
     }
+
+    ws.rects = rect_of;
 
     // The content size the scrollbars measure.
     ImGui::SetCursorScreenPos(origin);

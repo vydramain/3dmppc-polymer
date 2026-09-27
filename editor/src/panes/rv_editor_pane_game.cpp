@@ -195,6 +195,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     rv_editor_session &s = app.session;
     app.game_drawn = true;
     rv_editor_game_modes(app, theme);
+    // Under the modes, less the status line rv_editor_game_picture puts over the frame.
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    app.game_area = { static_cast<int32_t>(avail.x),
+        static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
 
     if (!s.live()) {
         app.game_captured = false;

@@ -211,6 +211,8 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.manifest_error.clear();
     project.disc_id = manifest.disc_id;
     project.disc_title = manifest.disc_title;
+    project.screen_w = manifest.budget.pccv.screen_width;
+    project.screen_h = manifest.budget.pccv.screen_height;
 }
 
 } // namespace rv_editor

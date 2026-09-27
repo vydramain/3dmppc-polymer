@@ -57,6 +57,9 @@ struct rv_editor_project
     std::string disc_id;
     std::string disc_title;
     std::string manifest_error;     // disc.toml does not parse; the project still opens
+    // [budget.pccv] screen size: the proportions a starting Game tile takes.
+    int64_t screen_w = 320;
+    int64_t screen_h = 240;
     std::filesystem::path cache_dir; // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir; // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
 };
