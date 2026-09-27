@@ -123,18 +123,65 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         {"Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", state.stop, &out.stop},
         {"Reload", rv_editor_glyph::reload, 0xcba6f7, nullptr, state.reload, &out.reload},
     };
+    const size_t shown = state.reload_shown ? std::size(buttons) : std::size(buttons) - 1;
+    // One row, never a second (LAY-04): what does not fit goes behind a labelled More,
+    // Reload first, then Step, then Build, which the menus also have; the rest keep their order.
+    const float gap = ImGui::GetStyle().ItemSpacing.x;
+    float width = 0.0f;
+    for (size_t i = 0; i < shown; ++i) {
+        width += (i == 0 ? 0.0f : gap) + rv_editor_tool_button_width(buttons[i].label);
+    }
+    bool hidden[std::size(buttons)] = {};
+    bool any_hidden = false;
+    if (width > ImGui::GetContentRegionAvail().x) {
+        width += gap + rv_editor_tool_button_width("More");
+        constexpr size_t drop_order[] = { 5, 3, 0, 2, 4, 1 };
+        for (const size_t i : drop_order) {
+            if (i >= shown || width <= ImGui::GetContentRegionAvail().x) {
+                continue;
+            }
+            hidden[i] = true;
+            any_hidden = true;
+            width -= gap + rv_editor_tool_button_width(buttons[i].label);
+        }
+    }
     bool first = true;
-    for (const auto &b : buttons) {
-        if (b.clicked == &out.reload && !state.reload_shown) {
+    for (size_t i = 0; i < shown; ++i) {
+        const auto &b = buttons[i];
+        if (hidden[i]) {
             continue;
         }
         if (!first) {
-            rv_editor_flow(rv_editor_tool_button_width(b.label));
+            ImGui::SameLine();
         }
         first = false;
         *b.clicked =
             rv_editor_tool_button(b.label, b.glyph, b.color, b.shortcut, theme, {rv_editor_look::live, b.disabled});
     }
+    if (!any_hidden) {
+        return out;
+    }
+    if (!first) {
+        ImGui::SameLine();
+    }
+    if (rv_editor_tool_button("More", rv_editor_glyph::pane_menu, theme.text, nullptr, theme)) {
+        ImGui::OpenPopup("##transport_more");
+    }
+    rv_editor_menu_style_push();
+    if (ImGui::BeginPopup("##transport_more")) {
+        for (size_t i = 0; i < shown; ++i) {
+            const auto &b = buttons[i];
+            if (!hidden[i]) {
+                continue;
+            }
+            *b.clicked = ImGui::MenuItem(b.label, b.shortcut, false, b.disabled == nullptr);
+            if (b.disabled != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("%s", b.disabled);
+            }
+        }
+        ImGui::EndPopup();
+    }
+    rv_editor_menu_style_pop();
     return out;
 }
 
