@@ -141,7 +141,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
         app.files.selected = node.path;
     }
     if (!branch && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        app.open_requests.push_back(node.path);
+        app.open_requests.push_back({ node.path, 0 });
     }
     if (node.symlink && ImGui::IsItemHovered()) {
         std::error_code ec;
@@ -222,7 +222,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
         if (ok) {
             if (view.dialog == dialog_kind::new_file) {
                 app.files.selected = view.target / name;
-                app.open_requests.push_back(view.target / name);
+                app.open_requests.push_back({ view.target / name, 0 });
             }
             view.dialog = dialog_kind::none;
             ImGui::CloseCurrentPopup();

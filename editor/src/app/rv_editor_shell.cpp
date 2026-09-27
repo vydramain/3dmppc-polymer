@@ -286,33 +286,22 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_app &app = shell.app;
     if (!app.open_requests.empty() && !app.nvim.problem.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-            "cannot open " + app.open_requests.front().string() + ": " + app.nvim.problem);
+            "cannot open " + app.open_requests.front().first.string() + ": " + app.nvim.problem);
         app.open_requests.clear();
-    }
-    // Places (Problems, Search Results) open like files, at their line.
-    if (!app.open_at_requests.empty() && app.nvim.problem.empty()) {
-        const rv_editor_pane_id pane = rv_editor_code_target(shell.ws, shell.last_code);
-        const int64_t win = app.nvim.window_for(pane);
-        if (win != 0) {
-            for (const auto &[path, line] : app.open_at_requests) {
-                app.nvim.open(win, path, line);
-            }
-            app.open_at_requests.clear();
-            const uint32_t leaf = rv_editor_tile_find(shell.ws.layout, pane);
-            if (leaf != rv_editor_tile_none) {
-                shell.ws.focused_leaf = leaf;
-            }
-        }
     }
     if (!app.open_requests.empty()) {
         const rv_editor_pane_id pane = rv_editor_code_target(shell.ws, shell.last_code);
+        const uint32_t leaf = rv_editor_tile_find(shell.ws.layout, pane);
+        // A maximized tile that hides the code tile steps back, or its window never draws.
+        if (shell.ws.layout.maximized_leaf != rv_editor_tile_none && shell.ws.layout.maximized_leaf != leaf) {
+            shell.ws.layout.maximized_leaf = rv_editor_tile_none;
+        }
         const int64_t win = app.nvim.window_for(pane);
         if (win != 0) {
-            for (const std::filesystem::path &path : app.open_requests) {
-                app.nvim.open(win, path, 0);
+            for (const auto &[path, line] : app.open_requests) {
+                app.nvim.open(win, path, line);
             }
             app.open_requests.clear();
-            const uint32_t leaf = rv_editor_tile_find(shell.ws.layout, pane);
             if (leaf != rv_editor_tile_none) {
                 shell.ws.focused_leaf = leaf;
             }
@@ -385,6 +374,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
         case rv_editor_pane_kind::build_result: rv_editor_pane_build_result(shell.app, theme); return;
         case rv_editor_pane_kind::problems: rv_editor_pane_problems(shell.app, theme); return;
+        case rv_editor_pane_kind::search: rv_editor_pane_search(shell.app, theme); return;
         case rv_editor_pane_kind::controls:
         case rv_editor_pane_kind::release_controls:
         case rv_editor_pane_kind::toolchest: {

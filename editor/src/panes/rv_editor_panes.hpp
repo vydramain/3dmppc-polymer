@@ -64,6 +64,9 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
 // The latest build's diagnostics with a place, opening it (BLD-06).
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 
+// Find in Project: the query, its scope, and each place, opening it (TXT-06).
+void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 

@@ -44,6 +44,7 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.74f);
     b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, output);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.62f);
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
@@ -109,6 +110,7 @@ void rv_editor_preset_burn_diagnose(rv_editor_preset_builder &b)
     const rv_editor_pane_id problems =
         b.add(rv_editor_pane_kind::problems, result, rv_editor_tile_dock::bottom, 0.70f);
     b.add(rv_editor_pane_kind::build_log, problems, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::search, problems, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, problems, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, problems);
     const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, result, rv_editor_tile_dock::left, 0.18f);

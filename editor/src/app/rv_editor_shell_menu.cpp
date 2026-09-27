@@ -103,6 +103,11 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
     if (rv_editor_menu_item("Redo", "Ctrl+Shift+Z", no_code)) {
         rv_editor_menu_code_keys(shell, "<C-S-z>");
     }
+    ImGui::Separator();
+    if (ImGui::MenuItem("Find in Project", "Ctrl+Shift+F")) {
+        shell.app.project_search.focus = true;
+        rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
+    }
 }
 
 void rv_editor_menu_view(rv_editor_shell &shell)
@@ -289,6 +294,10 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_B)) {
         rv_editor_app_build(app);
     }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F)) {
+        app.project_search.focus = true;
+        rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
+    }
     if (ImGui::IsKeyChordPressed(ImGuiKey_F5)) {
         rv_editor_app_run(app);
     }
@@ -373,7 +382,7 @@ void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         return;
     }
     constexpr const char *keys[][2] = { { "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
-        { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Build", "Ctrl+B" }, { "Run / Resume", "F5" }, { "Pause", "F6" },
+        { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" }, { "Run / Resume", "F5" }, { "Pause", "F6" },
         { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" }, { "Release Game input", "Shift+Esc" },
         { "Vim mode in a code tile", "F2" } };
     if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit)) {

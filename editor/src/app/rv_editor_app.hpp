@@ -16,6 +16,7 @@
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
+#include "project/rv_editor_search.hpp"
 #include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
 
@@ -123,9 +124,9 @@ struct rv_editor_app
     rv_editor_files files;
     std::map<rv_editor_pane_id, rv_editor_output_view> outputs;
     std::map<rv_editor_pane_id, rv_editor_files_view> files_views;
-    // Files the user asked to open (Files double click, a new file), for the
-    // code editor to take.
-    std::vector<std::filesystem::path> open_requests;
+    // Files the user asked to open (Files, a new file, Problems, Search Results),
+    // for the code editor to take, each at its line (0: where nvim last had it).
+    std::vector<std::pair<std::filesystem::path, int32_t>> open_requests;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
     std::map<rv_editor_pane_id, rv_editor_terminal_view> terminals;
     rv_editor_nvim nvim;
@@ -162,8 +163,7 @@ struct rv_editor_app
     std::vector<rv_editor_problem> problems;
     uint64_t problems_revision = 0;
     std::filesystem::file_time_type build_ended{};
-    // Files to open at a line (Problems, Search Results), as open_requests.
-    std::vector<std::pair<std::filesystem::path, int32_t>> open_at_requests;
+    rv_editor_search_view project_search;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
 };

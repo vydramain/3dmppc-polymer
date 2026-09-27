@@ -20,6 +20,11 @@ void rv_editor_toolchest_code(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_command_button("##new", "new-file", "New File", "A new Untitled buffer in the code tile", theme)) {
         app.new_file_request = true;
     }
+    if (rv_editor_command_button("##find", "search", "Find in Project", "Search the project's files (Ctrl+Shift+F)",
+            theme)) {
+        app.project_search.focus = true;
+        app.show_request = rv_editor_pane_kind::search;
+    }
     if (rv_editor_command_button("##build", "build", "Build", "Build the project (Ctrl+B)", theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build(app);
