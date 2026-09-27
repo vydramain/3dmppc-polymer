@@ -29,7 +29,6 @@ const char *rv_editor_workspace_key_of(rv_editor_layout_preset preset)
         case rv_editor_layout_preset::scene: return "scene";
         case rv_editor_layout_preset::debug: return "debug";
         case rv_editor_layout_preset::burn: return "burn";
-        case rv_editor_layout_preset::burn_diagnose: return "burn-diagnose";
         default: return "code";
     }
 }
@@ -63,19 +62,6 @@ rv_editor_layout rv_editor_workspace_start(rv_editor_pane_registry &panes, rv_ed
 }
 
 } // namespace
-
-void rv_editor_shell_choose(rv_editor_shell &shell, rv_editor_layout_preset preset)
-{
-    rv_editor_shell_switch(shell, preset == rv_editor_layout_preset::burn ? shell.burn_last : preset);
-}
-
-bool rv_editor_shell_chosen(const rv_editor_shell &shell, rv_editor_layout_preset preset)
-{
-    if (preset == rv_editor_layout_preset::burn) {
-        return shell.active == rv_editor_layout_preset::burn || shell.active == rv_editor_layout_preset::burn_diagnose;
-    }
-    return shell.active == preset;
-}
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
 {

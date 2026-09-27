@@ -217,8 +217,7 @@ enum class rv_editor_layout_preset
     code,
     scene,
     debug, // playing the game and looking at it
-    burn,  // Burn: Candidate & Verify - checking one disc image
-    burn_diagnose, // Burn: Build & Diagnose - getting a build to succeed
+    burn,  // building a disc image and checking it
 };
 
 // Name as a menu shows it: "Code", "Scene", "Debug", "Burn".

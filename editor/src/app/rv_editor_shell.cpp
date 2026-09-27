@@ -276,13 +276,6 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_app &requests = shell.app;
     requests.preset = shell.active;
     requests.release_view = shell.active == rv_editor_layout_preset::burn;
-    if (shell.active == rv_editor_layout_preset::burn || shell.active == rv_editor_layout_preset::burn_diagnose) {
-        shell.burn_last = shell.active;
-    }
-    if (requests.burn_submode_request != rv_editor_layout_preset::code) {
-        rv_editor_shell_switch(shell, requests.burn_submode_request);
-        requests.burn_submode_request = rv_editor_layout_preset::code;
-    }
     if (requests.show_request != rv_editor_pane_kind::empty) {
         rv_editor_shell_show(shell.ws, requests.show_request);
         requests.show_request = rv_editor_pane_kind::empty;

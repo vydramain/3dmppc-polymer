@@ -173,12 +173,6 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
 
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    // Burn's two modes (BRN-01): views of the same build and candidates.
-    const char *const modes[] = { "Build & Diagnose", "Candidate & Verify" };
-    int mode = app.preset == rv_editor_layout_preset::burn_diagnose ? 0 : 1;
-    if (rv_editor_tab_strip("##burn_mode", modes, 2, &mode, theme)) {
-        app.burn_submode_request = mode == 0 ? rv_editor_layout_preset::burn_diagnose : rv_editor_layout_preset::burn;
-    }
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
         return;
