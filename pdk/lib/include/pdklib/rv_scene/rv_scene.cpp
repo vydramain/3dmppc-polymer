@@ -108,7 +108,9 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         }
         out.objects[i].parent = it->second;
     }
-    // A chain longer than the scene has objects has come round again.
+    // A chain longer than the scene has objects has come round again. Every member is
+    // found first, on the parents as read, and only then cut loose.
+    std::vector<size_t> cyclic;
     for (size_t i = 0; i < out.objects.size(); ++i) {
         int32_t p = out.objects[i].parent;
         size_t steps = 0;
@@ -119,8 +121,11 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         if (p >= 0) {
             problems += rv_scene_at(origin, parents[i].second) + "object '" + out.objects[i].id +
                 "' is its own ancestor\n";
-            out.objects[i].parent = -1;
+            cyclic.push_back(i);
         }
+    }
+    for (const size_t i : cyclic) {
+        out.objects[i].parent = -1;
     }
     if (!problems.empty()) {
         error = problems;
