@@ -76,6 +76,20 @@ struct rv_editor_run_form
     char env[1024] = {};
 };
 
+// The scene panes' own state: Inspector's text for the object shown, the drag
+// being made and the values before it, the last refusal to say.
+struct rv_editor_scene_ui
+{
+    std::string shown;
+    char name[128] = {};
+    char mesh[256] = {};
+    char texture[256] = {};
+    std::string editing;
+    rv_editor_vec3 before{};
+    bool cancelled = false; // Escape took the drag back; it ends when the button is let go
+    std::string note;
+};
+
 // The files a code tile has shown, one tab each, and the one its Close Tab let
 // go of until nvim has moved the window on.
 struct rv_editor_code_tabs
@@ -221,6 +235,7 @@ struct rv_editor_app
     // The scene the Scene layout edits, if one is open, and why the last open failed.
     std::unique_ptr<rv_editor_scene_doc> scene;
     std::string scene_error;
+    rv_editor_scene_ui scene_ui;
     // Reload On Save: when the last .lua change settled enough to reload; zero: none due.
     std::chrono::steady_clock::time_point reload_due{};
 };
