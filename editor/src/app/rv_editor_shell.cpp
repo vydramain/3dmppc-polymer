@@ -202,6 +202,43 @@ void rv_editor_shell_focus_terminal(rv_editor_shell &shell)
     shell.app.terminals[pane].focus_request = true;
 }
 
+void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back)
+{
+    rv_editor_workspace &ws = shell.ws;
+    // Depth first, first child first: left before right, top before bottom.
+    std::vector<uint32_t> leaves;
+    std::vector<uint32_t> stack{ ws.layout.root };
+    while (!stack.empty()) {
+        const uint32_t n = stack.back();
+        stack.pop_back();
+        if (n >= ws.layout.nodes.size()) {
+            continue;
+        }
+        const rv_editor_tile_node &node = ws.layout.nodes[n];
+        if (node.kind == rv_editor_tile_kind::leaf) {
+            leaves.push_back(n);
+        } else if (node.kind == rv_editor_tile_kind::split) {
+            stack.push_back(node.split.second);
+            stack.push_back(node.split.first);
+        }
+    }
+    // A maximized tile is the only one on screen.
+    if (ws.layout.maximized_leaf != rv_editor_tile_none) {
+        leaves = { ws.layout.maximized_leaf };
+    }
+    if (leaves.empty()) {
+        return;
+    }
+    const auto at = std::find(leaves.begin(), leaves.end(), ws.focused_leaf);
+    size_t i = 0;
+    if (at != leaves.end()) {
+        const size_t here = static_cast<size_t>(at - leaves.begin());
+        i = back ? (here + leaves.size() - 1) % leaves.size() : (here + 1) % leaves.size();
+    }
+    ws.focused_leaf = leaves[i];
+    ws.focus_request = leaves[i];
+}
+
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
 {
     rv_editor_workspace &ws = shell.ws;

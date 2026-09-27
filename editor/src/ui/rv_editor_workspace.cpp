@@ -168,6 +168,11 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(theme.pad_px * s, theme.pad_px * s));
     const bool tabbed = leaf.tabs.size() > 1;
     const float tabs_h = tabbed ? ImGui::GetFrameHeight() : 0.0f;
+    // Every pane draws straight into this window, so its focus is the pane's.
+    if (ws.focus_request == node) {
+        ws.focus_request = rv_editor_tile_none;
+        ImGui::SetNextWindowFocus();
+    }
     rv_editor_scroll_begin("##pane", ImVec2(0, -tabs_h), false, ImGuiChildFlags_AlwaysUseWindowPadding);
     ImGui::PopStyleVar();
     // A sunken well inside the raised frame: the window's double edge. Drawn by

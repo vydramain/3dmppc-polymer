@@ -222,6 +222,12 @@ void rv_editor_menu_window(rv_editor_shell &shell)
     if (ImGui::MenuItem("Terminal")) {
         rv_editor_shell_focus_terminal(shell);
     }
+    if (ImGui::MenuItem("Focus Next Pane", "Ctrl+F6")) {
+        rv_editor_shell_focus_next(shell, false);
+    }
+    if (ImGui::MenuItem("Focus Previous Pane", "Ctrl+Shift+F6")) {
+        rv_editor_shell_focus_next(shell, true);
+    }
     ImGui::Separator();
     // Every kind of tile, beside the focused one (LAY-01).
     if (ImGui::BeginMenu("New Tile")) {
@@ -309,6 +315,13 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (ImGui::IsKeyChordPressed(ImGuiKey_F5)) {
         rv_editor_app_run(app);
     }
+    // Tab belongs to the code editor and the terminal; these move between tiles.
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_F6)) {
+        rv_editor_shell_focus_next(shell, false);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F6)) {
+        rv_editor_shell_focus_next(shell, true);
+    }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_F5)) {
         rv_editor_app_stop(app);
     }
@@ -391,8 +404,10 @@ void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
     }
     constexpr const char *keys[][2] = { { "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
         { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" },
-        { "Run / Resume", "F5" }, { "Pause", "F6" }, { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" }, { "Release Game input", "Shift+Esc" },
-        { "Vim mode in a code tile", "F2" } };
+        { "Run / Resume", "F5" }, { "Pause", "F6" }, { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" },
+        { "Release Game input", "Shift+Esc" },
+        { "Vim mode in a code tile", "F2" },
+        { "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" } };
     if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit)) {
         for (const auto &k : keys) {
             ImGui::TableNextRow();

@@ -132,6 +132,8 @@ struct rv_editor_workspace
     rv_editor_pane_registry panes;
     rv_editor_layout layout;
     uint32_t focused_leaf = rv_editor_tile_none;
+    // A leaf whose content takes the keyboard at its next draw (Focus Next Pane).
+    uint32_t focus_request = rv_editor_tile_none;
     // What the owner says about panes this frame, filled before each draw: a
     // title in place of the kind's (a code tile names its file), and the least
     // content size a pane needs (the Game's frame at 1x, LAY-03).

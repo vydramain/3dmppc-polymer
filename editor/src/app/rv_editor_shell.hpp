@@ -163,6 +163,8 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
+// Window > Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
+void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
 // A live shell's tile closes only after this question (TRM-02); drawn after the workspace.
 void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_theme &theme);
