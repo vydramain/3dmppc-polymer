@@ -109,6 +109,64 @@ std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor
     return buf;
 }
 
+// One status line, then the picture area to the tile's bottom edge, dark, with the
+// frame placed as Game Scale says. A stale frame is dimmed and takes no click.
+void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, const std::string &status, bool stale)
+{
+    ImVec2 area = ImGui::GetContentRegionAvail();
+    area.y -= ImGui::GetTextLineHeightWithSpacing();
+    // The tile's minimum: the frame at 1x plus whatever this pane puts around the
+    // picture (rows above it, padding), measured rather than guessed.
+    app.game_need = { static_cast<int32_t>(static_cast<float>(rv_editor_game_w) + ImGui::GetWindowWidth() - area.x),
+        static_cast<int32_t>(static_cast<float>(rv_editor_game_h) + ImGui::GetWindowHeight() - area.y) };
+    const rv_editor_game_view view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+        static_cast<int>(rv_editor_game_h), area.x, area.y, app.game_scale);
+    const std::string line = std::to_string(rv_editor_game_w) + "x" + std::to_string(rv_editor_game_h) + "  " +
+        rv_editor_game_scale_text(app.game_scale, view) + "  " + status;
+    if (stale) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
+    }
+    ImGui::TextUnformatted(line.c_str());
+    if (stale) {
+        ImGui::PopStyleColor();
+    }
+
+    // The whole area is dark, so what the frame leaves over is not the tile's olive.
+    const ImVec2 p0 = ImGui::GetCursorScreenPos();
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(p0, ImVec2(p0.x + area.x, p0.y + area.y), rv_editor_col(theme.code_base));
+    if (area.x < 1.0f || area.y < 1.0f) {
+        return;
+    }
+    // A click on the picture takes the keyboard; the frame loop sends the keys
+    // (rv_editor_shell_game_input). A stale one has no game to send them to.
+    if (stale) {
+        ImGui::Dummy(area);
+    } else if (ImGui::InvisibleButton("##game", area)) {
+        app.game_captured = true;
+    }
+    const ImVec2 i0(p0.x + view.x, p0.y + view.y);
+    const ImVec2 i1(i0.x + view.w, i0.y + view.h);
+    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), i0, i1, ImVec2(0.0f, 0.0f),
+        ImVec2(1.0f, 1.0f), stale ? IM_COL32(255, 255, 255, 96) : IM_COL32_WHITE);
+    if (app.game_captured) {
+        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1), ImVec2(i1.x + 1, i1.y + 1), rv_editor_col(theme.selection), 0.0f,
+            2.0f);
+    }
+}
+
+// The last frame of a session that ended, marked as such rather than looking like
+// the game (DEV-07); nothing when no frame of it arrived.
+void rv_editor_game_stale(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    const rv_editor_session &s = app.session;
+    if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0 || s.number() == 0) {
+        return;
+    }
+    rv_editor_game_picture(app, theme, std::string("stale: the last frame of session ") + std::to_string(s.number()) +
+        ", " + rv_editor_run_state_name(s.state()), true);
+}
+
 } // namespace
 
 bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
@@ -154,6 +212,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             if (rv_editor_button("Run Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
                 rv_editor_app_run_candidate(app);
             }
+            rv_editor_game_stale(app, theme);
             return;
         }
         // Stopped: what Run starts, and Run itself (or Build, with nothing built).
@@ -164,6 +223,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         if (rv_editor_button("Run", theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
             rv_editor_app_run(app);
         }
+        rv_editor_game_stale(app, theme);
         return;
     }
 
@@ -195,49 +255,24 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         rv_editor_game_frame = f;
     }
 
-    if (rv_editor_game_texture == nullptr) {
+    // The texture may still hold the last session's frame: not this one's.
+    if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
         ImGui::TextWrapped("Waiting for the console's first frame.");
         ImGui::PopStyleColor();
         return;
     }
 
-    // One status line, then the picture area to the tile's bottom edge.
-    ImVec2 area = ImGui::GetContentRegionAvail();
-    area.y -= ImGui::GetTextLineHeightWithSpacing();
-    // The tile's minimum: the frame at 1x plus whatever this pane puts around the
-    // picture (rows above it, padding), measured rather than guessed.
-    app.game_need = { static_cast<int32_t>(static_cast<float>(rv_editor_game_w) + ImGui::GetWindowWidth() - area.x),
-        static_cast<int32_t>(static_cast<float>(rv_editor_game_h) + ImGui::GetWindowHeight() - area.y) };
-    const rv_editor_game_view view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
-        static_cast<int>(rv_editor_game_h), area.x, area.y, app.game_scale);
-
-    const char *state = s.state() == rv_editor_run_state::paused ? "paused"
-        : app.game_captured ? "playing: Shift+Esc gives the keyboard back"
-                            : "click the picture to play";
-    const std::string line = std::to_string(rv_editor_game_w) + "x" + std::to_string(rv_editor_game_h) + "  " +
-        rv_editor_game_scale_text(app.game_scale, view) + "  frame " + std::to_string(s.frame()) + ", " + state;
-    ImGui::TextUnformatted(line.c_str());
-
-    // The whole area is dark, so what the frame leaves over is not the tile's olive.
-    const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(p0, ImVec2(p0.x + area.x, p0.y + area.y), rv_editor_col(theme.code_base));
-    if (area.x < 1.0f || area.y < 1.0f) {
-        return;
+    // A console that stopped answering leaves a frame that is no longer the game's.
+    const bool lost = s.state() == rv_editor_run_state::disconnected;
+    if (lost) {
+        app.game_captured = false;
     }
-    // A click on the picture takes the keyboard; the frame loop sends the keys
-    // (rv_editor_shell_game_input).
-    if (ImGui::InvisibleButton("##game", area)) {
-        app.game_captured = true;
-    }
-    const ImVec2 i0(p0.x + view.x, p0.y + view.y);
-    const ImVec2 i1(i0.x + view.w, i0.y + view.h);
-    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), i0, i1);
-    if (app.game_captured) {
-        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1), ImVec2(i1.x + 1, i1.y + 1), rv_editor_col(theme.selection), 0.0f,
-            2.0f);
-    }
+    const char *state = lost ? "stale: the console stopped answering"
+        : s.state() == rv_editor_run_state::paused ? "paused"
+        : app.game_captured                        ? "playing: Shift+Esc gives the keyboard back"
+                                                   : "click the picture to play";
+    rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, lost);
 
     // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
     if (app.game_captured &&
