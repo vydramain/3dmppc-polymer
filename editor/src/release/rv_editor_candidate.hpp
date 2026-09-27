@@ -44,6 +44,7 @@ enum rv_editor_check_id : size_t
 {
     rv_editor_check_build,
     rv_editor_check_loads,
+    rv_editor_check_player,
     rv_editor_check_launch,
     rv_editor_check_input,
     rv_editor_check_audio,

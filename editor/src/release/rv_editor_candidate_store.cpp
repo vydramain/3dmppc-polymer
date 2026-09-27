@@ -18,8 +18,8 @@ namespace rv_editor
 namespace
 {
 
-constexpr std::array<const char *, rv_editor_check_count> rv_editor_check_keys = { "build", "loads", "launch", "input",
-    "audio", "scenario", "exit" };
+constexpr std::array<const char *, rv_editor_check_count> rv_editor_check_keys = { "build", "loads", "player",
+    "launch", "input", "audio", "scenario", "exit" };
 constexpr std::array<const char *, 6> rv_editor_state_keys = { "not_run", "running", "passed", "failed", "blocked",
     "skipped" };
 constexpr std::array<const char *, 3> rv_editor_decision_keys = { "none", "approved", "rejected" };

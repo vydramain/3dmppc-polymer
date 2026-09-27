@@ -158,6 +158,11 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
             { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
         rv_editor_app_run_candidate(app);
     }
+    rv_editor_flow(rv_editor_tool_button_width("Run in Player"));
+    if (rv_editor_tool_button("Run in Player", rv_editor_glyph::run, theme.code_blue, nullptr, theme,
+            { rv_editor_look::live, rv_editor_app_why_not_play(app) })) {
+        rv_editor_app_play_candidate(app);
+    }
     rv_editor_flow(rv_editor_tool_button_width("Stop"));
     if (rv_editor_tool_button("Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", theme,
             { rv_editor_look::live, rv_editor_app_why_not_stop(app) })) {

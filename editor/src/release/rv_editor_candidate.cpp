@@ -36,6 +36,8 @@ std::vector<rv_editor_check> rv_editor_checks_make()
     } list[] = {
         { "Build", "mppcburner exited 0 and wrote this image", false },
         { "Disc loads", "the console mounted this image and answered its first status", false },
+        { "Player", "the player, 3dmppc built without devtools, ran this image and it ended by itself with exit code 0",
+            false },
         { "Launch", "the game reaches its first screen", true },
         { "Input", "the controls do what the game says they do", true },
         { "Audio", "music and effects play, without gaps or noise", true },

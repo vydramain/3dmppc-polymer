@@ -202,6 +202,21 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             rv_editor_open_project_row(app, theme);
             return;
         }
+        if (app.release_view && app.release.player != nullptr) {
+            // The player draws in a window of its own: here only what the editor knows (BRN-04).
+            const rv_editor_release &r = app.release;
+            const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                r.player_started).count();
+            const uint32_t number = r.player_candidate >= 0 ? r.candidates[static_cast<size_t>(r.player_candidate)].number
+                                                            : 0;
+            ImGui::TextWrapped("External player running candidate #%u in its own window: pid %d, %lld s.", number,
+                static_cast<int>(r.player->pid()), static_cast<long long>(seconds));
+            if (rv_editor_button(r.player_stopped ? "Kill Player" : "Stop Player", theme)) {
+                rv_editor_app_stop_player(app);
+            }
+            ImGui::SetItemTooltip("The operator's act: the Player check does not pass from it");
+            return;
+        }
         if (app.release_view) {
             // Release plays the candidate's image, never a development build.
             const std::string what = app.release.candidates.empty()

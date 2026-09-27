@@ -14,6 +14,7 @@
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
 #include "nvim/rv_editor_nvim.hpp"
+#include "platform/rv_editor_process.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
@@ -129,6 +130,14 @@ struct rv_editor_release
     std::string last_failure;  // the newest candidate build did not make one
     int playing = -1;          // the candidate the session runs, or -1
     uint64_t playtest_first_seq = 0; // the first log line of that playtest
+    // The player playing a candidate in its own window (REL-06): the process, which
+    // candidate, since when, whether the operator stopped it, what it printed.
+    std::unique_ptr<rv_editor_process> player;
+    int player_candidate = -1;
+    std::chrono::steady_clock::time_point player_started{};
+    bool player_stopped = false;
+    std::string player_output;
+    std::string player_partial;
     std::string report;        // the last report written
     std::string error;
 };
@@ -254,6 +263,12 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
 void rv_editor_app_build_candidate(rv_editor_app &app);
 const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app);
 void rv_editor_app_run_candidate(rv_editor_app &app);
+// Player (editor/src/app/rv_editor_app_player.cpp): Run in Player plays the shown
+// candidate in the player's own window; Stop Player is the operator's act.
+const char *rv_editor_app_why_not_play(const rv_editor_app &app);
+void rv_editor_app_play_candidate(rv_editor_app &app);
+void rv_editor_app_stop_player(rv_editor_app &app);
+void rv_editor_app_player_update(rv_editor_app &app);
 void rv_editor_app_export_report(rv_editor_app &app);
 // Once a frame: a finished candidate build, hashes, the playtest's end.
 void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);

@@ -167,6 +167,7 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
 void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
 {
     rv_editor_release &r = app.release;
+    rv_editor_app_player_update(app);
     if (build_ended && r.building) {
         rv_editor_candidate_finish_build(app);
     }
