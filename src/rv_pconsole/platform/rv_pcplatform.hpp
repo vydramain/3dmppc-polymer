@@ -64,6 +64,10 @@ public:
     // !presenting().
     virtual void present(const uint32_t *argb) = 0;
 
+    // True when another program shows the frames and says itself that the
+    // machine is paused (--frame-fd): a pause then presents nothing over them.
+    virtual bool embedded() const { return false; }
+
     // Sticky: the user asked to close the window.
     virtual bool close_requested() const = 0;
 

@@ -96,6 +96,11 @@ public:
         return map_ != nullptr;
     }
 
+    bool embedded() const override
+    {
+        return true;
+    }
+
     void present(const uint32_t *argb) override
     {
         if (map_ == nullptr) {
