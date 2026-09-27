@@ -88,7 +88,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     std::string sources;
     for (size_t i = 0; i < view.show.size(); ++i) {
         if (view.show[i]) {
-            sources += (sources.empty() ? "" : ", ") + std::string(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)));
+            sources += (sources.empty() ? "" : ", ") +
+                std::string(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)));
         }
     }
     const std::string sources_label = "Sources: " + (sources.empty() ? std::string("none") : sources) + "##sources";

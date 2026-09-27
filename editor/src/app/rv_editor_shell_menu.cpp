@@ -354,11 +354,35 @@ void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &them
         rv_editor_shell_open_folder(shell);
     }
     ImGui::SameLine();
-    if (rv_editor_image_button("##save", "save", "Save (Ctrl+S)", theme, code_state)) {
+    // In Scene with a scene open, Save, Undo and Redo are the scene's (SCN-03); elsewhere the code tile's.
+    rv_editor_scene_doc *scene = shell.active == rv_editor_layout_preset::scene ? shell.app.scene.get() : nullptr;
+    if (scene != nullptr) {
+        const char *why_not_save = !scene->scene.read_only.empty() ? "The scene is read-only"
+            : !scene->dirty                                        ? "Nothing to save"
+                                                                   : nullptr;
+        if (rv_editor_image_button("##save", "save", "Save Scene", theme, { rv_editor_look::live, why_not_save })) {
+            std::string error;
+            if (!rv_editor_app_scene_save(shell.app, error)) {
+                shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
+            }
+        }
+    } else if (rv_editor_image_button("##save", "save", "Save (Ctrl+S)", theme, code_state)) {
         rv_editor_menu_code_keys(shell, "<C-s>");
     }
     // A gap between the file actions and the edit actions.
     ImGui::SameLine(0.0f, side);
+    if (scene != nullptr) {
+        if (rv_editor_image_button("##undo", "undo", "Undo Scene Edit (Ctrl+Z in a scene tile)", theme,
+                { rv_editor_look::live, scene->undo.empty() ? "Nothing to undo" : nullptr })) {
+            rv_editor_scene_undo(*scene);
+        }
+        ImGui::SameLine();
+        if (rv_editor_image_button("##redo", "redo", "Redo Scene Edit (Ctrl+Shift+Z in a scene tile)", theme,
+                { rv_editor_look::live, scene->redo.empty() ? "Nothing to redo" : nullptr })) {
+            rv_editor_scene_redo(*scene);
+        }
+        return;
+    }
     if (rv_editor_image_button("##undo", "undo", "Undo (Ctrl+Z)", theme, code_state)) {
         rv_editor_menu_code_keys(shell, "<C-z>");
     }
