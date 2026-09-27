@@ -119,7 +119,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         {"Build", rv_editor_glyph::build, 0xfab387, "Ctrl+B", state.build, &out.build},
         {state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, "F5", state.run, &out.run},
         {"Pause", rv_editor_glyph::pause, theme.code_yellow, "F6", state.pause, &out.pause},
-        {"Step", rv_editor_glyph::step, theme.code_blue, "F7", state.step, &out.step},
+        {"Step Frame", rv_editor_glyph::step, theme.code_blue, "F7", state.step, &out.step},
         {"Stop", rv_editor_glyph::stop, theme.code_red, "Shift+F5", state.stop, &out.stop},
         {"Reload", rv_editor_glyph::reload, 0xcba6f7, nullptr, state.reload, &out.reload},
     };
