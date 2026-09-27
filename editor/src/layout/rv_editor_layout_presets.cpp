@@ -42,6 +42,7 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.18f);
     b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.0f);
     const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.74f);
+    b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, output);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.62f);
@@ -73,6 +74,7 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, game, rv_editor_tile_dock::bottom, 0.72f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::problems, log, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);
     b.add(rv_editor_pane_kind::toolchest, game, rv_editor_tile_dock::left, 0.12f);
@@ -104,9 +106,11 @@ void rv_editor_preset_burn_diagnose(rv_editor_preset_builder &b)
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id result =
         b.add(rv_editor_pane_kind::build_result, controls, rv_editor_tile_dock::bottom, 0.0f);
-    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, result, rv_editor_tile_dock::bottom, 0.70f);
-    b.add(rv_editor_pane_kind::terminal, log, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, log);
+    const rv_editor_pane_id problems =
+        b.add(rv_editor_pane_kind::problems, result, rv_editor_tile_dock::bottom, 0.70f);
+    b.add(rv_editor_pane_kind::build_log, problems, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::terminal, problems, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, problems);
     const rv_editor_pane_id files = b.add(rv_editor_pane_kind::files, result, rv_editor_tile_dock::left, 0.18f);
     b.add(rv_editor_pane_kind::toolchest, files, rv_editor_tile_dock::top, 0.0f);
     b.add(rv_editor_pane_kind::code, result, rv_editor_tile_dock::tab, 0.0f);

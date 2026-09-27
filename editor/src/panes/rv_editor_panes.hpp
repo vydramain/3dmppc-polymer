@@ -61,6 +61,9 @@ void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme);
 // The last build job's outcome and diagnostics, and the next action (BRN-02).
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme);
 
+// The latest build's diagnostics with a place, opening it (BLD-06).
+void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 

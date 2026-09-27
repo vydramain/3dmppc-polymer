@@ -154,6 +154,8 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     } else if (kind == rv_editor_pane_kind::runtime_log) {
         title = burn ? "Playtest Log" + (candidate.empty() ? "" : ": " + candidate)
                      : "Runtime Log" + (session.empty() ? "" : ": " + session);
+    } else if (kind == rv_editor_pane_kind::problems && !app.problems.empty()) {
+        title = "Problems (" + std::to_string(app.problems.size()) + ")";
     } else if (kind == rv_editor_pane_kind::build_log && app.build.number() != 0) {
         title = "Build Log: build " + std::to_string(app.build.number());
     } else if (kind == rv_editor_pane_kind::terminal) {
@@ -287,6 +289,21 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             "cannot open " + app.open_requests.front().string() + ": " + app.nvim.problem);
         app.open_requests.clear();
     }
+    // Places (Problems, Search Results) open like files, at their line.
+    if (!app.open_at_requests.empty() && app.nvim.problem.empty()) {
+        const rv_editor_pane_id pane = rv_editor_code_target(shell.ws, shell.last_code);
+        const int64_t win = app.nvim.window_for(pane);
+        if (win != 0) {
+            for (const auto &[path, line] : app.open_at_requests) {
+                app.nvim.open(win, path, line);
+            }
+            app.open_at_requests.clear();
+            const uint32_t leaf = rv_editor_tile_find(shell.ws.layout, pane);
+            if (leaf != rv_editor_tile_none) {
+                shell.ws.focused_leaf = leaf;
+            }
+        }
+    }
     if (!app.open_requests.empty()) {
         const rv_editor_pane_id pane = rv_editor_code_target(shell.ws, shell.last_code);
         const int64_t win = app.nvim.window_for(pane);
@@ -367,6 +384,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
         case rv_editor_pane_kind::build_result: rv_editor_pane_build_result(shell.app, theme); return;
+        case rv_editor_pane_kind::problems: rv_editor_pane_problems(shell.app, theme); return;
         case rv_editor_pane_kind::controls:
         case rv_editor_pane_kind::release_controls:
         case rv_editor_pane_kind::toolchest: {

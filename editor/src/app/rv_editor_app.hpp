@@ -14,6 +14,7 @@
 #include "log/rv_editor_log.hpp"
 #include "nvim/rv_editor_nvim.hpp"
 #include "prefs/rv_editor_prefs.hpp"
+#include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
@@ -157,6 +158,12 @@ struct rv_editor_app
     bool capture_request = false;
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
+    // What that job's lines name, re-read when the log changes; and when the job ended.
+    std::vector<rv_editor_problem> problems;
+    uint64_t problems_revision = 0;
+    std::filesystem::file_time_type build_ended{};
+    // Files to open at a line (Problems, Search Results), as open_requests.
+    std::vector<std::pair<std::filesystem::path, int32_t>> open_at_requests;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
 };

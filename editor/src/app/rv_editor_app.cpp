@@ -315,6 +315,19 @@ void rv_editor_app_update(rv_editor_app &app)
     app.session.update(app.log);
     if (was_busy && !app.build.busy()) {
         app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
+        app.build_ended = std::filesystem::file_time_type::clock::now();
+    }
+    // The latest job's places, once per change of the log (BLD-06).
+    if (app.problems_revision != app.log.revision()) {
+        app.problems_revision = app.log.revision();
+        app.problems.clear();
+        for (const rv_editor_log_line &line : app.log.lines()) {
+            rv_editor_problem p;
+            if (line.seq >= app.build_first_seq && line.source == rv_editor_log_source::build &&
+                rv_editor_problem_parse(line.text, app.project.root, p)) {
+                app.problems.push_back(std::move(p));
+            }
+        }
     }
     rv_editor_app_release_update(app, was_busy && !app.build.busy());
 }
