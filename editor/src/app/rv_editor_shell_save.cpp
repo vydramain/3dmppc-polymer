@@ -137,7 +137,7 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
     if (shell.save_failed.empty()) {
         return;
     }
-    ImGui::TextUnformatted("Not saved, so nothing was closed:");
+    ImGui::TextUnformatted("Not saved, so nothing went ahead:");
     for (size_t i = 0; i < shell.save_failed.size(); ++i) {
         const rv_editor_nvim_saved &f = shell.save_failed[i];
         const std::string label = f.id == 0 ? "nvim" : rv_editor_buffer_label(shell.app, f.name);
@@ -188,6 +188,14 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
         shell.quit_now = true;
     } else if (shell.leaving == leave::open) {
         rv_editor_shell_open_now(shell, shell.leaving_to);
+    } else if (shell.leaving == leave::build || shell.leaving == leave::run) {
+        // Just written: the watcher may not have said so yet.
+        shell.app.inputs_changed = true;
+        if (shell.leaving == leave::build) {
+            rv_editor_app_build_saved(shell.app);
+        } else {
+            rv_editor_app_run_saved(shell.app);
+        }
     }
     shell.leaving = leave::none;
 }
@@ -297,14 +305,39 @@ void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &them
         ImGui::OpenPopup(leave_title);
     }
     if (rv_editor_dialog_begin(leave_title, theme)) {
+        // Build and Run go ahead without saving too: they use the files as on disk.
+        const bool ahead = shell.leaving == leave::build || shell.leaving == leave::run;
+        const char *verb = shell.leaving == leave::build ? "Build" : "Run";
         ImGui::TextUnformatted(shell.leaving == leave::quit ? "The editor is closing. These files have unsaved changes:"
-                                                            : "Another project is opening. These files have unsaved changes:");
+                : shell.leaving == leave::open             ? "Another project is opening. These files have unsaved changes:"
+                                                           : "Builds use the files as saved. These have unsaved changes:");
         for (const rv_editor_nvim_buffer &b : app.nvim.modified()) {
-            ImGui::BulletText("%s", rv_editor_buffer_label(app, b.name).c_str());
+            if (!ahead || !b.name.empty()) {
+                ImGui::BulletText("%s", rv_editor_buffer_label(app, b.name).c_str());
+            }
         }
         rv_editor_shell_failures(shell, theme);
         if (shell.save_as_buffer != 0) {
             rv_editor_shell_save_as_body(shell, theme);
+        } else if (ahead) {
+            const bool save = rv_editor_button((std::string("Save and ") + verb).c_str(), theme, busy);
+            ImGui::SameLine();
+            const bool saved = rv_editor_button((std::string(verb) + " Saved Files").c_str(), theme, busy);
+            ImGui::SameLine();
+            const bool cancel = rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape);
+            if (save) {
+                rv_editor_shell_save(shell, rv_editor_app_unsaved(app));
+            }
+            if (saved || cancel) {
+                const leave was = shell.leaving;
+                shell.leaving = leave::none;
+                shell.save_failed.clear();
+                if (saved && was == leave::build) {
+                    rv_editor_app_build_saved(app);
+                } else if (saved) {
+                    rv_editor_app_run_saved(app);
+                }
+            }
         } else {
             const bool save = rv_editor_button("Save All", theme, busy);
             ImGui::SameLine();

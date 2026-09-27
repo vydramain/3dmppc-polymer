@@ -125,15 +125,8 @@ const char *rv_editor_app_why_not_run(const rv_editor_app &app)
     if (app.build.busy()) {
         return "Waiting for the build to finish";
     }
-    switch (app.build.dev_state()) {
-        case rv_editor_build_state::idle: return "Nothing built yet: Build first";
-        case rv_editor_build_state::failed:
-            return "The last build failed; Run > Run Last Successful Build starts the one before";
-        case rv_editor_build_state::cancelled:
-            return "The last build was cancelled; Run > Run Last Successful Build starts the one before";
-        default: break;
-    }
-    return nullptr;
+    // Run builds first when it has to, so what stops a build stops it.
+    return rv_editor_app_run_builds(app) ? rv_editor_app_why_not_build(app) : nullptr;
 }
 
 const char *rv_editor_app_why_not_run_last(const rv_editor_app &app)
@@ -208,16 +201,48 @@ const char *rv_editor_app_why_not_reload(const rv_editor_app &app)
     return nullptr;
 }
 
+std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
+{
+    std::vector<int64_t> ids;
+    for (const rv_editor_nvim_buffer &b : app.nvim.modified()) {
+        if (!b.name.empty()) {
+            ids.push_back(b.id);
+        }
+    }
+    return ids;
+}
+
+bool rv_editor_app_run_builds(const rv_editor_app &app)
+{
+    return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded ||
+        !app.build.last_success();
+}
+
 void rv_editor_app_build(rv_editor_app &app)
+{
+    if (rv_editor_app_why_not_build(app) != nullptr) {
+        return;
+    }
+    if (!rv_editor_app_unsaved(app).empty()) {
+        app.unsaved_ask = rv_editor_unsaved_ask::build;
+        return;
+    }
+    rv_editor_app_build_saved(app);
+}
+
+void rv_editor_app_build_saved(rv_editor_app &app)
 {
     if (rv_editor_app_why_not_build(app) != nullptr) {
         return;
     }
     std::string error;
     app.build_first_seq = app.log.revision() + 1;
+    app.run_after_build = false;
     if (!app.build.start(app.project, app.tools, app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
+        return;
     }
+    app.inputs_changed = false;
 }
 
 void rv_editor_app_run(rv_editor_app &app)
@@ -229,7 +254,24 @@ void rv_editor_app_run(rv_editor_app &app)
         app.session.resume(app.log);
         return;
     }
-    rv_editor_app_start(app, *app.build.last_success());
+    if (!rv_editor_app_unsaved(app).empty()) {
+        app.unsaved_ask = rv_editor_unsaved_ask::run;
+        return;
+    }
+    rv_editor_app_run_saved(app);
+}
+
+void rv_editor_app_run_saved(rv_editor_app &app)
+{
+    if (rv_editor_app_why_not_run(app) != nullptr) {
+        return;
+    }
+    if (!rv_editor_app_run_builds(app)) {
+        rv_editor_app_start(app, *app.build.last_success());
+        return;
+    }
+    rv_editor_app_build_saved(app);
+    app.run_after_build = app.build.busy();
 }
 
 void rv_editor_app_run_last(rv_editor_app &app)
@@ -301,6 +343,7 @@ void rv_editor_app_update(rv_editor_app &app)
     }
     if (!app.files.changed.empty()) {
         rv_editor_app_release_changed(app);
+        app.inputs_changed = true;
     }
     for (const std::filesystem::path &changed : app.files.changed) {
         if (app.project.open && changed == app.project.manifest) {
@@ -316,6 +359,16 @@ void rv_editor_app_update(rv_editor_app &app)
     if (was_busy && !app.build.busy()) {
         app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
         app.build_ended = std::filesystem::file_time_type::clock::now();
+        if (app.run_after_build) {
+            // The build Run started runs, or Run says why not; never the one before (BLD-04).
+            app.run_after_build = false;
+            if (app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success()) {
+                rv_editor_app_start(app, *app.build.last_success());
+            } else {
+                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+                    std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));
+            }
+        }
     }
     // The latest job's places, once per change of the log (BLD-06).
     if (app.problems_revision != app.log.revision()) {

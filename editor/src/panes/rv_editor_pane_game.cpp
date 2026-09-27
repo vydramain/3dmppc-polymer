@@ -157,18 +157,12 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             return;
         }
         // Stopped: what Run starts, and Run itself (or Build, with nothing built).
-        const std::string target = app.build.last_success()
+        const std::string target = !rv_editor_app_run_builds(app)
             ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
-            : "Stopped. Nothing is built yet: Build, then Run.";
+            : "Stopped. Run builds the saved files, then starts that build here.";
         ImGui::TextWrapped("%s", target.c_str());
-        const bool built = app.build.last_success().has_value();
-        const char *why_not = built ? rv_editor_app_why_not_run(app) : rv_editor_app_why_not_build(app);
-        if (rv_editor_button(built ? "Run" : "Build", theme, { rv_editor_look::live, why_not })) {
-            if (built) {
-                rv_editor_app_run(app);
-            } else {
-                rv_editor_app_build(app);
-            }
+        if (rv_editor_button("Run", theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
+            rv_editor_app_run(app);
         }
         return;
     }

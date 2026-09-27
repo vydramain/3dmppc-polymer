@@ -112,6 +112,14 @@ struct rv_editor_release
     std::string error;
 };
 
+// What waits on the window's unsaved-files question (BLD-03).
+enum class rv_editor_unsaved_ask
+{
+    none,
+    build,
+    run,
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them (docs/adr/0002-tiling.md).
 struct rv_editor_app
@@ -164,6 +172,12 @@ struct rv_editor_app
     uint64_t problems_revision = 0;
     std::filesystem::file_time_type build_ended{};
     rv_editor_search_view project_search;
+    // A saved project file changed since the latest development build started, so
+    // Run builds first; unknown at start, so true. Run started that build: it runs next.
+    bool inputs_changed = true;
+    bool run_after_build = false;
+    // Build or Run met unsaved named buffers: the window asks before either goes ahead.
+    rv_editor_unsaved_ask unsaved_ask = rv_editor_unsaved_ask::none;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
 };
@@ -189,7 +203,15 @@ const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
 // The running console can reload its entry script: a directory medium and a Lua entry.
 bool rv_editor_app_can_reload(const rv_editor_app &app);
 
+// Build and Run ask first when a named buffer is unsaved (BLD-03); the _saved
+// forms go ahead with the files as they are on disk.
 void rv_editor_app_build(rv_editor_app &app);
+void rv_editor_app_build_saved(rv_editor_app &app);
+void rv_editor_app_run_saved(rv_editor_app &app);
+// Run would build first: nothing succeeded yet, the last build did not, or an input changed.
+bool rv_editor_app_run_builds(const rv_editor_app &app);
+// Buffers with a file name and unsaved changes: what a build would miss.
+std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app);
 // Starts a console on `artifact` with memory card `card` (empty: the project's).
 bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
 
@@ -204,7 +226,8 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
 // A project file changed: every candidate's sources now differ from the tree.
 void rv_editor_app_release_changed(rv_editor_app &app);
 
-// Runs the last build, which succeeded; on a paused session this resumes it.
+// Runs the latest build, building the saved files first when rv_editor_app_run_builds;
+// on a paused session this resumes it.
 void rv_editor_app_run(rv_editor_app &app);
 // Runs the last successful build after a later build failed (BLD-05).
 void rv_editor_app_run_last(rv_editor_app &app);

@@ -60,6 +60,8 @@ struct rv_editor_shell
         none,
         quit,
         open,
+        build, // Build met unsaved files (BLD-03)
+        run,
     };
     rv_editor_leave leaving = rv_editor_leave::none;
     std::filesystem::path leaving_to; // the project Open waits to open

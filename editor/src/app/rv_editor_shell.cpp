@@ -224,6 +224,12 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         rv_editor_shell_request_open(shell, path);
     }
     rv_editor_app_update(shell.app);
+    // Build or Run met unsaved files: the question opens, unless another is open.
+    if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {
+        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build ? rv_editor_shell::rv_editor_leave::build
+                                                                              : rv_editor_shell::rv_editor_leave::run;
+    }
+    shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
 
 
