@@ -21,6 +21,7 @@ struct rv_editor_run_profile
     bool fixed_step = false;       // --fixed-step: no real-time wait, no audio
     std::vector<std::string> args; // more console options, one per entry, before the disc
     std::vector<std::string> env;  // KEY=VALUE over the editor's environment
+    bool reload_on_save = false;   // a saved .lua file reloads a running entry script (RLD-01)
 };
 
 // The profiles of <root>/.3dmppc-editor/project.toml (ADR 0010); one Default when

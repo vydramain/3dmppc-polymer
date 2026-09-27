@@ -83,9 +83,10 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
     reloading_ = false;
     if (err) {
         // The previous code stays; whether its effects ran is the runtime's word (RLD-04).
-        log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,
-            "reload refused: " + std::string(msg.get("error")) + ": " + rv_editor_hex_decode(msg.get("msg")) +
-                (msg.get("effects") == "1" ? " (effects may have happened before it failed)" : ""));
+        reload_ok_ = false;
+        reload_result_ = std::string(msg.get("error")) + ": " + rv_editor_hex_decode(msg.get("msg")) +
+            (msg.get("effects") == "1" ? " (effects may have happened before it failed)" : "");
+        log.add(rv_editor_log_source::runtime, rv_editor_log_level::error, "reload refused: " + reload_result_);
         send("status", log);
         return true;
     }
@@ -93,8 +94,9 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
     facts_.entry_hash = msg.get("entry_hash");
     facts_.lua_used = rv_editor_field_int(msg, "lua_used", facts_.lua_used);
     facts_.at = std::chrono::system_clock::now();
-    log.add(rv_editor_log_source::runtime, rv_editor_log_level::info,
-        "reload accepted: entry revision " + std::to_string(facts_.revision));
+    reload_ok_ = true;
+    reload_result_ = "entry revision " + std::to_string(facts_.revision);
+    log.add(rv_editor_log_source::runtime, rv_editor_log_level::info, "reload accepted: " + reload_result_);
     return true;
 }
 

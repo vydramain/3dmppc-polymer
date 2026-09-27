@@ -96,6 +96,26 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::SetItemTooltip("Run Configuration: how Run starts the runtime");
 
+    // The last reload by the transport, as the runtime answered it (RLD-04).
+    if (s.live() && rv_editor_app_can_reload(app)) {
+        const bool on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
+        const char *label = s.reloading()      ? "Reloading"
+            : !s.reload_result().empty()       ? (s.reload_ok() ? "Reload accepted" : "Reload refused")
+            : on_save                          ? "Reload On Save"
+                                               : nullptr;
+        if (label != nullptr) {
+            rv_editor_status(label, s.reloading() ? rv_editor_status_kind::busy
+                    : s.reload_result().empty()   ? rv_editor_status_kind::idle
+                    : s.reload_ok()               ? rv_editor_status_kind::ok
+                                                  : rv_editor_status_kind::error,
+                theme);
+            if (!s.reloading() && !s.reload_result().empty()) {
+                ImGui::SameLine();
+                rv_editor_wrapped(s.reload_result());
+            }
+        }
+    }
+
     if (!s.live() && !s.end_reason().empty()) {
         rv_editor_wrapped("Last run: " + s.end_reason());
     }

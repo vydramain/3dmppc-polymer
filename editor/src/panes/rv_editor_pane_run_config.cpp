@@ -54,6 +54,7 @@ void rv_editor_run_form_fill(rv_editor_run_form &f, const rv_editor_run_profile 
     f.mute = p.mute;
     f.paused = p.paused;
     f.fixed_step = p.fixed_step;
+    f.reload_on_save = p.reload_on_save;
     std::snprintf(f.args, sizeof(f.args), "%s", rv_editor_run_lines(p.args).c_str());
     std::snprintf(f.env, sizeof(f.env), "%s", rv_editor_run_lines(p.env).c_str());
 }
@@ -61,7 +62,7 @@ void rv_editor_run_form_fill(rv_editor_run_form &f, const rv_editor_run_profile 
 rv_editor_run_profile rv_editor_run_form_profile(const rv_editor_run_form &f)
 {
     return { f.name, f.runtime, f.memcard, f.cwd, f.mute, f.paused, f.fixed_step, rv_editor_run_split(f.args),
-        rv_editor_run_split(f.env) };
+        rv_editor_run_split(f.env), f.reload_on_save };
 }
 
 // A label column, then the field with what an empty one means as its tooltip.
@@ -144,6 +145,9 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::SameLine();
     rv_editor_checkbox("Fixed Step", &form.fixed_step, theme);
     ImGui::SetItemTooltip("No real-time wait and no audio: every frame is 1/60 s of machine time");
+    ImGui::SameLine();
+    rv_editor_checkbox("Reload On Save", &form.reload_on_save, theme);
+    ImGui::SetItemTooltip("A saved .lua file reloads the entry script of a running session that can reload");
     const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * 3.5f);
     ImGui::TextUnformatted("More console options, one per line, before the disc");
     ImGui::InputTextMultiline("##args", form.args, sizeof(form.args), box);

@@ -92,6 +92,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     build_number_ = build_number;
     ++number_;
     reloading_ = false;
+    reload_result_.clear();
     facts_ = {};
     answers_.clear();
     started_wall_ = std::chrono::system_clock::now();

@@ -71,6 +71,7 @@ void rv_editor_run_read_entry(rv_editor_run_profile &p, const rv_pdklib::rv_mani
     } else if (v.kind == kind::integer) {
         bool *flag = e.key == "mute" ? &p.mute : e.key == "paused" ? &p.paused
             : e.key == "fixed_step"                                 ? &p.fixed_step
+            : e.key == "reload_on_save"                             ? &p.reload_on_save
                                                                     : nullptr;
         if (flag != nullptr) {
             *flag = v.num != 0;
@@ -146,6 +147,7 @@ bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_edito
         t += "fixed_step = " + std::to_string(p.fixed_step ? 1 : 0) + "\n";
         t += "args = " + rv_editor_run_array(p.args) + "\n";
         t += "env = " + rv_editor_run_array(p.env) + "\n";
+        t += "reload_on_save = " + std::to_string(p.reload_on_save ? 1 : 0) + "\n";
     }
     const std::filesystem::path path = rv_editor_run_config_path(root);
     std::error_code ec;

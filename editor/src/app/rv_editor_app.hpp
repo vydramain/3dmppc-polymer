@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <filesystem>
 #include <map>
 #include <memory>
@@ -68,6 +69,7 @@ struct rv_editor_run_form
     bool mute = false;
     bool paused = false;
     bool fixed_step = false;
+    bool reload_on_save = false;
     char args[1024] = {};
     char env[1024] = {};
 };
@@ -204,6 +206,8 @@ struct rv_editor_app
     uint64_t run_config_revision = 1;
     rv_editor_run_form run_form;
     bool run_after_stop = false;
+    // Reload On Save: when the last .lua change settled enough to reload; zero: none due.
+    std::chrono::steady_clock::time_point reload_due{};
 };
 
 // Writes the profiles to the project, checks the active one again and refills the

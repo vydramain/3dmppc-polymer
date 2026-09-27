@@ -122,6 +122,9 @@ public:
     const std::filesystem::path &disc_dir() const { return disc_dir_; }
     bool connected() const { return handshake_done_ && live(); }
     bool reloading() const { return reloading_; }
+    // The last reload's answer in this session, as the runtime gave it; empty before one.
+    const std::string &reload_result() const { return reload_result_; }
+    bool reload_ok() const { return reload_ok_; }
     // Counts the sessions this window started, from 1; 0 before the first.
     uint32_t number() const { return number_; }
     std::chrono::system_clock::time_point started_at() const { return started_wall_; }
@@ -165,6 +168,8 @@ private:
     uint32_t build_number_ = 0;
     uint32_t number_ = 0;
     bool reloading_ = false;
+    std::string reload_result_;
+    bool reload_ok_ = false;
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
     std::chrono::system_clock::time_point started_wall_{};

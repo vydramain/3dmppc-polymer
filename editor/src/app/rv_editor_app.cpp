@@ -378,6 +378,10 @@ void rv_editor_app_update(rv_editor_app &app)
         app.inputs_changed = true;
     }
     for (const std::filesystem::path &changed : app.files.changed) {
+        // Reload On Save waits for the writes to settle: every change moves it on.
+        if (changed.extension() == ".lua" && app.run_config.profiles[app.run_config.active].reload_on_save) {
+            app.reload_due = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+        }
         if (app.project.open && changed == app.project.manifest) {
             // disc.toml is the source of truth (PRJ-03): what the Project pane
             // shows follows it; a running console keeps what it loaded.
@@ -418,6 +422,12 @@ void rv_editor_app_update(rv_editor_app &app)
     if (app.run_after_stop && !app.session.live()) {
         app.run_after_stop = false;
         rv_editor_app_run(app);
+    }
+    // Due and no reload out: one reload for the whole burst; none when the session cannot take it.
+    if (app.reload_due != std::chrono::steady_clock::time_point{} && std::chrono::steady_clock::now() >= app.reload_due &&
+        !app.session.reloading()) {
+        app.reload_due = {};
+        rv_editor_app_reload(app);
     }
 }
 
