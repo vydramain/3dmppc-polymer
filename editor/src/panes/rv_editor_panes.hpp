@@ -68,6 +68,11 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 // Find in Project: the query, its scope, and each place, opening it (TXT-06).
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
+// Scene: the open scene document, or how to create or open one (TPL-04); the
+// Create/Open row is shared with the other scene panes.
+void rv_editor_pane_scene(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The project's run profiles as a form: Apply, Apply and Restart (CFG-01/02).
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);
 

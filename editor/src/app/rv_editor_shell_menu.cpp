@@ -13,10 +13,6 @@
 namespace rv_editor
 {
 
-namespace
-{
-
-// A menu item that is disabled with its reason shown on hover (UI-04).
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
 {
     const bool clicked = ImGui::MenuItem(label, shortcut, false, why_not == nullptr);
@@ -25,6 +21,9 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
     }
     return clicked;
 }
+
+namespace
+{
 
 // A top-level menu with its mnemonic, the first letter, underlined (UX-06). Alt
 // moves the keyboard into the bar; the arrows walk it.
@@ -275,7 +274,8 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         const char *label;
         void (*draw)(rv_editor_shell &);
     } menus[] = { { "File", rv_editor_menu_file }, { "Edit", rv_editor_menu_edit }, { "View", rv_editor_menu_view },
-        { "Project", rv_editor_menu_project }, { "Run", rv_editor_menu_run }, { "Window", rv_editor_menu_window },
+        { "Project", rv_editor_menu_project }, { "Scene", rv_editor_menu_scene }, { "Run", rv_editor_menu_run },
+        { "Window", rv_editor_menu_window },
         { "Help", rv_editor_menu_help } };
     for (const auto &m : menus) {
         if (rv_editor_menu_begin(m.label)) {

@@ -20,6 +20,7 @@
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
 #include "project/rv_editor_search.hpp"
+#include "scene/rv_editor_scene_edit.hpp"
 #include "session/rv_editor_session.hpp"
 #include "terminal/rv_editor_terminal.hpp"
 
@@ -217,9 +218,23 @@ struct rv_editor_app
     uint64_t run_config_revision = 1;
     rv_editor_run_form run_form;
     bool run_after_stop = false;
+    // The scene the Scene layout edits, if one is open, and why the last open failed.
+    std::unique_ptr<rv_editor_scene_doc> scene;
+    std::string scene_error;
     // Reload On Save: when the last .lua change settled enough to reload; zero: none due.
     std::chrono::steady_clock::time_point reload_due{};
 };
+
+// Scene (editor/src/app/rv_editor_app_scene.cpp): the project's scenes/*.scene.toml,
+// the open one, a new one under a free name, and its save.
+std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app &app);
+bool rv_editor_app_scene_dirty(const rv_editor_app &app);
+std::string rv_editor_app_scene_name(const rv_editor_app &app);
+void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
+void rv_editor_app_scene_create(rv_editor_app &app);
+bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
+// The project's first scene, or none; called when a project opens.
+void rv_editor_app_scene_first(rv_editor_app &app);
 
 // Writes the profiles to the project, checks the active one again and refills the
 // form; a failed write goes to the log.

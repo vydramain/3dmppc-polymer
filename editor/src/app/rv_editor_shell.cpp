@@ -154,6 +154,9 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     } else if (kind == rv_editor_pane_kind::runtime_log) {
         title = burn ? "Playtest Log" + (candidate.empty() ? "" : ": " + candidate)
                      : "Runtime Log" + (session.empty() ? "" : ": " + session);
+    } else if (kind == rv_editor_pane_kind::scene && app.scene != nullptr) {
+        title = "Scene: " + rv_editor_app_scene_name(app) + (app.scene->dirty ? " *" : "") +
+            (app.scene->scene.read_only.empty() ? "" : " (read-only)");
     } else if (kind == rv_editor_pane_kind::problems && !app.problems.empty()) {
         title = "Problems (" + std::to_string(app.problems.size()) + ")";
     } else if (kind == rv_editor_pane_kind::build_log && app.build.number() != 0) {
@@ -416,6 +419,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
         case rv_editor_pane_kind::checks: rv_editor_pane_checks(shell.app, theme); return;
+        case rv_editor_pane_kind::scene: rv_editor_pane_scene(shell.app, theme); return;
         case rv_editor_pane_kind::build_result: rv_editor_pane_build_result(shell.app, theme); return;
         case rv_editor_pane_kind::problems: rv_editor_pane_problems(shell.app, theme); return;
         case rv_editor_pane_kind::search: rv_editor_pane_search(shell.app, theme); return;

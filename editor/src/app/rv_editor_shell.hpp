@@ -150,6 +150,11 @@ void rv_editor_shell_toolbar(rv_editor_shell &shell, const rv_editor_theme &them
 // Help > Keyboard Shortcuts, drawn after the workspace.
 void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
+// A menu item that is disabled with its reason shown on hover (UI-04).
+bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
+// The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
+void rv_editor_menu_scene(rv_editor_shell &shell);
+
 // The folder and disc.toml dialogs; what they pick opens next frame.
 void rv_editor_shell_open_folder(rv_editor_shell &shell);
 void rv_editor_shell_open_manifest(rv_editor_shell &shell);
