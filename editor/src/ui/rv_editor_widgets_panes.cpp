@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -14,9 +13,7 @@ namespace rv_editor
 bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
     const rv_editor_theme &theme, const rv_editor_state &state)
 {
-    // Grabbed by the whole bar, drawn as its middle pad_px.
-    const float thickness = std::floor(static_cast<float>(theme.splitter_px) * theme.scale);
-    const float drawn = std::floor(static_cast<float>(theme.pad_px) * theme.scale);
+    const float thickness = static_cast<float>(theme.pad_px * theme.scale);
     const bool across_x = axis == rv_editor_axis::x;
     const ImVec2 size = across_x ? ImVec2(thickness, length) : ImVec2(length, thickness);
     const rv_editor_item item = rv_editor_item_add(id, size, state);
@@ -39,12 +36,10 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
     }
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    const float inset = std::floor((thickness - drawn) / 2.0f);
-    const ImVec2 min = across_x ? ImVec2(item.min.x + inset, item.min.y) : ImVec2(item.min.x, item.min.y + inset);
-    const ImVec2 max = across_x ? ImVec2(min.x + drawn, item.max.y) : ImVec2(item.max.x, min.y + drawn);
-    rv_editor_draw_panel(dl, min, max, theme, item.held ? theme.selection : theme.window, rv_editor_bevel::raised);
+    rv_editor_draw_panel(dl, item.min, item.max, theme, item.held ? theme.selection : theme.window,
+        rv_editor_bevel::raised);
     if (item.hovered && !item.held && !item.disabled) {
-        rv_editor_draw_frame(dl, min, max, theme, theme.selection);
+        rv_editor_draw_frame(dl, item.min, item.max, theme, theme.selection);
     }
     return changed;
 }
@@ -73,24 +68,20 @@ void rv_editor_draw_tab(ImDrawList *dl, ImVec2 min, ImVec2 max, float slant, con
     dl->AddRectFilled(ImVec2(min.x + slant, max.y - px), ImVec2(max.x, max.y), dark);
 }
 
-// One box of a pane header: a small button face with hover, press and focus, and
-// a picture; `tip` names it.
-bool rv_editor_header_box(const char *id, rv_editor_glyph glyph, const char *tip, ImVec2 pos, float size,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+// One letter box of a pane header: a small button face with hover, press and focus.
+bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float size, const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     ImGui::SetCursorScreenPos(pos);
     const rv_editor_item item = rv_editor_item_add(id, ImVec2(size, size), state);
     const bool down = item.held && item.hovered;
-    if (!item.disabled) {
-        ImGui::SetItemTooltip("%s", tip);
-    }
 
     // Dark outline, then the bevel inside it, as on every push button.
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float px = static_cast<float>(theme.scale);
     const ImVec2 min(item.min.x + px, item.min.y + px);
     const ImVec2 max(item.max.x - px, item.max.y - px);
-    dl->AddRectFilled(item.min, item.max, rv_editor_col(theme.outline));
+    dl->AddRectFilled(item.min, item.max, rv_editor_col(theme.dark));
     rv_editor_draw_panel(dl, min, max, theme, down ? theme.inset : theme.button,
         down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
     if (item.hovered && !item.disabled) {
@@ -99,10 +90,11 @@ bool rv_editor_header_box(const char *id, rv_editor_glyph glyph, const char *tip
     if (item.focused) {
         rv_editor_draw_focus(dl, min, max, theme);
     }
+    const ImVec2 text = ImGui::CalcTextSize(letter);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    const float inset = std::floor(size / 4.0f);
-    rv_editor_draw_glyph(dl, ImVec2(min.x + inset + nudge, min.y + inset + nudge),
-        ImVec2(max.x - inset + nudge, max.y - inset + nudge), theme, glyph, theme.text);
+    const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge),
+        std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge));
+    dl->AddText(at, rv_editor_col(theme.text), letter);
     return item.clicked;
 }
 
@@ -143,7 +135,7 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
         const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
         const ImVec2 at(std::floor((item.min.x + item.max.x - text.x) / 2.0f + nudge),
             std::floor((item.min.y + item.max.y - text.y) / 2.0f + nudge));
-        const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.text_on_selection : theme.text);
+        const uint32_t ink = item.disabled ? theme.text_disabled : (front ? theme.dark : theme.text);
         dl->AddText(at, rv_editor_col(ink), labels[i], end);
         if (item.focused) {
             rv_editor_draw_focus(dl, ImVec2(at.x - pad, item.min.y), ImVec2(at.x + text.x + pad, item.max.y), theme);
@@ -154,7 +146,7 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
 }
 
 rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls, const rv_editor_state &state, bool maximized)
+    bool controls, const rv_editor_state &state)
 {
     const float h = ImGui::GetFrameHeight();
     const ImVec2 min = ImGui::GetCursorScreenPos();
@@ -173,22 +165,16 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     if (controls) {
         const float box = inner_max.y - inner_min.y;
         ImGui::PushID(title);
-        if (rv_editor_header_box("##menu", rv_editor_glyph::pane_menu, "Pane menu: split, change, close", inner_min,
-                box, theme, state)) {
-            action = rv_editor_header_action::menu;
-        }
-        const ImVec2 close_at(inner_max.x - box, inner_min.y);
-        const ImVec2 maximize_at(close_at.x - box, inner_min.y);
-        if (rv_editor_header_box("##maximize", maximized ? rv_editor_glyph::restore : rv_editor_glyph::maximize,
-                maximized ? "Restore the layout" : "Maximize this tile", maximize_at, box, theme, state)) {
-            action = rv_editor_header_action::maximize;
-        }
-        if (rv_editor_header_box("##close", rv_editor_glyph::close, "Close this tile", close_at, box, theme, state)) {
+        if (rv_editor_header_box("##close", "X", inner_min, box, theme, state)) {
             action = rv_editor_header_action::close;
+        }
+        const ImVec2 right(inner_max.x - box, inner_min.y);
+        if (rv_editor_header_box("##maximize", "M", right, box, theme, state)) {
+            action = rv_editor_header_action::maximize;
         }
         ImGui::PopID();
         title_x += box;
-        title_limit -= 2.0f * box;
+        title_limit -= box;
     }
 
     // The title sits on a solid patch so the stipple never runs through letters.

@@ -111,17 +111,15 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
 enum class rv_editor_header_action
 {
     none,
-    menu,     // the pane's menu; never closes anything
-    maximize, // maximize, or restore when `maximized`
     close,
+    maximize,
 };
 
-// Full-width pane title bar (spec 6.1): stippled when active, dimmed when not,
-// the title in italic. With `controls` it carries the pane-menu box on the left
-// and Maximize (Restore when `maximized`) and Close on the right, each a button
-// with every state, and returns the one clicked.
+// Full-width pane title bar: stippled when active, dimmed when not. With
+// `controls` it carries a close box (X) on the left and a maximize box (M) on
+// the right, each a button with every state, and returns the one clicked.
 rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls = false, const rv_editor_state &state = {}, bool maximized = false);
+    bool controls = false, const rv_editor_state &state = {});
 
 // --- the tiled workspace ------------------------------------------------------
 

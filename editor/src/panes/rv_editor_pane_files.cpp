@@ -142,7 +142,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
         const std::string label = node.name + (node.symlink ? " ->" : "");
         const bool selected = app.files.selected == node.path;
         dl->AddText(ImVec2(x + art + 4.0f * theme.scale, std::floor((row_min.y + row_max.y - ImGui::GetFontSize()) / 2.0f)),
-            rv_editor_col(selected ? theme.text_on_selection : theme.text), label.c_str());
+            rv_editor_col(selected ? theme.dark : theme.text), label.c_str());
         if (ImGui::IsItemHovered() && !node.symlink) {
             ImGui::SetItemTooltip("%s", node.path.c_str());
         }
