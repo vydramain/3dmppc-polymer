@@ -123,6 +123,7 @@ rv_editor_toolchain rv_editor_toolchain_find()
                         rv_editor_tool *tool = entry.key == "console" ? &tc.console
                             : entry.key == "burner"                   ? &tc.burner
                             : entry.key == "baker"                    ? &tc.baker
+                            : entry.key == "player"                   ? &tc.player
                                                                       : nullptr;
                         if (tool != nullptr && entry.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
                             *tool = { entry.value.str, "settings.toml", "", "" };
@@ -136,6 +137,10 @@ rv_editor_toolchain rv_editor_toolchain_find()
     rv_editor_tool_check(tc.console, "3dmppc");
     rv_editor_tool_check(tc.burner, "mppcburner");
     rv_editor_tool_check(tc.baker, "mppcbaker");
+    rv_editor_tool_check(tc.player, "player");
+    if (tc.player.path.empty()) {
+        tc.player.problem = "No player set: File > Settings names a 3dmppc built without devtools";
+    }
     rv_editor_tool_version(tc.burner);
     rv_editor_tool_version(tc.baker);
     return tc;

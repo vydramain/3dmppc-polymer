@@ -87,6 +87,10 @@ void rv_editor_menu_file(rv_editor_shell &shell)
         rv_editor_shell_save_as_start(shell);
     }
     ImGui::Separator();
+    if (ImGui::MenuItem("Settings...")) {
+        shell.settings_open = true;
+    }
+    ImGui::Separator();
     if (ImGui::MenuItem("Quit")) {
         SDL_Event quit{};
         quit.type = SDL_EVENT_QUIT;
@@ -382,8 +386,8 @@ void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         return;
     }
     constexpr const char *keys[][2] = { { "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
-        { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" }, { "Run / Resume", "F5" }, { "Pause", "F6" },
-        { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" }, { "Release Game input", "Shift+Esc" },
+        { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" },
+        { "Run / Resume", "F5" }, { "Pause", "F6" }, { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" }, { "Release Game input", "Shift+Esc" },
         { "Vim mode in a code tile", "F2" } };
     if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit)) {
         for (const auto &k : keys) {

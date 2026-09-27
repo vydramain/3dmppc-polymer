@@ -90,6 +90,10 @@ struct rv_editor_shell
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
+    // File > Settings was chosen: the dialog fills its fields and opens next frame.
+    bool settings_open = false;
+    char settings_paths[4][512] = {};
+    std::string settings_error;
     // What each strip of controls drew last frame: its minimum in the tree.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
@@ -198,6 +202,8 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 
 // The shell's own dialogs, drawn after the workspace.
 void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &theme);
+// File > Settings: the tool paths of settings.toml.
+void rv_editor_shell_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Once a frame after drawing: sends the Game's keys while a drawn Game tile
 // holds the keyboard of a focused window and a console runs, and every key up

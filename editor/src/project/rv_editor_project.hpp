@@ -28,11 +28,13 @@ struct rv_editor_tool
 //   console = "/path/to/3dmppc"
 //   burner = "/path/to/mppcburner"
 //   baker = "/path/to/mppcbaker"
+//   player = "/path/to/3dmppc"   (built without devtools; no default place)
 struct rv_editor_toolchain
 {
     rv_editor_tool console;
     rv_editor_tool burner;
     rv_editor_tool baker;
+    rv_editor_tool player;
     std::filesystem::path settings_path;
     std::string settings_error; // settings.toml exists and does not parse
 };
