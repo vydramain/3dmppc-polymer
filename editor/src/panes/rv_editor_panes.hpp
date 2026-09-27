@@ -54,6 +54,7 @@ bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &pat
 // candidate's state on one row; and the Candidate pane.
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The layout's command palette (spec 7): Code, Debug and Burn each their few.
 void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme);

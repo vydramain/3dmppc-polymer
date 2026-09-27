@@ -415,6 +415,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     switch (kind) {
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
+        case rv_editor_pane_kind::checks: rv_editor_pane_checks(shell.app, theme); return;
         case rv_editor_pane_kind::build_result: rv_editor_pane_build_result(shell.app, theme); return;
         case rv_editor_pane_kind::problems: rv_editor_pane_problems(shell.app, theme); return;
         case rv_editor_pane_kind::search: rv_editor_pane_search(shell.app, theme); return;

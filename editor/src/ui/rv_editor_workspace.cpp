@@ -42,6 +42,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::candidate: return "Release Candidate";
         case rv_editor_pane_kind::release_controls: return "Release Controls";
         case rv_editor_pane_kind::build_result: return "Build Result";
+        case rv_editor_pane_kind::checks: return "Checks";
     }
     return "?";
 }

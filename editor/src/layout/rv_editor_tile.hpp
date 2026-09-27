@@ -65,10 +65,11 @@ enum class rv_editor_pane_kind : uint32_t
     candidate,   // the release candidate: its identity, checks and decision
     release_controls, // Build Candidate, Run Candidate, Stop, Export Report
     build_result,     // the last build job: outcome, diagnostics, next action
+    checks,           // the shown candidate's checks, as a tab of its own
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::build_result;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::checks;
 
 struct rv_editor_pane
 {

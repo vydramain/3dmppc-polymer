@@ -92,6 +92,7 @@ void rv_editor_preset_burn(rv_editor_preset_builder &b)
     const rv_editor_pane_id candidate =
         b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.72f);
+    b.add(rv_editor_pane_kind::checks, log, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, log);

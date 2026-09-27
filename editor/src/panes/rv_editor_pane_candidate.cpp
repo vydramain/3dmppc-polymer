@@ -135,7 +135,41 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     ImGui::PopID();
 }
 
+// Every check of `c` with its state, result and the operator's buttons.
+void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, const rv_editor_theme &theme)
+{
+    rv_editor_dim_text("All " + std::to_string(c.checks.size()) + " are required and Skipped does not count. They "
+        "cover only what each says (hover a name), not the whole game.");
+    if (ImGui::BeginTable("##checks", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+        ImGui::TableSetupColumn("Check", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn("Result");
+        ImGui::TableHeadersRow();
+        for (size_t id = 0; id < c.checks.size(); ++id) {
+            rv_editor_check_row(app, c, id, theme);
+        }
+        ImGui::EndTable();
+    }
+}
+
 } // namespace
+
+void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    if (!app.project.open) {
+        rv_editor_open_project_row(app, theme);
+        return;
+    }
+    rv_editor_release &r = app.release;
+    if (r.candidates.empty()) {
+        ImGui::TextWrapped("No candidate yet: Build Candidate makes one, and its checks are listed here.");
+        return;
+    }
+    rv_editor_candidate &c = r.candidates[r.selected];
+    const std::string what = "Candidate #" + std::to_string(c.number) + ": " + rv_editor_checks_summary(c);
+    ImGui::TextUnformatted(what.c_str());
+    rv_editor_candidate_checks(app, c, theme);
+}
 
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
@@ -263,18 +297,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
     }
 
     ImGui::SeparatorText("Checks");
-    rv_editor_dim_text("All seven are required and Skipped does not count. They cover only what each says (hover a "
-                       "name), not the whole game.");
-    if (ImGui::BeginTable("##checks", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-        ImGui::TableSetupColumn("Check", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("State", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Result");
-        ImGui::TableHeadersRow();
-        for (size_t id = 0; id < c.checks.size(); ++id) {
-            rv_editor_check_row(app, c, id, theme);
-        }
-        ImGui::EndTable();
-    }
+    rv_editor_candidate_checks(app, c, theme);
 
     ImGui::SeparatorText("Decision");
     rv_editor_status("Build succeeded", rv_editor_status_kind::ok, theme);
