@@ -78,9 +78,17 @@ With a file unsaved, Build and Run ask first: Save and Build / Build Saved
 Files / Cancel, and the same for Run. Run > Run Configuration keeps the
 project's run profiles in `.3dmppc-editor/project.toml`: a runtime, memory card
 and working directory of their own, Mute, Start Paused, Fixed Step, more
-console options, environment variables and Reload On Save. The form says before
-Run what the console would refuse; Apply is for the next Run, Apply and Restart
-stops the session and runs again. Runtime Controls names the profile.
+console options, environment variables and Reload On Save. It is a window of
+its own, also opened by the Profile button of Runtime Controls: the profiles in a
+list with New (N) and Delete (X) under it, the chosen one's fields beside it. The
+form says before Run what the console would refuse; Apply is for the next Run,
+Apply and Restart stops the session and runs again.
+
+Runtime Controls is a strip of square buttons, a coloured letter over a short
+label: Build B, Run R, Pause P, Step S, Stop X, Reload U; the tooltip gives the
+whole name and key. Release Controls in Burn have Build B, Run R, Player P, Stop X
+and Report E. The Game tile of a layout as it starts shows the disc's screen at
+Fit with no border, until a splitter is dragged.
 
 Each build goes to a new numbered directory and counts only when the burner
 exits 0; a failed or cancelled build is deleted and never runs. A running game
