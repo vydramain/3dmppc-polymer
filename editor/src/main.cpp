@@ -142,7 +142,11 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
-    if (host) {
+    // No project: its start screen instead of a grid of empty tiles (PRJ-07); the
+    // layouts wait unchanged.
+    if (host && !shell.app.project.open) {
+        rv_editor::rv_editor_shell_start_screen(shell, theme);
+    } else if (host) {
         rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane,
             rv_editor::rv_editor_shell_close_pane, &shell, area);
     }

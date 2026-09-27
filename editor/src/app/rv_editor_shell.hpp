@@ -15,6 +15,20 @@
 namespace rv_editor
 {
 
+// What the window without a project is doing: the New Project form and what its
+// Browse dialog picked (maybe on another thread, under picked_mutex).
+struct rv_editor_start
+{
+    bool form_open = false;
+    char name[128] = {};
+    char id[64] = {};
+    char dir[512] = {};
+    bool id_edited = false; // the id no longer follows the name
+    size_t template_index = 0;
+    std::string error;
+    std::string picked_dir;
+};
+
 // One editor window: its tiles, its models, and the commands that reach them
 // from the menus and the keyboard.
 struct rv_editor_shell
@@ -68,6 +82,7 @@ struct rv_editor_shell
     rv_editor_pane_id last_code = rv_editor_tile_none;
     // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
     bool help_open = false;
+    rv_editor_start start;
     // A terminal tile with a live shell waiting for End Shell or Keep.
     rv_editor_pane_id closing_terminal = rv_editor_tile_none;
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
@@ -136,6 +151,9 @@ void rv_editor_shell_open_manifest(rv_editor_shell &shell);
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
 // tile, or of the first tile when none is focused.
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind);
+
+// The window's content while no project is open (rv_editor_shell_start.cpp).
+void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);

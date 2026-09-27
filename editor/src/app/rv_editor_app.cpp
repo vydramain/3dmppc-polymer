@@ -6,6 +6,8 @@
 #include <system_error>
 #include <thread>
 
+#include "project/rv_editor_templates.hpp"
+
 namespace rv_editor
 {
 
@@ -78,6 +80,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.session.pad(0, app.log);
     app.files.open(app.project.root, app.log);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "opened " + app.project.root.string());
+    rv_editor_recent_add(app.project.root);
     if (!app.project.manifest_error.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.project.manifest_error);
     }

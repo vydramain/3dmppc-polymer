@@ -69,7 +69,8 @@ target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 # from the repository at run time, the way mppcburner finds pdk/.
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)
 target_compile_definitions(3dmppc-editor PRIVATE RV_EDITOR_ICON_DIR="${RV_REPO_ROOT}/third_party/win55-icons"
-  RV_EDITOR_OWN_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons")
+  RV_EDITOR_OWN_ICON_DIR="${CMAKE_CURRENT_SOURCE_DIR}/icons"
+  RV_EDITOR_TEMPLATE_DIR="${RV_REPO_ROOT}/mppcdiscs")
 
 # The interface font, Liberation Sans, and the code font, PxPlus IBM VGA 9x16
 # (third_party), read at run time the same way.
