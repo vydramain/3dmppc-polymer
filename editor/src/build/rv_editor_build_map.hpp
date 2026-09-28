@@ -21,7 +21,7 @@ struct rv_editor_map_entry
 std::filesystem::path rv_editor_build_map_path(const std::filesystem::path &artifact);
 
 // The map by source path, relative to the project root; empty when the file is
-// missing or is not version 1.
+// missing or the map's first line is not "mppcburner-map <PDK version>".
 std::map<std::string, rv_editor_map_entry> rv_editor_build_map_read(const std::filesystem::path &path);
 
 } // namespace rv_editor
