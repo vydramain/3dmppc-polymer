@@ -108,6 +108,9 @@ struct rv_editor_tile_leaf
 {
     std::vector<rv_editor_pane_id> tabs;
     uint32_t active; // index into tabs
+    // The tab in front before the active one: closing the active tab brings it
+    // back. In memory only; a layout file never holds it.
+    rv_editor_pane_id previous = rv_editor_tile_none;
 };
 
 enum class rv_editor_tile_kind

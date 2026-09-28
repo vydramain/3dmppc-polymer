@@ -170,6 +170,7 @@ uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_edito
     // An empty leaf has nothing to share its place with: the pane simply fills it.
     if (dock == rv_editor_tile_dock::tab || layout.nodes[leaf].leaf.tabs.empty()) {
         rv_editor_tile_leaf &target = layout.nodes[leaf].leaf;
+        target.previous = target.active < target.tabs.size() ? target.tabs[target.active] : rv_editor_tile_none;
         target.tabs.push_back(pane);
         target.active = static_cast<uint32_t>(target.tabs.size() - 1);
         return leaf;
@@ -204,9 +205,17 @@ bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
     rv_editor_tile_leaf &tabs = layout.nodes[leaf].leaf;
     const auto at = std::find(tabs.tabs.begin(), tabs.tabs.end(), pane);
     const uint32_t index = static_cast<uint32_t>(at - tabs.tabs.begin());
+    const bool was_active = index == tabs.active;
     tabs.tabs.erase(at);
-    if (index < tabs.active || tabs.active >= tabs.tabs.size()) {
+    const auto back = std::find(tabs.tabs.begin(), tabs.tabs.end(), tabs.previous);
+    if (was_active && back != tabs.tabs.end()) {
+        tabs.active = static_cast<uint32_t>(back - tabs.tabs.begin());
+        tabs.previous = rv_editor_tile_none;
+    } else if (index < tabs.active || tabs.active >= tabs.tabs.size()) {
         tabs.active = tabs.active > 0 ? tabs.active - 1 : 0;
+    }
+    if (tabs.previous == pane) {
+        tabs.previous = rv_editor_tile_none;
     }
     if (!tabs.tabs.empty() || leaf == layout.root) {
         return true;
@@ -249,7 +258,11 @@ bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane)
         return false;
     }
     rv_editor_tile_leaf &tabs = layout.nodes[leaf].leaf;
-    tabs.active = static_cast<uint32_t>(std::find(tabs.tabs.begin(), tabs.tabs.end(), pane) - tabs.tabs.begin());
+    const uint32_t index = static_cast<uint32_t>(std::find(tabs.tabs.begin(), tabs.tabs.end(), pane) - tabs.tabs.begin());
+    if (index != tabs.active && tabs.active < tabs.tabs.size()) {
+        tabs.previous = tabs.tabs[tabs.active];
+    }
+    tabs.active = index;
     return true;
 }
 
