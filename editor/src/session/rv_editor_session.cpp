@@ -95,6 +95,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     reload_result_.clear();
     facts_ = {};
     answers_.clear();
+    scenes_read_.clear();
     started_wall_ = std::chrono::system_clock::now();
     ended_wall_ = {};
     disc_dir_ = disc_dir;
@@ -239,6 +240,11 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
         const std::string_view event = msg.get("event");
         if (event == "pause") {
             handle_mode(msg.get("mode"));
+        } else if (event == "scene") {
+            const std::string name = rv_editor_hex_decode(msg.get("name"));
+            if (!name.empty()) {
+                scenes_read_.insert(name);
+            }
         } else if (event == "script_error") {
             state_ = rv_editor_run_state::paused;
             log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,

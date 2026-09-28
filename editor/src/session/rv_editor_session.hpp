@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -133,6 +134,8 @@ public:
     std::chrono::system_clock::time_point ended_at() const { return ended_wall_; }
     const rv_editor_session_facts &facts() const { return facts_; }
     const std::map<std::string, rv_editor_answer> &answers() const { return answers_; }
+    // Resource names of every ".scene.toml" the running disc has opened this session.
+    const std::set<std::string> &scenes_read() const { return scenes_read_; }
 
 private:
     struct rv_editor_request
@@ -175,6 +178,7 @@ private:
     bool reload_ok_ = false;
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
+    std::set<std::string> scenes_read_;
     std::chrono::system_clock::time_point started_wall_{};
     std::chrono::system_clock::time_point ended_wall_{};
     std::filesystem::path disc_dir_;

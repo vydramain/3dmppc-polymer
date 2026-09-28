@@ -354,8 +354,26 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
     char buf[160];
     std::snprintf(buf, sizeof(buf), "Editor camera, not the game's: yaw %.0f, pitch %.0f, distance %.1f%s", cam.yaw,
         cam.pitch, cam.distance, cam.seeking ? " | Seek: click an object" : "");
+    // Whether the running game has read this open scene document (its resource
+    // name is the file's own name: the disc flattens scenes/*.scene.toml). The
+    // status line stays short; the reason is a tooltip.
+    const std::string scene_name = doc.scene.path.filename().string();
+    const char *read_line = "Game: not running";
+    std::string read_tip;
+    if (app.session.connected()) {
+        if (app.session.scenes_read().contains(scene_name)) {
+            read_line = "Game: read this scene";
+            read_tip = "Restart the game after Save and Build to see edits";
+        } else {
+            read_line = "Game: has not read this scene";
+            read_tip = "The running disc did not open " + scene_name;
+        }
+    }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + 2.0f));
-    ImGui::TextDisabled("%s", buf);
+    ImGui::TextDisabled("%s | %s", buf, read_line);
+    if (!read_tip.empty()) {
+        ImGui::SetItemTooltip("%s", read_tip.c_str());
+    }
 }
 
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
