@@ -26,8 +26,8 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
             ImGui::GetColorU32(ImGuiCol_TextDisabled), "A word for the mark...");
     }
-    if (rv_editor_command_button("##mark", 'M', theme.code_yellow, "Mark Moment",
-            "Notes this frame and the word above in the session's log and in Session", theme,
+    if (rv_editor_tool_button("Mark", 'M', theme.code_yellow,
+            "Mark Moment: notes this frame and the word above in the session's log and in Session", nullptr, theme,
             { rv_editor_look::live, no_session })) {
         const std::string mark = "frame " + std::to_string(s.frame()) +
             (app.mark_note[0] == '\0' ? std::string() : ": " + std::string(app.mark_note));
@@ -36,16 +36,19 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             "mark " + std::to_string(app.marks.size()) + " of session #" + std::to_string(s.number()) + ", " + mark);
         app.mark_note[0] = '\0';
     }
-    if (rv_editor_command_button("##capture", 'C', theme.code_blue, "Capture Frame",
-            "Saves the Game's frame into the project's findings", theme, { rv_editor_look::live, no_session })) {
+    rv_editor_flow(rv_editor_tool_button_width("Capture"));
+    if (rv_editor_tool_button("Capture", 'C', theme.code_blue,
+            "Capture Frame: saves the Game's frame into the project's findings", nullptr, theme,
+            { rv_editor_look::live, no_session })) {
         rv_editor_findings_capture(app);
     }
     // The moment is kept before the form is: a frame, the keyboard back, then Findings.
     const char *no_report = s.number() != 0 ? nullptr : "No session has run yet: there is nothing to report on";
-    if (rv_editor_command_button("##report", 'I', theme.code_red, "Report Issue",
-            "Captures the frame, gives the keyboard back and opens Findings, where the session, build and log "
-            "are added on save",
-            theme, { rv_editor_look::live, no_report })) {
+    rv_editor_flow(rv_editor_tool_button_width("Report"));
+    if (rv_editor_tool_button("Report", 'I', theme.code_red,
+            "Report Issue: captures the frame, gives the keyboard back and opens Findings, where the session, "
+            "build and log are added on save",
+            nullptr, theme, { rv_editor_look::live, no_report })) {
         if (s.live()) {
             rv_editor_findings_capture(app);
         }
@@ -54,8 +57,10 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             "issue reported at frame " + std::to_string(s.frame()) + " of session #" + std::to_string(s.number()));
         app.show_request = rv_editor_pane_kind::findings;
     }
-    if (rv_editor_command_button("##restart", 'R', theme.code_green, "Restart",
-            "Stops the session and runs the same profile again", theme, { rv_editor_look::live, no_session })) {
+    rv_editor_flow(rv_editor_tool_button_width("Restart"));
+    if (rv_editor_tool_button("Restart", 'R', theme.code_green,
+            "Restart: stops the session and runs the same profile again", nullptr, theme,
+            { rv_editor_look::live, no_session })) {
         app.run_after_stop = true;
         rv_editor_app_stop(app);
     }
