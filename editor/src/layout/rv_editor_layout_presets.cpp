@@ -34,17 +34,21 @@ struct rv_editor_preset_builder
 };
 
 // Reference 0003, without its Toolchest: files on the left, the code beside the
-// game over its controls, the terminal and the runtime output underneath.
-// Ratios are the picture's, measured in pixels.
+// game over its controls, and under both one tile of Output, Problems, Terminal
+// and Search, Output in front. Ratios are the picture's, measured in pixels, but
+// the game is narrower: the Game's fit sets the height above Output from its width.
 void rv_editor_preset_code(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
     b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
-    const rv_editor_pane_id terminal = b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.64f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
     // The controls are a strip as tall as their buttons: the game takes the rest.
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
-    b.add(rv_editor_pane_kind::output, terminal, rv_editor_tile_dock::right, 0.54f);
+    b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, output);
 }
 
 // Reference 0005: tools over the hierarchy, the scene over the assets, the game

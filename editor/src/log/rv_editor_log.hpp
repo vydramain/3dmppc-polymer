@@ -66,5 +66,7 @@ private:
 };
 
 const char *rv_editor_log_source_name(rv_editor_log_source source);
+// The local clock time `line` arrived at, "14:03:27", with ".412" when `ms`.
+std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms);
 
 } // namespace rv_editor

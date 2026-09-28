@@ -33,11 +33,16 @@ namespace rv_editor
 struct rv_editor_output_view
 {
     std::array<bool, 4> show = { true, true, true, false };
+    rv_editor_log_level level = rv_editor_log_level::info; // Level: this and worse
     bool follow = true;
-    bool wrap = false;
+    bool wrap = true;
     char search[128] = {};
     uint64_t hide_before = 0;  // Clear View: lines older than this seq are not shown here
     std::string exported;      // where Export wrote, or why it could not
+    std::array<float, 3> columns = { 10.0f, 5.0f, 10.0f }; // Time, Level, Source, in code-font cells
+    uint64_t picked_from = 0;  // the selected lines, by seq; 0: none
+    uint64_t picked_to = 0;
+    float scroll_x = 0.0f;     // the lines' horizontal scroll, for the header over them
 };
 
 // One Files pane's dialog: which operation waits for an answer, on what.

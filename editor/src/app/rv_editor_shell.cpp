@@ -159,6 +159,8 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
             (app.scene->scene.read_only.empty() ? "" : " (read-only)");
     } else if (kind == rv_editor_pane_kind::problems && !app.problems.empty()) {
         title = "Problems (" + std::to_string(app.problems.size()) + ")";
+    } else if (kind == rv_editor_pane_kind::output) {
+        title = rv_editor_output_title(app, pane);
     } else if (kind == rv_editor_pane_kind::build_log && app.build.number() != 0) {
         title = "Build Log: build " + std::to_string(app.build.number());
     } else if (kind == rv_editor_pane_kind::terminal) {

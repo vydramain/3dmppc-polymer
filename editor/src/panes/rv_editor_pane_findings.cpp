@@ -32,13 +32,10 @@ std::string rv_editor_now_text(const char *format)
 
 std::string rv_editor_log_text(const rv_editor_log_line &line)
 {
-    char stamp[32];
-    std::snprintf(stamp, sizeof(stamp), "%02lld:%02lld.%03lld", static_cast<long long>(line.ms / 60000),
-        static_cast<long long>(line.ms / 1000 % 60), static_cast<long long>(line.ms % 1000));
     const char *level = line.level == rv_editor_log_level::error ? "ERR"
         : line.level == rv_editor_log_level::warning             ? "WRN"
                                                                  : "INF";
-    return std::string(stamp) + " [" + rv_editor_log_source_name(line.source) + "] " + level + " " + line.text;
+    return rv_editor_log_stamp(line, true) + " [" + rv_editor_log_source_name(line.source) + "] " + level + " " + line.text;
 }
 
 // What is known about the session now, one "key: value" line each.

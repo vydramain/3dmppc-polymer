@@ -3,6 +3,8 @@
 #include "log/rv_editor_log.hpp"
 
 #include <chrono>
+#include <cstdio>
+#include <ctime>
 
 namespace rv_editor
 {
@@ -10,10 +12,23 @@ namespace rv_editor
 namespace
 {
 
+// The steady clock the lines count from, and the wall clock at that moment.
+struct rv_editor_log_clock
+{
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    std::chrono::system_clock::time_point wall = std::chrono::system_clock::now();
+};
+
+const rv_editor_log_clock &rv_editor_log_start()
+{
+    static const rv_editor_log_clock clock;
+    return clock;
+}
+
 int64_t rv_editor_log_now()
 {
-    static const auto start = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
+        rv_editor_log_start().start).count();
 }
 
 // Severity from what the line itself says: the console's level column
@@ -31,6 +46,21 @@ rv_editor_log_level rv_editor_log_level_of(std::string_view text)
 }
 
 } // namespace
+
+std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
+{
+    const auto wall = rv_editor_log_start().wall + std::chrono::milliseconds(line.ms);
+    const std::time_t t = std::chrono::system_clock::to_time_t(wall);
+    std::tm tm{};
+    localtime_r(&t, &tm);
+    char buf[16];
+    const size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
+    if (ms) {
+        const auto part = std::chrono::duration_cast<std::chrono::milliseconds>(wall.time_since_epoch()).count() % 1000;
+        std::snprintf(buf + n, sizeof(buf) - n, ".%03lld", static_cast<long long>(part));
+    }
+    return buf;
+}
 
 void rv_editor_log::add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text)
 {
