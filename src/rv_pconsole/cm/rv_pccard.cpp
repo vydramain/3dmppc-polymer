@@ -9,6 +9,7 @@
 #include <fstream>
 
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_3dmppc
 {
@@ -19,7 +20,13 @@ constexpr const char *RV_PCCARD_TAG = "pccard";
 
 constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
 constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
-constexpr uint32_t RV_PCCARD_VERSION = 1;
+constexpr uint32_t RV_PCCARD_VERSION = rv_pdklib::rv_version_packed32;
+
+// "M.m" from a packed major<<16|minor version, for the refusal message.
+std::string version_text(uint32_t v)
+{
+    return std::to_string(v >> 16) + "." + std::to_string(v & 0xFFFFu);
+}
 
 constexpr uint8_t RV_PCCARD_MAGIC[8] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
 
@@ -157,8 +164,8 @@ bool rv_pccard::load()
     }
     const uint32_t version = get_u32(buffer.data() + 8);
     if (version != RV_PCCARD_VERSION) {
-        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {}", image_path_, version,
-            RV_PCCARD_VERSION);
+        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {} - refusing", image_path_,
+            version_text(version), version_text(RV_PCCARD_VERSION));
         return false;
     }
     const int64_t file_slots = get_i64(buffer.data() + 16);

@@ -4,11 +4,12 @@
 #include <system_error>
 
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 
 int rv_pdktools::write_map(const std::filesystem::path &path, const rv_pdklib::rv_manifest &manifest,
     const std::vector<std::string> &sources, const archive_plan &plan, std::string &error)
 {
-    std::string text = "mppcburner-map 1\n";
+    std::string text = std::string("mppcburner-map ") + rv_pdklib::rv_version_str + "\n";
     for (const std::string &source : sources) {
         text += source + "\tcode\tdisc.so\n";
     }

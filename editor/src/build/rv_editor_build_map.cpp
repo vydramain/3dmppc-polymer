@@ -4,6 +4,8 @@
 
 #include <fstream>
 
+#include "pdklib/rv_version/rv_version.hpp"
+
 namespace rv_editor
 {
 
@@ -17,7 +19,8 @@ std::map<std::string, rv_editor_map_entry> rv_editor_build_map_read(const std::f
     std::map<std::string, rv_editor_map_entry> out;
     std::ifstream in(path, std::ios::binary);
     std::string line;
-    if (!std::getline(in, line) || line != "mppcburner-map 1") {
+    const std::string header = std::string("mppcburner-map ") + rv_pdklib::rv_version_str;
+    if (!std::getline(in, line) || line != header) {
         return out;
     }
     while (std::getline(in, line)) {
