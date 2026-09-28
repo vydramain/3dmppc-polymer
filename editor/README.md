@@ -14,9 +14,10 @@ Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move the keyboard between
 tiles, as Tab belongs to the code editor and the terminal.
 
 Four layouts share the same panes, documents, build and runtime: Code, Scene,
-Debug and Burn, chosen at the right end of the menu bar or in Window >
-Reference Layouts. The first time a layout is chosen it shows its standard
-tiles; after that it keeps whatever the user made of it - sizes, new tiles,
+Debug and Burn, chosen once a project is open, at the right end of the menu
+bar or in Window > Reference Layouts. The first time a layout is chosen it
+shows its standard tiles; after that it keeps whatever the user made of it -
+sizes, new tiles,
 tabs - saved on exit to its own file, `$XDG_CONFIG_HOME/3dmppc-editor/layout-code`,
 `layout-scene`, `layout-debug` and `layout-burn` (`~/.config/...` without the
 variable), and the one shown last is remembered. Choosing another layout changes
@@ -24,9 +25,18 @@ only what is shown, never a process, a build, a buffer or the log. Window >
 Reset Layout puts the chosen layout back to its standard tiles; the others keep
 theirs. A layout saved by an earlier editor in `layout` is read as Code's.
 
-Without a project it offers New Project (from the example-cpp or example-lua
-template, checked before anything is created), Open Directory, Open disc.toml
-and the recent projects. With one, it builds it with `mppcburner` and runs the
+Without a project it shows the Project Catalog. The Toolchest on the left holds
+New Project..., Open Project..., Settings... and Help. Recent Projects lists the
+projects opened lately, each with its letter, name, location and whether its
+disc.toml is still there; the arrows or a click select one, and Enter or a
+double click opens it. Its context menu has Remove from Recent, which only takes
+it off the list. Under the list, Selected Project shows the whole path, whether
+disc.toml was found, and Open Project; a project that is gone offers Locate...
+instead. New Project opens a dialog: the template (Minimal C++ or Minimal Lua),
+the name and disc id, the directory, then the path it will create and its
+files; a problem with the directory or a clash with an existing one shows
+beside that field, and nothing is created until Create Project. With a project,
+it builds it with `mppcburner` and runs the
 result in a development console that draws into the Game tile, driven over the
 console's dev channel. Project > Project Settings shows the project and its
 tools; File > Settings says where the tools are.
@@ -56,7 +66,7 @@ A player build of the console never builds it.
 ```
 
 `PATH` is a game directory or its `disc.toml`; both open the same project.
-File > Open Folder and File > Open disc.toml do the same from the menu.
+File > Open Project... does the same from the menu, for a directory.
 
 The editor draws one of its pixels per screen pixel, on a HiDPI display too.
 View > UI Scale sets 1x, 2x or 3x and keeps it; `--scale N` (a whole number,
