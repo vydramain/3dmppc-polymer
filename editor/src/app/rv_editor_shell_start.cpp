@@ -218,8 +218,8 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     ImGui::BeginChild("##start_catalog", ImVec2(-pad, -pad), ImGuiChildFlags_Borders);
     rv_editor_start_catalog(shell, theme);
     ImGui::EndChild();
-    ImGui::PopStyleVar();
     rv_editor_shell_new_project(shell, theme);
+    ImGui::PopStyleVar();
 }
 
 } // namespace rv_editor

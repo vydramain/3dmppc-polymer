@@ -191,9 +191,10 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     dl->AddRectFilled(patch_min, patch_max, rv_editor_col(theme.dark));
     const ImVec2 pos(std::floor(patch_min.x + pad), std::floor((min.y + max.y - text_h) / 2.0f));
     const ImU32 ink = rv_editor_col(active ? theme.text_bright : theme.text);
-    dl->AddText(pos, ink, title, shown);
+    rv_editor_draw_text_italic(dl, pos, ink, title, shown, theme);
     if (elided) {
-        dl->AddText(ImVec2(pos.x + ImGui::CalcTextSize(title, shown).x, pos.y), ink, "...");
+        rv_editor_draw_text_italic(dl, ImVec2(pos.x + ImGui::CalcTextSize(title, shown).x, pos.y), ink, "...", nullptr,
+            theme);
         if (ImGui::IsMouseHoveringRect(patch_min, patch_max)) {
             ImGui::SetTooltip("%.*s", static_cast<int>(end - title), title);
         }
