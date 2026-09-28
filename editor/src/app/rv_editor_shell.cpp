@@ -27,22 +27,6 @@ void rv_editor_note(const std::string &text)
     ImGui::PopStyleColor();
 }
 
-// SDL calls this when a dialog closes, maybe on another thread.
-void SDLCALL rv_editor_dialog_done(void *userdata, const char *const *files, int)
-{
-    if (files == nullptr || files[0] == nullptr) {
-        return; // cancelled or failed
-    }
-    rv_editor_shell &shell = *static_cast<rv_editor_shell *>(userdata);
-    const std::lock_guard<std::mutex> lock(shell.picked_mutex);
-    shell.picked.emplace_back(files[0]);
-}
-
-void rv_editor_open_folder(rv_editor_shell &shell)
-{
-    SDL_ShowOpenFolderDialog(rv_editor_dialog_done, &shell, shell.window, nullptr, false);
-}
-
 // Code panes the tree shows now.
 std::vector<rv_editor_pane_id> rv_editor_code_panes(const rv_editor_workspace &ws)
 {
@@ -176,9 +160,13 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
 
 } // namespace
 
-void rv_editor_shell_open_folder(rv_editor_shell &shell)
+void rv_editor_shell_open_project(rv_editor_shell &shell)
 {
-    rv_editor_open_folder(shell);
+    if (!shell.app.project.open) {
+        shell.start_page = rv_editor_start_page::open_project;
+        return;
+    }
+    rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project);
 }
 
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
@@ -247,14 +235,6 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
 void rv_editor_shell_update(rv_editor_shell &shell)
 {
     rv_editor_shell_fit_game(shell);
-    std::vector<std::filesystem::path> picked;
-    {
-        const std::lock_guard<std::mutex> lock(shell.picked_mutex);
-        picked.swap(shell.picked);
-    }
-    for (const std::filesystem::path &path : picked) {
-        rv_editor_shell_request_open(shell, path);
-    }
     rv_editor_app_update(shell.app);
     // Build or Run met unsaved files: the question opens, unless another is open.
     if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {
@@ -278,7 +258,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     }
     if (shell.app.open_folder_request) {
         shell.app.open_folder_request = false;
-        rv_editor_open_folder(shell);
+        rv_editor_shell_open_project(shell);
     }
 
     // A code pane that left every workspace's tree, whatever took it (close,
@@ -460,6 +440,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::findings: rv_editor_pane_findings(shell.app, theme); return;
         case rv_editor_pane_kind::session: rv_editor_pane_session(shell.app, theme); return;
         case rv_editor_pane_kind::test_case: rv_editor_pane_test_case(shell.app, theme); return;
+        case rv_editor_pane_kind::open_project: rv_editor_page_open_project(shell, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

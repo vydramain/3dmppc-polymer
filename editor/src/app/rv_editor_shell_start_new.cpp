@@ -1,35 +1,24 @@
-// New Project as a dialog of its own: the template, the name and id, the directory,
-// then the path it makes and the files it will hold. A problem shows beside its field.
+// New Project as a page beside the Toolchest: the form on the left, the template,
+// the path it makes and its files on the right (under it when narrow). Directory's
+// Browse opens the browser in the right column. What is typed stays until Reset.
 
 #include "app/rv_editor_shell.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
 #include "imgui.h"
 
-#include "font/rv_editor_font.hpp"
 #include "project/rv_editor_templates.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
 {
 
 namespace
 {
-
-constexpr const char *rv_editor_new_title = "New Project";
-
-// SDL calls this when the Browse dialog closes, maybe on another thread.
-void SDLCALL rv_editor_new_dir_picked(void *userdata, const char *const *files, int)
-{
-    if (files == nullptr || files[0] == nullptr) {
-        return;
-    }
-    rv_editor_shell &shell = *static_cast<rv_editor_shell *>(userdata);
-    const std::lock_guard<std::mutex> lock(shell.picked_mutex);
-    shell.start.picked_dir = files[0];
-}
 
 void rv_editor_new_label(const char *label, float label_w)
 {
@@ -48,29 +37,44 @@ void rv_editor_new_problem_row(bool shown, const std::string &problem, float lab
     rv_editor_status(problem.c_str(), rv_editor_status_kind::error, theme);
 }
 
-} // namespace
-
-void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &theme)
+void rv_editor_new_copy(char *to, size_t size, const std::string &from)
 {
-    rv_editor_start &f = shell.start;
-    if (f.form_open) {
-        ImGui::OpenPopup(rv_editor_new_title);
-        f.form_open = false;
-    }
-    if (!rv_editor_dialog_begin(rv_editor_new_title, theme)) {
+    std::strncpy(to, from.c_str(), size - 1);
+    to[size - 1] = '\0';
+}
+
+// The template's description, the path it makes and the files it will hold: quieter than the form.
+void rv_editor_new_preview(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+    size_t index, const rv_editor_theme &theme)
+{
+    if (index >= templates.size()) {
         return;
     }
-    {
-        const std::lock_guard<std::mutex> lock(shell.picked_mutex);
-        if (!f.picked_dir.empty()) {
-            std::strncpy(f.dir, f.picked_dir.c_str(), sizeof(f.dir) - 1);
-            f.picked_dir.clear();
-        }
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+    ImGui::TextUnformatted(templates[index].name.c_str());
+    ImGui::PopStyleColor();
+    ImGui::TextWrapped("%s", templates[index].description.c_str());
+    ImGui::Spacing();
+    const std::string root = (p.parent / (p.disc_id.empty() ? "?" : p.disc_id)).string();
+    ImGui::TextUnformatted("Creates");
+    ImGui::TextWrapped("%s", root.c_str());
+    ImGui::Spacing();
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    for (const std::string &file : rv_editor_new_project_files(p, templates[index])) {
+        ImGui::Text("  %s", file.c_str());
     }
+    ImGui::PopStyleColor();
+}
+
+} // namespace
+
+void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    rv_editor_start &f = shell.start;
     // The home directory until one is chosen.
     if (f.dir[0] == '\0') {
         const char *home = std::getenv("HOME");
-        std::strncpy(f.dir, home != nullptr ? home : "", sizeof(f.dir) - 1);
+        rv_editor_new_copy(f.dir, sizeof(f.dir), home != nullptr ? home : "");
     }
     const std::vector<rv_editor_template> templates = rv_editor_templates();
     const rv_editor_new_project p{ f.name, f.id, f.dir, f.template_index };
@@ -80,9 +84,14 @@ void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &
         (at == rv_editor_new_project_field::disc_id && p.disc_id.empty());
     const auto beside = [&](rv_editor_new_project_field field) { return !blank && at == field; };
 
-    const float label_w = ImGui::GetFontSize() * 9.0f;
-    const float field_w = ImGui::GetFontSize() * 30.0f;
+    rv_editor_pane_header("New Project", true, theme);
+    const float font = ImGui::GetFontSize();
+    const float form_w = font * 44.0f;
+    const bool wide = ImGui::GetContentRegionAvail().x >= form_w + font * 30.0f;
+    const float label_w = font * 9.0f;
+    const float field_w = form_w - label_w - font;
 
+    ImGui::BeginChild("##new_form", ImVec2(wide ? form_w : 0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
     rv_editor_new_label("Template", label_w);
     for (size_t i = 0; i < templates.size(); ++i) {
         if (i > 0) {
@@ -94,20 +103,12 @@ void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &
         }
         ImGui::PopID();
     }
-    if (f.template_index < templates.size()) {
-        ImGui::SetCursorPosX(label_w);
-        ImGui::PushTextWrapPos(label_w + field_w);
-        ImGui::TextUnformatted(templates[f.template_index].description.c_str());
-        ImGui::PopTextWrapPos();
-    }
     rv_editor_new_problem_row(beside(rv_editor_new_project_field::template_index), problem, label_w, theme);
 
     rv_editor_new_label("Name", label_w);
     ImGui::SetNextItemWidth(field_w);
     if (rv_editor_text_field("##name", f.name, sizeof(f.name), theme) && !f.id_edited) {
-        const std::string id = rv_editor_disc_id_from(f.name);
-        std::strncpy(f.id, id.c_str(), sizeof(f.id) - 1);
-        f.id[id.size() < sizeof(f.id) ? id.size() : sizeof(f.id) - 1] = '\0';
+        rv_editor_new_copy(f.id, sizeof(f.id), rv_editor_disc_id_from(f.name));
     }
 
     rv_editor_new_label("Disc ID", label_w);
@@ -125,42 +126,48 @@ void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &
     dir_field.invalid = beside(rv_editor_new_project_field::parent) ? problem.c_str() : nullptr;
     rv_editor_text_field("##dir", f.dir, sizeof(f.dir), theme, dir_field);
     ImGui::SameLine();
-    if (rv_editor_button("Browse...", theme)) {
-        SDL_ShowOpenFolderDialog(rv_editor_new_dir_picked, &shell, shell.window, nullptr, false);
+    if (rv_editor_button("Browse...", theme, { rv_editor_look::live, f.browsing ? "The browser is open" : nullptr })) {
+        rv_editor_browser_start(f.browser, "Select directory for New Project", "Select Directory",
+            rv_editor_browse_pick::directory, f.dir);
+        f.browsing = true;
     }
     rv_editor_new_problem_row(beside(rv_editor_new_project_field::parent), problem, label_w, theme);
-
-    const std::string root = (std::filesystem::path(f.dir) / (p.disc_id.empty() ? "?" : p.disc_id)).string();
-    rv_editor_new_label("Creates", label_w);
-    ImGui::TextUnformatted(root.c_str());
     rv_editor_new_problem_row(beside(rv_editor_new_project_field::root), problem, label_w, theme);
-    if (f.template_index < templates.size()) {
-        rv_editor_font_code_push();
-        for (const std::string &file : rv_editor_new_project_files(p, templates[f.template_index])) {
-            ImGui::SetCursorPosX(label_w);
-            ImGui::TextUnformatted(file.c_str());
-        }
-        rv_editor_font_code_pop();
-    }
 
     if (!f.error.empty()) {
         rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
     }
-    ImGui::Separator();
+    ImGui::Spacing();
     if (rv_editor_button("Create Project", theme, { rv_editor_look::live, problem.empty() ? nullptr : problem.c_str() })) {
         if (rv_editor_new_project_create(p, templates[f.template_index], f.error)) {
             const std::filesystem::path created = std::filesystem::path(f.dir) / p.disc_id;
             f = {};
-            ImGui::CloseCurrentPopup();
             rv_editor_shell_request_open(shell, created);
         }
     }
     ImGui::SameLine();
-    if (rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    if (rv_editor_button("Reset", theme)) {
         f = {};
-        ImGui::CloseCurrentPopup();
     }
-    rv_editor_dialog_end();
+    ImGui::EndChild();
+
+    if (wide) {
+        ImGui::SameLine(0.0f, font * 2.0f);
+    }
+    ImGui::BeginChild("##new_side", ImVec2(0.0f, 0.0f));
+    if (f.browsing) {
+        std::filesystem::path picked;
+        const rv_editor_browse_result r = rv_editor_browser_draw(f.browser, 0.0f, nullptr, picked, theme);
+        if (r == rv_editor_browse_result::picked) {
+            rv_editor_new_copy(f.dir, sizeof(f.dir), picked.string());
+        }
+        if (r != rv_editor_browse_result::none) {
+            f.browsing = false;
+        }
+    } else {
+        rv_editor_new_preview(p, templates, f.template_index, theme);
+    }
+    ImGui::EndChild();
 }
 
 } // namespace rv_editor

@@ -1,5 +1,6 @@
 // The window with no project open (PRJ-07): the Project Catalog. The Toolchest on
-// the left; the recent projects, one of them selected, and its card under them.
+// the left, and beside it the page it chose: the recent projects with the selected
+// one's card, New Project or Open Project. No page covers another.
 
 #include "app/rv_editor_shell.hpp"
 
@@ -46,16 +47,26 @@ void rv_editor_start_chip(ImVec2 at, const rv_editor_recent_row &row, const rv_e
         row.there ? theme.selection : theme.text_disabled);
 }
 
+// The Toolchest row of the page in front looks pressed.
+rv_editor_state rv_editor_start_row(const rv_editor_shell &shell, rv_editor_start_page page)
+{
+    return { shell.start_page == page ? rv_editor_look::pressed : rv_editor_look::live, nullptr };
+}
+
 void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header("Toolchest", true, theme);
+    if (rv_editor_command_button("##recent", 'R', theme.code_cyan, "Recent Projects", "The projects opened lately", theme,
+            rv_editor_start_row(shell, rv_editor_start_page::recent))) {
+        shell.start_page = rv_editor_start_page::recent;
+    }
     if (rv_editor_command_button("##new", 'N', theme.code_green, "New Project...", "A new disc from a starting template",
-            theme)) {
-        shell.start.form_open = true;
+            theme, rv_editor_start_row(shell, rv_editor_start_page::new_project))) {
+        shell.start_page = rv_editor_start_page::new_project;
     }
     if (rv_editor_command_button("##open", 'O', theme.selection, "Open Project...", "A game directory with a disc.toml",
-            theme)) {
-        rv_editor_shell_open_folder(shell);
+            theme, rv_editor_start_row(shell, rv_editor_start_page::open_project))) {
+        rv_editor_shell_open_project(shell);
     }
     ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight()));
     if (rv_editor_command_button("##settings", 'S', theme.code_blue, "Settings...", "The editor's settings", theme)) {
@@ -74,11 +85,11 @@ void rv_editor_start_empty(rv_editor_shell &shell, const rv_editor_theme &theme)
     ImGui::TextWrapped("Open a game project directory or create a minimal Lua or C++ project.");
     ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight() * 0.5f));
     if (rv_editor_button("New Project...", theme)) {
-        shell.start.form_open = true;
+        shell.start_page = rv_editor_start_page::new_project;
     }
     ImGui::SameLine();
     if (rv_editor_button("Open Project...", theme)) {
-        rv_editor_shell_open_folder(shell);
+        rv_editor_shell_open_project(shell);
     }
 }
 
@@ -156,7 +167,9 @@ void rv_editor_start_card(rv_editor_shell &shell, const rv_editor_recent_row &ro
         ImGui::SameLine();
         if (rv_editor_button("Locate...", theme)) {
             rv_editor_recent_remove(row.root);
-            rv_editor_shell_open_folder(shell);
+            rv_editor_browser_start(shell.open_browser, "Locate " + row.root.filename().string() + ": its directory",
+                "Open Project", rv_editor_browse_pick::directory, row.root.parent_path());
+            rv_editor_shell_open_project(shell);
         }
     }
     const char *label = "Open Project";
@@ -202,6 +215,39 @@ void rv_editor_start_catalog(rv_editor_shell &shell, const rv_editor_theme &them
 
 } // namespace
 
+void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    rv_editor_browser &b = shell.open_browser;
+    if (b.purpose.empty()) {
+        const std::filesystem::path from = shell.app.project.open ? shell.app.project.root.parent_path()
+                                                                  : shell.start_selected.parent_path();
+        rv_editor_browser_start(b, "Choose a game directory: the one holding its disc.toml", "Open Project",
+            rv_editor_browse_pick::directory, from);
+    }
+    rv_editor_pane_header("Open Project", true, theme);
+    std::error_code ec;
+    const std::filesystem::path target = rv_editor_browser_target(b);
+    const bool found = std::filesystem::exists(target / "disc.toml", ec);
+    const std::string about = found ? "disc.toml found: " + target.string() + " opens as the project"
+                                    : "No disc.toml in " + target.string();
+    rv_editor_status(about.c_str(), found ? rv_editor_status_kind::ok : rv_editor_status_kind::warning, theme);
+    std::filesystem::path picked;
+    const rv_editor_browse_result r =
+        rv_editor_browser_draw(b, 0.0f, found ? nullptr : "No disc.toml in this directory", picked, theme);
+    if (r == rv_editor_browse_result::none) {
+        return;
+    }
+    // Picked or cancelled, the next Open Project starts afresh; without a project
+    // the window goes back to the recent projects.
+    b = {};
+    if (!shell.app.project.open) {
+        shell.start_page = rv_editor_start_page::recent;
+    }
+    if (r == rv_editor_browse_result::picked) {
+        rv_editor_shell_request_open(shell, picked);
+    }
+}
+
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header("Project Catalog", true, theme);
@@ -216,9 +262,12 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     ImGui::EndChild();
     ImGui::SameLine(0.0f, pad);
     ImGui::BeginChild("##start_catalog", ImVec2(-pad, -pad), ImGuiChildFlags_Borders);
-    rv_editor_start_catalog(shell, theme);
+    switch (shell.start_page) {
+        case rv_editor_start_page::recent: rv_editor_start_catalog(shell, theme); break;
+        case rv_editor_start_page::new_project: rv_editor_page_new_project(shell, theme); break;
+        case rv_editor_start_page::open_project: rv_editor_page_open_project(shell, theme); break;
+    }
     ImGui::EndChild();
-    rv_editor_shell_new_project(shell, theme);
     ImGui::PopStyleVar();
 }
 

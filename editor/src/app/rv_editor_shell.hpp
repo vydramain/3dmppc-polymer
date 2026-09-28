@@ -3,30 +3,37 @@
 #include <array>
 #include <filesystem>
 #include <map>
-#include <mutex>
 #include <vector>
 
 #include <SDL3/SDL.h>
 
 #include "app/rv_editor_app.hpp"
+#include "app/rv_editor_browser.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
 {
 
-// What the window without a project is doing: the New Project form and what its
-// Browse dialog picked (maybe on another thread, under picked_mutex).
+// The page the window without a project shows beside its Toolchest.
+enum class rv_editor_start_page
+{
+    recent,
+    new_project,
+    open_project,
+};
+
+// New Project's form as typed, kept while other pages are shown; Reset clears it.
 struct rv_editor_start
 {
-    bool form_open = false; // New Project was asked for: its dialog opens at the next draw
     char name[128] = {};
     char id[64] = {};
     char dir[512] = {};
     bool id_edited = false; // the id no longer follows the name
     size_t template_index = 0;
     std::string error;
-    std::string picked_dir;
+    bool browsing = false; // Directory's browser is open beside the form
+    rv_editor_browser browser;
 };
 
 // One editor window: its tiles, its models, and the commands that reach them
@@ -48,11 +55,6 @@ struct rv_editor_shell
     rv_editor_app app;
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr; // the Game tile's texture lives on it
-
-    // Paths SDL's file dialogs returned, possibly from another thread; opened
-    // on the next frame.
-    std::mutex picked_mutex;
-    std::vector<std::filesystem::path> picked;
 
     // A code tile with unsaved changes waiting for Save, Discard or Cancel.
     rv_editor_pane_id closing = rv_editor_tile_none;
@@ -88,7 +90,10 @@ struct rv_editor_shell
     // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
     bool help_open = false;
     rv_editor_start start;
+    rv_editor_start_page start_page = rv_editor_start_page::recent;
     std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
+    // Open Project's browser, on the start page or in a tab; empty purpose: not started.
+    rv_editor_browser open_browser;
     // A terminal tile with a live shell waiting for End Shell or Keep.
     rv_editor_pane_id closing_terminal = rv_editor_tile_none;
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
@@ -150,8 +155,8 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
 
-// Open Project...: the folder dialog; what it picks opens next frame.
-void rv_editor_shell_open_folder(rv_editor_shell &shell);
+// Open Project...: its page beside the Toolchest without a project, a tab with one.
+void rv_editor_shell_open_project(rv_editor_shell &shell);
 
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
 // tile, or of the first tile when none is focused.
@@ -159,8 +164,10 @@ void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
 
 // The window's content while no project is open (rv_editor_shell_start.cpp).
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);
-// The New Project dialog, drawn by the start screen (rv_editor_shell_start_new.cpp).
-void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &theme);
+// The start screen's pages that are drawn in a tab too: New Project
+// (rv_editor_shell_start_new.cpp) and Open Project (rv_editor_shell_start.cpp).
+void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);

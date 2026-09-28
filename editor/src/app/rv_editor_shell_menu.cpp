@@ -70,7 +70,7 @@ void rv_editor_menu_file(rv_editor_shell &shell)
         rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
     }
     if (ImGui::MenuItem("Open Project...")) {
-        rv_editor_shell_open_folder(shell);
+        rv_editor_shell_open_project(shell);
     }
     ImGui::Separator();
     if (rv_editor_menu_item("Save", "Ctrl+S", no_code)) {

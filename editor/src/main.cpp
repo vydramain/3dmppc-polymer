@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <filesystem>
 #include <memory>
-#include <mutex>
 #include <string>
 #include <string_view>
 
@@ -255,8 +254,7 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
     shell->app.game_scale = prefs.game_scale;
     if (!open_path.empty()) {
-        const std::lock_guard<std::mutex> lock(shell->picked_mutex);
-        shell->picked.emplace_back(open_path);
+        rv_editor::rv_editor_shell_request_open(*shell, open_path);
     }
 
     while (!shell->quit_now) {
