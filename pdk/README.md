@@ -14,6 +14,26 @@ headers rather than the firmware source.
 
 ---
 
+## Versions
+
+PDK has one version number (`RV_MPPC_VER_MAJOR`/`MINOR` in `de/rv_dv.h`,
+derived into `rv_version_str`, `rv_version_packed16` and
+`rv_version_packed32` by `pdklib/rv_version/rv_version.hpp`). Every format
+this kit defines carries it and every reader requires an exact match: the
+dev protocol, the shared frame header, `.mppccard` saves, `.mppctex`
+textures, the burner's build map and the editor's layout and view files.
+
+A version change is not free for a live install: an old `.mppccard` is
+refused and the card stays read-only until the file is removed, so its
+saves are not read; `.mppctex` files are baked again by the next build;
+an editor layout or view file of another version is read as absent, so
+the standard layout and default view come back; and a console and an
+editor of different versions refuse each other. The disc's own check
+(major equal, minor at most the console's) is the one exception and stays
+as it is.
+
+---
+
 ## Purpose — why this directory exists
 
 The console must be **game-agnostic**: it has its own life cycle and just lives by

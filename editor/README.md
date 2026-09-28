@@ -157,8 +157,8 @@ console that stops reading its input gets at most 1 MiB of queued commands;
 past that a command is refused and Console Output says so once, and Stop then
 offers Force Stop. Closing the editor stops the build and the game it started.
 
-The editor speaks dev protocol 2 and refuses any other console with the
-reason, a player build of the console included.
+The editor speaks the PDK version as its protocol and refuses a console of
+any other version, with the reason, a player build of the console included.
 
 ### Code
 

@@ -64,7 +64,7 @@ anything.
 | Offset | Size | Field | Value |
 | --- | --- | --- | --- |
 | `0` | 4 | `magic` | ASCII `"MPTX"` |
-| `4` | 2 | `version` | `1` |
+| `4` | 2 | `version` | the PDK version packed (`rv_pdklib::rv_mppctex_version`) |
 | `6` | 2 | `format` | an `rv_texfmt` value: `4`, `8` or `15` |
 | `8` | 2 | `width` | texels per row |
 | `10` | 2 | `height` | rows |
@@ -189,7 +189,8 @@ Texels and palette are already in their final form in the file, so the loader is
 a read, a header check and two `video_asset_write` calls.
 
 1. Read the whole file into main memory (`rv_cd`).
-2. Check `magic == "MPTX"` and `version == 1`; otherwise fail, do not guess.
+2. Check `magic == "MPTX"` and `version == rv_pdklib::rv_mppctex_version`;
+   otherwise fail, do not guess.
 3. Parse the header: `format`, `width`, `height`, `palette_count`.
 4. Compute the offsets:
    - palette: `16`, length `palette_count * 2` bytes;
