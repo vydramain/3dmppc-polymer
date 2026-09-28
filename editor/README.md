@@ -4,14 +4,17 @@ A separate program from the console and the tools. It works on a game
 directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
-It shows its tiled workspace between the menu bar and a status bar. A tile's
-header has X on the left to close it and M on the right to maximize it, and a
-right click on it opens the tile's menu; a tile can be split, closed, maximized
-or turned into another kind of pane (Window > New Tile lists every kind), and
-several panes in one tile show
-as folder tabs. The tile with the focus wears a brass frame; Ctrl+F6 and
-Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move the keyboard between
-tiles, as Tab belongs to the code editor and the terminal.
+It shows its tiled workspace between the menu bar and a status bar, on a
+window of 1200x800 or bigger. A tile's header has X on the left to close it
+and M on the right to maximize it, and a right click on it opens the tile's
+menu; a tile can be split, closed, maximized or turned into another kind of
+pane (Window > New Tile lists every kind), and several panes in one tile show
+as folder tabs. Each kind of pane keeps a minimum size of its own - a log pane
+room for its control row, the Game its frame at 1x, a strip of buttons its
+buttons - so a default layout's controls stay visible even at 1200x800. The
+tile with the focus wears a brass frame; Ctrl+F6 and Ctrl+Shift+F6 (Window >
+Focus Next / Previous Pane) move the keyboard between tiles, as Tab belongs to
+the code editor and the terminal.
 
 Four layouts share the same panes, documents, build and runtime: Code, Scene,
 Debug and Burn, chosen once a project is open, at the right end of the menu
@@ -25,35 +28,40 @@ only what is shown, never a process, a build, a buffer or the log. Window >
 Reset Layout puts the chosen layout back to its standard tiles; the others keep
 theirs. A layout saved by an earlier editor in `layout` is read as Code's.
 
-Without a project it shows the Project Catalog: a Toolchest on the left with
-Recent Projects, New Project..., Open Project..., Settings... and Help, and
-beside it the page chosen there. Recent Projects lists the projects opened
-lately, each with its letter, name, location and whether its disc.toml is still
-there; the arrows or a click select one, and Enter or a double click opens it.
-Its context menu has Remove from Recent, which only takes it off the list and
-can be undone. Under the list, Selected Project shows the whole path, whether
-disc.toml was found, and Open Project; a project that is gone offers Locate...
-instead. New Project is a page: the form (template, name, disc id, directory)
-on the left, the path it will create and its files on the right; a problem with
-the directory or a clash with an existing one shows beside that field, and
-nothing is created until Create Project. What is typed stays while other pages
-are shown; Reset clears it. Open Project and every Browse... show the editor's
-own file browser inside the page: what it is for, the path, Up, the entries and
-the action, with Cancel keeping the field as it was. With a project, Settings,
-Help and Open Project are tabs instead, opened in the biggest tile, and closing
-a tab brings back the one that was in front before it.
+Without a project it shows the Project Catalog: a Project Toolchest on the
+left with Recent Projects, New Project..., Open Project..., Settings... and
+Help, and beside it the page chosen there. Recent Projects lists the projects
+opened lately, each with its letter, name, location and Available or Missing
+for whether its disc.toml is still there; the arrows or a click select one,
+and Enter or a double click opens it, and it scrolls once the list outgrows
+six rows. Its context menu has Remove from Recent, which only takes it off the
+list and can be undone. Right under the list, in the same column, Selected
+Project shows the whole path, whether disc.toml was found, and Open <name>; a
+project that is gone offers Locate... instead. New Project is a page: the form
+(template, name, disc id, directory) on the left, the path it will create and
+its files on the right; a problem with the directory or a clash with an
+existing one shows beside that field, and nothing is created until Create
+Project. What is typed stays while other pages are shown; Reset clears it.
+Open Project and every Browse... show the editor's own file browser inside the
+page: what it is for, the path, Up, the entries and the action, with Cancel
+keeping the field as it was. With a project, Settings, Help and Open Project
+are tabs instead, opened in the biggest tile, and closing a tab brings back
+the one that was in front before it.
 
 With a project, the editor builds it with `mppcburner` and runs the result in a
 development console that draws into the Game tile, driven over the console's
-dev channel. Project > Project Settings shows the project and its tools;
-Settings says where the tools are.
+dev channel. Project > Project Settings groups what it shows: Disc for what
+comes from disc.toml, Editor for the editor's own paths and tools. Settings
+says where the tools are, in the order a disc goes through them: Baker,
+Burner, Runtime and Player. Help groups the shortcuts by the menu that holds
+each command, in the menu bar's order, then by the keys that work in a pane.
 
 The editor has no modal windows: nothing darkens the window or has to be
 answered before anything else works. A form, a setting or a question is a page
-beside the Toolchest, a tab in a tile or an area inside the pane it is about,
-and waiting for an answer holds only what asked. Context menus, drop-down lists
-and tooltips stay: they are short-lived and close with Escape or a click
-elsewhere.
+beside the Project Toolchest, a tab in a tile or an area inside the pane it is
+about, and waiting for an answer holds only what asked. Context menus,
+drop-down lists and tooltips stay: they are short-lived and close with Escape
+or a click elsewhere.
 
 ## Building
 
@@ -100,37 +108,54 @@ separate choices.
 
 With a file unsaved, Build and Run wait in a Review Changes tab: Save and
 Build / Build Saved Files / Return, and the same for Run. Run > Run
-Configuration keeps the
-project's run profiles in `.3dmppc-editor/project.toml`: a runtime, memory card
-and working directory of their own, Mute, Start Paused, Fixed Step, more
-console options, environment variables and Reload On Save. It is a pane,
-brought forward as a tab by the menu and by the Profile button of Runtime
-Controls: the profiles in a list with New (N) and Delete (X) under it, the
-chosen one's fields beside it. The
-form says before Run what the console would refuse; Apply is for the next Run,
-Apply and Restart stops the session and runs again.
+Configuration keeps the project's run profiles in `.3dmppc-editor/project.toml`,
+grouped as the console sets them: Session first, with the runtime, working
+directory, Start Paused, Fixed Step, Reload On Save, more console options and
+environment variables, then Audio (ca) with Mute, and Memory Card (cm) with
+the card path. It is a pane, brought forward as a tab by the menu and by the
+Profile button of Runtime Controls: the profiles in a list with New (N) and
+Delete (X) under it, the chosen one's fields beside it. The form says before
+Run what the console would refuse; Apply is for the next Run, Apply and
+Restart stops the session and runs again.
 
-Runtime Controls is a strip of square buttons, a coloured letter over a short
-label: Build B, Run R, Pause P, Step S, Stop X, Reload U; the tooltip gives the
-whole name and key. Release Controls in Burn have Build B, Run R, Player P, Stop X
-and Report E. The Game tile of a layout as it starts shows the disc's screen at
-Fit with no border, until a splitter is dragged.
+Every icon in the editor, on a button or beside a file, is a two-letter code
+from one table, one code per thing, drawn in the same square: Bd Build, Rn Run,
+Ps Pause, Sf Step Frame, Sp Stop, Rl Reload, Mo More, Pl Run in Player, Ex
+Export, Nw New, Nd New Folder, Dl Delete, Mv Rename, Rf Refresh, Rc Recent, Op
+Open, Se Settings, Hp Help, Mk Mark Moment, Cp Capture Frame, Is Report Issue,
+Rs Restart; a file's code is Fd folder, Ln link, Lu Lua, Cc C/C++, Hh header,
+Tm TOML, Mf disc.toml, Im image, Sn sound, Tx text, Fi anything else. The tile
+frame's X and M stay letters.
+
+A status reads as text, not a button: a mark before its label. [OK] means
+done or fine, [*] going on (Running, Reloading), [~] busy (Building), [-]
+idle, [!] warning, [X] error.
+
+Runtime Controls is a strip of square buttons, a coloured code over a short
+label: Build Bd, Run Rn, Pause Ps, Step Sf, Stop Sp, Reload Rl; the tooltip
+gives the whole name and key. Reload is always there, dimmed with the reason
+when the running disc has nothing to reload. Release Controls in Burn have
+Build Bd, Run Rn, Player Pl, Stop Sp and Report Ex. The Game tile of a layout
+as it starts shows the disc's screen at Fit with no border, until a splitter
+is dragged.
 
 Each build goes to a new numbered directory and counts only when the burner
-exits 0; a failed or cancelled build is deleted and never runs. A running game
-keeps running while the next build is made. Output shows the editor's, the
-build's and the runtime's lines, the Runtime Log and the Build Log one source
-each until more are ticked; the dev channel's own lines are there too,
-off by default, without the frame events the console sends sixty times a
-second. One row of controls picks the sources and the lowest level shown, finds
-text, follows the newest line and wraps long ones under the message; the tile's
-title names what the filters keep. Time is the local clock time a line arrived.
-The borders between Time, Level, Source and Message drag; a click selects a line,
-Shift+click a range, and Ctrl+C or Copy copies them (Copy takes every line shown
-when none is selected). A console that stops reading its input gets at most 1 MiB of queued
-commands; past that a command is refused and Output says so once, and Stop
-then offers Force Stop. Closing the editor stops the build and the game it
-started.
+exits 0; a failed or cancelled build is deleted and never runs. A running
+game keeps running while the next build is made. Console Output shows the
+editor's, the build's, the candidate's and the runtime's lines together;
+the Runtime Log keeps to the runtime alone and the Build Log to candidate
+builds alone, until more are ticked. The dev channel's own lines are there
+too, off by default, without the frame events the console sends sixty times
+a second. Every log pane's controls draw in the interface font on one row -
+Source, Level, Find, Follow, Wrap, Copy, Export and Clear View - and what
+does not fit goes behind a labelled More; only the log lines themselves keep
+the code font. The tile's title names what the filters keep. Time is the
+local clock time a line arrived. The borders between Time, Level, Source
+and Message drag; a click selects a line, Shift+click a range, and Ctrl+C
+or Copy copies them (Copy takes every line shown when none is selected). A
+console that stops reading its input gets at most 1 MiB of queued commands;
+past that a command is refused and Console Output says so once, and Stop then
+offers Force Stop. Closing the editor stops the build and the game it started.
 
 The editor speaks dev protocol 2 and refuses any other console with the
 reason, a player build of the console included.
@@ -138,8 +163,9 @@ reason, a player build of the console included.
 ### Code
 
 Files on the left, the code tile beside the Game over its Runtime Controls,
-and under both one tile of Output, Problems, Terminal and Search Results, Output
-in front. Edit > Find in Project and a build's diagnostics bring their tab forward.
+and under both one tile of Console Output, Problems, Terminal and Search
+Results, Console Output in front. Edit > Find in Project and a build's
+diagnostics bring their tab forward.
 
 - **Problems** lists the file, line and message of each error and warning the
   latest build printed; a double click or Enter opens the file at that line, and
@@ -152,18 +178,22 @@ in front. Edit > Find in Project and a build's diagnostics bring their tab forwa
 
 ### Debug
 
-For playing the game and finding out what it does, the session in front: Runtime
-Controls along the top, the Game beside the Toolchest over Session, Inspector and
-Test Case, the Runtime Log and Findings along the bottom. Code, Files and the
-Terminal open from Window > New Tile, or where a file is opened. The tiles are not
-fitted to the Game here: Fit draws the whole frame in whatever the Game gets.
-The transport keeps one row: what does not fit goes behind a labelled More.
+For playing the game and finding out what it does, the session in front:
+Runtime Controls along the top, the Game beside the Session Toolchest over
+Session, Inspector and Test Case, the Runtime Log and Findings along the
+bottom. Code, Files and the Terminal open from Window > New Tile, or where
+a file is opened. The tiles are not fitted to the Game here: Fit draws the
+whole frame in whatever the Game gets. The transport keeps one row: what does
+not fit goes behind a labelled More. Session says the session's state once;
+the Game and Runtime Log titles and the Runtime Controls strip do not repeat it.
 
 - **Session** says what ran: its number and state, the build, the run profile,
-  when it started and for how long, the frame, the disc and its code hash, the
+  when it started and for how long, the frame, the disc, the
   entry script's revision and the last reload, and the marks made in it. After
-  the console ends, how it ended comes first.
-- **Toolchest**: Mark Moment writes the frame and a word into the log and into
+  the console ends, how it ended comes first. Details, collapsed, holds the
+  build's directory and the code hash, each with its own Copy.
+- **Session Toolchest**, square buttons as Runtime Controls draws its own: Mark
+  Moment writes the frame and a word into the log and into
   Session while the game goes on; Capture Frame saves the Game's frame into the
   findings; Report Issue captures the frame, gives the keyboard back and brings
   Findings forward; Restart stops the session and runs the same profile again.
@@ -182,11 +212,11 @@ The transport keeps one row: what does not fit goes behind a labelled More.
   otherwise; the reads are never one snapshot. A paused machine is read again
   after every Step. A disc without a Lua machine says there is no state to
   inspect.
-- **Reload** (F8, Run > Reload Entry Script) sends `reload entry`; it is offered
-  only for a disc running from a directory with an entry script. Runtime
-  Controls shows whether the last one was accepted, at which revision, or
-  refused and why; a profile with Reload On Save sends one when a `.lua` file is
-  saved.
+- **Reload** (F8, Run > Reload Entry Script) sends `reload entry`; Runtime
+  Controls shows it dimmed with the reason when no session runs or the disc has
+  nothing to reload, and otherwise whether the last one was accepted, at which
+  revision, or refused and why; a profile with Reload On Save sends one when a
+  `.lua` file is saved.
 - **Findings**: Capture Frame writes the frame the Game shows as a PNG; Record
   Finding writes a title, steps, expected and actual behaviour with the session,
   frame, build, runtime, disc, code hash and entry revision, and the log since
@@ -198,17 +228,25 @@ For checking one disc image before it is released. Release Controls (Build
 Candidate, Run Candidate, Run in Player, Stop, Export Report) sit over the
 Release Candidate beside the Candidate Playtest, with the Build Log and the
 Playtest Log underneath; Checks, Findings and Build Result open from Window >
-New Tile.
+New Tile. Stop ends whatever session is running, a candidate's or a
+development one, not only a candidate's. The Build Log shows candidate builds
+(Source: candidate) by default; its Source filter brings the editor's, other
+builds' and the runtime's lines back.
 
 - **Build Candidate** runs `mppcburner build <root> -o <cache>/candidates/<n>.mppcdisc
   --baker <mppcbaker>`: a new number each time, never written over. A failed
-  build makes no candidate and says so; the older ones stay.
+  build makes no candidate and says so; the older ones stay. A candidate build
+  logs its lines with their own source, candidate, kept apart from an ordinary
+  build's.
 - A candidate shows its image, SHA-256, size, build time, command, tool
   versions, the git commit of the sources and whether they differed from it,
   and whether a project file changed since its build started.
 - **Run Candidate** runs that image on the development console with a memory
   card of its own, `<n>.mppccard`; the unpacked development build never stands
-  in for it.
+  in for it. Candidate Playtest shows only that image, never a development
+  session; while none of this candidate's own is running it says so instead of
+  showing another session's frame, and starting a different session closes
+  this one's playtest.
 - **Run in Player** plays it in the player's own window: the 3dmppc of
   File > Settings built without devtools. Its output goes to the log and to a
   file beside the record; the Game tile names the candidate, the PID and the
@@ -243,6 +281,10 @@ then roll) and a scale, and a mesh and a texture named as the disc names them.
 The Scene layout opens the project's first scene; the Scene menu creates one
 under a free name, opens, saves and edits them. Keys and sections the editor
 does not know are written back as read, and a newer format opens read-only.
+Its standard tiles put the Transform Toolchest over the Hierarchy on the left,
+the scene in the centre, the Game over Runtime Controls over the Inspector on
+the right, and Assets, Files and Console Output as tabs along the full width
+at the bottom.
 
 - **Hierarchy** is the tree; dragging an object onto another moves it there
   keeping where it is in the scene, or says why it cannot; Move to Root (Keep
@@ -250,12 +292,12 @@ does not know are written back as read, and a newer format opens read-only.
 - **Inspector** edits the selected object; **Assets** shows the resource files as
   an Icon Catalog or a list with the disc names of the last build's map, and a
   file with a disc name drops into Mesh or Texture.
-- **The viewport** draws the scene in wireframe through an editor camera, never
-  the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects) drag the
-  selection with Snap as the Toolchest sets it, the right button orbits, the
-  middle pans, the wheel dollies, and Rot X, Rot Y and Dolly thumbwheels do the
-  same (a double click goes home). Persp, Top, Front, Right, Frame Selection
-  (F), View All, Home and Seek set the view.
+- **The viewport** draws the scene in wireframe through an editor camera,
+  never the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects)
+  drag the selection with Snap as the Transform Toolchest sets it, the right
+  button orbits, the middle pans, the wheel dollies, and the labelled Rot X,
+  Rot Y and Dolly thumbwheels do the same (a double click goes home). Persp,
+  Top, Front, Right, Frame Selection (F), View All, Home and Seek set the view.
 
 Every change is one undo step, one drag included, and Escape takes a drag back;
 Ctrl+Z, Ctrl+Shift+Z, Delete and Ctrl+D work in the scene's tiles, and the
@@ -303,7 +345,8 @@ Code tile, using its own config, [`nvim/rv_editor_init.lua`](nvim/rv_editor_init
 not your `init.lua`. nvim must be on `PATH`; without it only the Code tiles say
 so. A double click in Files opens the file in the focused Code tile, else in
 the Code tile used last, else in a new one. A binary file (a NUL in its first
-8 KiB) is not opened: Output says so, and Files > Open as Text opens it anyway.
+8 KiB) is not opened: Console Output says so, and Files > Open as Text opens
+it anyway.
 
 A Code tile keeps the files it has shown as tabs above the text: a click on a
 tab shows that file again, opening a file that already has a tab brings the tab
@@ -381,9 +424,9 @@ baker = "/path/to/mppcbaker"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```
 
-Settings (File > Settings, or the Toolchest without a project) edits `[tools]`
-on Apply and keeps the rest of the file; for each tool it shows the override,
-the path in use and its status, with Browse and Check. A missing tool
+Settings (File > Settings, or the Project Toolchest without a project) edits
+`[tools]` on Apply and keeps the rest of the file; for each tool it shows the
+override, the path in use and its status, with Browse and Check. A missing tool
 disables only the commands that need it, with the reason; the Project pane
 shows each path and the version the tool reports (`mppcburner --version`).
 
@@ -393,11 +436,13 @@ sections, drawn by the editor's own code on fixed data.
 ### Fonts
 
 The interface draws in pdklib's 5x7 bitmap font (`rv_font`, 8 px high, one
-blank column between letters) with no magnification beyond the UI scale. Code,
-Output and the terminal draw in PxPlus IBM VGA 9x16 by VileR (int10h.org): View >
-Code Text Size picks Normal (16 px, the default), Large (32 px) or Small (PxPlus
-IBM EGA 8x14 at 14 px), each times the UI scale, and the choice is kept. The two
-font files and the Cyrillic of the 5x7 font carry PxPlus's CC BY-SA 4.0 licence:
+blank column between letters) with no magnification beyond the UI scale. Code
+tiles and the terminal draw fully in PxPlus IBM VGA 9x16 by VileR (int10h.org);
+in Console Output only the lines match it, its own controls stay in the
+interface font. View > Code Text Size picks Normal (16 px, the default), Large
+(32 px) or Small (PxPlus IBM EGA 8x14 at 14 px), each times the UI scale, and
+the choice is kept. The two font files and the Cyrillic of the 5x7 font carry
+PxPlus's CC BY-SA 4.0 licence:
 see
 [`third_party/pxplus-ibm-vga/`](../third_party/pxplus-ibm-vga/ORIGIN.md).
 
