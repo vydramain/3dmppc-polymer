@@ -91,8 +91,7 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
     // The transport in a narrow strip: what does not fit goes behind More.
     ImGui::TextUnformatted("Transport at 220 px:");
     ImGui::BeginChild("##cat_narrow", ImVec2(220.0f, ImGui::GetFrameHeight() * 3.2f), ImGuiChildFlags_Borders);
-    const rv_editor_transport_state state{ nullptr, "Already running", nullptr, "Pause first", nullptr, nullptr, false,
-        true };
+    const rv_editor_transport_state state{ nullptr, "Already running", nullptr, "Pause first", nullptr, nullptr, false };
     rv_editor_transport_bar(state, theme);
     ImGui::EndChild();
 }

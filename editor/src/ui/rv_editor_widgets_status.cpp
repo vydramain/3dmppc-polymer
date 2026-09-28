@@ -24,17 +24,19 @@ rv_editor_mark rv_editor_status_mark(rv_editor_status_kind kind, const rv_editor
 {
     switch (kind) {
     case rv_editor_status_kind::idle:
-        return {"-", t.text_disabled};
+        return {"[-]", t.text_disabled};
     case rv_editor_status_kind::busy:
-        return {"~", t.selection};
+        return {"[~]", t.selection};
     case rv_editor_status_kind::ok:
-        return {"+", t.ok};
+        return {"[OK]", t.ok};
+    case rv_editor_status_kind::active:
+        return {"[*]", t.ok};
     case rv_editor_status_kind::warning:
-        return {"!", t.warning};
+        return {"[!]", t.warning};
     case rv_editor_status_kind::error:
-        return {"x", t.error};
+        return {"[X]", t.error};
     }
-    return {"?", t.text};
+    return {"[?]", t.text};
 }
 
 rv_editor_mark rv_editor_severity_mark(rv_editor_severity severity, const rv_editor_theme &t)
@@ -54,22 +56,29 @@ rv_editor_mark rv_editor_severity_mark(rv_editor_severity severity, const rv_edi
 
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme)
 {
+    // Passive text, not a button face: a bracketed mark in the state's colour,
+    // on a flat backing sized to the mark so it reads on any row background.
     const rv_editor_mark mark = rv_editor_status_mark(kind, theme);
-    const float box = ImGui::GetFrameHeight();
-    const ImVec2 min = ImGui::GetCursorScreenPos();
-    ImGui::Dummy(ImVec2(box, box));
-
-    // A sunken lamp holding the symbol in the state's colour.
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    const ImVec2 max(min.x + box, min.y + box);
-    rv_editor_draw_panel(dl, min, max, theme, theme.dark, rv_editor_bevel::sunken);
+    ImGui::AlignTextToFramePadding();
+    // AlignTextToFramePadding offsets the glyph baseline by FramePadding.y from
+    // the cursor; match that so the backing lands exactly under the mark.
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const ImVec2 mark_min(pos.x, pos.y + ImGui::GetStyle().FramePadding.y);
     const ImVec2 size = ImGui::CalcTextSize(mark.symbol);
-    dl->AddText(ImVec2(std::floor((min.x + max.x - size.x) / 2.0f), std::floor((min.y + max.y - size.y) / 2.0f)),
-        rv_editor_col(mark.color), mark.symbol);
-
+    ImGui::GetWindowDrawList()->AddRectFilled(mark_min, ImVec2(mark_min.x + size.x, mark_min.y + size.y),
+        rv_editor_col(theme.dark));
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(mark.color));
+    ImGui::TextUnformatted(mark.symbol);
+    ImGui::PopStyleColor();
     ImGui::SameLine();
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
+}
+
+float rv_editor_status_width(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme)
+{
+    const rv_editor_mark mark = rv_editor_status_mark(kind, theme);
+    return ImGui::CalcTextSize(mark.symbol).x + ImGui::GetStyle().ItemSpacing.x + ImGui::CalcTextSize(label).x;
 }
 
 bool rv_editor_log_begin(const char *id, ImVec2 size, const rv_editor_theme &theme)
@@ -103,7 +112,7 @@ void rv_editor_log_row(const char *time, const char *source, rv_editor_severity 
 }
 
 rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
-    const rv_editor_theme &theme)
+    const rv_editor_theme &theme, float reserve)
 {
     rv_editor_transport_actions out = {};
     // Step and Stop differ in letter and colour, not in the label alone; the
@@ -126,7 +135,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         {"Stop", 'X', theme.code_red, "Stop", "Shift+F5", state.stop, &out.stop},
         {"Reload", 'U', 0x94e2d5, "Reload Entry Script", "F8", state.reload, &out.reload},
     };
-    const size_t shown = state.reload_shown ? std::size(buttons) : std::size(buttons) - 1;
+    const size_t shown = std::size(buttons); // Reload is always shown, disabled when it cannot act
     // One row, never a second (LAY-04): what does not fit goes behind a labelled More,
     // Reload first, then Step, then Build, which the menus also have; the rest keep their order.
     const float gap = ImGui::GetStyle().ItemSpacing.x;
@@ -134,13 +143,14 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     for (size_t i = 0; i < shown; ++i) {
         width += (i == 0 ? 0.0f : gap) + rv_editor_tool_button_width(buttons[i].label);
     }
+    const float tail = reserve > 0.0f ? gap + reserve : 0.0f; // room what follows the bar needs
     bool hidden[std::size(buttons)] = {};
     bool any_hidden = false;
-    if (width > ImGui::GetContentRegionAvail().x) {
+    if (width + tail > ImGui::GetContentRegionAvail().x) {
         width += gap + rv_editor_tool_button_width("More");
         constexpr size_t drop_order[] = { 5, 3, 0, 2, 4, 1 };
         for (const size_t i : drop_order) {
-            if (i >= shown || width <= ImGui::GetContentRegionAvail().x) {
+            if (i >= shown || width + tail <= ImGui::GetContentRegionAvail().x) {
                 continue;
             }
             hidden[i] = true;

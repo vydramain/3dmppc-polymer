@@ -21,7 +21,7 @@ namespace
 rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 {
     switch (session.state()) {
-        case rv_editor_run_state::running: return rv_editor_status_kind::ok;
+        case rv_editor_run_state::running: return rv_editor_status_kind::active;
         case rv_editor_run_state::paused: return rv_editor_status_kind::warning;
         case rv_editor_run_state::crashed:
         case rv_editor_run_state::disconnected:
@@ -30,6 +30,20 @@ rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
         case rv_editor_run_state::exited: return rv_editor_status_kind::idle;
         default: return rv_editor_status_kind::busy;
     }
+}
+
+// Reload's disabled reason, always computed: "no session" and "disc cannot
+// reload" first (the transport button stays visible either way), then the
+// finer reasons rv_editor_app_why_not_reload already gives a live session.
+const char *rv_editor_why_not_reload_shown(const rv_editor_app &app)
+{
+    if (!app.session.live()) {
+        return "No session is running";
+    }
+    if (!rv_editor_app_can_reload(app)) {
+        return "This disc has no Lua entry script to reload";
+    }
+    return rv_editor_app_why_not_reload(app);
 }
 
 void rv_editor_wrapped(const std::string &text)
@@ -55,11 +69,16 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
-    // Reload shows only while the running disc can take one (a directory with a Lua entry).
+    // Reload is always shown; it is disabled with a reason when the disc cannot take one.
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        rv_editor_app_why_not_reload(app), s.state() == rv_editor_run_state::paused, rv_editor_app_can_reload(app) };
-    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme);
+        rv_editor_why_not_reload_shown(app), s.state() == rv_editor_run_state::paused };
+    // The state name follows on the same row; the bar hides its own buttons first
+    // rather than let that status get clipped.
+    const char *name = rv_editor_run_state_name(s.state());
+    const rv_editor_status_kind name_kind = rv_editor_run_lamp(s);
+    const float name_width = rv_editor_status_width(name, name_kind, theme);
+    const rv_editor_transport_actions clicked = rv_editor_transport_bar(state, theme, name_width);
     if (clicked.build) {
         rv_editor_app_build(app);
     }
@@ -81,9 +100,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 
     // On the same row while it fits: the runtime's confirmed state, its frame and
     // what it runs, or, stopped, what Run would start.
-    const char *name = rv_editor_run_state_name(s.state());
-    rv_editor_flow(rv_editor_checkbox_width(name));
-    rv_editor_status(name, rv_editor_run_lamp(s), theme);
+    rv_editor_flow(name_width);
+    rv_editor_status(name, name_kind, theme);
     std::string facts;
     if (s.live()) {
         facts = "frame " + std::to_string(s.frame()) + " | session #" + std::to_string(s.number()) + " | build #" +
@@ -114,7 +132,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             : on_save                          ? "Reload On Save"
                                                : nullptr;
         if (label != nullptr) {
-            rv_editor_status(label, s.reloading() ? rv_editor_status_kind::busy
+            rv_editor_status(label, s.reloading() ? rv_editor_status_kind::active
                     : s.reload_result().empty()   ? rv_editor_status_kind::idle
                     : s.reload_ok()               ? rv_editor_status_kind::ok
                                                   : rv_editor_status_kind::error,

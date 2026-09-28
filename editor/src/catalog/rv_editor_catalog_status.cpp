@@ -69,7 +69,7 @@ void rv_editor_catalog_indicators(const rv_editor_theme &t)
     ImGui::SameLine();
     rv_editor_status("Building", rv_editor_status_kind::busy, t);
     ImGui::SameLine();
-    rv_editor_status("Running", rv_editor_status_kind::ok, t);
+    rv_editor_status("Running", rv_editor_status_kind::active, t);
     ImGui::SameLine();
     rv_editor_status("Reload rejected", rv_editor_status_kind::warning, t);
     ImGui::SameLine();

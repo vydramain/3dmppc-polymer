@@ -169,6 +169,7 @@ enum class rv_editor_status_kind
     idle,
     busy,
     ok,
+    active, // an ongoing activity that is going fine (Running, Reloading)
     warning,
     error,
 };
@@ -186,6 +187,10 @@ void rv_editor_status_bar(const char *const fields[], int count, const rv_editor
 
 // Lamp and label; each kind has its own symbol as well as its own colour.
 void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
+
+// Width rv_editor_status draws `label` in, mark included; reserve this ahead of a status
+// that follows something else on the same row.
+float rv_editor_status_width(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
 
 // A log's text area: Mocha base under Mocha text, with the Motif scrollbars of
 // rv_editor_scroll_begin. Rows go between the two calls; always pair them.
@@ -207,7 +212,6 @@ struct rv_editor_transport_state
     const char *stop;
     const char *reload;
     bool resume = false; // the machine is paused: Run reads Resume
-    bool reload_shown = true; // false: the runtime cannot reload, so no Reload button at all
 };
 
 // Which transport action was clicked this frame.
@@ -221,8 +225,10 @@ struct rv_editor_transport_actions
     bool reload;
 };
 
+// `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);
+// the bar hides more of its own buttons behind More rather than let that overflow.
 rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
-    const rv_editor_theme &theme);
+    const rv_editor_theme &theme, float reserve = 0.0f);
 
 // An area inside a pane that asks something without blocking anything else: a
 // bordered block under its own header; the caller draws the text and the buttons
