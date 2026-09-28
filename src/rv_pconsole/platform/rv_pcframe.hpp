@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 
 namespace rv_3dmppc
@@ -19,7 +20,7 @@ namespace rv_3dmppc
 // `latest`. A reader copies slot `latest` and keeps the copy only when `seq`
 // was even and the same before and after; it never makes the console wait.
 inline constexpr uint32_t RV_PCFRAME_MAGIC = 0x42465652; // "RVFB"
-inline constexpr uint32_t RV_PCFRAME_VERSION = 1;
+inline constexpr uint32_t RV_PCFRAME_VERSION = rv_pdklib::rv_version_packed32;
 inline constexpr uint32_t RV_PCFRAME_SLOTS = 3;
 inline constexpr uint32_t RV_PCFRAME_FORMAT_ARGB8888 = 1;
 inline constexpr uint32_t RV_PCFRAME_NONE = 0xFFFFFFFFu;
@@ -28,7 +29,7 @@ inline constexpr uint64_t RV_PCFRAME_SLOT_HEADER_BYTES = 32;
 
 struct rv_pcframe_header {
     uint32_t magic;       // RV_PCFRAME_MAGIC
-    uint32_t version;     // RV_PCFRAME_VERSION
+    uint32_t version;     // RV_PCFRAME_VERSION, the PDK version packed M.m
     uint32_t slot_count;  // RV_PCFRAME_SLOTS
     uint32_t slot_bytes;  // slot header + pixels, a multiple of 64
     uint32_t latest;      // slot of the last finished frame, RV_PCFRAME_NONE before one

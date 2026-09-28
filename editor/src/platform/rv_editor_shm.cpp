@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "pdklib/rv_version/rv_version.hpp"
+
 namespace rv_editor
 {
 
@@ -20,7 +22,7 @@ namespace
 // magic, version, slot_count, slot_bytes, latest; slot fields seq, format, frame
 // (64-bit), width, height, stride, then pixels.
 constexpr uint32_t RV_PCFRAME_MAGIC = 0x42465652;
-constexpr uint32_t RV_PCFRAME_VERSION = 1;
+constexpr uint32_t RV_PCFRAME_VERSION = rv_pdklib::rv_version_packed32;
 constexpr uint32_t RV_PCFRAME_SLOTS = 3;
 constexpr uint32_t RV_PCFRAME_HEADER_BYTES = 64;
 constexpr uint32_t RV_PCFRAME_SLOT_HEADER_BYTES = 32;
