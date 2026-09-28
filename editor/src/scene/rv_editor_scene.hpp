@@ -11,7 +11,7 @@
 namespace rv_editor
 {
 
-// A scene document as the editor edits it (editor/docs/adr/0009-scene-document.md).
+// A scene document as the editor edits it.
 // The disc reads the same file with pdklib/rv_scene; the editor keeps its own
 // model so that nothing it does not understand is lost on save (SCN-04).
 

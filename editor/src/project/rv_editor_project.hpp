@@ -6,7 +6,7 @@
 namespace rv_editor
 {
 
-// Where the editor keeps what is not the game's (docs/adr/0010-settings-storage.md).
+// Where the editor keeps what is not the game's.
 // `var` is an XDG variable; without it, or when it is not absolute,
 // $HOME/<home_fallback>. Empty when neither gives an absolute directory.
 std::filesystem::path rv_editor_xdg_dir(const char *var, const char *home_fallback);

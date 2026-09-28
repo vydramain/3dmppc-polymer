@@ -1,4 +1,4 @@
--- 3dmppc-editor's nvim: an ordinary editor by default (editor/docs/adr/0005-code-editor-nvim.md).
+-- 3dmppc-editor's nvim: an ordinary editor by default.
 -- Loaded with -u, so the user's own init.lua and plugins stay out.
 -- F2 switches between this and plain Vim; the editor starts in insert mode.
 

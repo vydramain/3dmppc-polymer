@@ -5,7 +5,7 @@
 namespace rv_editor
 {
 
-// The editor's fonts (docs/adr/0004-fonts.md): the interface draws in pdklib's
+// The editor's fonts: the interface draws in pdklib's
 // 5x7 font in an 8 px line; code and logs in one of three code sizes.
 inline constexpr int rv_editor_font_ui_height = 8;
 

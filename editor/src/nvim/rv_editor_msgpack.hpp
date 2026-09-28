@@ -9,7 +9,7 @@
 namespace rv_editor
 {
 
-// The msgpack subset nvim's RPC needs (docs/adr/0005-code-editor-nvim.md):
+// The msgpack subset nvim's RPC needs:
 // encoding arrays, maps, strings, integers, booleans and nil; decoding every
 // type nvim sends. No external dependency.
 

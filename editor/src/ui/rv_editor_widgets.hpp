@@ -117,8 +117,8 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
 
 // --- the tiled workspace ------------------------------------------------------
 
-// What the window shows: the pane registry and the tile tree over it
-// (docs/adr/0002-tiling.md). Views only; no model lives here.
+// What the window shows: the pane registry and the tile tree over it.
+// Views only; no model lives here.
 struct rv_editor_workspace
 {
     rv_editor_pane_registry panes;
@@ -142,8 +142,8 @@ using rv_editor_pane_draw_fn = void (*)(void *context, rv_editor_pane_id pane, r
     const rv_editor_theme &theme);
 
 // Asked before a pane leaves the tree (closed, or turned into another kind).
-// False keeps it: the owner asks the user and removes it itself later
-// (docs/adr/0002-tiling.md). nullptr closes every pane at once.
+// False keeps it: the owner asks the user and removes it itself later.
+// nullptr closes every pane at once.
 using rv_editor_pane_close_fn = bool (*)(void *context, rv_editor_pane_id pane);
 
 // Title of a pane kind as the tab and header show it.

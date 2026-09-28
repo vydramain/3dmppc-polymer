@@ -209,7 +209,7 @@ enum class rv_editor_unsaved_ask
 };
 
 // Everything one editor window works with. The models live here, outside the
-// tile tree; panes only look at them (docs/adr/0002-tiling.md).
+// tile tree; panes only look at them.
 struct rv_editor_app
 {
     rv_editor_toolchain tools;

@@ -195,8 +195,7 @@ comes back Not run.
 
 ### Scene
 
-A scene is `scenes/<name>.scene.toml` in the format of
-[ADR 0009](docs/adr/0009-scene-document.md): groups, cameras and boxes, each with
+A scene is `scenes/<name>.scene.toml`: groups, cameras and boxes, each with
 a stable id, a name, a parent, a position, a rotation (degrees, yaw then pitch
 then roll) and a scale, and a mesh and a texture named as the disc names them.
 The Scene layout opens the project's first scene; the Scene menu creates one
@@ -357,8 +356,3 @@ see
 | Path | What |
 | --- | --- |
 | `src/` | the editor's sources |
-| [`docs/3dmppc-editor-v0.4-requirements.md`](docs/3dmppc-editor-v0.4-requirements.md) | requirements and acceptance criteria of the editor MVP |
-| [`docs/adr/`](docs/adr/README.md) | architecture decisions: toolkit, tiling, theme, fonts, code editor, Game frame, CMake |
-| [`docs/icons.md`](docs/icons.md) | every place the editor needs an icon, and the picture or coloured letter it has now |
-| [`docs/sgi-irix-ux.md`](docs/sgi-irix-ux.md) | research: how SGI IRIX technical applications looked and behaved, with sources |
-| `docs/references/` | generated design references: a visual direction, not a specification |

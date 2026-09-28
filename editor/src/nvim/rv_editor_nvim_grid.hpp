@@ -10,8 +10,8 @@
 namespace rv_editor
 {
 
-// What nvim's `redraw` notifications describe, applied event by event
-// (docs/adr/0005-code-editor-nvim.md): highlight attributes, the default
+// What nvim's `redraw` notifications describe, applied event by event:
+// highlight attributes, the default
 // colours, and one grid per window plus grid 1 with the command line.
 
 // The cursor's shape in one mode, as nvim's mode_info_set gives it (guicursor).

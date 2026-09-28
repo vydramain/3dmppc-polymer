@@ -7,7 +7,7 @@
 namespace rv_editor
 {
 
-// One line of the burner's map (editor/docs/adr/0011-asset-mapping.md): what a
+// One line of the burner's map: what a
 // source file became on the disc. The editor reads names here and never works
 // them out itself.
 struct rv_editor_map_entry

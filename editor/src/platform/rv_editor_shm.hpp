@@ -8,7 +8,7 @@
 namespace rv_editor
 {
 
-// The Game frame's shared memory (docs/adr/0006-game-frame.md): made here, handed
+// The Game frame's shared memory: made here, handed
 // to the console as --frame-fd, read without ever making the console wait. The
 // layout is the console's (src/rv_pconsole/platform/rv_pcframe.hpp, version 1).
 class rv_editor_frame_memory

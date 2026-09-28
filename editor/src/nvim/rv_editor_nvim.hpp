@@ -39,7 +39,7 @@ struct rv_editor_nvim_saved
 using rv_editor_nvim_save_done =
     std::function<void(const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure)>;
 
-// The code editor (docs/adr/0005-code-editor-nvim.md): one `nvim --embed`
+// The code editor: one `nvim --embed`
 // per editor window, started with the first code tile. Each code tile is one
 // nvim window whose grid the tile draws; nvim keeps the text, the undo, the
 // swap files and the modified flags, and this client mirrors what it needs.

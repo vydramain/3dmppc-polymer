@@ -27,14 +27,14 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 // "Output: All", "Output: Build #8, errors": what an Output pane's filters keep.
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane);
 
-// A code tile: one window of the editor's nvim (docs/adr/0005-code-editor-nvim.md).
+// A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 
 // A shell in the project's directory on a PTY of its own (TRM-01).
 void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 
 // The console's own frame, scaled to the tile as View > Game Scale says, and its
-// pad while the tile holds the keyboard (docs/adr/0006-game-frame.md). Shift+Esc
+// pad while the tile holds the keyboard. Shift+Esc
 // lets the keyboard go.
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 // Assets: the project's resource files as an Icon Catalog (SCL-03); its PNG pictures live on `renderer`.

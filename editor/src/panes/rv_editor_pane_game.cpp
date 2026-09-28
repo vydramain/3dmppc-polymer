@@ -1,4 +1,4 @@
-// The Game tile (docs/adr/0006-game-frame.md): the console's own frame scaled as
+// The Game tile: the console's own frame scaled as
 // View > Game Scale says, and, while the tile holds the keyboard, its pad.
 
 #include "panes/rv_editor_panes.hpp"

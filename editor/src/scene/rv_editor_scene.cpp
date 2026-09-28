@@ -181,7 +181,7 @@ rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path)
 {
     rv_editor_scene s;
     s.path = path;
-    s.preamble = "# A scene (editor/docs/adr/0009-scene-document.md): 3dmppc-editor's Scene layout edits it.\n\n";
+    s.preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
     rv_editor_scene_object camera;
     camera.id = rv_editor_scene_new_id(s);
     camera.name = "Camera";

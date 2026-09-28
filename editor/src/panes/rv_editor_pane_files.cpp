@@ -260,7 +260,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
 
     const bool has_sel = !app.files.selected.empty() && app.files.selected != app.files.root().path;
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, "Select a file or folder first" };
-    // Square buttons, a coloured letter each until the icons are drawn (editor/docs/icons.md).
+    // Square buttons, a coloured letter each until the icons are drawn.
     const float side = ImGui::GetFrameHeight();
     if (rv_editor_letter_button("##new_file", 'N', theme.code_green, "New File", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");

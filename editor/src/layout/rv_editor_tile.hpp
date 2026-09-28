@@ -9,7 +9,7 @@
 namespace rv_editor
 {
 
-// The tile tree of the workspace (docs/adr/0002-tiling.md): data and pure
+// The tile tree of the workspace: data and pure
 // operations, no ImGui. Panes are views; closing a tile closes no model behind it.
 
 // The direction a split divides in. x: side by side, the bar moves along X.

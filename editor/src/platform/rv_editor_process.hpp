@@ -10,7 +10,7 @@
 namespace rv_editor
 {
 
-// A child process the editor owns (docs/adr/0012-platforms.md): argv, cwd and
+// A child process the editor owns: argv, cwd and
 // environment as separate values, never a shell line (BLD-07), and its own
 // stdin/stdout/stderr pipes. Reading never blocks: the UI thread drains the pipes
 // once a frame (DEV-05). The child leads its own process group, so stopping it

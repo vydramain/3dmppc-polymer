@@ -73,7 +73,7 @@ struct rv_editor_answer
 class rv_editor_session
 {
 public:
-    // Protocol versions this client speaks (docs/adr/0008-protocol-version.md).
+    // Protocol versions this client speaks.
     static constexpr int protocol_supported = 2;
 
     // False with the reason when a session cannot start now.
@@ -98,7 +98,7 @@ public:
     // A fresh status, for the facts.
     void refresh(rv_editor_log &log);
     // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
-    // what the Game tile's keyboard holds (docs/adr/0006-game-frame.md).
+    // what the Game tile's keyboard holds.
     void pad(uint64_t buttons, rv_editor_log &log);
 
     // The frames the console writes (--frame-fd); the Game tile reads them.

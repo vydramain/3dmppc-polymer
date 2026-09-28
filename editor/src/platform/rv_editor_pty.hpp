@@ -12,7 +12,7 @@
 namespace rv_editor
 {
 
-// A program on a pseudo-terminal (docs/adr/0012-platforms.md): the child leads a
+// A program on a pseudo-terminal: the child leads a
 // session of its own whose controlling terminal is the PTY, so Ctrl+C and a resize
 // reach whatever runs in it. It gets no pipe of the editor's and never sees the dev
 // protocol (TRM-01). Reading and writing never block; the UI thread drains once a
