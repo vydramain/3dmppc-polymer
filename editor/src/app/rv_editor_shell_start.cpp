@@ -62,7 +62,7 @@ rv_editor_state rv_editor_start_row(const rv_editor_shell &shell, rv_editor_star
 
 void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    rv_editor_pane_header("Toolchest", true, theme);
+    rv_editor_pane_header("Project Toolchest", true, theme);
     if (rv_editor_command_button("##recent", 'R', theme.code_cyan, "Recent Projects", "The projects opened lately", theme,
             rv_editor_start_row(shell, rv_editor_start_page::recent))) {
         shell.start_page = rv_editor_start_page::recent;

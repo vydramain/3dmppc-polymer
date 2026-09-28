@@ -373,7 +373,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
 
     ImGui::SeparatorText("Marks");
     if (app.marks.empty()) {
-        rv_editor_dim("Mark Moment in the Toolchest notes the frame, and a word on it, while you play.");
+        rv_editor_dim("Mark Moment in the Session Toolchest notes the frame, and a word on it, while you play.");
     }
     for (size_t i = 0; i < app.marks.size(); ++i) {
         ImGui::Text("%zu. %s", i + 1, app.marks[i].c_str());

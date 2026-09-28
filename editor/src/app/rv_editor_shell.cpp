@@ -168,6 +168,8 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         if (buf != nullptr) {
             title = "Code: " + rv_editor_shell_buffer_label(app, buf->name) + (buf->modified ? " *" : "");
         }
+    } else if (kind == rv_editor_pane_kind::toolchest) {
+        title = app.preset == rv_editor_layout_preset::debug ? "Session Toolchest" : "Transform Toolchest";
     }
     if (!title.empty()) {
         shell.ws.titles[pane] = title;
