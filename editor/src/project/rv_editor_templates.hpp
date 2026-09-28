@@ -59,6 +59,9 @@ bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_edito
 // $XDG_CONFIG_HOME/3dmppc-editor/recent. Removing one only forgets it.
 std::vector<std::filesystem::path> rv_editor_recent_load();
 void rv_editor_recent_add(const std::filesystem::path &root);
-void rv_editor_recent_remove(const std::filesystem::path &root);
+// Removing returns where the project stood (the list's size when it was not
+// there); restoring puts it back at that place.
+size_t rv_editor_recent_remove(const std::filesystem::path &root);
+void rv_editor_recent_restore(const std::filesystem::path &root, size_t index);
 
 } // namespace rv_editor

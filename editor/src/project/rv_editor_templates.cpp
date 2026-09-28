@@ -248,10 +248,23 @@ void rv_editor_recent_add(const std::filesystem::path &root)
     rv_editor_recent_save(list);
 }
 
-void rv_editor_recent_remove(const std::filesystem::path &root)
+size_t rv_editor_recent_remove(const std::filesystem::path &root)
+{
+    std::vector<std::filesystem::path> list = rv_editor_recent_load();
+    const size_t index = static_cast<size_t>(std::find(list.begin(), list.end(), root) - list.begin());
+    std::erase(list, root);
+    rv_editor_recent_save(list);
+    return index;
+}
+
+void rv_editor_recent_restore(const std::filesystem::path &root, size_t index)
 {
     std::vector<std::filesystem::path> list = rv_editor_recent_load();
     std::erase(list, root);
+    list.insert(list.begin() + static_cast<std::ptrdiff_t>(std::min(index, list.size())), root);
+    if (list.size() > rv_editor_recent_max) {
+        list.resize(rv_editor_recent_max);
+    }
     rv_editor_recent_save(list);
 }
 

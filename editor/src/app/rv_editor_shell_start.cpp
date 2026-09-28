@@ -131,7 +131,8 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
                 rv_editor_shell_request_open(shell, row.root);
             }
             if (ImGui::MenuItem("Remove from Recent")) {
-                rv_editor_recent_remove(row.root);
+                shell.recent_removed_at = rv_editor_recent_remove(row.root);
+                shell.recent_removed = row.root;
             }
             ImGui::SetItemTooltip("Takes it off this list; the directory stays as it is");
             ImGui::EndPopup();
@@ -185,6 +186,19 @@ void rv_editor_start_card(rv_editor_shell &shell, const rv_editor_recent_row &ro
 void rv_editor_start_catalog(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header("Recent Projects", true, theme);
+    // What Remove from Recent took, with the way back; the directory was never touched.
+    if (!shell.recent_removed.empty()) {
+        const std::string removed = shell.recent_removed.filename().string() + " was removed from Recent; its "
+            "directory is as it was.";
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(removed.c_str());
+        ImGui::SameLine();
+        if (rv_editor_button("Undo", theme)) {
+            rv_editor_recent_restore(shell.recent_removed, shell.recent_removed_at);
+            shell.start_selected = shell.recent_removed;
+            shell.recent_removed.clear();
+        }
+    }
     const std::vector<rv_editor_recent_row> rows = rv_editor_recent_rows();
     if (rows.empty()) {
         rv_editor_start_empty(shell, theme);

@@ -96,6 +96,9 @@ struct rv_editor_shell
     rv_editor_start start;
     rv_editor_start_page start_page = rv_editor_start_page::recent;
     std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
+    // The project Remove from Recent took off the list last, and its place, for Undo.
+    std::filesystem::path recent_removed;
+    size_t recent_removed_at = 0;
     // Open Project's browser, on the start page or in a tab; empty purpose: not started.
     rv_editor_browser open_browser;
     // A terminal tile with a live shell waiting for End Shell or Keep.
