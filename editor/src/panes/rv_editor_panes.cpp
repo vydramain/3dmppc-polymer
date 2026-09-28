@@ -102,21 +102,26 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // what it runs, or, stopped, what Run would start.
     rv_editor_flow(name_width);
     rv_editor_status(name, name_kind, theme);
+    // Debug's Session pane already shows session/build/frame; the strip keeps
+    // only the indicator above and drops that repeat.
+    const bool debug_preset = app.preset == rv_editor_layout_preset::debug;
     std::string facts;
-    if (s.live()) {
+    if (s.live() && !debug_preset) {
         facts = "frame " + std::to_string(s.frame()) + " | session #" + std::to_string(s.number()) + " | build #" +
             std::to_string(s.build_number());
         if (s.facts().lua_budget > 0) {
             facts += " | script revision " + std::to_string(s.facts().revision) +
                 (s.facts().revision != s.facts().first_revision ? " (reloaded)" : "");
         }
-    } else if (app.build.last_success()) {
+    } else if (!s.live() && app.build.last_success()) {
         facts = "Target: build #" + std::to_string(app.build.last_success()->number);
-    } else {
+    } else if (!s.live()) {
         facts = "Target: nothing built yet";
     }
-    rv_editor_flow(ImGui::CalcTextSize(facts.c_str()).x);
-    ImGui::TextUnformatted(facts.c_str());
+    if (!facts.empty()) {
+        rv_editor_flow(ImGui::CalcTextSize(facts.c_str()).x);
+        ImGui::TextUnformatted(facts.c_str());
+    }
     const std::string profile = "Profile: " + app.run_config.profiles[app.run_config.active].name;
     rv_editor_flow(rv_editor_button_width(profile.c_str()));
     if (rv_editor_button(profile.c_str(), theme)) {

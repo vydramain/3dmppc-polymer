@@ -134,9 +134,11 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
 {
     rv_editor_app &app = shell.app;
     const bool burn = shell.active == rv_editor_layout_preset::burn;
+    // Debug's Session pane already spells out session/state; these titles stay plain there.
+    const bool debug = shell.active == rv_editor_layout_preset::debug;
     const rv_editor_session &s = app.session;
-    const std::string session = s.number() == 0 ? std::string()
-                                                 : "session " + std::to_string(s.number()) + " (" +
+    const std::string session = s.number() == 0 || debug ? std::string()
+                                                          : "session " + std::to_string(s.number()) + " (" +
             rv_editor_run_state_name(s.state()) + ")";
     const std::string candidate = app.release.candidates.empty()
         ? std::string()
