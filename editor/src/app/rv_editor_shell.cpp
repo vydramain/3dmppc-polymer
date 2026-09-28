@@ -360,7 +360,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     }
 
     // What the tiles say this frame: a code tile's file and its unsaved mark in
-    // the header, and the Game's frame at 1x as its minimum.
+    // the header, and each pane's minimum size (rv_editor_shell_minimums.cpp).
     shell.ws.titles.clear();
     shell.ws.minimums.clear();
     for (const rv_editor_tile_node &node : shell.ws.layout.nodes) {
@@ -369,14 +369,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
         for (const rv_editor_pane_id pane : node.leaf.tabs) {
             const rv_editor_pane_kind kind = shell.ws.panes.panes[pane].kind;
-            if (kind == rv_editor_pane_kind::game && app.game_need.w > 0) {
-                shell.ws.minimums[pane] = app.game_need;
-            }
-            // A strip of controls is as tall as its rows, whatever its split's ratio says.
-            const auto strip = shell.strips.find(pane);
-            if (strip != shell.strips.end()) {
-                shell.ws.minimums[pane] = strip->second;
-            }
+            rv_editor_shell_set_minimum(shell, pane, kind, app.game_need);
             rv_editor_shell_title(shell, pane, kind);
         }
     }
