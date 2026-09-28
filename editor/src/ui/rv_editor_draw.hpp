@@ -49,11 +49,6 @@ void rv_editor_draw_check(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
 void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter,
     uint32_t color);
 
-// Text in the current font slanted as 4Dwm's window titles: each pixel row drawn
-// on its own, the rows above the baseline one pixel further right every two rows.
-void rv_editor_draw_text_italic(ImDrawList *dl, ImVec2 pos, ImU32 color, const char *begin, const char *end,
-    const rv_editor_theme &theme);
-
 // Dotted one-pixel rectangle just inside [min, max): keyboard focus.
 void rv_editor_draw_focus(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme);
 

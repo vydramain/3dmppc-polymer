@@ -170,19 +170,4 @@ void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor
         rv_editor_col(ink), text);
 }
 
-void rv_editor_draw_text_italic(ImDrawList *dl, ImVec2 pos, ImU32 color, const char *begin, const char *end,
-    const rv_editor_theme &theme)
-{
-    const float px = static_cast<float>(theme.scale);
-    const int rows = static_cast<int>(ImGui::GetFontSize() / px);
-    const float right = pos.x + ImGui::CalcTextSize(begin, end).x + static_cast<float>(rows) * px;
-    for (int r = 0; r < rows; ++r) {
-        const float y = pos.y + static_cast<float>(r) * px;
-        const float shift = static_cast<float>((rows - 1 - r) / 2) * px;
-        dl->PushClipRect(ImVec2(pos.x, y), ImVec2(right, y + px), true);
-        dl->AddText(ImVec2(pos.x + shift, pos.y), color, begin, end);
-        dl->PopClipRect();
-    }
-}
-
 } // namespace rv_editor
