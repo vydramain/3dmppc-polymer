@@ -126,10 +126,26 @@ in front. Edit > Find in Project and a build's diagnostics bring their tab forwa
 
 ### Debug
 
-For playing the game and finding out what it does. Files on the left, the code
-tile over the Terminal, and the Game over its Runtime Controls over Output on
-the right; the Inspector, Runtime Log and Findings open from Window > New Tile.
+For playing the game and finding out what it does, the session in front: Runtime
+Controls along the top, the Game beside the Toolchest over Session, Inspector and
+Test Case, the Runtime Log and Findings along the bottom. Code, Files and the
+Terminal open from Window > New Tile, or where a file is opened. The tiles are not
+fitted to the Game here: Fit draws the whole frame in whatever the Game gets.
 The transport keeps one row: what does not fit goes behind a labelled More.
+
+- **Session** says what ran: its number and state, the build, the run profile,
+  when it started and for how long, the frame, the disc and its code hash, the
+  entry script's revision and the last reload, and the marks made in it. After
+  the console ends, how it ended comes first.
+- **Toolchest**: Mark Moment writes the frame and a word into the log and into
+  Session while the game goes on; Capture Frame saves the Game's frame into the
+  findings; Report Issue captures the frame, gives the keyboard back and brings
+  Findings forward; Restart stops the session and runs the same profile again.
+- **Test Case** lists the project's `testcases/*.txt` (`title:` on the first line,
+  then `steps:` and `expected:` each over its text) and Exploratory, for free play.
+  Passed, Failed and Blocked save the result with a note and the session into the
+  findings; Failed also captures the frame and starts a finding from the case.
+  New Test Case writes `testcases/case-N.txt` and opens it in Code.
 
 - **Inspector** shows what the console says about itself in its status: session,
   frame, disc, code hash, PDK, the entry script's revision and whether a reload
@@ -259,7 +275,8 @@ A Code tile is a window of one `nvim --embed` the editor starts with the first
 Code tile, using its own config, [`nvim/rv_editor_init.lua`](nvim/rv_editor_init.lua),
 not your `init.lua`. nvim must be on `PATH`; without it only the Code tiles say
 so. A double click in Files opens the file in the focused Code tile, else in
-the Code tile used last, else in a new one.
+the Code tile used last, else in a new one. A binary file (a NUL in its first
+8 KiB) is not opened: Output says so, and Files > Open as Text opens it anyway.
 
 A Code tile keeps the files it has shown as tabs above the text: a click on a
 tab shows that file again, opening a file that already has a tab brings the tab
@@ -309,7 +326,7 @@ own shell.
 | Code text size, Game scale, layout shown | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
 | Builds | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/builds/<n>` |
 | Memory card | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/memcard.mppccard` |
-| Findings | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/findings/` |
+| Findings, captured frames, test results | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/findings/` |
 | Release candidates: images, records, logs, memory cards, reports | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/candidates/` |
 | Burner maps of builds and images | beside each, `<n>.map`, `<n>.mppcdisc.map` |
 | Recent projects | `$XDG_CONFIG_HOME/3dmppc-editor/recent` |
