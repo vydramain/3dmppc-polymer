@@ -93,8 +93,8 @@ float rv_editor_tool_button_width(const char *)
     return std::floor(std::max(ImGui::CalcTextSize("MMMMMM").x + pad.x * 2.0f, line * 3.0f + pad.y * 3.0f));
 }
 
-bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const char *name, const char *shortcut,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_tool_button(const char *label, const char *code, uint32_t color, const char *name,
+    const char *shortcut, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const float side = rv_editor_tool_button_width(label);
     const rv_editor_item item = rv_editor_item_add(label, ImVec2(side, side), state);
@@ -112,19 +112,27 @@ bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_button_face(dl, item, theme, down);
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    // The letter at twice the font's size over the label, both centred across the square.
-    const float big = ImGui::GetFontSize() * 2.0f;
     const float pad = ImGui::GetStyle().FramePadding.y;
-    const char text[2] = { letter, '\0' };
-    const float letter_w = ImGui::GetFont()->CalcTextSizeA(big, FLT_MAX, 0.0f, text).x;
+    // The code at the largest of 2x/1.5x/1x the font's size that still fits the
+    // square's width, over the label, both centred across the square.
+    const float fit = side - pad * 2.0f;
+    float big = ImGui::GetFontSize() * 2.0f;
+    float code_w = ImGui::GetFont()->CalcTextSizeA(big, FLT_MAX, 0.0f, code).x;
+    for (const float scale : { 1.5f, 1.0f }) {
+        if (code_w <= fit) {
+            break;
+        }
+        big = ImGui::GetFontSize() * scale;
+        code_w = ImGui::GetFont()->CalcTextSizeA(big, FLT_MAX, 0.0f, code).x;
+    }
     const float y = std::floor((item.min.y + item.max.y - big - ImGui::GetTextLineHeight() - pad) / 2.0f + nudge);
     // Dimmed: halfway to the window colour.
     const uint32_t dim = item.disabled
         ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
             (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
         : color;
-    dl->AddText(ImGui::GetFont(), big, ImVec2(std::floor((item.min.x + item.max.x - letter_w) / 2.0f + nudge), y),
-        rv_editor_col(dim), text);
+    dl->AddText(ImGui::GetFont(), big, ImVec2(std::floor((item.min.x + item.max.x - code_w) / 2.0f + nudge), y),
+        rv_editor_col(dim), code);
     const ImVec2 size = ImGui::CalcTextSize(label, end);
     dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - size.x) / 2.0f + nudge), y + big + pad),
         rv_editor_col(rv_editor_item_text(theme, item)), label, end);
@@ -134,7 +142,7 @@ bool rv_editor_tool_button(const char *label, char letter, uint32_t color, const
     return item.clicked;
 }
 
-bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const char *tooltip,
+bool rv_editor_letter_button(const char *id, const char *code, uint32_t color, const char *tooltip,
     const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const float side = ImGui::GetFrameHeight();
@@ -150,12 +158,22 @@ bool rv_editor_letter_button(const char *id, char letter, uint32_t color, const 
         ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
             (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
         : color;
-    const char text[2] = { letter, '\0' };
-    const ImVec2 size = ImGui::CalcTextSize(text);
+    // The code at the default size, or smaller when it would cross the square's
+    // border: a 2px inset, not FramePadding, which is too strict for a code that
+    // already fits (the 5x7 bitmap font does not scale cleanly, so keep it crisp).
+    const float inset = static_cast<float>(theme.scale) * 2.0f;
+    const float fit = side - inset * 2.0f;
+    float font_size = ImGui::GetFontSize();
+    ImVec2 size = ImGui::CalcTextSize(code);
+    if (size.x > fit) {
+        font_size *= fit / size.x;
+        size = ImGui::GetFont()->CalcTextSizeA(font_size, FLT_MAX, 0.0f, code);
+    }
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - size.x) / 2.0f + nudge),
-                    std::floor((item.min.y + item.max.y - size.y) / 2.0f + nudge)),
-        rv_editor_col(ink), text);
+    dl->AddText(ImGui::GetFont(), font_size,
+        ImVec2(std::floor((item.min.x + item.max.x - size.x) / 2.0f + nudge),
+            std::floor((item.min.y + item.max.y - size.y) / 2.0f + nudge)),
+        rv_editor_col(ink), code);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);
     }
@@ -246,12 +264,11 @@ float rv_editor_checkbox_width(const char *label)
     return rv_editor_marked_size(label).x;
 }
 
-bool rv_editor_command_button(const char *id, char letter, uint32_t color, const char *label, const char *tooltip,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_command_button(const char *id, const char *code, uint32_t color, const char *label,
+    const char *tooltip, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
-    const char text[2] = { letter, '\0' };
-    const float cell = ImGui::CalcTextSize(text).x;
+    const float cell = ImGui::CalcTextSize(code).x;
     const float width = std::max(ImGui::GetContentRegionAvail().x, pad.x * 3.0f + cell + ImGui::CalcTextSize(label).x);
     const rv_editor_item item = rv_editor_item_add(id, ImVec2(width, ImGui::GetFrameHeight()), state);
     if (!item.disabled && tooltip != nullptr) {
@@ -268,7 +285,7 @@ bool rv_editor_command_button(const char *id, char letter, uint32_t color, const
         ? (((((color >> 16) & 0xff) + ((theme.window >> 16) & 0xff)) / 2) << 16) |
             (((((color >> 8) & 0xff) + ((theme.window >> 8) & 0xff)) / 2) << 8) | (((color & 0xff) + (theme.window & 0xff)) / 2)
         : color;
-    dl->AddText(ImVec2(x, y), rv_editor_col(ink), text);
+    dl->AddText(ImVec2(x, y), rv_editor_col(ink), code);
     dl->AddText(ImVec2(x + cell + pad.x, y), rv_editor_col(rv_editor_item_text(theme, item)), label);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);

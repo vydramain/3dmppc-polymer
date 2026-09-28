@@ -199,10 +199,10 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
             ImGui::TextUnformatted(files[i]);
             ImGui::EndDragDropSource();
         }
-        char letter[2] = { 'F', '\0' };
+        const char *code = "";
         uint32_t color = 0;
-        rv_editor_file_chip(files[i], letter[0], color);
-        dl->AddText(ImVec2(p0.x + cell * 0.4f, p0.y + 4.0f), rv_editor_col(i == 4 ? theme.text_disabled : color), letter);
+        rv_editor_file_chip(files[i], code, color);
+        dl->AddText(ImVec2(p0.x + cell * 0.4f, p0.y + 4.0f), rv_editor_col(i == 4 ? theme.text_disabled : color), code);
         dl->AddText(ImVec2(p0.x + 2.0f, p0.y + cell * 0.45f), rv_editor_col(i == 4 ? theme.warning : theme.text),
             files[i]);
         ImGui::PopID();

@@ -13,6 +13,7 @@
 #include "imgui.h"
 
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -105,8 +106,8 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
         ImGui::PopID();
     }
     rv_editor_scroll_end(theme);
-    if (rv_editor_letter_button("##new", 'N', theme.code_green, "New profile: a copy of this one, as last applied",
-            theme)) {
+    if (rv_editor_letter_button("##new", rv_editor_glyph::new_, theme.code_green,
+            "New profile: a copy of this one, as last applied", theme)) {
         rv_editor_run_profile copy = config.profiles[config.active];
         copy.name = "Profile" + std::to_string(config.profiles.size() + 1);
         config.profiles.push_back(std::move(copy));
@@ -114,7 +115,7 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
         rv_editor_app_profiles_save(app);
     }
     ImGui::SameLine();
-    if (rv_editor_letter_button("##delete", 'X', theme.code_red, "Delete this profile", theme,
+    if (rv_editor_letter_button("##delete", rv_editor_glyph::delete_, theme.code_red, "Delete this profile", theme,
             { rv_editor_look::live, config.profiles.size() == 1 ? "The last profile stays" : nullptr })) {
         config.profiles.erase(config.profiles.begin() + static_cast<std::ptrdiff_t>(config.active));
         config.active = 0;

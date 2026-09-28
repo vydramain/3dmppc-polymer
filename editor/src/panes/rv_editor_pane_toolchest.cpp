@@ -6,6 +6,7 @@
 #include <string>
 
 #include "imgui.h"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -26,7 +27,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
             ImGui::GetColorU32(ImGuiCol_TextDisabled), "A word for the mark...");
     }
-    if (rv_editor_tool_button("Mark", 'M', theme.code_yellow,
+    if (rv_editor_tool_button("Mark", rv_editor_glyph::mark_moment, theme.code_yellow,
             "Mark Moment: notes this frame and the word above in the session's log and in Session", nullptr, theme,
             { rv_editor_look::live, no_session })) {
         const std::string mark = "frame " + std::to_string(s.frame()) +
@@ -37,7 +38,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
         app.mark_note[0] = '\0';
     }
     rv_editor_flow(rv_editor_tool_button_width("Capture"));
-    if (rv_editor_tool_button("Capture", 'C', theme.code_blue,
+    if (rv_editor_tool_button("Capture", rv_editor_glyph::capture_frame, theme.code_blue,
             "Capture Frame: saves the Game's frame into the project's findings", nullptr, theme,
             { rv_editor_look::live, no_session })) {
         rv_editor_findings_capture(app);
@@ -45,7 +46,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
     // The moment is kept before the form is: a frame, the keyboard back, then Findings.
     const char *no_report = s.number() != 0 ? nullptr : "No session has run yet: there is nothing to report on";
     rv_editor_flow(rv_editor_tool_button_width("Report"));
-    if (rv_editor_tool_button("Report", 'I', theme.code_red,
+    if (rv_editor_tool_button("Report", rv_editor_glyph::report_issue, theme.code_red,
             "Report Issue: captures the frame, gives the keyboard back and opens Findings, where the session, "
             "build and log are added on save",
             nullptr, theme, { rv_editor_look::live, no_report })) {
@@ -58,7 +59,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
         app.show_request = rv_editor_pane_kind::findings;
     }
     rv_editor_flow(rv_editor_tool_button_width("Restart"));
-    if (rv_editor_tool_button("Restart", 'R', theme.code_green,
+    if (rv_editor_tool_button("Restart", rv_editor_glyph::restart, theme.code_green,
             "Restart: stops the session and runs the same profile again", nullptr, theme,
             { rv_editor_look::live, no_session })) {
         app.run_after_stop = true;

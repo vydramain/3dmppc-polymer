@@ -13,6 +13,7 @@
 
 #include "project/rv_editor_templates.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 
 namespace rv_editor
 {
@@ -63,25 +64,27 @@ rv_editor_state rv_editor_start_row(const rv_editor_shell &shell, rv_editor_star
 void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header("Project Toolchest", true, theme);
-    if (rv_editor_command_button("##recent", 'R', theme.code_cyan, "Recent Projects", "The projects opened lately", theme,
-            rv_editor_start_row(shell, rv_editor_start_page::recent))) {
+    if (rv_editor_command_button("##recent", rv_editor_glyph::recent, theme.code_cyan, "Recent Projects",
+            "The projects opened lately", theme, rv_editor_start_row(shell, rv_editor_start_page::recent))) {
         shell.start_page = rv_editor_start_page::recent;
     }
-    if (rv_editor_command_button("##new", 'N', theme.code_green, "New Project...", "A new disc from a starting template",
-            theme, rv_editor_start_row(shell, rv_editor_start_page::new_project))) {
+    if (rv_editor_command_button("##new", rv_editor_glyph::new_, theme.code_green, "New Project...",
+            "A new disc from a starting template", theme,
+            rv_editor_start_row(shell, rv_editor_start_page::new_project))) {
         shell.start_page = rv_editor_start_page::new_project;
     }
-    if (rv_editor_command_button("##open", 'O', theme.selection, "Open Project...", "A game directory with a disc.toml",
-            theme, rv_editor_start_row(shell, rv_editor_start_page::open_project))) {
+    if (rv_editor_command_button("##open", rv_editor_glyph::open, theme.selection, "Open Project...",
+            "A game directory with a disc.toml", theme,
+            rv_editor_start_row(shell, rv_editor_start_page::open_project))) {
         rv_editor_shell_open_project(shell);
     }
     ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight()));
-    if (rv_editor_command_button("##settings", 'S', theme.code_blue, "Settings...", "The editor's settings", theme,
-            rv_editor_start_row(shell, rv_editor_start_page::settings))) {
+    if (rv_editor_command_button("##settings", rv_editor_glyph::settings, theme.code_blue, "Settings...",
+            "The editor's settings", theme, rv_editor_start_row(shell, rv_editor_start_page::settings))) {
         rv_editor_shell_page(shell, rv_editor_start_page::settings);
     }
-    if (rv_editor_command_button("##help", 'H', theme.code_yellow, "Help", "Keyboard shortcuts", theme,
-            rv_editor_start_row(shell, rv_editor_start_page::help))) {
+    if (rv_editor_command_button("##help", rv_editor_glyph::help, theme.code_yellow, "Help", "Keyboard shortcuts",
+            theme, rv_editor_start_row(shell, rv_editor_start_page::help))) {
         rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
 }

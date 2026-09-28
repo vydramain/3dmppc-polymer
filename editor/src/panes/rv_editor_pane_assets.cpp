@@ -19,6 +19,7 @@
 
 #include "build/rv_editor_build_map.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -232,15 +233,18 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             const ImVec2 q0(at.x + (art - size.x) * 0.5f, at.y + (art - size.y) * 0.5f);
             dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
         } else {
-            // The file's letter at twice the font: whole pixels of the 5x7 cell.
-            char letter = 'F';
+            // The file's code, sized down from twice the font until it fits the tile's width.
+            const char *code = rv_editor_glyph::other_file;
             uint32_t color = 0;
-            rv_editor_file_chip(a.path, letter, color);
-            const char text[2] = { letter, '\0' };
-            const float size = ImGui::GetFontSize() * 2.0f;
-            const float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, text).x;
+            rv_editor_file_chip(a.path, code, color);
+            float size = ImGui::GetFontSize() * 2.0f;
+            float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, code).x;
+            if (w > art * 0.9f) {
+                size *= art * 0.9f / w;
+                w = art * 0.9f;
+            }
             dl->AddText(ImGui::GetFont(), size, ImVec2(std::floor(at.x + (art - w) * 0.5f),
-                std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), text);
+                std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), code);
         }
         // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
         std::string label = a.path.filename().string();
