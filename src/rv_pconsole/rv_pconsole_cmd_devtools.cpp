@@ -22,6 +22,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
 #include "rv_pconsole/platform/rv_pcframe.hpp"
@@ -243,10 +244,10 @@ void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
         loader_ != nullptr && !loader_->code_hash().empty() ? loader_->code_hash() : std::string("none");
 
     cmd_->reply(std::format(
-        "{} ok protocol=2 frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
+        "{} ok protocol={} frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
         "entry_reloadable={} entry_revision={} entry_hash={:016x} lua_used={} lua_budget={} "
         "chunks={} error_seq={} script_error={}",
-        id, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
+        id, rv_pdklib::rv_version_str, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
         rv_pccmd_hex(disc_id), code_hash, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR, script.reloadable ? 1 : 0,
         script.revision, script.hash, script.used, script.budget, script.slots, script.error_seq,
         rv_pccmd_hex_msg(script.error)));

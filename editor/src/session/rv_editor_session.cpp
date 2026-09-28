@@ -274,11 +274,11 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
     if (verb == "status") {
         uncertain_ = false;
         if (!handshake_done_) {
-            const int64_t protocol = rv_editor_to_int(msg.get("protocol"), -1);
+            const std::string_view protocol = msg.get("protocol");
             if (protocol != protocol_supported) {
                 state_ = rv_editor_run_state::refused;
-                refusal_ = "the console speaks protocol " + std::string(msg.get("protocol")) +
-                    "; this editor speaks " + std::to_string(protocol_supported);
+                refusal_ = "the console speaks protocol " + std::string(protocol) +
+                    "; this editor speaks " + protocol_supported;
                 end_reason_ = refusal_;
                 log.add(rv_editor_log_source::editor, rv_editor_log_level::error, refusal_);
                 quit_sent_ = true;

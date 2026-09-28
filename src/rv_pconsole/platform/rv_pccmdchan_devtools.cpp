@@ -18,6 +18,7 @@
 #include <thread>
 
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
 
 namespace rv_3dmppc
@@ -102,7 +103,7 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
         reason_ = "stdin/stdout cannot be made non-blocking";
         return;
     }
-    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol 2)");
+    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol {})", rv_pdklib::rv_version_str);
 }
 
 rv_pccmdchan_stdio::~rv_pccmdchan_stdio()

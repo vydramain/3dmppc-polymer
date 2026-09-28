@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "log/rv_editor_log.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "platform/rv_editor_shm.hpp"
 #include "session/rv_editor_devproto.hpp"
@@ -73,8 +74,8 @@ struct rv_editor_answer
 class rv_editor_session
 {
 public:
-    // Protocol versions this client speaks.
-    static constexpr int protocol_supported = 2;
+    // Protocol this client speaks: the PDK version, exact match with the console's.
+    static constexpr const char *protocol_supported = rv_pdklib::rv_version_str;
 
     // False with the reason when a session cannot start now.
     // `options` go before the disc, `env` over the editor's environment (a run profile).
