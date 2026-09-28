@@ -29,12 +29,11 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::code: return "Code";
         case rv_editor_pane_kind::controls: return "Runtime Controls";
         case rv_editor_pane_kind::run_config: return "Run Configuration";
-        case rv_editor_pane_kind::output: return "Output";
+        case rv_editor_pane_kind::output: return "Console Output";
         case rv_editor_pane_kind::terminal: return "Terminal";
         case rv_editor_pane_kind::problems: return "Problems";
         case rv_editor_pane_kind::search: return "Search Results";
         case rv_editor_pane_kind::toolchest: return "Toolchest";
-        case rv_editor_pane_kind::console: return "Console";
         case rv_editor_pane_kind::runtime_log: return "Runtime Log";
         case rv_editor_pane_kind::build_log: return "Build Log";
         case rv_editor_pane_kind::observe: return "Inspector: state (Runtime, read-only)";

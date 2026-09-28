@@ -20,7 +20,7 @@ namespace
 constexpr std::string_view kind_names[] = {
     "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
     "game", "code", "controls", "run_config", "output", "terminal", "problems", "search",
-    "toolchest", "console", "runtime_log", "build_log", "observe", "findings", "candidate", "release_controls", "build_result",
+    "toolchest", "runtime_log", "build_log", "observe", "findings", "candidate", "release_controls", "build_result",
     "checks", "session", "test_case", "open_project", "settings", "help", "review_changes"};
 
 std::string_view kind_name(rv_editor_pane_kind k)
@@ -31,6 +31,11 @@ std::string_view kind_name(rv_editor_pane_kind k)
 
 bool kind_from_name(std::string_view s, rv_editor_pane_kind &k)
 {
+    // A layout saved by an earlier editor names this pane "console"; it loads as output.
+    if (s == "console") {
+        k = rv_editor_pane_kind::output;
+        return true;
+    }
     for (int i = 0; i < static_cast<int>(std::size(kind_names)); ++i) {
         if (kind_names[i] == s) {
             k = static_cast<rv_editor_pane_kind>(i);

@@ -57,7 +57,6 @@ enum class rv_editor_pane_kind : uint32_t
     problems,
     search,
     toolchest,
-    console,
     runtime_log, // Output over the runtime's stderr alone
     build_log,   // Output over the build's lines alone
     observe,     // the running session's facts and Lua state, read-only

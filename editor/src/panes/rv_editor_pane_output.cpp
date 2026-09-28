@@ -237,7 +237,7 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
 {
     const auto it = app.outputs.find(pane);
     if (it == app.outputs.end()) {
-        return "Output: All";
+        return "Console Output: All";
     }
     const rv_editor_output_view &view = it->second;
     std::string what = rv_editor_output_sources(view, true);
@@ -247,7 +247,7 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
     if (view.level != rv_editor_log_level::info) {
         what += view.level == rv_editor_log_level::error ? ", errors" : ", warnings+";
     }
-    return "Output: " + what;
+    return "Console Output: " + what;
 }
 
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)

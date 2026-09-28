@@ -77,7 +77,7 @@ void rv_editor_catalog_table()
 
 void rv_editor_catalog_tabs(const rv_editor_theme &t)
 {
-    const char *const labels[] = {"Project", "Scene", "Assets", "Console"};
+    const char *const labels[] = {"Project", "Scene", "Assets", "Console Output"};
     rv_editor_tab_strip("##tabs", labels, 4, &rv_editor_pane_data.tab, t);
 }
 

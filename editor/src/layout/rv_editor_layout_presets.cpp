@@ -52,7 +52,7 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
 }
 
 // Reference 0005: tools over the hierarchy, the scene over the assets, the game
-// over the inspector over the console.
+// over the inspector over Console Output.
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
@@ -63,7 +63,7 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, assets);
     const rv_editor_pane_id inspector = b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.42f);
-    b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.62f);
+    b.add(rv_editor_pane_kind::output, inspector, rv_editor_tile_dock::bottom, 0.62f);
 }
 
 // Debug: the session in front. Runtime Controls along the top, the Game beside
