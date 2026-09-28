@@ -658,6 +658,29 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 ## Requirements
 
 SDL3 and LuaJIT (both used from the system if installed, otherwise built from
-source on the first configure), CMake 3.24+, Ninja, and a C++23 compiler. The
-tools additionally shells out to `cmake` and `ninja` at run time to compile a
-disc, and downloads `stb_image.h` into its own build directory.
+source on the first configure), CMake 3.24+, Ninja, Clang with C++23, `git`
+and `make` (LuaJIT builds with its own Makefile). The tools additionally shell
+out to `cmake` and `ninja` at run time to compile a disc, and download
+`stb_image.h` into their own build directory.
+
+Arch ships `sdl3` as a package, so it is used as is. Debian, Ubuntu 24.04 and
+Linux Mint 22 do not, so SDL is built from source, once for the console and
+once more for the editor. That build stops at configure without the X11
+extension headers, and without the audio and udev headers it quietly produces
+an SDL with no sound and no gamepad hotplug:
+
+```sh
+# Debian / Ubuntu / Mint
+sudo apt install clang cmake ninja-build git make pkg-config \
+    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+    libxss-dev libxtst-dev \
+    libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev \
+    libwayland-dev libxkbcommon-dev libdecor-0-dev
+
+# Arch
+sudo pacman -S clang cmake ninja git make sdl3 luajit
+```
+
+Configure fails with `Couldn't find dependency package for XSCRNSAVER` (or
+`XTEST`) when `libxss-dev` (or `libxtst-dev`) is missing. After installing
+packages, delete the build directory: SDL caches what it did not find.
