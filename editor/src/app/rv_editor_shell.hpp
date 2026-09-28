@@ -187,7 +187,7 @@ void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
 // A live shell's tile closes only after this question (TRM-02); drawn after the workspace.
-void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
 void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind);

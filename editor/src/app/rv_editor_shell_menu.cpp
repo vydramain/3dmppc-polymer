@@ -341,29 +341,20 @@ void rv_editor_shell_new_file(rv_editor_shell &shell)
     rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
 }
 
-void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_theme &theme)
+void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    if (shell.closing_terminal == rv_editor_tile_none) {
-        return;
-    }
-    const char *title = "End the shell?";
-    ImGui::OpenPopup(title);
-    if (!rv_editor_dialog_begin(title, theme)) {
-        return;
-    }
-    ImGui::TextUnformatted("The shell in this terminal is still running. Closing the tile ends it");
-    ImGui::TextUnformatted("and everything started in it. Another tab keeps it running instead.");
+    rv_editor_ask_begin("End the shell?", theme);
+    ImGui::TextWrapped("The shell in this terminal is still running. Closing the tile ends it and everything "
+                       "started in it. Another tab keeps it running instead.");
     if (rv_editor_button("End Shell", theme)) {
         rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
         shell.closing_terminal = rv_editor_tile_none;
-        ImGui::CloseCurrentPopup();
     }
     ImGui::SameLine();
-    if (rv_editor_button("Keep", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+    if (rv_editor_button("Keep", theme)) {
         shell.closing_terminal = rv_editor_tile_none;
-        ImGui::CloseCurrentPopup();
     }
-    rv_editor_dialog_end();
+    rv_editor_ask_end();
 }
 
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)

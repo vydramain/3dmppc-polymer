@@ -182,6 +182,32 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         }
     }
 
+    // Several lines are shown over the screen before they reach the shell (TRM-02).
+    if (!view.paste.empty() && view.term != nullptr) {
+        rv_editor_font_code_pop();
+        rv_editor_ask_begin("Paste into the terminal", theme);
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted("These lines will run as typed:");
+        ImGui::SameLine();
+        const bool paste = rv_editor_button("Paste", theme);
+        ImGui::SameLine();
+        const bool cancel = rv_editor_button("Cancel", theme);
+        const float lines = static_cast<float>(std::min<size_t>(8, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
+        rv_editor_font_code_push();
+        ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1,
+            ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * lines + ImGui::GetStyle().FramePadding.y * 2.0f),
+            ImGuiInputTextFlags_ReadOnly);
+        rv_editor_font_code_pop();
+        if (paste) {
+            rv_editor_term_type(*view.term, view.paste);
+        }
+        if (paste || cancel) {
+            view.paste.clear();
+        }
+        rv_editor_ask_end();
+        rv_editor_font_code_push();
+    }
+
     // The screen fills the tile in whole cells (TRM-01: no permanent status row).
     const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
@@ -249,32 +275,6 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
         ImGui::SetTooltip("%s\n%d x %d", view.cwd.c_str(), term.cols(), term.rows());
-    }
-
-    // Several lines are shown before they reach the shell (TRM-02).
-    if (!view.paste.empty()) {
-        rv_editor_font_code_pop();
-        ImGui::OpenPopup("Paste into the terminal");
-        if (rv_editor_dialog_begin("Paste into the terminal", theme)) {
-            ImGui::TextUnformatted("These lines will run as typed:");
-            rv_editor_font_code_push();
-            ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1,
-                ImVec2(ImGui::GetFontSize() * 40.0f, ImGui::GetTextLineHeightWithSpacing() * 8.0f),
-                ImGuiInputTextFlags_ReadOnly);
-            rv_editor_font_code_pop();
-            if (rv_editor_button("Paste", theme)) {
-                rv_editor_term_type(term, view.paste);
-                view.paste.clear();
-                ImGui::CloseCurrentPopup();
-            }
-            ImGui::SameLine();
-            if (rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-                view.paste.clear();
-                ImGui::CloseCurrentPopup();
-            }
-            rv_editor_dialog_end();
-        }
-        rv_editor_font_code_push();
     }
 
     if (!focused || !term.running()) {
