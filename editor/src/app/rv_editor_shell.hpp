@@ -88,6 +88,7 @@ struct rv_editor_shell
     // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
     bool help_open = false;
     rv_editor_start start;
+    std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
     // A terminal tile with a live shell waiting for End Shell or Keep.
     rv_editor_pane_id closing_terminal = rv_editor_tile_none;
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
