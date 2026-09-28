@@ -33,7 +33,7 @@ namespace rv_editor
 // (TRM-02).
 struct rv_editor_output_view
 {
-    std::array<bool, 4> show = { true, true, true, false };
+    std::array<bool, static_cast<size_t>(rv_editor_log_source::count)> show = { true, true, true, true, false };
     rv_editor_log_level level = rv_editor_log_level::info; // Level: this and worse
     bool follow = true;
     bool wrap = true;

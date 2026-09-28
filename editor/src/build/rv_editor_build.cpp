@@ -150,9 +150,10 @@ void rv_editor_build::update(rv_editor_log &log)
     }
     std::string out;
     std::string err;
+    const rv_editor_log_source source = image_.empty() ? rv_editor_log_source::build : rv_editor_log_source::candidate;
     proc_.read(out, err, 1 << 20);
-    log.add_stream(rv_editor_log_source::build, out_partial_, out);
-    log.add_stream(rv_editor_log_source::build, err_partial_, err);
+    log.add_stream(source, out_partial_, out);
+    log.add_stream(source, err_partial_, err);
 
     if (state_ == rv_editor_build_state::cancelling &&
         std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
@@ -165,10 +166,10 @@ void rv_editor_build::update(rv_editor_log &log)
     out.clear();
     err.clear();
     proc_.read(out, err, 1 << 20);
-    log.add_stream(rv_editor_log_source::build, out_partial_, out);
-    log.add_stream(rv_editor_log_source::build, err_partial_, err);
-    log.flush_stream(rv_editor_log_source::build, out_partial_);
-    log.flush_stream(rv_editor_log_source::build, err_partial_);
+    log.add_stream(source, out_partial_, out);
+    log.add_stream(source, err_partial_, err);
+    log.flush_stream(source, out_partial_);
+    log.flush_stream(source, err_partial_);
 
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
     if (!image_.empty()) {

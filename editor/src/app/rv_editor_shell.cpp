@@ -155,8 +155,17 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         title = "Problems (" + std::to_string(app.problems.size()) + ")";
     } else if (kind == rv_editor_pane_kind::output) {
         title = rv_editor_output_title(app, pane);
-    } else if (kind == rv_editor_pane_kind::build_log && app.build.number() != 0) {
-        title = "Build Log: build " + std::to_string(app.build.number());
+    } else if (kind == rv_editor_pane_kind::build_log) {
+        const auto it = app.outputs.find(pane);
+        const bool candidate_view =
+            it != app.outputs.end() && it->second.show[static_cast<size_t>(rv_editor_log_source::candidate)];
+        if (candidate_view) {
+            title = app.release.candidates.empty()
+                ? "Build Log: no candidate yet"
+                : "Build Log: candidate #" + std::to_string(app.release.candidates.back().number);
+        } else if (app.build.number() != 0) {
+            title = "Build Log: build " + std::to_string(app.build.number());
+        }
     } else if (kind == rv_editor_pane_kind::terminal) {
         const auto it = app.terminals.find(pane);
         if (it != app.terminals.end() && it->second.term != nullptr) {
@@ -448,7 +457,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
             // One source each, until the user ticks more (TRM-02).
             const bool runtime = kind == rv_editor_pane_kind::runtime_log;
             rv_editor_output_view view;
-            view.show = { false, !runtime, runtime, false };
+            view.show.fill(false);
+            view.show[static_cast<size_t>(runtime ? rv_editor_log_source::runtime : rv_editor_log_source::candidate)] =
+                true;
             shell.app.outputs.try_emplace(pane, view);
             rv_editor_pane_output(shell.app, pane, theme);
             return;

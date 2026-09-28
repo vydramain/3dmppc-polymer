@@ -113,8 +113,12 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
 // "All" (every source but the protocol trace), "All + protocol", or the names shown.
 std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital)
 {
-    if (view.show[0] && view.show[1] && view.show[2]) {
-        return view.show[3] ? "All + protocol" : "All";
+    const bool all_but_protocol = view.show[static_cast<size_t>(rv_editor_log_source::editor)] &&
+        view.show[static_cast<size_t>(rv_editor_log_source::build)] &&
+        view.show[static_cast<size_t>(rv_editor_log_source::candidate)] &&
+        view.show[static_cast<size_t>(rv_editor_log_source::runtime)];
+    if (all_but_protocol) {
+        return view.show[static_cast<size_t>(rv_editor_log_source::protocol)] ? "All + protocol" : "All";
     }
     std::string out;
     for (size_t i = 0; i < view.show.size(); ++i) {

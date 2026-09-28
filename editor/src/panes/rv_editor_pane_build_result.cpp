@@ -66,7 +66,8 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
     size_t errors = 0;
     size_t warnings = 0;
     for (const rv_editor_log_line &line : app.log.lines()) {
-        if (line.seq < app.build_first_seq || line.source != rv_editor_log_source::build ||
+        if (line.seq < app.build_first_seq ||
+            (line.source != rv_editor_log_source::build && line.source != rv_editor_log_source::candidate) ||
             line.level == rv_editor_log_level::info) {
             continue;
         }

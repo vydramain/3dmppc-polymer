@@ -426,7 +426,8 @@ void rv_editor_app_update(rv_editor_app &app)
         app.problems.clear();
         for (const rv_editor_log_line &line : app.log.lines()) {
             rv_editor_problem p;
-            if (line.seq >= app.build_first_seq && line.source == rv_editor_log_source::build &&
+            if (line.seq >= app.build_first_seq &&
+                (line.source == rv_editor_log_source::build || line.source == rv_editor_log_source::candidate) &&
                 rv_editor_problem_parse(line.text, app.project.root, p)) {
                 app.problems.push_back(std::move(p));
             }

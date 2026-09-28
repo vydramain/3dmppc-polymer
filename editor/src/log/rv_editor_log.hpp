@@ -14,8 +14,10 @@ enum class rv_editor_log_source : uint8_t
 {
     editor,
     build,
+    candidate, // release-candidate builds, separate from ordinary dev builds
     runtime,
     protocol, // the dev channel's own traffic, hidden by default (TRM-02)
+    count,
 };
 
 enum class rv_editor_log_level : uint8_t

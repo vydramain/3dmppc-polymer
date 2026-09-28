@@ -118,8 +118,10 @@ const char *rv_editor_log_source_name(rv_editor_log_source source)
     switch (source) {
         case rv_editor_log_source::editor: return "editor";
         case rv_editor_log_source::build: return "build";
+        case rv_editor_log_source::candidate: return "candidate";
         case rv_editor_log_source::runtime: return "runtime";
         case rv_editor_log_source::protocol: return "protocol";
+        case rv_editor_log_source::count: break;
     }
     return "?";
 }

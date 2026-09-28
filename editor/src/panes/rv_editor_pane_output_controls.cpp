@@ -69,7 +69,11 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Reset Filters")) {
-            view.show = { true, true, true, false };
+            view.show = {};
+            view.show[static_cast<size_t>(rv_editor_log_source::editor)] = true;
+            view.show[static_cast<size_t>(rv_editor_log_source::build)] = true;
+            view.show[static_cast<size_t>(rv_editor_log_source::candidate)] = true;
+            view.show[static_cast<size_t>(rv_editor_log_source::runtime)] = true;
             view.level = rv_editor_log_level::info;
             view.search[0] = '\0';
         }
