@@ -164,12 +164,17 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_scene_keys(app);
 
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
-    // Rot Y wheel below, as Open Inventor's viewers have them.
+    // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
+    // visible label in the UI font.
     const float wheel = ImGui::GetFrameHeight() * 0.75f;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float line = ImGui::GetTextLineHeightWithSpacing();
-    const ImVec2 size(std::max(40.0f, avail.x - 2.0f * (wheel + gap)), std::max(40.0f, avail.y - wheel - line - gap));
+    const ImVec2 label_x = ImGui::CalcTextSize("Rot X");
+    const ImVec2 label_y = ImGui::CalcTextSize("Rot Y");
+    const ImVec2 label_d = ImGui::CalcTextSize("Dolly");
+    const ImVec2 size(std::max(40.0f, avail.x - 2.0f * wheel - label_x.x - label_d.x - 4.0f * gap),
+        std::max(40.0f, avail.y - wheel - line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     cam.pitch = std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", "Rot X", true, size.y, theme, reset) * 0.4,
@@ -178,6 +183,9 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
         cam.pitch = rv_editor_scene_camera{}.pitch;
     }
     ImGui::SameLine();
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * 0.5f));
+    ImGui::TextUnformatted("Rot X");
+    ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##viewport", size,
         ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
@@ -185,17 +193,23 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
     const bool active = ImGui::IsItemActive();
     const bool focused = ImGui::IsItemFocused() || ImGui::IsWindowFocused();
     ImGui::SameLine();
+    const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
     cam.distance = std::clamp(cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", "Dolly", true, size.y, theme, reset) *
         0.01), 0.5, 200.0);
     if (reset) {
         cam.distance = rv_editor_scene_camera{}.distance;
     }
+    ImGui::SameLine();
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * 0.5f));
+    ImGui::TextUnformatted("Dolly");
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw += rv_editor_thumbwheel("##roty", "Rot Y", false, size.x, theme, reset) * 0.4;
+    cam.yaw += rv_editor_thumbwheel("##roty", "Rot Y", false, size.x - gap - label_y.x, theme, reset) * 0.4;
     if (reset) {
         cam.yaw = rv_editor_scene_camera{}.yaw;
     }
-    (void)top;
+    ImGui::SameLine();
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * 0.5f));
+    ImGui::TextUnformatted("Rot Y");
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     ImGuiIO &io = ImGui::GetIO();
