@@ -7,6 +7,7 @@
 #include <system_error>
 
 #include "layout/rv_editor_tile.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
 {
@@ -14,7 +15,7 @@ namespace rv_editor
 namespace
 {
 
-constexpr std::string_view rv_editor_prefs_magic = "3dmppc-editor-view 1";
+const std::string rv_editor_prefs_magic = std::string("3dmppc-editor-view ") + rv_pdklib::rv_version_str;
 
 constexpr rv_editor_game_scale rv_editor_game_scales[] = { rv_editor_game_scale::fit, rv_editor_game_scale::integer,
     rv_editor_game_scale::x1, rv_editor_game_scale::x2, rv_editor_game_scale::x3 };

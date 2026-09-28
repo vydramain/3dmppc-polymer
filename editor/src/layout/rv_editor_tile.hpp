@@ -211,7 +211,7 @@ std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout 
 // --- text form ----------------------------------------------------------------
 
 // The saved form of a workspace: the panes the tree shows and the tree, one
-// record per line, first line "3dmppc-editor-layout 1".
+// record per line, first line "3dmppc-editor-layout <PDK version>".
 std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout);
 
 // Reads what rv_editor_layout_write wrote. False, with both outputs untouched,

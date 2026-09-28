@@ -11,11 +11,15 @@
 #include <string_view>
 #include <vector>
 
+#include "pdklib/rv_version/rv_version.hpp"
+
 namespace rv_editor
 {
 
 namespace
 {
+
+const std::string rv_editor_layout_header = std::string("3dmppc-editor-layout ") + rv_pdklib::rv_version_str;
 
 constexpr std::string_view kind_names[] = {
     "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
@@ -153,7 +157,7 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
         }
     }
 
-    std::string r = "3dmppc-editor-layout 1\n" + pane_lines;
+    std::string r = rv_editor_layout_header + "\n" + pane_lines;
     for (const auto &n : layout.nodes) {
         if (n.kind == rv_editor_tile_kind::free) {
             r += "node free\n";
@@ -185,7 +189,7 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
 {
     auto lines = split_text(text);
     size_t idx = 0;
-    if (idx >= lines.size() || lines[idx] != "3dmppc-editor-layout 1") {
+    if (idx >= lines.size() || lines[idx] != rv_editor_layout_header) {
         return false;
     }
     ++idx;

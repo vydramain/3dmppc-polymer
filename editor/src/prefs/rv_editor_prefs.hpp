@@ -35,7 +35,7 @@ struct rv_editor_prefs
     float ui_scale = 1.0f;          // View > UI Scale: 1, 2 or 3
 };
 
-// "3dmppc-editor-view 1", then one "key value" line per setting.
+// "3dmppc-editor-view <PDK version>", then one "key value" line per setting.
 std::string rv_editor_prefs_write(const rv_editor_prefs &prefs);
 // The defaults for a text that is not a view file; within one, an unknown key or
 // value keeps its default and the rest still count.
