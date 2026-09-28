@@ -84,7 +84,7 @@ void rv_editor_menu_file(rv_editor_shell &shell)
     }
     ImGui::Separator();
     if (ImGui::MenuItem("Settings...")) {
-        shell.settings_open = true;
+        rv_editor_shell_page(shell, rv_editor_start_page::settings);
     }
     ImGui::Separator();
     if (ImGui::MenuItem("Quit")) {

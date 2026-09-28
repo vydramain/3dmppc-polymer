@@ -91,9 +91,24 @@ uint32_t rv_editor_target_leaf(const rv_editor_workspace &ws)
     return n;
 }
 
+// The biggest leaf at the last draw, else the target leaf: where a page's tab has room.
+uint32_t rv_editor_roomy_leaf(const rv_editor_workspace &ws)
+{
+    uint32_t best = rv_editor_tile_none;
+    int64_t area = -1;
+    for (uint32_t n = 0; n < ws.layout.nodes.size() && n < ws.rects.size(); ++n) {
+        const int64_t a = static_cast<int64_t>(ws.rects[n].w) * ws.rects[n].h;
+        if (ws.layout.nodes[n].kind == rv_editor_tile_kind::leaf && a > area) {
+            best = n;
+            area = a;
+        }
+    }
+    return best != rv_editor_tile_none ? best : rv_editor_target_leaf(ws);
+}
+
 // Brings a pane of `kind` to the front where the tree already shows one, or adds
-// one as a tab of the target leaf.
-rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind)
+// one as a tab of the target leaf; a `roomy` one goes to the biggest leaf instead.
+rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_kind kind, bool roomy = false)
 {
     for (const rv_editor_tile_node &node : ws.layout.nodes) {
         if (node.kind != rv_editor_tile_kind::leaf) {
@@ -107,7 +122,8 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
         }
     }
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
-    rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::tab);
+    rv_editor_tile_insert(ws.layout, roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws), pane,
+        rv_editor_tile_dock::tab);
     rv_editor_tile_activate(ws.layout, pane);
     return pane;
 }
@@ -160,13 +176,23 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
 
 } // namespace
 
-void rv_editor_shell_open_project(rv_editor_shell &shell)
+void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 {
     if (!shell.app.project.open) {
-        shell.start_page = rv_editor_start_page::open_project;
+        shell.start_page = page;
         return;
     }
-    rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project);
+    switch (page) {
+        case rv_editor_start_page::open_project: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project, true); return;
+        case rv_editor_start_page::settings: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::settings, true); return;
+        case rv_editor_start_page::recent:
+        case rv_editor_start_page::new_project: return;
+    }
+}
+
+void rv_editor_shell_open_project(rv_editor_shell &shell)
+{
+    rv_editor_shell_page(shell, rv_editor_start_page::open_project);
 }
 
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
@@ -441,6 +467,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::session: rv_editor_pane_session(shell.app, theme); return;
         case rv_editor_pane_kind::test_case: rv_editor_pane_test_case(shell.app, theme); return;
         case rv_editor_pane_kind::open_project: rv_editor_page_open_project(shell, theme); return;
+        case rv_editor_pane_kind::settings: rv_editor_page_settings(shell, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

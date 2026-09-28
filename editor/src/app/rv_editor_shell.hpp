@@ -3,6 +3,7 @@
 #include <array>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -21,6 +22,7 @@ enum class rv_editor_start_page
     recent,
     new_project,
     open_project,
+    settings,
 };
 
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
@@ -99,10 +101,15 @@ struct rv_editor_shell
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
-    // File > Settings was chosen: the dialog fills its fields and opens next frame.
-    bool settings_open = false;
+    // Settings' draft: read from the tools when the page first shows and after
+    // Apply or Revert, kept while other pages or tabs are in front.
+    bool settings_loaded = false;
     char settings_paths[4][512] = {};
     std::string settings_error;
+    // What Check found for a field as it stood; dropped when the field changes.
+    std::array<std::optional<rv_editor_tool>, 4> settings_checks;
+    int settings_browse = -1; // the field the browser is choosing for; -1: none
+    rv_editor_browser settings_browser;
     // What each strip of controls drew last frame: its minimum in the tree.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
 };
@@ -155,7 +162,10 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
 
-// Open Project...: its page beside the Toolchest without a project, a tab with one.
+// A page the Toolchest or a menu asks for: beside the Toolchest without a project,
+// a tab with one (Recent Projects and New Project are start pages only).
+void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page);
+// Open Project...: rv_editor_shell_page for its page.
 void rv_editor_shell_open_project(rv_editor_shell &shell);
 
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
@@ -213,7 +223,7 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 // The shell's own dialogs, drawn after the workspace.
 void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &theme);
 // File > Settings: the tool paths of settings.toml.
-void rv_editor_shell_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Once a frame after drawing: sends the Game's keys while a drawn Game tile
 // holds the keyboard of a focused window and a console runs, and every key up

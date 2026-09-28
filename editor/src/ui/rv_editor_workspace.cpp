@@ -46,6 +46,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::session: return "Session";
         case rv_editor_pane_kind::test_case: return "Test Case";
         case rv_editor_pane_kind::open_project: return "Open Project";
+        case rv_editor_pane_kind::settings: return "Settings";
     }
     return "?";
 }

@@ -43,6 +43,10 @@ struct rv_editor_toolchain
 // so a replaced executable drops what was known about the old one (NFR-06).
 rv_editor_toolchain rv_editor_toolchain_find();
 
+// Settings' Check: the tool `key` ("console", "burner", "baker", "player") at
+// `override_path`, or where it is found automatically when that is empty.
+rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path);
+
 // The sources' version for a candidate record (REL-01): "git <commit>", then
 // " + uncommitted changes" when the project's files differ from it; else why unknown.
 std::string rv_editor_source_revision(const std::filesystem::path &root);

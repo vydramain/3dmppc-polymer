@@ -69,8 +69,9 @@ void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &th
         rv_editor_shell_open_project(shell);
     }
     ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight()));
-    if (rv_editor_command_button("##settings", 'S', theme.code_blue, "Settings...", "The editor's settings", theme)) {
-        shell.settings_open = true;
+    if (rv_editor_command_button("##settings", 'S', theme.code_blue, "Settings...", "The editor's settings", theme,
+            rv_editor_start_row(shell, rv_editor_start_page::settings))) {
+        rv_editor_shell_page(shell, rv_editor_start_page::settings);
     }
     if (rv_editor_command_button("##help", 'H', theme.code_yellow, "Help", "Keyboard shortcuts", theme)) {
         shell.help_open = true;
@@ -266,6 +267,7 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
         case rv_editor_start_page::recent: rv_editor_start_catalog(shell, theme); break;
         case rv_editor_start_page::new_project: rv_editor_page_new_project(shell, theme); break;
         case rv_editor_start_page::open_project: rv_editor_page_open_project(shell, theme); break;
+        case rv_editor_start_page::settings: rv_editor_page_settings(shell, theme); break;
     }
     ImGui::EndChild();
     ImGui::PopStyleVar();

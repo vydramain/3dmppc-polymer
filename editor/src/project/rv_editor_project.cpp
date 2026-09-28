@@ -165,6 +165,28 @@ rv_editor_toolchain rv_editor_toolchain_find()
     return tc;
 }
 
+rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path)
+{
+    const std::string k = key;
+    const char *exe = k == "console" ? "3dmppc" : k == "burner" ? "mppcburner" : k == "baker" ? "mppcbaker" : nullptr;
+    const std::filesystem::path self = rv_editor_self_dir();
+    rv_editor_tool tool;
+    if (!override_path.empty()) {
+        tool = { override_path, "settings.toml", "", "" };
+    } else if (exe != nullptr && !self.empty()) {
+        tool = { self / exe, "next to the editor", "", "" };
+    }
+    rv_editor_tool_check(tool, exe != nullptr ? exe : "player");
+    if (tool.path.empty() && exe == nullptr) {
+        tool.problem = "No player set: name a 3dmppc built without devtools";
+    }
+    // As rv_editor_toolchain_find: only the burner and the baker are asked for a version.
+    if (k == "burner" || k == "baker") {
+        rv_editor_tool_version(tool);
+    }
+    return tool;
+}
+
 bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error)
 {
     std::error_code ec;
