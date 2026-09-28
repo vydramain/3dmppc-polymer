@@ -324,8 +324,19 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal || !rv_editor_shell_pane_kept(shell, pane);
     });
 
-    // Files the user opened go to a code tile once its window exists.
+    // Files the user opened go to a code tile once its window exists. A binary
+    // one opens as text only on the user's word: nvim would show it as noise.
     rv_editor_app &app = shell.app;
+    std::erase_if(app.open_requests, [&app](const std::pair<std::filesystem::path, int32_t> &request) {
+        uintmax_t size = 0;
+        if (app.open_as_text.erase(request.first) != 0 || !rv_editor_file_binary(request.first, size)) {
+            return false;
+        }
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            rv_editor_shell_buffer_label(app, request.first.string()) + " is binary (" + std::to_string(size) +
+                " bytes), not opened as text: Files > Open as Text shows it anyway");
+        return true;
+    });
     if (!app.open_requests.empty() && !app.nvim.problem.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
             "cannot open " + app.open_requests.front().first.string() + ": " + app.nvim.problem);

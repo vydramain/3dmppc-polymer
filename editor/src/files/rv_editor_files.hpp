@@ -70,4 +70,7 @@ private:
     bool watching_ = false;
 };
 
+// A NUL byte in the first 8 KiB: not text. `size` is the file's length.
+bool rv_editor_file_binary(const std::filesystem::path &path, uintmax_t &size);
+
 } // namespace rv_editor

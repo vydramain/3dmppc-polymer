@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -223,6 +224,8 @@ struct rv_editor_app
     // Files the user asked to open (Files, a new file, Problems, Search Results),
     // for the code editor to take, each at its line (0: where nvim last had it).
     std::vector<std::pair<std::filesystem::path, int32_t>> open_requests;
+    // Binary files among them the user asked to see as text anyway (Files > Open as Text).
+    std::set<std::filesystem::path> open_as_text;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
     std::map<rv_editor_pane_id, rv_editor_terminal_view> terminals;
     rv_editor_nvim nvim;

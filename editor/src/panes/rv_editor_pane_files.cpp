@@ -62,6 +62,10 @@ void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const 
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir,
             rv_editor_files_target_dir(app), "");
     }
+    if (!node.dir && ImGui::MenuItem("Open as Text")) {
+        app.open_as_text.insert(node.path);
+        app.open_requests.push_back({ node.path, 0 });
+    }
     const bool is_root = node.path == app.files.root().path;
     if (ImGui::MenuItem("Rename", nullptr, false, !is_root)) {
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::rename, node.path, node.name);

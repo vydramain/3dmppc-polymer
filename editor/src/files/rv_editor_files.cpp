@@ -294,4 +294,18 @@ bool rv_editor_files::remove(const std::filesystem::path &path, std::string &err
     return true;
 }
 
+bool rv_editor_file_binary(const std::filesystem::path &path, uintmax_t &size)
+{
+    std::error_code ec;
+    size = std::filesystem::file_size(path, ec);
+    std::FILE *f = ec ? nullptr : std::fopen(path.c_str(), "rb");
+    if (f == nullptr) {
+        return false;
+    }
+    char head[8192];
+    const size_t n = std::fread(head, 1, sizeof(head), f);
+    std::fclose(f);
+    return std::find(head, head + n, '\0') != head + n;
+}
+
 } // namespace rv_editor
