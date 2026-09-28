@@ -67,6 +67,16 @@ rv_editor_run_profile rv_editor_run_form_profile(const rv_editor_run_form &f)
         rv_editor_run_split(f.env), f.reload_on_save };
 }
 
+// A group heading, in the console's own slot order: session-level fields first,
+// then one group per rv_pcslots slot that this page has a field for.
+void rv_editor_run_group(const char *label, const rv_editor_theme &theme)
+{
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::Separator();
+}
+
 // A label column, then the field with what an empty one means as its tooltip.
 void rv_editor_run_path(const char *label, char *buf, size_t size, const char *empty_means, const rv_editor_theme &theme)
 {
@@ -126,21 +136,19 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     if (app.session.live()) {
         ImGui::TextWrapped("Session %u keeps what it started with: Apply is for the next Run.", app.session.number());
     }
+    rv_editor_run_group("Session", theme);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Name");
     ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
     rv_editor_run_path("Runtime", form.runtime, sizeof(form.runtime), "the runtime in File > Settings", theme);
-    rv_editor_run_path("Memory card", form.memcard, sizeof(form.memcard), "the project's own card", theme);
     rv_editor_run_path("Working dir", form.cwd, sizeof(form.cwd), "the project root", theme);
-    rv_editor_checkbox("Mute", &form.mute, theme);
-    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
     rv_editor_checkbox("Start Paused", &form.paused, theme);
     ImGui::SetItemTooltip("Stopped before frame 0: Run, then Resume or Step");
+    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
     rv_editor_checkbox("Fixed Step", &form.fixed_step, theme);
     ImGui::SetItemTooltip("No real-time wait and no audio: every frame is 1/60 s of machine time");
-    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
     rv_editor_checkbox("Reload On Save", &form.reload_on_save, theme);
     ImGui::SetItemTooltip("A saved .lua file reloads the entry script of a running session that can reload");
     const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * 3.5f);
@@ -148,6 +156,14 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     ImGui::InputTextMultiline("##args", form.args, sizeof(form.args), box);
     ImGui::TextUnformatted("Environment, KEY=VALUE per line, over the editor's own");
     ImGui::InputTextMultiline("##env", form.env, sizeof(form.env), box);
+
+    ImGui::Spacing();
+    rv_editor_run_group("Audio (ca)", theme);
+    rv_editor_checkbox("Mute", &form.mute, theme);
+
+    ImGui::Spacing();
+    rv_editor_run_group("Memory Card (cm)", theme);
+    rv_editor_run_path("Memory card", form.memcard, sizeof(form.memcard), "the project's own card", theme);
     rv_editor_scroll_end(theme);
 }
 
