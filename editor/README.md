@@ -305,7 +305,11 @@ Scene menu saves, undoes and redoes. An unsaved scene
 takes part in Save All and in the questions before Build, Run, Quit and Open.
 A game shows a scene only if its code reads it: example-cpp ships
 `scenes/main.scene.toml` through `[assets]` and draws each box with
-`pdklib/rv_scene`. A changed scene needs Save, Build and a restart.
+`pdklib/rv_scene`. A changed scene needs Save, Build and a restart. Below the
+viewport, a status line reads "Game: not running", "Game: read this scene" or
+"Game: has not read this scene", from the scene names the running disc's own
+development console has reported opened; its tooltip says to restart after
+Save and Build, or names the open scene the running disc did not open.
 
 ### Game
 

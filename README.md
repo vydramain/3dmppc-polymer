@@ -259,7 +259,10 @@ not for a contract call, and carries no `rv_err`.
 
 The console echoes your id back on the answer. Zero is not yours to send: the
 console tags with `0` the events it raises on its own, so a request numbered
-zero would be answered indistinguishably from one of those.
+zero would be answered indistinguishably from one of those. A development
+build sends `0 event=scene name=<hex>` once for every resource ending in
+`.scene.toml` the disc's own code opens through the drive; a new medium
+starts that list over, and a player build never sends it.
 
 A request carries bytes by ending its header with `bytes <n>`: exactly `n`
 bytes follow the newline with no terminator, and the next header starts right
