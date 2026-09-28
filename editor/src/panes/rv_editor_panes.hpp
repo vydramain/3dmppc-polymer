@@ -48,9 +48,13 @@ uint64_t rv_editor_game_keys();
 
 // The running session's facts and its persistent Lua state, read-only (SCN-08).
 void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme);
+// What ran, from which build and profile, for how long, and how it ended.
+void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme);
 
 // Capture Frame and Record Finding: local files with the session's facts (T-09, T-10).
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
+// Saves the Game's frame into the project's findings and attaches it to the one being written.
+void rv_editor_findings_capture(rv_editor_app &app);
 
 // Writes the frame the Game tile shows now as a PNG. False with the reason when
 // no frame of the running session has arrived or the file cannot be written.

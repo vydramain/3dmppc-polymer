@@ -40,6 +40,7 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
     app.build.prune(artifact.dir);
     // A new console starts with every key up: no capture carries over.
     app.game_captured = false;
+    app.marks.clear();
     app.session_first_seq = app.log.revision() + 1;
     app.observe.read_frame = -1;
     // A development run follows the active profile; a candidate, with its own card, does not.
@@ -48,6 +49,7 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
     const std::filesystem::path runtime = rv_editor_run_profile_path(profile.runtime, app.project.root);
     const std::filesystem::path own_card = rv_editor_run_profile_path(profile.memcard, app.project.root);
     const std::filesystem::path cwd = rv_editor_run_profile_path(profile.cwd, app.project.root);
+    app.session_profile = card.empty() ? profile.name : "the candidate's own";
     if (card.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
             "run profile " + profile.name + ": build #" + std::to_string(artifact.number));

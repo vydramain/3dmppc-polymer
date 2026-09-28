@@ -66,16 +66,20 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::console, inspector, rv_editor_tile_dock::bottom, 0.62f);
 }
 
-// Debug: files on the left, the code over the terminal beside the game over its
-// controls over the runtime output. Ratios are the owner's screenshot, in pixels.
+// Debug: the session in front. Runtime Controls along the top, the Game beside
+// the Toolchest over Session and Observe, the Runtime Log and Findings along the
+// bottom; Code, Files and the Terminal open from Window > New Tile.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
-    const rv_editor_pane_id code = 0;
-    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.54f);
-    b.add(rv_editor_pane_kind::terminal, code, rv_editor_tile_dock::bottom, 0.72f);
-    const rv_editor_pane_id controls = b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 0.54f);
-    b.add(rv_editor_pane_kind::output, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.75f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, 0.68f);
+    b.add(rv_editor_pane_kind::toolchest, session, rv_editor_tile_dock::top, 0.0f);
+    b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, session);
+    rv_editor_tile_activate(b.layout, log);
 }
 
 // Burn (reference 0007): the release controls over the candidate beside its
@@ -116,6 +120,8 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
         first = rv_editor_pane_kind::scene;
     } else if (preset == rv_editor_layout_preset::burn) {
         first = rv_editor_pane_kind::release_controls;
+    } else if (preset == rv_editor_layout_preset::debug) {
+        first = rv_editor_pane_kind::controls;
     }
     rv_editor_preset_builder b(first);
     switch (preset) {

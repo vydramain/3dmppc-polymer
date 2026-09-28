@@ -21,7 +21,7 @@ constexpr std::string_view kind_names[] = {
     "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
     "game", "code", "controls", "run_config", "output", "terminal", "problems", "search",
     "toolchest", "console", "runtime_log", "build_log", "observe", "findings", "candidate", "release_controls", "build_result",
-    "checks"};
+    "checks", "session"};
 
 std::string_view kind_name(rv_editor_pane_kind k)
 {

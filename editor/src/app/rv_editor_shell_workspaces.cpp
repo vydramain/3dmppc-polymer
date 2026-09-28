@@ -79,6 +79,13 @@ bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
     return true;
 }
 
+// Debug keeps its Runtime Log's height: fitting the tiles to the Game there would
+// give the log's rows to the picture, which Fit draws whole in any tile anyway.
+bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
+{
+    return preset != rv_editor_layout_preset::debug;
+}
+
 } // namespace
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
@@ -100,7 +107,7 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 {
     shell.ws.layout = rv_editor_workspace_start(shell.ws.panes, preset);
     shell.ws.focused_leaf = rv_editor_tile_none;
-    shell.game_fit[rv_editor_workspace_slot(preset)] = true;
+    shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.game_fit_tries = 8;
     shell.app.game_area = { 0, 0 };
 }
@@ -197,7 +204,7 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
                 file.c_str(), rv_editor_layout_preset_name(preset));
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);
-        shell.game_fit[rv_editor_workspace_slot(preset)] = true;
+        shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     }
     // "test" and "release" are what an earlier editor wrote for Debug and Burn.
     const std::string key = active == "test" ? "debug" : active == "release" ? "burn" : active;

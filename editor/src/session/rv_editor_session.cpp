@@ -96,6 +96,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     facts_ = {};
     answers_.clear();
     started_wall_ = std::chrono::system_clock::now();
+    ended_wall_ = {};
     disc_dir_ = disc_dir;
     end_reason_.clear();
     refusal_.clear();
@@ -403,6 +404,7 @@ void rv_editor_session::finish(rv_editor_log &log)
     pending_.clear();
     channel_open_ = false;
 
+    ended_wall_ = std::chrono::system_clock::now();
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
     const std::string how = rv_editor_exit_text(exit);
     if (!refusal_.empty()) {

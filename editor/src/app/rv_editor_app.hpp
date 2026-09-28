@@ -253,10 +253,14 @@ struct rv_editor_app
     // Burn's Candidate & Verify is in front: panes shared with Debug speak of candidates.
     bool release_view = false;
     // Asked by a pane, done by the window next frame: a pane to bring forward, a new
-    // Untitled buffer, a frame capture for Findings.
+    // Untitled buffer.
     rv_editor_pane_kind show_request = rv_editor_pane_kind::empty;
     bool new_file_request = false;
-    bool capture_request = false;
+    // The session in Debug: the profile it started with, and Mark Moment's marks,
+    // "frame 812: the door opens late".
+    std::string session_profile;
+    std::vector<std::string> marks;
+    char mark_note[128] = {};
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
     // What that job's lines name, re-read when the log changes; and when the job ended.

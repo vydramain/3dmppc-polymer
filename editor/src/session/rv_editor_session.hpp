@@ -128,6 +128,8 @@ public:
     // Counts the sessions this window started, from 1; 0 before the first.
     uint32_t number() const { return number_; }
     std::chrono::system_clock::time_point started_at() const { return started_wall_; }
+    // When the process ended; the epoch while it runs.
+    std::chrono::system_clock::time_point ended_at() const { return ended_wall_; }
     const rv_editor_session_facts &facts() const { return facts_; }
     const std::map<std::string, rv_editor_answer> &answers() const { return answers_; }
 
@@ -173,6 +175,7 @@ private:
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
     std::chrono::system_clock::time_point started_wall_{};
+    std::chrono::system_clock::time_point ended_wall_{};
     std::filesystem::path disc_dir_;
     std::string end_reason_;
     std::string refusal_; // why this editor refused the console, before it ended

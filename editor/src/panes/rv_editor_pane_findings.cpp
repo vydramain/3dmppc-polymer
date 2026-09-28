@@ -134,6 +134,14 @@ void rv_editor_multiline(const char *label, char *buf, size_t size)
 
 } // namespace
 
+void rv_editor_findings_capture(rv_editor_app &app)
+{
+    const std::filesystem::path dir = app.project.state_dir / "findings";
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    rv_editor_capture(app, dir);
+}
+
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_findings &f = app.findings;
@@ -142,21 +150,9 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const std::filesystem::path dir = app.project.state_dir / "findings";
-    // The Toolchest's Capture: done here, where the frame is saved.
-    if (app.capture_request) {
-        app.capture_request = false;
-        if (app.session.live()) {
-            std::error_code ec;
-            std::filesystem::create_directories(dir, ec);
-            rv_editor_capture(app, dir);
-        }
-    }
-
     const char *why_not_capture = app.session.live() ? nullptr : "No session is running: there is no frame to capture";
     if (rv_editor_button("Capture Frame", theme, { rv_editor_look::live, why_not_capture })) {
-        std::error_code ec;
-        std::filesystem::create_directories(dir, ec);
-        rv_editor_capture(app, dir);
+        rv_editor_findings_capture(app);
     }
     rv_editor_flow(rv_editor_button_width("Record Finding"));
     const char *why_not_record = f.title[0] == '\0' ? "Give the finding a title first" : nullptr;
