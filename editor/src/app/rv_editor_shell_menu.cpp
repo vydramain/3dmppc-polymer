@@ -12,6 +12,7 @@
 #include "imgui.h"
 
 #include "font/rv_editor_font.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
 {
@@ -373,25 +374,51 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
             return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
         }) != t.end();
     };
-    constexpr const char *keys[][2] = { { "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
-        { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" },
-        { "Run / Resume", "F5" }, { "Pause", "F6" }, { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" },
-        { "Release Game input", "Shift+Esc" },
-        { "Vim mode in a code tile", "F2" },
-        { "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" } };
-    if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
-        for (const auto &k : keys) {
-            if (!holds(k[0]) && !holds(k[1])) {
-                continue;
-            }
+    // Grouped by the menu that holds each command, in menu-bar order; then by
+    // where a shortcut with no menu works. Within a group, the menu's own order.
+    struct rv_editor_help_row
+    {
+        const char *group;
+        const char *label;
+        const char *keys;
+    };
+    constexpr rv_editor_help_row rows[] = {
+        { "File", "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
+        { "Edit", "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" },
+        { "Edit", "Find in Project", "Ctrl+Shift+F" },
+        { "Project", "Build", "Ctrl+B" },
+        { "Run", "Run / Resume", "F5" },
+        { "Run", "Pause", "F6" },
+        { "Run", "Step Frame", "F7" },
+        { "Run", "Stop", "Shift+F5" },
+        { "Run", "Reload", "F8" },
+        { "Window", "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" },
+        { "Game", "Release Game input", "Shift+Esc" },
+        { "Code", "Vim mode in a code tile", "F2" },
+    };
+    if (!ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
+        return;
+    }
+    const char *group = nullptr;
+    for (const auto &r : rows) {
+        if (!holds(r.label) && !holds(r.keys)) {
+            continue;
+        }
+        if (group == nullptr || std::string_view(group) != r.group) {
+            group = r.group;
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(k[0]);
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(k[1]);
+            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+            ImGui::TextUnformatted(group);
+            ImGui::PopStyleColor();
         }
-        ImGui::EndTable();
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(r.label);
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(r.keys);
     }
+    ImGui::EndTable();
 }
 
 } // namespace rv_editor
