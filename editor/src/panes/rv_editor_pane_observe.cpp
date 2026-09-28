@@ -353,13 +353,13 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()));
-    rv_editor_fact("Build", "#" + std::to_string(s.build_number()) + ", " + s.disc_dir().string());
+    rv_editor_fact("Build", "#" + std::to_string(s.build_number()));
     rv_editor_fact("Profile", app.session_profile);
     rv_editor_fact("Time", "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(seconds / 60) + " min " +
         std::to_string(seconds % 60) + " s" + (s.live() ? " so far" : ""));
     rv_editor_fact("Frame", std::to_string(s.frame()) + (s.live() ? "" : ", the last reported"));
     if (!f.disc.empty()) {
-        rv_editor_fact("Disc", f.disc + ", code hash " + f.code_hash + ", PDK " + f.pdk);
+        rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
     }
     if (f.lua_budget > 0) {
         rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) +
@@ -370,6 +370,14 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_fact("Saved", std::to_string(app.findings.saved.size()) + " findings and test results in this window");
     ImGui::EndTable();
+
+    // Collapsed by default: the build path and the code hash, each with its own Copy.
+    if (ImGui::CollapsingHeader("Details")) {
+        rv_editor_path_row("Build directory", s.disc_dir().string(), theme);
+        if (!f.disc.empty()) {
+            rv_editor_path_row("Code hash", f.code_hash, theme);
+        }
+    }
 
     ImGui::SeparatorText("Marks");
     if (app.marks.empty()) {
