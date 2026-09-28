@@ -49,32 +49,18 @@ void rv_editor_catalog_menus()
     rv_editor_menu_style_pop();
 }
 
-// The dialog's look inline, so it can be checked without opening it; the button
-// opens the real modal.
+// The area that asks inside a pane, as a question about unsaved files shows it:
+// the editor has no modal dialogs.
 void rv_editor_catalog_dialog(const rv_editor_theme &t)
 {
-    const float width = ImGui::CalcTextSize("Save changes to main.lua before closing?").x;
-    ImGui::BeginChild("##dialog", ImVec2(width + ImGui::GetStyle().WindowPadding.x * 2.0f, 0.0f),
-        ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
-    rv_editor_pane_header("Close project", true, t);
-    ImGui::TextUnformatted("Save changes to main.lua before closing?");
+    rv_editor_ask_begin("Unsaved Changes", t);
+    ImGui::TextUnformatted("main.lua has unsaved changes. The tile closes once they are saved or discarded.");
     rv_editor_button("Save", t);
     ImGui::SameLine();
     rv_editor_button("Discard", t);
     ImGui::SameLine();
-    rv_editor_button("Cancel", t);
-    ImGui::EndChild();
-
-    if (rv_editor_button("Open the dialog", t)) {
-        ImGui::OpenPopup("Close project");
-    }
-    if (rv_editor_dialog_begin("Close project", t)) {
-        ImGui::TextUnformatted("Save changes to main.lua before closing?");
-        if (rv_editor_button("Cancel", t)) {
-            ImGui::CloseCurrentPopup();
-        }
-        rv_editor_dialog_end();
-    }
+    rv_editor_button("Keep Open", t);
+    rv_editor_ask_end();
 }
 
 void rv_editor_catalog_indicators(const rv_editor_theme &t)

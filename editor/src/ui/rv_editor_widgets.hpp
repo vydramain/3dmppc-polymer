@@ -224,11 +224,6 @@ struct rv_editor_transport_actions
 rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
     const rv_editor_theme &theme);
 
-// Modal dialog with a pane header for its title. Open it with ImGui::OpenPopup(title);
-// call rv_editor_dialog_end() only when begin returned true.
-bool rv_editor_dialog_begin(const char *title, const rv_editor_theme &theme);
-void rv_editor_dialog_end();
-
 // An area inside a pane that asks something without blocking anything else: a
 // bordered block under its own header; the caller draws the text and the buttons
 // between the two calls. Always pair them.

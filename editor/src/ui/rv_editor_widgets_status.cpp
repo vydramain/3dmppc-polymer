@@ -188,21 +188,6 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     return out;
 }
 
-bool rv_editor_dialog_begin(const char *title, const rv_editor_theme &theme)
-{
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize;
-    if (!ImGui::BeginPopupModal(title, nullptr, flags)) {
-        return false;
-    }
-    rv_editor_pane_header(title, true, theme);
-    return true;
-}
-
-void rv_editor_dialog_end()
-{
-    ImGui::EndPopup();
-}
-
 void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme)
 {
     ImGui::PushID(title);
