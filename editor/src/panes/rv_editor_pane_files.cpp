@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 #include <string>
+#include <system_error>
 
 #include "imgui.h"
 
@@ -48,6 +49,29 @@ void rv_editor_files_ask(rv_editor_files_view &view, rv_editor_files_view::rv_ed
     std::memset(view.name, 0, sizeof(view.name));
     std::strncpy(view.name, name.c_str(), sizeof(view.name) - 1);
     view.opening = true;
+    view.doomed.clear();
+    view.doomed_total = 0;
+    if (dialog != rv_editor_files_view::rv_editor_files_dialog::remove) {
+        return;
+    }
+    // Listed once, when asked: the first entries by name and how many there are.
+    constexpr size_t shown = 12;
+    const std::filesystem::path base = target.parent_path();
+    const auto note = [&](const std::filesystem::path &p) {
+        if (view.doomed.size() < shown) {
+            std::error_code ec;
+            view.doomed.push_back(std::filesystem::relative(p, base, ec).generic_string());
+        }
+        ++view.doomed_total;
+    };
+    note(target);
+    std::error_code ec;
+    if (!std::filesystem::is_directory(std::filesystem::symlink_status(target, ec))) {
+        return;
+    }
+    for (std::filesystem::recursive_directory_iterator it(target, ec), end; !ec && it != end; it.increment(ec)) {
+        note(it->path());
+    }
 }
 
 void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const rv_editor_file_node &node)
@@ -191,29 +215,29 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
     if (view.dialog == dialog_kind::none) {
         return;
     }
-    const char *title = rv_editor_files_dialog_title(view.dialog);
-    if (view.opening) {
-        ImGui::OpenPopup(title);
-        view.opening = false;
-    }
-    if (!rv_editor_dialog_begin(title, theme)) {
-        view.dialog = dialog_kind::none;
-        return;
-    }
+    rv_editor_ask_begin(rv_editor_files_dialog_title(view.dialog), theme);
 
     const std::string what = view.target.filename().string();
     bool confirm = false;
     if (view.dialog == dialog_kind::remove) {
         std::error_code ec;
         const bool dir = std::filesystem::is_directory(std::filesystem::symlink_status(view.target, ec));
-        ImGui::Text("Delete %s%s? This cannot be undone.", what.c_str(), dir ? " and everything in it" : "");
+        ImGui::TextWrapped("Delete %s%s? This cannot be undone. It removes:", what.c_str(),
+            dir ? " and everything in it" : "");
+        for (const std::string &entry : view.doomed) {
+            ImGui::BulletText("%s", entry.c_str());
+        }
+        if (view.doomed_total > view.doomed.size()) {
+            ImGui::Text("and %zu more", view.doomed_total - view.doomed.size());
+        }
     } else {
         ImGui::Text("%s in %s", view.dialog == dialog_kind::rename ? "New name" : "Name",
             (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).c_str());
         rv_editor_field field;
         field.invalid = view.error.empty() ? nullptr : view.error.c_str();
-        if (ImGui::IsWindowAppearing()) {
+        if (view.opening) {
             ImGui::SetKeyboardFocusHere();
+            view.opening = false;
         }
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 24.0f);
         rv_editor_text_field("##name", view.name, sizeof(view.name), theme, field);
@@ -224,7 +248,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
     }
     confirm = rv_editor_button(view.dialog == dialog_kind::remove ? "Delete" : "OK", theme) || confirm;
     ImGui::SameLine();
-    const bool cancel = rv_editor_button("Cancel", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape);
+    const bool cancel = rv_editor_button("Cancel", theme);
 
     if (confirm) {
         bool ok = false;
@@ -242,13 +266,11 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
                 app.open_requests.push_back({ view.target / name, 0 });
             }
             view.dialog = dialog_kind::none;
-            ImGui::CloseCurrentPopup();
         }
     } else if (cancel) {
         view.dialog = dialog_kind::none;
-        ImGui::CloseCurrentPopup();
     }
-    rv_editor_dialog_end();
+    rv_editor_ask_end();
 }
 
 } // namespace
@@ -286,10 +308,10 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
         app.files.refresh();
     }
 
+    rv_editor_files_dialog(app, view, theme);
     rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
     rv_editor_files_node(app, view, app.files.root());
     rv_editor_scroll_end(theme);
-    rv_editor_files_dialog(app, view, theme);
 }
 
 } // namespace rv_editor

@@ -46,7 +46,7 @@ struct rv_editor_output_view
     float scroll_x = 0.0f;     // the lines' horizontal scroll, for the header over them
 };
 
-// One Files pane's dialog: which operation waits for an answer, on what.
+// One Files pane's question: which operation waits for an answer, on what.
 struct rv_editor_files_view
 {
     enum class rv_editor_files_dialog
@@ -63,6 +63,9 @@ struct rv_editor_files_view
     char name[256] = {};
     std::string error;
     bool opening = false;
+    // Delete: what goes, relative to the target's parent, as found when asked.
+    std::vector<std::string> doomed;
+    size_t doomed_total = 0;
 };
 
 // Run Configuration's form: the active profile as edited until Apply (CFG-02),
