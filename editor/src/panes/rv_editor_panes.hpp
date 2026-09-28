@@ -96,8 +96,6 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The project's run profiles as a list beside a form: Apply, Apply and Restart (CFG-01/02).
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);
-// The same in a window sized for it, opened by app.run_config_open.
-void rv_editor_run_config_dialog(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The project tree and the file operations on it.
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);

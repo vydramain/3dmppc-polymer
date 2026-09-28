@@ -146,7 +146,6 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
             rv_editor::rv_editor_shell_close_pane, &shell, area);
     }
     ImGui::End();
-    rv_editor::rv_editor_run_config_dialog(shell.app, theme);
     rv_editor::rv_editor_shell_game_input(shell);
 }
 

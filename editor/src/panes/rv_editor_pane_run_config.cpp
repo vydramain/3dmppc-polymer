@@ -219,28 +219,4 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_run_actions(app, theme);
 }
 
-void rv_editor_run_config_dialog(rv_editor_app &app, const rv_editor_theme &theme)
-{
-    const char *const title = "Run Configuration";
-    if (app.run_config_open) {
-        app.run_config_open = false;
-        if (app.project.open) {
-            ImGui::OpenPopup(title);
-        }
-    }
-    if (!rv_editor_dialog_begin(title, theme)) {
-        return;
-    }
-    // Sized for the form, not for a tile: the list, then the fields beside it.
-    const float em = ImGui::GetFontSize();
-    rv_editor_run_editor(app, ImVec2(em * 56.0f, em * 26.0f), theme);
-    ImGui::Separator();
-    const bool applied = rv_editor_run_actions(app, theme);
-    ImGui::SameLine();
-    if (rv_editor_button("Close", theme) || applied || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        ImGui::CloseCurrentPopup();
-    }
-    rv_editor_dialog_end();
-}
-
 } // namespace rv_editor

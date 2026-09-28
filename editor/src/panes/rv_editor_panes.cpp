@@ -92,7 +92,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     const std::string profile = "Profile: " + app.run_config.profiles[app.run_config.active].name;
     rv_editor_flow(rv_editor_button_width(profile.c_str()));
     if (rv_editor_button(profile.c_str(), theme)) {
-        app.run_config_open = true;
+        app.show_request = rv_editor_pane_kind::run_config;
     }
     ImGui::SetItemTooltip("Run Configuration: how Run starts the runtime");
 

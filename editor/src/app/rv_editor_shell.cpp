@@ -277,7 +277,8 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     requests.preset = shell.active;
     requests.release_view = shell.active == rv_editor_layout_preset::burn;
     if (requests.show_request != rv_editor_pane_kind::empty) {
-        rv_editor_shell_show(shell.ws, requests.show_request);
+        // Run Configuration's list and form need room: the biggest tile takes it.
+        rv_editor_shell_show(shell.ws, requests.show_request, requests.show_request == rv_editor_pane_kind::run_config);
         requests.show_request = rv_editor_pane_kind::empty;
     }
     if (requests.new_file_request) {

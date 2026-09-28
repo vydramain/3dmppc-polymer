@@ -212,7 +212,7 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     }
     ImGui::Separator();
     if (rv_editor_menu_item("Run Configuration...", nullptr, app.project.open ? nullptr : "No project is open")) {
-        app.run_config_open = true;
+        rv_editor_shell_show_pane(shell, rv_editor_pane_kind::run_config, true);
     }
 }
 
