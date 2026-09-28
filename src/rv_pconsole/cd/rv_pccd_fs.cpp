@@ -2,6 +2,7 @@
 
 #include <new>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "pdk/rv_err.h"
@@ -109,6 +110,16 @@ int64_t rv_pccd_fs::asset_open(const char* resname) {
         if (static_cast<int64_t>(resnames_.size()) > handle) resnames_.pop_back();
         RV_LOG_ERR("pccd", "out of memory growing the resource table");
         return RV_ERR_NOMEM;
+    }
+
+    // A scene is recognised by its resource name's suffix.
+    // Recorded once per medium - by_name_ above already keeps asset_open
+    // idempotent, so this line only runs the first time this name resolves.
+    static constexpr std::string_view scene_suffix = ".scene.toml";
+    const std::string& opened = resnames_.back();
+    if (opened.size() >= scene_suffix.size() &&
+        opened.compare(opened.size() - scene_suffix.size(), scene_suffix.size(), scene_suffix) == 0) {
+        scene_names_.push_back(opened);
     }
 
     RV_LOG_DBG("pccd", "resolved '{}' to handle {} ({} bytes)", resnames_.back(), handle, size);

@@ -81,6 +81,20 @@ class rv_pccd_fs final : public rv_pccd {
     std::vector<std::string> resnames_;
     std::unordered_map<std::string, int64_t> by_name_;
 
+    // Names of ".scene.toml" resources this drive has successfully opened
+    // for the currently inserted medium, each name once, in open order.
+    // Cleared on medium_insert(). Not part of the rv_cd contract - a disc
+    // never asks a drive what it opened - this is read by the devtools
+    // command layer only, to tell the editor which scenes the running disc
+    // used.
+    std::vector<std::string> scene_names_;
+
+    // Bumped in medium_insert(), after scene_names_ is cleared. The devtools
+    // side keeps the generation it last saw next to its own send cursor;
+    // a mismatch means scene_names_ started over, so the cursor must too,
+    // even when the new list is as long or longer than the old one.
+    uint64_t scene_generation_ = 0;
+
    public:
     explicit rv_pccd_fs(const rv_pccd_conf& conf);
     // The drive's teardown: a disc never releases a texture, so this is the
@@ -96,6 +110,12 @@ class rv_pccd_fs final : public rv_pccd {
     static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget& budget);
 
     int64_t asset_open(const char* resname) override;
+
+    // Read-only view of scene_names_ above.
+    const std::vector<std::string>& scene_names() const { return scene_names_; }
+
+    // Read-only view of scene_generation_ above.
+    uint64_t scene_generation() const { return scene_generation_; }
 
     int64_t asset_size(int64_t handle) override;
 
@@ -120,7 +140,12 @@ class rv_pccd_fs final : public rv_pccd {
     // this is the one seam where the strategy is chosen, and it is deliberately
     // the only one.
     void medium_insert(std::unique_ptr<rv_pcmedium> medium) override {
-        if (medium) medium_ = std::move(medium);
+        if (!medium) return;
+        medium_ = std::move(medium);
+        // A new medium has opened nothing yet: last medium's scenes do not
+        // carry over.
+        scene_names_.clear();
+        ++scene_generation_;
     }
 
     void video_attach(rv_pccv& cv) override { cv_ = &cv; }

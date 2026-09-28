@@ -14,6 +14,7 @@
 #include "rv_pconsole/rv_pconsole.hpp"
 
 #include <charconv>
+#include <cstddef>
 #include <format>
 #include <string>
 #include <string_view>
@@ -23,6 +24,7 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
+#include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
 #include "rv_pconsole/platform/rv_pcframe.hpp"
@@ -42,6 +44,14 @@ bool cmd_close_logged = false;
 // rv_pccl counts every failed hook call; comparing against that count is how a
 // broken game hook is noticed without the disc having to tell anyone.
 int64_t cmd_error_seq = 0;
+
+// How many of rv_pccd_fs's scene_names_ this file has already sent as
+// `event=scene`, and the generation (rv_pccd_fs::scene_generation) that
+// count was taken against. A generation change means medium_insert() cleared
+// scene_names_, so the cursor resets to 0 regardless of the new list's
+// length.
+size_t cmd_scene_sent = 0;
+uint64_t cmd_scene_generation = 0;
 
 } // namespace
 
@@ -104,6 +114,21 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
     uint64_t presented = 0; // the slot's own count, which pause pictures raise too: not sent
     if (rv_pcframe_latest(platform_, slot, presented)) {
         cmd_->reply(std::format("0 event=frame frame={} slot={}", frames_ + 1, slot));
+    }
+
+    // Which scenes has the disc opened? rv_pccd_fs is the only drive that
+    // tracks this (see its scene_names_); the cast is null for rv_pccd_null,
+    // meaning nothing was ever opened. A release console never runs this
+    // file, so only a developer session ever sends `event=scene`.
+    if (auto *fs = dynamic_cast<rv_pccd_fs *>(cd_.get())) {
+        const std::vector<std::string> &scenes = fs->scene_names();
+        if (const uint64_t generation = fs->scene_generation(); generation != cmd_scene_generation) {
+            cmd_scene_sent = 0;
+            cmd_scene_generation = generation;
+        }
+        for (; cmd_scene_sent < scenes.size(); ++cmd_scene_sent) {
+            cmd_->reply(std::format("0 event=scene name={}", rv_pccmd_hex(scenes[cmd_scene_sent])));
+        }
     }
 
     // Did a game hook fail this frame? rv_pccl counts every failed call, so
