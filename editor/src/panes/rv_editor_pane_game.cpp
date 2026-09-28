@@ -167,6 +167,22 @@ void rv_editor_game_stale(rv_editor_app &app, const rv_editor_theme &theme)
         ", " + rv_editor_run_state_name(s.state()), true);
 }
 
+// Burn's tile: Run Candidate and, once a candidate's image runs, its own frame.
+// The unpacked development build never stands in for it (README), whether stopped
+// or a development session is live.
+void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    const std::string what = app.release.candidates.empty()
+        ? "Stopped. No candidate yet: Build Candidate, then Run Candidate plays it here."
+        : "Stopped. Run Candidate plays candidate #" +
+            std::to_string(app.release.candidates[app.release.selected].number) + "'s image here.";
+    ImGui::TextWrapped("%s", what.c_str());
+    if (rv_editor_button("Run Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
+        rv_editor_app_run_candidate(app);
+    }
+    rv_editor_game_stale(app, theme);
+}
+
 } // namespace
 
 bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
@@ -222,16 +238,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             return;
         }
         if (app.release_view) {
-            // Release plays the candidate's image, never a development build.
-            const std::string what = app.release.candidates.empty()
-                ? "Stopped. No candidate yet: Build Candidate, then Run Candidate plays it here."
-                : "Stopped. Run Candidate plays candidate #" +
-                    std::to_string(app.release.candidates[app.release.selected].number) + "'s image here.";
-            ImGui::TextWrapped("%s", what.c_str());
-            if (rv_editor_button("Run Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
-                rv_editor_app_run_candidate(app);
-            }
-            rv_editor_game_stale(app, theme);
+            rv_editor_game_candidate_tile(app, theme);
             return;
         }
         // Stopped: what Run starts, and Run itself (or Build, with nothing built).
@@ -243,6 +250,14 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             rv_editor_app_run(app);
         }
         rv_editor_game_stale(app, theme);
+        return;
+    }
+
+    // A development session (Code/Debug/Scene) can be live while Burn is open: its
+    // frame is not a candidate's image, so Burn still shows the stopped tile.
+    if (app.release_view && app.release.playing < 0) {
+        app.game_captured = false;
+        rv_editor_game_candidate_tile(app, theme);
         return;
     }
 

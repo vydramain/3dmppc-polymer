@@ -193,18 +193,26 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.playing)];
     rv_editor_check &loads = c.checks[rv_editor_check_loads];
     const rv_editor_session &s = app.session;
-    const std::string env = app.tools.console.path.string() + ", PDK " + s.facts().pdk;
-    if (loads.state == rv_editor_check_state::running && s.connected()) {
+    // A live session plays this candidate only while its disc is still the candidate's
+    // image; a build number can coincide with a later development build's, the disc cannot.
+    const bool still_playing = s.live() && s.disc_dir() == c.image;
+    // A takeover's PDK is the other session's, not this candidate's: leave it out.
+    const std::string env = still_playing || !s.live() ? app.tools.console.path.string() + ", PDK " + s.facts().pdk
+                                                        : app.tools.console.path.string();
+    if (loads.state == rv_editor_check_state::running && still_playing && s.connected()) {
         // Mounted as an image (medium fixed) and answering: the claim of this check, no more.
         const bool image = s.facts().medium == "fixed";
         rv_editor_check_set(c, rv_editor_check_loads, image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
             image ? "mounted as an image, disc " + s.facts().disc : "the console did not mount it as an image", env);
     }
-    if (s.live()) {
+    if (still_playing) {
         return;
     }
+    // A different session (development or another candidate) took over before this one
+    // was seen to end: its own end reason is gone by now, so this says why the playtest closed.
+    const std::string end_reason = s.live() ? "a different session started before this one closed" : s.end_reason();
     if (loads.state == rv_editor_check_state::running) {
-        rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::failed, s.end_reason(), env);
+        rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::failed, end_reason, env);
     }
     ++c.playtests;
     std::string error;
@@ -214,8 +222,8 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest log not kept: " + error);
     }
     c.dirty = true;
-    c.last_run_end = s.end_reason();
-    c.last_run_clean = s.state() == rv_editor_run_state::exited && s.end_reason().rfind("force", 0) != 0;
+    c.last_run_end = end_reason;
+    c.last_run_clean = !s.live() && s.state() == rv_editor_run_state::exited && s.end_reason().rfind("force", 0) != 0;
     r.playing = -1;
 }
 
