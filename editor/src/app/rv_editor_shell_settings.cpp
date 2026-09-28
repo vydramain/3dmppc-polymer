@@ -30,11 +30,13 @@ struct rv_editor_settings_row
     rv_editor_tool rv_editor_toolchain::*tool;
 };
 
+// Pipeline order: baker bakes textures, burner writes the disc image, console
+// runs it with devtools, player is the candidate's final check without them.
 constexpr rv_editor_settings_row rv_editor_settings_rows[] = {
+    { "baker", "Baker: mppcbaker", "Empty: found automatically next to the editor", &rv_editor_toolchain::baker },
+    { "burner", "Burner: mppcburner", "Empty: found automatically next to the editor", &rv_editor_toolchain::burner },
     { "console", "Runtime: 3dmppc built with devtools", "Empty: found automatically next to the editor",
         &rv_editor_toolchain::console },
-    { "burner", "Burner: mppcburner", "Empty: found automatically next to the editor", &rv_editor_toolchain::burner },
-    { "baker", "Baker: mppcbaker", "Empty: found automatically next to the editor", &rv_editor_toolchain::baker },
     { "player", "Player: 3dmppc built without devtools, for a candidate's final check",
         "Empty: no player; it has no default place", &rv_editor_toolchain::player },
 };
