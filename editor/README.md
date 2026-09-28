@@ -25,21 +25,35 @@ only what is shown, never a process, a build, a buffer or the log. Window >
 Reset Layout puts the chosen layout back to its standard tiles; the others keep
 theirs. A layout saved by an earlier editor in `layout` is read as Code's.
 
-Without a project it shows the Project Catalog. The Toolchest on the left holds
-New Project..., Open Project..., Settings... and Help. Recent Projects lists the
-projects opened lately, each with its letter, name, location and whether its
-disc.toml is still there; the arrows or a click select one, and Enter or a
-double click opens it. Its context menu has Remove from Recent, which only takes
-it off the list. Under the list, Selected Project shows the whole path, whether
+Without a project it shows the Project Catalog: a Toolchest on the left with
+Recent Projects, New Project..., Open Project..., Settings... and Help, and
+beside it the page chosen there. Recent Projects lists the projects opened
+lately, each with its letter, name, location and whether its disc.toml is still
+there; the arrows or a click select one, and Enter or a double click opens it.
+Its context menu has Remove from Recent, which only takes it off the list and
+can be undone. Under the list, Selected Project shows the whole path, whether
 disc.toml was found, and Open Project; a project that is gone offers Locate...
-instead. New Project opens a dialog: the template (Minimal C++ or Minimal Lua),
-the name and disc id, the directory, then the path it will create and its
-files; a problem with the directory or a clash with an existing one shows
-beside that field, and nothing is created until Create Project. With a project,
-it builds it with `mppcburner` and runs the
-result in a development console that draws into the Game tile, driven over the
-console's dev channel. Project > Project Settings shows the project and its
-tools; File > Settings says where the tools are.
+instead. New Project is a page: the form (template, name, disc id, directory)
+on the left, the path it will create and its files on the right; a problem with
+the directory or a clash with an existing one shows beside that field, and
+nothing is created until Create Project. What is typed stays while other pages
+are shown; Reset clears it. Open Project and every Browse... show the editor's
+own file browser inside the page: what it is for, the path, Up, the entries and
+the action, with Cancel keeping the field as it was. With a project, Settings,
+Help and Open Project are tabs instead, opened in the biggest tile, and closing
+a tab brings back the one that was in front before it.
+
+With a project, the editor builds it with `mppcburner` and runs the result in a
+development console that draws into the Game tile, driven over the console's
+dev channel. Project > Project Settings shows the project and its tools;
+Settings says where the tools are.
+
+The editor has no modal windows: nothing darkens the window or has to be
+answered before anything else works. A form, a setting or a question is a page
+beside the Toolchest, a tab in a tile or an area inside the pane it is about,
+and waiting for an answer holds only what asked. Context menus, drop-down lists
+and tooltips stay: they are short-lived and close with Escape or a click
+elsewhere.
 
 ## Building
 
@@ -84,13 +98,15 @@ separate choices.
 | Stop | Shift+F5 | `quit`, then waits; Force Stop kills a console that does not end |
 | Run Last Successful Build | | runs the older build after a later one failed or was cancelled |
 
-With a file unsaved, Build and Run ask first: Save and Build / Build Saved
-Files / Cancel, and the same for Run. Run > Run Configuration keeps the
+With a file unsaved, Build and Run wait in a Review Changes tab: Save and
+Build / Build Saved Files / Return, and the same for Run. Run > Run
+Configuration keeps the
 project's run profiles in `.3dmppc-editor/project.toml`: a runtime, memory card
 and working directory of their own, Mute, Start Paused, Fixed Step, more
-console options, environment variables and Reload On Save. It is a window of
-its own, also opened by the Profile button of Runtime Controls: the profiles in a
-list with New (N) and Delete (X) under it, the chosen one's fields beside it. The
+console options, environment variables and Reload On Save. It is a pane,
+brought forward as a tab by the menu and by the Profile button of Runtime
+Controls: the profiles in a list with New (N) and Delete (X) under it, the
+chosen one's fields beside it. The
 form says before Run what the console would refuse; Apply is for the next Run,
 Apply and Restart stops the session and runs again.
 
@@ -274,8 +290,9 @@ directory only when it is opened, and follows changes made by any program,
 including a save through a temporary file and a rename. New File, New Folder,
 Rename and Delete work inside the project only: a new file never replaces an
 existing one, a rename never lands on an existing name, and deleting a link
-removes the link, not what it points to. Links are shown with `->` and never
-entered. The burner's `.mppcburn/` and `.git/` are not shown. A change to
+removes the link, not what it points to. Each asks inside the Files pane, above
+the tree; Delete lists what it removes first. Links are shown with `->` and
+never entered. The burner's `.mppcburn/` and `.git/` are not shown. A change to
 `disc.toml` is read back into the Project pane at once; a running console keeps
 the manifest it started with.
 
@@ -304,10 +321,12 @@ stay the editor's own while a Code tile has the keyboard.
 
 A Code tile's header and status line name the file and mark it `[+]` while
 unsaved; a new one is Untitled. A click puts the cursor where it lands, a drag
-selects. Closing a tile whose file is unsaved and shown nowhere else asks Save,
-Discard or Cancel; closing the editor or opening another project asks Save All,
-Discard All or Cancel for every unsaved file. A file counts as saved only when
-nvim reports the write: one it could not write stays unsaved and open, listed
+selects. Closing a tile whose file is unsaved and shown nowhere else asks inside
+that tile: Save, Discard or Keep Open; closing the editor or opening another
+project opens a Review Changes tab with Save All, Discard All or Return for
+every unsaved file, and the editor stays usable meanwhile. A file counts as
+saved only when nvim reports the write: one it could not write stays unsaved
+and open, listed
 with nvim's reason, and nothing closes until each is saved or the user says
 Discard. An Untitled file gets a name through Save As, here or in File, which
 never replaces an existing file. A file changed by another program is re-read
@@ -323,8 +342,10 @@ Catppuccin Mocha. Ctrl+C interrupts, the terminal takes the tile's size, the
 wheel scrolls back through up to 5000 lines and typing returns to the bottom.
 F5, F6, F7 and Ctrl+B stay the editor's own. It is a session of its own that
 never sees the console's dev channel. When the shell ends the tile says how and
-offers Start Again; closing the tile or the editor hangs up the shell and ends
-everything started in it, background jobs included. Every Terminal tile is its
+offers Start Again. Closing a tile whose shell still runs asks inside the tile,
+End Shell or Keep; ending it hangs up the shell and ends everything started in
+it, background jobs included. A paste of several lines shows them over the
+screen first, with Paste and Cancel. Every Terminal tile is its
 own shell.
 
 ### Where things go
@@ -360,7 +381,9 @@ baker = "/path/to/mppcbaker"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```
 
-File > Settings edits `[tools]` and keeps the rest of the file. A missing tool
+Settings (File > Settings, or the Toolchest without a project) edits `[tools]`
+on Apply and keeps the rest of the file; for each tool it shows the override,
+the path in use and its status, with Browse and Check. A missing tool
 disables only the commands that need it, with the reason; the Project pane
 shows each path and the version the tool reports (`mppcburner --version`).
 
