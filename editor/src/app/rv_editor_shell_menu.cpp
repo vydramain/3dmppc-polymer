@@ -3,8 +3,11 @@
 
 #include "app/rv_editor_shell.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <string>
+#include <string_view>
 
 #include "imgui.h"
 
@@ -253,7 +256,7 @@ void rv_editor_menu_window(rv_editor_shell &shell)
 void rv_editor_menu_help(rv_editor_shell &shell)
 {
     if (ImGui::MenuItem("Keyboard Shortcuts")) {
-        shell.help_open = true;
+        rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
 }
 
@@ -363,23 +366,33 @@ void rv_editor_shell_terminal_dialog(rv_editor_shell &shell, const rv_editor_the
     rv_editor_dialog_end();
 }
 
-void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
+void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    if (shell.help_open) {
-        ImGui::OpenPopup("Keyboard Shortcuts");
-        shell.help_open = false;
-    }
-    if (!rv_editor_dialog_begin("Keyboard Shortcuts", theme)) {
-        return;
-    }
+    rv_editor_pane_header("Help: Keyboard Shortcuts", true, theme);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Filter");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 30.0f);
+    rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
+    // A row stays when its command or its keys hold the filter, case aside.
+    const auto holds = [&](const char *text) {
+        const std::string_view f = shell.help_filter;
+        const std::string_view t = text;
+        return std::search(t.begin(), t.end(), f.begin(), f.end(), [](char a, char b) {
+            return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
+        }) != t.end();
+    };
     constexpr const char *keys[][2] = { { "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
         { "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" }, { "Find in Project", "Ctrl+Shift+F" }, { "Build", "Ctrl+B" },
         { "Run / Resume", "F5" }, { "Pause", "F6" }, { "Step Frame", "F7" }, { "Reload", "F8" }, { "Stop", "Shift+F5" },
         { "Release Game input", "Shift+Esc" },
         { "Vim mode in a code tile", "F2" },
         { "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" } };
-    if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit)) {
+    if (ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
         for (const auto &k : keys) {
+            if (!holds(k[0]) && !holds(k[1])) {
+                continue;
+            }
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(k[0]);
@@ -388,10 +401,6 @@ void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         }
         ImGui::EndTable();
     }
-    if (rv_editor_button("Close", theme) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        ImGui::CloseCurrentPopup();
-    }
-    rv_editor_dialog_end();
 }
 
 } // namespace rv_editor

@@ -185,6 +185,7 @@ void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
     switch (page) {
         case rv_editor_start_page::open_project: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project, true); return;
         case rv_editor_start_page::settings: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::settings, true); return;
+        case rv_editor_start_page::help: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::help, true); return;
         case rv_editor_start_page::recent:
         case rv_editor_start_page::new_project: return;
     }
@@ -468,6 +469,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::test_case: rv_editor_pane_test_case(shell.app, theme); return;
         case rv_editor_pane_kind::open_project: rv_editor_page_open_project(shell, theme); return;
         case rv_editor_pane_kind::settings: rv_editor_page_settings(shell, theme); return;
+        case rv_editor_pane_kind::help: rv_editor_page_help(shell, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");

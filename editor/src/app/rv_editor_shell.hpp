@@ -23,6 +23,7 @@ enum class rv_editor_start_page
     new_project,
     open_project,
     settings,
+    help,
 };
 
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
@@ -89,8 +90,8 @@ struct rv_editor_shell
     std::string revealed;
     // The code tile used last: what Files opens goes there while Files has the focus.
     rv_editor_pane_id last_code = rv_editor_tile_none;
-    // Help > Keyboard Shortcuts was chosen: the dialog opens next frame.
-    bool help_open = false;
+    // Help's filter as typed, kept while other pages or tabs are in front.
+    char help_filter[64] = {};
     rv_editor_start start;
     rv_editor_start_page start_page = rv_editor_start_page::recent;
     std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
@@ -154,8 +155,8 @@ void rv_editor_shell_menu(rv_editor_shell &shell);
 // The shortcuts of the spec's section 13 that have a command today.
 void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 
-// Help > Keyboard Shortcuts, drawn after the workspace.
-void rv_editor_shell_help(rv_editor_shell &shell, const rv_editor_theme &theme);
+// Help as a page or a tab: the keyboard shortcuts, filtered by what is typed.
+void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A menu item that is disabled with its reason shown on hover (UI-04).
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);

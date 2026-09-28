@@ -70,10 +70,11 @@ enum class rv_editor_pane_kind : uint32_t
     test_case,        // a written check of the game, or free play, and its result
     open_project,     // Open Project's browser, as a tab
     settings,         // Settings, as a tab
+    help,             // Help, as a tab
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::settings;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::help;
 
 struct rv_editor_pane
 {
