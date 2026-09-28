@@ -102,7 +102,7 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
         reason_ = "stdin/stdout cannot be made non-blocking";
         return;
     }
-    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol 1)");
+    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol 2)");
 }
 
 rv_pccmdchan_stdio::~rv_pccmdchan_stdio()
