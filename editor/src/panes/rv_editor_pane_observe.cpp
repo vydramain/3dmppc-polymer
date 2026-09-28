@@ -368,7 +368,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
     if (!s.reload_result().empty()) {
         rv_editor_fact("Last reload", (s.reload_ok() ? "applied: " : "refused: ") + s.reload_result());
     }
-    rv_editor_fact("Findings", std::to_string(app.findings.saved.size()) + " saved in this window");
+    rv_editor_fact("Saved", std::to_string(app.findings.saved.size()) + " findings and test results in this window");
     ImGui::EndTable();
 
     ImGui::SeparatorText("Marks");

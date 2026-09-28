@@ -173,6 +173,12 @@ struct rv_editor_findings
     std::filesystem::path capture; // the frame captured for it, if any
     std::vector<std::filesystem::path> saved;
     std::string error;
+    // Test Case: the project's cases, the one chosen (-1: free play), a note, the results given.
+    std::vector<std::filesystem::path> cases;
+    std::filesystem::file_time_type cases_read{};
+    int32_t test_case = -1;
+    char note[512] = {};
+    std::vector<std::string> results;
 };
 
 // The project's release candidates, oldest first, and the one shown; their records

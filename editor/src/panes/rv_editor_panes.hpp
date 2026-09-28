@@ -53,6 +53,9 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme);
 
 // Capture Frame and Record Finding: local files with the session's facts (T-09, T-10).
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
+// The project's testcases/*.txt, or free play, and a Passed, Failed or Blocked
+// result saved with the session; Failed starts a finding from the case.
+void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme);
 // Saves the Game's frame into the project's findings and attaches it to the one being written.
 void rv_editor_findings_capture(rv_editor_app &app);
 

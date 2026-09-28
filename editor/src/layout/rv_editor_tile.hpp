@@ -67,10 +67,11 @@ enum class rv_editor_pane_kind : uint32_t
     build_result,     // the last build job: outcome, diagnostics, next action
     checks,           // the shown candidate's checks, as a tab of its own
     session,          // the running or the last session: build, profile, time, how it ended
+    test_case,        // a written check of the game, or free play, and its result
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::session;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::test_case;
 
 struct rv_editor_pane
 {

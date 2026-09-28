@@ -470,6 +470,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::observe: rv_editor_pane_observe(shell.app, theme); return;
         case rv_editor_pane_kind::findings: rv_editor_pane_findings(shell.app, theme); return;
         case rv_editor_pane_kind::session: rv_editor_pane_session(shell.app, theme); return;
+        case rv_editor_pane_kind::test_case: rv_editor_pane_test_case(shell.app, theme); return;
         default: break;
     }
     rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");
