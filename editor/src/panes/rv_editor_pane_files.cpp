@@ -256,7 +256,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     if (!app.files.is_open()) {
-        ImGui::TextWrapped("No project is open: File > Open Folder.");
+        ImGui::TextWrapped("No project is open: File > Open Project...");
         return;
     }
     rv_editor_files_view &view = app.files_views[pane];

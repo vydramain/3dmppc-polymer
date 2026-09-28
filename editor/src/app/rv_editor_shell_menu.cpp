@@ -69,11 +69,8 @@ void rv_editor_menu_file(rv_editor_shell &shell)
     if (rv_editor_menu_item("New File", nullptr, no_code)) {
         rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
     }
-    if (ImGui::MenuItem("Open Directory...")) {
+    if (ImGui::MenuItem("Open Project...")) {
         rv_editor_shell_open_folder(shell);
-    }
-    if (ImGui::MenuItem("Open disc.toml...")) {
-        rv_editor_shell_open_manifest(shell);
     }
     ImGui::Separator();
     if (rv_editor_menu_item("Save", "Ctrl+S", no_code)) {
@@ -283,13 +280,13 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
             ImGui::EndMenu();
         }
     }
-    // The layout switch at the bar's right end, as in the references: one place, always.
+    // The layout switch at the bar's right end, as in the references: one place, once a project is open.
     float names = 0.0f;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
         names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
     }
     const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
-    if (at > ImGui::GetCursorPosX()) {
+    if (shell.app.project.open && at > ImGui::GetCursorPosX()) {
         ImGui::SetCursorPosX(at);
         for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
             if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {

@@ -43,12 +43,6 @@ void rv_editor_open_folder(rv_editor_shell &shell)
     SDL_ShowOpenFolderDialog(rv_editor_dialog_done, &shell, shell.window, nullptr, false);
 }
 
-void rv_editor_open_manifest(rv_editor_shell &shell)
-{
-    static const SDL_DialogFileFilter filters[] = { { "Disc manifest (disc.toml)", "toml" } };
-    SDL_ShowOpenFileDialog(rv_editor_dialog_done, &shell, shell.window, filters, 1, nullptr, false);
-}
-
 // Code panes the tree shows now.
 std::vector<rv_editor_pane_id> rv_editor_code_panes(const rv_editor_workspace &ws)
 {
@@ -185,11 +179,6 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
 void rv_editor_shell_open_folder(rv_editor_shell &shell)
 {
     rv_editor_open_folder(shell);
-}
-
-void rv_editor_shell_open_manifest(rv_editor_shell &shell)
-{
-    rv_editor_open_manifest(shell);
 }
 
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)

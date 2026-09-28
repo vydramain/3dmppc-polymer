@@ -179,12 +179,8 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     if (rv_editor_command_button("##new", 'N', theme.code_green, "New Project...", "A new disc from a starting template", theme)) {
         shell.start.form_open = true;
     }
-    if (rv_editor_command_button("##open", 'D', 0x958831, "Open Directory...", "A game directory with a disc.toml", theme)) {
+    if (rv_editor_command_button("##open", 'O', 0x958831, "Open Project...", "A game directory with a disc.toml", theme)) {
         rv_editor_shell_open_folder(shell);
-    }
-    if (rv_editor_command_button("##manifest", 'M', 0xfab387, "Open disc.toml...", "A disc.toml: its directory opens",
-            theme)) {
-        rv_editor_shell_open_manifest(shell);
     }
     ImGui::EndChild();
     ImGui::SameLine(0.0f, pad);

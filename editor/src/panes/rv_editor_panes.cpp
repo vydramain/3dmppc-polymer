@@ -155,8 +155,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_project &p = app.project;
     if (!p.open) {
-        rv_editor_wrapped("No project is open. File > Open Folder opens a game directory, File > Open disc.toml "
-                          "its manifest; both open the same workspace.");
+        rv_editor_wrapped("No project is open. File > Open Project... opens a game directory with its disc.toml.");
     } else {
         rv_editor_wrapped("Disc: " + (p.disc_id.empty() ? std::string("?") : p.disc_id) +
             (p.disc_title.empty() ? "" : " - " + p.disc_title));

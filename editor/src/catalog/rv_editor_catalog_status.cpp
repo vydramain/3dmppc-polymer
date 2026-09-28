@@ -25,7 +25,7 @@ void rv_editor_catalog_menus()
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("File")) {
             ImGui::MenuItem("New Project", "Ctrl+N");
-            ImGui::MenuItem("Open Directory", "Ctrl+O");
+            ImGui::MenuItem("Open Project...", "Ctrl+O");
             ImGui::Separator();
             ImGui::MenuItem("Save All", "Ctrl+Shift+S", false, false);
             ImGui::EndMenu();

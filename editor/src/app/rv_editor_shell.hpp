@@ -149,9 +149,8 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
 
-// The folder and disc.toml dialogs; what they pick opens next frame.
+// Open Project...: the folder dialog; what it picks opens next frame.
 void rv_editor_shell_open_folder(rv_editor_shell &shell);
-void rv_editor_shell_open_manifest(rv_editor_shell &shell);
 
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
 // tile, or of the first tile when none is focused.

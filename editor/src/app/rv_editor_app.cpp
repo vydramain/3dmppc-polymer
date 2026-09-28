@@ -121,7 +121,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
 const char *rv_editor_app_why_not_build(const rv_editor_app &app)
 {
     if (!app.project.open) {
-        return "No project is open: File > Open Folder";
+        return "No project is open: File > Open Project...";
     }
     if (app.build.busy()) {
         return "A build is already running";
@@ -145,7 +145,7 @@ const char *rv_editor_app_why_not_run(const rv_editor_app &app)
         return s == rv_editor_run_state::running ? "The runtime is already running" : "Waiting for the runtime";
     }
     if (!app.project.open) {
-        return "No project is open: File > Open Folder";
+        return "No project is open: File > Open Project...";
     }
     if (!app.run_problem.empty()) {
         return app.run_problem.c_str();
