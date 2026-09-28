@@ -96,7 +96,12 @@ keeps running while the next build is made. Output shows the editor's, the
 build's and the runtime's lines, the Runtime Log and the Build Log one source
 each until more are ticked; the dev channel's own lines are there too,
 off by default, without the frame events the console sends sixty times a
-second. A console that stops reading its input gets at most 1 MiB of queued
+second. One row of controls picks the sources and the lowest level shown, finds
+text, follows the newest line and wraps long ones under the message; the tile's
+title names what the filters keep. Time is the local clock time a line arrived.
+The borders between Time, Level, Source and Message drag; a click selects a line,
+Shift+click a range, and Ctrl+C or Copy copies them (Copy takes every line shown
+when none is selected). A console that stops reading its input gets at most 1 MiB of queued
 commands; past that a command is refused and Output says so once, and Stop
 then offers Force Stop. Closing the editor stops the build and the game it
 started.
@@ -107,8 +112,8 @@ reason, a player build of the console included.
 ### Code
 
 Files on the left, the code tile beside the Game over its Runtime Controls,
-and the Terminal beside Output underneath. Problems and Search Results open from
-Window > New Tile, Edit > Find in Project and a build's diagnostics.
+and under both one tile of Output, Problems, Terminal and Search Results, Output
+in front. Edit > Find in Project and a build's diagnostics bring their tab forward.
 
 - **Problems** lists the file, line and message of each error and warning the
   latest build printed; a double click or Enter opens the file at that line, and
