@@ -31,35 +31,10 @@ const char *rv_editor_output_level(rv_editor_log_level level)
     return level == rv_editor_log_level::error ? "ERR" : level == rv_editor_log_level::warning ? "WRN" : "INF";
 }
 
-const char *rv_editor_output_level_filter(rv_editor_log_level level)
-{
-    return level == rv_editor_log_level::error ? "Errors" : level == rv_editor_log_level::warning ? "Warnings+" : "All";
-}
-
 std::string rv_editor_output_lower(std::string s)
 {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return s;
-}
-
-// "All" (every source but the protocol trace), "All + protocol", or the names shown.
-std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital)
-{
-    if (view.show[0] && view.show[1] && view.show[2]) {
-        return view.show[3] ? "All + protocol" : "All";
-    }
-    std::string out;
-    for (size_t i = 0; i < view.show.size(); ++i) {
-        if (!view.show[i]) {
-            continue;
-        }
-        std::string name = rv_editor_log_source_name(static_cast<rv_editor_log_source>(i));
-        if (capital) {
-            name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
-        }
-        out += (out.empty() ? "" : ", ") + name;
-    }
-    return out.empty() ? "None" : out;
 }
 
 // The view's own choice of lines: sources, level, search.
@@ -94,107 +69,8 @@ bool rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_edit
     return static_cast<bool>(out);
 }
 
-// A button that opens a menu: "Source: All" with a down arrow at its right end.
-std::string rv_editor_output_drop_label(const std::string &text, const char *id)
-{
-    return text + "   ##" + id;
-}
-
-bool rv_editor_output_drop(const std::string &label, const rv_editor_theme &theme)
-{
-    const bool clicked = rv_editor_button(label.c_str(), theme);
-    const ImVec2 max = ImGui::GetItemRectMax();
-    const float side = ImGui::GetItemRectSize().y;
-    rv_editor_draw_arrow(ImGui::GetWindowDrawList(), ImVec2(max.x - side, ImGui::GetItemRectMin().y), max, theme,
-        ImGuiDir_Down, theme.text);
-    return clicked;
-}
-
-// Source and Level menus, Find, Follow and Wrap; Copy, Export and Clear View at the right.
-void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, bool &copy, bool &exporting,
-    const rv_editor_theme &theme)
-{
-    const rv_editor_log &log = app.log;
-    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + rv_editor_output_sources(view, false), "sources"),
-            theme)) {
-        ImGui::OpenPopup("##sources_menu");
-    }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##sources_menu")) {
-        for (size_t i = 0; i < view.show.size(); ++i) {
-            bool on = view.show[i];
-            if (ImGui::MenuItem(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)), nullptr, &on)) {
-                view.show[i] = on;
-            }
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Reset Filters")) {
-            view.show = { true, true, true, false };
-            view.level = rv_editor_log_level::info;
-            view.search[0] = '\0';
-        }
-        ImGui::EndPopup();
-    }
-    rv_editor_menu_style_pop();
-
-    const std::string level =
-        rv_editor_output_drop_label(std::string("Level: ") + rv_editor_output_level_filter(view.level), "level");
-    rv_editor_flow(rv_editor_button_width(level.c_str()));
-    if (rv_editor_output_drop(level, theme)) {
-        ImGui::OpenPopup("##level_menu");
-    }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##level_menu")) {
-        for (const rv_editor_log_level l :
-            { rv_editor_log_level::info, rv_editor_log_level::warning, rv_editor_log_level::error }) {
-            if (ImGui::MenuItem(rv_editor_output_level_filter(l), nullptr, view.level == l)) {
-                view.level = l;
-            }
-        }
-        ImGui::EndPopup();
-    }
-    rv_editor_menu_style_pop();
-
-    // Find, with its purpose written in it while it is empty.
-    const float find = ImGui::GetFontSize() * 12.0f;
-    rv_editor_flow(find);
-    ImGui::SetNextItemWidth(find);
-    rv_editor_text_field("##search", view.search, sizeof(view.search), theme);
-    if (view.search[0] == '\0' && !ImGui::IsItemActive()) {
-        const ImVec2 min = ImGui::GetItemRectMin();
-        const ImVec2 pad = ImGui::GetStyle().FramePadding;
-        ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
-            ImGui::GetColorU32(ImGuiCol_TextDisabled), "Find...");
-    }
-    ImGui::SetItemTooltip("Shows only lines containing this text");
-    rv_editor_flow(rv_editor_checkbox_width("Follow"));
-    if (rv_editor_checkbox("Follow", &view.follow, theme)) {
-        view.picked_from = view.picked_to = 0;
-    }
-    ImGui::SetItemTooltip("Keep the newest line in sight; scrolling up turns it off");
-    rv_editor_flow(rv_editor_checkbox_width("Wrap"));
-    rv_editor_checkbox("Wrap", &view.wrap, theme);
-
-    const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float group = rv_editor_button_width("Copy") + rv_editor_button_width("Export") +
-        rv_editor_button_width("Clear View") + gap * 2.0f;
-    rv_editor_flow(group);
-    ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - group));
-    copy = rv_editor_button("Copy", theme);
-    ImGui::SetItemTooltip("The selected lines, or every line shown when none is selected");
-    ImGui::SameLine();
-    exporting = rv_editor_button("Export", theme,
-        { rv_editor_look::live, app.project.open ? nullptr : "No project: exports go to its cache directory" });
-    ImGui::SameLine();
-    if (rv_editor_button("Clear View", theme)) {
-        view.hide_before = log.revision() + 1;
-        view.picked_from = view.picked_to = 0;
-    }
-    ImGui::SetItemTooltip("Hides the lines shown now in this view; the log keeps them");
-}
-
-// Time, Level, Source and Message over the lines, in the lines' font and at their
-// places; the borders between them drag.
+// Time, Lvl, Source and Message over the lines, in the UI font but at the cells'
+// code-font x positions below; the borders between them drag.
 void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_editor_theme &theme)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -205,10 +81,11 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
     dl->PushClipRect(p0, ImVec2(p0.x + w, p0.y + h), true);
     constexpr const char *names[] = { "Time", "Lvl", "Source", "Message" };
-    const float ty = p0.y + 2.0f;
+    ImFont *ui_font = rv_editor_font_ui();
+    const float ty = p0.y + (h - ui_font->LegacySize) * 0.5f;
     float x = p0.x + cell * 0.5f - view.scroll_x;
     for (size_t i = 0; i < 4; ++i) {
-        dl->AddText(ImVec2(x, ty), rv_editor_col(theme.code_text), names[i]);
+        dl->AddText(ui_font, ui_font->LegacySize, ImVec2(x, ty), rv_editor_col(theme.code_text), names[i]);
         if (i == 3) {
             break;
         }
@@ -233,6 +110,26 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
 
 } // namespace
 
+// "All" (every source but the protocol trace), "All + protocol", or the names shown.
+std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital)
+{
+    if (view.show[0] && view.show[1] && view.show[2]) {
+        return view.show[3] ? "All + protocol" : "All";
+    }
+    std::string out;
+    for (size_t i = 0; i < view.show.size(); ++i) {
+        if (!view.show[i]) {
+            continue;
+        }
+        std::string name = rv_editor_log_source_name(static_cast<rv_editor_log_source>(i));
+        if (capital) {
+            name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+        }
+        out += (out.empty() ? "" : ", ") + name;
+    }
+    return out.empty() ? "None" : out;
+}
+
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane)
 {
     const auto it = app.outputs.find(pane);
@@ -255,8 +152,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     rv_editor_output_view &view = app.outputs[pane];
     const rv_editor_log &log = app.log;
 
-    // The controls and the lines share the code font, so the pane reads as one table.
-    rv_editor_font_code_push();
+    // Controls, filters and notes draw in the UI font; only the line cells below
+    // are in the code font.
     bool copy = false;
     bool exporting = false;
     rv_editor_output_controls(app, view, copy, exporting, theme);
@@ -311,6 +208,8 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         rv_editor_path_row("Exported", view.exported, theme);
     }
 
+    // The lines draw in the code font; the header takes its cell width from it.
+    rv_editor_font_code_push();
     const float cell = ImGui::CalcTextSize("0").x;
     rv_editor_output_header(view, cell, theme);
     const float at_level = cell * view.columns[0];
