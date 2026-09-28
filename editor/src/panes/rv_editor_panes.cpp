@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include "font/rv_editor_font.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -34,6 +35,15 @@ rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 void rv_editor_wrapped(const std::string &text)
 {
     ImGui::TextWrapped("%s", text.c_str());
+}
+
+// A group heading: the label in the bright text color, then a full-width separator.
+void rv_editor_project_group(const char *label, const rv_editor_theme &theme)
+{
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+    ImGui::TextUnformatted(label);
+    ImGui::PopStyleColor();
+    ImGui::Separator();
 }
 
 } // namespace
@@ -157,11 +167,17 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     if (!p.open) {
         rv_editor_wrapped("No project is open. File > Open Project... opens a game directory with its disc.toml.");
     } else {
+        rv_editor_project_group("Disc", theme);
         rv_editor_wrapped("Disc: " + (p.disc_id.empty() ? std::string("?") : p.disc_id) +
             (p.disc_title.empty() ? "" : " - " + p.disc_title));
         if (!p.manifest_error.empty()) {
             rv_editor_wrapped("disc.toml does not parse:\n" + p.manifest_error);
         }
+    }
+
+    // The editor's own paths and tools, not disc.toml sections.
+    rv_editor_project_group("Editor", theme);
+    if (p.open) {
         rv_editor_path_row("Root", p.root.string(), theme);
         rv_editor_path_row("Builds", (p.cache_dir / "builds").string(), theme);
         rv_editor_path_row("Memory card", (p.state_dir / "memcard.mppccard").string(), theme);
