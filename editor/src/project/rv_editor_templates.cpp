@@ -98,11 +98,16 @@ std::string rv_editor_disc_id_from(const std::string &name)
     return id;
 }
 
-std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates)
+std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+    rv_editor_new_project_field *field)
 {
+    rv_editor_new_project_field unused = rv_editor_new_project_field::none;
+    rv_editor_new_project_field &at = field != nullptr ? *field : unused;
+    at = rv_editor_new_project_field::name;
     if (p.name.empty()) {
         return "Give the project a name";
     }
+    at = rv_editor_new_project_field::disc_id;
     if (p.disc_id.empty()) {
         return "Give the disc an id";
     }
@@ -110,22 +115,26 @@ std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const 
     if (!std::isalpha(static_cast<unsigned char>(p.disc_id.front()))) {
         return "A disc id starts with a letter";
     }
+    at = rv_editor_new_project_field::parent;
     if (p.parent.empty()) {
         return "Choose the directory the project goes in";
-    }
-    if (p.template_index >= templates.size()) {
-        return "Choose a template";
     }
     std::error_code ec;
     if (!std::filesystem::is_directory(p.parent, ec)) {
         return p.parent.string() + " is not a directory";
     }
-    if (std::filesystem::exists(p.parent / p.disc_id, ec)) {
-        return (p.parent / p.disc_id).string() + " exists already: nothing is written over";
+    at = rv_editor_new_project_field::template_index;
+    if (p.template_index >= templates.size()) {
+        return "Choose a template";
     }
     if (!std::filesystem::is_directory(templates[p.template_index].dir, ec)) {
         return "The template is missing: " + templates[p.template_index].dir.string();
     }
+    at = rv_editor_new_project_field::root;
+    if (std::filesystem::exists(p.parent / p.disc_id, ec)) {
+        return (p.parent / p.disc_id).string() + " exists already: nothing is written over";
+    }
+    at = rv_editor_new_project_field::none;
     return {};
 }
 

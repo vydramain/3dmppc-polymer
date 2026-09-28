@@ -19,7 +19,7 @@ namespace rv_editor
 // Browse dialog picked (maybe on another thread, under picked_mutex).
 struct rv_editor_start
 {
-    bool form_open = false;
+    bool form_open = false; // New Project was asked for: its dialog opens at the next draw
     char name[128] = {};
     char id[64] = {};
     char dir[512] = {};
@@ -158,6 +158,8 @@ void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
 
 // The window's content while no project is open (rv_editor_shell_start.cpp).
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);
+// The New Project dialog, drawn by the start screen (rv_editor_shell_start_new.cpp).
+void rv_editor_shell_new_project(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // Window > Terminal: the terminal in front, with the keyboard.
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell);

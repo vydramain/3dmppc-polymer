@@ -31,9 +31,21 @@ struct rv_editor_new_project
 // "my-game" from "My Game!": lowercase letters, digits and dashes.
 std::string rv_editor_disc_id_from(const std::string &name);
 
-// Why `p` cannot be created as it stands; empty when it can. The disc id itself
-// is judged by pdklib's manifest rules once written.
-std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates);
+// The New Project field a problem is about; root is <parent>/<disc id> itself.
+enum class rv_editor_new_project_field
+{
+    none,
+    name,
+    disc_id,
+    parent,
+    template_index,
+    root,
+};
+
+// Why `p` cannot be created as it stands, and in *field which field that is about;
+// empty when it can. The disc id itself is judged by pdklib's manifest rules once written.
+std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+    rv_editor_new_project_field *field = nullptr);
 
 // The files the new project will have, relative to its root, sorted: the preview.
 std::vector<std::string> rv_editor_new_project_files(const rv_editor_new_project &p, const rv_editor_template &t);
