@@ -37,6 +37,13 @@ std::vector<rv_editor_recent_row> rv_editor_recent_rows()
     return rows;
 }
 
+// The row's display name: its directory name, or the whole path if that is empty.
+std::string rv_editor_start_name(const rv_editor_recent_row &row)
+{
+    const std::string name = row.root.filename().string();
+    return name.empty() ? row.root.string() : name;
+}
+
 // The project's letter, a chip twice the font's height: the stand-in for its icon.
 void rv_editor_start_chip(ImVec2 at, const rv_editor_recent_row &row, const rv_editor_theme &theme)
 {
@@ -97,11 +104,15 @@ void rv_editor_start_empty(rv_editor_shell &shell, const rv_editor_theme &theme)
 
 // The list: one row a project, the chip, its name over its location, whether it
 // is there. A click selects; a double click or Enter opens; the context menu forgets.
-void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_recent_row> &rows, float height,
+// Only as tall as its rows need, up to a cap; past that it scrolls.
+void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_recent_row> &rows,
     const rv_editor_theme &theme)
 {
     const float line = ImGui::GetTextLineHeightWithSpacing();
     const float row_h = std::max(ImGui::GetFontSize() * 2.0f, line * 2.0f) + ImGui::GetStyle().CellPadding.y * 2.0f;
+    constexpr size_t max_visible_rows = 6;
+    const float height =
+        ImGui::GetFrameHeight() + row_h * static_cast<float>(std::min(rows.size(), max_visible_rows));
     constexpr ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
     if (!ImGui::BeginTable("##recent", 3, flags, ImVec2(0.0f, height))) {
         return;
@@ -127,7 +138,8 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
         }
         if (ImGui::BeginPopupContextItem("##row_menu")) {
             shell.start_selected = row.root;
-            if (rv_editor_menu_item("Open Project", nullptr, row.there ? nullptr : "The project is not there")) {
+            const std::string open_label = "Open " + rv_editor_start_name(row);
+            if (rv_editor_menu_item(open_label.c_str(), nullptr, row.there ? nullptr : "The project is not there")) {
                 rv_editor_shell_request_open(shell, row.root);
             }
             if (ImGui::MenuItem("Remove from Recent")) {
@@ -147,8 +159,8 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
         ImGui::TextUnformatted(row.root.parent_path().c_str());
         ImGui::PopStyleColor();
         ImGui::TableNextColumn();
-        rv_editor_status(row.there ? "Ready" : "Missing", row.there ? rv_editor_status_kind::ok
-                                                                    : rv_editor_status_kind::warning, theme);
+        rv_editor_status(row.there ? "Available" : "Missing", row.there ? rv_editor_status_kind::ok
+                                                                        : rv_editor_status_kind::warning, theme);
         ImGui::PopID();
     }
     ImGui::EndTable();
@@ -175,10 +187,11 @@ void rv_editor_start_card(rv_editor_shell &shell, const rv_editor_recent_row &ro
             rv_editor_shell_open_project(shell);
         }
     }
-    const char *label = "Open Project";
-    const float width = rv_editor_button_width(label);
+    const std::string label = "Open " + rv_editor_start_name(row);
+    const float width = rv_editor_button_width(label.c_str());
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0f, ImGui::GetContentRegionAvail().x - width));
-    if (rv_editor_button(label, theme, { rv_editor_look::live, row.there ? nullptr : "The project is not there" })) {
+    if (rv_editor_button(label.c_str(), theme,
+            { rv_editor_look::live, row.there ? nullptr : "The project is not there" })) {
         rv_editor_shell_request_open(shell, row.root);
     }
 }
@@ -223,10 +236,13 @@ void rv_editor_start_catalog(rv_editor_shell &shell, const rv_editor_theme &them
     }
     const rv_editor_recent_row &selected = rows[index];
     shell.start_selected = selected.root;
-    const float card = ImGui::GetFrameHeightWithSpacing() * 5.0f + ImGui::GetTextLineHeightWithSpacing();
-    rv_editor_start_list(shell, rows, std::max(ImGui::GetContentRegionAvail().y - card, ImGui::GetFrameHeight() * 4.0f),
-        theme);
+    // A readable column, not the whole window: about 70 UI characters wide.
+    const float column_w = std::min(ImGui::CalcTextSize(std::string(70, 'x').c_str()).x,
+        ImGui::GetContentRegionAvail().x);
+    ImGui::BeginChild("##start_recent_col", ImVec2(column_w, 0.0f), ImGuiChildFlags_AutoResizeY);
+    rv_editor_start_list(shell, rows, theme);
     rv_editor_start_card(shell, selected, theme);
+    ImGui::EndChild();
 }
 
 } // namespace
