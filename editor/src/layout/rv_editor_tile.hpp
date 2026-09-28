@@ -71,10 +71,11 @@ enum class rv_editor_pane_kind : uint32_t
     open_project,     // Open Project's browser, as a tab
     settings,         // Settings, as a tab
     help,             // Help, as a tab
+    review_changes,   // the unsaved files quitting, opening, building or running waits on
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::help;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::review_changes;
 
 struct rv_editor_pane
 {

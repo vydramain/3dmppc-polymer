@@ -83,6 +83,7 @@ struct rv_editor_shell
     int64_t save_as_buffer = 0;
     char save_as_path[512] = {};
     std::string save_as_error;
+    rv_editor_pane_id save_as_pane = rv_editor_tile_none; // the code tile Save As shows in
     // The window has the keyboard, as SDL's focus events say.
     bool window_focused = true;
     // The file Files last followed, so a selection the user makes there stays
@@ -170,8 +171,8 @@ void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page);
 void rv_editor_shell_open_project(rv_editor_shell &shell);
 
 // A pane of `kind` in front: the one the tree shows, or a new tab of the focused
-// tile, or of the first tile when none is focused.
-void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind);
+// tile, or of the first tile when none is focused; `roomy`: of the biggest tile.
+void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind, bool roomy = false);
 
 // The window's content while no project is open (rv_editor_shell_start.cpp).
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);
@@ -201,7 +202,7 @@ void rv_editor_shell_save_all(rv_editor_shell &shell);
 void rv_editor_shell_update(rv_editor_shell &shell);
 
 // Opens a picked project, or asks first when buffers are unsaved (the question
-// is rv_editor_shell_dialogs').
+// is Review Changes).
 void rv_editor_shell_request_open(rv_editor_shell &shell, const std::filesystem::path &path);
 // What waits for a finished save: the tile closes, the window closes, the
 // project opens. Once a frame, from rv_editor_shell_update.
@@ -221,8 +222,15 @@ bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane);
 // buffers first and closes once answered (TXT-07, AC-22).
 bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 
-// The shell's own dialogs, drawn after the workspace.
-void rv_editor_shell_dialogs(rv_editor_shell &shell, const rv_editor_theme &theme);
+// The questions about unsaved files, none of them over the window: inside the
+// code tile that is closing, Save As inside the tile it was chosen in, and
+// Review Changes as a tab while quitting, opening, building or running waits.
+void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_shell_ask_save_as(rv_editor_shell &shell, const rv_editor_theme &theme);
+void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme);
+// Once a frame: Review Changes is a tab while something waits on unsaved files and
+// goes when nothing does; Save As whose code tile has gone is dropped.
+void rv_editor_shell_review_tab(rv_editor_shell &shell);
 // File > Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
 

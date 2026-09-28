@@ -196,9 +196,9 @@ void rv_editor_shell_open_project(rv_editor_shell &shell)
     rv_editor_shell_page(shell, rv_editor_start_page::open_project);
 }
 
-void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind)
+void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind, bool roomy)
 {
-    rv_editor_shell_show(shell.ws, kind);
+    rv_editor_shell_show(shell.ws, kind, roomy);
 }
 
 void rv_editor_shell_focus_terminal(rv_editor_shell &shell)
@@ -270,6 +270,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     }
     shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
+    rv_editor_shell_review_tab(shell);
 
 
     rv_editor_app &requests = shell.app;
@@ -460,7 +461,17 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::console: rv_editor_pane_output(shell.app, pane, theme); return;
         case rv_editor_pane_kind::project: rv_editor_pane_project(shell.app, theme); return;
         case rv_editor_pane_kind::files: rv_editor_pane_files(shell.app, pane, theme); return;
-        case rv_editor_pane_kind::code: rv_editor_pane_code(shell.app, pane, theme); return;
+        case rv_editor_pane_kind::code:
+            // A question about this tile's file sits over its text, not over the window.
+            if (pane == shell.closing) {
+                rv_editor_shell_ask_close(shell, theme);
+            } else if (pane == shell.save_as_pane && shell.save_as_buffer != 0 &&
+                shell.leaving == rv_editor_shell::rv_editor_leave::none) {
+                rv_editor_shell_ask_save_as(shell, theme);
+            }
+            rv_editor_pane_code(shell.app, pane, theme);
+            return;
+        case rv_editor_pane_kind::review_changes: rv_editor_page_review(shell, theme); return;
         case rv_editor_pane_kind::terminal: rv_editor_pane_terminal(shell.app, pane, theme); return;
         case rv_editor_pane_kind::game: rv_editor_pane_game(shell.app, shell.renderer, theme); return;
         case rv_editor_pane_kind::observe: rv_editor_pane_observe(shell.app, theme); return;

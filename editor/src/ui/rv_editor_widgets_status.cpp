@@ -203,6 +203,19 @@ void rv_editor_dialog_end()
     ImGui::EndPopup();
 }
 
+void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme)
+{
+    ImGui::PushID(title);
+    ImGui::BeginChild("##ask", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
+    rv_editor_pane_header(title, true, theme);
+}
+
+void rv_editor_ask_end()
+{
+    ImGui::EndChild();
+    ImGui::PopID();
+}
+
 void rv_editor_status_bar(const char *const fields[], int count, const rv_editor_theme &theme)
 {
     if (count <= 0) {

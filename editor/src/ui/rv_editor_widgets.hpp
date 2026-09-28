@@ -229,4 +229,10 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
 bool rv_editor_dialog_begin(const char *title, const rv_editor_theme &theme);
 void rv_editor_dialog_end();
 
+// An area inside a pane that asks something without blocking anything else: a
+// bordered block under its own header; the caller draws the text and the buttons
+// between the two calls. Always pair them.
+void rv_editor_ask_begin(const char *title, const rv_editor_theme &theme);
+void rv_editor_ask_end();
+
 } // namespace rv_editor
