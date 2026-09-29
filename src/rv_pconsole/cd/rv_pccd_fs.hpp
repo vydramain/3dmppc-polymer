@@ -133,6 +133,12 @@ class rv_pccd_fs final : public rv_pccd {
 
     int64_t asset_reload(const char* resname, rv_cd_resource_kind& kind_out) override;
 
+    // asset_reload's twin for bytes the request carried: same result codes,
+    // refreshing whatever kind `resname` is resident as from `bytes` instead
+    // of the medium.
+    int64_t asset_refresh(const char* resname, const void* bytes, int64_t nbytes,
+                           rv_cd_resource_kind& kind_out) override;
+
     // Swap the inserted medium after construction. The console learns
     // WHICH archive to mount only when it has loaded the disc out of it, which
     // is later than this object is built; the conf-built directory medium (the
@@ -209,8 +215,15 @@ class rv_pccd_fs final : public rv_pccd {
                              const std::byte* texels, int64_t& tex_addr_out, int64_t& pal_addr_out);
 
     // asset_reload()'s TEXTURE branch: refreshes `record` from `resname`'s
-    // current bytes. Defined with asset_reload(), in the development half.
+    // current bytes on the medium. Defined with asset_reload(), in the
+    // development half.
     int64_t texture_reload_(const char* resname, texture_record& record);
+
+    // Shared decode/upload/swap behind both texture_reload_() (bytes read
+    // from the medium) and asset_refresh() (bytes the request carried): the
+    // one place a texture record is actually refreshed from a byte buffer.
+    // Defined with asset_reload(), in the development half.
+    int64_t texture_refresh_(texture_record& record, const std::vector<std::byte>& bytes);
 };
 
 }  // namespace rv_3dmppc
