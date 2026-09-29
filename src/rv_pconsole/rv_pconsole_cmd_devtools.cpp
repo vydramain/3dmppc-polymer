@@ -364,6 +364,46 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
             "asset needs the name of an entry on the mounted medium"));
         return;
     }
+    const std::string key(name);
+    if (req.has_payload) {
+        // The bytes travel with the request, so the medium's own content is
+        // never read for them; the name still has to be a real entry, as
+        // the no-payload path checks below.
+        if (cd_->asset_open(key.c_str()) < 0) {
+            cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
+                "the mounted medium has no entry by that name"));
+            return;
+        }
+        rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
+        const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(),
+            static_cast<int64_t>(req.payload.size()), kind);
+        if (rc == RV_PCCD_REFRESH_UNSUPPORTED) {
+            // Same token a refused reload uses; the contract has no separate
+            // one for "this drive never learned to refresh from bytes".
+            cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false,
+                "this drive cannot refresh an asset from bytes"));
+            return;
+        }
+        if (rc == RV_PCCD_UNSUPPORTED_KIND) {
+            cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
+                "a sound is resident under that name; its bytes change only across a restart"));
+            return;
+        }
+        if (rc == RV_PCCD_NOT_RESIDENT) {
+            cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
+            return;
+        }
+        if (rc < 0) {
+            cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not refresh that asset"));
+            return;
+        }
+        const int64_t width = cd_->resource_width(kind, key.c_str());
+        const int64_t height = cd_->resource_height(kind, key.c_str());
+        cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key),
+            width < 0 ? 0 : width, height < 0 ? 0 : height));
+        return;
+    }
+
     if (!params_.medium_live) {
         // An archive entry cannot have changed, so there is nothing to refresh
         // and telling the game otherwise would have it re-upload the same bytes
@@ -377,7 +417,6 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // refused it"; the medium is asked at open time, so an entry added to a
     // live directory after boot is found, and a texture nobody holds
     // resident has nothing to refresh.
-    const std::string key(name);
     if (cd_->asset_open(key.c_str()) < 0) {
         cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
             "the mounted medium has no entry by that name"));
