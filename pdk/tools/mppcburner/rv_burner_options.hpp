@@ -21,6 +21,8 @@ namespace rv_pdktools
 struct rv_burner_options {
 	std::string operand;                               // the one non-option word: disc directory
 	                                                   // for build, .mppcdisc file for inspect
+	std::string bake_source;                           // bake-texture's second operand: the
+	                                                   // source file to bake, relative to operand
 	std::string output;                                // -o
 	std::string unpacked;                              // -u, an unpacked disc directory instead
 	                                                   // of a .mppcdisc; exclusive with -o

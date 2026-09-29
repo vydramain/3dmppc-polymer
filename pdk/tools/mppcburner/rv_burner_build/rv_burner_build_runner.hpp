@@ -33,4 +33,24 @@ namespace rv_pdktools
 /// @return a process exit code: 0 on success, 1 on any refusal
 int rv_burner_build_run(const rv_burner_options &options);
 
+// --- one texture ---
+//
+// Bakes exactly one texture the way [3/4] assets of `build` would: same
+// manifest load and validation, same [textures] selection, same mppcbaker
+// invocation and budget check.
+
+/// Bake one texture of a disc into a standalone .mppctex.
+///
+/// Reads `options.operand` as the disc directory, `options.bake_source` as
+/// the source file (relative to the disc directory, or absolute inside it)
+/// and `options.output` as the file to write. The source must be one of the
+/// files `[textures]` selects; refused otherwise.
+///
+/// On success the texture's flat archive name is the only thing written to
+/// stdout. Progress and diagnostics go to stderr.
+///
+/// @param options  the parsed command line
+/// @return a process exit code: 0 on success, 1 on any refusal
+int rv_burner_bake_texture_run(const rv_burner_options &options);
+
 } // namespace rv_pdktools
