@@ -62,6 +62,8 @@ public:
     bool busy() const { return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling; }
     uint32_t number() const { return number_; }
     const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
+    // The burner's pid while a build runs; stale once it has ended.
+    pid_t pid() const { return proc_.pid(); }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
     // directories under this project's own builds directory are ever removed

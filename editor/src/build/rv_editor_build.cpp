@@ -248,6 +248,7 @@ void rv_editor_build::prune(const std::filesystem::path &in_use)
         std::error_code ec;
         std::filesystem::remove_all(dir, ec);
         std::filesystem::remove(rv_editor_build_map_path(dir), ec);
+        std::filesystem::remove(builds_ / (std::to_string(numbers[i]) + ".log"), ec);
     }
 }
 

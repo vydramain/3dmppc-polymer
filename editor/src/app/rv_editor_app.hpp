@@ -396,4 +396,9 @@ void rv_editor_app_update(rv_editor_app &app);
 // process behind (DEV-09).
 void rv_editor_app_shutdown(rv_editor_app &app);
 
+// Logs (editor/src/app/rv_editor_app_logs.cpp): each session and each
+// development build keeps its whole log in a file next to it (D4).
+void rv_editor_app_attach_session_log(rv_editor_app &app);
+void rv_editor_app_attach_build_log(rv_editor_app &app);
+
 } // namespace rv_editor

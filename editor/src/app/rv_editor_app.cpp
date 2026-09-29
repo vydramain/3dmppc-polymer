@@ -62,6 +62,7 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return false;
     }
+    rv_editor_app_attach_session_log(app);
     return true;
 }
 
@@ -277,6 +278,7 @@ void rv_editor_app_build_saved(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
         return;
     }
+    rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;
 }
 
