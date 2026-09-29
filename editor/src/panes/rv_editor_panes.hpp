@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <SDL3/SDL.h>
 
@@ -39,6 +41,10 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane);
 // "All" (every source but the protocol trace), "All + protocol", or the names shown.
 std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital);
+// Every process in the log, newest activity first, with its "<kind> #<run>, pid <pid>" label.
+std::vector<std::pair<pid_t, std::string>> rv_editor_output_runs(const rv_editor_log &log);
+// The chosen run's label, or a note that its lines are no longer kept.
+std::string rv_editor_output_chosen_run(const rv_editor_log &log, pid_t pid);
 // Source, Level, Find, Follow and Wrap, then Copy, Export and Clear View, or as many
 // of those as the row fits; the rest reachable from a "More" menu. Sets copy and
 // exporting when the caller should act on the lines it filters out below.

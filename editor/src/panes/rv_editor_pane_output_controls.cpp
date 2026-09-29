@@ -55,8 +55,9 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
         view.picked_from = view.picked_to = 0;
     };
 
-    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + rv_editor_output_sources(view, false), "sources"),
-            theme)) {
+    const std::string source_label = view.run_pid != 0 ? rv_editor_output_chosen_run(log, view.run_pid)
+                                                        : rv_editor_output_sources(view, false);
+    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + source_label, "sources"), theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
     rv_editor_menu_style_push();
@@ -68,6 +69,16 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             }
         }
         ImGui::Separator();
+        ImGui::TextDisabled("Run");
+        if (ImGui::MenuItem("All runs", nullptr, view.run_pid == 0)) {
+            view.run_pid = 0;
+        }
+        for (const auto &[pid, label] : rv_editor_output_runs(log)) {
+            if (ImGui::MenuItem(label.c_str(), nullptr, view.run_pid == pid)) {
+                view.run_pid = pid;
+            }
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem("Reset Filters")) {
             view.show = {};
             view.show[static_cast<size_t>(rv_editor_log_source::editor)] = true;
@@ -76,6 +87,7 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             view.show[static_cast<size_t>(rv_editor_log_source::runtime)] = true;
             view.level = rv_editor_log_level::info;
             view.search[0] = '\0';
+            view.run_pid = 0;
         }
         ImGui::EndPopup();
     }

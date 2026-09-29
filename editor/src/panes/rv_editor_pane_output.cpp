@@ -11,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 #include "imgui.h"
@@ -37,20 +38,37 @@ std::string rv_editor_output_lower(std::string s)
     return s;
 }
 
-// The view's own choice of lines: sources, level, search.
+// The view's own choice of lines: run (if chosen, replaces the source check), level, search.
 bool rv_editor_output_passes(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
 {
-    if (!view.show[static_cast<size_t>(line.source)] || line.level < view.level) {
+    if (view.run_pid != 0) {
+        if (line.pid != view.run_pid) {
+            return false;
+        }
+    } else if (!view.show[static_cast<size_t>(line.source)]) {
+        return false;
+    }
+    if (line.level < view.level) {
         return false;
     }
     return needle.empty() || rv_editor_output_lower(line.text).find(needle) != std::string::npos;
 }
 
-// The line as Copy and Export write it.
+const char *rv_editor_output_channel_word(rv_editor_log_channel channel)
+{
+    return channel == rv_editor_log_channel::out ? "out" : channel == rv_editor_log_channel::err ? "err" : nullptr;
+}
+
+// The line as Copy and Export write it: the pid and channel follow the source, when it has one.
 std::string rv_editor_output_text(const rv_editor_log_line &line)
 {
-    return rv_editor_log_stamp(line, true) + " " + rv_editor_output_level(line.level) + " " +
-        rv_editor_log_source_name(line.source) + " " + line.text + "\n";
+    std::string out = rv_editor_log_stamp(line, true) + " " + rv_editor_output_level(line.level) + " " +
+        rv_editor_log_source_name(line.source) + " ";
+    const char *channel = rv_editor_output_channel_word(line.channel);
+    if (line.pid != 0 && channel != nullptr) {
+        out += "pid " + std::to_string(line.pid) + " " + channel + " ";
+    }
+    return out + line.text + "\n";
 }
 
 bool rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
@@ -110,6 +128,69 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
 
 } // namespace
 
+namespace
+{
+// The result is the same until the log changes: cached by revision so a chosen
+// run does not re-scan and re-sort every line on every frame (title, Source
+// label and popup all ask for it).
+uint64_t g_output_runs_revision = 0;
+bool g_output_runs_computed = false;
+std::vector<std::pair<pid_t, std::string>> g_output_runs_cache;
+} // namespace
+
+// Every process currently in the log, newest activity first, paired with its menu
+// label "<kind> #<run>, pid <pid>"; kind is derived from the sources seen for that pid.
+std::vector<std::pair<pid_t, std::string>> rv_editor_output_runs(const rv_editor_log &log)
+{
+    if (g_output_runs_computed && g_output_runs_revision == log.revision()) {
+        return g_output_runs_cache;
+    }
+    struct rv_editor_output_run_info
+    {
+        uint32_t run = 0;
+        bool build = false;
+        bool candidate = false;
+        uint64_t last_seq = 0;
+    };
+    std::vector<std::pair<pid_t, rv_editor_output_run_info>> found;
+    for (const rv_editor_log_line &line : log.lines()) {
+        if (line.pid == 0) {
+            continue;
+        }
+        auto it = std::find_if(found.begin(), found.end(), [&](const auto &p) { return p.first == line.pid; });
+        if (it == found.end()) {
+            found.push_back({ line.pid, rv_editor_output_run_info{ line.run, false, false, line.seq } });
+            it = found.end() - 1;
+        }
+        it->second.last_seq = line.seq;
+        it->second.build = it->second.build || line.source == rv_editor_log_source::build;
+        it->second.candidate = it->second.candidate || line.source == rv_editor_log_source::candidate;
+    }
+    std::sort(found.begin(), found.end(),
+        [](const auto &a, const auto &b) { return a.second.last_seq > b.second.last_seq; });
+    std::vector<std::pair<pid_t, std::string>> out;
+    out.reserve(found.size());
+    for (const auto &[pid, info] : found) {
+        const char *kind = info.build ? "build" : info.candidate ? "candidate" : "session";
+        out.push_back({ pid, std::string(kind) + " #" + std::to_string(info.run) + ", pid " + std::to_string(pid) });
+    }
+    g_output_runs_revision = log.revision();
+    g_output_runs_computed = true;
+    g_output_runs_cache = out;
+    return out;
+}
+
+// The chosen run's label, or a note that its lines are no longer kept.
+std::string rv_editor_output_chosen_run(const rv_editor_log &log, pid_t pid)
+{
+    for (const auto &[p, label] : rv_editor_output_runs(log)) {
+        if (p == pid) {
+            return label;
+        }
+    }
+    return "pid " + std::to_string(pid) + " (no lines kept)";
+}
+
 // "All" (every source but the protocol trace), "All + protocol", or the names shown.
 std::string rv_editor_output_sources(const rv_editor_output_view &view, bool capital)
 {
@@ -141,8 +222,9 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
         return "Console Output: All";
     }
     const rv_editor_output_view &view = it->second;
-    std::string what = rv_editor_output_sources(view, true);
-    if (what == "Build" && app.build.number() != 0) {
+    std::string what = view.run_pid != 0 ? rv_editor_output_chosen_run(app.log, view.run_pid)
+                                          : rv_editor_output_sources(view, true);
+    if (view.run_pid == 0 && what == "Build" && app.build.number() != 0) {
         what += " #" + std::to_string(app.build.number());
     }
     if (view.level != rv_editor_log_level::info) {
@@ -167,7 +249,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     std::vector<const rv_editor_log_line *> shown;
     size_t hidden_errors = 0;
     size_t hidden_warnings = 0;
+    bool run_present = view.run_pid == 0;
     for (const rv_editor_log_line &line : log.lines()) {
+        run_present = run_present || line.pid == view.run_pid;
         if (line.seq < view.hide_before) {
             continue;
         }
@@ -177,6 +261,10 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             hidden_errors += line.level == rv_editor_log_level::error ? 1 : 0;
             hidden_warnings += line.level == rv_editor_log_level::warning ? 1 : 0;
         }
+    }
+    if (!run_present) {
+        rv_editor_flow(ImGui::GetFontSize() * 16.0f);
+        rv_editor_dim("pid " + std::to_string(view.run_pid) + "'s lines are no longer kept");
     }
     if (hidden_errors + hidden_warnings != 0) {
         const std::string hidden = std::to_string(hidden_errors) + " errors, " + std::to_string(hidden_warnings) +
@@ -250,6 +338,15 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
                 view.picked_from = view.picked_to = line.seq;
             }
             view.follow = false;
+        }
+        if (line.pid == 0) {
+            ImGui::SetItemTooltip("the editor");
+        } else {
+            const char *kind = line.source == rv_editor_log_source::build ? "build"
+                : line.source == rv_editor_log_source::candidate            ? "candidate"
+                                                                              : "session";
+            const char *chan = line.channel == rv_editor_log_channel::err ? "stderr" : "stdout";
+            ImGui::SetItemTooltip("pid %d, %s #%u, %s", static_cast<int>(line.pid), kind, line.run, chan);
         }
         ImGui::PopID();
         ImGui::SetCursorPos(ImVec2(x, start.y));
