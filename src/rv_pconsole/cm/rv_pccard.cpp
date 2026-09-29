@@ -164,9 +164,29 @@ bool rv_pccard::load()
     }
     const uint32_t version = get_u32(buffer.data() + 8);
     if (version != RV_PCCARD_VERSION) {
-        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {} - refusing", image_path_,
-            version_text(version), version_text(RV_PCCARD_VERSION));
-        return false;
+        // A different version is somebody's saves too, but this console cannot
+        // read that layout. Set the old file aside by name and start empty
+        // rather than refuse to boot; a failed rename keeps the refusal so
+        // nothing is silently overwritten.
+        const std::string aside_path = image_path_ + "." + version_text(version);
+        std::error_code ec;
+        if (std::filesystem::exists(aside_path, ec) || ec) {
+            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {} - refusing "
+                "('{}' already exists)", image_path_, version_text(version), version_text(RV_PCCARD_VERSION),
+                aside_path);
+            return false;
+        }
+        std::filesystem::rename(path, aside_path, ec);
+        if (ec) {
+            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {} - refusing "
+                "(could not set it aside as '{}': {})", image_path_, version_text(version),
+                version_text(RV_PCCARD_VERSION), aside_path, ec.message());
+            return false;
+        }
+        RV_LOG_INFO(RV_PCCARD_TAG, "image '{}' has version {}, this console speaks {} - set aside as '{}', "
+            "card starts empty", image_path_, version_text(version), version_text(RV_PCCARD_VERSION), aside_path);
+        format_empty();
+        return true;
     }
     const int64_t file_slots = get_i64(buffer.data() + 16);
     const int64_t file_slot_size = get_i64(buffer.data() + 24);
