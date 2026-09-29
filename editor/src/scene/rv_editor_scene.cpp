@@ -83,7 +83,9 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
     }
     rv_editor_scene s;
     s.path = path;
-    s.format = 0;
+    bool has_version = false;
+    bool has_legacy_format = false;
+    std::string version_str;
     // The comment block above the first section, which the template uses to say what the file is.
     for (size_t at = 0; at < text.size() && text[at] != '[';) {
         const size_t nl = text.find('\n', at);
@@ -94,8 +96,11 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
     for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
         if (section.name == "scene" && !section.array) {
             for (const auto &e : section.entries) {
-                if (e.key == "format" && e.value.kind == kind::integer) {
-                    s.format = e.value.num;
+                if (e.key == "version" && e.value.kind == kind::string) {
+                    version_str = e.value.str;
+                    has_version = true;
+                } else if (e.key == "format" && e.value.kind == kind::integer) {
+                    has_legacy_format = true;
                 } else {
                     s.scene_extra.push_back(e);
                 }
@@ -128,13 +133,24 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
         }
         s.objects.push_back(std::move(o));
     }
-    if (s.format == 0) {
-        error = path.string() + ": no [scene] format";
+    if (has_version) {
+        uint32_t major = 0, minor = 0;
+        if (!rv_pdklib::rv_version_parse(version_str, major, minor)) {
+            error = path.string() + ": malformed [scene] version '" + version_str + "'";
+            return false;
+        }
+        s.version_major = major;
+        s.version_minor = minor;
+    } else if (has_legacy_format) {
+        s.version_major = 0;
+        s.version_minor = 0;
+    } else {
+        error = path.string() + ": no [scene] version";
         return false;
     }
-    if (s.format > rv_editor_scene_format) {
-        s.read_only = "format " + std::to_string(s.format) + " is newer than this editor's " +
-            std::to_string(rv_editor_scene_format);
+    if (!rv_pdklib::rv_version_compatible(s.version_major, s.version_minor)) {
+        s.read_only = "scene version " + std::to_string(s.version_major) + "." + std::to_string(s.version_minor) +
+            " is not compatible with this editor's " + rv_pdklib::rv_version_str;
     }
     scene = std::move(s);
     return true;
@@ -146,7 +162,7 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
     if (!t.empty() && t.back() != '\n') {
         t += '\n';
     }
-    t += "[scene]\nformat = " + std::to_string(scene.format) + "\n";
+    t += "[scene]\nversion = " + rv_editor_toml_quote(rv_pdklib::rv_version_str) + "\n";
     rv_editor_scene_entries(t, scene.scene_extra);
     for (const rv_editor_scene_object &o : scene.objects) {
         t += "\n[[object]]\n";

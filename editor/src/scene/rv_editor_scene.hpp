@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
 {
@@ -32,22 +33,23 @@ struct rv_editor_scene_object
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
 };
 
-inline constexpr int64_t rv_editor_scene_format = 1;
-
 struct rv_editor_scene
 {
     std::filesystem::path path;
-    int64_t format = rv_editor_scene_format;
+    // The PDK version the file was written for (rv_pdklib::rv_version_str for a fresh one);
+    // a legacy `format = 1` header reads as 0.0, same as pdklib's scene reader.
+    uint32_t version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
+    uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
     std::vector<rv_editor_scene_object> objects;
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;       // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
-    // Opened but not to be written: a newer format, or content it cannot keep.
+    // Opened but not to be written: a non-compatible version, or content it cannot keep.
     std::string read_only;
 };
 
-// False with the reason when the file does not read at all. A newer format opens
-// read-only (the reason in scene.read_only), never rewritten (SCN-04).
+// False with the reason when the file does not read at all. A version that is not
+// rv_version_compatible opens read-only (the reason in scene.read_only), never rewritten (SCN-04).
 bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
 // The document as text in the dialect, unknown keys and sections included.

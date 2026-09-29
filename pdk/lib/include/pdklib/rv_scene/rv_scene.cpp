@@ -2,8 +2,6 @@
 
 #include "rv_scene.hpp"
 
-#include <algorithm>
-#include <cctype>
 #include <map>
 #include <utility>
 
@@ -17,31 +15,6 @@ namespace
 {
 
 constexpr float rv_scene_degrees = 3.14159265358979f / 180.0f;
-
-// Splits "M.m" into major/minor; false on anything else (empty parts,
-// non-digits, no dot, or a part over 3 digits - major/minor fit a byte,
-// rv_version.hpp static_asserts that, so a longer run cannot be a valid part).
-bool rv_scene_version_parse(const std::string &text, uint32_t &major, uint32_t &minor)
-{
-    const size_t dot = text.find('.');
-    if (dot == std::string::npos || dot == 0 || dot + 1 == text.size()) {
-        return false;
-    }
-    const std::string a = text.substr(0, dot);
-    const std::string b = text.substr(dot + 1);
-    if (text.find('.', dot + 1) != std::string::npos) {
-        return false;
-    }
-    for (const std::string &part : { a, b }) {
-        if (part.empty() || part.size() > 3 ||
-            !std::all_of(part.begin(), part.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
-            return false;
-        }
-    }
-    major = static_cast<uint32_t>(std::stoul(a));
-    minor = static_cast<uint32_t>(std::stoul(b));
-    return true;
-}
 
 std::string rv_scene_at(const std::string &origin, int line)
 {
@@ -125,7 +98,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     }
     if (has_version) {
         uint32_t major = 0, minor = 0;
-        if (!rv_scene_version_parse(version_str, major, minor)) {
+        if (!rv_version_parse(version_str, major, minor)) {
             problems += origin + ": malformed [scene] version '" + version_str + "'\n";
         } else if (!rv_version_compatible(major, minor)) {
             problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +

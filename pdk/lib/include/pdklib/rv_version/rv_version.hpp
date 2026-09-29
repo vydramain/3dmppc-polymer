@@ -1,6 +1,10 @@
 #pragma once
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
+#include <string>
+#include <string_view>
 
 #include "pdk/de/rv_dv.h"
 
@@ -35,6 +39,31 @@ inline constexpr bool rv_version_compatible(uint32_t major, uint32_t minor)
 {
     return major == static_cast<uint32_t>(RV_MPPC_VER_MAJOR) &&
            minor <= static_cast<uint32_t>(RV_MPPC_VER_MINOR);
+}
+
+// Splits "M.m" into major/minor; false on anything else (empty parts,
+// non-digits, no dot, or a part over 3 digits - major/minor fit a byte,
+// the static_asserts above hold that, so a longer run cannot be a valid part).
+inline bool rv_version_parse(std::string_view text, uint32_t &major, uint32_t &minor)
+{
+    const size_t dot = text.find('.');
+    if (dot == std::string_view::npos || dot == 0 || dot + 1 == text.size()) {
+        return false;
+    }
+    const std::string_view a = text.substr(0, dot);
+    const std::string_view b = text.substr(dot + 1);
+    if (text.find('.', dot + 1) != std::string_view::npos) {
+        return false;
+    }
+    for (const std::string_view part : { a, b }) {
+        if (part.empty() || part.size() > 3 ||
+            !std::all_of(part.begin(), part.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
+            return false;
+        }
+    }
+    major = static_cast<uint32_t>(std::stoul(std::string(a)));
+    minor = static_cast<uint32_t>(std::stoul(std::string(b)));
+    return true;
 }
 
 } // namespace rv_pdklib
