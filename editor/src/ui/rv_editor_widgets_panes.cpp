@@ -101,7 +101,7 @@ bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float 
 } // namespace
 
 bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+    const rv_editor_theme &theme, const rv_editor_state &state, int *pressed)
 {
     const float h = ImGui::GetFrameHeight();
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
@@ -119,6 +119,9 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
         ImGui::PushID(i);
         const rv_editor_item item = rv_editor_item_add("##tab", ImVec2(text.x + pad * 4.0f + slant, h), state);
         ImGui::PopID();
+        if (pressed != nullptr && item.hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
+            *pressed = i;
+        }
         if (item.clicked && *active != i) {
             *active = i;
             changed = true;
@@ -146,7 +149,7 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
 }
 
 rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls, const rv_editor_state &state)
+    bool controls, const rv_editor_state &state, bool *title_pressed)
 {
     const float h = ImGui::GetFrameHeight();
     const ImVec2 min = ImGui::GetCursorScreenPos();
@@ -175,6 +178,12 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
         ImGui::PopID();
         title_x += box;
         title_limit -= box;
+    }
+
+    // Where a header drag may start: the title area, not the X/M boxes.
+    if (title_pressed != nullptr) {
+        *title_pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+            ImGui::IsMouseHoveringRect(ImVec2(title_x, inner_min.y), ImVec2(title_limit, inner_max.y));
     }
 
     // The title sits on a solid patch so the stipple never runs through letters.

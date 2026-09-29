@@ -84,9 +84,11 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
 // in the theme's colours; these are the pane pieces ImGui has no public form of.
 
 // Slanted folder tabs (UI-02), one per label: the front tab in brass, the rest
-// behind it. Returns true when a click moved *active.
+// behind it. Returns true when a click moved *active. Non-null `pressed` gets
+// the index of the tab the left button went down on this frame, for a caller
+// that tells a drag from a click without repeating this layout.
 bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
-    const rv_editor_theme &theme, const rv_editor_state &state = {});
+    const rv_editor_theme &theme, const rv_editor_state &state = {}, int *pressed = nullptr);
 
 // A scrolling area with Motif scrollbars (UI-02) instead of ImGui's: arrow boxes
 // at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
@@ -113,10 +115,25 @@ enum class rv_editor_header_action
 // Full-width pane title bar: stippled when active, dimmed when not. With
 // `controls` it carries a close box (X) on the left and a maximize box (M) on
 // the right, each a button with every state, and returns the one clicked.
+// Non-null `title_pressed` gets whether the left button went down this frame
+// over the title area itself (not the boxes), for a caller that tells a drag
+// from a click without repeating this layout.
 rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls = false, const rv_editor_state &state = {});
+    bool controls = false, const rv_editor_state &state = {}, bool *title_pressed = nullptr);
 
 // --- the tiled workspace ------------------------------------------------------
+
+// A tile drag in progress: press-and-hold on a header or a tab, then
+// move past a few pixels to show a drop-zone preview; released over a valid
+// zone, it moves the same pane instance with rv_editor_tile_move.
+struct rv_editor_tile_drag
+{
+    bool armed = false;    // pressed on a header/tab, threshold not yet crossed
+    bool dragging = false; // threshold crossed: previewing, moves on release
+    rv_editor_pane_id pane = rv_editor_tile_none;
+    uint32_t from_leaf = rv_editor_tile_none;
+    ImVec2 press{ 0.0f, 0.0f }; // where the button went down
+};
 
 // What the window shows: the pane registry and the tile tree over it.
 // Views only; no model lives here.
@@ -135,7 +152,24 @@ struct rv_editor_workspace
     // Each node's rectangle at the last draw, by node index; a splitter was dragged.
     std::vector<rv_editor_rect> rects;
     bool dragged = false;
+    rv_editor_tile_drag drag;
 };
+
+// Arms a tile drag when `title_pressed` says the header (rv_editor_pane_header)
+// just saw the left button go down over its title; the dragged pane is the
+// leaf's active tab. No-op once a drag is already armed or in progress.
+void rv_editor_tile_drag_header(rv_editor_workspace &ws, uint32_t leaf, bool title_pressed);
+
+// Arms a tile drag when `pressed_tab` (as rv_editor_tab_strip's `pressed` out
+// param named it, or -1) says the left button just went down on that tab.
+void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int pressed_tab);
+
+// Advances an armed or in-progress drag, draws its drop-zone preview and, on
+// release over a valid zone, moves the pane. Escape or a release outside
+// every leaf cancels with no change. Call once per frame, after every leaf has
+// been placed, with each node's rectangle from that placement.
+void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of,
+    const rv_editor_theme &theme);
 
 // Draws one pane's content into the current ImGui window. `context` is what the
 // caller handed rv_editor_workspace_draw: the models the panes are views of.

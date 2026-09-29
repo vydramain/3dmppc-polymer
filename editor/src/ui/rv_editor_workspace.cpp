@@ -81,9 +81,11 @@ void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &th
         labels.push_back(rv_editor_title_of(ws, pane));
     }
     int active = static_cast<int>(leaf.active);
-    if (rv_editor_tab_strip("##tabs", labels.data(), static_cast<int>(labels.size()), &active, theme)) {
+    int pressed = -1;
+    if (rv_editor_tab_strip("##tabs", labels.data(), static_cast<int>(labels.size()), &active, theme, {}, &pressed)) {
         rv_editor_tile_activate(ws.layout, leaf.tabs[static_cast<size_t>(active)]);
     }
+    rv_editor_tile_drag_tabs(ws, node, pressed);
 }
 
 void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, const rv_editor_theme &theme,
@@ -112,7 +114,9 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
     const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_title_of(ws, active);
     // X takes the tile off the screen, M maximizes it.
-    const rv_editor_header_action clicked = rv_editor_pane_header(title, node == ws.focused_leaf, theme, true);
+    bool title_pressed = false;
+    const rv_editor_header_action clicked =
+        rv_editor_pane_header(title, node == ws.focused_leaf, theme, true, {}, &title_pressed);
     if (clicked == rv_editor_header_action::close) {
         action.what = rv_editor_tile_action::op::close_leaf;
         action.leaf = node;
@@ -120,6 +124,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         action.what = rv_editor_tile_action::op::maximize;
         action.leaf = node;
     }
+    rv_editor_tile_drag_header(ws, node, title_pressed);
 
     // The header and the tab strip: a right click there opens the tile's menu.
     const ImVec2 row_min = outer_min;
@@ -360,6 +365,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     }
 
     ws.rects = rect_of;
+    rv_editor_tile_drag_update(ws, rect_of, theme);
 
     // The content size the scrollbars measure.
     ImGui::SetCursorScreenPos(origin);
