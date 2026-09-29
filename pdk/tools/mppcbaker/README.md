@@ -209,8 +209,8 @@ Texels and palette are already in their final form in the file, so the loader is
 a read, a header check and two `video_asset_write` calls.
 
 1. Read the whole file into main memory (`rv_cd`).
-2. Check `magic == "MPTX"` and `version == rv_pdklib::rv_mppctex_version`;
-   otherwise fail, do not guess.
+2. Check `magic == "MPTX"` and `version` is `rv_version_compatible` with this
+   PDK (same major, minor at most the console's); otherwise fail, do not guess.
 3. Parse the header: `format`, `width`, `height`, `palette_count`.
 4. Compute the offsets:
    - palette: `16`, length `palette_count * 2` bytes;
