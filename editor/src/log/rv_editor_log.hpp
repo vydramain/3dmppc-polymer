@@ -2,9 +2,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <deque>
+#include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <sys/types.h>
 
@@ -89,10 +92,38 @@ public:
     // Changes every time a line is added or the log is cleared.
     uint64_t revision() const { return seq_; }
 
+    // Writes every kept line with origin.pid == pid to `path` (its parent
+    // directory is created), then appends each later line with that pid as it
+    // is added. On failure logs one editor error line naming `path` and the OS
+    // reason, and attaches nothing; never throws.
+    void attach_file(pid_t pid, const std::filesystem::path &path);
+    // The path attach_file opened for `pid`, or empty when none is open.
+    std::filesystem::path file_of(pid_t pid) const;
+
+    rv_editor_log() = default;
+    // Owns FILE* sinks: copying would double-close them.
+    rv_editor_log(const rv_editor_log &) = delete;
+    rv_editor_log &operator=(const rv_editor_log &) = delete;
+    ~rv_editor_log();
+
 private:
+    struct rv_editor_log_sink
+    {
+        pid_t pid = 0;
+        std::filesystem::path path;
+        std::FILE *file = nullptr;
+    };
+
+    // False on a write/flush failure; the caller closes and drops that sink.
+    bool write_sink(rv_editor_log_sink &sink, const rv_editor_log_line &line) const;
+    static void close_sink(rv_editor_log_sink &sink);
+
     std::deque<rv_editor_log_line> lines_;
     uint64_t seq_ = 0;
     uint64_t dropped_ = 0;
+    // ponytail: newest 8 sinks stay open, opening a 9th closes the oldest;
+    // pid reuse after a sink's process exits is the known limit.
+    std::vector<rv_editor_log_sink> sinks_;
 };
 
 const char *rv_editor_log_source_name(rv_editor_log_source source);

@@ -61,6 +61,7 @@ public:
     const std::filesystem::path &image() const { return image_; }
     bool busy() const { return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling; }
     uint32_t number() const { return number_; }
+    pid_t pid() const { return proc_.pid(); }
     const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered

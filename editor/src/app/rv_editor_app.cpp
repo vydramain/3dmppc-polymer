@@ -3,6 +3,7 @@
 #include "app/rv_editor_app.hpp"
 
 #include <chrono>
+#include <ctime>
 #include <system_error>
 #include <thread>
 
@@ -61,6 +62,16 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
             app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return false;
+    }
+    if (!app.project.state_dir.empty()) {
+        char stamp[16];
+        const std::time_t t = std::time(nullptr);
+        std::tm tm{};
+        localtime_r(&t, &tm);
+        std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tm);
+        app.log.attach_file(app.session.pid(), app.project.state_dir / "sessions" /
+            (std::string(stamp) + "-" + std::to_string(app.session.number()) + "-" +
+                std::to_string(app.session.pid()) + ".log"));
     }
     return true;
 }
@@ -276,6 +287,9 @@ void rv_editor_app_build_saved(rv_editor_app &app)
     if (!app.build.start(app.project, app.tools, app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
         return;
+    }
+    if (!app.project.cache_dir.empty()) {
+        app.log.attach_file(app.build.pid(), app.project.cache_dir / "builds" / (std::to_string(app.build.number()) + ".log"));
     }
     app.inputs_changed = false;
 }
