@@ -96,6 +96,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.release = {};
     app.observe = {};
     app.findings = {};
+    app.scene_tabs = {};
     // Another project takes the keyboard back from the game.
     app.game_captured = false;
     app.session.pad(0, app.log);
