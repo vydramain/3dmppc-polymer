@@ -39,6 +39,14 @@ struct rv_editor_nvim_saved
 using rv_editor_nvim_save_done =
     std::function<void(const std::vector<rv_editor_nvim_saved> &saved, const std::string &failure)>;
 
+// The latest state one language server reported, on the same "rv_lsp" channel
+// as rv_mode/rv_buffers.
+struct rv_editor_nvim_lsp
+{
+    std::string state;  // "missing", "running" or "stopped"
+    std::string reason; // why, when not "running"
+};
+
 // The code editor: one `nvim --embed`
 // per editor window, started with the first code tile. Each code tile is one
 // nvim window whose grid the tile draws; nvim keeps the text, the undo, the
@@ -111,6 +119,12 @@ public:
     // Code panes that hold a window now.
     std::vector<uint32_t> panes() const;
 
+    // The language server for `path`'s file type ("clangd" for C/C++, "luals"
+    // for .lua), or empty when nothing serves that file type.
+    static std::string lsp_server_for(const std::string &path);
+    // That server's latest state, or nullptr before nvim has reported one.
+    const rv_editor_nvim_lsp *lsp_status(const std::string &server) const;
+
     const rv_editor_nvim_screen &screen() const { return screen_; }
     // Ends nvim after the user answered for its modified buffers: what was
     // saved is saved, the rest is dropped with its swap files (`:qa!`). A crash
@@ -130,6 +144,7 @@ private:
     std::map<uint32_t, bool> asked_;      // a window was requested for this pane
     std::vector<int64_t> spare_;          // windows no pane shows, the first is nvim's own
     std::vector<rv_editor_nvim_buffer> buffers_;
+    std::map<std::string, rv_editor_nvim_lsp> lsp_; // server name -> latest state
     bool vim_mode_ = false;
     std::map<int64_t, std::pair<int32_t, int32_t>> sizes_;
     std::set<int64_t> shown_;             // windows whose grid has been seen

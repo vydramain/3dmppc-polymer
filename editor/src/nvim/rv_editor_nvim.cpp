@@ -128,7 +128,7 @@ void rv_editor_nvim::update(rv_editor_log &log)
     }
 }
 
-void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &)
+void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log)
 {
     if (method == "redraw") {
         screen_.apply(params);
@@ -136,6 +136,25 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
     }
     if (method == "rv_mode" && !params.items.empty()) {
         vim_mode_ = params.items[0].b;
+        return;
+    }
+    if (method == "rv_lsp" && !params.items.empty()) {
+        const rv_editor_mpack &m = params.items[0];
+        const rv_editor_mpack *server = m.get("server");
+        const rv_editor_mpack *state = m.get("state");
+        if (server == nullptr || state == nullptr) {
+            return;
+        }
+        const rv_editor_mpack *reason = m.get("reason");
+        rv_editor_nvim_lsp &entry = lsp_[server->s];
+        const std::string new_reason = reason != nullptr ? reason->s : std::string();
+        if (entry.state == state->s && entry.reason == new_reason) {
+            return;
+        }
+        entry.state = state->s;
+        entry.reason = new_reason;
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            server->s + ": " + entry.state + (entry.reason.empty() ? "" : (": " + entry.reason)));
         return;
     }
     if (method != "rv_buffers" || params.items.empty()) {
@@ -397,6 +416,25 @@ std::vector<uint32_t> rv_editor_nvim::panes() const
         out.push_back(entry.first);
     }
     return out;
+}
+
+std::string rv_editor_nvim::lsp_server_for(const std::string &path)
+{
+    const std::string ext = std::filesystem::path(path).extension().string();
+    if (ext == ".c" || ext == ".h" || ext == ".cc" || ext == ".hh" || ext == ".cpp" || ext == ".hpp" ||
+        ext == ".cxx" || ext == ".hxx") {
+        return "clangd";
+    }
+    if (ext == ".lua") {
+        return "luals";
+    }
+    return {};
+}
+
+const rv_editor_nvim_lsp *rv_editor_nvim::lsp_status(const std::string &server) const
+{
+    const auto it = lsp_.find(server);
+    return it != lsp_.end() ? &it->second : nullptr;
 }
 
 void rv_editor_nvim::stop()

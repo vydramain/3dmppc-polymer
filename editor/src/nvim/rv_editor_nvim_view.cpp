@@ -378,6 +378,26 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
     dl->AddText(ImVec2(status.x + cell.x, status.y), IM_COL32(0xcd, 0xd6, 0xf4, 255), label.c_str());
 
+    // LSP note: nothing when running, otherwise why diagnostics/completion are
+    // absent for this file type, with the exact reason as a tooltip.
+    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
+        const std::string server = nvim.lsp_server_for(buf->name);
+        const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
+        if (lsp != nullptr && lsp->state != "running") {
+            const std::string note =
+                "LSP: " + server + " " + (lsp->state == "missing" ? "not running" : "stopped");
+            const ImVec2 note_pos(status.x + cell.x * 2 + ImGui::CalcTextSize(label.c_str()).x, status.y);
+            dl->AddText(note_pos, rv_editor_rgb(theme.code_yellow), note.c_str());
+            if (!lsp->reason.empty()) {
+                ImGui::SetCursorScreenPos(note_pos);
+                ImGui::PushID(static_cast<int>(win));
+                ImGui::InvisibleButton("##lsp_note", ImGui::CalcTextSize(note.c_str()));
+                ImGui::PopID();
+                ImGui::SetItemTooltip("%s", lsp->reason.c_str());
+            }
+        }
+    }
+
     if (!focused) {
         return;
     }
