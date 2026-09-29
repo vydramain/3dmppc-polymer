@@ -302,11 +302,14 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
     const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
     if (shell.app.project.open && at > ImGui::GetCursorPosX()) {
         ImGui::SetCursorPosX(at);
+        // Own ID scope: "Scene" is also a menu on this bar.
+        ImGui::PushID("workspaces");
         for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
             if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
                 rv_editor_shell_switch(shell, preset);
             }
         }
+        ImGui::PopID();
     }
     ImGui::EndMainMenuBar();
     rv_editor_menu_style_pop();
