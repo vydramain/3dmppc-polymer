@@ -233,6 +233,12 @@ bool rv_editor_app_can_reload(const rv_editor_app &app)
 
 const char *rv_editor_app_why_not_reload(const rv_editor_app &app)
 {
+    std::string baking;
+    if (rv_editor_app_texture_bake_busy(app, &baking)) {
+        static std::string reason;
+        reason = "Baking texture " + baking;
+        return reason.c_str();
+    }
     if (app.session.reloading()) {
         return "Waiting for the last reload's answer";
     }

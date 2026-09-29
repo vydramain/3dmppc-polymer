@@ -83,7 +83,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         : plan.reason;
     const std::string reload_name = plan.action == rv_editor_change_action::reload_module
         ? "Reload Module: " + plan.name
-        : "Reload Entry Script";
+        : plan.action == rv_editor_change_action::refresh_texture ? "Refresh Texture: " + plan.name
+                                                                    : "Reload Entry Script";
     // Reload is always shown; it is disabled with a reason when the disc cannot take one.
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
@@ -153,22 +154,40 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::SetItemTooltip("Run Configuration: how Run starts the runtime");
 
-    // The last reload by the transport, as the runtime answered it (RLD-04).
+    // The last reload by the transport, as the runtime answered it (RLD-04). A
+    // texture bake's own state comes first: it is what Reload is waiting on, and
+    // a bake that failed never reached the console, so its message would be lost
+    // behind an older console answer otherwise.
     if (s.live() && rv_editor_app_can_reload(app)) {
+        std::string baking_name;
+        const bool baking = rv_editor_app_texture_bake_busy(app, &baking_name);
+        // ponytail: a failed bake stays shown until the next bake or a session
+        // restart; a later unrelated console reload does not clear it. Upgrade
+        // path: a reload-attempt sequence number if that ordering matters.
+        const bool bake_failed = !baking && app.texture_bake.proc == nullptr && !app.texture_bake.ok &&
+            !app.texture_bake.message.empty() && app.texture_bake.build_number == s.build_number();
         const bool on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
-        const char *label = s.reloading()      ? "Reloading"
-            : !s.reload_result().empty()       ? (s.reload_ok() ? "Reload accepted" : "Reload refused")
-            : on_save                          ? "Reload On Save"
-                                               : nullptr;
-        if (label != nullptr) {
-            rv_editor_status(label, s.reloading() ? rv_editor_status_kind::active
-                    : s.reload_result().empty()   ? rv_editor_status_kind::idle
-                    : s.reload_ok()               ? rv_editor_status_kind::ok
-                                                  : rv_editor_status_kind::error,
-                theme);
-            if (!s.reloading() && !s.reload_result().empty()) {
-                ImGui::SameLine();
-                rv_editor_wrapped(s.reload_result());
+        if (baking) {
+            rv_editor_status(("Baking texture " + baking_name).c_str(), rv_editor_status_kind::active, theme);
+        } else if (bake_failed) {
+            rv_editor_status("Bake failed", rv_editor_status_kind::error, theme);
+            ImGui::SameLine();
+            rv_editor_wrapped(app.texture_bake.message);
+        } else {
+            const char *label = s.reloading()      ? "Reloading"
+                : !s.reload_result().empty()       ? (s.reload_ok() ? "Reload accepted" : "Reload refused")
+                : on_save                          ? "Reload On Save"
+                                                   : nullptr;
+            if (label != nullptr) {
+                rv_editor_status(label, s.reloading() ? rv_editor_status_kind::active
+                        : s.reload_result().empty()   ? rv_editor_status_kind::idle
+                        : s.reload_ok()               ? rv_editor_status_kind::ok
+                                                      : rv_editor_status_kind::error,
+                    theme);
+                if (!s.reloading() && !s.reload_result().empty()) {
+                    ImGui::SameLine();
+                    rv_editor_wrapped(s.reload_result());
+                }
             }
         }
     }
