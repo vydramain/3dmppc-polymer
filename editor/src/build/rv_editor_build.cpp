@@ -27,6 +27,15 @@ uint32_t rv_editor_build_dir_number(const std::filesystem::path &dir)
     return ec == std::errc{} && ptr == name.data() + name.size() ? n : 0;
 }
 
+// The candidate number a <dir>/<n>.mppcdisc image carries, or 0 if its stem is not one.
+uint32_t rv_editor_image_number(const std::filesystem::path &image)
+{
+    const std::string stem = image.stem().string();
+    uint32_t n = 0;
+    const auto [ptr, ec] = std::from_chars(stem.data(), stem.data() + stem.size(), n);
+    return ec == std::errc{} && ptr == stem.data() + stem.size() ? n : 0;
+}
+
 std::vector<uint32_t> rv_editor_build_numbers(const std::filesystem::path &builds)
 {
     std::vector<uint32_t> numbers;
@@ -104,9 +113,12 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
         state_ = rv_editor_build_state::building;
         out_partial_.clear();
         err_partial_.clear();
+        const rv_editor_log_origin origin{ rv_editor_log_channel::none, proc_.pid(),
+            rv_editor_image_number(image_) };
         log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
             "candidate image started: " + tools.burner.path.string() + " build " + project.root.string() + " -o " +
-                image_.string());
+                image_.string(),
+            origin);
         return true;
     }
     std::error_code ec;
@@ -127,9 +139,11 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
     state_ = rv_editor_build_state::building;
     out_partial_.clear();
     err_partial_.clear();
+    const rv_editor_log_origin origin{ rv_editor_log_channel::none, proc_.pid(), number_ };
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
         "build #" + std::to_string(number_) + " started: " + tools.burner.path.string() + " build " +
-            project.root.string() + " --unpacked " + dir_.string());
+            project.root.string() + " --unpacked " + dir_.string(),
+        origin);
     return true;
 }
 
@@ -151,9 +165,13 @@ void rv_editor_build::update(rv_editor_log &log)
     std::string out;
     std::string err;
     const rv_editor_log_source source = image_.empty() ? rv_editor_log_source::build : rv_editor_log_source::candidate;
+    const uint32_t run = image_.empty() ? number_ : rv_editor_image_number(image_);
+    const rv_editor_log_origin out_origin{ rv_editor_log_channel::out, proc_.pid(), run };
+    const rv_editor_log_origin err_origin{ rv_editor_log_channel::err, proc_.pid(), run };
+    const rv_editor_log_origin none_origin{ rv_editor_log_channel::none, proc_.pid(), run };
     proc_.read(out, err, 1 << 20);
-    log.add_stream(source, out_partial_, out);
-    log.add_stream(source, err_partial_, err);
+    log.add_stream(source, out_partial_, out, out_origin);
+    log.add_stream(source, err_partial_, err, err_origin);
 
     if (state_ == rv_editor_build_state::cancelling &&
         std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
@@ -166,10 +184,10 @@ void rv_editor_build::update(rv_editor_log &log)
     out.clear();
     err.clear();
     proc_.read(out, err, 1 << 20);
-    log.add_stream(source, out_partial_, out);
-    log.add_stream(source, err_partial_, err);
-    log.flush_stream(source, out_partial_);
-    log.flush_stream(source, err_partial_);
+    log.add_stream(source, out_partial_, out, out_origin);
+    log.add_stream(source, err_partial_, err, err_origin);
+    log.flush_stream(source, out_partial_, out_origin);
+    log.flush_stream(source, err_partial_, err_origin);
 
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
     if (!image_.empty()) {
@@ -183,7 +201,8 @@ void rv_editor_build::update(rv_editor_log &log)
             std::filesystem::remove(image_, ec);
         }
         log.add(rv_editor_log_source::editor, ok ? rv_editor_log_level::info : rv_editor_log_level::error,
-            "candidate image " + image_.string() + (ok ? " written" : " not written: " + rv_editor_exit_text(exit)));
+            "candidate image " + image_.string() + (ok ? " written" : " not written: " + rv_editor_exit_text(exit)),
+            none_origin);
         return;
     }
     const std::string label = "build #" + std::to_string(number_);
@@ -191,7 +210,8 @@ void rv_editor_build::update(rv_editor_log &log)
         state_ = rv_editor_build_state::succeeded;
         dev_state_ = state_;
         last_success_ = rv_editor_artifact{ dir_, number_ };
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::info, label + " succeeded: " + dir_.string());
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::info, label + " succeeded: " + dir_.string(),
+            none_origin);
         return;
     }
 
@@ -201,13 +221,13 @@ void rv_editor_build::update(rv_editor_log &log)
     if (state_ == rv_editor_build_state::cancelling) {
         state_ = rv_editor_build_state::cancelled;
         dev_state_ = state_;
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, label + " cancelled");
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, label + " cancelled", none_origin);
         return;
     }
     state_ = rv_editor_build_state::failed;
     dev_state_ = state_;
     log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-        label + " failed: " + rv_editor_exit_text(exit));
+        label + " failed: " + rv_editor_exit_text(exit), none_origin);
 }
 
 void rv_editor_build::prune(const std::filesystem::path &in_use)
