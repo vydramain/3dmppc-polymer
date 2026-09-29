@@ -1,5 +1,5 @@
-// The Assets preview strip: a large look at one selected file. Playback for
-// sounds is the next slice; for now this only reports their shape and length.
+// The Assets preview strip: a large look at one selected file, with a
+// Play/Stop pair for sounds.
 
 #include "panes/rv_editor_asset_preview.hpp"
 
@@ -10,11 +10,23 @@
 
 #include "imgui.h"
 
+#include "ui/rv_editor_sound.hpp"
+#include "ui/rv_editor_widgets.hpp"
+
 namespace rv_editor
 {
 
 namespace
 {
+
+// The last failed play, kept until the selection moves to a different file.
+struct rv_editor_sound_error
+{
+    std::filesystem::path path;
+    std::string text;
+};
+
+rv_editor_sound_error rv_editor_sound_last_error;
 
 // Seconds a WAV's header promises: its "fmt " chunk gives the rate and
 // frame size, its "data" chunk the byte count. 0 when the file is not a WAV
@@ -95,7 +107,7 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
 }
 
 void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds)
+    double sound_seconds, const rv_editor_theme &theme)
 {
     if (a == nullptr) {
         ImGui::TextWrapped("Click an asset to see it here.");
@@ -116,6 +128,27 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
             ImGui::Text(has_picture ? "%d x %d px" : "(could not load the picture)", picture.w, picture.h);
         } else if (ext == ".wav" || ext == ".pcm") {
             ImGui::Text("%.2f s", sound_seconds);
+            const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == a->path;
+            if (rv_editor_button("Play", theme)) {
+                std::string error;
+                if (rv_editor_sound_play(a->path, error)) {
+                    rv_editor_sound_last_error = {};
+                } else {
+                    rv_editor_sound_last_error = { a->path, error };
+                }
+            }
+            ImGui::SameLine();
+            const rv_editor_state stop_state{ rv_editor_look::live, playing_this ? nullptr : "Nothing is playing" };
+            if (rv_editor_button("Stop", theme, stop_state)) {
+                rv_editor_sound_stop();
+            }
+            if (playing_this) {
+                ImGui::SameLine();
+                ImGui::TextDisabled("Playing");
+            }
+            if (rv_editor_sound_last_error.path == a->path && !rv_editor_sound_last_error.text.empty()) {
+                ImGui::TextWrapped("%s", rv_editor_sound_last_error.text.c_str());
+            }
         } else {
             ImGui::TextWrapped("%s, %ju bytes",
                 entry != nullptr ? entry->kind.c_str() : ext.empty() ? "file" : ext.c_str() + 1, a->size);

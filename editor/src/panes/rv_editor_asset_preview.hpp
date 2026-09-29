@@ -5,6 +5,7 @@
 #include <string>
 
 #include "build/rv_editor_build_map.hpp"
+#include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 
 namespace rv_editor
@@ -26,12 +27,13 @@ struct rv_editor_asset
 double rv_editor_asset_sound_seconds(const rv_editor_asset &a);
 
 // The preview strip for the selected asset: its name and path, then what it
-// is - a PNG's picture and pixel size, a sound's duration, or another file's
-// kind and size - and what the build map says it became on the disc. A hint
-// when `a` is null. Fills the current ImGui region (the caller's child window).
-// `picture` is the PNG's texture, already loaded by the caller's cache;
-// `sound_seconds` is the caller's cached result of rv_editor_asset_sound_seconds.
+// is - a PNG's picture and pixel size, a sound's duration with Play/Stop, or
+// another file's kind and size - and what the build map says it became on
+// the disc. A hint when `a` is null. Fills the current ImGui region (the
+// caller's child window). `picture` is the PNG's texture, already loaded by
+// the caller's cache; `sound_seconds` is the caller's cached result of
+// rv_editor_asset_sound_seconds.
 void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds);
+    double sound_seconds, const rv_editor_theme &theme);
 
 } // namespace rv_editor

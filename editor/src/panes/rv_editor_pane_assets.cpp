@@ -22,6 +22,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_icons.hpp"
+#include "ui/rv_editor_sound.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -116,8 +117,9 @@ rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_a
 // The disc name, or why there is none yet; a drag of it when there is one.
 void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
 {
-    if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && a.rel != rv_editor_assets.selected) {
         rv_editor_assets.selected = a.rel;
+        rv_editor_sound_stop();
     }
     const auto entry = rv_editor_assets.map.find(a.rel);
     if (entry == rv_editor_assets.map.end()) {
@@ -304,7 +306,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         ImGui::SameLine();
     }
     ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true);
-    rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds);
+    rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme);
     ImGui::EndChild();
 }
 

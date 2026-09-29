@@ -20,6 +20,7 @@
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_icons.hpp"
+#include "ui/rv_editor_sound.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace
@@ -287,8 +288,9 @@ int main(int argc, char **argv)
         SDL_RenderPresent(renderer);
     }
 
-    // No build and no runtime outlives the window (DEV-09).
+    // No build and no runtime outlives the window (DEV-09); nor does a sound.
     rv_editor::rv_editor_app_shutdown(shell->app);
+    rv_editor::rv_editor_sound_shutdown();
 
     std::string error;
     if (!layout_path.empty() && !rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error)) {
