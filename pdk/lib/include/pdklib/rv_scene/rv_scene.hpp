@@ -14,8 +14,12 @@ namespace rv_pdklib
 // objects in file order with their parents resolved. It takes the file's BYTES,
 // never a path: reading is the drive's (rv_cd_asset_*), as for rv_obj. A disc
 // that draws no scene never calls it.
-
-inline constexpr int64_t rv_scene_format = 1;
+//
+// [scene] carries version = "M.m", the PDK version the file was written
+// against; a file is read when rv_version_compatible(major, minor) holds
+// (rv_version.hpp). A file with no `version` but the old `format = 1` header
+// is read as version 0.0, the pre-version header kept compatible only while
+// the PDK major is 0.
 
 struct rv_scene_object {
     std::string id;           // stable: the editor gives it and never changes it
@@ -30,14 +34,15 @@ struct rv_scene_object {
 };
 
 struct rv_scene {
-    int64_t format = 0;
+    uint32_t version_major = 0;
+    uint32_t version_minor = 0;
     std::vector<rv_scene_object> objects;
 };
 
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
-// `origin`: syntax, a format newer than rv_scene_format, a missing or repeated
-// id, an unknown parent, a parent cycle, an unknown kind, a vector that is not
-// three numbers. Keys the loader does not know are skipped.
+// `origin`: syntax, a missing/malformed/non-compatible version, a missing or
+// repeated id, an unknown parent, a parent cycle, an unknown kind, a vector
+// that is not three numbers. Keys the loader does not know are skipped.
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.

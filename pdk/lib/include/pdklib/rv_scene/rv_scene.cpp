@@ -2,10 +2,13 @@
 
 #include "rv_scene.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <map>
 #include <utility>
 
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_pdklib
 {
@@ -14,6 +17,31 @@ namespace
 {
 
 constexpr float rv_scene_degrees = 3.14159265358979f / 180.0f;
+
+// Splits "M.m" into major/minor; false on anything else (empty parts,
+// non-digits, no dot, or a part over 3 digits - major/minor fit a byte,
+// rv_version.hpp static_asserts that, so a longer run cannot be a valid part).
+bool rv_scene_version_parse(const std::string &text, uint32_t &major, uint32_t &minor)
+{
+    const size_t dot = text.find('.');
+    if (dot == std::string::npos || dot == 0 || dot + 1 == text.size()) {
+        return false;
+    }
+    const std::string a = text.substr(0, dot);
+    const std::string b = text.substr(dot + 1);
+    if (text.find('.', dot + 1) != std::string::npos) {
+        return false;
+    }
+    for (const std::string &part : { a, b }) {
+        if (part.empty() || part.size() > 3 ||
+            !std::all_of(part.begin(), part.end(), [](unsigned char c) { return std::isdigit(c) != 0; })) {
+            return false;
+        }
+    }
+    major = static_cast<uint32_t>(std::stoul(a));
+    minor = static_cast<uint32_t>(std::stoul(b));
+    return true;
+}
 
 std::string rv_scene_at(const std::string &origin, int line)
 {
@@ -42,11 +70,17 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     std::string problems;
     std::vector<std::pair<std::string, int>> parents; // each object's parent id and line
     std::map<std::string, int32_t> index;
+    bool has_version = false;
+    bool has_legacy_format = false;
+    std::string version_str;
     for (const rv_manifest_tree_section &section : tree.sections) {
         if (section.name == "scene" && !section.array) {
             for (const rv_manifest_tree_entry &e : section.entries) {
-                if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
-                    out.format = e.value.num;
+                if (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) {
+                    version_str = e.value.str;
+                    has_version = true;
+                } else if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
+                    has_legacy_format = true;
                 }
             }
             continue;
@@ -89,11 +123,25 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         parents.emplace_back(parent, section.line);
         out.objects.push_back(std::move(o));
     }
-    if (out.format == 0) {
-        problems += origin + ": no [scene] format\n";
-    } else if (out.format > rv_scene_format) {
-        problems += origin + ": format " + std::to_string(out.format) + " is newer than this loader's " +
-            std::to_string(rv_scene_format) + "\n";
+    if (has_version) {
+        uint32_t major = 0, minor = 0;
+        if (!rv_scene_version_parse(version_str, major, minor)) {
+            problems += origin + ": malformed [scene] version '" + version_str + "'\n";
+        } else if (!rv_version_compatible(major, minor)) {
+            problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
+                " is not compatible with this PDK's " + rv_version_str + "\n";
+        } else {
+            out.version_major = major;
+            out.version_minor = minor;
+        }
+    } else if (has_legacy_format) {
+        // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
+        if (!rv_version_compatible(0, 0)) {
+            problems += origin + ": scene version 0.0 is not compatible with this PDK's " +
+                std::string(rv_version_str) + "\n";
+        }
+    } else {
+        problems += origin + ": no [scene] version\n";
     }
     for (size_t i = 0; i < out.objects.size(); ++i) {
         const std::string &parent = parents[i].first;
