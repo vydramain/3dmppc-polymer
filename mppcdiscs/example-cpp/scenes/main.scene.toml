@@ -2,7 +2,7 @@
 # one box. 3dmppc-editor's Scene layout edits it; src/example-cpp.cpp draws it.
 
 [scene]
-format = 1
+version = "0.3"
 
 [[object]]
 id = "c0a1e2f3"
