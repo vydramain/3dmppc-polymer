@@ -2,8 +2,9 @@
 
 #include <filesystem>
 #include <string>
-#include <string_view>
 #include <vector>
+
+#include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 
 namespace rv_pdktools
 {
@@ -14,28 +15,14 @@ namespace rv_pdktools
 // list of glob patterns rather than file names, so a disc does not have to
 // restate its own directory listing. Expanding them is the same job every time,
 // so it happens here and not once per phase.
+//
+// The pure component matching (has_wildcard, wildcard_match, split_components)
+// lives in pdklib/rv_manifest/rv_manifest_pattern.hpp, shared with the editor;
+// only the filesystem walk stays here.
 
-/// Does one path component contain a wildcard character?
-///
-/// @param component  a single path component, no '/' inside
-/// @return true when the component contains `*` or `?`
-bool has_wildcard(std::string_view component);
-
-/// Match one path component against one wildcard pattern.
-///
-/// Classic backtracking match. `*` never crosses a '/' because it is only ever
-/// applied within a single component.
-///
-/// @param pattern  the component pattern, `*` and `?` understood
-/// @param text     the component to test
-/// @return true when the whole component matches the whole pattern
-bool wildcard_match(std::string_view pattern, std::string_view text);
-
-/// Split a '/'-separated pattern into its components, dropping empty ones.
-///
-/// @param pattern  a manifest pattern such as `assets/**/*.png`
-/// @return the components in order, here `{"assets", "**", "*.png"}`
-std::vector<std::string> split_components(const std::string &pattern);
+using rv_pdklib::has_wildcard;
+using rv_pdklib::split_components;
+using rv_pdklib::wildcard_match;
 
 /// Expand manifest patterns into a sorted, duplicate-free list of files.
 ///

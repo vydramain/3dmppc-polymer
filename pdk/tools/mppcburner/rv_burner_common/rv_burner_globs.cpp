@@ -6,62 +6,6 @@
 
 namespace fs = std::filesystem;
 
-bool rv_pdktools::has_wildcard(std::string_view component)
-{
-    return component.find('*') != std::string_view::npos ||
-        component.find('?') != std::string_view::npos;
-}
-
-// Classic backtracking wildcard match over one path component. `*` never
-// crosses a '/' here because it is only ever applied within a component.
-bool rv_pdktools::wildcard_match(std::string_view pattern, std::string_view text)
-{
-    std::size_t p = 0;
-    std::size_t t = 0;
-    std::size_t star = std::string_view::npos;
-    std::size_t retry = 0;
-    while (t < text.size()) {
-        if (p < pattern.size() && (pattern[p] == '?' || pattern[p] == text[t])) {
-            ++p;
-            ++t;
-        } else if (p < pattern.size() && pattern[p] == '*') {
-            star = p;
-            retry = t;
-            ++p;
-        } else if (star != std::string_view::npos) {
-            p = star + 1;
-            ++retry;
-            t = retry;
-        } else {
-            return false;
-        }
-    }
-    while (p < pattern.size() && pattern[p] == '*') {
-        ++p;
-    }
-    return p == pattern.size();
-}
-
-std::vector<std::string> rv_pdktools::split_components(const std::string &pattern)
-{
-    std::vector<std::string> parts;
-    std::string current;
-    for (const char c : pattern) {
-        if (c == '/') {
-            if (!current.empty()) {
-                parts.push_back(current);
-                current.clear();
-            }
-        } else {
-            current += c;
-        }
-    }
-    if (!current.empty()) {
-        parts.push_back(current);
-    }
-    return parts;
-}
-
 namespace rv_pdktools
 {
 
