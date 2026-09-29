@@ -216,6 +216,22 @@ struct rv_editor_release
     std::string error;
 };
 
+// A texture bake for Reload/Reload On Save: the burner runs async, one at a
+// time; the last outcome (name, ok, message) stays for the UI after it ends.
+struct rv_editor_texture_bake
+{
+    std::unique_ptr<rv_editor_process> proc;
+    std::string name;           // the texture's disc name
+    std::filesystem::path png;  // the source baked from
+    std::filesystem::path out;  // the staged .mppctex the burner writes
+    uint32_t build_number = 0;  // the running build the staging path is under
+    std::string out_partial;
+    std::string err_partial;
+    std::string err_all;        // the burner's stderr, for the failure line
+    bool ok = false;
+    std::string message;        // one line, the last bake's outcome
+};
+
 // What waits on the window's unsaved-files question (BLD-03).
 enum class rv_editor_unsaved_ask
 {
@@ -326,6 +342,8 @@ struct rv_editor_app
     // is when the queue may start draining, zero: none due.
     std::vector<std::filesystem::path> reload_queue;
     std::chrono::steady_clock::time_point reload_due{};
+    // Reload on a texture: the running bake, if any, and the last one's outcome.
+    rv_editor_texture_bake texture_bake;
 };
 
 // Scene (editor/src/app/rv_editor_app_scene.cpp): the project's scenes/*.scene.toml,
@@ -376,6 +394,18 @@ rv_editor_change_plan rv_editor_app_change_for(const rv_editor_app &app, const s
 void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::path &changed);
 // Once a frame: sends the next queued reload once it has settled and the last answered.
 void rv_editor_app_reload_queue_update(rv_editor_app &app);
+
+// Texture bake (editor/src/app/rv_editor_app_texture.cpp): a refresh_texture reload
+// bakes the changed PNG with the burner before sending it, one bake at a time,
+// async. True while one runs; when `name` is not null it receives what it bakes.
+bool rv_editor_app_texture_bake_busy(const rv_editor_app &app, std::string *name = nullptr);
+// Starts baking `name` (the texture's disc name) from `png` into staging; logs and
+// does nothing if a bake is already running.
+void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png);
+// Once a frame: drains the running bake, reports its outcome, and on success sends
+// the baked bytes over the session's reload slot (dropped, not sent, if the session
+// ended or another reload is in flight).
+void rv_editor_app_texture_bake_update(rv_editor_app &app);
 
 // Build and Run ask first when a named buffer is unsaved (BLD-03); the _saved
 // forms go ahead with the files as they are on disk.

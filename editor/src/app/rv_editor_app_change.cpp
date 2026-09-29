@@ -25,6 +25,10 @@ void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &
 {
     if (!file.empty()) {
         const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
+        if (plan.action == rv_editor_change_action::refresh_texture) {
+            rv_editor_app_texture_bake_start(app, plan.name, file);
+            return;
+        }
         if (plan.action == rv_editor_change_action::reload_module) {
             app.session.reload(app.log, plan.name);
             return;
@@ -37,7 +41,8 @@ void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &
 
 void rv_editor_app_reload(rv_editor_app &app)
 {
-    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr) {
+    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr ||
+        rv_editor_app_texture_bake_busy(app)) {
         return;
     }
     rv_editor_app_reload_send(app, app.code_file);
@@ -46,7 +51,8 @@ void rv_editor_app_reload(rv_editor_app &app)
 void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::path &changed)
 {
     const rv_editor_change_plan plan = rv_editor_app_change_for(app, changed);
-    if (plan.action != rv_editor_change_action::reload_entry && plan.action != rv_editor_change_action::reload_module) {
+    if (plan.action != rv_editor_change_action::reload_entry && plan.action != rv_editor_change_action::reload_module &&
+        plan.action != rv_editor_change_action::refresh_texture) {
         return;
     }
     if (std::find(app.reload_queue.begin(), app.reload_queue.end(), changed) == app.reload_queue.end()) {
@@ -58,6 +64,9 @@ void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::
 
 void rv_editor_app_reload_queue_update(rv_editor_app &app)
 {
+    // Drains any running bake regardless of the queue below, so a session that
+    // ends mid-bake still lets it finish (or drop) without leaking a process.
+    rv_editor_app_texture_bake_update(app);
     // No live session to receive it: drop a queue left over from the one before.
     if (!app.session.live()) {
         app.reload_queue.clear();
@@ -70,9 +79,10 @@ void rv_editor_app_reload_queue_update(rv_editor_app &app)
     if (app.reload_due == std::chrono::steady_clock::time_point{} || std::chrono::steady_clock::now() < app.reload_due) {
         return;
     }
-    // The gate refuses (not running/paused, a packed medium, a reload already out):
-    // the queue waits whole, nothing is dropped.
-    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr) {
+    // The gate refuses (not running/paused, a packed medium, a reload or bake
+    // already out): the queue waits whole, nothing is dropped.
+    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr ||
+        rv_editor_app_texture_bake_busy(app)) {
         return;
     }
     const std::filesystem::path file = app.reload_queue.front();
