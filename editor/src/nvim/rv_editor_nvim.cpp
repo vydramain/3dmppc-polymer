@@ -157,6 +157,42 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
             server->s + ": " + entry.state + (entry.reason.empty() ? "" : (": " + entry.reason)));
         return;
     }
+    if (method == "rv_diagnostics" && !params.items.empty()) {
+        const rv_editor_mpack &m = params.items[0];
+        const rv_editor_mpack *file = m.get("file");
+        const rv_editor_mpack *items = m.get("items");
+        if (file == nullptr || !file->is(mtype::string) || items == nullptr || !items->is(mtype::array)) {
+            return;
+        }
+        std::vector<rv_editor_nvim_diagnostic> out;
+        for (const rv_editor_mpack &it : items->items) {
+            const rv_editor_mpack *line = it.get("line");
+            const rv_editor_mpack *col = it.get("col");
+            const rv_editor_mpack *severity = it.get("severity");
+            const rv_editor_mpack *message = it.get("message");
+            const bool line_ok = line != nullptr && line->is(mtype::integer);
+            const bool col_ok = col != nullptr && col->is(mtype::integer);
+            const bool severity_ok = severity != nullptr && severity->is(mtype::string);
+            const bool message_ok = message != nullptr && message->is(mtype::string);
+            if (!line_ok || !col_ok || !severity_ok || !message_ok) {
+                continue;
+            }
+            rv_editor_nvim_diagnostic d;
+            d.line = static_cast<int32_t>(line->i);
+            d.col = static_cast<int32_t>(col->i);
+            d.severity = severity->s;
+            d.message = message->s;
+            const rv_editor_mpack *source = it.get("source");
+            d.source = source != nullptr && source->is(mtype::string) ? source->s : "lsp";
+            out.push_back(std::move(d));
+        }
+        if (out.empty()) {
+            diagnostics_.erase(file->s);
+        } else {
+            diagnostics_[file->s] = std::move(out);
+        }
+        return;
+    }
     if (method != "rv_buffers" || params.items.empty()) {
         return;
     }
@@ -435,6 +471,13 @@ const rv_editor_nvim_lsp *rv_editor_nvim::lsp_status(const std::string &server) 
 {
     const auto it = lsp_.find(server);
     return it != lsp_.end() ? &it->second : nullptr;
+}
+
+const std::vector<rv_editor_nvim_diagnostic> &rv_editor_nvim::diagnostics_for(const std::string &path) const
+{
+    static const std::vector<rv_editor_nvim_diagnostic> empty;
+    const auto it = diagnostics_.find(path);
+    return it != diagnostics_.end() ? it->second : empty;
 }
 
 void rv_editor_nvim::stop()

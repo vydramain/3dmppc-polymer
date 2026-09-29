@@ -47,6 +47,16 @@ struct rv_editor_nvim_lsp
     std::string reason; // why, when not "running"
 };
 
+// One LSP diagnostic, as "rv_diagnostics" reports it for one file.
+struct rv_editor_nvim_diagnostic
+{
+    int32_t line = 0;          // 1-based
+    int32_t col = 0;           // 1-based
+    std::string severity;      // "error", "warn", "info" or "hint"
+    std::string source;        // server name, "lsp" when nvim gave none
+    std::string message;
+};
+
 // The code editor: one `nvim --embed`
 // per editor window, started with the first code tile. Each code tile is one
 // nvim window whose grid the tile draws; nvim keeps the text, the undo, the
@@ -125,6 +135,12 @@ public:
     // That server's latest state, or nullptr before nvim has reported one.
     const rv_editor_nvim_lsp *lsp_status(const std::string &server) const;
 
+    // The latest diagnostics nvim reported for `path`, or an empty vector when
+    // nvim reported none (or cleared them).
+    const std::vector<rv_editor_nvim_diagnostic> &diagnostics_for(const std::string &path) const;
+    // Every file with diagnostics now, keyed by its path.
+    const std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> &diagnostics() const { return diagnostics_; }
+
     const rv_editor_nvim_screen &screen() const { return screen_; }
     // Ends nvim after the user answered for its modified buffers: what was
     // saved is saved, the rest is dropped with its swap files (`:qa!`). A crash
@@ -145,6 +161,7 @@ private:
     std::vector<int64_t> spare_;          // windows no pane shows, the first is nvim's own
     std::vector<rv_editor_nvim_buffer> buffers_;
     std::map<std::string, rv_editor_nvim_lsp> lsp_; // server name -> latest state
+    std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> diagnostics_; // file -> its diagnostics
     bool vim_mode_ = false;
     std::map<int64_t, std::pair<int32_t, int32_t>> sizes_;
     std::set<int64_t> shown_;             // windows whose grid has been seen
