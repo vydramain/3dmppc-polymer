@@ -247,6 +247,12 @@ struct rv_editor_transport_state
     const char *stop;
     const char *reload;
     bool resume = false; // the machine is paused: Run reads Resume
+    // Reload's slot shows Build and Restart instead (Reload cannot apply the
+    // pending change); `build_restart` is why it is disabled, if it is.
+    bool build_restart = false;
+    const char *build_restart_disabled = nullptr;
+    // Reload's tooltip/menu name when it is shown instead; nullptr: "Reload Entry Script".
+    const char *reload_name = nullptr;
 };
 
 // Which transport action was clicked this frame.
@@ -258,6 +264,7 @@ struct rv_editor_transport_actions
     bool step;
     bool stop;
     bool reload;
+    bool build_restart;
 };
 
 // `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);

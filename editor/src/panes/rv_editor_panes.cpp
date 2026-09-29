@@ -69,10 +69,26 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
+    // Reload's target while the session is live: the running build's map says
+    // whether it can apply the pending change, or Build and Restart takes its slot.
+    const bool can_reload = s.live() && rv_editor_app_can_reload(app);
+    const rv_editor_change_plan plan = can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
+    const bool offer_build_restart = s.live() &&
+        (!can_reload || plan.action == rv_editor_change_action::build_restart ||
+            plan.action == rv_editor_change_action::restart_required);
+    // The disc itself refusing to reload always wins over the plan's own wording
+    // (which may name a module reload that the disc could never do).
+    const std::string why_not_reload = !can_reload
+        ? "The running disc cannot reload: it runs from an image or has no Lua entry script."
+        : plan.reason;
+    const std::string reload_name = plan.action == rv_editor_change_action::reload_module
+        ? "Reload Module: " + plan.name
+        : "Reload Entry Script";
     // Reload is always shown; it is disabled with a reason when the disc cannot take one.
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        rv_editor_why_not_reload_shown(app), s.state() == rv_editor_run_state::paused };
+        rv_editor_why_not_reload_shown(app), s.state() == rv_editor_run_state::paused, offer_build_restart,
+        offer_build_restart ? rv_editor_app_why_not_build(app) : nullptr, reload_name.c_str() };
     // The state name follows on the same row; the bar hides its own buttons first
     // rather than let that status get clipped.
     const char *name = rv_editor_run_state_name(s.state());
@@ -96,6 +112,14 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     }
     if (clicked.reload) {
         rv_editor_app_reload(app);
+    }
+    if (clicked.build_restart) {
+        rv_editor_app_build_restart(app);
+    }
+    // Build and Restart took Reload's slot: say why, plainly, not only in its tooltip.
+    // why_not_reload already ends in ".": add the state-loss warning as its own sentence.
+    if (offer_build_restart) {
+        rv_editor_wrapped(why_not_reload + " Restarting loses the game's current state.");
     }
 
     // On the same row while it fits: the runtime's confirmed state, its frame and
