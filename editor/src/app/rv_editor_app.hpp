@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "build/rv_editor_build.hpp"
+#include "build/rv_editor_build_map.hpp"
 #include "release/rv_editor_candidate.hpp"
 #include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
@@ -18,6 +19,7 @@
 #include "nvim/rv_editor_nvim.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "prefs/rv_editor_prefs.hpp"
+#include "project/rv_editor_change.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
 #include "project/rv_editor_run_profile.hpp"
@@ -220,6 +222,7 @@ enum class rv_editor_unsaved_ask
     none,
     build,
     run,
+    build_restart,
 };
 
 // A file the user asked to open, at a line (0: where nvim last had it) and an
@@ -305,12 +308,23 @@ struct rv_editor_app
     uint64_t run_config_revision = 1;
     rv_editor_run_form run_form;
     bool run_after_stop = false;
+    // Build and Restart: a build runs for it; once it ends, the live session (if any)
+    // stops, then the new build starts. restart_after_stop is the wait for that stop.
+    bool restart_after_build = false;
+    bool restart_after_stop = false;
     // The scene the Scene layout edits, if one is open, and why the last open failed.
     std::unique_ptr<rv_editor_scene_doc> scene;
     std::string scene_error;
     rv_editor_scene_ui scene_ui;
     rv_editor_assets_ui assets_ui;
-    // Reload On Save: when the last .lua change settled enough to reload; zero: none due.
+    // The started build's map (rv_editor_build_map_read), read at rv_editor_app_start;
+    // empty once the session is not live.
+    std::map<std::string, rv_editor_map_entry> build_map;
+    // The file the last-used Code tile shows; the window sets this.
+    std::filesystem::path code_file;
+    // Reload On Save: files queued to reload, oldest first, no duplicates; reload_due
+    // is when the queue may start draining, zero: none due.
+    std::vector<std::filesystem::path> reload_queue;
     std::chrono::steady_clock::time_point reload_due{};
 };
 
@@ -355,12 +369,25 @@ const char *rv_editor_app_why_not_stop(const rv_editor_app &app);
 const char *rv_editor_app_why_not_reload(const rv_editor_app &app);
 // The running console can reload its entry script: a directory medium and a Lua entry.
 bool rv_editor_app_can_reload(const rv_editor_app &app);
+// The change classifier (project/rv_editor_change.hpp) against this app's project,
+// manifest and running build's map (editor/src/app/rv_editor_app_change.cpp).
+rv_editor_change_plan rv_editor_app_change_for(const rv_editor_app &app, const std::filesystem::path &file);
+// Reload On Save: `changed` joins the queue when its plan is reload_entry/reload_module.
+void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::path &changed);
+// Once a frame: sends the next queued reload once it has settled and the last answered.
+void rv_editor_app_reload_queue_update(rv_editor_app &app);
 
 // Build and Run ask first when a named buffer is unsaved (BLD-03); the _saved
 // forms go ahead with the files as they are on disk.
 void rv_editor_app_build(rv_editor_app &app);
 void rv_editor_app_build_saved(rv_editor_app &app);
 void rv_editor_app_run_saved(rv_editor_app &app);
+// Build and Restart (editor/src/app/rv_editor_app_change.cpp): builds, then restarts
+// the live session (or just starts one) once the build has ended.
+void rv_editor_app_build_restart(rv_editor_app &app);
+void rv_editor_app_build_restart_saved(rv_editor_app &app);
+// Called from rv_editor_app_update with whether a build just ended.
+void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended);
 // Run would build first: nothing succeeded yet, the last build did not, or an input changed.
 bool rv_editor_app_run_builds(const rv_editor_app &app);
 // Buffers with a file name and unsaved changes: what a build would miss.

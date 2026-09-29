@@ -62,6 +62,12 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return false;
     }
+    const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
+    app.build_map = rv_editor_build_map_read(map_path);
+    if (app.build_map.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            map_path.string() + ": no map; reload targets fall back to the entry script");
+    }
     rv_editor_app_attach_session_log(app);
     return true;
 }
@@ -274,6 +280,8 @@ void rv_editor_app_build_saved(rv_editor_app &app)
     std::string error;
     app.build_first_seq = app.log.revision() + 1;
     app.run_after_build = false;
+    app.restart_after_build = false;
+    app.restart_after_stop = false;
     if (!app.build.start(app.project, app.tools, app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
         return;
@@ -303,6 +311,8 @@ void rv_editor_app_run_saved(rv_editor_app &app)
     if (rv_editor_app_why_not_run(app) != nullptr) {
         return;
     }
+    app.restart_after_build = false;
+    app.restart_after_stop = false;
     if (!rv_editor_app_run_builds(app)) {
         rv_editor_app_start(app, *app.build.last_success());
         return;
@@ -348,13 +358,6 @@ void rv_editor_app_stop(rv_editor_app &app)
     app.session.stop(app.log);
 }
 
-void rv_editor_app_reload(rv_editor_app &app)
-{
-    if (rv_editor_app_can_reload(app) && rv_editor_app_why_not_reload(app) == nullptr) {
-        app.session.reload(app.log);
-    }
-}
-
 bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
     std::string &error)
 {
@@ -394,9 +397,8 @@ void rv_editor_app_update(rv_editor_app &app)
         app.inputs_changed = true;
     }
     for (const std::filesystem::path &changed : app.files.changed) {
-        // Reload On Save waits for the writes to settle: every change moves it on.
-        if (changed.extension() == ".lua" && app.run_config.profiles[app.run_config.active].reload_on_save) {
-            app.reload_due = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+        if (app.run_config.profiles[app.run_config.active].reload_on_save) {
+            rv_editor_app_reload_queue_note(app, changed);
         }
         if (app.project.open && changed == app.project.manifest) {
             // disc.toml is the source of truth (PRJ-03): what the Project pane
@@ -440,12 +442,8 @@ void rv_editor_app_update(rv_editor_app &app)
         app.run_after_stop = false;
         rv_editor_app_run(app);
     }
-    // Due and no reload out: one reload for the whole burst; none when the session cannot take it.
-    if (app.reload_due != std::chrono::steady_clock::time_point{} && std::chrono::steady_clock::now() >= app.reload_due &&
-        !app.session.reloading()) {
-        app.reload_due = {};
-        rv_editor_app_reload(app);
-    }
+    rv_editor_app_build_restart_update(app, was_busy && !app.build.busy());
+    rv_editor_app_reload_queue_update(app);
 }
 
 void rv_editor_app_shutdown(rv_editor_app &app)
