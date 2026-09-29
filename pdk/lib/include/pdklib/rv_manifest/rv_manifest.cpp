@@ -179,6 +179,13 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     render_array(out, "files", manifest.textures_files.files);
     out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
 
+    // Unlike [textures], [sounds] is optional: a disc with no sound assets
+    // states nothing and the section is left off the rendered copy entirely.
+    if (!manifest.sounds_files.empty()) {
+        out << "\n[sounds]\n";
+        render_array(out, "files", manifest.sounds_files);
+    }
+
     const rv_manifest_budget &budget = manifest.budget;
 
     out << "\n[budget.pcca]\n";

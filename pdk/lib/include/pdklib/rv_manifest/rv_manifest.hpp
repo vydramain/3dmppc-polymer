@@ -137,6 +137,10 @@ struct rv_manifest {
     // [textures] - globs baked through mppcbaker on the way in
     rv_manifest_textures textures_files;
 
+    // [sounds] - WAV globs baked into headerless S16LE mono 44100 "<name>.pcm"
+    // by mppcbaker on the way in; no format key yet, there is only one output.
+    std::vector<std::string> sounds_files;
+
     // [budget]
     rv_manifest_budget budget;
 };

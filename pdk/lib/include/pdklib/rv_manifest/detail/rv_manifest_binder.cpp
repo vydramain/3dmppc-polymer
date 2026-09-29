@@ -71,6 +71,11 @@ constexpr bind_rule RULES[] = {
                 m.textures_files.format = row->format;
             }
         } },
+    { rv_manifest_section_sounds, // [sounds] files = [ … ]
+        rv_manifest_key_sounds_files,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.sounds_files = v.arr;
+        } },
     { rv_manifest_section_budget_pcca, // [budget.pcca] voice_count = N
         rv_manifest_key_budget_pcca_voice_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
