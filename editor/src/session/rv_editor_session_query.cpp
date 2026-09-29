@@ -22,7 +22,7 @@ int64_t rv_editor_field_int(const rv_editor_devmsg &msg, std::string_view key, i
 
 int64_t rv_editor_session::query(const std::string &request, rv_editor_log &log)
 {
-    if (!handshake_done_ || !live() || quit_sent_) {
+    if (!handshake_done_ || !proc_.running() || quit_sent_) {
         return 0;
     }
     return send(request, log);
@@ -30,7 +30,7 @@ int64_t rv_editor_session::query(const std::string &request, rv_editor_log &log)
 
 void rv_editor_session::reload(rv_editor_log &log)
 {
-    if (!handshake_done_ || !live() || quit_sent_ || reloading_) {
+    if (!handshake_done_ || !proc_.running() || quit_sent_ || reloading_) {
         return;
     }
     if (send("reload entry", log) != 0) {
@@ -40,7 +40,7 @@ void rv_editor_session::reload(rv_editor_log &log)
 
 void rv_editor_session::refresh(rv_editor_log &log)
 {
-    if (handshake_done_ && live() && !quit_sent_) {
+    if (handshake_done_ && proc_.running() && !quit_sent_) {
         send("status", log);
     }
 }

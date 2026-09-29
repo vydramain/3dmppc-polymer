@@ -114,7 +114,7 @@ public:
     void shutdown(rv_editor_log &log);
 
     rv_editor_run_state state() const { return state_; }
-    bool live() const;               // the process is running
+    bool live() const;               // started and not yet finish()ed: process running, or exited but still draining
     bool hung() const;               // stopping for longer than it should
     bool uncertain() const { return uncertain_; } // a request timed out: its effect is unknown
     int64_t frame() const { return frame_; }
@@ -122,7 +122,7 @@ public:
     uint32_t build_number() const { return build_number_; }
     const std::string &end_reason() const { return end_reason_; }
     const std::filesystem::path &disc_dir() const { return disc_dir_; }
-    bool connected() const { return handshake_done_ && live(); }
+    bool connected() const { return handshake_done_ && proc_.running(); }
     bool reloading() const { return reloading_; }
     // The last reload's answer in this session, as the runtime gave it; empty before one.
     const std::string &reload_result() const { return reload_result_; }
@@ -170,6 +170,7 @@ private:
     bool forced_ = false;
     bool handshake_done_ = false;
     bool channel_open_ = false;
+    bool finished_ = false;   // finish() ran for this session; never runs twice
     bool input_full_ = false; // said once: the runtime stopped reading its input
     uint32_t build_number_ = 0;
     uint32_t number_ = 0;

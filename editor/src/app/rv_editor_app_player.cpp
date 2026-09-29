@@ -51,6 +51,11 @@ void rv_editor_player_finish(rv_editor_app &app)
         r.player_out_partial.empty() ? std::string() : "\n");
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial,
         r.player_err_partial.empty() ? std::string() : "\n");
+    if (r.player->output_cut()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            "the player's output after exit was not fully read: a process it started kept the pipe open past the "
+            "grace", origin);
+    }
     const rv_editor_process::rv_editor_exit exit = r.player->exit_status();
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
         r.player_started).count();
@@ -165,14 +170,13 @@ void rv_editor_app_player_update(rv_editor_app &app)
     r.player->read(out, err, 65536);
     rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
-    if (r.player->poll()) {
-        out.clear();
-        err.clear();
-        r.player->read(out, err, 65536);
-        rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
-        rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
-        rv_editor_player_finish(app);
+    // Keep draining every frame until both pipes are at end of file or the grace
+    // since exit has passed: a process the player started may hold one open.
+    r.player->poll();
+    if (!r.player->settled()) {
+        return;
     }
+    rv_editor_player_finish(app);
 }
 
 } // namespace rv_editor
