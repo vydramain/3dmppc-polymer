@@ -311,7 +311,8 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     if (side_by_side) {
         ImGui::SameLine();
     }
-    ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true);
+    // An always-present scrollbar: wrapped text otherwise changes the width, the height and the scrollbar each frame.
+    ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme, app.project);
     ImGui::EndChild();
 }
