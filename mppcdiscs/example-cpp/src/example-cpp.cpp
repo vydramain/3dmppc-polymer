@@ -13,6 +13,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_xform.hpp"
 #include "pdklib/rv_scene/rv_scene.hpp"
+#include "pdklib/rv_scene/rv_scene_disc.hpp"
 // The scene loader is compiled into this disc here, once (see the header).
 #include "pdklib/rv_scene/rv_scene_unit.hpp"
 
@@ -77,12 +78,8 @@ public:
         }
 
         // No scene, or one that does not read: the disc runs without it and says why.
-        std::vector<uint8_t> scene;
         std::string error;
-        if (!read_asset(RV_EXAMPLE_CPP_SCENE_NAME, scene)) {
-            RV_LOG_WARN("scene", "{} is not on the disc", RV_EXAMPLE_CPP_SCENE_NAME);
-        } else if (rv_pdklib::rv_scene_parse(std::string(scene.begin(), scene.end()), RV_EXAMPLE_CPP_SCENE_NAME,
-                       scene_, error) != 0) {
+        if (rv_pdklib::rv_scene_load(rv_pdko_cd(pdk_), RV_EXAMPLE_CPP_SCENE_NAME, scene_, error) != 0) {
             RV_LOG_ERR("scene", "{}", error);
         }
 
