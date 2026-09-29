@@ -3,11 +3,13 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
 #include "imgui.h"
 
+#include "platform/rv_editor_process.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -28,6 +30,13 @@ rv_editor_status_kind rv_editor_build_lamp(rv_editor_build_state state)
     }
 }
 
+// True once the last job has finished: not idle, not still building.
+bool rv_editor_build_ended(rv_editor_build_state state)
+{
+    return state == rv_editor_build_state::succeeded || state == rv_editor_build_state::failed ||
+        state == rv_editor_build_state::cancelled;
+}
+
 } // namespace
 
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme)
@@ -44,6 +53,20 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
                                                    : "Candidate image " + b.image().filename().string();
         const std::string line = what + ": " + rv_editor_build_state_name(b.state());
         rv_editor_status(line.c_str(), rv_editor_build_lamp(b.state()), theme);
+    }
+
+    if (rv_editor_build_ended(b.state())) {
+        rv_editor_dim("Process: mppcburner, pid " + std::to_string(b.pid()));
+        rv_editor_dim("Exit: " + rv_editor_exit_text(b.exit_status()));
+        if (b.output_cut()) {
+            rv_editor_dim("Output after exit was not fully read.");
+        }
+        const std::filesystem::path log_file = app.log.file_of(b.pid());
+        const char *no_file = b.image().empty() ? "No log file was kept for this build."
+                                                 : "A candidate image's logs are kept beside the candidate.";
+        if (rv_editor_button("Open Build Log", theme, { rv_editor_look::live, log_file.empty() ? no_file : nullptr })) {
+            app.open_requests.push_back({ log_file, 0 });
+        }
     }
 
     if (rv_editor_button("Build", theme, { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {

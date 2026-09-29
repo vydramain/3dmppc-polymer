@@ -63,6 +63,10 @@ public:
     uint32_t number() const { return number_; }
     pid_t pid() const { return proc_.pid(); }
     const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
+    // How the burner ended: exit code, signal or still running.
+    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
+    // True when output after exit was not fully read.
+    bool output_cut() const { return proc_.output_cut(); }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
     // directories under this project's own builds directory are ever removed
