@@ -1,9 +1,21 @@
 #pragma once
 
+#include <filesystem>
+#include <string>
+
+#include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_options.hpp"
 
 namespace rv_pdktools
 {
+
+// --- shared by both subcommands ---
+//
+// [1/4] manifest is the first step of `build` and the whole of what
+// `bake-texture` needs before it can pick a texture, so both call this one
+// definition (rv_burner_build_runner.cpp) instead of loading disc.toml twice.
+int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::rv_manifest &manifest,
+    std::string &error);
 
 // --- the burn pipeline ---
 //
@@ -16,7 +28,7 @@ namespace rv_pdktools
 //
 // Each phase lives in its own directory and knows nothing about the others; what
 // they share sits in rv_burner_common/. This function is the only place the
-// order is written down, and the only place that prints the ladder — a phase
+// order is written down, and the only place that prints the ladder - a phase
 // reports by returning 0 or 1 and setting an error string, never by printing.
 
 /// Burn a disc directory into one .mppcdisc image.

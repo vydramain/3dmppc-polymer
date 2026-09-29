@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <system_error>
@@ -84,7 +83,7 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
 // --- [1/4] manifest ---
 //
 // Loads and validates the disc's manifest, and prints step 1.
-static int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error)
+int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error)
 {
     std::string er;
     const fs::path manifest_path = disc_dir / "disc.toml";
@@ -144,7 +143,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
     // Scripts and the memory they run in travel together, and the plan is the
     // first place both are known: the manifest states the budget, the glob
     // decides whether any .lua actually exists. Bytecode burned onto a disc
-    // whose manifest declares no [budget.pccl] is dead weight — the console
+    // whose manifest declares no [budget.pccl] is dead weight - the console
     // reads that manifest, finds no Lua machine, and the disc can never load
     // the very files it carries. That is a mistake to catch on the author's
     // desk, not a silent archive.
@@ -193,7 +192,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         }
     }
 
-    // Which of the two a script gets — left as .lua or turned into .luac — is
+    // Which of the two a script gets - left as .lua or turned into .luac - is
     // decided once here by the destination, in a switch rather than an
     // if/else chain, so a third destination kind added later fails to compile
     // instead of silently falling into one of these two. One failure check
@@ -208,7 +207,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         break;
     default:
         // Unreachable while rv_burner_destination_kind has only these two
-        // values — kept so the switch stays exhaustive under a compiler
+        // values - kept so the switch stays exhaustive under a compiler
         // warning and so a future third kind fails here, not silently.
         error = "unknown destination kind";
         break;
@@ -282,7 +281,7 @@ static void rv_burner_write_compile_database(const fs::path &disc_dir, const std
 // --- clean up ---
 //
 // The build tree is scratch space and goes away, unless the developer asked
-// to keep it — in which case it is a readable CMake project they can run
+// to keep it - in which case it is a readable CMake project they can run
 // `ninja -v` in. It is also kept after a FAILURE, by every early return in
 // rv_burner_build_run, for exactly that reason.
 static void rv_burner_build_cleanup(const fs::path &project_dir, bool keep_build)
@@ -295,47 +294,6 @@ static void rv_burner_build_cleanup(const fs::path &project_dir, bool keep_build
     if (ec) {
         rv_burner_print_warning(std::format("could not remove the build directory '{}'", project_dir.string()));
     }
-}
-
-// --- bake-texture: picking the one file out of [textures] ---
-//
-// Plans the whole archive the way build does (plan_archive) and picks the
-// texture entry whose source resolves to `source`, so a texture's selection
-// and its flat archive name can never drift from build's own rule
-// (rv_burner_plan.cpp) — this does not restate either rule.
-static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest, const fs::path &disc_dir,
-    const std::string &source, archive_item &out, std::string &error)
-{
-    std::error_code ec;
-    const fs::path source_arg(source);
-    const fs::path candidate = source_arg.is_absolute() ? source_arg : disc_dir / source_arg;
-    const fs::path canonical_source = fs::weakly_canonical(candidate, ec);
-    if (ec) {
-        error = std::format("'{}' does not exist", source);
-        return 1;
-    }
-
-    // Payload dirs are never read from or written to here; only the plan's
-    // names and sources are used, so a scratch directory that need not exist
-    // is enough.
-    const fs::path scratch = fs::temp_directory_path(ec);
-    archive_plan plan;
-    if (plan_archive(manifest, disc_dir, scratch, scratch, scratch, plan, error) != 0) {
-        return 1;
-    }
-
-    for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
-        const archive_item &item = plan.items[i];
-        std::error_code item_ec;
-        const fs::path item_canonical = fs::weakly_canonical(disc_dir / item.source, item_ec);
-        if (!item_ec && item_canonical == canonical_source) {
-            out = item;
-            return 0;
-        }
-    }
-
-    error = std::format("'{}' is not in [textures]", source);
-    return 1;
 }
 
 } // namespace rv_pdktools
@@ -452,60 +410,5 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     if (have_compile_database) {
         rv_burner_write_compile_database(disc_dir, compile_database);
     }
-    return 0;
-}
-
-int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
-{
-    std::error_code ec;
-    std::string error;
-
-    const fs::path disc_dir = fs::weakly_canonical(fs::path(options.operand), ec);
-    if (ec || !fs::is_directory(disc_dir, ec)) {
-        rv_burner_print_error(std::format("'{}' is not a directory", options.operand));
-        return 1;
-    }
-
-    rv_pdklib::rv_manifest manifest;
-    if (rv_burner_build_manifest(disc_dir, manifest, error) != 0) {
-        return 1;
-    }
-
-    archive_item item;
-    if (rv_burner_bake_texture_select(manifest, disc_dir, options.bake_source, item, error) != 0) {
-        rv_burner_print_error(error);
-        return 1;
-    }
-
-    const fs::path output_path = fs::absolute(fs::path(options.output), ec);
-    if (ec) {
-        rv_burner_print_error(std::format("cannot resolve output path '{}'", options.output));
-        return 1;
-    }
-    // Baked beside the final path and renamed into place only once mppcbaker
-    // and the budget check both passed, so a refusal never leaves a partial
-    // file at -o.
-    const fs::path temp_path = output_path.string() + ".tmp";
-    item.payload = temp_path.string();
-
-    archive_plan plan;
-    plan.items.push_back(item);
-    plan.texture_count = 1;
-
-    if (bake_textures(options.baker, manifest, disc_dir, plan, error) != 0) {
-        fs::remove(temp_path, ec);
-        rv_burner_print_error(error);
-        return 1;
-    }
-
-    fs::rename(temp_path, output_path, ec);
-    if (ec) {
-        const std::string rename_error = ec.message();
-        fs::remove(temp_path, ec);
-        rv_burner_print_error(std::format("cannot write '{}': {}", output_path.string(), rename_error));
-        return 1;
-    }
-
-    std::cout << item.name << "\n";
     return 0;
 }
