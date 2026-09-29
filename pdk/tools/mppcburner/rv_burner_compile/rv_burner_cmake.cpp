@@ -210,9 +210,13 @@ int rv_pdktools::configure_cmake(
     const fs::path &project_dir,
     std::string &error)
 {
+    // -DCMAKE_EXPORT_COMPILE_COMMANDS=ON: the standard cmake way to get a
+    // compile_commands.json for clangd. rv_burner_build_runner.cpp copies it
+    // out of binary_dir before this build tree is deleted.
     const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +
         " -B " + shell_quote(binary_dir.string()) +
-        " -DCMAKE_BUILD_TYPE=RelWithDebInfo";
+        " -DCMAKE_BUILD_TYPE=RelWithDebInfo" +
+        " -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
 
     std::string child_output;
     const int status = run_capture(configure, child_output);

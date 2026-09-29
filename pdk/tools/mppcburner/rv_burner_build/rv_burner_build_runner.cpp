@@ -4,7 +4,9 @@
 #include <expected>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -234,6 +236,49 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
     return 0;
 }
 
+// --- compile database for clangd ---
+//
+// configure_cmake() asked cmake to write compile_commands.json into binary_dir
+// (the standard cmake mechanism). Read here, before cleanup deletes binary_dir,
+// but written to disc_dir/.mppcburn only after cleanup runs: with a default
+// build_dir that IS disc_dir/.mppcburn, cleanup would otherwise remove the
+// copy along with the scratch tree it just left. Best-effort throughout: a
+// disc's compile database is a convenience, never a reason to fail a build.
+static bool rv_burner_read_compile_database(const fs::path &binary_dir, std::string &content)
+{
+    std::ifstream in(binary_dir / "compile_commands.json", std::ios::binary);
+    if (!in) {
+        return false;
+    }
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    content = buffer.str();
+    return true;
+}
+
+static void rv_burner_write_compile_database(const fs::path &disc_dir, const std::string &content)
+{
+    std::error_code ec;
+    const fs::path dest_dir = disc_dir / k_default_build_dir_name;
+    fs::create_directories(dest_dir, ec);
+    const fs::path dest = dest_dir / "compile_commands.json";
+    const fs::path temp = dest_dir / "compile_commands.json.tmp";
+
+    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+    out.write(content.data(), static_cast<std::streamsize>(content.size()));
+    bool ok = static_cast<bool>(out);
+    out.close();
+    if (ok) { // rename, not copy: a reader of dest never sees a half-written file
+        fs::rename(temp, dest, ec);
+        ok = !ec;
+    }
+    if (!ok) {
+        fs::remove(temp, ec);
+        rv_burner_print_warning(
+            std::format("could not export the compile database to '{}'", dest.string()));
+    }
+}
+
 // --- clean up ---
 //
 // The build tree is scratch space and goes away, unless the developer asked
@@ -378,6 +423,10 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return 1;
     }
 
+    // Read now, while binary_dir still exists; written out only after cleanup.
+    std::string compile_database;
+    const bool have_compile_database = rv_burner_read_compile_database(binary_dir, compile_database);
+
     // The phase above proved this file exists; the burn phase carries it.
     const fs::path disc_module = binary_dir / k_disc_module_name;
 
@@ -400,6 +449,9 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     }
 
     rv_burner_build_cleanup(project_dir, options.keep_build);
+    if (have_compile_database) {
+        rv_burner_write_compile_database(disc_dir, compile_database);
+    }
     return 0;
 }
 
