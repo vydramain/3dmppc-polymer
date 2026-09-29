@@ -98,7 +98,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         const bool open = (pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) ||
             (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
         if (open && there) {
-            app.open_requests.push_back({ p.file, p.line });
+            app.open_requests.push_back({ p.file, p.line, p.column });
         }
         ImGui::TableNextColumn();
         ImGui::Text("%d:%d", p.line, p.column);

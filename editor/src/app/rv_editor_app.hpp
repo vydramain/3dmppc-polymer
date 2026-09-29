@@ -222,6 +222,15 @@ enum class rv_editor_unsaved_ask
     run,
 };
 
+// A file the user asked to open, at a line (0: where nvim last had it) and an
+// optional 1-based column (0: start of line).
+struct rv_editor_open_request
+{
+    std::filesystem::path path;
+    int32_t line = 0;
+    int32_t column = 0;
+};
+
 // Everything one editor window works with. The models live here, outside the
 // tile tree; panes only look at them.
 struct rv_editor_app
@@ -236,7 +245,7 @@ struct rv_editor_app
     std::map<rv_editor_pane_id, rv_editor_files_view> files_views;
     // Files the user asked to open (Files, a new file, Problems, Search Results),
     // for the code editor to take, each at its line (0: where nvim last had it).
-    std::vector<std::pair<std::filesystem::path, int32_t>> open_requests;
+    std::vector<rv_editor_open_request> open_requests;
     // Binary files among them the user asked to see as text anyway (Files > Open as Text).
     std::set<std::filesystem::path> open_as_text;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;

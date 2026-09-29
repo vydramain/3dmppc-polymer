@@ -338,19 +338,19 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     // Files the user opened go to a code tile once its window exists. A binary
     // one opens as text only on the user's word: nvim would show it as noise.
     rv_editor_app &app = shell.app;
-    std::erase_if(app.open_requests, [&app](const std::pair<std::filesystem::path, int32_t> &request) {
+    std::erase_if(app.open_requests, [&app](const rv_editor_open_request &request) {
         uintmax_t size = 0;
-        if (app.open_as_text.erase(request.first) != 0 || !rv_editor_file_binary(request.first, size)) {
+        if (app.open_as_text.erase(request.path) != 0 || !rv_editor_file_binary(request.path, size)) {
             return false;
         }
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-            rv_editor_shell_buffer_label(app, request.first.string()) + " is binary (" + std::to_string(size) +
+            rv_editor_shell_buffer_label(app, request.path.string()) + " is binary (" + std::to_string(size) +
                 " bytes), not opened as text: Files > Open as Text shows it anyway");
         return true;
     });
     if (!app.open_requests.empty() && !app.nvim.problem.empty()) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-            "cannot open " + app.open_requests.front().first.string() + ": " + app.nvim.problem);
+            "cannot open " + app.open_requests.front().path.string() + ": " + app.nvim.problem);
         app.open_requests.clear();
     }
     if (!app.open_requests.empty()) {
@@ -362,8 +362,8 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
         const int64_t win = app.nvim.window_for(pane);
         if (win != 0) {
-            for (const auto &[path, line] : app.open_requests) {
-                app.nvim.open(win, path, line);
+            for (const auto &request : app.open_requests) {
+                app.nvim.open(win, request.path, request.line, request.column);
             }
             app.open_requests.clear();
             if (leaf != rv_editor_tile_none) {
