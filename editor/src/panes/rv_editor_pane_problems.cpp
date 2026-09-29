@@ -49,13 +49,27 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
-    size_t errors = 0;
+    size_t build_errors = 0;
+    size_t build_total = 0;
+    size_t lsp_errors = 0;
+    size_t lsp_total = 0;
     for (const rv_editor_problem &p : problems) {
-        errors += p.error ? 1 : 0;
+        if (p.source == "build") {
+            build_errors += p.error ? 1 : 0;
+            ++build_total;
+        } else {
+            lsp_errors += p.error ? 1 : 0;
+            ++lsp_total;
+        }
     }
-    const std::string what = std::string(b.busy() ? "Building" : "Build") +
+    std::string what = std::string(b.busy() ? "Building" : "Build") +
         (b.image().empty() ? " #" + std::to_string(b.number()) : " of " + b.image().filename().string()) + ": " +
-        std::to_string(errors) + " errors, " + std::to_string(problems.size() - errors) + " warnings";
+        std::to_string(build_errors) + " errors, " + std::to_string(build_total - build_errors) + " warnings";
+    if (lsp_total != 0) {
+        what += "; language servers: " + std::to_string(lsp_errors) + " errors, " +
+            std::to_string(lsp_total - lsp_errors) + " warnings";
+    }
+    const size_t errors = build_errors + lsp_errors;
     rv_editor_status(what.c_str(), errors != 0 ? rv_editor_status_kind::error
             : problems.empty()               ? rv_editor_status_kind::ok
                                              : rv_editor_status_kind::warning,
