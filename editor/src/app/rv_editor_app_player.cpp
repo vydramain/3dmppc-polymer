@@ -16,16 +16,27 @@ namespace rv_editor
 namespace
 {
 
-// Its output as log lines, each whole; a line still being written waits.
-void rv_editor_player_lines(rv_editor_app &app, const std::string &bytes)
+// The candidate's number the player runs, or 0 outside a run.
+uint32_t rv_editor_player_run(const rv_editor_release &r)
+{
+    return r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()
+        ? r.candidates[static_cast<size_t>(r.player_candidate)].number
+        : 0;
+}
+
+// One stream's output as log lines, each whole; a line still being written waits.
+void rv_editor_player_lines(rv_editor_app &app, rv_editor_log_channel channel, std::string &partial,
+    const std::string &bytes)
 {
     rv_editor_release &r = app.release;
-    r.player_partial += bytes;
+    partial += bytes;
+    const int64_t pid = r.player->pid();
+    const uint32_t run = rv_editor_player_run(r);
     size_t nl = 0;
-    while ((nl = r.player_partial.find('\n')) != std::string::npos) {
-        const std::string line = r.player_partial.substr(0, nl);
-        r.player_partial.erase(0, nl + 1);
-        app.log.add(rv_editor_log_source::runtime, rv_editor_log_level::info, "player: " + line);
+    while ((nl = partial.find('\n')) != std::string::npos) {
+        const std::string line = partial.substr(0, nl);
+        partial.erase(0, nl + 1);
+        app.log.add(rv_editor_log_source::runtime, rv_editor_log_level::info, "player: " + line, channel, pid, run);
         r.player_output += line + "\n";
     }
 }
@@ -33,12 +44,18 @@ void rv_editor_player_lines(rv_editor_app &app, const std::string &bytes)
 void rv_editor_player_finish(rv_editor_app &app)
 {
     rv_editor_release &r = app.release;
-    rv_editor_player_lines(app, r.player_partial.empty() ? std::string() : "\n");
+    const int64_t pid = r.player->pid();
+    const uint32_t run = rv_editor_player_run(r);
+    rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial,
+        r.player_out_partial.empty() ? std::string() : "\n");
+    rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial,
+        r.player_err_partial.empty() ? std::string() : "\n");
     const rv_editor_process::rv_editor_exit exit = r.player->exit_status();
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
         r.player_started).count();
     const std::string ended = rv_editor_exit_text(exit) + " after " + std::to_string(seconds) + " s";
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "player ended: " + ended);
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "player ended: " + ended,
+        rv_editor_log_channel::none, pid, run);
     if (r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()) {
         rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.player_candidate)];
         // Stopped by the editor is the operator's act and proves no normal exit (REL-07).
@@ -59,7 +76,8 @@ void rv_editor_player_finish(rv_editor_app &app)
         std::string error;
         if (!rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, "player-" + std::to_string(k)),
                 r.player_output, error)) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player log not kept: " + error);
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player log not kept: " + error,
+                rv_editor_log_channel::none, pid, run);
         }
     }
     r.player.reset();
@@ -115,11 +133,13 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     r.player_started = std::chrono::steady_clock::now();
     r.player_stopped = false;
     r.player_output.clear();
-    r.player_partial.clear();
+    r.player_out_partial.clear();
+    r.player_err_partial.clear();
     rv_editor_check_set(c, rv_editor_check_player, rv_editor_check_state::running,
         "pid " + std::to_string(r.player->pid()), app.tools.player.path.string());
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-        "player started on candidate #" + std::to_string(c.number) + ": pid " + std::to_string(r.player->pid()));
+        "player started on candidate #" + std::to_string(c.number) + ": pid " + std::to_string(r.player->pid()),
+        rv_editor_log_channel::none, r.player->pid(), c.number);
 }
 
 void rv_editor_app_stop_player(rv_editor_app &app)
@@ -131,7 +151,8 @@ void rv_editor_app_stop_player(rv_editor_app &app)
     // The first ask is a polite SIGTERM; asked again, it is killed.
     r.player->stop(r.player_stopped);
     r.player_stopped = true;
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "player stopped by the operator");
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "player stopped by the operator",
+        rv_editor_log_channel::none, r.player->pid(), rv_editor_player_run(r));
 }
 
 void rv_editor_app_player_update(rv_editor_app &app)
@@ -143,12 +164,14 @@ void rv_editor_app_player_update(rv_editor_app &app)
     std::string out;
     std::string err;
     r.player->read(out, err, 65536);
-    rv_editor_player_lines(app, out + err);
+    rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
+    rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
     if (r.player->poll()) {
         out.clear();
         err.clear();
         r.player->read(out, err, 65536);
-        rv_editor_player_lines(app, out + err);
+        rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
+        rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
         rv_editor_player_finish(app);
     }
 }

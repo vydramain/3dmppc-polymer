@@ -206,7 +206,8 @@ struct rv_editor_release
     std::chrono::steady_clock::time_point player_started{};
     bool player_stopped = false;
     std::string player_output;
-    std::string player_partial;
+    std::string player_out_partial;
+    std::string player_err_partial;
     std::string report;        // the last report written
     std::string error;
 };
