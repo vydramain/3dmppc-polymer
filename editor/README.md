@@ -13,7 +13,8 @@ as folder tabs. Dragging a tile's header or a tab to the edge of another tile,
 or into its tab strip, shows where it would land before it is dropped there;
 Escape cancels the drag and the tile stays where it was. Each kind of pane
 keeps a minimum size of its own - a log pane room for its control row, the
-Game its frame at 1x, a strip of buttons its buttons - so a default layout's
+Game its mode row and status line (the picture shrinks below 1x to fit, and
+never grows past the tile), a strip of buttons its buttons - so a default layout's
 controls stay visible even at 1200x800. The tile with the focus wears a brass
 frame; Ctrl+F6 and Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move
 the keyboard between tiles, as Tab belongs to the code editor and the
