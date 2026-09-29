@@ -274,7 +274,7 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
 
 void rv_editor_shell_update(rv_editor_shell &shell)
 {
-    rv_editor_shell_fit_game(shell);
+    rv_editor_shell_frame_start(shell);
     rv_editor_app_update(shell.app);
     // Build, Run or Build and Restart met unsaved files: the question opens, unless another is open.
     if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {

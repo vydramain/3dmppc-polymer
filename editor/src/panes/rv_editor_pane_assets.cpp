@@ -116,8 +116,21 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
         ImGui::SetItemTooltip("%s\nOn the disc: %s (%s%s%s)", a.rel.c_str(), entry->second.name.c_str(),
             entry->second.kind.c_str(), entry->second.parameter.empty() ? "" : ", ", entry->second.parameter.c_str());
     }
-    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && a.path.extension() != ".png") {
-        app.open_requests.push_back({ a.path, 0 });
+    if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
+        const std::string ext = a.path.extension().string();
+        if (ext == ".png" || ext == ".wav" || ext == ".pcm") {
+            rv_editor_app_scene_tab_open(app, a.path);
+            app.layout_request = rv_editor_layout_preset::scene;
+            app.show_request = rv_editor_pane_kind::scene;
+        } else if (a.rel.ends_with(".scene.toml")) {
+            rv_editor_app_scene_open(app, a.path);
+            app.scene_tabs.front = 0;
+            app.layout_request = rv_editor_layout_preset::scene;
+            app.show_request = rv_editor_pane_kind::scene;
+        } else {
+            app.layout_request = rv_editor_layout_preset::code;
+            app.open_requests.push_back({ a.path, 0 });
+        }
     }
 }
 

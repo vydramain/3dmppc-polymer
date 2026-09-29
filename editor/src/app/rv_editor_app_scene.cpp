@@ -67,6 +67,25 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app)
 
 void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path)
 {
+    if (rv_editor_app_scene_dirty(app)) {
+        std::error_code ec_a;
+        std::error_code ec_b;
+        std::filesystem::path current = std::filesystem::weakly_canonical(app.scene->scene.path, ec_a);
+        std::filesystem::path other = std::filesystem::weakly_canonical(path, ec_b);
+        if (ec_a || ec_b) {
+            current = app.scene->scene.path.lexically_normal();
+            other = path.lexically_normal();
+        }
+        if (current == other) {
+            return; // already open, with its edits
+        }
+        const std::string current_label = rv_editor_app_scene_name(app);
+        const std::string other_label = rv_editor_scene_label(app, path);
+        app.scene_error = current_label + " has unsaved changes: save it (Scene > Save Scene) or undo them "
+                                           "before opening " + other_label;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.scene_error);
+        return;
+    }
     rv_editor_scene scene;
     std::string error;
     if (!rv_editor_scene_load(path, scene, error)) {
@@ -96,6 +115,11 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
 
 bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error)
 {
+    if (rv_editor_app_scene_dirty(app)) {
+        error = rv_editor_app_scene_name(app) + " has unsaved changes: save it (Scene > Save Scene) or undo "
+                                                 "them before creating a new scene";
+        return false;
+    }
     if (!rv_editor_scene_name_valid(name)) {
         error = "name must be non-empty letters, digits, _ or -";
         return false;
@@ -160,6 +184,7 @@ bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
         return false;
     }
     app.scene->dirty = false;
+    app.scene_error.clear();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "saved " + rv_editor_app_scene_name(app));
     return true;
 }

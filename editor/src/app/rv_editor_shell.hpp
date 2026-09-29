@@ -136,6 +136,12 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
 // splitter; a strip of controls keeps its height. Saved trees are left as they are.
 void rv_editor_shell_fit_game(rv_editor_shell &shell);
 
+// Once a frame: switches layout if Assets asked for one (see rv_editor_shell_frame_start).
+void rv_editor_shell_take_layout_request(rv_editor_shell &shell);
+
+// Once a frame, before drawing: takes the layout request, then fits the Game.
+void rv_editor_shell_frame_start(rv_editor_shell &shell);
+
 // Each layout's saved tree from `path`-<name> (read from the file an earlier
 // editor kept it in while that is missing), or its starting one when there is
 // none or it cannot be read; then shows `active` ("code", "scene", "debug",

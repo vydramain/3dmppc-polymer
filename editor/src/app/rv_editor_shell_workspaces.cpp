@@ -112,6 +112,21 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
     shell.app.game_area = { 0, 0 };
 }
 
+// Assets asked for a layout (double click): switched before this frame's open requests are taken.
+void rv_editor_shell_take_layout_request(rv_editor_shell &shell)
+{
+    if (shell.app.layout_request) {
+        rv_editor_shell_switch(shell, *shell.app.layout_request);
+        shell.app.layout_request.reset();
+    }
+}
+
+void rv_editor_shell_frame_start(rv_editor_shell &shell)
+{
+    rv_editor_shell_take_layout_request(shell);
+    rv_editor_shell_fit_game(shell);
+}
+
 void rv_editor_shell_fit_game(rv_editor_shell &shell)
 {
     const size_t slot = rv_editor_workspace_slot(shell.active);

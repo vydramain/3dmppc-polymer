@@ -56,6 +56,11 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
     if (!app.scene->scene.read_only.empty()) {
         ImGui::TextWrapped("Read-only: %s", app.scene->scene.read_only.c_str());
     }
+    if (!app.scene_error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
+        ImGui::TextWrapped("%s", app.scene_error.c_str());
+        ImGui::PopStyleColor();
+    }
     rv_editor_scene_viewport(app, theme);
 }
 

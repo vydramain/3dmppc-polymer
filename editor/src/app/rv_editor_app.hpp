@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -297,6 +298,8 @@ struct rv_editor_app
     // Asked by a pane, done by the window next frame: a pane to bring forward, a new
     // Untitled buffer.
     rv_editor_pane_kind show_request = rv_editor_pane_kind::empty;
+    // A double click in Assets asked for this layout; nullopt: none (see rv_editor_shell_take_layout_request).
+    std::optional<rv_editor_layout_preset> layout_request;
     bool new_file_request = false;
     // The session in Debug: the profile it started with, and Mark Moment's marks,
     // "frame 812: the door opens late".
@@ -353,6 +356,8 @@ struct rv_editor_app
 std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app &app);
 bool rv_editor_app_scene_dirty(const rv_editor_app &app);
 std::string rv_editor_app_scene_name(const rv_editor_app &app);
+// If the open scene is unsaved: does nothing when path is that same scene, else
+// leaves it open and sets scene_error naming both, refusing to open path.
 void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
