@@ -276,15 +276,16 @@ void rv_editor_shell_update(rv_editor_shell &shell)
 {
     rv_editor_shell_fit_game(shell);
     rv_editor_app_update(shell.app);
-    // Build or Run met unsaved files: the question opens, unless another is open.
+    // Build, Run or Build and Restart met unsaved files: the question opens, unless another is open.
     if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {
-        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build ? rv_editor_shell::rv_editor_leave::build
-                                                                              : rv_editor_shell::rv_editor_leave::run;
+        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build
+            ? rv_editor_shell::rv_editor_leave::build
+            : shell.app.unsaved_ask == rv_editor_unsaved_ask::run ? rv_editor_shell::rv_editor_leave::run
+                                                                   : rv_editor_shell::rv_editor_leave::build_restart;
     }
     shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
     rv_editor_shell_review_tab(shell);
-
 
     rv_editor_app &requests = shell.app;
     requests.preset = shell.active;
@@ -325,6 +326,14 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     if (shell.last_code == rv_editor_tile_none || !rv_editor_shell_pane_kept(shell, shell.last_code)) {
         const std::vector<rv_editor_pane_id> code = rv_editor_code_panes(shell.ws);
         shell.last_code = code.empty() ? rv_editor_tile_none : code.front();
+    }
+    // last_code's file, for Reload; empty unless the tile already has a window.
+    shell.app.code_file.clear();
+    if (const auto held = shell.app.nvim.panes(); std::find(held.begin(), held.end(), shell.last_code) != held.end()) {
+        const rv_editor_nvim_buffer *buf = shell.app.nvim.buffer_in(shell.app.nvim.window_for(shell.last_code));
+        if (buf != nullptr && !buf->name.empty()) {
+            shell.app.code_file = buf->name;
+        }
     }
 
     // A Terminal tile that left every workspace's tree, or became another kind,

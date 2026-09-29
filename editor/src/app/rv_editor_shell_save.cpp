@@ -208,13 +208,15 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
         shell.quit_now = true;
     } else if (shell.leaving == leave::open) {
         rv_editor_shell_open_now(shell, shell.leaving_to);
-    } else if (shell.leaving == leave::build || shell.leaving == leave::run) {
+    } else if (shell.leaving == leave::build || shell.leaving == leave::run || shell.leaving == leave::build_restart) {
         // Just written: the watcher may not have said so yet.
         shell.app.inputs_changed = true;
         if (shell.leaving == leave::build) {
             rv_editor_app_build_saved(shell.app);
-        } else {
+        } else if (shell.leaving == leave::run) {
             rv_editor_app_run_saved(shell.app);
+        } else {
+            rv_editor_app_build_restart_saved(shell.app);
         }
     }
     shell.leaving = leave::none;
@@ -339,9 +341,10 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     }
     const rv_editor_state busy = shell.saving ? rv_editor_state{ rv_editor_look::live, "Waiting for nvim to answer" }
                                               : rv_editor_state{};
-    // Build and Run go ahead without saving too: they use the files as on disk.
-    const bool ahead = shell.leaving == leave::build || shell.leaving == leave::run;
-    const char *verb = shell.leaving == leave::build ? "Build" : "Run";
+    // Build, Run and Build and Restart go ahead without saving too: they use the files as on disk.
+    const bool ahead = shell.leaving == leave::build || shell.leaving == leave::run || shell.leaving == leave::build_restart;
+    const char *verb =
+        shell.leaving == leave::build ? "Build" : shell.leaving == leave::run ? "Run" : "Build and Restart";
     ImGui::TextWrapped("%s", shell.leaving == leave::quit
             ? "The editor closes once these files are saved or discarded; Return keeps it open:"
             : shell.leaving == leave::open
@@ -380,8 +383,10 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
             shell.save_failed.clear();
             if (saved && was == leave::build) {
                 rv_editor_app_build_saved(app);
-            } else if (saved) {
+            } else if (saved && was == leave::run) {
                 rv_editor_app_run_saved(app);
+            } else if (saved) {
+                rv_editor_app_build_restart_saved(app);
             }
         }
         return;
