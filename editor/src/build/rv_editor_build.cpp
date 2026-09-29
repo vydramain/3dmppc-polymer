@@ -177,17 +177,19 @@ void rv_editor_build::update(rv_editor_log &log)
         std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
         proc_.stop(true);
     }
-    if (!proc_.poll()) {
+    proc_.poll();
+    // Keep draining every frame until both pipes are at end of file or the grace
+    // since exit has passed: a grandchild the burner started may hold one open.
+    if (!proc_.settled()) {
         return;
     }
-    // Whatever the pipes still held when it ended.
-    out.clear();
-    err.clear();
-    proc_.read(out, err, 1 << 20);
-    log.add_stream(source, out_partial_, out, out_origin);
-    log.add_stream(source, err_partial_, err, err_origin);
     log.flush_stream(source, out_partial_, out_origin);
     log.flush_stream(source, err_partial_, err_origin);
+    if (proc_.output_cut()) {
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            "output after exit was not fully read: a process it started kept the pipe open past the grace",
+            none_origin);
+    }
 
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
     if (!image_.empty()) {

@@ -98,6 +98,7 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     close_fds();
     pending_.clear();
     exit_ = {};
+    cut_ = false;
     pid_ = -1;
 
     int in[2] = { -1, -1 };
@@ -261,7 +262,26 @@ bool rv_editor_process::poll()
     } else if (WIFSIGNALED(status)) {
         exit_.signal = WTERMSIG(status);
     }
+    exited_at_ = std::chrono::steady_clock::now();
     rv_editor_close(in_);
+    return true;
+}
+
+bool rv_editor_process::settled()
+{
+    if (!exit_.exited) {
+        return false;
+    }
+    if (out_ < 0 && err_ < 0) {
+        return true;
+    }
+    if (std::chrono::steady_clock::now() - exited_at_ < settle_grace) {
+        return false;
+    }
+    // A grandchild is still holding a pipe open past the grace: stop waiting.
+    cut_ = true;
+    rv_editor_close(out_);
+    rv_editor_close(err_);
     return true;
 }
 
