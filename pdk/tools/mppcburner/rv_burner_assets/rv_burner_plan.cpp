@@ -86,6 +86,7 @@ int rv_pdktools::plan_archive(
     const fs::path &disc_dir,
     const fs::path &texture_dir,
     const fs::path &scripts_dir,
+    const fs::path &sound_dir,
     archive_plan &out,
     std::string &error)
 {
@@ -110,6 +111,13 @@ int rv_pdktools::plan_archive(
 
     if (plan_section(manifest.scripts_sources, "[scripts] sources", disc_dir, scripts_dir,
             ".luac", plan, plan.first_script, plan.script_count, error) != 0) {
+        return 1;
+    }
+
+    // --- sounds ---
+
+    if (plan_section(manifest.sounds_files, "[sounds] files", disc_dir, sound_dir,
+            ".pcm", plan, plan.first_sound, plan.sound_count, error) != 0) {
         return 1;
     }
 

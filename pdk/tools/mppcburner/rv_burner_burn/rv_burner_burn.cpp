@@ -139,9 +139,10 @@ static int publish_text(const fs::path &dest, const std::string &text, std::stri
     return finish_publish(tmp, dest, error);
 }
 
-// A finished product: disc.so and a baked .mppctex. Nothing points back at
-// these once written, so a copy is the honest relationship - a symlink to a
-// PNG would not even be the right BYTES for a baked texture.
+// A finished product: disc.so, a baked .mppctex, or a baked .pcm. Nothing
+// points back at these once written, so a copy is the honest relationship -
+// a symlink to a PNG (or a WAV) would not even be the right BYTES for a
+// baked texture (or sound).
 static int publish_copy(const fs::path &dest, const fs::path &source, std::string &error)
 {
     const fs::path tmp = temp_sibling(dest);
@@ -220,16 +221,19 @@ int rv_pdktools::burn_directory(
 
     // --- everything the plan named ---
     //
-    // Textures are finished products and are copied; everything else (copied
-    // assets and, for an unpacked build, scripts) is the developer's own file
-    // and is symlinked so an edit stays visible.
+    // Textures and sounds are finished products (baked from a source the
+    // player never sees, in a work directory that goes away after the
+    // build) and are copied; everything else (copied assets and, for an
+    // unpacked build, scripts) is the developer's own file and is
+    // symlinked so an edit stays visible.
 
     for (std::size_t i = 0; i < plan.items.size(); ++i) {
         const archive_item &item = plan.items[i];
         const bool is_texture = i >= plan.first_texture && i < plan.first_texture + plan.texture_count;
+        const bool is_sound = i >= plan.first_sound && i < plan.first_sound + plan.sound_count;
         const fs::path dest = output_dir / item.name;
 
-        const int rc = is_texture
+        const int rc = (is_texture || is_sound)
             ? publish_copy(dest, item.payload, error)
             : publish_link(dest, item.payload, error);
         if (rc != 0) {

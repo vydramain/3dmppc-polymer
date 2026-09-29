@@ -35,6 +35,7 @@ static constexpr const char *k_default_build_dir_name = ".mppcburn";
 static constexpr const char *k_binary_subdir = "build";
 static constexpr const char *k_scripts_subdir = "scripts";
 static constexpr const char *k_textures_subdir = "textures";
+static constexpr const char *k_sounds_subdir = "sounds";
 
 // The module compile_sources() produces, at the path the burn phase reads it
 // from.
@@ -130,9 +131,9 @@ static int rv_burner_build_compile(const rv_burner_options &options, const rv_pd
 // Plans, checks, compiles or copies scripts, bakes textures, and prints step 3.
 static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir, const fs::path &texture_dir, const fs::path &scripts_dir,
-    const rv_burner_destination &destination, archive_plan &plan, std::string &error)
+    const fs::path &sound_dir, const rv_burner_destination &destination, archive_plan &plan, std::string &error)
 {
-    if (plan_archive(manifest, disc_dir, texture_dir, scripts_dir, plan, error) != 0) {
+    if (plan_archive(manifest, disc_dir, texture_dir, scripts_dir, sound_dir, plan, error) != 0) {
         rv_burner_print_error(error);
         return 1;
     }
@@ -219,11 +220,16 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         return 1;
     }
 
+    if (bake_sounds(options.baker, disc_dir, plan, error) != 0) {
+        rv_burner_print_error(error);
+        return 1;
+    }
+
     const char *scripts_wording =
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
     rv_burner_print_step(3, "assets",
-        std::format("{} png -> .mppctex, {} {}, {} copied", plan.texture_count, plan.script_count,
-            scripts_wording, plan.asset_count));
+        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied", plan.texture_count,
+            plan.sound_count, plan.script_count, scripts_wording, plan.asset_count));
     return 0;
 }
 
@@ -314,10 +320,12 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     const fs::path binary_dir = project_dir / k_binary_subdir;
     const fs::path scripts_dir = project_dir / k_scripts_subdir;
     const fs::path texture_dir = project_dir / k_textures_subdir;
+    const fs::path sound_dir = project_dir / k_sounds_subdir;
 
     fs::create_directories(binary_dir, ec);
     fs::create_directories(scripts_dir, ec);
     fs::create_directories(texture_dir, ec);
+    fs::create_directories(sound_dir, ec);
     if (ec) {
         rv_burner_print_error(std::format("cannot create build directory '{}'", project_dir.string()));
         return 1;
@@ -332,8 +340,8 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     const fs::path disc_module = binary_dir / k_disc_module_name;
 
     archive_plan plan;
-    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, destination,
-            plan, error) != 0) {
+    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, sound_dir,
+            destination, plan, error) != 0) {
         return 1;
     }
 
