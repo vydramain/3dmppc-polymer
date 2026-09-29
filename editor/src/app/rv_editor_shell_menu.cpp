@@ -201,11 +201,20 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item("Stop", "Shift+F5", rv_editor_app_why_not_stop(app))) {
         rv_editor_app_stop(app);
     }
-    const char *why_not_reload = rv_editor_app_can_reload(app)
+    const bool can_reload = app.session.live() && rv_editor_app_can_reload(app);
+    const char *why_not_reload = can_reload
         ? rv_editor_app_why_not_reload(app)
         : "The running disc cannot reload: it runs from an image, or has no entry script";
-    if (rv_editor_menu_item("Reload Entry Script", "F8", why_not_reload)) {
+    const rv_editor_change_plan reload_plan = can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
+    const std::string reload_label =
+        reload_plan.action == rv_editor_change_action::reload_module ? "Reload Module: " + reload_plan.name
+                                                                      : "Reload Entry Script";
+    if (rv_editor_menu_item(reload_label.c_str(), "F8", why_not_reload)) {
         rv_editor_app_reload(app);
+    }
+    const char *why_not_build_restart = app.session.live() ? rv_editor_app_why_not_build(app) : "No game is running";
+    if (rv_editor_menu_item("Build and Restart", nullptr, why_not_build_restart)) {
+        rv_editor_app_build_restart(app);
     }
     ImGui::Separator();
     if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {

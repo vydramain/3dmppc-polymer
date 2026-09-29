@@ -380,13 +380,14 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
 
     // LSP note: nothing when running, otherwise why diagnostics/completion are
     // absent for this file type, with the exact reason as a tooltip.
+    float note_x = status.x + cell.x * 2 + ImGui::CalcTextSize(label.c_str()).x;
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         const std::string server = nvim.lsp_server_for(buf->name);
         const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
         if (lsp != nullptr && lsp->state != "running") {
             const std::string note =
                 "LSP: " + server + " " + (lsp->state == "missing" ? "not running" : "stopped");
-            const ImVec2 note_pos(status.x + cell.x * 2 + ImGui::CalcTextSize(label.c_str()).x, status.y);
+            const ImVec2 note_pos(note_x, status.y);
             dl->AddText(note_pos, rv_editor_rgb(theme.code_yellow), note.c_str());
             if (!lsp->reason.empty()) {
                 ImGui::SetCursorScreenPos(note_pos);
@@ -394,6 +395,51 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
                 ImGui::InvisibleButton("##lsp_note", ImGui::CalcTextSize(note.c_str()));
                 ImGui::PopID();
                 ImGui::SetItemTooltip("%s", lsp->reason.c_str());
+            }
+            note_x += ImGui::CalcTextSize(note.c_str()).x + cell.x;
+        }
+    }
+
+    // What saving this file does to the running game, from the change classifier.
+    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win);
+        app.session.live() && buf != nullptr && !buf->name.empty()) {
+        const rv_editor_change_plan plan = rv_editor_app_change_for(app, buf->name);
+        const char *text = nullptr;
+        std::string owned;
+        bool warn = false;
+        switch (plan.action) {
+        case rv_editor_change_action::reload_entry:
+            text = "Reload: entry script";
+            break;
+        case rv_editor_change_action::reload_module:
+            owned = "Reload: module " + plan.name;
+            text = owned.c_str();
+            break;
+        case rv_editor_change_action::refresh_texture:
+            text = "Texture: Build and Restart";
+            warn = true;
+            break;
+        case rv_editor_change_action::build_restart:
+        case rv_editor_change_action::restart_required:
+            text = "Build and Restart";
+            warn = true;
+            break;
+        case rv_editor_change_action::not_in_disc:
+            text = "Not on the running disc";
+            warn = true;
+            break;
+        case rv_editor_change_action::none:
+            break;
+        }
+        if (text != nullptr) {
+            const ImVec2 note_pos(note_x, status.y);
+            dl->AddText(note_pos, rv_editor_rgb(warn ? theme.code_yellow : theme.code_blue), text);
+            if (!plan.reason.empty()) {
+                ImGui::SetCursorScreenPos(note_pos);
+                ImGui::PushID(static_cast<int>(win));
+                ImGui::InvisibleButton("##save_note", ImGui::CalcTextSize(text));
+                ImGui::PopID();
+                ImGui::SetItemTooltip("%s", plan.reason.c_str());
             }
         }
     }
