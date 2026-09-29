@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -14,6 +15,15 @@ namespace rv_editor
 
 // The panes that look at the editor's models. Each draws into the current ImGui
 // window and changes the models only through rv_editor_app's commands.
+
+// Shared by more than one pane; defined once in rv_editor_pane_observe.cpp.
+
+// A dimmed wrapped line, for an empty state or a footnote.
+void rv_editor_dim(const std::string &text);
+// A wall-clock stamp, "14:03:27.412".
+std::string rv_editor_clock(std::chrono::system_clock::time_point at);
+// One label and its value on a row of a two-column table (its BeginTable already open).
+void rv_editor_fact(const char *label, const std::string &value);
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
 // wraps when narrow; Open Project without a project.
