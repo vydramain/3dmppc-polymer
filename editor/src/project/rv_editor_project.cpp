@@ -12,7 +12,9 @@
 
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
+#include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "platform/rv_editor_process.hpp"
+#include "project/rv_editor_manifest_edit.hpp"
 
 namespace rv_editor
 {
@@ -228,6 +230,10 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     std::string error;
     if (rv_pdklib::rv_manifest_load(project.manifest.string(), manifest, error) != 0) {
         project.manifest_error = error;
+        project.assets_patterns.clear();
+        project.textures_patterns.clear();
+        project.sounds_patterns.clear();
+        project.has_build_section = false;
         return;
     }
     project.manifest_error.clear();
@@ -235,6 +241,43 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.disc_title = manifest.disc_title;
     project.screen_w = manifest.budget.pccv.screen_width;
     project.screen_h = manifest.budget.pccv.screen_height;
+    project.assets_patterns = manifest.assets_files;
+    project.textures_patterns = manifest.textures_files.files;
+    project.sounds_patterns = manifest.sounds_files;
+    project.has_build_section = !manifest.build_sources.empty();
+}
+
+bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel)
+{
+    for (const auto *patterns : { &project.assets_patterns, &project.textures_patterns, &project.sounds_patterns }) {
+        for (const std::string &pattern : *patterns) {
+            if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+const char *rv_editor_project_disc_section(std::string_view rel)
+{
+    if (rel.ends_with(".png")) {
+        return "textures";
+    }
+    if (rel.ends_with(".wav")) {
+        return "sounds";
+    }
+    return "assets";
+}
+
+bool rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
+{
+    const char *section = rv_editor_project_disc_section(rel);
+    if (!rv_editor_manifest_add_pattern(project.manifest, section, rel, error)) {
+        return false;
+    }
+    rv_editor_project_reload_manifest(project);
+    return true;
 }
 
 } // namespace rv_editor

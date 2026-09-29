@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <string>
+#include <string_view>
+#include <vector>
 
 namespace rv_editor
 {
@@ -66,7 +68,22 @@ struct rv_editor_project
     int64_t screen_h = 240;
     std::filesystem::path cache_dir; // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir; // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
+    std::vector<std::string> assets_patterns;   // [assets] files, relative to root
+    std::vector<std::string> textures_patterns; // [textures] files, relative to root
+    std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
+    bool has_build_section = false;             // disc.toml has [build] sources: a C++ disc
 };
+
+// True when `rel` (relative to p.root, '/'-separated) matches a pattern in
+// any of the three sections above.
+bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel);
+
+// The disc.toml section a project file belongs to, by extension.
+const char *rv_editor_project_disc_section(std::string_view rel);
+
+// Adds `rel` itself as a pattern to its section and reloads the manifest.
+// False with the reason on failure; disc.toml is untouched on failure.
+bool rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error);
 
 // Opens `target`, a directory or its disc.toml. False with the reason when it
 // is neither a directory with disc.toml nor a disc.toml.
