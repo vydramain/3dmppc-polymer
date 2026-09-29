@@ -64,6 +64,10 @@ public:
     const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
     // The burner's pid while a build runs; stale once it has ended.
     pid_t pid() const { return proc_.pid(); }
+    // How the burner ended; only meaningful once the job is no longer building.
+    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
+    // True once the burner's output was cut short of end of file.
+    bool output_cut() const { return proc_.output_cut(); }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
     // directories under this project's own builds directory are ever removed
