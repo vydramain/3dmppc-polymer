@@ -68,6 +68,21 @@ struct rv_editor_answer
     std::chrono::system_clock::time_point at{};
 };
 
+// The last `ok` reply the session handled, whichever request it answered.
+struct rv_editor_session_last_op
+{
+    std::string verb;
+    int64_t frame = 0;
+    std::chrono::system_clock::time_point at{};
+};
+
+// A request still waiting for an answer when the session ended.
+struct rv_editor_session_pending_op
+{
+    std::string verb;
+    bool overdue = false; // already reported as of unknown effect
+};
+
 // One runtime session (DEV-01..DEV-10): `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
@@ -136,6 +151,14 @@ public:
     const std::map<std::string, rv_editor_answer> &answers() const { return answers_; }
     // Resource names of every ".scene.toml" the running disc has opened this session.
     const std::set<std::string> &scenes_read() const { return scenes_read_; }
+    // The last confirmed operation: every `ok` reply updates it; empty verb before any.
+    const rv_editor_session_last_op &last_confirmed() const { return last_confirmed_; }
+    // What finish() found still pending when the session ended; empty when nothing was.
+    const std::vector<rv_editor_session_pending_op> &in_flight_at_end() const { return in_flight_at_end_; }
+    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
+    bool output_cut() const { return proc_.output_cut(); }
+    // The console path start() ran.
+    const std::filesystem::path &console() const { return console_; }
 
 private:
     struct rv_editor_request
@@ -183,6 +206,9 @@ private:
     std::chrono::system_clock::time_point started_wall_{};
     std::chrono::system_clock::time_point ended_wall_{};
     std::filesystem::path disc_dir_;
+    std::filesystem::path console_;
+    rv_editor_session_last_op last_confirmed_;
+    std::vector<rv_editor_session_pending_op> in_flight_at_end_;
     std::string end_reason_;
     std::string refusal_; // why this editor refused the console, before it ended
     std::string err_partial_;
