@@ -98,7 +98,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
 // Scene: the open scene document, or how to create or open one (TPL-04); the
 // Create/Open row is shared with the other scene panes.
-void rv_editor_pane_scene(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.

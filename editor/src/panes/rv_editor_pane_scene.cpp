@@ -28,7 +28,7 @@ void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-void rv_editor_pane_scene(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer * /*renderer*/, const rv_editor_theme &theme)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);

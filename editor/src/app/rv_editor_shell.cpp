@@ -439,7 +439,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::catalog: rv_editor_catalog_draw(theme); return;
         case rv_editor_pane_kind::candidate: rv_editor_pane_candidate(shell.app, theme); return;
         case rv_editor_pane_kind::checks: rv_editor_pane_checks(shell.app, theme); return;
-        case rv_editor_pane_kind::scene: rv_editor_pane_scene(shell.app, theme); return;
+        case rv_editor_pane_kind::scene: rv_editor_pane_scene(shell.app, shell.renderer, theme); return;
         case rv_editor_pane_kind::hierarchy: rv_editor_pane_hierarchy(shell.app, theme); return;
         case rv_editor_pane_kind::assets: rv_editor_pane_assets(shell.app, shell.renderer, theme); return;
         case rv_editor_pane_kind::inspector: rv_editor_pane_scene_inspector(shell.app, theme); return;
