@@ -9,6 +9,8 @@
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 
+struct SDL_Renderer;
+
 namespace rv_editor
 {
 
@@ -38,5 +40,8 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a);
 // button offers to put it there.
 void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
     double sound_seconds, const rv_editor_theme &theme, rv_editor_project &project);
+
+// The asset's picture: a PNG's texture, loaded once and cached, or an empty icon otherwise.
+rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a);
 
 } // namespace rv_editor

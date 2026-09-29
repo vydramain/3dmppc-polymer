@@ -78,24 +78,17 @@ void rv_editor_inspector_vec(rv_editor_app &app, const char *label, rv_editor_ve
 
 // A text value committed as a whole, never letter by letter.
 void rv_editor_inspector_text(rv_editor_app &app, const char *label, std::string rv_editor_scene_object::*field,
-    char *buf, size_t size, const std::string &id, const rv_editor_theme &theme, const char *drop)
+    char *buf, size_t size, const std::string &id, const rv_editor_theme &theme)
 {
     rv_editor_scene_doc &doc = *app.scene;
     const int at = rv_editor_scene_find(doc.scene, id);
     rv_editor_inspector_label(label);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const bool commit = ImGui::IsItemDeactivatedAfterEdit();
-    std::string dropped;
-    if (drop != nullptr && ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(drop)) {
-            dropped = static_cast<const char *>(p->Data);
-        }
-        ImGui::EndDragDropTarget();
-    }
-    if (at < 0 || (!commit && dropped.empty())) {
+    if (at < 0 || !commit) {
         return;
     }
-    const std::string value = dropped.empty() ? std::string(buf) : dropped;
+    const std::string value(buf);
     if (value != doc.scene.objects[static_cast<size_t>(at)].*field) {
         rv_editor_scene_step(doc);
         doc.scene.objects[static_cast<size_t>(at)].*field = value;
@@ -136,7 +129,7 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
         ImGui::TextWrapped("Read-only: %s", doc.scene.read_only.c_str());
     }
     ImGui::BeginDisabled(read_only);
-    rv_editor_inspector_text(app, "Name", &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme, nullptr);
+    rv_editor_inspector_text(app, "Name", &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme);
     rv_editor_inspector_label("Kind");
     ImGui::TextUnformatted(o.kind == "mesh" ? "box (mesh)" : o.kind.c_str());
     rv_editor_inspector_label("Id");
@@ -148,12 +141,11 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
     rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, 0.01f, o.id);
     if (o.kind == "mesh") {
         ImGui::SeparatorText("Resources");
-        rv_editor_inspector_text(app, "Mesh", &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme,
-            "RV_ASSET");
-        ImGui::SetItemTooltip("A disc asset; empty draws a unit box. Drop one from Assets here.");
+        rv_editor_inspector_text(app, "Mesh", &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme);
+        ImGui::SetItemTooltip("A disc asset; empty draws a unit box.");
         rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture), o.id,
-            theme, "RV_ASSET");
-        ImGui::SetItemTooltip("A disc texture. Drop one from Assets here.");
+            theme);
+        ImGui::SetItemTooltip("A disc texture.");
     }
     if (!o.extra.empty()) {
         ImGui::SeparatorText("Kept as read");

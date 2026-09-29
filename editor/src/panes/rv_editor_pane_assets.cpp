@@ -1,8 +1,7 @@
 // Assets: the project's resource files as an IRIX Icon Catalog (SCL-03): a
 // picture or a kind icon with a short label, or a list with details; a folder
 // and a filter. What each file is called on the disc comes from the burner's map
-// of the last build (ADR 0011), never from a rule of the editor's; a file with a
-// disc name can be dragged into a scene object's Mesh or Texture.
+// of the last build (ADR 0011), never from a rule of the editor's.
 
 #include "panes/rv_editor_panes.hpp"
 
@@ -101,20 +100,7 @@ void rv_editor_assets_refresh(const rv_editor_app &app)
     }
 }
 
-// Its picture when it is a PNG the editor can read, else its kind's icon.
-rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a)
-{
-    if (a.path.extension() != ".png" || renderer == nullptr) {
-        return {};
-    }
-    auto it = rv_editor_assets.pictures.find(a.rel);
-    if (it == rv_editor_assets.pictures.end()) {
-        it = rv_editor_assets.pictures.emplace(a.rel, rv_editor_image_load(renderer, a.path.string())).first;
-    }
-    return it->second;
-}
-
-// The disc name, or why there is none yet; a drag of it when there is one.
+// The disc name, or why there is none yet.
 void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
 {
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && a.rel != rv_editor_assets.selected) {
@@ -127,14 +113,8 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
             rv_editor_assets.map.empty() ? "Build once, and the burner names each file"
                                          : "the manifest does not take it");
     } else {
-        ImGui::SetItemTooltip("%s\nOn the disc: %s (%s%s%s)\nDrag it to a scene object's Mesh or Texture", a.rel.c_str(),
-            entry->second.name.c_str(), entry->second.kind.c_str(), entry->second.parameter.empty() ? "" : ", ",
-            entry->second.parameter.c_str());
-        if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload("RV_ASSET", entry->second.name.c_str(), entry->second.name.size() + 1);
-            ImGui::Text("%s", entry->second.name.c_str());
-            ImGui::EndDragDropSource();
-        }
+        ImGui::SetItemTooltip("%s\nOn the disc: %s (%s%s%s)", a.rel.c_str(), entry->second.name.c_str(),
+            entry->second.kind.c_str(), entry->second.parameter.empty() ? "" : ", ", entry->second.parameter.c_str());
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && a.path.extension() != ".png") {
         app.open_requests.push_back({ a.path, 0 });
@@ -142,6 +122,19 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
 }
 
 } // namespace
+
+// Its picture when it is a PNG the editor can read, else an empty icon.
+rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a)
+{
+    if (a.path.extension() != ".png" || renderer == nullptr) {
+        return {};
+    }
+    auto it = rv_editor_assets.pictures.find(a.rel);
+    if (it == rv_editor_assets.pictures.end()) {
+        it = rv_editor_assets.pictures.emplace(a.rel, rv_editor_image_load(renderer, a.path.string())).first;
+    }
+    return it->second;
+}
 
 void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
