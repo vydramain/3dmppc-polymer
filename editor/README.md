@@ -314,16 +314,27 @@ at the bottom.
 - **Hierarchy** is the tree; dragging an object onto another moves it there
   keeping where it is in the scene, or says why it cannot; Move to Root (Keep
   Local Values) is the other meaning.
-- **Inspector** edits the selected object; **Assets** shows the resource files as
-  an Icon Catalog or a list with the disc names of the last build's map, and a
-  file with a disc name drops into Mesh or Texture. Selecting an asset shows a
-  preview strip: a PNG whole with its pixel size and disc texture, a sound's
-  length and disc name with Play/Stop (a WAV in its own format, a `.pcm` as
-  the console's mono 44100 Hz samples; picking another asset stops it), and
-  another file's kind and size. A selected file disc.toml does not list offers
-  Add to disc, putting it in the section its kind belongs to (a PNG in
-  `[textures]`, a WAV in `[sounds]`, anything else in `[assets]`) and changing
-  only that list, keeping the file's comments and layout.
+- **Inspector** edits the selected object; a mesh and a texture are typed in
+  by name, as the disc names them.
+- **Assets** shows the resource files as an Icon Catalog or a list with the
+  disc names of the last build's map. A double click opens a PNG or a sound
+  (`.wav`, `.pcm`) as a tab beside the scene in the Scene tile, a
+  `*.scene.toml` as the open scene (Hierarchy and Inspector follow it), and
+  any other file in a new Code tab after switching to the Code layout.
+  Selecting an asset shows a preview strip: a PNG whole with its pixel size
+  and disc texture, a sound's length and disc name with Play/Stop (a WAV in
+  its own format, a `.pcm` as the console's mono 44100 Hz samples; picking
+  another asset stops it), and another file's kind and size. A selected file
+  disc.toml does not list offers Add to disc, putting it in the section its
+  kind belongs to (a PNG in `[textures]`, a WAV in `[sounds]`, anything else
+  in `[assets]`) and changing only that list, keeping the file's comments
+  and layout.
+- **The Scene tile** holds the scene as its first tab; a PNG or a sound
+  opened from Assets is a further tab beside it, closed from its own
+  right-click menu. A picture tab shows it fitted with its pixel size and
+  path; a sound tab shows its length, Play/Stop and a play error; closing a
+  playing sound's tab stops it. The tab strip is shown only while such a tab
+  is open.
 - **The viewport** draws the scene in wireframe through an editor camera,
   never the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects)
   drag the selection with Snap as the Transform Toolchest sets it, the right
@@ -335,6 +346,11 @@ Every change is one undo step, one drag included, and Escape takes a drag back;
 Ctrl+Z, Ctrl+Shift+Z, Delete and Ctrl+D work in the scene's tiles, and the
 Scene menu saves, undoes and redoes. An unsaved scene
 takes part in Save All and in the questions before Build, Run, Quit and Open.
+Opening another scene while the open one has unsaved changes - from Open
+Scene, the Scene tile's own Open buttons or a double click in Assets - is
+refused with a note above the viewport, saying to save or undo them first;
+New Scene refuses the same way, in its dialog. Opening the same scene again
+keeps its edits.
 A game shows a scene only if its code reads it: example-cpp ships
 `scenes/main.scene.toml` through `[assets]` and draws each box with
 `pdklib/rv_scene`. A changed scene needs Save, Build and a restart. Below the
