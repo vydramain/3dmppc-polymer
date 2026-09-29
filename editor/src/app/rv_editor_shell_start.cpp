@@ -239,10 +239,8 @@ void rv_editor_start_catalog(rv_editor_shell &shell, const rv_editor_theme &them
     }
     const rv_editor_recent_row &selected = rows[index];
     shell.start_selected = selected.root;
-    // A readable column, not the whole window: about 70 UI characters wide.
-    const float column_w = std::min(ImGui::CalcTextSize(std::string(70, 'x').c_str()).x,
-        ImGui::GetContentRegionAvail().x);
-    ImGui::BeginChild("##start_recent_col", ImVec2(column_w, 0.0f), ImGuiChildFlags_AutoResizeY);
+    // Full page width, like the header bars; only as tall as its rows.
+    ImGui::BeginChild("##start_recent_col", ImVec2(0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
     rv_editor_start_list(shell, rows, theme);
     rv_editor_start_card(shell, selected, theme);
     ImGui::EndChild();
