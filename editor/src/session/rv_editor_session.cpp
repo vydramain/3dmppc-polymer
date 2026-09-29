@@ -92,6 +92,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     build_number_ = build_number;
     ++number_;
     reloading_ = false;
+    reload_id_ = 0;
     reload_result_.clear();
     facts_ = {};
     answers_.clear();
@@ -409,7 +410,7 @@ void rv_editor_session::update(rv_editor_log &log)
             }
             uncertain_ = true;
             // Whether it ran is unknown; the user may ask again, the editor never does.
-            reloading_ = reloading_ && req.verb != "reload entry";
+            note_reload_timeout(id, req.verb);
             ask_status = ask_status || (req.verb != "status" && req.verb != "quit");
             log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
                 "no answer to '" + req.verb + "' after " + std::to_string(rv_editor_request_timeout.count()) +

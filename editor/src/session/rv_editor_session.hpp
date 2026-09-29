@@ -111,8 +111,9 @@ public:
     // Asks `request` ("get a b", "keys a"); the answer lands in answers() under the
     // same text. 0 when nothing was sent.
     int64_t query(const std::string &request, rv_editor_log &log);
-    // `reload entry`: the entry script again from the directory the disc runs from.
-    void reload(rv_editor_log &log);
+    // Empty `module`: `reload entry`, the entry script again. Otherwise `reload module
+    // <module>`, that required module again, both off the drive the disc runs from.
+    void reload(rv_editor_log &log, const std::string &module = std::string());
     // A fresh status, for the facts.
     void refresh(rv_editor_log &log);
     // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
@@ -145,6 +146,8 @@ public:
     // The last reload's answer in this session, as the runtime gave it; empty before one.
     const std::string &reload_result() const { return reload_result_; }
     bool reload_ok() const { return reload_ok_; }
+    // What that last result is about: empty for the entry, else a module name.
+    const std::string &reload_target() const { return reload_target_; }
     // Counts the sessions this window started, from 1; 0 before the first.
     uint32_t number() const { return number_; }
     std::chrono::system_clock::time_point started_at() const { return started_wall_; }
@@ -174,8 +177,11 @@ private:
 
     int64_t send(const std::string &verb, rv_editor_log &log);
     void note_facts(const rv_editor_devmsg &msg);
-    // A `get`, `keys` or `reload entry` answer; false for any other request.
+    // A `get`, `keys` or `reload` answer; false for any other request.
     bool handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log);
+    // A pending request `id` (verb `verb`) timed out; if it is the reload in flight,
+    // clears reloading_ and sets an "unknown" result for it.
+    void note_reload_timeout(int64_t id, const std::string &verb);
     // The protocol trace from stdout bytes, without the frame events.
     void trace(std::string_view bytes, rv_editor_log &log);
     void handle(const rv_editor_devmsg &msg, rv_editor_log &log);
@@ -200,8 +206,10 @@ private:
     uint32_t build_number_ = 0;
     uint32_t number_ = 0;
     bool reloading_ = false;
+    int64_t reload_id_ = 0; // request id of the reload in flight/last shown; a late answer for another id is ignored
     std::string reload_result_;
     bool reload_ok_ = false;
+    std::string reload_target_; // empty: the entry; else the module the last result is about
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
     std::set<std::string> scenes_read_;
