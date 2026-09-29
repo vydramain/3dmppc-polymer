@@ -50,12 +50,12 @@ const char *rv_editor_run_state_name(rv_editor_run_state state)
 
 bool rv_editor_session::live() const
 {
-    return proc_.running();
+    return active_;
 }
 
 bool rv_editor_session::hung() const
 {
-    return live() && quit_sent_ && std::chrono::steady_clock::now() - stop_sent_ > rv_editor_stop_grace;
+    return proc_.running() && quit_sent_ && std::chrono::steady_clock::now() - stop_sent_ > rv_editor_stop_grace;
 }
 
 bool rv_editor_session::start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
@@ -106,6 +106,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     out_partial_.clear();
     started_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::starting;
+    active_ = true;
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
         "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --frame-fd 3 --memcard " +
             memcard.string() + " " + disc_dir.string(), rv_editor_log_channel::none, proc_.pid(), number_);
@@ -168,28 +169,28 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
 
 void rv_editor_session::pause(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::running && send("pause", log) != 0) {
+    if (state_ == rv_editor_run_state::running && proc_.running() && send("pause", log) != 0) {
         state_ = rv_editor_run_state::pausing;
     }
 }
 
 void rv_editor_session::resume(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && send("resume", log) != 0) {
+    if (state_ == rv_editor_run_state::paused && proc_.running() && send("resume", log) != 0) {
         state_ = rv_editor_run_state::resuming;
     }
 }
 
 void rv_editor_session::step(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && send("step", log) != 0) {
+    if (state_ == rv_editor_run_state::paused && proc_.running() && send("step", log) != 0) {
         state_ = rv_editor_run_state::stepping;
     }
 }
 
 void rv_editor_session::stop(rv_editor_log &log)
 {
-    if (!live() || quit_sent_) {
+    if (!proc_.running() || quit_sent_) {
         return;
     }
     quit_sent_ = true;
@@ -204,7 +205,7 @@ void rv_editor_session::stop(rv_editor_log &log)
 
 void rv_editor_session::force_stop(rv_editor_log &log)
 {
-    if (!live()) {
+    if (!proc_.running()) {
         return;
     }
     forced_ = true;
@@ -216,7 +217,7 @@ void rv_editor_session::force_stop(rv_editor_log &log)
 
 void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
 {
-    if (!handshake_done_ || !live() || quit_sent_ || buttons == pad_sent_) {
+    if (!handshake_done_ || !proc_.running() || quit_sent_ || buttons == pad_sent_) {
         return;
     }
     char hex[17];
@@ -280,7 +281,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             verb + " refused: " + std::string(msg.get("error")) + ": " + rv_editor_hex_decode(msg.get("msg")),
             rv_editor_log_channel::none, proc_.pid(), number_);
         // What the machine does now is whatever it says it does.
-        if (state_ != rv_editor_run_state::stopping) {
+        if (state_ != rv_editor_run_state::stopping && proc_.running()) {
             send("status", log);
         }
         return;
@@ -299,7 +300,9 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                     rv_editor_log_channel::none, proc_.pid(), number_);
                 quit_sent_ = true;
                 stop_sent_ = std::chrono::steady_clock::now();
-                send("quit", log);
+                if (proc_.running()) {
+                    send("quit", log);
+                }
                 return;
             }
             handshake_done_ = true;
@@ -318,7 +321,9 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
         const std::string_view mode = msg.get("mode");
         if (mode != "paused" && mode != "running") {
             // An answer that does not say where the machine is: ask.
-            send("status", log);
+            if (proc_.running()) {
+                send("status", log);
+            }
             return;
         }
         handle_mode(mode);
@@ -331,7 +336,8 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
 
 void rv_editor_session::update(rv_editor_log &log)
 {
-    // An ended process was finished on the update that noticed it.
+    // A live session keeps reading every frame, exited console or not: finish()
+    // runs once, only when the console's output is complete (output_done()).
     if (!live()) {
         return;
     }
@@ -356,58 +362,63 @@ void rv_editor_session::update(rv_editor_log &log)
         }
     }
 
-    const auto now = std::chrono::steady_clock::now();
-    // A console that exits closes stdout a moment before it can be reaped; only a
-    // process still alive a while after end of file has really lost its channel.
-    if (live() && channel_open_ && !proc_.stdout_open() && eof_at_ == std::chrono::steady_clock::time_point{}) {
-        eof_at_ = now;
-    }
-    if (live() && channel_open_ && eof_at_ != std::chrono::steady_clock::time_point{} &&
-        now - eof_at_ > std::chrono::milliseconds(500)) {
-        channel_open_ = false;
-        if (!quit_sent_) {
-            state_ = rv_editor_run_state::disconnected;
-            end_reason_ = "the protocol channel closed while the process still runs";
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error, end_reason_,
-                rv_editor_log_channel::none, proc_.pid(), number_);
+    // Everything below needs the console process itself still running: an exited
+    // console gets no channel-lost check, no timeout and no send.
+    if (proc_.running()) {
+        const auto now = std::chrono::steady_clock::now();
+        // A console that exits closes stdout a moment before it can be reaped; only a
+        // process still alive a while after end of file has really lost its channel.
+        if (channel_open_ && !proc_.stdout_open() && eof_at_ == std::chrono::steady_clock::time_point{}) {
+            eof_at_ = now;
         }
-    }
+        if (channel_open_ && eof_at_ != std::chrono::steady_clock::time_point{} &&
+            now - eof_at_ > std::chrono::milliseconds(500)) {
+            channel_open_ = false;
+            if (!quit_sent_) {
+                state_ = rv_editor_run_state::disconnected;
+                end_reason_ = "the protocol channel closed while the process still runs";
+                log.add(rv_editor_log_source::editor, rv_editor_log_level::error, end_reason_,
+                    rv_editor_log_channel::none, proc_.pid(), number_);
+            }
+        }
 
-    // A timeout proves nothing about whether the request ran (DEV-07): say so,
-    // ask for status, and never resend the request itself.
-    bool ask_status = false;
-    for (auto &[id, req] : pending_) {
-        const auto limit = !handshake_done_ && req.verb == "status" ? rv_editor_handshake_timeout
-                                                                    : rv_editor_request_timeout;
-        if (req.overdue || now - req.sent < limit) {
-            continue;
+        // A timeout proves nothing about whether the request ran (DEV-07): say so,
+        // ask for status, and never resend the request itself.
+        bool ask_status = false;
+        for (auto &[id, req] : pending_) {
+            const auto limit = !handshake_done_ && req.verb == "status" ? rv_editor_handshake_timeout
+                                                                        : rv_editor_request_timeout;
+            if (req.overdue || now - req.sent < limit) {
+                continue;
+            }
+            req.overdue = true;
+            if (!handshake_done_) {
+                state_ = rv_editor_run_state::refused;
+                refusal_ = "no answer to status: not a development console, or it could not load the disc";
+                end_reason_ = refusal_;
+                log.add(rv_editor_log_source::editor, rv_editor_log_level::error, refusal_,
+                    rv_editor_log_channel::none, proc_.pid(), number_);
+                force_stop(log);
+                break;
+            }
+            uncertain_ = true;
+            // Whether it ran is unknown; the user may ask again, the editor never does.
+            reloading_ = reloading_ && req.verb != "reload entry";
+            ask_status = ask_status || (req.verb != "status" && req.verb != "quit");
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+                "no answer to '" + req.verb + "' after " + std::to_string(rv_editor_request_timeout.count()) +
+                    " s: whether it ran is unknown", rv_editor_log_channel::none, proc_.pid(), number_);
         }
-        req.overdue = true;
-        if (!handshake_done_) {
-            state_ = rv_editor_run_state::refused;
-            refusal_ = "no answer to status: not a development console, or it could not load the disc";
-            end_reason_ = refusal_;
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error, refusal_,
-                rv_editor_log_channel::none, proc_.pid(), number_);
+        if (ask_status && channel_open_) {
+            send("status", log);
+        }
+
+        if (state_ == rv_editor_run_state::refused && hung()) {
             force_stop(log);
-            break;
         }
-        uncertain_ = true;
-        // Whether it ran is unknown; the user may ask again, the editor never does.
-        reloading_ = reloading_ && req.verb != "reload entry";
-        ask_status = ask_status || (req.verb != "status" && req.verb != "quit");
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-            "no answer to '" + req.verb + "' after " + std::to_string(rv_editor_request_timeout.count()) +
-                " s: whether it ran is unknown", rv_editor_log_channel::none, proc_.pid(), number_);
-    }
-    if (ask_status && live() && channel_open_) {
-        send("status", log);
     }
 
-    if (state_ == rv_editor_run_state::refused && live() && hung()) {
-        force_stop(log);
-    }
-    if (proc_.poll()) {
+    if (proc_.poll() && proc_.output_done()) {
         finish(log);
     }
 }
@@ -422,8 +433,14 @@ void rv_editor_session::finish(rv_editor_log &log)
     log.flush_stream(rv_editor_log_source::runtime, err_partial_, rv_editor_log_channel::err, proc_.pid(), number_);
     trace(out, log);
     log.flush_stream(rv_editor_log_source::protocol, out_partial_, rv_editor_log_channel::out, proc_.pid(), number_);
+    if (proc_.output_cut()) {
+        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            "runtime output after exit was not fully read: a process it started kept a pipe open past the grace",
+            rv_editor_log_channel::none, proc_.pid(), number_);
+    }
     pending_.clear();
     channel_open_ = false;
+    active_ = false;
 
     ended_wall_ = std::chrono::system_clock::now();
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
@@ -460,15 +477,21 @@ void rv_editor_session::shutdown(rv_editor_log &log)
     }
     stop(log);
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (live() && std::chrono::steady_clock::now() < until) {
+    while (live() && proc_.running() && std::chrono::steady_clock::now() < until) {
+        update(log);
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (proc_.running()) {
+        force_stop(log);
+    }
+    // Bounded even when a grandchild keeps a pipe open past output_done()'s grace:
+    // shutdown never hangs.
+    const auto grace_until = std::chrono::steady_clock::now() + std::chrono::milliseconds(2500);
+    while (live() && std::chrono::steady_clock::now() < grace_until) {
         update(log);
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     if (live()) {
-        force_stop(log);
-        while (!proc_.poll()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
         finish(log);
     }
 }

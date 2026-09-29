@@ -114,7 +114,9 @@ public:
     void shutdown(rv_editor_log &log);
 
     rv_editor_run_state state() const { return state_; }
-    bool live() const;               // the process is running
+    // True from a successful start() until finish() has run once: stays true while
+    // an exited console's output is still being read (see finish()).
+    bool live() const;
     bool hung() const;               // stopping for longer than it should
     bool uncertain() const { return uncertain_; } // a request timed out: its effect is unknown
     int64_t frame() const { return frame_; }
@@ -122,7 +124,7 @@ public:
     uint32_t build_number() const { return build_number_; }
     const std::string &end_reason() const { return end_reason_; }
     const std::filesystem::path &disc_dir() const { return disc_dir_; }
-    bool connected() const { return handshake_done_ && live(); }
+    bool connected() const { return handshake_done_ && proc_.running(); }
     bool reloading() const { return reloading_; }
     // The last reload's answer in this session, as the runtime gave it; empty before one.
     const std::string &reload_result() const { return reload_result_; }
@@ -162,6 +164,7 @@ private:
     uint64_t pad_sent_ = 0;
     rv_editor_devparser parser_;
     rv_editor_run_state state_ = rv_editor_run_state::stopped;
+    bool active_ = false; // start() succeeded and finish() has not run yet (live())
     std::map<int64_t, rv_editor_request> pending_;
     int64_t next_id_ = 1;
     int64_t frame_ = 0;
