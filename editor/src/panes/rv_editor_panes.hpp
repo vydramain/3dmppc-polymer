@@ -100,6 +100,10 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 // Create/Open row is shared with the other scene panes.
 void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
+// Draws the Scene tile's tab strip (only when a tab is open) and, when the front
+// tab is a picture or a sound, its content. True when the scene viewport belongs
+// in front instead (no tabs open, or the scene tab is in front).
+bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);

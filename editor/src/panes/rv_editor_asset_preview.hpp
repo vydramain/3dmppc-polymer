@@ -44,4 +44,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
 // The asset's picture: a PNG's texture, loaded once and cached, or an empty icon otherwise.
 rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a);
 
+// The picture's size at the largest whole-number scale that fits the box, or scaled down to fit when even 1x does not.
+ImVec2 rv_editor_fit_picture(rv_editor_icon picture, float box_w, float box_h);
+
 } // namespace rv_editor

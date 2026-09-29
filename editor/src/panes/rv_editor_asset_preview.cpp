@@ -104,6 +104,8 @@ double rv_editor_wav_seconds(const std::filesystem::path &path)
     return static_cast<double>(data_size) / (rate * channels * (bits / 8));
 }
 
+} // namespace
+
 // The picture's size at the largest whole-number scale that fits the box,
 // or scaled down to fit when even 1x does not.
 ImVec2 rv_editor_fit_picture(rv_editor_icon picture, float box_w, float box_h)
@@ -114,8 +116,6 @@ ImVec2 rv_editor_fit_picture(rv_editor_icon picture, float box_w, float box_h)
     const float scale = k >= 1.0f ? std::floor(k) : k;
     return ImVec2(picture.w * scale, picture.h * scale);
 }
-
-} // namespace
 
 double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
 {

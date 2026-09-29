@@ -28,11 +28,14 @@ void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer * /*renderer*/, const rv_editor_theme &theme)
+void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
         return;
+    }
+    if (!rv_editor_scene_tabs_draw(app, renderer, theme)) {
+        return; // a picture or a sound tab is in front; it drew its own content
     }
     if (app.scene == nullptr) {
         ImGui::TextWrapped("No scene is open. A scene is a file in scenes/ with objects in it: groups, cameras "
