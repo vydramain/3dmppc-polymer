@@ -6,6 +6,8 @@
 #include <string>
 #include <string_view>
 
+#include <sys/types.h>
+
 namespace rv_editor
 {
 
@@ -27,6 +29,24 @@ enum class rv_editor_log_level : uint8_t
     error,
 };
 
+// A process line's stream: none for the editor's own lines, out/err for a
+// child process's stdout/stderr.
+enum class rv_editor_log_channel : uint8_t
+{
+    none,
+    out,
+    err,
+};
+
+// Who a line came from: which stream, which process (0 = the editor itself),
+// and which run of that process (0 = outside any run).
+struct rv_editor_log_origin
+{
+    rv_editor_log_channel channel = rv_editor_log_channel::none;
+    pid_t pid = 0;
+    uint32_t run = 0;
+};
+
 struct rv_editor_log_line
 {
     uint64_t seq;
@@ -34,6 +54,9 @@ struct rv_editor_log_line
     rv_editor_log_source source;
     rv_editor_log_level level;
     std::string text;
+    rv_editor_log_channel channel = rv_editor_log_channel::none;
+    pid_t pid = 0;
+    uint32_t run = 0;
 };
 
 // Output's model: every process line the editor keeps, oldest first. Bounded
@@ -47,12 +70,17 @@ public:
     static constexpr size_t line_max = 4096;
 
     void add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text);
+    void add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text,
+        const rv_editor_log_origin &origin);
 
     // Splits `bytes` from a process stream into lines; a trailing partial line
     // waits in `partial` for the next chunk. Severity comes from the text.
     void add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes);
+    void add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes,
+        const rv_editor_log_origin &origin);
     // Whatever `partial` still holds, as a last line (the stream has ended).
     void flush_stream(rv_editor_log_source source, std::string &partial);
+    void flush_stream(rv_editor_log_source source, std::string &partial, const rv_editor_log_origin &origin);
 
     void clear();
 
