@@ -24,6 +24,10 @@ namespace rv_editor
 namespace
 {
 
+// How long a reaped child's output may keep arriving from a grandchild that
+// still holds a pipe open, before the process gives up and calls it cut.
+constexpr auto rv_editor_output_grace = std::chrono::seconds(2);
+
 // A write to a pipe whose reader has died must fail with EPIPE, not kill the
 // editor with SIGPIPE.
 void rv_editor_ignore_sigpipe()
@@ -99,6 +103,7 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     pending_.clear();
     exit_ = {};
     pid_ = -1;
+    cut_ = false;
 
     int in[2] = { -1, -1 };
     int out[2] = { -1, -1 };
@@ -261,7 +266,21 @@ bool rv_editor_process::poll()
     } else if (WIFSIGNALED(status)) {
         exit_.signal = WTERMSIG(status);
     }
+    exited_at_ = std::chrono::steady_clock::now();
     rv_editor_close(in_);
+    return true;
+}
+
+bool rv_editor_process::output_done()
+{
+    if (out_ < 0 && err_ < 0) {
+        return true;
+    }
+    if (!exit_.exited || std::chrono::steady_clock::now() - exited_at_ < rv_editor_output_grace) {
+        return false;
+    }
+    cut_ = true;
+    close_fds();
     return true;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <string>
@@ -68,6 +69,14 @@ public:
     // Reaps the child when it has ended. Returns true when it is (now) ended.
     bool poll();
 
+    // True once both pipes reached end of file, or once the 2 s grace after the
+    // child exited has passed: past this point no more of its output is coming.
+    // When the grace ends first, closes the pipes itself and remembers the cut.
+    // Only meaningful after poll() returned true.
+    bool output_done();
+    // True once output_done() cut the pipes short of end of file.
+    bool output_cut() const { return cut_; }
+
     // SIGTERM, or SIGKILL with `force`, to the child's process group.
     void stop(bool force);
 
@@ -80,6 +89,8 @@ private:
     int err_ = -1;
     std::string pending_;
     rv_editor_exit exit_{};
+    std::chrono::steady_clock::time_point exited_at_{};
+    bool cut_ = false;
 };
 
 // Human-readable reason an exit happened: "exit code 2", "killed by SIGSEGV".
