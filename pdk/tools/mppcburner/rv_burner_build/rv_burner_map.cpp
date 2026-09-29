@@ -23,6 +23,9 @@ int rv_pdktools::write_map(const std::filesystem::path &path, const rv_pdklib::r
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
         line(plan.items[i], "texture", format != nullptr ? format->text : "");
     }
+    for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
+        line(plan.items[i], "sound", "s16le-44100-mono");
+    }
     for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
         const archive_item &item = plan.items[i];
         if (item.name == manifest.budget.pccl.script_entry) {

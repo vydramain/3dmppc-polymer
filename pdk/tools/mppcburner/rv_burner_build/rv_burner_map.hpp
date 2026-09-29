@@ -19,10 +19,11 @@ namespace rv_pdktools
 ///     <source, relative to the disc directory> <kind> <entry name> [<parameter>]
 ///
 /// kind is `code` (a [build] source; the entry is disc.so), `file` (copied as
-/// it is), `texture` (the parameter is the format it was baked to), `entry`
-/// (the lua script_entry) or `module` (another script; the parameter is the
-/// name `require` takes). Written only after a build that succeeded, through a
-/// temporary file and a rename.
+/// it is), `texture` (the parameter is the format it was baked to), `sound`
+/// (the parameter is the PCM shape the baker writes, `s16le-44100-mono`),
+/// `entry` (the lua script_entry) or `module` (another script; the parameter
+/// is the name `require` takes). Written only after a build that succeeded,
+/// through a temporary file and a rename.
 ///
 /// @return 0 on success, 1 with the reason in @p error
 int write_map(const std::filesystem::path &path, const rv_pdklib::rv_manifest &manifest,
