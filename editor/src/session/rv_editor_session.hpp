@@ -68,6 +68,22 @@ struct rv_editor_answer
     std::chrono::system_clock::time_point at{};
 };
 
+// The last `ok` reply this session handled, for an end-of-session summary: what
+// it answered, the frame after it was applied, when. Empty verb before any.
+struct rv_editor_last_confirmed
+{
+    std::string verb;
+    int64_t frame = 0;
+    std::chrono::system_clock::time_point at{};
+};
+
+// One request still pending when finish() ran, before it clears them.
+struct rv_editor_in_flight
+{
+    std::string verb;
+    bool overdue = false;
+};
+
 // One runtime session (DEV-01..DEV-10): `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
@@ -138,6 +154,13 @@ public:
     const std::map<std::string, rv_editor_answer> &answers() const { return answers_; }
     // Resource names of every ".scene.toml" the running disc has opened this session.
     const std::set<std::string> &scenes_read() const { return scenes_read_; }
+    // For an end-of-session summary: the last confirmed reply, and every request
+    // still pending when finish() ran.
+    const rv_editor_last_confirmed &last_confirmed() const { return last_confirmed_; }
+    const std::vector<rv_editor_in_flight> &in_flight() const { return in_flight_; }
+    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
+    bool output_cut() const { return proc_.output_cut(); }
+    const std::filesystem::path &console() const { return console_; }
 
 private:
     struct rv_editor_request
@@ -182,6 +205,9 @@ private:
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
     std::set<std::string> scenes_read_;
+    rv_editor_last_confirmed last_confirmed_;
+    std::vector<rv_editor_in_flight> in_flight_;
+    std::filesystem::path console_;
     std::chrono::system_clock::time_point started_wall_{};
     std::chrono::system_clock::time_point ended_wall_{};
     std::filesystem::path disc_dir_;

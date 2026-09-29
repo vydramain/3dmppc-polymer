@@ -99,6 +99,9 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     started_wall_ = std::chrono::system_clock::now();
     ended_wall_ = {};
     disc_dir_ = disc_dir;
+    console_ = console;
+    last_confirmed_ = {};
+    in_flight_.clear();
     end_reason_.clear();
     refusal_.clear();
     eof_at_ = {};
@@ -272,6 +275,9 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
     const rv_editor_request req = it->second;
     const std::string &verb = req.verb;
     pending_.erase(it);
+    if (msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::ok) {
+        last_confirmed_ = { verb, frame_, std::chrono::system_clock::now() };
+    }
     if (handle_query(req, msg, log)) {
         return;
     }
@@ -437,6 +443,10 @@ void rv_editor_session::finish(rv_editor_log &log)
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
             "runtime output after exit was not fully read: a process it started kept a pipe open past the grace",
             rv_editor_log_channel::none, proc_.pid(), number_);
+    }
+    in_flight_.clear();
+    for (const auto &[id, req] : pending_) {
+        in_flight_.push_back({ req.verb, req.overdue });
     }
     pending_.clear();
     channel_open_ = false;
