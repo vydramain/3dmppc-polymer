@@ -50,6 +50,11 @@ void rv_editor_player_finish(rv_editor_app &app)
         r.player_out_partial.empty() ? std::string() : "\n");
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial,
         r.player_err_partial.empty() ? std::string() : "\n");
+    if (r.player->output_cut()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            "player output after exit was not fully read: a process it started kept a pipe open past the grace",
+            rv_editor_log_channel::none, pid, run);
+    }
     const rv_editor_process::rv_editor_exit exit = r.player->exit_status();
     const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
         r.player_started).count();
@@ -161,17 +166,14 @@ void rv_editor_app_player_update(rv_editor_app &app)
     if (r.player == nullptr) {
         return;
     }
+    // A live player keeps reading every frame, exited or not: rv_editor_player_finish
+    // runs once, only when the player's output is complete (output_done()).
     std::string out;
     std::string err;
     r.player->read(out, err, 65536);
     rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
-    if (r.player->poll()) {
-        out.clear();
-        err.clear();
-        r.player->read(out, err, 65536);
-        rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
-        rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
+    if (r.player->poll() && r.player->output_done()) {
         rv_editor_player_finish(app);
     }
 }
