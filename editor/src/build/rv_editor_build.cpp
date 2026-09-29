@@ -38,17 +38,30 @@ uint32_t rv_editor_image_number(const std::filesystem::path &image)
     return rv_editor_parse_number(image.stem().string());
 }
 
+// A number is taken by either its directory <n> or a lone failed build's
+// <n>.log (the editor's log sink writes that log before the burner makes its
+// directory), so neither reuses a number the other already holds.
 std::vector<uint32_t> rv_editor_build_numbers(const std::filesystem::path &builds)
 {
     std::vector<uint32_t> numbers;
     std::error_code ec;
     for (std::filesystem::directory_iterator it(builds, ec), end; !ec && it != end; it.increment(ec)) {
-        const uint32_t n = rv_editor_build_dir_number(it->path());
-        if (n != 0 && it->is_directory(ec)) {
-            numbers.push_back(n);
+        if (it->is_directory(ec)) {
+            const uint32_t n = rv_editor_build_dir_number(it->path());
+            if (n != 0) {
+                numbers.push_back(n);
+            }
+            continue;
+        }
+        if (it->path().extension() == ".log") {
+            const uint32_t n = rv_editor_parse_number(it->path().stem().string());
+            if (n != 0) {
+                numbers.push_back(n);
+            }
         }
     }
     std::sort(numbers.begin(), numbers.end());
+    numbers.erase(std::unique(numbers.begin(), numbers.end()), numbers.end());
     return numbers;
 }
 
