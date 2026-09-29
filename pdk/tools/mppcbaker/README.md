@@ -13,7 +13,7 @@ in both modes).
 
 ---
 
-## `mppcbaker` — PNG → `.mppctex`
+## `mppcbaker` — PNG → `.mppctex`, WAV → `.pcm`
 
 The console does not decode image formats and never will. A disc hands
 `rv_cv::video_asset_write()` **finished texels**, exactly as it would on real
@@ -49,6 +49,26 @@ mppcbaker assets/hud.png build/hud.mppctex --format idx8 --transparent-key FF00F
 # opaque background, full color
 mppcbaker assets/sky.png build/sky.mppctex --format direct15
 ```
+
+---
+
+## WAV → `.pcm`
+
+The console does not decode sound formats either. A disc hands
+`rv_ca::sound_asset_write()` **raw samples**, so turning a WAV into those
+samples is the same kind of build-step job as a texture.
+
+```
+mppcbaker <input.wav> <output.pcm>
+```
+
+The input must already be RIFF/WAVE, PCM, 16-bit, 44100 Hz, mono or stereo;
+anything else (another rate, another bit depth, float, more than two
+channels) is refused. Stereo is downmixed to mono by averaging the two
+channels. The output is headerless S16LE mono at 44100 Hz, nothing else -
+exactly what `sound_asset_write` expects, and no `--format` applies to it.
+
+Any error gets a readable message on `stderr` and exit code `1`.
 
 ---
 

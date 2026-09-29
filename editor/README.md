@@ -291,7 +291,11 @@ at the bottom.
   Local Values) is the other meaning.
 - **Inspector** edits the selected object; **Assets** shows the resource files as
   an Icon Catalog or a list with the disc names of the last build's map, and a
-  file with a disc name drops into Mesh or Texture.
+  file with a disc name drops into Mesh or Texture. Selecting an asset shows a
+  preview strip: a PNG whole with its pixel size and disc texture, a sound's
+  length and disc name with Play/Stop (a WAV in its own format, a `.pcm` as
+  the console's mono 44100 Hz samples; picking another asset stops it), and
+  another file's kind and size.
 - **The viewport** draws the scene in wireframe through an editor camera,
   never the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects)
   drag the selection with Snap as the Transform Toolchest sets it, the right

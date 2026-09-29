@@ -508,7 +508,7 @@ whoever wrote the script:
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
   src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
-  assets/          PNGs get baked into texels; everything else is copied in
+  assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
 ```
 
 Start by copying [`mppcdiscs/example-cpp/`](mppcdiscs/example-cpp/) — it is the smallest
@@ -528,12 +528,19 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["assets/*.pcm"]
+files = ["scenes/*.scene.toml"]
 
 [textures]
 files = ["assets/*.png"]
 format = "idx8"
+
+[sounds]
+files = ["assets/*.wav"]
 ```
+
+`[sounds]` is optional, like `[textures]`: each listed WAV is baked by
+`mppcbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
+44100 Hz samples - and put on the disc beside the textures.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
