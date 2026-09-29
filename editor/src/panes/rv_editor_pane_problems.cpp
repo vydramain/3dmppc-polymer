@@ -1,10 +1,12 @@
-// Problems: the places the latest build named (BLD-06), each opening its file at
-// its line in a code tile. The full output stays in the Build Log.
+// Problems: the places the latest build named (BLD-06) plus the language servers'
+// current diagnostics, each opening its file at its line in a code tile. The full
+// build output stays in the Build Log.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <string>
 #include <system_error>
+#include <vector>
 
 #include "imgui.h"
 
@@ -12,6 +14,28 @@
 
 namespace rv_editor
 {
+
+namespace
+{
+
+// app.problems plus the servers' error/warning diagnostics (info/hint are skipped:
+// Problems is for what blocks the build, not editor-only hints).
+std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &app)
+{
+    std::vector<rv_editor_problem> out = app.problems;
+    for (const auto &[file, diags] : app.nvim.diagnostics()) {
+        for (const rv_editor_nvim_diagnostic &d : diags) {
+            if (d.severity != "error" && d.severity != "warn") {
+                continue;
+            }
+            out.push_back({ std::filesystem::path(file), d.line, d.col, d.severity == "error", d.message,
+                d.source });
+        }
+    }
+    return out;
+}
+
+} // namespace
 
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
 {
@@ -24,39 +48,43 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::TextWrapped("No build in this window yet: Build lists here what the compiler finds.");
         return;
     }
+    const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
     size_t errors = 0;
-    for (const rv_editor_problem &p : app.problems) {
+    for (const rv_editor_problem &p : problems) {
         errors += p.error ? 1 : 0;
     }
     const std::string what = std::string(b.busy() ? "Building" : "Build") +
         (b.image().empty() ? " #" + std::to_string(b.number()) : " of " + b.image().filename().string()) + ": " +
-        std::to_string(errors) + " errors, " + std::to_string(app.problems.size() - errors) + " warnings";
+        std::to_string(errors) + " errors, " + std::to_string(problems.size() - errors) + " warnings";
     rv_editor_status(what.c_str(), errors != 0 ? rv_editor_status_kind::error
-            : app.problems.empty()           ? rv_editor_status_kind::ok
+            : problems.empty()               ? rv_editor_status_kind::ok
                                              : rv_editor_status_kind::warning,
         theme);
-    if (app.problems.empty()) {
+    if (problems.empty()) {
         ImGui::TextWrapped(b.busy() ? "None so far." : "None with a place. Anything else is in the Build Log.");
         return;
     }
-    if (!ImGui::BeginTable("##problems", 4,
+    if (!ImGui::BeginTable("##problems", 5,
             ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         return;
     }
     ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("File", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Line", ImGuiTableColumnFlags_WidthFixed);
     ImGui::TableSetupColumn("Message");
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
-    for (size_t i = 0; i < app.problems.size(); ++i) {
-        const rv_editor_problem &p = app.problems[i];
+    for (size_t i = 0; i < problems.size(); ++i) {
+        const rv_editor_problem &p = problems[i];
         ImGui::PushID(static_cast<int>(i));
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         // A word as well as a colour (UX-05).
         rv_editor_status(p.error ? "error" : "warning", p.error ? rv_editor_status_kind::error : rv_editor_status_kind::warning,
             theme);
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted(p.source.c_str());
         ImGui::TableNextColumn();
         std::error_code ec;
         const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
@@ -76,9 +104,10 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::Text("%d:%d", p.line, p.column);
         ImGui::TableNextColumn();
         std::string message = p.message;
-        if (!there) {
+        const bool from_build = p.source == "build";
+        if (from_build && !there) {
             message = "(file missing) " + message;
-        } else if (app.build_ended != std::filesystem::file_time_type{} &&
+        } else if (from_build && app.build_ended != std::filesystem::file_time_type{} &&
             std::filesystem::last_write_time(p.file, ec) > app.build_ended) {
             // The line may have moved since the build saw it.
             message = "(changed since this build) " + message;

@@ -8,7 +8,7 @@
 namespace rv_editor
 {
 
-// One diagnostic a build printed that names a place (BLD-06).
+// One diagnostic that names a place: from the latest build, or from a language server.
 struct rv_editor_problem
 {
     std::filesystem::path file; // absolute; resolved against the project root when relative
@@ -16,6 +16,7 @@ struct rv_editor_problem
     int32_t column = 0;         // 0 when the message gives none
     bool error = true;          // else a warning
     std::string message;
+    std::string source = "build"; // "build", or the language server's name
 };
 
 // Reads one build line: the compiler's "<file>:<line>[:<col>]: error|warning: <text>"
