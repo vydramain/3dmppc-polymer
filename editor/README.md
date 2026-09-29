@@ -9,12 +9,15 @@ window of 1200x800 or bigger. A tile's header has X on the left to close it
 and M on the right to maximize it, and a right click on it opens the tile's
 menu; a tile can be split, closed, maximized or turned into another kind of
 pane (Window > New Tile lists every kind), and several panes in one tile show
-as folder tabs. Each kind of pane keeps a minimum size of its own - a log pane
-room for its control row, the Game its frame at 1x, a strip of buttons its
-buttons - so a default layout's controls stay visible even at 1200x800. The
-tile with the focus wears a brass frame; Ctrl+F6 and Ctrl+Shift+F6 (Window >
-Focus Next / Previous Pane) move the keyboard between tiles, as Tab belongs to
-the code editor and the terminal.
+as folder tabs. Dragging a tile's header or a tab to the edge of another tile,
+or into its tab strip, shows where it would land before it is dropped there;
+Escape cancels the drag and the tile stays where it was. Each kind of pane
+keeps a minimum size of its own - a log pane room for its control row, the
+Game its frame at 1x, a strip of buttons its buttons - so a default layout's
+controls stay visible even at 1200x800. The tile with the focus wears a brass
+frame; Ctrl+F6 and Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move
+the keyboard between tiles, as Tab belongs to the code editor and the
+terminal.
 
 Four layouts share the same panes, documents, build and runtime: Code, Scene,
 Debug and Burn, chosen once a project is open, at the right end of the menu
@@ -105,6 +108,7 @@ separate choices.
 | Step Frame | F7 | `step`: one frame of a paused game |
 | Stop | Shift+F5 | `quit`, then waits; Force Stop kills a console that does not end |
 | Run Last Successful Build | | runs the older build after a later one failed or was cancelled |
+| Build and Restart | | Build, then stop the running game and start the new build; a failed build leaves the old game running |
 
 With a file unsaved, Build and Run wait in a Review Changes tab: Save and
 Build / Build Saved Files / Return, and the same for Run. Run > Run
@@ -134,7 +138,13 @@ idle, [!] warning, [X] error.
 Runtime Controls is a strip of square buttons, a coloured code over a short
 label: Build Bd, Run Rn, Pause Ps, Step Sf, Stop Sp, Reload Rl; the tooltip
 gives the whole name and key. Reload is always there, dimmed with the reason
-when the running disc has nothing to reload. Release Controls in Burn have
+when the running disc has nothing to reload. Its target is the last Code
+tile's file: the entry script, a Lua module, or a texture, else the entry
+script; a texture is baked with the burner first and only the baked bytes are
+sent, and a bake that fails is never sent. When the change needs a full
+rebuild instead - a C++ file, a scene, a sound, disc.toml, or a kind Reload
+does not know - Build and Restart takes Reload's place and says so, warning
+that restarting loses the game's current state. Release Controls in Burn have
 Build Bd, Run Rn, Player Pl, Stop Sp and Report Ex. The Game tile of a layout
 as it starts shows the disc's screen at Fit with no border, until a splitter
 is dragged.
@@ -144,18 +154,22 @@ exits 0; a failed or cancelled build is deleted and never runs. A running
 game keeps running while the next build is made. Console Output shows the
 editor's, the build's, the candidate's and the runtime's lines together;
 the Runtime Log keeps to the runtime alone and the Build Log to candidate
-builds alone, until more are ticked. The dev channel's own lines are there
-too, off by default, without the frame events the console sends sixty times
-a second. Every log pane's controls draw in the interface font on one row -
-Source, Level, Find, Follow, Wrap, Copy, Export and Clear View - and what
-does not fit goes behind a labelled More; only the log lines themselves keep
-the code font. The tile's title names what the filters keep. Time is the
-local clock time a line arrived. The borders between Time, Level, Source
-and Message drag; a click selects a line, Shift+click a range, and Ctrl+C
-or Copy copies them (Copy takes every line shown when none is selected). A
-console that stops reading its input gets at most 1 MiB of queued commands;
-past that a command is refused and Console Output says so once, and Stop then
-offers Force Stop. Closing the editor stops the build and the game it started.
+builds alone, until more are ticked. The Runtime Log's Source menu also
+narrows to one run at a time, All runs being the default; a row's tooltip
+names the process, the run and whether the line is stdout or stderr. The dev
+channel's own lines are there too, off by default, without the frame events
+the console sends sixty times a second. Every log pane's controls draw in the
+interface font on one row - Source, Level, Find, Follow, Wrap, Copy, Export
+and Clear View - and what does not fit goes behind a labelled More; only the
+log lines themselves keep the code font. The tile's title names what the
+filters keep. Time is the local clock time a line arrived. The borders
+between Time, Level, Source and Message drag; a click selects a line,
+Shift+click a range, and Ctrl+C or Copy copies them (Copy takes every line
+shown when none is selected). Copy and Export both write the same line: its
+source, process and stream, as well as the time, level and text. A console
+that stops reading its input gets at most 1 MiB of queued commands; past that
+a command is refused and Console Output says so once, and Stop then offers
+Force Stop. Closing the editor stops the build and the game it started.
 
 The editor speaks the PDK version as its protocol and refuses a console of
 any other version, with the reason, a player build of the console included.
@@ -167,10 +181,11 @@ and under both one tile of Console Output, Problems, Terminal and Search
 Results, Console Output in front. Edit > Find in Project and a build's
 diagnostics bring their tab forward.
 
-- **Problems** lists the file, line and message of each error and warning the
-  latest build printed; a double click or Enter opens the file at that line, and
-  a row whose file is gone or changed since that build says so. The full output
-  stays in the Build Log.
+- **Problems** lists the source (the build, or a language server by name), the
+  file, line and column, and the message of each error and warning; a double
+  click or Enter opens the file at that line and column, and a row whose file
+  is gone or changed since that build says so. The full build output stays in
+  the Build Log.
 - **Search Results** (Ctrl+Shift+F, Edit > Find in Project) searches the
   project's text files a line at a time and lists file, line and text; dot
   folders and `build*` are left out unless ticked, and the result says where it
@@ -212,11 +227,12 @@ the Game and Runtime Log titles and the Runtime Controls strip do not repeat it.
   otherwise; the reads are never one snapshot. A paused machine is read again
   after every Step. A disc without a Lua machine says there is no state to
   inspect.
-- **Reload** (F8, Run > Reload Entry Script) sends `reload entry`; Runtime
-  Controls shows it dimmed with the reason when no session runs or the disc has
-  nothing to reload, and otherwise whether the last one was accepted, at which
-  revision, or refused and why; a profile with Reload On Save sends one when a
-  `.lua` file is saved.
+- **Reload** (F8, in the Run menu named for its target) sends `reload entry`
+  for the entry script or `reload module` for a loaded Lua module by name;
+  Runtime Controls shows it dimmed with the reason when no session runs or the
+  disc has nothing to reload, and otherwise whether the last one was accepted,
+  at which revision, or refused and why. A profile with Reload On Save queues
+  a reload, one file at a time, when a file the console can apply is saved.
 - **Findings**: Capture Frame writes the frame the Game shows as a PNG; Record
   Finding writes a title, steps, expected and actual behaviour with the session,
   frame, build, runtime, disc, code hash and entry revision, and the log since
@@ -238,6 +254,9 @@ builds' and the runtime's lines back.
   build makes no candidate and says so; the older ones stay. A candidate build
   logs its lines with their own source, candidate, kept apart from an ordinary
   build's.
+- **Build Result** says the last build job's outcome, its process and exit,
+  and its errors and warnings; Open Build Log opens that job's own log file,
+  dimmed when the build kept none.
 - A candidate shows its image, SHA-256, size, build time, command, tool
   versions, the git commit of the sources and whether they differed from it,
   and whether a project file changed since its build started.
@@ -390,8 +409,16 @@ and open, listed
 with nvim's reason, and nothing closes until each is saved or the user says
 Discard. An Untitled file gets a name through Save As, here or in File, which
 never replaces an existing file. A file changed by another program is re-read
-when its buffer is clean; when it is not, nvim asks. Language servers are not
-connected yet.
+when its buffer is clean; when it is not, nvim asks.
+
+nvim's own LSP client connects clangd (C and C++, from `.mppcburn/`'s
+`compile_commands.json`) and lua-language-server (Lua): diagnostics feed
+Problems, Ctrl+Space completes, Ctrl+K shows hover and F12 goes to a
+definition. A Code tile's status line names a missing or stopped server,
+with the reason in its tooltip. While a session is running, the status line
+also says what saving the shown file would do to it - reload the entry
+script or a module, refresh a texture, or Build and Restart - from the same
+plan Reload uses.
 
 ### Terminal
 
@@ -416,6 +443,9 @@ own shell.
 | Settings | `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` |
 | Code text size, Game scale, layout shown | `$XDG_CONFIG_HOME/3dmppc-editor/view` |
 | Builds | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/builds/<n>` |
+| A build's own log | beside it, `<n>.log` |
+| A session's own log | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/sessions/<started, YYYYmmdd-HHMMSS>-<session number>-<pid>.log`, the 20 newest kept |
+| A baked texture staged for Reload | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/staging/<build number>/<name>` |
 | Memory card | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/memcard.mppccard` |
 | Findings, captured frames, test results | `$XDG_STATE_HOME/3dmppc-editor/<hash of the project path>/findings/` |
 | Release candidates: images, records, logs, memory cards, reports | `$XDG_CACHE_HOME/3dmppc-editor/<hash of the project path>/candidates/` |
