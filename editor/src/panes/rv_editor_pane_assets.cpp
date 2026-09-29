@@ -18,6 +18,7 @@
 #include "imgui.h"
 
 #include "build/rv_editor_build_map.hpp"
+#include "panes/rv_editor_asset_preview.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_icons.hpp"
@@ -29,14 +30,6 @@ namespace rv_editor
 namespace
 {
 
-struct rv_editor_asset
-{
-    std::filesystem::path path;
-    std::string rel;    // relative to the project root, as the map names it
-    std::string folder; // its top-level folder
-    uintmax_t size = 0;
-};
-
 // What the catalog shows, read again at most once a second, and the map of the build it names.
 struct rv_editor_assets_cache
 {
@@ -47,6 +40,13 @@ struct rv_editor_assets_cache
     std::filesystem::file_time_type map_time{};
     std::map<std::string, rv_editor_map_entry> map;
     std::map<std::string, rv_editor_icon> pictures; // PNG thumbnails, loaded once
+    std::string selected;                           // the rel path shown in the preview strip
+
+    // A sound's duration, read once per selection and kept until the
+    // selection or the file's write time moves on.
+    std::string sound_facts_for;
+    std::filesystem::file_time_type sound_facts_time{};
+    double sound_seconds = 0.0;
 };
 
 rv_editor_assets_cache rv_editor_assets;
@@ -116,6 +116,9 @@ rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_a
 // The disc name, or why there is none yet; a drag of it when there is one.
 void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
 {
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) {
+        rv_editor_assets.selected = a.rel;
+    }
     const auto entry = rv_editor_assets.map.find(a.rel);
     if (entry == rv_editor_assets.map.end()) {
         ImGui::SetItemTooltip("%s\nNot on the disc of the last build: %s", a.rel.c_str(),
@@ -175,87 +178,134 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             shown.push_back(&a);
         }
     }
+
+    // The preview strip: beside the list when the tile is wide, below it when narrow.
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    const bool side_by_side = avail.x > ImGui::GetFontSize() * 28.0f;
+    const float preview_w = std::max(1.0f, side_by_side
+        ? std::clamp(avail.x / 3.0f, ImGui::GetFontSize() * 14.0f, ImGui::GetFontSize() * 32.0f)
+        : avail.x);
+    const float preview_h = std::max(1.0f, side_by_side
+        ? avail.y
+        : std::clamp(avail.y * 0.4f, ImGui::GetFontSize() * 6.0f, ImGui::GetFontSize() * 14.0f));
+    const float list_w = std::max(1.0f, side_by_side ? avail.x - preview_w - ImGui::GetStyle().ItemSpacing.x : avail.x);
+    const float list_h = std::max(1.0f, side_by_side ? avail.y : avail.y - preview_h - ImGui::GetStyle().ItemSpacing.y);
+
+    const rv_editor_asset *selected = nullptr;
+    for (const rv_editor_asset *a : shown) {
+        if (a->rel == rv_editor_assets.selected) {
+            selected = a;
+            break;
+        }
+    }
+    const auto selected_entry = selected ? rv_editor_assets.map.find(selected->rel) : rv_editor_assets.map.end();
+    const rv_editor_map_entry *entry_ptr = selected_entry != rv_editor_assets.map.end() ? &selected_entry->second : nullptr;
+    const rv_editor_icon selected_picture = selected ? rv_editor_asset_picture(renderer, *selected) : rv_editor_icon{};
+
+    // The sound's duration: read once per selection, refreshed only if the file changed since.
+    double selected_seconds = 0.0;
+    if (selected != nullptr) {
+        std::error_code ec;
+        const auto write_time = std::filesystem::last_write_time(selected->path, ec);
+        if (rv_editor_assets.sound_facts_for != selected->rel || rv_editor_assets.sound_facts_time != write_time) {
+            rv_editor_assets.sound_facts_for = selected->rel;
+            rv_editor_assets.sound_facts_time = write_time;
+            rv_editor_assets.sound_seconds = rv_editor_asset_sound_seconds(*selected);
+        }
+        selected_seconds = rv_editor_assets.sound_seconds;
+    }
+
+    ImGui::BeginChild("##asset_list", ImVec2(list_w, list_h), false);
     if (shown.empty()) {
         ImGui::TextDisabled(rv_editor_assets.files.empty() ? "No resource files: put them in a folder such as assets/."
                                                            : "Nothing matches the folder and the filter.");
-        return;
-    }
-    if (ui.details) {
-        if (!ImGui::BeginTable("##assets", 4,
+    } else if (ui.details) {
+        if (ImGui::BeginTable("##assets", 4,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
-            return;
-        }
-        ImGui::TableSetupColumn("File");
-        ImGui::TableSetupColumn("Kind", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("On the disc");
-        ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableHeadersRow();
-        for (const rv_editor_asset *a : shown) {
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::Selectable(a->rel.c_str(), false, ImGuiSelectableFlags_SpanAllColumns);
-            rv_editor_asset_item(app, *a);
-            const auto entry = rv_editor_assets.map.find(a->rel);
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(entry == rv_editor_assets.map.end() ? "-" : entry->second.kind.c_str());
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(entry == rv_editor_assets.map.end() ? "not on the disc" : entry->second.name.c_str());
-            ImGui::TableNextColumn();
-            ImGui::Text("%ju", a->size);
-        }
-        ImGui::EndTable();
-        return;
-    }
-    // Icons: a cell each, the picture or the kind's icon over a short label.
-    const float cell = ImGui::GetFontSize() * 5.5f;
-    const float art = ImGui::GetFontSize() * 3.0f;
-    const float width = ImGui::GetContentRegionAvail().x;
-    const int columns = std::max(1, static_cast<int>(width / cell));
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    for (size_t i = 0; i < shown.size(); ++i) {
-        const rv_editor_asset &a = *shown[i];
-        if (i % static_cast<size_t>(columns) != 0) {
-            ImGui::SameLine();
-        }
-        ImGui::PushID(a.rel.c_str());
-        const ImVec2 p0 = ImGui::GetCursorScreenPos();
-        ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + 4.0f));
-        rv_editor_asset_item(app, a);
-        if (ImGui::IsItemHovered()) {
-            dl->AddRect(p0, ImGui::GetItemRectMax(), rv_editor_col(theme.selection));
-        }
-        const ImVec2 at(p0.x + (cell - art) * 0.5f, p0.y + 2.0f);
-        const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
-        if (picture.id != ImTextureID{}) {
-            const float k = std::min(art / static_cast<float>(picture.w), art / static_cast<float>(picture.h));
-            const ImVec2 size(picture.w * k, picture.h * k);
-            const ImVec2 q0(at.x + (art - size.x) * 0.5f, at.y + (art - size.y) * 0.5f);
-            dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
-        } else {
-            // The file's code, sized down from twice the font until it fits the tile's width.
-            const char *code = rv_editor_glyph::other_file;
-            uint32_t color = 0;
-            rv_editor_file_chip(a.path, code, color);
-            float size = ImGui::GetFontSize() * 2.0f;
-            float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, code).x;
-            if (w > art * 0.9f) {
-                size *= art * 0.9f / w;
-                w = art * 0.9f;
+            ImGui::TableSetupColumn("File");
+            ImGui::TableSetupColumn("Kind", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn("On the disc");
+            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupScrollFreeze(0, 1);
+            ImGui::TableHeadersRow();
+            for (const rv_editor_asset *a : shown) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::Selectable(a->rel.c_str(), a->rel == rv_editor_assets.selected, ImGuiSelectableFlags_SpanAllColumns);
+                rv_editor_asset_item(app, *a);
+                const auto entry = rv_editor_assets.map.find(a->rel);
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(entry == rv_editor_assets.map.end() ? "-" : entry->second.kind.c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(
+                    entry == rv_editor_assets.map.end() ? "not on the disc" : entry->second.name.c_str());
+                ImGui::TableNextColumn();
+                ImGui::Text("%ju", a->size);
             }
-            dl->AddText(ImGui::GetFont(), size, ImVec2(std::floor(at.x + (art - w) * 0.5f),
-                std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), code);
+            ImGui::EndTable();
         }
-        // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
-        std::string label = a.path.filename().string();
-        while (label.size() > 3 && ImGui::CalcTextSize(label.c_str()).x > cell - 4.0f) {
-            label.erase(label.size() - 4);
-            label += "...";
+    } else {
+        // Icons: a cell each, the picture or the kind's icon over a short label.
+        const float cell = ImGui::GetFontSize() * 5.5f;
+        const float art = ImGui::GetFontSize() * 3.0f;
+        const float width = ImGui::GetContentRegionAvail().x;
+        const int columns = std::max(1, static_cast<int>(width / cell));
+        ImDrawList *dl = ImGui::GetWindowDrawList();
+        for (size_t i = 0; i < shown.size(); ++i) {
+            const rv_editor_asset &a = *shown[i];
+            if (i % static_cast<size_t>(columns) != 0) {
+                ImGui::SameLine();
+            }
+            ImGui::PushID(a.rel.c_str());
+            const ImVec2 p0 = ImGui::GetCursorScreenPos();
+            ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + 4.0f));
+            rv_editor_asset_item(app, a);
+            if (a.rel == rv_editor_assets.selected) {
+                dl->AddRectFilled(p0, ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Header, 0.35f));
+            }
+            if (ImGui::IsItemHovered()) {
+                dl->AddRect(p0, ImGui::GetItemRectMax(), rv_editor_col(theme.selection));
+            }
+            const ImVec2 at(p0.x + (cell - art) * 0.5f, p0.y + 2.0f);
+            const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
+            if (picture.id != ImTextureID{}) {
+                const float k = std::min(art / static_cast<float>(picture.w), art / static_cast<float>(picture.h));
+                const ImVec2 size(picture.w * k, picture.h * k);
+                const ImVec2 q0(at.x + (art - size.x) * 0.5f, at.y + (art - size.y) * 0.5f);
+                dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
+            } else {
+                // The file's code, sized down from twice the font until it fits the tile's width.
+                const char *code = rv_editor_glyph::other_file;
+                uint32_t color = 0;
+                rv_editor_file_chip(a.path, code, color);
+                float size = ImGui::GetFontSize() * 2.0f;
+                float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, code).x;
+                if (w > art * 0.9f) {
+                    size *= art * 0.9f / w;
+                    w = art * 0.9f;
+                }
+                dl->AddText(ImGui::GetFont(), size, ImVec2(std::floor(at.x + (art - w) * 0.5f),
+                    std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), code);
+            }
+            // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
+            std::string label = a.path.filename().string();
+            while (label.size() > 3 && ImGui::CalcTextSize(label.c_str()).x > cell - 4.0f) {
+                label.erase(label.size() - 4);
+                label += "...";
+            }
+            const float lw = ImGui::CalcTextSize(label.c_str()).x;
+            dl->AddText(ImVec2(p0.x + (cell - lw) * 0.5f, at.y + art + 2.0f), rv_editor_col(theme.text), label.c_str());
+            ImGui::PopID();
         }
-        const float lw = ImGui::CalcTextSize(label.c_str()).x;
-        dl->AddText(ImVec2(p0.x + (cell - lw) * 0.5f, at.y + art + 2.0f), rv_editor_col(theme.text), label.c_str());
-        ImGui::PopID();
     }
+    ImGui::EndChild();
+
+    if (side_by_side) {
+        ImGui::SameLine();
+    }
+    ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true);
+    rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds);
+    ImGui::EndChild();
 }
 
 } // namespace rv_editor
