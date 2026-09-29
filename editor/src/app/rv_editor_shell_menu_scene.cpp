@@ -1,14 +1,140 @@
-// Scene in the main menu: the scene document's commands (LAY-07).
+// Scene in the main menu: the scene document's commands (LAY-07), and the New
+// Scene dialog (its own state lives here, file-local: the editor has no
+// modal type of its own yet).
 
+#include <cctype>
+#include <cstdio>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <vector>
 
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
 {
+
+namespace
+{
+
+struct rv_editor_new_scene_state
+{
+    bool open = false;
+    bool pending_open = false; // OpenPopup must run from the same window as BeginPopupModal
+    char name[64] = {};
+    bool write_cpp = false;
+    std::string error;
+    bool focus_name = false;
+};
+
+rv_editor_new_scene_state g_new_scene;
+
+// Letters, digits, '_' or '-', non-empty: what rv_editor_app_scene_create checks too.
+bool rv_editor_new_scene_name_valid(std::string_view name)
+{
+    if (name.empty()) {
+        return false;
+    }
+    for (const char c : name) {
+        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The header's identifier, mirroring rv_editor_scene_codegen_write's own rule
+// (scene/rv_editor_scene_codegen.cpp): non [A-Za-z0-9_] becomes '_', a leading
+// digit gets a '_' prefix, so the shown path is exactly the one it would write.
+std::string rv_editor_new_scene_header_id(std::string_view name)
+{
+    std::string id;
+    id.reserve(name.size() + 1);
+    if (!name.empty() && std::isdigit(static_cast<unsigned char>(name.front()))) {
+        id.push_back('_');
+    }
+    for (const char c : name) {
+        const unsigned char uc = static_cast<unsigned char>(c);
+        id.push_back((std::isalnum(uc) || c == '_') ? c : '_');
+    }
+    return id;
+}
+
+} // namespace
+
+void rv_editor_shell_new_scene_request(const rv_editor_app &app)
+{
+    g_new_scene.open = true;
+    g_new_scene.pending_open = true;
+    g_new_scene.write_cpp = false;
+    g_new_scene.error.clear();
+    g_new_scene.focus_name = true;
+    std::snprintf(g_new_scene.name, sizeof(g_new_scene.name), "%s", rv_editor_app_scene_free_name(app).c_str());
+}
+
+void rv_editor_shell_ask_new_scene(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    if (!g_new_scene.open) {
+        return;
+    }
+    // OpenPopup and BeginPopupModal must see the same current-window ID stack,
+    // so OpenPopup runs here, not at the menu item that requested the dialog.
+    if (g_new_scene.pending_open) {
+        ImGui::OpenPopup("New Scene");
+        g_new_scene.pending_open = false;
+    }
+    ImGui::SetNextWindowSize(ImVec2(0.0f, 0.0f));
+    if (!ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        g_new_scene.open = false; // Escape or an outside click closed it
+        return;
+    }
+    rv_editor_app &app = shell.app;
+    ImGui::Text("Name");
+    if (g_new_scene.focus_name) {
+        ImGui::SetKeyboardFocusHere();
+        g_new_scene.focus_name = false;
+    }
+    rv_editor_text_field("##new_scene_name", g_new_scene.name, sizeof(g_new_scene.name), theme);
+
+    const std::string name = g_new_scene.name;
+    std::error_code ec;
+    const char *disabled = !rv_editor_new_scene_name_valid(name) ? "Name must be letters, digits, _ or -"
+        : std::filesystem::exists(app.project.root / "scenes" / (name + ".scene.toml"), ec)
+        ? "A scene with this name already exists"
+        : nullptr;
+
+    const std::string header = "src/" + rv_editor_new_scene_header_id(name) + "_scene.hpp";
+    const rv_editor_state cpp_state{ rv_editor_look::live, app.project.has_build_section ? nullptr : "Not a C++ disc" };
+    rv_editor_checkbox(("Write C++ that loads it (" + header + ")").c_str(), &g_new_scene.write_cpp, theme, cpp_state);
+
+    if (!g_new_scene.error.empty()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
+        ImGui::TextWrapped("%s", g_new_scene.error.c_str());
+        ImGui::PopStyleColor();
+    }
+
+    const rv_editor_state create_state{ rv_editor_look::live, disabled };
+    const bool create = rv_editor_button("Create", theme, create_state);
+    ImGui::SameLine();
+    const bool cancel = rv_editor_button("Cancel", theme);
+    if (create) {
+        std::string error;
+        if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error)) {
+            g_new_scene.open = false;
+            ImGui::CloseCurrentPopup();
+        } else {
+            g_new_scene.error = error;
+        }
+    } else if (cancel) {
+        g_new_scene.open = false;
+        ImGui::CloseCurrentPopup();
+    }
+    ImGui::EndPopup();
+}
 
 // The scene document's commands (LAY-07); each edit is one undo step.
 void rv_editor_menu_scene(rv_editor_shell &shell)
@@ -16,12 +142,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     rv_editor_app &app = shell.app;
     const char *no_project = app.project.open ? nullptr : "No project is open";
     if (rv_editor_menu_item("New Scene", nullptr, no_project)) {
-        // The dialog (name, write-C++ choice) is a later slice; for now the free
-        // default name, no C++ written.
-        std::string error;
-        if (!rv_editor_app_scene_create(app, rv_editor_app_scene_free_name(app), false, error)) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not created: " + error);
-        }
+        rv_editor_shell_new_scene_request(app);
     }
     if (ImGui::BeginMenu("Open Scene", app.project.open)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
