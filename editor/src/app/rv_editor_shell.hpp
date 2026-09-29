@@ -259,8 +259,9 @@ void rv_editor_shell_game_input(rv_editor_shell &shell);
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme);
 
 // shell.ws.minimums[pane]: `kind`'s minimum (rv_editor_shell_minimums.cpp), the
-// Game's frame at 1x when `game_need` is larger, a strip's measured height when
-// that is larger still; unset when every source gives none.
+// Game's own mode row and status line (`game_need`, measured by the pane itself
+// rather than the frame at 1x) when larger, a strip's measured height when that
+// is larger still; unset when every source gives none.
 void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind,
     rv_editor_size game_need);
 

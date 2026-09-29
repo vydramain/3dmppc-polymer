@@ -36,7 +36,7 @@ void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane,
     rv_editor_size game_need)
 {
     rv_editor_size need = rv_editor_shell_pane_minimum(kind);
-    if (kind == rv_editor_pane_kind::game && game_need.w > 0) {
+    if (kind == rv_editor_pane_kind::game && game_need.h > 0) {
         need = { std::max(need.w, game_need.w), std::max(need.h, game_need.h) };
     }
     // A strip of controls is as tall as its rows, whatever its split's ratio says.

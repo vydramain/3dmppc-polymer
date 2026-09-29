@@ -86,6 +86,38 @@ bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
     return preset != rv_editor_layout_preset::debug;
 }
 
+// Walks from `node` up to the first ancestor split on `axis` whose sibling is not a
+// controls strip, and grows `node`'s share there by `delta` (>= 0). When
+// `guard_bottom_sibling` holds, an ancestor whose sibling is the bottom (second)
+// child is skipped instead: height never comes from a bottom row. Placement
+// clamps the resulting ratio to every pane's minimum on its own, so a grow that
+// would push a neighbor below it simply lands at that minimum, not past it.
+// False, changing nothing, when no eligible ancestor exists.
+bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis, int32_t delta,
+    bool guard_bottom_sibling)
+{
+    for (uint32_t parent = ws.layout.nodes[node].parent; parent != rv_editor_tile_none;
+         node = parent, parent = ws.layout.nodes[parent].parent) {
+        const rv_editor_tile_split &split = ws.layout.nodes[parent].split;
+        const uint32_t sibling = node == split.first ? split.second : split.first;
+        if (ws.layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
+            rv_editor_strip_leaf(ws, sibling) || (guard_bottom_sibling && sibling == split.second)) {
+            continue;
+        }
+        const rv_editor_rect &a = ws.rects[split.first];
+        const rv_editor_rect &b = ws.rects[split.second];
+        const int32_t first = axis == rv_editor_axis::x ? a.w : a.h;
+        const int32_t total = first + (axis == rv_editor_axis::x ? b.w : b.h);
+        if (total <= 0) {
+            continue;
+        }
+        const int32_t want = first + (node == split.first ? delta : -delta);
+        rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
+        return true;
+    }
+    return false;
+}
+
 } // namespace
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
@@ -157,10 +189,12 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     const int64_t sh = std::max<int64_t>(1, shell.app.project.screen_h);
     const int64_t step_w = sw / std::gcd(sw, sh);
     const int64_t step_h = sh / std::gcd(sw, sh);
-    const int64_t steps = area.w / step_w;
-    const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
+    // The smallest step count at or beyond both current dimensions: reaching it
+    // only grows the Game tile, on either axis, and never shrinks it.
+    const int64_t steps = std::max((area.w + step_w - 1) / step_w, (area.h + step_h - 1) / step_h);
     const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
-    if (delta_h == 0 && delta_w == 0) {
+    const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
+    if (delta_w == 0 && delta_h == 0) {
         shell.game_fit_tries = 8;
         return;
     }
@@ -170,30 +204,16 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         return;
     }
     --shell.game_fit_tries;
-    // The height first; when the last try left the area as it was, minimums hold
-    // the height, and the width gives way instead.
+    // Width first; a try that changed nothing last time is stuck on a minimum,
+    // so height gets the turn instead. Growing height never takes from a bottom
+    // row (rv_editor_shell_grow_game skips a split whose sibling is one).
     const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
-    const rv_editor_axis axis = held || delta_h == 0 ? rv_editor_axis::x : rv_editor_axis::y;
-    const int32_t delta = held ? static_cast<int32_t>(area.h / step_h * step_w - area.w)
-                               : (delta_h == 0 ? delta_w : delta_h);
     shell.game_fit_last = area;
-    for (uint32_t parent = layout.nodes[node].parent; parent != rv_editor_tile_none;
-         node = parent, parent = layout.nodes[parent].parent) {
-        const rv_editor_tile_split &split = layout.nodes[parent].split;
-        const uint32_t sibling = node == split.first ? split.second : split.first;
-        if (layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
-            rv_editor_strip_leaf(shell.ws, sibling)) {
-            continue;
-        }
-        const rv_editor_rect &a = shell.ws.rects[split.first];
-        const rv_editor_rect &b = shell.ws.rects[split.second];
-        const int32_t first = axis == rv_editor_axis::x ? a.w : a.h;
-        const int32_t total = first + (axis == rv_editor_axis::x ? b.w : b.h);
-        if (total > 0) {
-            const int32_t want = first + (node == split.first ? delta : -delta);
-            rv_editor_tile_set_ratio(shell.ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
-        }
+    if (delta_w > 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false)) {
         return;
+    }
+    if (delta_h > 0) {
+        rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
     }
 }
 
