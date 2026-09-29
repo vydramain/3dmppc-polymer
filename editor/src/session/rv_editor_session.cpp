@@ -119,36 +119,6 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     return true;
 }
 
-int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log)
-{
-    const int64_t id = next_id_++;
-    const std::string line = std::to_string(id) + " " + verb + "\n";
-    if (!proc_.write(line)) {
-        if (!proc_.stdin_open()) {
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-                "cannot send '" + verb + "': the runtime's input is closed", rv_editor_log_channel::none,
-                proc_.pid(), number_);
-        } else if (!input_full_) {
-            // Said once; pad keeps the newest state and tries again every frame.
-            input_full_ = true;
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-                "cannot send '" + verb + "': the runtime is not reading its input (" +
-                    std::to_string(rv_editor_process::input_max / 1024) + " KiB waiting)",
-                rv_editor_log_channel::none, proc_.pid(), number_);
-        }
-        return 0;
-    }
-    if (input_full_) {
-        input_full_ = false;
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "the runtime reads its input again",
-            rv_editor_log_channel::none, proc_.pid(), number_);
-    }
-    pending_[id] = { verb, std::chrono::steady_clock::now(), false, state_ == rv_editor_run_state::paused, frame_ };
-    log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, "> " + line.substr(0, line.size() - 1),
-        rv_editor_log_channel::none, proc_.pid(), number_);
-    return id;
-}
-
 void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
 {
     // Sixty frame events a second would push every other line out of the bounded

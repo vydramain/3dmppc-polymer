@@ -1,11 +1,13 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <map>
 #include <set>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -84,6 +86,15 @@ struct rv_editor_in_flight
     bool overdue = false;
 };
 
+// What the last reload-slot result is about: the entry, a required module, or
+// a texture sent by reload_asset().
+enum class rv_editor_reload_kind
+{
+    entry,
+    module,
+    texture,
+};
+
 // One runtime session (DEV-01..DEV-10): `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
@@ -93,6 +104,9 @@ class rv_editor_session
 public:
     // Protocol this client speaks: the PDK version, exact match with the console's.
     static constexpr const char *protocol_supported = rv_pdklib::rv_version_str;
+    // The console's own ceiling for a request's payload (rv_pccmdchan.hpp,
+    // RV_PCCMDCHAN_PAYLOAD_MAX): sending more is refused there before it is tried.
+    static constexpr size_t asset_payload_max = 4 << 20;
 
     // False with the reason when a session cannot start now.
     // `options` go before the disc, `env` over the editor's environment (a run profile).
@@ -114,6 +128,11 @@ public:
     // Empty `module`: `reload entry`, the entry script again. Otherwise `reload module
     // <module>`, that required module again, both off the drive the disc runs from.
     void reload(rv_editor_log &log, const std::string &module = std::string());
+    // `asset <name> bytes <n>`: sends a baked texture's bytes in one process write,
+    // sharing reload()'s in-flight slot. Same preconditions as reload(). Refuses
+    // (logged, nothing sent) bytes over the console's payload ceiling or over
+    // rv_editor_process::input_max once the header is added.
+    void reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes);
     // A fresh status, for the facts.
     void refresh(rv_editor_log &log);
     // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
@@ -146,8 +165,10 @@ public:
     // The last reload's answer in this session, as the runtime gave it; empty before one.
     const std::string &reload_result() const { return reload_result_; }
     bool reload_ok() const { return reload_ok_; }
-    // What that last result is about: empty for the entry, else a module name.
+    // What that last result is about: empty for the entry, else a module or texture name.
     const std::string &reload_target() const { return reload_target_; }
+    // entry/module/texture: which kind reload_target() names.
+    rv_editor_reload_kind reload_kind() const { return reload_kind_; }
     // Counts the sessions this window started, from 1; 0 before the first.
     uint32_t number() const { return number_; }
     std::chrono::system_clock::time_point started_at() const { return started_wall_; }
@@ -175,7 +196,9 @@ private:
         int64_t frame = 0;    // the frame reported last when it was sent
     };
 
-    int64_t send(const std::string &verb, rv_editor_log &log);
+    // `payload`, when not empty, follows the header line in the same process write
+    // (README.md, "A request carries bytes..."); the log line shows the header only.
+    int64_t send(const std::string &verb, rv_editor_log &log, std::string_view payload = std::string_view());
     void note_facts(const rv_editor_devmsg &msg);
     // A `get`, `keys` or `reload` answer; false for any other request.
     bool handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log);
@@ -209,7 +232,8 @@ private:
     int64_t reload_id_ = 0; // request id of the reload in flight/last shown; a late answer for another id is ignored
     std::string reload_result_;
     bool reload_ok_ = false;
-    std::string reload_target_; // empty: the entry; else the module the last result is about
+    std::string reload_target_; // empty: the entry; else the module/texture the last result is about
+    rv_editor_reload_kind reload_kind_ = rv_editor_reload_kind::entry;
     rv_editor_session_facts facts_;
     std::map<std::string, rv_editor_answer> answers_;
     std::set<std::string> scenes_read_;
