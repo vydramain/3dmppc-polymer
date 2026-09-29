@@ -30,6 +30,41 @@ std::string rv_editor_output_drop_label(const std::string &text, const char *id)
     return text + "   ##" + id;
 }
 
+// Every process with a line in the log now, newest first: pid, run number and label.
+struct rv_editor_output_run
+{
+    int64_t pid;
+    std::string label;
+};
+
+std::vector<rv_editor_output_run> rv_editor_output_runs(const rv_editor_log &log)
+{
+    std::vector<int64_t> pids;
+    for (auto it = log.lines().rbegin(); it != log.lines().rend(); ++it) {
+        if (it->pid == 0 || std::find(pids.begin(), pids.end(), it->pid) != pids.end()) {
+            continue;
+        }
+        pids.push_back(it->pid);
+    }
+    std::vector<rv_editor_output_run> runs;
+    for (const int64_t pid : pids) {
+        bool has_build = false;
+        bool has_candidate = false;
+        uint32_t run = 0;
+        for (const rv_editor_log_line &line : log.lines()) {
+            if (line.pid != pid) {
+                continue;
+            }
+            has_build = has_build || line.source == rv_editor_log_source::build;
+            has_candidate = has_candidate || line.source == rv_editor_log_source::candidate;
+            run = line.run;
+        }
+        const char *kind = has_build ? "build" : has_candidate ? "candidate" : "session";
+        runs.push_back({ pid, std::string(kind) + " #" + std::to_string(run) + ", pid " + std::to_string(pid) });
+    }
+    return runs;
+}
+
 bool rv_editor_output_drop(const std::string &label, const rv_editor_theme &theme)
 {
     const bool clicked = rv_editor_button(label.c_str(), theme);
@@ -55,8 +90,8 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
         view.picked_from = view.picked_to = 0;
     };
 
-    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + rv_editor_output_sources(view, false), "sources"),
-            theme)) {
+    const std::string source_label = view.run_pid != 0 ? view.run_label : rv_editor_output_sources(view, false);
+    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + source_label, "sources"), theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
     rv_editor_menu_style_push();
@@ -68,6 +103,17 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             }
         }
         ImGui::Separator();
+        if (ImGui::MenuItem("All runs", nullptr, view.run_pid == 0)) {
+            view.run_pid = 0;
+            view.run_label.clear();
+        }
+        for (const rv_editor_output_run &run : rv_editor_output_runs(log)) {
+            if (ImGui::MenuItem(run.label.c_str(), nullptr, view.run_pid == run.pid)) {
+                view.run_pid = run.pid;
+                view.run_label = run.label;
+            }
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem("Reset Filters")) {
             view.show = {};
             view.show[static_cast<size_t>(rv_editor_log_source::editor)] = true;
@@ -76,6 +122,8 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             view.show[static_cast<size_t>(rv_editor_log_source::runtime)] = true;
             view.level = rv_editor_log_level::info;
             view.search[0] = '\0';
+            view.run_pid = 0;
+            view.run_label.clear();
         }
         ImGui::EndPopup();
     }

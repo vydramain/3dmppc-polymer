@@ -45,6 +45,8 @@ struct rv_editor_output_view
     uint64_t picked_from = 0;  // the selected lines, by seq; 0: none
     uint64_t picked_to = 0;
     float scroll_x = 0.0f;     // the lines' horizontal scroll, for the header over them
+    int64_t run_pid = 0;       // Run filter: only this pid's lines; 0: all runs
+    std::string run_label;     // "<kind> #run, pid <pid>", for the Source button and the title
 };
 
 // One Files pane's question: which operation waits for an answer, on what.

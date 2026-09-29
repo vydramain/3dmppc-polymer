@@ -31,6 +31,34 @@ const char *rv_editor_output_level(rv_editor_log_level level)
     return level == rv_editor_log_level::error ? "ERR" : level == rv_editor_log_level::warning ? "WRN" : "INF";
 }
 
+const char *rv_editor_output_kind(rv_editor_log_source source)
+{
+    switch (source) {
+    case rv_editor_log_source::build:
+        return "build";
+    case rv_editor_log_source::candidate:
+        return "candidate";
+    default:
+        return "session"; // runtime and protocol
+    }
+}
+
+// "pid N, <kind> #run, stdout|stderr", or "the editor" for the editor's own lines.
+std::string rv_editor_output_origin(const rv_editor_log_line &line)
+{
+    if (line.pid == 0) {
+        return "the editor";
+    }
+    std::string out = "pid " + std::to_string(line.pid) + ", " + rv_editor_output_kind(line.source) + " #" +
+        std::to_string(line.run);
+    if (line.channel == rv_editor_log_channel::out) {
+        out += ", stdout";
+    } else if (line.channel == rv_editor_log_channel::err) {
+        out += ", stderr";
+    }
+    return out;
+}
+
 std::string rv_editor_output_lower(std::string s)
 {
     std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -40,17 +68,26 @@ std::string rv_editor_output_lower(std::string s)
 // The view's own choice of lines: sources, level, search.
 bool rv_editor_output_passes(const rv_editor_output_view &view, const rv_editor_log_line &line, const std::string &needle)
 {
-    if (!view.show[static_cast<size_t>(line.source)] || line.level < view.level) {
+    if (view.run_pid != 0) {
+        if (line.pid != view.run_pid) {
+            return false;
+        }
+    } else if (!view.show[static_cast<size_t>(line.source)]) {
+        return false;
+    }
+    if (line.level < view.level) {
         return false;
     }
     return needle.empty() || rv_editor_output_lower(line.text).find(needle) != std::string::npos;
 }
 
-// The line as Copy and Export write it.
+// The line as Copy and Export write it, pid and channel named after the source.
 std::string rv_editor_output_text(const rv_editor_log_line &line)
 {
+    std::string channel = line.channel == rv_editor_log_channel::out ? " out"
+        : line.channel == rv_editor_log_channel::err ? " err" : "";
     return rv_editor_log_stamp(line, true) + " " + rv_editor_output_level(line.level) + " " +
-        rv_editor_log_source_name(line.source) + " " + line.text + "\n";
+        rv_editor_log_source_name(line.source) + " pid " + std::to_string(line.pid) + channel + " " + line.text + "\n";
 }
 
 bool rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
@@ -141,6 +178,9 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
         return "Console Output: All";
     }
     const rv_editor_output_view &view = it->second;
+    if (view.run_pid != 0) {
+        return "Console Output: " + view.run_label;
+    }
     std::string what = rv_editor_output_sources(view, true);
     if (what == "Build" && app.build.number() != 0) {
         what += " #" + std::to_string(app.build.number());
@@ -167,7 +207,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     std::vector<const rv_editor_log_line *> shown;
     size_t hidden_errors = 0;
     size_t hidden_warnings = 0;
+    size_t run_lines = 0;
     for (const rv_editor_log_line &line : log.lines()) {
+        run_lines += line.pid == view.run_pid ? 1 : 0;
         if (line.seq < view.hide_before) {
             continue;
         }
@@ -177,6 +219,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             hidden_errors += line.level == rv_editor_log_level::error ? 1 : 0;
             hidden_warnings += line.level == rv_editor_log_level::warning ? 1 : 0;
         }
+    }
+    if (view.run_pid != 0 && run_lines == 0) {
+        rv_editor_status(("No lines from " + view.run_label + " are kept").c_str(), rv_editor_status_kind::idle, theme);
     }
     if (hidden_errors + hidden_warnings != 0) {
         const std::string hidden = std::to_string(hidden_errors) + " errors, " + std::to_string(hidden_warnings) +
@@ -250,6 +295,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
                 view.picked_from = view.picked_to = line.seq;
             }
             view.follow = false;
+        }
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", rv_editor_output_origin(line).c_str());
         }
         ImGui::PopID();
         ImGui::SetCursorPos(ImVec2(x, start.y));
