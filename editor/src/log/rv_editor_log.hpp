@@ -2,9 +2,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <deque>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rv_editor
 {
@@ -76,10 +78,35 @@ public:
     // Changes every time a line is added or the log is cleared.
     uint64_t revision() const { return seq_; }
 
+    // Mirrors every line with this pid into `path`: creates the parent
+    // directory, writes the lines already kept for `pid`, then appends
+    // later ones as they are added. A failure drops the sink and logs an
+    // editor error naming `path` and the OS reason.
+    void attach_file(int64_t pid, const std::string &path);
+    // Path attached for `pid`, empty when none.
+    std::string file_for(int64_t pid) const;
+
+    rv_editor_log() = default;
+    rv_editor_log(const rv_editor_log &) = delete;
+    rv_editor_log &operator=(const rv_editor_log &) = delete;
+    ~rv_editor_log();
+
 private:
+    struct rv_editor_log_sink
+    {
+        int64_t pid;
+        std::string path;
+        FILE *file;
+    };
+
+    void write_to_sink(rv_editor_log_sink &sink, const rv_editor_log_line &line);
+    void drop_sink(size_t index);
+
     std::deque<rv_editor_log_line> lines_;
     uint64_t seq_ = 0;
     uint64_t dropped_ = 0;
+    // ponytail: at most 8 sinks open at once; a 9th attach closes the oldest (pid reuse after exit).
+    std::vector<rv_editor_log_sink> sinks_;
 };
 
 const char *rv_editor_log_source_name(rv_editor_log_source source);

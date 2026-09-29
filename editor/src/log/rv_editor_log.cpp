@@ -2,15 +2,30 @@
 
 #include "log/rv_editor_log.hpp"
 
+#include <cerrno>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <ctime>
+#include <filesystem>
 
 namespace rv_editor
 {
 
 namespace
 {
+
+constexpr size_t max_sinks = 8;
+
+const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
+{
+    switch (channel) {
+        case rv_editor_log_channel::out: return "out";
+        case rv_editor_log_channel::err: return "err";
+        case rv_editor_log_channel::none: break;
+    }
+    return "-";
+}
 
 // The steady clock the lines count from, and the wall clock at that moment.
 struct rv_editor_log_clock
@@ -73,6 +88,103 @@ void rv_editor_log::add(rv_editor_log_source source, rv_editor_log_level level, 
     while (lines_.size() > capacity) {
         lines_.pop_front();
         ++dropped_;
+    }
+    for (size_t i = 0; i < sinks_.size(); ++i) {
+        if (sinks_[i].pid == pid) {
+            write_to_sink(sinks_[i], lines_.back());
+            break;
+        }
+    }
+}
+
+void rv_editor_log::write_to_sink(rv_editor_log_sink &sink, const rv_editor_log_line &line)
+{
+    const std::string text = rv_editor_log_stamp(line, true) + ' ' + rv_editor_log_source_name(line.source) + ' ' +
+        rv_editor_log_channel_name(line.channel) + ' ' + line.text + '\n';
+    errno = 0;
+    const bool ok = std::fwrite(text.data(), 1, text.size(), sink.file) == text.size() && std::fflush(sink.file) == 0;
+    if (ok) {
+        return;
+    }
+    const int err = errno;
+    const std::string path = sink.path;
+    for (size_t i = 0; i < sinks_.size(); ++i) {
+        if (&sinks_[i] == &sink) {
+            drop_sink(i);
+            break;
+        }
+    }
+    add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        "log file write failed: " + path + ": " + std::strerror(err));
+}
+
+void rv_editor_log::drop_sink(size_t index)
+{
+    std::fclose(sinks_[index].file);
+    sinks_.erase(sinks_.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
+void rv_editor_log::attach_file(int64_t pid, const std::string &path)
+{
+    for (size_t i = 0; i < sinks_.size(); ++i) {
+        if (sinks_[i].pid == pid) {
+            drop_sink(i);
+            break;
+        }
+    }
+
+    std::error_code ec;
+    const auto parent = std::filesystem::path(path).parent_path();
+    if (!parent.empty()) {
+        std::filesystem::create_directories(parent, ec);
+    }
+    if (ec) {
+        add(rv_editor_log_source::editor, rv_editor_log_level::error,
+            "log file " + path + ": " + ec.message());
+        return;
+    }
+
+    errno = 0;
+    FILE *file = std::fopen(path.c_str(), "w");
+    if (file == nullptr) {
+        const int err = errno;
+        add(rv_editor_log_source::editor, rv_editor_log_level::error,
+            "log file open failed: " + path + ": " + std::strerror(err));
+        return;
+    }
+
+    if (sinks_.size() >= max_sinks) {
+        drop_sink(0);
+    }
+    sinks_.push_back({ pid, path, file });
+    rv_editor_log_sink &sink = sinks_.back();
+
+    for (const rv_editor_log_line &line : lines_) {
+        if (line.pid != pid) {
+            continue;
+        }
+        write_to_sink(sink, line);
+        if (file_for(pid).empty()) {
+            // write_to_sink dropped the sink on failure; `sink` is now dangling.
+            return;
+        }
+    }
+}
+
+std::string rv_editor_log::file_for(int64_t pid) const
+{
+    for (const rv_editor_log_sink &sink : sinks_) {
+        if (sink.pid == pid) {
+            return sink.path;
+        }
+    }
+    return {};
+}
+
+rv_editor_log::~rv_editor_log()
+{
+    for (rv_editor_log_sink &sink : sinks_) {
+        std::fclose(sink.file);
     }
 }
 
