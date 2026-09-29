@@ -279,6 +279,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
 | `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND) is refused with `unsupported_kind` (directory medium only) |
+| `asset <name> bytes <n>` | the next `n` bytes are the new content of `<name>` - a baked `.mppctex` for a texture; same answers as `asset <name>`, and works on any medium. Bytes that are not a valid texture are refused with `asset`, and the last good copy stays resident |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
@@ -307,6 +308,9 @@ notification at all. The
 answer carries the texture's size because a RESIZED texture is the one case
 the client's own layout has to follow — the game does not have to hear about
 it at all, since it asks the drive for the address and the size every draw.
+`asset <name> bytes <n>` carries the new bytes with the request instead of
+reading them off the medium, so it needs no live directory - only the name
+still has to be an entry on whatever is mounted.
 
 ### A session
 
@@ -423,7 +427,7 @@ reshaping at all.
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
 | a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
-| an existing texture's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
+| an existing texture's bytes | no — `asset <name>` or `asset <name> bytes <n>` | the client, by asking or by sending the new bytes; the drive refreshes it |
 | an existing sound's bytes | **yes**, once it is resident | the client: `asset` on it answers `err unsupported_kind`. A voice is already reading that block, and moving the bytes under its read head is not something the drive can undo |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
@@ -554,10 +558,17 @@ each number is what it is.
 ```sh
 mppcburner build mygame -o mygame.mppcdisc [--baker PATH] [--pdk PATH] [--pdklib PATH]
 mppcburner inspect mygame.mppcdisc
+mppcburner bake-texture mygame assets/hero.png -o hero.mppctex [--baker PATH]
 ```
 
 `inspect` prints the manifest and the entry list to **stdout** (so it pipes into
 `grep` cleanly) and diagnostics to stderr.
+
+`bake-texture` bakes one `[textures]` source into a standalone `.mppctex`, the
+way `build`'s own plan would - same format and the same `[budget]` size check.
+It writes `-o` only once baking succeeds, so a refusal never leaves a partial
+file, and prints the entry's disc name (what `--map` would call it) as the
+only line on stdout.
 
 The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose
