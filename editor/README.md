@@ -278,9 +278,15 @@ comes back Not run.
 A scene is `scenes/<name>.scene.toml`: groups, cameras and boxes, each with
 a stable id, a name, a parent, a position, a rotation (degrees, yaw then pitch
 then roll) and a scale, and a mesh and a texture named as the disc names them.
-The Scene layout opens the project's first scene; the Scene menu creates one
-under a free name, opens, saves and edits them. Keys and sections the editor
-does not know are written back as read, and a newer format opens read-only.
+The Scene layout opens the project's first scene; New Scene asks for a name
+(a free one offered first) and, only for a C++ disc, whether to also write
+`src/<id>_scene.hpp` (off by default; `<id>` is the name with non-identifier
+characters turned to `_`). The header is the user's: the editor writes it once
+and never over an existing file. New Scene also puts `scenes/*.scene.toml` in
+disc.toml's `[assets]` when no pattern there already covers the new scene,
+then opens, saves and edits it. Keys and sections the editor does not know
+are written back as read, and a scene of an incompatible PDK version opens
+read-only.
 Its standard tiles put the Transform Toolchest over the Hierarchy on the left,
 the scene in the centre, the Game over Runtime Controls over the Inspector on
 the right, and Assets, Files and Console Output as tabs along the full width
@@ -295,7 +301,10 @@ at the bottom.
   preview strip: a PNG whole with its pixel size and disc texture, a sound's
   length and disc name with Play/Stop (a WAV in its own format, a `.pcm` as
   the console's mono 44100 Hz samples; picking another asset stops it), and
-  another file's kind and size.
+  another file's kind and size. A selected file disc.toml does not list offers
+  Add to disc, putting it in the section its kind belongs to (a PNG in
+  `[textures]`, a WAV in `[sounds]`, anything else in `[assets]`) and changing
+  only that list, keeping the file's comments and layout.
 - **The viewport** draws the scene in wireframe through an editor camera,
   never the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects)
   drag the selection with Snap as the Transform Toolchest sets it, the right
