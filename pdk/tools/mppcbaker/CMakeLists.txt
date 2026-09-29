@@ -1,6 +1,5 @@
-# mppcbaker BAKES a texture: PNG in, .mppctex out. Named for what it does, not
-# for what it produces - the artifact is .mppctex and a tool sharing that name
-# would make "build the mppctex" ambiguous forever.
+# mppcbaker BAKES an asset for the console: PNG in, .mppctex out; WAV in, raw
+# PCM out. Named for what it does, not for what it produces.
 
 # --- stb_image (vendored, TOOL-ONLY dependency) -------------------------------
 # The header lives in the repository, not on the network: see
@@ -16,7 +15,7 @@ if(NOT EXISTS ${MPPCBAKER_STB_DIR}/stb_image.h)
     "downloaded - restore it from the repository rather than fetching it.")
 endif()
 
-add_executable(mppcbaker mppcbaker.cpp rv_baker_encode.cpp rv_baker_quantize.cpp)
+add_executable(mppcbaker mppcbaker.cpp rv_baker_encode.cpp rv_baker_quantize.cpp rv_baker_wav.cpp)
 
 # SYSTEM: stb_image.h is third-party and not warning-clean under -Wextra. Its
 # implementation is textually part of mppcbaker.cpp, but the diagnostics still
