@@ -4,8 +4,12 @@
 
 #include "pdk/de/rv_dv.h"
 
-// Every file format and channel version in the repository is this PDK version,
-// derived once from RV_MPPC_VER_MAJOR/MINOR so no format restates its own pair.
+// Every file format and channel version in the repository is defined against
+// this PDK version, derived once from RV_MPPC_VER_MAJOR/MINOR so no format
+// restates its own pair. A disc, memory card, texture or scene is compatible
+// when its major equals RV_MPPC_VER_MAJOR and its minor is at most
+// RV_MPPC_VER_MINOR; the dev channel, shared frame, build map and editor
+// layout/view still require an exact match.
 
 namespace rv_pdklib
 {
@@ -24,5 +28,13 @@ inline constexpr uint16_t rv_version_packed16 =
 /// 32-bit packed PDK version: major << 16 | minor.
 inline constexpr uint32_t rv_version_packed32 =
     (static_cast<uint32_t>(RV_MPPC_VER_MAJOR) << 16) | static_cast<uint32_t>(RV_MPPC_VER_MINOR);
+
+/// True when (major, minor) is compatible with this PDK version: same major,
+/// minor at most RV_MPPC_VER_MINOR.
+inline constexpr bool rv_version_compatible(uint32_t major, uint32_t minor)
+{
+    return major == static_cast<uint32_t>(RV_MPPC_VER_MAJOR) &&
+           minor <= static_cast<uint32_t>(RV_MPPC_VER_MINOR);
+}
 
 } // namespace rv_pdklib

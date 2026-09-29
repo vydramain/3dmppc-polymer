@@ -29,8 +29,9 @@ namespace rv_pdklib
 inline constexpr int rv_mppctex_header_size = 16;
 
 /// Container version this layout describes: the PDK version, packed. A reader
-/// refuses any other value, which is what lets it refuse a file it would
-/// misparse the moment the PDK version - and with it this layout - moves on.
+/// accepts this or an older-minor same-major value (rv_version_compatible),
+/// which is what lets it refuse a file it would misparse the moment the major
+/// version - and with it this layout - moves on.
 inline constexpr uint16_t rv_mppctex_version = rv_version_packed16;
 
 /// Byte offsets inside the header.
@@ -139,9 +140,9 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
     }
 
     const uint16_t version = detail::rv_mppctex_read_le16(raw + RV_MPPCTEX_OFF_VERSION);
-    if (version != rv_mppctex_version) {
+    if (!rv_version_compatible(version >> 8, version & 0xFF)) {
         error = "is container version " + std::to_string(version >> 8) + "." +
-                std::to_string(version & 0xFF) + ", not the version " + rv_version_str +
+                std::to_string(version & 0xFF) + ", not compatible with the version " + rv_version_str +
                 " this code reads";
         return false;
     }
