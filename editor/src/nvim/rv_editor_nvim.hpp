@@ -91,8 +91,9 @@ public:
     // button "left" with "press", "drag" or "release", or "wheel" with "up",
     // "down", "left" or "right".
     void mouse(const char *button, const char *action, int32_t grid, int32_t row, int32_t col);
-    // Opens `path` in `win`, at `line` when it is above 0.
-    void open(int64_t win, const std::filesystem::path &path, int32_t line);
+    // Opens `path` in `win`, at `line` when it is above 0, and at `col`
+    // (1-based) when it is above 0; nvim clamps the column to the line.
+    void open(int64_t win, const std::filesystem::path &path, int32_t line, int32_t col = 0);
     // `:checktime`: re-reads buffers changed on disk (PRJ-06/PRJ-07 go through
     // nvim's autoread and its own changed-file question).
     void checktime();
