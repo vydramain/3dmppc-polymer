@@ -416,8 +416,8 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             text = owned.c_str();
             break;
         case rv_editor_change_action::refresh_texture:
-            text = "Texture: Build and Restart";
-            warn = true;
+            owned = "Refresh: texture " + plan.name;
+            text = owned.c_str();
             break;
         case rv_editor_change_action::build_restart:
         case rv_editor_change_action::restart_required:
