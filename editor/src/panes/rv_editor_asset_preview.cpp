@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <string_view>
 
 #include "imgui.h"
 
@@ -27,6 +28,28 @@ struct rv_editor_sound_error
 };
 
 rv_editor_sound_error rv_editor_sound_last_error;
+
+// The last failed "Add to disc", kept until the selection moves to a different file.
+struct rv_editor_add_error
+{
+    std::string rel;
+    std::string text;
+};
+
+rv_editor_add_error rv_editor_add_last_error;
+
+// False for sources, scripts, disc.toml itself and scene files: none of these
+// belong in a disc's asset sections.
+bool rv_editor_asset_belongs_on_disc(std::string_view rel)
+{
+    static constexpr std::string_view excluded[] = { ".cpp", ".hpp", ".h", ".c", ".lua" };
+    for (std::string_view ext : excluded) {
+        if (rel.ends_with(ext)) {
+            return false;
+        }
+    }
+    return rel != "disc.toml" && !rel.ends_with(".scene.toml");
+}
 
 // Seconds a WAV's header promises: its "fmt " chunk gives the rate and
 // frame size, its "data" chunk the byte count. 0 when the file is not a WAV
@@ -107,7 +130,7 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
 }
 
 void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds, const rv_editor_theme &theme)
+    double sound_seconds, const rv_editor_theme &theme, rv_editor_project &project)
 {
     if (a == nullptr) {
         ImGui::TextWrapped("Click an asset to see it here.");
@@ -158,6 +181,23 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
                 entry->parameter.empty() ? "" : ", ", entry->parameter.c_str());
         } else {
             ImGui::TextWrapped("Not on the disc of the last build.");
+        }
+        if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
+            const char *section = rv_editor_project_disc_section(a->rel);
+            ImGui::Text("Not in disc.toml.");
+            ImGui::SameLine();
+            if (rv_editor_button("Add to disc", theme)) {
+                std::string error;
+                if (rv_editor_project_put_on_disc(project, a->rel, error)) {
+                    rv_editor_add_last_error = {};
+                } else {
+                    rv_editor_add_last_error = { a->rel, error };
+                }
+            }
+            ImGui::SetItemTooltip("Adds it to [%s] in disc.toml", section);
+            if (rv_editor_add_last_error.rel == a->rel && !rv_editor_add_last_error.text.empty()) {
+                ImGui::TextWrapped("%s", rv_editor_add_last_error.text.c_str());
+            }
         }
     };
 

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "build/rv_editor_build_map.hpp"
+#include "project/rv_editor_project.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 
@@ -32,8 +33,10 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a);
 // the disc. A hint when `a` is null. Fills the current ImGui region (the
 // caller's child window). `picture` is the PNG's texture, already loaded by
 // the caller's cache; `sound_seconds` is the caller's cached result of
-// rv_editor_asset_sound_seconds.
+// rv_editor_asset_sound_seconds. `project` is the open project: when `a` is
+// not covered by disc.toml and belongs in a disc section, an "Add to disc"
+// button offers to put it there.
 void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds, const rv_editor_theme &theme);
+    double sound_seconds, const rv_editor_theme &theme, rv_editor_project &project);
 
 } // namespace rv_editor

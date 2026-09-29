@@ -306,7 +306,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         ImGui::SameLine();
     }
     ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true);
-    rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme);
+    rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme, app.project);
     ImGui::EndChild();
 }
 
