@@ -27,12 +27,23 @@ enum class rv_editor_log_level : uint8_t
     error,
 };
 
+// Which process stream a line is a raw copy of; none for the editor's own lines.
+enum class rv_editor_log_channel : uint8_t
+{
+    none,
+    out,
+    err,
+};
+
 struct rv_editor_log_line
 {
     uint64_t seq;
     int64_t ms;             // milliseconds since the editor started
     rv_editor_log_source source;
     rv_editor_log_level level;
+    rv_editor_log_channel channel;
+    int64_t pid;             // 0 = the editor itself
+    uint32_t run;            // 0 = outside any run
     std::string text;
 };
 
@@ -46,13 +57,17 @@ public:
     // One line longer than this is cut, and says so.
     static constexpr size_t line_max = 4096;
 
-    void add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text);
+    // channel/pid/run default to none/0/0: the editor's own line, outside any run.
+    void add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text,
+        rv_editor_log_channel channel = rv_editor_log_channel::none, int64_t pid = 0, uint32_t run = 0);
 
     // Splits `bytes` from a process stream into lines; a trailing partial line
     // waits in `partial` for the next chunk. Severity comes from the text.
-    void add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes);
+    void add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes,
+        rv_editor_log_channel channel = rv_editor_log_channel::none, int64_t pid = 0, uint32_t run = 0);
     // Whatever `partial` still holds, as a last line (the stream has ended).
-    void flush_stream(rv_editor_log_source source, std::string &partial);
+    void flush_stream(rv_editor_log_source source, std::string &partial,
+        rv_editor_log_channel channel = rv_editor_log_channel::none, int64_t pid = 0, uint32_t run = 0);
 
     void clear();
 

@@ -62,20 +62,22 @@ std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
     return buf;
 }
 
-void rv_editor_log::add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text)
+void rv_editor_log::add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text,
+    rv_editor_log_channel channel, int64_t pid, uint32_t run)
 {
     std::string kept(text.substr(0, line_max));
     if (text.size() > line_max) {
         kept += " [cut: " + std::to_string(text.size()) + " bytes]";
     }
-    lines_.push_back({ ++seq_, rv_editor_log_now(), source, level, std::move(kept) });
+    lines_.push_back({ ++seq_, rv_editor_log_now(), source, level, channel, pid, run, std::move(kept) });
     while (lines_.size() > capacity) {
         lines_.pop_front();
         ++dropped_;
     }
 }
 
-void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes)
+void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes,
+    rv_editor_log_channel channel, int64_t pid, uint32_t run)
 {
     while (!bytes.empty()) {
         const size_t nl = bytes.find('\n');
@@ -83,7 +85,7 @@ void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial
             // A line that never ends is still bounded: emit it in pieces.
             partial.append(bytes);
             if (partial.size() > line_max) {
-                add(source, rv_editor_log_level_of(partial), partial);
+                add(source, rv_editor_log_level_of(partial), partial, channel, pid, run);
                 partial.clear();
             }
             return;
@@ -93,15 +95,16 @@ void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial
         if (!partial.empty() && partial.back() == '\r') {
             partial.pop_back();
         }
-        add(source, rv_editor_log_level_of(partial), partial);
+        add(source, rv_editor_log_level_of(partial), partial, channel, pid, run);
         partial.clear();
     }
 }
 
-void rv_editor_log::flush_stream(rv_editor_log_source source, std::string &partial)
+void rv_editor_log::flush_stream(rv_editor_log_source source, std::string &partial, rv_editor_log_channel channel,
+    int64_t pid, uint32_t run)
 {
     if (!partial.empty()) {
-        add(source, rv_editor_log_level_of(partial), partial);
+        add(source, rv_editor_log_level_of(partial), partial, channel, pid, run);
         partial.clear();
     }
 }
