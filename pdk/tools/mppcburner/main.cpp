@@ -37,14 +37,18 @@ static void print_usage(std::FILE *stream)
         "Usage:\n"
         "  mppcburner build <disc-directory> -o <output.mppcdisc> [options]\n"
         "  mppcburner inspect <file.mppcdisc>\n"
+        "  mppcburner bake-texture <disc-directory> <source> -o <output.mppctex> [--baker PATH]\n"
         "  mppcburner help\n"
         "\n"
         "Commands:\n"
-        "  build     Compile the disc directory and burn the image. Progress goes\n"
-        "            to stderr, nothing to stdout.\n"
-        "  inspect   Print the manifest and the entry sizes to stdout. Nothing is\n"
-        "            unpacked and nothing is written.\n"
-        "  help      Print this text.\n"
+        "  build         Compile the disc directory and burn the image. Progress\n"
+        "                goes to stderr, nothing to stdout.\n"
+        "  inspect       Print the manifest and the entry sizes to stdout. Nothing\n"
+        "                is unpacked and nothing is written.\n"
+        "  bake-texture  Bake one [textures] source of the disc into a standalone\n"
+        "                .mppctex, the way build's own plan would. The baked\n"
+        "                entry's archive name is the only thing on stdout.\n"
+        "  help          Print this text.\n"
         "\n"
         "Options (build):\n"
         "  -o, --output PATH        Image to write. Required unless --unpacked is\n"
@@ -68,6 +72,11 @@ static void print_usage(std::FILE *stream)
         "  -m, --map PATH           After a build that succeeded, write which entry\n"
         "                           of the disc each of its files became to PATH.\n"
         "\n"
+        "Options (bake-texture):\n"
+        "  -o, --output PATH        .mppctex file to write. Required.\n"
+        "  -b, --baker PATH         mppcbaker used to bake the texture. Default: the\n"
+        "                           copy next to mppcburner, then $PATH.\n"
+        "\n"
         "Options (any command):\n"
         "  -h, --help               Print this text.\n"
         "\n"
@@ -75,13 +84,17 @@ static void print_usage(std::FILE *stream)
         "  PDK version the discs it builds are stamped with.\n");
 }
 
+// bake-texture's own bit; not in rv_burner_options.hpp because no other file
+// needs to test for it.
+constexpr uint32_t RV_BURNER_MASK_BAKE = 1u << 2;
+
 // Every option the tool has, declared once. Letters are unique tool-wide, which
 // is what lets a single switch store the options of every subcommand.
 constexpr rv_burner_option_spec OPTIONS[] = {
     { 'h', "help", no_argument, "print this text",
-        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT },
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE },
     { 'o', "output", required_argument, "image to write (required unless --unpacked)",
-        RV_BURNER_MASK_BUILD },
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
     { 'u', "unpacked", required_argument, "write an unpacked disc directory instead",
         RV_BURNER_MASK_BUILD },
     { 'p', "pdk", required_argument,
@@ -90,7 +103,7 @@ constexpr rv_burner_option_spec OPTIONS[] = {
     { 'l', "pdklib", required_argument, "disc-side SDK include directory",
         RV_BURNER_MASK_BUILD },
     { 'b', "baker", required_argument, "mppcbaker used to bake textures",
-        RV_BURNER_MASK_BUILD },
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
     { 'j', "jobs", required_argument, "parallel compile jobs",
         RV_BURNER_MASK_BUILD },
     { 'k', "keep-build", optional_argument,
@@ -111,6 +124,7 @@ static int nullable_handler(const rv_burner_options &)
 constexpr rv_burner_command_spec COMMANDS[] = {
     { "build", RV_BURNER_MASK_BUILD, 1, rv_burner_build_run },
     { "inspect", RV_BURNER_MASK_INSPECT, 1, rv_burner_inspect_run },
+    { "bake-texture", RV_BURNER_MASK_BAKE, 2, rv_burner_bake_texture_run },
     { "help", 0, 0, nullable_handler },
     { "-h", 0, 0, nullable_handler },
     { "--help", 0, 0, nullable_handler },
@@ -247,8 +261,17 @@ int main(int argc, char **argv)
     }
 
     // Nothing to read for an operandless command: argv[optind] is its nullptr.
-    if (0 != local_argc - optind) {
+    // A second operand (bake-texture only) is the source to bake.
+    if (cmd->operands >= 1) {
         burner_options.operand = local_argv[optind];
+    }
+    if (cmd->operands >= 2) {
+        burner_options.bake_source = local_argv[optind + 1];
+    }
+
+    if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BAKE) && burner_options.output.empty()) {
+        rv_pdktools::rv_burner_print_error("bake-texture requires -o <output.mppctex>");
+        return 1;
     }
 
     return cmd->handler(burner_options);
