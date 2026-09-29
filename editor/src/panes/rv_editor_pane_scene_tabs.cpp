@@ -174,6 +174,10 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
     rv_editor_menu_style_pop();
 
     if (st.front == 0) {
+        // rv_editor_flow's first call below looks at the last item's rect to
+        // decide whether to stay on this row; without a full-width item here
+        // it would still see a tab and pull the viewport toolbar up onto it.
+        ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, 0.0f));
         return true;
     }
     const rv_editor_scene_tab &front = st.tabs[static_cast<size_t>(st.front - 1)];
