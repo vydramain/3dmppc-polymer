@@ -104,6 +104,98 @@ vim.api.nvim_create_autocmd("FileType", {
     end,
 })
 
+-- Language servers: clangd for C/C++, lua-language-server (LuaJIT) for Lua.
+-- Root is the directory holding disc.toml; nvim's cwd already is it, but a
+-- buffer under src/ or scripts/ still resolves the same root via vim.fs.root.
+hl("DiagnosticError", { fg = c.red })
+hl("DiagnosticWarn", { fg = c.yellow })
+hl("DiagnosticInfo", { fg = c.blue })
+hl("DiagnosticHint", { fg = c.teal })
+hl("DiagnosticUnderlineError", { sp = c.red, underline = true })
+hl("DiagnosticUnderlineWarn", { sp = c.yellow, underline = true })
+hl("DiagnosticUnderlineInfo", { sp = c.blue, underline = true })
+hl("DiagnosticUnderlineHint", { sp = c.teal, underline = true })
+vim.diagnostic.config({
+    signs = { text = { [vim.diagnostic.severity.ERROR] = "E", [vim.diagnostic.severity.WARN] = "W",
+        [vim.diagnostic.severity.INFO] = "I", [vim.diagnostic.severity.HINT] = "H" } },
+    underline = true,
+    virtual_text = { spacing = 2 },
+})
+
+local function rv_project_root(bufnr)
+    return vim.fs.root(bufnr, "disc.toml") or vim.fn.getcwd()
+end
+-- vim.lsp.Config wants root_dir as fun(bufnr, on_dir), not a plain getter.
+local function rv_root_dir(bufnr, on_dir) on_dir(rv_project_root(bufnr)) end
+
+-- The editor learns server state on the same channel as rv_mode/rv_buffers.
+-- Kept locally too, so a test (or a later editor build) can read it directly.
+_G.rv_lsp_status = {}
+local function rv_lsp_report(server, state, reason)
+    _G.rv_lsp_status[server] = { state = state, reason = reason }
+    vim.rpcnotify(0, "rv_lsp", { server = server, state = state, reason = reason })
+end
+
+local function rv_send_diagnostics(bufnr)
+    local items = {}
+    for _, d in ipairs(vim.diagnostic.get(bufnr)) do
+        items[#items + 1] = {
+            line = d.lnum + 1,
+            col = d.col + 1,
+            severity = vim.diagnostic.severity[d.severity]:lower(),
+            source = d.source,
+            message = d.message,
+        }
+    end
+    vim.rpcnotify(0, "rv_diagnostics", { file = vim.api.nvim_buf_get_name(bufnr), items = items })
+end
+vim.api.nvim_create_autocmd("DiagnosticChanged", {
+    callback = function(ev) rv_send_diagnostics(ev.buf) end,
+})
+
+local rv_servers = {
+    clangd = {
+        cmd = { "clangd", "--compile-commands-dir=" .. vim.fn.getcwd() .. "/.mppcburn" },
+        filetypes = { "c", "cpp" },
+        root_dir = rv_root_dir,
+    },
+    luals = {
+        cmd = { "lua-language-server" },
+        filetypes = { "lua" },
+        root_dir = rv_root_dir,
+        settings = { Lua = { runtime = { version = "LuaJIT" }, diagnostics = { globals = { "state" } } } },
+    },
+}
+for name, cfg in pairs(rv_servers) do
+    cfg.on_error = function(_, err) rv_lsp_report(name, "stopped", tostring(err)) end
+    cfg.on_exit = function(code, signal) rv_lsp_report(name, "stopped", "exit " .. code .. " signal " .. signal) end
+    vim.lsp.config(name, cfg)
+    -- A missing executable never breaks editing: skip enabling that server
+    -- instead of letting it fail to spawn on every matching buffer.
+    if vim.fn.executable(cfg.cmd[1]) == 1 then
+        vim.lsp.enable(name)
+    else
+        rv_lsp_report(name, "missing", cfg.cmd[1] .. " not found on PATH")
+    end
+end
+vim.api.nvim_create_autocmd("LspAttach", {
+    callback = function(ev)
+        local client = vim.lsp.get_client_by_id(ev.data.client_id)
+        if not client or not rv_servers[client.name] then
+            return
+        end
+        rv_lsp_report(client.name, "running", nil)
+        if client:supports_method("textDocument/completion") then
+            vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
+        end
+    end,
+})
+
+-- Hover and go-to-definition, in both editing modes.
+vim.keymap.set({ "n", "i" }, "<C-k>", function() vim.lsp.buf.hover() end)
+vim.keymap.set({ "n", "i" }, "<F12>", function() vim.lsp.buf.definition() end)
+vim.keymap.set("i", "<C-Space>", function() vim.lsp.completion.get() end)
+
 -- Editor mode or Vim mode. In editor mode a buffer is always typed into.
 vim.g.rv_vim_mode = false
 local function stay_inserting()
