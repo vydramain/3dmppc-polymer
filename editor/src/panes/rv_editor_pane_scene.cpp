@@ -16,7 +16,10 @@ namespace rv_editor
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
     if (rv_editor_button("Create Scene", theme)) {
-        rv_editor_app_scene_create(app);
+        std::string error;
+        if (!rv_editor_app_scene_create(app, rv_editor_app_scene_free_name(app), false, error)) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not created: " + error);
+        }
     }
     ImGui::SetItemTooltip("A camera and a box in scenes/, under a name no file has");
     for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {

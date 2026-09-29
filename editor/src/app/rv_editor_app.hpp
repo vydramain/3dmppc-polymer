@@ -7,6 +7,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "build/rv_editor_build.hpp"
@@ -307,7 +308,13 @@ std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app
 bool rv_editor_app_scene_dirty(const rv_editor_app &app);
 std::string rv_editor_app_scene_name(const rv_editor_app &app);
 void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
-void rv_editor_app_scene_create(rv_editor_app &app);
+// The next free name ("main", else "sceneN") a new scene would get today.
+std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
+// Creates scenes/<name>.scene.toml (name: non-empty, letters/digits/_/-, must not
+// exist yet), puts it on the disc if no pattern already matches it, writes
+// src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. False with
+// the reason on any failure; the scene file and whatever else already succeeded stay.
+bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
 bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // The project's first scene, or none; called when a project opens.
 void rv_editor_app_scene_first(rv_editor_app &app);

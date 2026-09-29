@@ -16,7 +16,12 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     rv_editor_app &app = shell.app;
     const char *no_project = app.project.open ? nullptr : "No project is open";
     if (rv_editor_menu_item("New Scene", nullptr, no_project)) {
-        rv_editor_app_scene_create(app);
+        // The dialog (name, write-C++ choice) is a later slice; for now the free
+        // default name, no C++ written.
+        std::string error;
+        if (!rv_editor_app_scene_create(app, rv_editor_app_scene_free_name(app), false, error)) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not created: " + error);
+        }
     }
     if (ImGui::BeginMenu("Open Scene", app.project.open)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
