@@ -52,6 +52,9 @@ struct rv_editor_shell
     // By slot: a starting tree whose Game tile keeps the screen's proportions until
     // a splitter is dragged; the tries left to settle, and the area at the last one.
     std::array<bool, 4> game_fit{};
+    // By slot: true from a reset/fresh preset until the first splitter drag, whether
+    // or not the preset also fits the Game (Debug does not, but its strips still do).
+    std::array<bool, 4> layout_untouched{};
     int game_fit_tries = 8;
     rv_editor_size game_fit_last{ 0, 0 };
     rv_editor_layout_preset active = rv_editor_layout_preset::code;

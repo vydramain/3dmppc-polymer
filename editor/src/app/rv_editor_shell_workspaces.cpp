@@ -118,6 +118,52 @@ bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor
     return false;
 }
 
+// `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums,
+// filled from shell.strips): what a strip leaf needs and nothing more.
+int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis)
+{
+    rv_editor_size need{ 0, 0 };
+    for (const rv_editor_pane_id pane : ws.layout.nodes[node].leaf.tabs) {
+        const auto it = ws.minimums.find(pane);
+        if (it != ws.minimums.end()) {
+            need.w = std::max(need.w, it->second.w);
+            need.h = std::max(need.h, it->second.h);
+        }
+    }
+    return axis == rv_editor_axis::x ? need.w : need.h;
+}
+
+// Sets every split with a strip leaf child to that strip's exact minimum, the
+// rest going to its sibling: no empty band under the strip's rows. Skipped
+// once the tree no longer fits its minimums (rv_editor_tile_place_node then
+// shrinks both children in proportion instead of honoring any ratio).
+void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
+{
+    for (uint32_t i = 0; i < ws.layout.nodes.size(); ++i) {
+        const rv_editor_tile_node &n = ws.layout.nodes[i];
+        if (n.kind != rv_editor_tile_kind::split || i >= ws.rects.size()) {
+            continue;
+        }
+        const bool first_is_strip = rv_editor_strip_leaf(ws, n.split.first);
+        const bool second_is_strip = rv_editor_strip_leaf(ws, n.split.second);
+        if (first_is_strip == second_is_strip) {
+            continue; // neither, or both: nothing to fit against
+        }
+        const rv_editor_axis axis = n.split.axis;
+        const rv_editor_rect &a = ws.rects[n.split.first];
+        const rv_editor_rect &b = ws.rects[n.split.second];
+        const int32_t total = (axis == rv_editor_axis::x ? a.w : a.h) + (axis == rv_editor_axis::x ? b.w : b.h);
+        if (total <= 0) {
+            continue;
+        }
+        const uint32_t strip = first_is_strip ? n.split.first : n.split.second;
+        const int32_t need = rv_editor_strip_min_along(ws, strip, axis);
+        const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total)
+                                            : 1.0f - static_cast<float>(need) / static_cast<float>(total);
+        rv_editor_tile_set_ratio(ws.layout, i, ratio);
+    }
+}
+
 } // namespace
 
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
@@ -140,6 +186,7 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
     shell.ws.layout = rv_editor_workspace_start(shell.ws.panes, preset);
     shell.ws.focused_leaf = rv_editor_tile_none;
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
+    shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
     shell.game_fit_tries = 8;
     shell.app.game_area = { 0, 0 };
 }
@@ -156,6 +203,13 @@ void rv_editor_shell_take_layout_request(rv_editor_shell &shell)
 void rv_editor_shell_frame_start(rv_editor_shell &shell)
 {
     rv_editor_shell_take_layout_request(shell);
+    // Untouched (reset/fresh preset, no splitter dragged since) and rects from
+    // the last draw of this very tree. Independent of game_fit: Debug does not
+    // fit the Game but its strips still fit.
+    const size_t slot = rv_editor_workspace_slot(shell.active);
+    if (shell.layout_untouched[slot] && !shell.ws.dragged && shell.ws.rects.size() == shell.ws.layout.nodes.size()) {
+        rv_editor_shell_fit_strips(shell.ws);
+    }
     rv_editor_shell_fit_game(shell);
 }
 
@@ -166,6 +220,7 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     if (shell.ws.dragged) {
         shell.ws.dragged = false;
         shell.game_fit[slot] = false;
+        shell.layout_untouched[slot] = false;
     }
     const rv_editor_layout &layout = shell.ws.layout;
     const rv_editor_size area = shell.app.game_area;
@@ -240,6 +295,7 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);
         shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
+        shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
     }
     // "test" and "release" are what an earlier editor wrote for Debug and Burn.
     const std::string key = active == "test" ? "debug" : active == "release" ? "burn" : active;
