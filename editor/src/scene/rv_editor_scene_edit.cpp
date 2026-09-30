@@ -236,7 +236,10 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
     rv_editor_scene_object o;
     o.id = rv_editor_scene_new_id(doc.scene);
     o.kind = kind;
-    o.name = kind == "camera" ? "Camera" : kind == "mesh" ? "Box" : "Group";
+    o.name = kind == "camera" ? "Camera" : kind == "mesh" ? "Box" : kind == "quad" ? "Quad"
+        : kind == "billboard"                                                    ? "Billboard"
+        : kind == "volume"                                                       ? "Volume"
+                                                                                  : "Group";
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
     doc.selected = o.id;

@@ -17,18 +17,23 @@ namespace rv_editor
 // model so that nothing it does not understand is lost on save (SCN-04).
 
 using rv_editor_vec3 = std::array<double, 3>;
+using rv_editor_uv = std::array<double, 4>;
+using rv_editor_tint = std::array<int, 3>;
 
 struct rv_editor_scene_object
 {
     std::string id;     // stable; never changes once given
     std::string name;
     std::string parent; // the parent's id, empty at the root
-    std::string kind;   // "group", "camera" or "mesh"
+    std::string kind;   // "group", "camera", "mesh", "quad", "billboard" or "volume"
     rv_editor_vec3 position{ 0.0, 0.0, 0.0 };
     rv_editor_vec3 rotation{ 0.0, 0.0, 0.0 }; // degrees; R = Ry * Rx * Rz
     rv_editor_vec3 scale{ 1.0, 1.0, 1.0 };
     std::string mesh;
     std::string texture;
+    rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_editor_tint tint{ 255, 255, 255 };  // quad/billboard modulation
+    double tess = 2.0;                     // quad/billboard subdivision density
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
 };

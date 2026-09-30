@@ -63,12 +63,65 @@ void rv_editor_scene_entries(std::string &t, const std::vector<rv_pdklib::rv_man
     }
 }
 
+// A malformed uv/tint/tess sits in `extra` as read; skip the defaulted field so
+// the key is not written twice.
+bool rv_editor_scene_extra_has(const std::vector<rv_pdklib::rv_manifest_tree_entry> &extra, const std::string &key)
+{
+    for (const auto &e : extra) {
+        if (e.key == key) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool rv_editor_scene_vec_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_vec3 &out)
 {
     if (v.kind != kind::numbers || v.nums.size() != 3) {
         return false;
     }
     out = { v.nums[0], v.nums[1], v.nums[2] };
+    return true;
+}
+
+bool rv_editor_scene_uv_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_uv &out)
+{
+    if (v.kind != kind::numbers || v.nums.size() != 4) {
+        return false;
+    }
+    out = { v.nums[0], v.nums[1], v.nums[2], v.nums[3] };
+    return true;
+}
+
+bool rv_editor_scene_tint_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_tint &out)
+{
+    if (v.kind != kind::numbers || v.nums.size() != 3) {
+        return false;
+    }
+    for (int i = 0; i < 3; ++i) {
+        const double n = v.nums[static_cast<size_t>(i)];
+        if (n < 0.0 || n > 255.0 || n != static_cast<double>(static_cast<int>(n))) {
+            return false;
+        }
+    }
+    out = { static_cast<int>(v.nums[0]), static_cast<int>(v.nums[1]), static_cast<int>(v.nums[2]) };
+    return true;
+}
+
+bool rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out)
+{
+    double n;
+    if (v.kind == kind::integer) {
+        n = static_cast<double>(v.num);
+    } else if (v.kind == kind::real) {
+        n = v.real;
+    } else {
+        return false;
+    }
+    if (n <= 0.0) {
+        return false;
+    }
+    out = n;
     return true;
 }
 
@@ -124,11 +177,29 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
             // A known key of an unexpected shape is kept as it was, not overwritten.
             if (field != nullptr && e.value.kind == kind::string) {
                 *field = e.value.str;
-            } else if (vec == nullptr || !rv_editor_scene_vec_of(e.value, *vec)) {
-                o.extra.push_back(e);
-                if (field != nullptr || vec != nullptr) {
-                    s.read_only = "object '" + o.id + "': '" + e.key + "' is not what this editor writes";
+            } else if (field != nullptr || vec != nullptr) {
+                if (vec != nullptr && rv_editor_scene_vec_of(e.value, *vec)) {
+                    continue;
                 }
+                o.extra.push_back(e);
+                s.read_only = "object '" + o.id + "': '" + e.key + "' is not what this editor writes";
+            } else if (e.key == "uv") {
+                if (!rv_editor_scene_uv_of(e.value, o.uv)) {
+                    o.extra.push_back(e);
+                    s.read_only = "object '" + o.id + "': 'uv' must be four numbers";
+                }
+            } else if (e.key == "tint") {
+                if (!rv_editor_scene_tint_of(e.value, o.tint)) {
+                    o.extra.push_back(e);
+                    s.read_only = "object '" + o.id + "': 'tint' must be three integers from 0 to 255";
+                }
+            } else if (e.key == "tess") {
+                if (!rv_editor_scene_tess_of(e.value, o.tess)) {
+                    o.extra.push_back(e);
+                    s.read_only = "object '" + o.id + "': 'tess' must be a number greater than zero";
+                }
+            } else {
+                o.extra.push_back(e);
             }
         }
         s.objects.push_back(std::move(o));
@@ -175,6 +246,19 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
         t += "scale = " + rv_editor_scene_vec(o.scale) + "\n";
         t += "mesh = " + rv_editor_toml_quote(o.mesh) + "\n";
         t += "texture = " + rv_editor_toml_quote(o.texture) + "\n";
+        if (o.kind == "quad" || o.kind == "billboard") {
+            if (!rv_editor_scene_extra_has(o.extra, "uv")) {
+                t += "uv = [" + rv_editor_scene_number(o.uv[0]) + ", " + rv_editor_scene_number(o.uv[1]) + ", " +
+                    rv_editor_scene_number(o.uv[2]) + ", " + rv_editor_scene_number(o.uv[3]) + "]\n";
+            }
+            if (!rv_editor_scene_extra_has(o.extra, "tint")) {
+                t += "tint = [" + std::to_string(o.tint[0]) + ", " + std::to_string(o.tint[1]) + ", " +
+                    std::to_string(o.tint[2]) + "]\n";
+            }
+            if (!rv_editor_scene_extra_has(o.extra, "tess")) {
+                t += "tess = " + rv_editor_scene_number(o.tess) + "\n";
+            }
+        }
         rv_editor_scene_entries(t, o.extra);
     }
     for (const auto &section : scene.other_sections) {
