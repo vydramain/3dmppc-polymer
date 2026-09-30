@@ -27,6 +27,9 @@ double dot(const vec3 &a, const vec3 &b);
 
 struct rv_editor_scene_camera;
 
+// The near plane both the view and the filled-mesh pass clip against.
+inline constexpr double rv_editor_near = 0.05;
+
 // The editor camera as it is this frame: its frame and how a point lands on screen.
 struct rv_editor_view
 {
@@ -44,8 +47,11 @@ rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, I
 // A scene segment clipped to the near plane, drawn.
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
-// Each object's edges in scene space: a box's twelve, a camera's pyramid, a group's axes.
-std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(const rv_editor_scene &scene, int index);
+// Each object's edges in scene space: a mesh's real .obj triangles (or the unit cube while
+// it does not resolve, with the reason in *error), a camera's body and lens, a group's corner
+// brackets and axis cross, a third marker for any other kind.
+std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
+    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
 
 struct rv_editor_tri
 {
@@ -60,7 +66,8 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
 void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,
     const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color);
 // The object whose drawing passes nearest the click, within a few pixels; empty for none.
-std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_view &v, ImVec2 at);
+std::string rv_editor_pick(
+    const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
 // The Move gizmo's axis under the mouse, or -1.
 int rv_editor_gizmo_axis(const rv_editor_scene &scene, const std::string &selected, const rv_editor_view &v,
     ImVec2 mouse, double length);

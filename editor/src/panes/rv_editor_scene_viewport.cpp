@@ -98,7 +98,7 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
         if (!all && doc.scene.objects[i].id != doc.selected) {
             continue;
         }
-        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, static_cast<int>(i))) {
+        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i))) {
             for (const vec3 &p : { a, b }) {
                 for (size_t k = 0; k < 3; ++k) {
                     lo[k] = std::min(lo[k], p[k]);
@@ -283,7 +283,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
             ui.gizmo_before_scale = o.scale;
             ui.gizmo_dragging = true;
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            const std::string hit = rv_editor_pick(doc.scene, v, mouse);
+            const std::string hit = rv_editor_pick(doc.scene, app.project, v, mouse);
             if (cam.seeking) {
                 const int h = rv_editor_scene_find(doc.scene, hit);
                 if (h >= 0) {
@@ -327,12 +327,20 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_line(dl, v, { -10, 0, f }, { 10, 0, f }, i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
         }
     }
+    std::string mesh_error; // the first mesh resolve/parse error this frame, if any
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
+        const std::string &kind = doc.scene.objects[i].kind;
         const bool sel = doc.scene.objects[i].id == doc.selected;
-        const ImU32 color = rv_editor_col(sel ? theme.selection : doc.scene.objects[i].kind == "camera" ? theme.code_yellow
-                                                                                                     : theme.text);
-        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, static_cast<int>(i))) {
+        const ImU32 color = rv_editor_col(sel ? theme.selection
+                : kind == "mesh"                                       ? theme.text
+                : kind == "camera"                                     ? theme.code_yellow
+                                                                        : theme.code_subtext);
+        std::string error;
+        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
             rv_editor_line(dl, v, a, b, color, sel ? 2.0f : 1.0f);
+        }
+        if (mesh_error.empty() && !error.empty()) {
+            mesh_error = error;
         }
     }
     const int at = rv_editor_scene_find(doc.scene, doc.selected);
@@ -374,7 +382,11 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
         }
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + 2.0f));
-    ImGui::TextDisabled("%s | %s", buf, read_line);
+    if (mesh_error.empty()) {
+        ImGui::TextDisabled("%s | %s", buf, read_line);
+    } else {
+        ImGui::TextDisabled("%s | %s | Mesh placeholder: %s", buf, read_line, mesh_error.c_str());
+    }
     if (!read_tip.empty()) {
         ImGui::SetItemTooltip("%s", read_tip.c_str());
     }

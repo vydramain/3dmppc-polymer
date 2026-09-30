@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 
 #include "app/rv_editor_app.hpp"
 
@@ -14,7 +15,6 @@ namespace
 {
 
 constexpr double rv_editor_deg = 3.14159265358979323846 / 180.0;
-constexpr double rv_editor_near = 0.05;
 
 vec3 cross(const vec3 &a, const vec3 &b)
 {
@@ -103,44 +103,94 @@ float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b)
     return std::sqrt(dx * dx + dy * dy);
 }
 
-std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(const rv_editor_scene &scene, int index)
+// Corner brackets of a small cube: three short legs per corner, pointing inward, plus
+// a tiny axis cross through the centre. A group's marker: clearly not geometry.
+void rv_editor_group_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    const double h = 0.25, leg = 0.12;
+    for (int sx = -1; sx <= 1; sx += 2) {
+        for (int sy = -1; sy <= 1; sy += 2) {
+            for (int sz = -1; sz <= 1; sz += 2) {
+                const vec3 corner = p(sx * h, sy * h, sz * h);
+                e.emplace_back(corner, p(sx * h - sx * leg, sy * h, sz * h));
+                e.emplace_back(corner, p(sx * h, sy * h - sy * leg, sz * h));
+                e.emplace_back(corner, p(sx * h, sy * h, sz * h - sz * leg));
+            }
+        }
+    }
+    e.emplace_back(p(-0.15, 0, 0), p(0.15, 0, 0));
+    e.emplace_back(p(0, -0.15, 0), p(0, 0.15, 0));
+    e.emplace_back(p(0, 0, -0.15), p(0, 0, 0.15));
+}
+
+// A recognisable camera: a box body behind the origin plus a lens cone toward +Z, with an
+// up mark on the lens rim so orientation reads.
+void rv_editor_camera_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    const vec3 b[8] = { p(-0.2, -0.2, -0.4), p(0.2, -0.2, -0.4), p(0.2, 0.2, -0.4), p(-0.2, 0.2, -0.4),
+        p(-0.2, -0.2, 0), p(0.2, -0.2, 0), p(0.2, 0.2, 0), p(-0.2, 0.2, 0) };
+    const int pairs[12][2] = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+        { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+    for (const auto &pr : pairs) {
+        e.emplace_back(b[pr[0]], b[pr[1]]);
+    }
+    const vec3 o = p(0, 0, 0);
+    const vec3 c[4] = { p(-0.3, 0.2, 0.6), p(0.3, 0.2, 0.6), p(0.3, -0.2, 0.6), p(-0.3, -0.2, 0.6) };
+    for (int i = 0; i < 4; ++i) {
+        e.emplace_back(o, c[i]);
+        e.emplace_back(c[i], c[(i + 1) % 4]);
+    }
+    e.emplace_back(p(-0.1, 0.25, 0.6), p(0, 0.35, 0.6)); // the up mark
+    e.emplace_back(p(0, 0.35, 0.6), p(0.1, 0.25, 0.6));
+}
+
+// A diamond (octahedron), the third marker: for a kind that is neither mesh, camera nor group.
+void rv_editor_other_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    const double h = 0.3;
+    const vec3 v[6] = { p(h, 0, 0), p(-h, 0, 0), p(0, h, 0), p(0, -h, 0), p(0, 0, h), p(0, 0, -h) };
+    // Top/bottom apexes (4, 5) to each of the four equatorial points (0..3).
+    for (int apex = 4; apex <= 5; ++apex) {
+        for (int eq = 0; eq < 4; ++eq) {
+            e.emplace_back(v[apex], v[eq]);
+        }
+    }
+    e.emplace_back(v[0], v[2]);
+    e.emplace_back(v[2], v[1]);
+    e.emplace_back(v[1], v[3]);
+    e.emplace_back(v[3], v[0]);
+}
+
+std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
+    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
     const std::string &kind = scene.objects[static_cast<size_t>(index)].kind;
     auto p = [&m](double x, double y, double z) { return rv_editor_affine_point(m, { x, y, z }); };
     std::vector<std::pair<vec3, vec3>> e;
     if (kind == "mesh") {
-        const double h = 0.5;
-        const vec3 c[8] = { p(-h, -h, -h), p(h, -h, -h), p(h, h, -h), p(-h, h, -h), p(-h, -h, h), p(h, -h, h),
-            p(h, h, h), p(-h, h, h) };
-        const int pairs[12][2] = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
-            { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
-        for (const auto &pr : pairs) {
-            e.emplace_back(c[pr[0]], c[pr[1]]);
+        for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
+            e.emplace_back(tri.p[0], tri.p[1]);
+            e.emplace_back(tri.p[1], tri.p[2]);
+            e.emplace_back(tri.p[2], tri.p[0]);
         }
     } else if (kind == "camera") {
-        const vec3 o = p(0, 0, 0);
-        const vec3 c[4] = { p(-0.3, 0.2, 0.6), p(0.3, 0.2, 0.6), p(0.3, -0.2, 0.6), p(-0.3, -0.2, 0.6) };
-        for (int i = 0; i < 4; ++i) {
-            e.emplace_back(o, c[i]);
-            e.emplace_back(c[i], c[(i + 1) % 4]);
-        }
-        e.emplace_back(p(-0.1, 0.25, 0.6), p(0, 0.35, 0.6)); // the up mark
-        e.emplace_back(p(0, 0.35, 0.6), p(0.1, 0.25, 0.6));
+        rv_editor_camera_edges(e, p);
+    } else if (kind == "group") {
+        rv_editor_group_edges(e, p);
     } else {
-        e.emplace_back(p(-0.3, 0, 0), p(0.3, 0, 0));
-        e.emplace_back(p(0, -0.3, 0), p(0, 0.3, 0));
-        e.emplace_back(p(0, 0, -0.3), p(0, 0, 0.3));
+        rv_editor_other_edges(e, p);
     }
     return e;
 }
 
-std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_view &v, ImVec2 at)
+std::string rv_editor_pick(
+    const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at)
 {
     std::string best;
     float best_d = 6.0f;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
-        for (const auto &[a, b] : rv_editor_object_edges(scene, static_cast<int>(i))) {
+        for (const auto &[a, b] : rv_editor_object_edges(scene, project, static_cast<int>(i))) {
             ImVec2 sa, sb;
             if (!v.point(a, sa) || !v.point(b, sb)) {
                 continue;
