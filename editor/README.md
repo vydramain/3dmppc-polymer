@@ -295,9 +295,20 @@ comes back Not run.
 
 ### Scene
 
-A scene is `scenes/<name>.scene.toml`: groups, cameras and boxes, each with
-a stable id, a name, a parent, a position, a rotation (degrees, yaw then pitch
-then roll) and a scale, and a mesh and a texture named as the disc names them.
+A scene is `scenes/<name>.scene.toml`, a PDK 0.4 file: a 0.3 console does not
+read it. It holds groups, cameras, meshes, quads, billboards and volumes, each
+with a stable id, a name, a parent, a position, a rotation (degrees, yaw then
+pitch then roll) and a scale. A mesh names a `.obj` as the disc names it, or
+draws as a unit cube while its mesh is empty. A quad is a textured rectangle
+in its own XY plane, sized from its scale; a billboard is the same card
+always turned to face the camera; both carry a texture named as the disc
+names it, a uv rect (`u0, v0, u1, v1` in texture pixels) and a tint. A volume
+is a box whose meaning is up to the game that reads its own keys on it. A
+mesh's `.obj` and a quad's or billboard's texture are disc asset names with no
+folders: the editor finds the `.obj` among the project's `[assets]` files by
+file name and the texture's picture among the `[textures]` sources by stem
+(`name.mppctex` matches `name.png`); one that does not resolve draws as the
+placeholder cube or a flat rectangle, and the viewport's status line says why.
 The Scene layout opens the project's first scene; New Scene asks for a name
 (a free one offered first) and, only for a C++ disc, whether to also write
 `src/<id>_scene.hpp` (off by default; `<id>` is the name with non-identifier
@@ -310,13 +321,15 @@ read-only.
 Its standard tiles put the Transform Toolchest over the Hierarchy on the left,
 the scene in the centre, the Game over Runtime Controls over the Inspector on
 the right, and Assets, Files and Console Output as tabs along the full width
-at the bottom.
+at the bottom, Assets taking about two fifths of the height there.
 
-- **Hierarchy** is the tree; dragging an object onto another moves it there
-  keeping where it is in the scene, or says why it cannot; Move to Root (Keep
-  Local Values) is the other meaning.
-- **Inspector** edits the selected object; a mesh and a texture are typed in
-  by name, as the disc names them.
+- **Hierarchy**, its right-click menu and Scene > Add all create a Group,
+  Camera, Box, Quad, Billboard or Volume; dragging an object onto another
+  moves it there keeping where it is in the scene, or says why it cannot;
+  Move to Root (Keep Local Values) is the other meaning.
+- **Inspector** edits the selected object; a mesh's and a quad's or
+  billboard's texture are typed in by name, as the disc names them, and a
+  quad's or billboard's uv, tint and tess are typed or dragged in.
 - **Assets** shows the resource files as an Icon Catalog or a list with the
   disc names of the last build's map. A double click opens a PNG or a sound
   (`.wav`, `.pcm`) as a tab beside the scene in the Scene tile, a
@@ -336,8 +349,13 @@ at the bottom.
   path; a sound tab shows its length, Play/Stop and a play error; closing a
   playing sound's tab stops it. The tab strip is shown only while such a tab
   is open.
-- **The viewport** draws the scene in wireframe through an editor camera,
-  never the game's: a click selects, Move/Rotate/Scale (W, E, R; Q selects)
+- **The viewport** draws through an editor camera, never the game's, in one of
+  three modes on its shelf: Wireframe (edges only), Filled (shaded polygons,
+  painted far to near) and Textured (quads, billboards and meshes shown with
+  their own texture, uv and tint; an untextured one flat). A camera, a group
+  and a volume always draw as their own marker, in every mode: a camera as a
+  body with a lens, a group as corner brackets with an axis cross, a volume
+  as its box, never filled. A click selects, Move/Rotate/Scale (W, E, R; Q selects)
   drag the selection with Snap as the Transform Toolchest sets it, the right
   button orbits, the middle pans, the wheel dollies, and the labelled Rot X,
   Rot Y and Dolly thumbwheels do the same (a double click goes home). Persp,
