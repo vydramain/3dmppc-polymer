@@ -69,6 +69,8 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
+    // Only controls, no separate content: the whole pane is a shelf.
+    rv_editor_shelf_begin("##shelf", theme);
     // Reload's target while the session is live: the running build's map says
     // whether it can apply the pending change, or Build and Restart takes its slot.
     const bool can_reload = s.live() && rv_editor_app_can_reload(app);
@@ -216,6 +218,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             app.build.cancel();
         }
     }
+    rv_editor_shelf_end();
 }
 
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme)
@@ -229,6 +232,8 @@ void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme
 
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
 {
+    // Controls sit inside the content between its sections: the whole pane is one well.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const rv_editor_project &p = app.project;
     if (!p.open) {
         rv_editor_wrapped("No project is open. File > Open Project... opens a game directory with its disc.toml.");
@@ -275,6 +280,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     if (!app.tools.settings_error.empty()) {
         rv_editor_wrapped(app.tools.settings_error);
     }
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

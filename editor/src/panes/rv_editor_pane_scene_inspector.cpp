@@ -103,58 +103,65 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
         rv_editor_open_project_row(app, theme);
         return;
     }
-    if (app.scene == nullptr) {
-        ImGui::TextWrapped("No scene is open.");
-        rv_editor_scene_open_row(app, theme);
-        return;
-    }
     rv_editor_scene_keys(app);
-    rv_editor_scene_doc &doc = *app.scene;
-    rv_editor_scene_ui &ui = app.scene_ui;
-    const int at = rv_editor_scene_find(doc.scene, doc.selected);
-    if (at < 0) {
-        ImGui::TextWrapped("Select an object in Hierarchy or in the Scene.");
-        return;
-    }
-    const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(at)];
-    // The text fields follow the selection and undo; the one being typed in keeps its text.
-    if (ui.shown != o.id || !ImGui::GetIO().WantTextInput) {
-        std::snprintf(ui.name, sizeof(ui.name), "%s", o.name.c_str());
-        std::snprintf(ui.mesh, sizeof(ui.mesh), "%s", o.mesh.c_str());
-        std::snprintf(ui.texture, sizeof(ui.texture), "%s", o.texture.c_str());
-        ui.shown = o.id;
-    }
-    const bool read_only = !doc.scene.read_only.empty();
-    if (read_only) {
-        ImGui::TextWrapped("Read-only: %s", doc.scene.read_only.c_str());
-    }
-    ImGui::BeginDisabled(read_only);
-    rv_editor_inspector_text(app, "Name", &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme);
-    rv_editor_inspector_label("Kind");
-    ImGui::TextUnformatted(o.kind == "mesh" ? "box (mesh)" : o.kind.c_str());
-    rv_editor_inspector_label("Id");
-    ImGui::TextDisabled("%s", o.id.c_str());
-    ImGui::SeparatorText("Transform, in the parent's space");
-    rv_editor_inspector_vec(app, "Position", &rv_editor_scene_object::position, 0.01f, o.id);
-    rv_editor_inspector_vec(app, "Rotation", &rv_editor_scene_object::rotation, 0.5f, o.id);
-    ImGui::SetItemTooltip("Degrees: yaw about Y, then pitch about X, then roll about Z");
-    rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, 0.01f, o.id);
-    if (o.kind == "mesh") {
-        ImGui::SeparatorText("Resources");
-        rv_editor_inspector_text(app, "Mesh", &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme);
-        ImGui::SetItemTooltip("A disc asset; empty draws a unit box.");
-        rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture), o.id,
-            theme);
-        ImGui::SetItemTooltip("A disc texture.");
-    }
-    if (!o.extra.empty()) {
-        ImGui::SeparatorText("Kept as read");
-        for (const auto &e : o.extra) {
-            ImGui::TextDisabled("%s", e.key.c_str());
+    // Content only, no controls row: the whole pane is one well. Early returns
+    // inside stay reachable, so the body is a lambda that always runs to well_end.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const auto body = [&]() {
+        if (app.scene == nullptr) {
+            ImGui::TextWrapped("No scene is open.");
+            rv_editor_scene_open_row(app, theme);
+            return;
         }
-        ImGui::SetItemTooltip("Keys this editor does not know; they are written back unchanged");
-    }
-    ImGui::EndDisabled();
+        rv_editor_scene_doc &doc = *app.scene;
+        rv_editor_scene_ui &ui = app.scene_ui;
+        const int at = rv_editor_scene_find(doc.scene, doc.selected);
+        if (at < 0) {
+            ImGui::TextWrapped("Select an object in Hierarchy or in the Scene.");
+            return;
+        }
+        const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(at)];
+        // The text fields follow the selection and undo; the one being typed in keeps its text.
+        if (ui.shown != o.id || !ImGui::GetIO().WantTextInput) {
+            std::snprintf(ui.name, sizeof(ui.name), "%s", o.name.c_str());
+            std::snprintf(ui.mesh, sizeof(ui.mesh), "%s", o.mesh.c_str());
+            std::snprintf(ui.texture, sizeof(ui.texture), "%s", o.texture.c_str());
+            ui.shown = o.id;
+        }
+        const bool read_only = !doc.scene.read_only.empty();
+        if (read_only) {
+            ImGui::TextWrapped("Read-only: %s", doc.scene.read_only.c_str());
+        }
+        ImGui::BeginDisabled(read_only);
+        rv_editor_inspector_text(app, "Name", &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme);
+        rv_editor_inspector_label("Kind");
+        ImGui::TextUnformatted(o.kind == "mesh" ? "box (mesh)" : o.kind.c_str());
+        rv_editor_inspector_label("Id");
+        ImGui::TextDisabled("%s", o.id.c_str());
+        ImGui::SeparatorText("Transform, in the parent's space");
+        rv_editor_inspector_vec(app, "Position", &rv_editor_scene_object::position, 0.01f, o.id);
+        rv_editor_inspector_vec(app, "Rotation", &rv_editor_scene_object::rotation, 0.5f, o.id);
+        ImGui::SetItemTooltip("Degrees: yaw about Y, then pitch about X, then roll about Z");
+        rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, 0.01f, o.id);
+        if (o.kind == "mesh") {
+            ImGui::SeparatorText("Resources");
+            rv_editor_inspector_text(app, "Mesh", &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme);
+            ImGui::SetItemTooltip("A disc asset; empty draws a unit box.");
+            rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
+                o.id, theme);
+            ImGui::SetItemTooltip("A disc texture.");
+        }
+        if (!o.extra.empty()) {
+            ImGui::SeparatorText("Kept as read");
+            for (const auto &e : o.extra) {
+                ImGui::TextDisabled("%s", e.key.c_str());
+            }
+            ImGui::SetItemTooltip("Keys this editor does not know; they are written back unchanged");
+        }
+        ImGui::EndDisabled();
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

@@ -303,13 +303,16 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     // The tile's own row, in the interface font: Vim or the ordinary editor (the
     // switch F2 also makes), then the tile's files as tabs.
     rv_editor_font_code_pop();
+    rv_editor_shelf_begin("##shelf", theme);
     bool vim = nvim.vim_mode();
     if (rv_editor_toggle("Vim##mode", &vim, theme)) {
         nvim.toggle_vim_mode();
     }
     ImGui::SetItemTooltip("Full Vim: normal mode and Vim keys. Off: an ordinary editor. F2 switches too.");
     rv_editor_code_tab_row(app, pane, win, theme);
+    rv_editor_shelf_end();
     rv_editor_font_code_push();
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     // The code area fills the tile in whole cells, two rows kept under it: the
     // tile's status line and the command line.
@@ -359,6 +362,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), IM_COL32(0x1e, 0x1e, 0x2e, 255));
     if (grid == nullptr) {
         dl->AddText(at, IM_COL32(0xa6, 0xad, 0xc8, 255), "Starting nvim...");
+        rv_editor_well_end();
         return;
     }
     const bool cursor_here = focused && nvim.screen().cursor_grid() == grid_id;
@@ -445,6 +449,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
 
     if (!focused) {
+        rv_editor_well_end();
         return;
     }
     // The command line and messages under the tile being typed in. The message
@@ -474,6 +479,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         SDL_StartTextInput(w);
     }
     nvim.input(rv_editor_nvim_keys());
+    rv_editor_well_end();
 }
 
 } // namespace

@@ -71,16 +71,17 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
 
 void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme)
 {
+    // Only controls, no separate content: the whole pane is a shelf.
+    rv_editor_shelf_begin("##shelf", theme);
     if (app.preset == rv_editor_layout_preset::debug) {
         rv_editor_session_tools(app, theme);
-        return;
-    }
-    // Scene's tools act on a scene document; without one, none is offered.
-    if (app.scene != nullptr) {
+    } else if (app.scene != nullptr) {
+        // Scene's tools act on a scene document; without one, none is offered.
         rv_editor_scene_tools(app, theme);
-        return;
+    } else {
+        ImGui::TextWrapped("Select, Move, Rotate and Scale act on a scene document: Scene > New Scene or Open Scene.");
     }
-    ImGui::TextWrapped("Select, Move, Rotate and Scale act on a scene document: Scene > New Scene or Open Scene.");
+    rv_editor_shelf_end();
 }
 
 } // namespace rv_editor
