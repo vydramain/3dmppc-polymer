@@ -24,6 +24,22 @@ void rv_editor_dim_text(const std::string &text)
     ImGui::PopStyleColor();
 }
 
+// One reserved single line, full row width: `text` clips rather than wraps,
+// so this row can never split into two. Hovering shows it in full.
+void rv_editor_reserved_line(const char *id, const std::string &text)
+{
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::BeginChild(id, ImVec2(0.0f, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+    if (!text.empty()) {
+        ImGui::TextUnformatted(text.c_str());
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+    if (!text.empty() && ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", text.c_str());
+    }
+}
+
 void rv_editor_row(const char *label, const std::string &value)
 {
     ImGui::TableNextRow();
@@ -222,13 +238,21 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     if (app.build.busy()) {
         facts = std::string("Building ") + (app.release.building ? "candidate" : "a development build") + " | " + facts;
     }
-    rv_editor_flow(ImGui::CalcTextSize(facts.c_str()).x);
-    ImGui::TextUnformatted(facts.c_str());
-    if (app.build.busy() && rv_editor_button("Cancel Build", theme)) {
-        app.build.cancel();
-    }
-    if (app.session.hung() && rv_editor_button("Force Stop", theme)) {
-        app.session.force_stop(app.log);
+    // Own row, clipped rather than flowed after the buttons: its length varies
+    // with state, so joining the button row would make that state-dependent too.
+    rv_editor_reserved_line("##facts", facts);
+    // One action row shared by the two: a hung runtime needs Force Stop first,
+    // a gap standing in when neither applies, so the strip's height stays fixed.
+    if (app.session.hung()) {
+        if (rv_editor_button("Force Stop", theme)) {
+            app.session.force_stop(app.log);
+        }
+    } else if (app.build.busy()) {
+        if (rv_editor_button("Cancel Build", theme)) {
+            app.build.cancel();
+        }
+    } else {
+        ImGui::Dummy(ImVec2(1.0f, ImGui::GetFrameHeight()));
     }
     rv_editor_shelf_end();
 }
