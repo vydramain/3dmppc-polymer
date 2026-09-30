@@ -2,6 +2,7 @@
 
 #include "rv_scene.hpp"
 
+#include <cmath>
 #include <map>
 #include <utility>
 
@@ -15,6 +16,65 @@ namespace
 {
 
 constexpr float rv_scene_degrees = 3.14159265358979f / 180.0f;
+
+// sin/cos of a degree angle, exact 0/1/-1 on a multiple of 90 (any sign, any
+// winding) instead of the ~1e-8 float noise std::cos leaves there -- the
+// difference an axis-aligned quad's corners (rv_scene_quad_corners) show up.
+void rv_scene_sincos(float degrees, float &s, float &c)
+{
+    const float quarter = std::round(degrees / 90.0f);
+    if (quarter * 90.0f == degrees) {
+        constexpr float sins[4] = { 0.0f, 1.0f, 0.0f, -1.0f };
+        constexpr float coss[4] = { 1.0f, 0.0f, -1.0f, 0.0f };
+        int k = static_cast<int>(quarter) % 4;
+        if (k < 0) {
+            k += 4;
+        }
+        s = sins[k];
+        c = coss[k];
+        return;
+    }
+    const float radians = degrees * rv_scene_degrees;
+    s = std::sin(radians);
+    c = std::cos(radians);
+}
+
+// Same layout as rv_mat4_rotate_x/y/z (rv_math.hpp), built from rv_scene_sincos.
+rv_mat4 rv_scene_rotate_x(float degrees)
+{
+    float s, c;
+    rv_scene_sincos(degrees, s, c);
+    rv_mat4 r = rv_mat4_identity();
+    r.m[1][1] = c;
+    r.m[1][2] = -s;
+    r.m[2][1] = s;
+    r.m[2][2] = c;
+    return r;
+}
+
+rv_mat4 rv_scene_rotate_y(float degrees)
+{
+    float s, c;
+    rv_scene_sincos(degrees, s, c);
+    rv_mat4 r = rv_mat4_identity();
+    r.m[0][0] = c;
+    r.m[0][2] = s;
+    r.m[2][0] = -s;
+    r.m[2][2] = c;
+    return r;
+}
+
+rv_mat4 rv_scene_rotate_z(float degrees)
+{
+    float s, c;
+    rv_scene_sincos(degrees, s, c);
+    rv_mat4 r = rv_mat4_identity();
+    r.m[0][0] = c;
+    r.m[0][1] = -s;
+    r.m[1][0] = s;
+    r.m[1][1] = c;
+    return r;
+}
 
 std::string rv_scene_at(const std::string &origin, int line)
 {
@@ -209,8 +269,8 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
 
 rv_mat4 rv_scene_local(const rv_scene_object &o)
 {
-    const rv_mat4 r = rv_mat4_mul(rv_mat4_rotate_y(o.rotation.y * rv_scene_degrees),
-        rv_mat4_mul(rv_mat4_rotate_x(o.rotation.x * rv_scene_degrees), rv_mat4_rotate_z(o.rotation.z * rv_scene_degrees)));
+    const rv_mat4 r = rv_mat4_mul(
+        rv_scene_rotate_y(o.rotation.y), rv_mat4_mul(rv_scene_rotate_x(o.rotation.x), rv_scene_rotate_z(o.rotation.z)));
     return rv_mat4_mul(rv_mat4_translate(o.position), rv_mat4_mul(r, rv_mat4_scale(o.scale)));
 }
 
