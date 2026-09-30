@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <unordered_map>
 
@@ -15,6 +16,7 @@
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "pdklib/rv_math/rv_obj.hpp"
 
+#include "panes/rv_editor_asset_preview.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
 namespace rv_editor
@@ -104,27 +106,31 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
     const int faces[6][4] = {
         { 0, 1, 2, 3 }, { 5, 4, 7, 6 }, { 4, 0, 3, 7 }, { 1, 5, 6, 2 }, { 3, 2, 6, 7 }, { 4, 5, 1, 0 },
     };
+    // Whole texture per face: the quad's own corners at (0,0) (1,0) (1,1) (0,1).
+    const ImVec2 uv[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
     std::vector<rv_editor_tri> tris;
     for (const auto &f : faces) {
-        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] } });
-        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] } });
+        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] }, { uv[0], uv[1], uv[2] } });
+        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] }, { uv[0], uv[2], uv[3] } });
     }
     return tris;
 }
 
 // A disc asset name has no folders (rv_dmain_setup.cpp refuses one with a separator;
-// mppcburner names every [assets] entry by filename alone). So `mesh` is a bare filename,
-// resolved by walking the tree for it under an [assets] pattern, not joined onto the root.
-struct rv_editor_mesh_name_cache
+// mppcburner names every [assets] entry by filename alone). So a mesh or texture name is
+// a bare filename, resolved by walking the tree for it under a manifest pattern, not
+// joined onto the root.
+struct rv_editor_name_cache
 {
-    std::vector<std::string> patterns; // last-seen project.assets_patterns, to notice a change
+    std::vector<std::string> patterns; // last-seen manifest patterns, to notice a change
     std::unordered_map<std::string, std::filesystem::path> found;
     // known-absent since this steady_clock time; re-walked once stale, so a typo does not
     // re-walk every frame but a file dropped in later is picked up within about a second.
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> missing;
 };
 constexpr std::chrono::seconds rv_editor_mesh_miss_ttl{ 1 };
-rv_editor_mesh_name_cache rv_editor_mesh_names;
+rv_editor_name_cache rv_editor_mesh_names;
+rv_editor_name_cache rv_editor_texture_names;
 
 // True for a directory the tree walk skips whole: dotfiles and build outputs.
 bool rv_editor_mesh_skip_dir(const std::string &name)
@@ -132,27 +138,23 @@ bool rv_editor_mesh_skip_dir(const std::string &name)
     return !name.empty() && (name[0] == '.' || name.starts_with("build"));
 }
 
-// The project file matching an [assets] pattern whose filename is `name`. Empty with
-// *error set when the name has a folder in it or no such file is found.
-std::filesystem::path rv_editor_resolve_mesh_name(
-    const rv_editor_project &project, const std::string &name, std::string *error)
+// The project file under `patterns` for which `match` holds, cached in `cache` under `key`.
+// Shared by the mesh (match: exact filename) and texture (match: same stem) resolvers below.
+std::filesystem::path rv_editor_walk_project(const rv_editor_project &project, rv_editor_name_cache &cache,
+    const std::vector<std::string> &patterns, const std::string &key,
+    const std::function<bool(const std::filesystem::path &)> &match)
 {
-    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) {
-        set_error(error, name + ": a disc asset name has no folders");
-        return {};
+    if (cache.patterns != patterns) {
+        cache = { patterns, {}, {} };
     }
-    if (rv_editor_mesh_names.patterns != project.assets_patterns) {
-        rv_editor_mesh_names = { project.assets_patterns, {}, {} };
-    }
-    auto cached = rv_editor_mesh_names.found.find(name);
+    auto cached = cache.found.find(key);
     std::error_code exists_ec;
-    if (cached != rv_editor_mesh_names.found.end() && std::filesystem::exists(cached->second, exists_ec)) {
+    if (cached != cache.found.end() && std::filesystem::exists(cached->second, exists_ec)) {
         return cached->second;
     }
-    auto missed = rv_editor_mesh_names.missing.find(name);
-    if (cached == rv_editor_mesh_names.found.end() && missed != rv_editor_mesh_names.missing.end() &&
+    auto missed = cache.missing.find(key);
+    if (cached == cache.found.end() && missed != cache.missing.end() &&
         std::chrono::steady_clock::now() - missed->second < rv_editor_mesh_miss_ttl) {
-        set_error(error, name + ": no [assets] file by that name");
         return {};
     }
     std::error_code ec;
@@ -170,21 +172,68 @@ std::filesystem::path rv_editor_resolve_mesh_name(
             }
             continue;
         }
-        std::error_code rel_ec;
-        const std::string rel = std::filesystem::relative(it->path(), project.root, rel_ec).generic_string();
-        if (rel_ec || it->path().filename() != name) {
+        if (!match(it->path())) {
             continue;
         }
-        for (const std::string &pattern : project.assets_patterns) {
+        std::error_code rel_ec;
+        const std::string rel = std::filesystem::relative(it->path(), project.root, rel_ec).generic_string();
+        if (rel_ec) {
+            continue;
+        }
+        for (const std::string &pattern : patterns) {
             if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
-                rv_editor_mesh_names.found[name] = it->path();
+                cache.found[key] = it->path();
                 return it->path();
             }
         }
     }
-    rv_editor_mesh_names.missing[name] = std::chrono::steady_clock::now();
-    set_error(error, name + ": no [assets] file by that name");
+    cache.missing[key] = std::chrono::steady_clock::now();
     return {};
+}
+
+// The project file matching an [assets] pattern whose filename is `name`. Empty with
+// *error set when the name has a folder in it or no such file is found.
+std::filesystem::path rv_editor_resolve_mesh_name(
+    const rv_editor_project &project, const std::string &name, std::string *error)
+{
+    if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) {
+        set_error(error, name + ": a disc asset name has no folders");
+        return {};
+    }
+    const std::filesystem::path found = rv_editor_walk_project(project, rv_editor_mesh_names,
+        project.assets_patterns, name, [&](const std::filesystem::path &p) { return p.filename() == name; });
+    if (found.empty()) {
+        set_error(error, name + ": no [assets] file by that name");
+    }
+    return found;
+}
+
+// A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
+// ".mppctex"), resolved to the project file under [textures] whose stem matches.
+std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
+{
+    const std::string stem = std::filesystem::path(name).stem().string();
+    return rv_editor_walk_project(project, rv_editor_texture_names, project.textures_patterns, stem,
+        [&](const std::filesystem::path &p) { return p.stem().string() == stem; });
+}
+
+// A mesh object's texture, loaded on `renderer`; an empty icon when it has none, does not
+// resolve under [textures], or fails to load as a picture.
+rv_editor_icon rv_editor_object_texture(
+    SDL_Renderer *renderer, const rv_editor_project &project, const rv_editor_scene_object &o)
+{
+    if (renderer == nullptr || o.texture.empty()) {
+        return {};
+    }
+    const std::filesystem::path path = rv_editor_resolve_texture_name(project, o.texture);
+    if (path.empty()) {
+        return {};
+    }
+    std::error_code rel_ec;
+    rv_editor_asset asset;
+    asset.path = path;
+    asset.rel = std::filesystem::relative(path, project.root, rel_ec).generic_string();
+    return rv_editor_asset_picture(renderer, asset);
 }
 
 } // namespace
@@ -218,6 +267,12 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
         rv_editor_tri tri;
         for (int k = 0; k < 3; ++k) {
             tri.p[k] = rv_editor_affine_point(m, to_vec3(rv_pdklib::rv_obj_position(*mesh, t.corner[k])));
+            if (t.corner[k].uv >= 0) {
+                const rv_pdklib::rv_vec2 uv = rv_pdklib::rv_obj_uv(*mesh, t.corner[k], { 0, 0 });
+                tri.uv[k] = { uv.x, 1.0f - uv.y }; // .obj's bottom-left origin to ImGui's top-left
+            } else {
+                tri.uv[k] = { 0, 0 };
+            }
         }
         tris.push_back(tri);
     }
@@ -225,21 +280,26 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
 }
 
 void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,
-    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color)
+    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color,
+    SDL_Renderer *renderer)
 {
     struct rv_editor_shaded_tri
     {
         ImVec2 s[3];
+        ImVec2 uv[3];
         double depth;
         float shade;
         bool selected;
+        ImTextureID tex; // 0: flat AddTriangleFilled; else textured via Prim*
     };
     std::vector<rv_editor_shaded_tri> shaded;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
-        if (scene.objects[i].kind != "mesh") {
+        const rv_editor_scene_object &o = scene.objects[i];
+        if (o.kind != "mesh") {
             continue;
         }
-        const bool is_selected = scene.objects[i].id == selected;
+        const bool is_selected = o.id == selected;
+        const rv_editor_icon tex = rv_editor_object_texture(renderer, project, o);
         for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, static_cast<int>(i))) {
             rv_editor_shaded_tri st;
             st.depth = 0.0;
@@ -252,6 +312,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
                 }
                 st.depth += view_p[2];
                 st.s[k] = v.to_screen(view_p);
+                st.uv[k] = tri.uv[k];
             }
             if (!visible) {
                 continue;
@@ -260,6 +321,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
             st.shade = static_cast<float>(std::max(0.15, std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
+            st.tex = tex.id;
             shaded.push_back(st);
         }
     }
@@ -268,11 +330,25 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
     std::sort(shaded.begin(), shaded.end(),
         [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) { return a.depth > b.depth; });
     for (const rv_editor_shaded_tri &st : shaded) {
-        ImVec4 col = ImGui::ColorConvertU32ToFloat4(st.selected ? selected_color : base);
-        col.x *= st.shade;
-        col.y *= st.shade;
-        col.z *= st.shade;
-        dl->AddTriangleFilled(st.s[0], st.s[1], st.s[2], ImGui::ColorConvertFloat4ToU32(col));
+        if (st.tex == ImTextureID{}) {
+            ImVec4 col = ImGui::ColorConvertU32ToFloat4(st.selected ? selected_color : base);
+            col.x *= st.shade;
+            col.y *= st.shade;
+            col.z *= st.shade;
+            dl->AddTriangleFilled(st.s[0], st.s[1], st.s[2], ImGui::ColorConvertFloat4ToU32(col));
+            continue;
+        }
+        // Textured: the picture multiplied by the flat shade; selected keeps its tint instead
+        // of grey. A push/pop per triangle keeps texture changes correct under the global sort.
+        const ImVec4 tint = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) : ImVec4(1, 1, 1, 1);
+        const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(tint.x * st.shade, tint.y * st.shade,
+            tint.z * st.shade, 1.0f));
+        dl->PushTexture(st.tex);
+        dl->PrimReserve(3, 3);
+        dl->PrimVtx(st.s[0], st.uv[0], col);
+        dl->PrimVtx(st.s[1], st.uv[1], col);
+        dl->PrimVtx(st.s[2], st.uv[2], col);
+        dl->PopTexture();
     }
 }
 

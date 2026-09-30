@@ -142,7 +142,7 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_flow(rv_editor_button_width("Home"));
     if (rv_editor_button("Home", theme)) {
-        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.filled };
+        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
     }
     ImGui::SetItemTooltip("Home key: the view the scene opened with");
     rv_editor_flow(rv_editor_button_width("Seek"));
@@ -151,17 +151,28 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
         cam.seeking = seek;
     }
     ImGui::SetItemTooltip("Then click an object: the view turns about it");
-    rv_editor_flow(rv_editor_button_width("Filled"));
-    bool filled = cam.filled;
-    if (rv_editor_toggle("Filled", &filled, theme)) {
-        cam.filled = filled;
+    const struct
+    {
+        const char *label;
+        rv_editor_scene_shading shading;
+        const char *tip;
+    } shadings[] = {
+        { "Wireframe", rv_editor_scene_shading::wireframe, "Wireframe: edges only" },
+        { "Filled", rv_editor_scene_shading::filled, "Filled: shaded polygons" },
+        { "Textured", rv_editor_scene_shading::textured, "Textured: meshes with their scene texture; untextured ones flat" },
+    };
+    for (const auto &s : shadings) {
+        rv_editor_flow(rv_editor_button_width(s.label));
+        if (rv_editor_radio(s.label, cam.shading == s.shading, theme)) {
+            cam.shading = s.shading;
+        }
+        ImGui::SetItemTooltip("%s", s.tip);
     }
-    ImGui::SetItemTooltip("Off: Wireframe, edges only. On: Filled, shaded polygons");
 }
 
 } // namespace
 
-void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
     rv_editor_scene_doc &doc = *app.scene;
     rv_editor_scene_ui &ui = app.scene_ui;
@@ -250,7 +261,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
             cam.distance = std::min(200.0, cam.distance / 0.9);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.filled };
+            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, false);
@@ -333,10 +344,11 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_line(dl, v, { -10, 0, f }, { 10, 0, f }, i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
         }
     }
+    const bool filled = cam.shading != rv_editor_scene_shading::wireframe;
     std::string mesh_error; // the first mesh resolve/parse error this frame, if any
-    if (cam.filled) {
+    if (filled) {
         rv_editor_draw_filled(dl, v, doc.scene, app.project, doc.selected, rv_editor_col(theme.code_subtext),
-            rv_editor_col(theme.selection));
+            rv_editor_col(theme.selection), cam.shading == rv_editor_scene_shading::textured ? renderer : nullptr);
     }
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const std::string &kind = doc.scene.objects[i].kind;
@@ -346,8 +358,8 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
                 : kind == "camera"                                     ? theme.code_yellow
                                                                         : theme.code_subtext);
         std::string error;
-        // Filled mode already painted non-selected meshes; the selected one keeps its outline.
-        if (cam.filled && kind == "mesh" && !sel) {
+        // Filled/Textured mode already painted non-selected meshes; the selected one keeps its outline.
+        if (filled && kind == "mesh" && !sel) {
             rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
         } else {
             for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {

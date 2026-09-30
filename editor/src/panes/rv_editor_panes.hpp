@@ -110,7 +110,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_scene_keys(rv_editor_app &app);
 // The Scene viewport, and the Scene Toolchest's tools it uses.
-void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The project's run profiles as a list beside a form: Apply, Apply and Restart (CFG-01/02).

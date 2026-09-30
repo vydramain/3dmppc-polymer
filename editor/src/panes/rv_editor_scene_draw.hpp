@@ -11,6 +11,8 @@
 #include "project/rv_editor_project.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
+struct SDL_Renderer;
+
 namespace rv_editor
 {
 
@@ -56,15 +58,21 @@ std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
 struct rv_editor_tri
 {
     vec3 p[3];
+    ImVec2 uv[3];
 };
 
 // An object's surface in scene space: a mesh's .obj triangles, or the unit cube while its
 // mesh is empty or does not load (the reason in *error when given); empty for other kinds.
+// Each triangle carries its .obj vt (or 0,0 for a corner without one; the whole unit square
+// per face for the placeholder cube).
 std::vector<rv_editor_tri> rv_editor_object_triangles(
     const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
 // Every mesh object filled, far to near, flat-shaded by face normal; the selected one tinted.
+// `renderer` null: today's flat shading. Non-null: an object whose texture resolves and loads
+// draws textured (shade-multiplied, selected tinted instead of grey); others draw flat.
 void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,
-    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color);
+    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color,
+    SDL_Renderer *renderer);
 // The object whose drawing passes nearest the click, within a few pixels; empty for none.
 std::string rv_editor_pick(
     const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);

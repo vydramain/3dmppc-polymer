@@ -61,7 +61,7 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         ImGui::TextWrapped("%s", app.scene_error.c_str());
         ImGui::PopStyleColor();
     }
-    rv_editor_scene_viewport(app, theme);
+    rv_editor_scene_viewport(app, renderer, theme);
 }
 
 } // namespace rv_editor

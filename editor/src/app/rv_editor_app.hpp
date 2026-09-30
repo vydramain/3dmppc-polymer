@@ -101,13 +101,21 @@ enum class rv_editor_scene_tool
     scale,
 };
 
+// Viewport shading: Textured takes the Filled path but with the scene texture bound.
+enum class rv_editor_scene_shading
+{
+    wireframe,
+    filled,
+    textured,
+};
+
 struct rv_editor_scene_camera
 {
     rv_editor_scene_tool tool = rv_editor_scene_tool::select;
     bool snap = false;
     double snap_step = 0.25;
     bool grid = true;
-    bool filled = false; // false: Wireframe, true: Filled
+    rv_editor_scene_shading shading = rv_editor_scene_shading::wireframe;
     double yaw = 30.0;
     double pitch = 25.0;
     double distance = 8.0;
