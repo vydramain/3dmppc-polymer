@@ -296,6 +296,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, "Select a file or folder first" };
     // Square buttons, a coloured code each until the icons are drawn.
     const float side = ImGui::GetFrameHeight();
+    rv_editor_shelf_begin("##shelf", theme);
     if (rv_editor_letter_button("##new_file", rv_editor_glyph::new_, theme.code_green, "New File", theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
     }
@@ -315,11 +316,14 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, 0x94e2d5, "Refresh", theme)) {
         app.files.refresh();
     }
+    rv_editor_shelf_end();
 
     rv_editor_files_dialog(app, view, theme);
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
     rv_editor_files_node(app, view, app.files.root());
     rv_editor_scroll_end(theme);
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

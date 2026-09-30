@@ -206,117 +206,127 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 {
     rv_editor_session &s = app.session;
     app.game_drawn = true;
-    // The tile's own minimum: the mode row it draws plus the status line
+    // The tile's own minimum: the mode row's shelf plus the status line
     // rv_editor_game_picture puts over the frame, measured like a strip
     // (rv_editor_shell_pane) rather than the frame at 1x, so the picture
     // shrinks below 1x instead of the layout fighting a small window.
     const float top = ImGui::GetCursorPosY();
+    rv_editor_shelf_begin("##shelf", theme);
     rv_editor_game_modes(app, theme);
-    const float modes_tall = ImGui::GetCursorPosY() - top;
-    app.game_need = { 0, static_cast<int32_t>(modes_tall + ImGui::GetTextLineHeightWithSpacing()) };
-    // Under the modes, less the status line rv_editor_game_picture puts over the frame.
+    rv_editor_shelf_end();
+    const float shelf_tall = ImGui::GetCursorPosY() - top;
+    app.game_need = { 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
+
+    // The well fills what the shelf leaves, no scrollbar and no wheel scroll
+    // (the Game tile never scrolls): status line and picture, or the stopped
+    // text, all measured inside it.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     app.game_area = { static_cast<int32_t>(avail.x),
         static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
 
-    if (!s.live()) {
-        app.game_captured = false;
-        if (!app.project.open) {
-            rv_editor_open_project_row(app, theme);
-            return;
-        }
-        if (app.release_view && app.release.player != nullptr) {
-            // The player draws in a window of its own: here only what the editor knows (BRN-04).
-            const rv_editor_release &r = app.release;
-            const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                r.player_started).count();
-            const uint32_t number = r.player_candidate >= 0 ? r.candidates[static_cast<size_t>(r.player_candidate)].number
-                                                            : 0;
-            ImGui::TextWrapped("External player running candidate #%u in its own window: pid %d, %lld s.", number,
-                static_cast<int>(r.player->pid()), static_cast<long long>(seconds));
-            if (rv_editor_button(r.player_stopped ? "Kill Player" : "Stop Player", theme)) {
-                rv_editor_app_stop_player(app);
+    const auto body = [&]() {
+        if (!s.live()) {
+            app.game_captured = false;
+            if (!app.project.open) {
+                rv_editor_open_project_row(app, theme);
+                return;
             }
-            ImGui::SetItemTooltip("The operator's act: the Player check does not pass from it");
+            if (app.release_view && app.release.player != nullptr) {
+                // The player draws in a window of its own: here only what the editor knows (BRN-04).
+                const rv_editor_release &r = app.release;
+                const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
+                    r.player_started).count();
+                const uint32_t number = r.player_candidate >= 0 ? r.candidates[static_cast<size_t>(r.player_candidate)].number
+                                                                : 0;
+                ImGui::TextWrapped("External player running candidate #%u in its own window: pid %d, %lld s.", number,
+                    static_cast<int>(r.player->pid()), static_cast<long long>(seconds));
+                if (rv_editor_button(r.player_stopped ? "Kill Player" : "Stop Player", theme)) {
+                    rv_editor_app_stop_player(app);
+                }
+                ImGui::SetItemTooltip("The operator's act: the Player check does not pass from it");
+                return;
+            }
+            if (app.release_view) {
+                rv_editor_game_candidate_tile(app, theme);
+                return;
+            }
+            // Stopped: what Run starts, and Run itself (or Build, with nothing built).
+            const std::string target = !rv_editor_app_run_builds(app)
+                ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
+                : "Stopped. Run builds the saved files, then starts that build here.";
+            ImGui::TextWrapped("%s", target.c_str());
+            if (rv_editor_button("Run", theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
+                rv_editor_app_run(app);
+            }
+            rv_editor_game_stale(app, theme);
             return;
         }
-        if (app.release_view) {
+
+        // A development session (Code/Debug/Scene) can be live while Burn is open: its
+        // frame is not a candidate's image, so Burn still shows the stopped tile.
+        if (app.release_view && app.release.playing < 0) {
+            app.game_captured = false;
             rv_editor_game_candidate_tile(app, theme);
             return;
         }
-        // Stopped: what Run starts, and Run itself (or Build, with nothing built).
-        const std::string target = !rv_editor_app_run_builds(app)
-            ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
-            : "Stopped. Run builds the saved files, then starts that build here.";
-        ImGui::TextWrapped("%s", target.c_str());
-        if (rv_editor_button("Run", theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
-            rv_editor_app_run(app);
+
+        // A new session is a new memory object whose frames count from 1 again.
+        if (s.frame_memory().fd() != rv_editor_game_fd) {
+            rv_editor_game_fd = s.frame_memory().fd();
+            rv_editor_game_frame = 0;
         }
-        rv_editor_game_stale(app, theme);
-        return;
-    }
 
-    // A development session (Code/Debug/Scene) can be live while Burn is open: its
-    // frame is not a candidate's image, so Burn still shows the stopped tile.
-    if (app.release_view && app.release.playing < 0) {
-        app.game_captured = false;
-        rv_editor_game_candidate_tile(app, theme);
-        return;
-    }
-
-    // A new session is a new memory object whose frames count from 1 again.
-    if (s.frame_memory().fd() != rv_editor_game_fd) {
-        rv_editor_game_fd = s.frame_memory().fd();
-        rv_editor_game_frame = 0;
-    }
-
-    uint64_t f = rv_editor_game_frame;
-    uint32_t w = 0, h = 0;
-    if (s.frame_memory().read(f, w, h, rv_editor_game_pixels)) {
-        if (rv_editor_game_texture == nullptr || w != rv_editor_game_w || h != rv_editor_game_h) {
-            if (rv_editor_game_texture != nullptr) {
-                SDL_DestroyTexture(rv_editor_game_texture);
+        uint64_t f = rv_editor_game_frame;
+        uint32_t w = 0, h = 0;
+        if (s.frame_memory().read(f, w, h, rv_editor_game_pixels)) {
+            if (rv_editor_game_texture == nullptr || w != rv_editor_game_w || h != rv_editor_game_h) {
+                if (rv_editor_game_texture != nullptr) {
+                    SDL_DestroyTexture(rv_editor_game_texture);
+                }
+                rv_editor_game_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                    SDL_TEXTUREACCESS_STREAMING, static_cast<int>(w), static_cast<int>(h));
+                if (rv_editor_game_texture != nullptr) {
+                    SDL_SetTextureScaleMode(rv_editor_game_texture, SDL_SCALEMODE_NEAREST);
+                }
+                rv_editor_game_w = w;
+                rv_editor_game_h = h;
             }
-            rv_editor_game_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                SDL_TEXTUREACCESS_STREAMING, static_cast<int>(w), static_cast<int>(h));
             if (rv_editor_game_texture != nullptr) {
-                SDL_SetTextureScaleMode(rv_editor_game_texture, SDL_SCALEMODE_NEAREST);
+                SDL_UpdateTexture(rv_editor_game_texture, nullptr, rv_editor_game_pixels.data(),
+                    static_cast<int>(w * 4));
             }
-            rv_editor_game_w = w;
-            rv_editor_game_h = h;
+            rv_editor_game_frame = f;
         }
-        if (rv_editor_game_texture != nullptr) {
-            SDL_UpdateTexture(rv_editor_game_texture, nullptr, rv_editor_game_pixels.data(),
-                static_cast<int>(w * 4));
+
+        // The texture may still hold the last session's frame: not this one's.
+        if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+            ImGui::TextWrapped("Waiting for the console's first frame.");
+            ImGui::PopStyleColor();
+            return;
         }
-        rv_editor_game_frame = f;
-    }
 
-    // The texture may still hold the last session's frame: not this one's.
-    if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("Waiting for the console's first frame.");
-        ImGui::PopStyleColor();
-        return;
-    }
+        // A console that stopped answering leaves a frame that is no longer the game's.
+        const bool lost = s.state() == rv_editor_run_state::disconnected;
+        if (lost) {
+            app.game_captured = false;
+        }
+        const char *state = lost ? "stale: the console stopped answering"
+            : s.state() == rv_editor_run_state::paused ? "paused"
+            : app.game_captured                        ? "playing: Shift+Esc gives the keyboard back"
+                                                       : "click the picture to play";
+        rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, lost);
 
-    // A console that stopped answering leaves a frame that is no longer the game's.
-    const bool lost = s.state() == rv_editor_run_state::disconnected;
-    if (lost) {
-        app.game_captured = false;
-    }
-    const char *state = lost ? "stale: the console stopped answering"
-        : s.state() == rv_editor_run_state::paused ? "paused"
-        : app.game_captured                        ? "playing: Shift+Esc gives the keyboard back"
-                                                   : "click the picture to play";
-    rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, lost);
-
-    // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
-    if (app.game_captured &&
-        (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_Escape) ||
-            !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_RootAndChildWindows))) {
-        app.game_captured = false;
-    }
+        // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
+        if (app.game_captured &&
+            (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_Escape) ||
+                !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_RootAndChildWindows))) {
+            app.game_captured = false;
+        }
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor
