@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "pdk/cv/rv_vertex.h"
 #include "pdklib/rv_math/rv_math.hpp"
 
 namespace rv_pdklib
@@ -25,12 +26,15 @@ struct rv_scene_object {
     std::string id;           // stable: the editor gives it and never changes it
     std::string name;
     int32_t parent = -1;      // index into rv_scene::objects; -1 at the root
-    std::string kind;         // "group", "camera" or "mesh"
+    std::string kind;         // "group", "camera", "mesh", "quad", "billboard" or "volume"
     rv_vec3 position{ 0.0f, 0.0f, 0.0f };
     rv_vec3 rotation{ 0.0f, 0.0f, 0.0f }; // degrees; R = Ry * Rx * Rz (yaw, pitch, roll)
     rv_vec3 scale{ 1.0f, 1.0f, 1.0f };
     std::string mesh;         // a disc asset for kind "mesh"; empty: a unit cube
     std::string texture;      // a disc texture, or empty
+    float uv[4]{ 0.0f, 0.0f, 0.0f, 0.0f }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_color tint{ 255, 255, 255 };        // quad/billboard modulation
+    float tess = 2.0f;                     // quad/billboard subdivision density
 };
 
 struct rv_scene {
@@ -42,7 +46,8 @@ struct rv_scene {
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
 // `origin`: syntax, a missing/malformed/non-compatible version, a missing or
 // repeated id, an unknown parent, a parent cycle, an unknown kind, a vector
-// that is not three numbers. Keys the loader does not know are skipped.
+// that is not three numbers, a malformed `uv`/`tint`/`tess`. Keys the loader
+// does not know are skipped.
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
@@ -50,5 +55,9 @@ rv_mat4 rv_scene_local(const rv_scene_object &object);
 
 // Object `index`'s transform in scene space: its parents' applied outside its own.
 rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index);
+
+// A "quad" object's four scene-space corners, PDK Z order (top-left, top-right,
+// bottom-left, bottom-right of its local XY square), for the game and the editor alike.
+void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4]);
 
 } // namespace rv_pdklib

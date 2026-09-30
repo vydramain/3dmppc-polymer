@@ -31,6 +31,50 @@ bool rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
     return true;
 }
 
+bool rv_scene_uv(const rv_manifest_tree_entry &e, float out[4])
+{
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 4) {
+        return false;
+    }
+    for (int i = 0; i < 4; ++i) {
+        out[i] = static_cast<float>(e.value.nums[i]);
+    }
+    return true;
+}
+
+bool rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
+{
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 3) {
+        return false;
+    }
+    for (int i = 0; i < 3; ++i) {
+        const double v = e.value.nums[static_cast<size_t>(i)];
+        if (v < 0.0 || v > 255.0 || v != static_cast<double>(static_cast<int>(v))) {
+            return false;
+        }
+    }
+    out = { static_cast<uint8_t>(e.value.nums[0]), static_cast<uint8_t>(e.value.nums[1]),
+        static_cast<uint8_t>(e.value.nums[2]) };
+    return true;
+}
+
+bool rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
+{
+    double v;
+    if (e.value.kind == rv_manifest_value_kind::integer) {
+        v = static_cast<double>(e.value.num);
+    } else if (e.value.kind == rv_manifest_value_kind::real) {
+        v = e.value.real;
+    } else {
+        return false;
+    }
+    if (v <= 0.0) {
+        return false;
+    }
+    out = static_cast<float>(v);
+    return true;
+}
+
 } // namespace
 
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error)
@@ -79,15 +123,22 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be a string\n";
             } else if (vec != nullptr && !rv_scene_vector(e, *vec)) {
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be three numbers\n";
+            } else if (e.key == "uv" && !rv_scene_uv(e, o.uv)) {
+                problems += rv_scene_at(origin, e.line) + "'uv' must be four numbers\n";
+            } else if (e.key == "tint" && !rv_scene_tint(e, o.tint)) {
+                problems += rv_scene_at(origin, e.line) + "'tint' must be three integers from 0 to 255\n";
+            } else if (e.key == "tess" && !rv_scene_tess(e, o.tess)) {
+                problems += rv_scene_at(origin, e.line) + "'tess' must be a number greater than zero\n";
             }
         }
         if (o.id.empty()) {
             problems += rv_scene_at(origin, section.line) + "object without an id\n";
             continue;
         }
-        if (o.kind != "group" && o.kind != "camera" && o.kind != "mesh") {
+        if (o.kind != "group" && o.kind != "camera" && o.kind != "mesh" && o.kind != "quad" &&
+            o.kind != "billboard" && o.kind != "volume") {
             problems += rv_scene_at(origin, section.line) + "object '" + o.id + "' has kind '" + o.kind +
-                "': group, camera or mesh\n";
+                "': group, camera, mesh, quad, billboard or volume\n";
         }
         if (!index.emplace(o.id, static_cast<int32_t>(out.objects.size())).second) {
             problems += rv_scene_at(origin, section.line) + "id '" + o.id + "' is used twice\n";
@@ -172,6 +223,22 @@ rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
         p = scene.objects[static_cast<size_t>(p)].parent;
     }
     return m;
+}
+
+void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4])
+{
+    const rv_mat4 world = rv_scene_world(scene, index);
+    // Local unit square, +y up, front face towards +z: top-left, top-right,
+    // bottom-left, bottom-right -- the PDK's quad Z order.
+    const rv_vec3 local[4] = {
+        { -0.5f, 0.5f, 0.0f },
+        { 0.5f, 0.5f, 0.0f },
+        { -0.5f, -0.5f, 0.0f },
+        { 0.5f, -0.5f, 0.0f },
+    };
+    for (int i = 0; i < 4; ++i) {
+        out[i] = rv_mat4_mul_point(world, local[i]);
+    }
 }
 
 } // namespace rv_pdklib
