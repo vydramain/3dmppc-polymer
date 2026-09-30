@@ -63,7 +63,8 @@ rv_editor_layout rv_editor_workspace_start(rv_editor_pane_registry &panes, rv_ed
     return layout;
 }
 
-// A leaf of controls only: a strip as tall as its buttons, never stretched for the Game.
+// A leaf of controls or the Toolchest only: a strip as tall as its buttons, never
+// stretched for the Game.
 bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
 {
     const rv_editor_tile_node &n = ws.layout.nodes[node];
@@ -72,7 +73,8 @@ bool rv_editor_strip_leaf(const rv_editor_workspace &ws, uint32_t node)
     }
     for (const rv_editor_pane_id pane : n.leaf.tabs) {
         const rv_editor_pane_kind kind = ws.panes.panes[pane].kind;
-        if (kind != rv_editor_pane_kind::controls && kind != rv_editor_pane_kind::release_controls) {
+        if (kind != rv_editor_pane_kind::controls && kind != rv_editor_pane_kind::release_controls &&
+            kind != rv_editor_pane_kind::toolchest) {
             return false;
         }
     }
@@ -133,10 +135,35 @@ int32_t rv_editor_strip_min_along(const rv_editor_workspace &ws, uint32_t node, 
     return axis == rv_editor_axis::x ? need.w : need.h;
 }
 
-// Sets every split with a strip leaf child to that strip's exact minimum, the
-// rest going to its sibling: no empty band under the strip's rows. Skipped
-// once the tree no longer fits its minimums (rv_editor_tile_place_node then
-// shrinks both children in proportion instead of honoring any ratio).
+// A split holding only strip leaves side by side, such as Runtime Controls beside
+// the Session Toolchest: not a strip itself, but it needs no more than the
+// tallest (or widest) of the strips it holds.
+bool rv_editor_strip_row(const rv_editor_workspace &ws, uint32_t node)
+{
+    const rv_editor_tile_node &n = ws.layout.nodes[node];
+    return n.kind == rv_editor_tile_kind::split && rv_editor_strip_leaf(ws, n.split.first) &&
+        rv_editor_strip_leaf(ws, n.split.second);
+}
+
+// `node`'s need along `axis`: a strip leaf's own minimum, or a strip row's, which
+// is its children's minimums summed on the row's own axis and the largest of them
+// on the other.
+int32_t rv_editor_strip_like_min_along(const rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis)
+{
+    if (ws.layout.nodes[node].kind != rv_editor_tile_kind::split) {
+        return rv_editor_strip_min_along(ws, node, axis);
+    }
+    const rv_editor_tile_split &split = ws.layout.nodes[node].split;
+    const int32_t first = rv_editor_strip_min_along(ws, split.first, axis);
+    const int32_t second = rv_editor_strip_min_along(ws, split.second, axis);
+    return split.axis == axis ? first + second : std::max(first, second);
+}
+
+// Sets every split with a strip child (a strip leaf, or a strip row) to that
+// strip's exact minimum, the rest going to its sibling: no empty band under a
+// strip's rows. Skipped once the tree no longer fits its minimums
+// (rv_editor_tile_place_node then shrinks both children in proportion instead of
+// honoring any ratio).
 void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
 {
     for (uint32_t i = 0; i < ws.layout.nodes.size(); ++i) {
@@ -144,8 +171,9 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
         if (n.kind != rv_editor_tile_kind::split || i >= ws.rects.size()) {
             continue;
         }
-        const bool first_is_strip = rv_editor_strip_leaf(ws, n.split.first);
-        const bool second_is_strip = rv_editor_strip_leaf(ws, n.split.second);
+        const bool first_is_strip = rv_editor_strip_leaf(ws, n.split.first) || rv_editor_strip_row(ws, n.split.first);
+        const bool second_is_strip =
+            rv_editor_strip_leaf(ws, n.split.second) || rv_editor_strip_row(ws, n.split.second);
         if (first_is_strip == second_is_strip) {
             continue; // neither, or both: nothing to fit against
         }
@@ -157,7 +185,7 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue;
         }
         const uint32_t strip = first_is_strip ? n.split.first : n.split.second;
-        const int32_t need = rv_editor_strip_min_along(ws, strip, axis);
+        const int32_t need = rv_editor_strip_like_min_along(ws, strip, axis);
         const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total)
                                             : 1.0f - static_cast<float>(need) / static_cast<float>(total);
         rv_editor_tile_set_ratio(ws.layout, i, ratio);

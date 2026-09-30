@@ -52,12 +52,13 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
 }
 
 // A full-width tile of Assets, Files and Console Output (Assets in front) along
-// the bottom; above it, the Toolchest over the Hierarchy on the left, the Scene
-// centered, and the Game over Runtime Controls over the Inspector on the right.
+// the bottom, given the bottom ~40% of the height so its icons have room; above
+// it, the Toolchest over the Hierarchy on the left, the Scene centered, and the
+// Game over Runtime Controls over the Inspector on the right.
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
-    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.78f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.60f);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, assets);
@@ -69,8 +70,9 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
 }
 
-// Debug: the session in front. Runtime Controls along the top, the Game beside
-// the Toolchest over Session, Observe and Test Case, the Runtime Log and Findings along the
+// Debug: the session in front. Runtime Controls beside the Session Toolchest
+// along the top (both strips, fit to the taller); below them the Game beside
+// Session, Observe and Test Case; the Runtime Log and Findings along the
 // bottom; Code, Files and the Terminal open from Window > New Tile.
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
@@ -78,10 +80,11 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.71f);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, 0.68f);
-    b.add(rv_editor_pane_kind::toolchest, session, rv_editor_tile_dock::top, 0.0f);
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    // Toolchest aligned with the Session column below it: same 0.68 split.
+    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, 0.68f);
     rv_editor_tile_activate(b.layout, session);
     rv_editor_tile_activate(b.layout, log);
 }
