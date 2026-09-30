@@ -307,7 +307,11 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
 void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     rv_editor_font_code_push();
+    // No controls row: the screen alone, in a well; it draws its own opaque
+    // background and scrolls by its own wheel handling.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     rv_editor_pane_terminal_body(app, pane, theme);
+    rv_editor_well_end();
     rv_editor_font_code_pop();
 }
 

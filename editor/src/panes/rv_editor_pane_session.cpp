@@ -90,59 +90,66 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
-    if (s.number() == 0) {
-        rv_editor_dim("No session has run in this window yet: Run starts one, and this says what it was.");
-        return;
-    }
-    // How it ended comes first: after the game it is what is looked for.
-    if (!s.live()) {
-        const bool bad = s.state() == rv_editor_run_state::crashed || s.state() == rv_editor_run_state::refused;
-        rv_editor_status(("Session #" + std::to_string(s.number()) + " ended: " + s.end_reason()).c_str(),
-            bad ? rv_editor_status_kind::error : rv_editor_status_kind::ok, theme);
-    }
-    if (!s.live() && s.number() > 0) {
-        rv_editor_session_summary(app, s, theme);
-    }
-    const auto until = s.live() ? std::chrono::system_clock::now() : s.ended_at();
-    const long long seconds = std::chrono::duration_cast<std::chrono::seconds>(until - s.started_at()).count();
-    const rv_editor_session_facts &f = s.facts();
-    if (!ImGui::BeginTable("##session", 2, ImGuiTableFlags_SizingStretchProp)) {
-        return;
-    }
-    rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()));
-    rv_editor_fact("Build", "#" + std::to_string(s.build_number()));
-    rv_editor_fact("Profile", app.session_profile);
-    rv_editor_fact("Time", "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(seconds / 60) + " min " +
-        std::to_string(seconds % 60) + " s" + (s.live() ? " so far" : ""));
-    rv_editor_fact("Frame", std::to_string(s.frame()) + (s.live() ? "" : ", the last reported"));
-    if (!f.disc.empty()) {
-        rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
-    }
-    if (f.lua_budget > 0) {
-        rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) +
-            (f.revision != f.first_revision ? ", reloaded from " + std::to_string(f.first_revision) : ", as built"));
-    }
-    if (!s.reload_result().empty()) {
-        rv_editor_fact("Last reload", (s.reload_ok() ? "applied: " : "refused: ") + s.reload_result());
-    }
-    rv_editor_fact("Saved", std::to_string(app.findings.saved.size()) + " findings and test results in this window");
-    ImGui::EndTable();
-
-    // Collapsed by default: the build path and the code hash, each with its own Copy.
-    if (ImGui::CollapsingHeader("Details")) {
-        rv_editor_path_row("Build directory", s.disc_dir().string(), theme);
-        if (!f.disc.empty()) {
-            rv_editor_path_row("Code hash", f.code_hash, theme);
+    // No controls row: the facts alone, in a well; the lambda's own returns
+    // reach well_end below.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const auto body = [&]() {
+        if (s.number() == 0) {
+            rv_editor_dim("No session has run in this window yet: Run starts one, and this says what it was.");
+            return;
         }
-    }
+        // How it ended comes first: after the game it is what is looked for.
+        if (!s.live()) {
+            const bool bad = s.state() == rv_editor_run_state::crashed || s.state() == rv_editor_run_state::refused;
+            rv_editor_status(("Session #" + std::to_string(s.number()) + " ended: " + s.end_reason()).c_str(),
+                bad ? rv_editor_status_kind::error : rv_editor_status_kind::ok, theme);
+        }
+        if (!s.live() && s.number() > 0) {
+            rv_editor_session_summary(app, s, theme);
+        }
+        const auto until = s.live() ? std::chrono::system_clock::now() : s.ended_at();
+        const long long seconds = std::chrono::duration_cast<std::chrono::seconds>(until - s.started_at()).count();
+        const rv_editor_session_facts &f = s.facts();
+        if (!ImGui::BeginTable("##session", 2, ImGuiTableFlags_SizingStretchProp)) {
+            return;
+        }
+        rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()));
+        rv_editor_fact("Build", "#" + std::to_string(s.build_number()));
+        rv_editor_fact("Profile", app.session_profile);
+        rv_editor_fact("Time", "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(seconds / 60) +
+            " min " + std::to_string(seconds % 60) + " s" + (s.live() ? " so far" : ""));
+        rv_editor_fact("Frame", std::to_string(s.frame()) + (s.live() ? "" : ", the last reported"));
+        if (!f.disc.empty()) {
+            rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
+        }
+        if (f.lua_budget > 0) {
+            rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) +
+                (f.revision != f.first_revision ? ", reloaded from " + std::to_string(f.first_revision) : ", as built"));
+        }
+        if (!s.reload_result().empty()) {
+            rv_editor_fact("Last reload", (s.reload_ok() ? "applied: " : "refused: ") + s.reload_result());
+        }
+        rv_editor_fact("Saved", std::to_string(app.findings.saved.size()) + " findings and test results in this window");
+        ImGui::EndTable();
 
-    ImGui::SeparatorText("Marks");
-    if (app.marks.empty()) {
-        rv_editor_dim("Mark Moment in the Session Toolchest notes the frame, and a word on it, while you play.");
-    }
-    for (size_t i = 0; i < app.marks.size(); ++i) {
-        ImGui::Text("%zu. %s", i + 1, app.marks[i].c_str());
-    }
+        // Collapsed by default: the build path and the code hash, each with its own Copy.
+        if (ImGui::CollapsingHeader("Details")) {
+            rv_editor_path_row("Build directory", s.disc_dir().string(), theme);
+            if (!f.disc.empty()) {
+                rv_editor_path_row("Code hash", f.code_hash, theme);
+            }
+        }
+
+        ImGui::SeparatorText("Marks");
+        if (app.marks.empty()) {
+            rv_editor_dim("Mark Moment in the Session Toolchest notes the frame, and a word on it, while you play.");
+        }
+        for (size_t i = 0; i < app.marks.size(); ++i) {
+            ImGui::Text("%zu. %s", i + 1, app.marks[i].c_str());
+        }
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

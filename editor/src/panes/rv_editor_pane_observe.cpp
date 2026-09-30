@@ -211,122 +211,129 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
 
-    rv_editor_observe_facts(s);
-    if (rv_editor_button("Refresh", theme)) {
-        s.refresh(app.log);
-        rv_editor_observe_read(app);
-    }
-    if (s.facts().lua_budget <= 0) {
-        rv_editor_dim("This disc declares no Lua machine, so there is no script state to inspect. Play it in Game "
-                      "and record what you see in Findings.");
-        return;
-    }
+    // No controls row at the top: Refresh and Up sit inside the content
+    // between its sections, so the whole pane is one well.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const auto body = [&]() {
+        rv_editor_observe_facts(s);
+        if (rv_editor_button("Refresh", theme)) {
+            s.refresh(app.log);
+            rv_editor_observe_read(app);
+        }
+        if (s.facts().lua_budget <= 0) {
+            rv_editor_dim("This disc declares no Lua machine, so there is no script state to inspect. Play it in Game "
+                          "and record what you see in Findings.");
+            return;
+        }
 
-    // A paused machine is read again after every frame it runs (a Step); a
-    // running one only on Refresh, and its values say they are samples.
-    if (s.state() == rv_editor_run_state::paused && o.read_frame != s.frame()) {
-        rv_editor_observe_read(app);
-    }
-    rv_editor_dim("Each value is its own read. On a paused machine they all see the frame shown; while running they "
-                  "are samples taken at different moments.");
+        // A paused machine is read again after every frame it runs (a Step); a
+        // running one only on Refresh, and its values say they are samples.
+        if (s.state() == rv_editor_run_state::paused && o.read_frame != s.frame()) {
+            rv_editor_observe_read(app);
+        }
+        rv_editor_dim("Each value is its own read. On a paused machine they all see the frame shown; while running they "
+                      "are samples taken at different moments.");
 
-    ImGui::SeparatorText("Pinned");
-    if (o.pins.empty()) {
-        rv_editor_dim("Pin a value below to keep watching it.");
-    } else if (ImGui::BeginTable("##pins", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-        ImGui::TableSetupColumn("Path");
-        ImGui::TableSetupColumn("Value");
-        ImGui::TableSetupColumn("Updated");
+        ImGui::SeparatorText("Pinned");
+        if (o.pins.empty()) {
+            rv_editor_dim("Pin a value below to keep watching it.");
+        } else if (ImGui::BeginTable("##pins", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+            ImGui::TableSetupColumn("Path");
+            ImGui::TableSetupColumn("Value");
+            ImGui::TableSetupColumn("Updated");
+            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableHeadersRow();
+            std::string unpin;
+            for (const std::string &pin : o.pins) {
+                ImGui::PushID(pin.c_str());
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(pin.c_str());
+                const auto it = s.answers().find("get " + pin);
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(it == s.answers().end() ? "not read yet" : rv_editor_value_text(it->second).c_str());
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(it == s.answers().end() ? "-" : rv_editor_updated_text(it->second, s).c_str());
+                ImGui::TableNextColumn();
+                if (rv_editor_button("Unpin", theme)) {
+                    unpin = pin;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndTable();
+            std::erase(o.pins, unpin);
+        }
+
+        ImGui::SeparatorText(rv_editor_path_text(o.path).c_str());
+        if (!o.path.empty()) {
+            if (rv_editor_button("Up", theme)) {
+                o.path.pop_back();
+                rv_editor_observe_read(app);
+            }
+        }
+        const auto it = s.answers().find(rv_editor_request("keys", o.path));
+        if (it == s.answers().end()) {
+            rv_editor_dim("Not read yet: Refresh reads it.");
+            return;
+        }
+        const rv_editor_answer &a = it->second;
+        if (!a.ok) {
+            rv_editor_dim("Unavailable: " + a.error);
+            return;
+        }
+        const std::vector<rv_editor_key_row> rows = rv_editor_key_rows(a);
+        std::string count;
+        std::string shown;
+        for (const auto &[k, v] : a.fields) {
+            count = k == "count" ? v : count;
+            shown = k == "shown" ? v : shown;
+        }
+        rv_editor_dim(std::to_string(rows.size()) + " keys" + (shown != count ? " (" + shown + " of " + count + " shown)" : "") +
+            ", listed " + rv_editor_updated_text(a, s));
+        if (!ImGui::BeginTable("##keys", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+            return;
+        }
+        ImGui::TableSetupColumn("Key");
+        ImGui::TableSetupColumn("Type");
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
-        std::string unpin;
-        for (const std::string &pin : o.pins) {
-            ImGui::PushID(pin.c_str());
+        std::vector<std::string> open;
+        for (const rv_editor_key_row &row : rows) {
+            ImGui::PushID(row.shown.c_str());
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(pin.c_str());
-            const auto it = s.answers().find("get " + pin);
+            ImGui::TextUnformatted(row.shown.c_str());
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(it == s.answers().end() ? "not read yet" : rv_editor_value_text(it->second).c_str());
+            ImGui::TextUnformatted(row.type.c_str());
             ImGui::TableNextColumn();
-            ImGui::TextUnformatted(it == s.answers().end() ? "-" : rv_editor_updated_text(it->second, s).c_str());
-            ImGui::TableNextColumn();
-            if (rv_editor_button("Unpin", theme)) {
-                unpin = pin;
+            if (row.name.empty()) {
+                ImGui::TextUnformatted("-");
+            } else if (row.type == "table") {
+                if (rv_editor_button("Open", theme)) {
+                    open = o.path;
+                    open.push_back(row.name);
+                }
+            } else {
+                std::string pin = row.name;
+                for (auto p = o.path.rbegin(); p != o.path.rend(); ++p) {
+                    pin = *p + " " + pin;
+                }
+                const bool pinned = std::find(o.pins.begin(), o.pins.end(), pin) != o.pins.end();
+                if (rv_editor_button("Pin", theme, { rv_editor_look::live, pinned ? "Already pinned" : nullptr })) {
+                    o.pins.push_back(pin);
+                    app.session.query("get " + pin, app.log);
+                }
             }
             ImGui::PopID();
         }
         ImGui::EndTable();
-        std::erase(o.pins, unpin);
-    }
-
-    ImGui::SeparatorText(rv_editor_path_text(o.path).c_str());
-    if (!o.path.empty()) {
-        if (rv_editor_button("Up", theme)) {
-            o.path.pop_back();
+        if (!open.empty()) {
+            o.path = open;
             rv_editor_observe_read(app);
         }
-    }
-    const auto it = s.answers().find(rv_editor_request("keys", o.path));
-    if (it == s.answers().end()) {
-        rv_editor_dim("Not read yet: Refresh reads it.");
-        return;
-    }
-    const rv_editor_answer &a = it->second;
-    if (!a.ok) {
-        rv_editor_dim("Unavailable: " + a.error);
-        return;
-    }
-    const std::vector<rv_editor_key_row> rows = rv_editor_key_rows(a);
-    std::string count;
-    std::string shown;
-    for (const auto &[k, v] : a.fields) {
-        count = k == "count" ? v : count;
-        shown = k == "shown" ? v : shown;
-    }
-    rv_editor_dim(std::to_string(rows.size()) + " keys" + (shown != count ? " (" + shown + " of " + count + " shown)" : "") +
-        ", listed " + rv_editor_updated_text(a, s));
-    if (!ImGui::BeginTable("##keys", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-        return;
-    }
-    ImGui::TableSetupColumn("Key");
-    ImGui::TableSetupColumn("Type");
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableHeadersRow();
-    std::vector<std::string> open;
-    for (const rv_editor_key_row &row : rows) {
-        ImGui::PushID(row.shown.c_str());
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(row.shown.c_str());
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(row.type.c_str());
-        ImGui::TableNextColumn();
-        if (row.name.empty()) {
-            ImGui::TextUnformatted("-");
-        } else if (row.type == "table") {
-            if (rv_editor_button("Open", theme)) {
-                open = o.path;
-                open.push_back(row.name);
-            }
-        } else {
-            std::string pin = row.name;
-            for (auto p = o.path.rbegin(); p != o.path.rend(); ++p) {
-                pin = *p + " " + pin;
-            }
-            const bool pinned = std::find(o.pins.begin(), o.pins.end(), pin) != o.pins.end();
-            if (rv_editor_button("Pin", theme, { rv_editor_look::live, pinned ? "Already pinned" : nullptr })) {
-                o.pins.push_back(pin);
-                app.session.query("get " + pin, app.log);
-            }
-        }
-        ImGui::PopID();
-    }
-    ImGui::EndTable();
-    if (!open.empty()) {
-        o.path = open;
-        rv_editor_observe_read(app);
-    }
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

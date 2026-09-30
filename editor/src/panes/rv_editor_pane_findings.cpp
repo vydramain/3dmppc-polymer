@@ -252,6 +252,9 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     rv_editor_cases_list(app);
+    // No controls row at the top: the New Test Case button sits inside the
+    // content between the selector and the case preview, so only a well.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     if (rv_editor_radio("Exploratory: free play, no checklist", f.test_case < 0, theme)) {
         f.test_case = -1;
     }
@@ -297,6 +300,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     for (const std::string &r : f.results) {
         ImGui::BulletText("%s", r.c_str());
     }
+    rv_editor_well_end();
 }
 
 void rv_editor_findings_capture(rv_editor_app &app)
@@ -315,6 +319,7 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const std::filesystem::path dir = app.project.state_dir / "findings";
+    rv_editor_shelf_begin("##shelf", theme);
     const char *why_not_capture = app.session.live() ? nullptr : "No session is running: there is no frame to capture";
     if (rv_editor_button("Capture Frame", theme, { rv_editor_look::live, why_not_capture })) {
         rv_editor_findings_capture(app);
@@ -326,6 +331,9 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         std::filesystem::create_directories(dir, ec);
         rv_editor_record(app, dir);
     }
+    rv_editor_shelf_end();
+
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     if (!f.error.empty()) {
         rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
     }
@@ -350,6 +358,7 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_path_row("Finding", f.saved[i].string(), theme);
         ImGui::PopID();
     }
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

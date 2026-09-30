@@ -232,7 +232,11 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float actions = ImGui::GetFrameHeightWithSpacing() * 2.0f;
-    rv_editor_run_editor(app, ImVec2(avail.x, std::max(ImGui::GetFrameHeight() * 6.0f, avail.y - actions)), theme);
+    // The two-column body in one well; its size still comes from the region left
+    // once the well's own padding is taken out.
+    rv_editor_well_begin("##well", ImVec2(0, std::max(ImGui::GetFrameHeight() * 6.0f, avail.y - actions)), theme);
+    rv_editor_run_editor(app, ImGui::GetContentRegionAvail(), theme);
+    rv_editor_well_end();
     rv_editor_run_actions(app, theme);
 }
 
