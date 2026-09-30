@@ -200,7 +200,11 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     // are in the code font.
     bool copy = false;
     bool exporting = false;
+    rv_editor_shelf_begin("##shelf", theme);
     rv_editor_output_controls(app, view, copy, exporting, theme);
+    rv_editor_shelf_end();
+
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     // The lines, and what the filters keep out of sight (LOG-03).
     const std::string needle = rv_editor_output_lower(view.search);
@@ -364,6 +368,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     }
     rv_editor_log_end(theme);
     rv_editor_font_code_pop();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

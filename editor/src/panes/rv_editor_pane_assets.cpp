@@ -159,6 +159,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     rv_editor_assets_ui &ui = app.assets_ui;
 
     // The folder, the filter, and the view: icons or a list with details.
+    rv_editor_shelf_begin("##shelf", theme);
     std::vector<std::string> folders{ "All folders" };
     for (const rv_editor_asset &a : rv_editor_assets.files) {
         if (std::find(folders.begin(), folders.end(), a.folder) == folders.end()) {
@@ -178,7 +179,9 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     ImGui::SetItemTooltip("Filter: only names holding this text");
     rv_editor_flow(rv_editor_checkbox_width("Details"));
     rv_editor_checkbox("Details", &ui.details, theme);
+    rv_editor_shelf_end();
 
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     std::vector<const rv_editor_asset *> shown;
     for (const rv_editor_asset &a : rv_editor_assets.files) {
         if ((ui.folder == 0 || a.folder == folders[static_cast<size_t>(ui.folder)]) &&
@@ -315,6 +318,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
     rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme, app.project);
     ImGui::EndChild();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

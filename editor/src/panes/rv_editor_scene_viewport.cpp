@@ -160,9 +160,13 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_scene_doc &doc = *app.scene;
     rv_editor_scene_ui &ui = app.scene_ui;
     rv_editor_scene_camera &cam = ui.camera;
+    rv_editor_shelf_begin("##shelf", theme);
     rv_editor_scene_toolbar(app, theme);
+    rv_editor_shelf_end();
     rv_editor_scene_keys(app);
 
+    // The well never scrolls: the Scene tile's picture shrinks to fit instead.
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
     // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
     // visible label in the UI font.
@@ -374,6 +378,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
     if (!read_tip.empty()) {
         ImGui::SetItemTooltip("%s", read_tip.c_str());
     }
+    rv_editor_well_end();
 }
 
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)

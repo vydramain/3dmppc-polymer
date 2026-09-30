@@ -65,6 +65,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     rv_editor_search_view &s = app.project_search;
+    rv_editor_shelf_begin("##shelf", theme);
     rv_editor_flow(ImGui::GetFontSize() * 14.0f);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0f);
     if (s.focus) {
@@ -83,41 +84,49 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_flow(rv_editor_checkbox_width("Skipped Folders Too"));
     rv_editor_checkbox("Skipped Folders Too", &s.all, theme);
     ImGui::SetItemTooltip("Also search %s", rv_editor_search_skipped);
+    rv_editor_shelf_end();
     if (run && s.query[0] != '\0') {
         // ponytail: runs on the UI thread; a worker thread when projects grow past a blink.
         s.result = rv_editor_search_run(app.project.root, s.query, s.match_case, s.all);
         s.searched = s.query;
         s.searched_all = s.all;
     }
-    if (s.searched.empty()) {
-        ImGui::TextWrapped("Nothing searched yet. Folders left out unless ticked: %s.", rv_editor_search_skipped);
-        return;
-    }
-    const rv_editor_search_result &r = s.result;
-    // The scope stated with the result, so an empty one says where it did not look.
-    std::string scope = "\"" + s.searched + "\" in " + std::to_string(r.files) + " files of " +
-        app.project.root.filename().string();
-    if (r.skipped_dirs != 0) {
-        scope += "; " + std::to_string(r.skipped_dirs) + " folders left out (" + rv_editor_search_skipped + ")";
-    }
-    if (r.skipped_files != 0) {
-        scope += "; " + std::to_string(r.skipped_files) + " binary or large files left out";
-    }
-    const std::string count = r.hits.empty() ? "No match" : std::to_string(r.hits.size()) + (r.truncated ? "+" : "") +
-        " matches";
-    rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok, theme);
-    ImGui::SameLine();
-    ImGui::TextWrapped("%s", scope.c_str());
-    if (r.truncated) {
-        ImGui::TextWrapped("Stopped at %zu matches: a longer query narrows it.", r.hits.size());
-    }
-    if (r.hits.empty()) {
-        ImGui::TextWrapped(r.skipped_dirs != 0 && !s.searched_all
-                ? "No match where it looked. Tick Skipped Folders Too to look in the folders left out."
-                : "No match anywhere in the project.");
-        return;
-    }
-    rv_editor_search_list(app);
+
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const auto body = [&]() {
+        if (s.searched.empty()) {
+            ImGui::TextWrapped("Nothing searched yet. Folders left out unless ticked: %s.", rv_editor_search_skipped);
+            return;
+        }
+        const rv_editor_search_result &r = s.result;
+        // The scope stated with the result, so an empty one says where it did not look.
+        std::string scope = "\"" + s.searched + "\" in " + std::to_string(r.files) + " files of " +
+            app.project.root.filename().string();
+        if (r.skipped_dirs != 0) {
+            scope += "; " + std::to_string(r.skipped_dirs) + " folders left out (" + rv_editor_search_skipped + ")";
+        }
+        if (r.skipped_files != 0) {
+            scope += "; " + std::to_string(r.skipped_files) + " binary or large files left out";
+        }
+        const std::string count = r.hits.empty() ? "No match"
+                                                  : std::to_string(r.hits.size()) + (r.truncated ? "+" : "") + " matches";
+        rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok,
+            theme);
+        ImGui::SameLine();
+        ImGui::TextWrapped("%s", scope.c_str());
+        if (r.truncated) {
+            ImGui::TextWrapped("Stopped at %zu matches: a longer query narrows it.", r.hits.size());
+        }
+        if (r.hits.empty()) {
+            ImGui::TextWrapped(r.skipped_dirs != 0 && !s.searched_all
+                    ? "No match where it looked. Tick Skipped Folders Too to look in the folders left out."
+                    : "No match anywhere in the project.");
+            return;
+        }
+        rv_editor_search_list(app);
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor

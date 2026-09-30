@@ -145,6 +145,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_scene_keys(app);
     rv_editor_scene_doc &doc = *app.scene;
     const bool read_only = !doc.scene.read_only.empty();
+    rv_editor_shelf_begin("##shelf", theme);
     ImGui::BeginDisabled(read_only);
     for (const char *kind : { "group", "camera", "mesh" }) {
         const std::string label = std::string("+ ") + rv_editor_scene_kind_label(kind);
@@ -157,33 +158,40 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
         }
     }
     ImGui::EndDisabled();
-    if (!app.scene_ui.note.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
-        ImGui::TextWrapped("%s", app.scene_ui.note.c_str());
-        ImGui::PopStyleColor();
-    }
-    for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-        // Roots, and objects whose parent is missing, which the tree would otherwise hide.
-        const std::string &parent = doc.scene.objects[i].parent;
-        if (parent.empty() || rv_editor_scene_find(doc.scene, parent) < 0) {
-            rv_editor_hierarchy_node(app, i, read_only);
+    rv_editor_shelf_end();
+
+    rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const auto body = [&]() {
+        if (!app.scene_ui.note.empty()) {
+            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
+            ImGui::TextWrapped("%s", app.scene_ui.note.c_str());
+            ImGui::PopStyleColor();
         }
-        if (app.scene == nullptr) {
-            return;
+        for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
+            // Roots, and objects whose parent is missing, which the tree would otherwise hide.
+            const std::string &parent = doc.scene.objects[i].parent;
+            if (parent.empty() || rv_editor_scene_find(doc.scene, parent) < 0) {
+                rv_editor_hierarchy_node(app, i, read_only);
+            }
+            if (app.scene == nullptr) {
+                return;
+            }
         }
-    }
-    // The rest of the pane is the root: dropped here, an object leaves its parent.
-    const ImVec2 rest = ImGui::GetContentRegionAvail();
-    ImGui::Dummy(ImVec2(rest.x, std::max(rest.y, ImGui::GetFrameHeight())));
-    if (!read_only && ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(rv_editor_scene_payload)) {
-            rv_editor_hierarchy_move(app, static_cast<const char *>(p->Data), "", true);
+        // The rest of the pane is the root: dropped here, an object leaves its parent.
+        const ImVec2 rest = ImGui::GetContentRegionAvail();
+        ImGui::Dummy(ImVec2(rest.x, std::max(rest.y, ImGui::GetFrameHeight())));
+        if (!read_only && ImGui::BeginDragDropTarget()) {
+            if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(rv_editor_scene_payload)) {
+                rv_editor_hierarchy_move(app, static_cast<const char *>(p->Data), "", true);
+            }
+            ImGui::EndDragDropTarget();
         }
-        ImGui::EndDragDropTarget();
-    }
-    if (ImGui::IsItemClicked()) {
-        doc.selected.clear();
-    }
+        if (ImGui::IsItemClicked()) {
+            doc.selected.clear();
+        }
+    };
+    body();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor
