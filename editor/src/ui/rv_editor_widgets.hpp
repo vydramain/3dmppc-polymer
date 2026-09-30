@@ -79,6 +79,22 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
 // tooltip, and a Copy button that puts it on the clipboard.
 void rv_editor_path_row(const char *label, const std::string &path, const rv_editor_theme &theme);
 
+// --- layers: shelf and well ----------------------------------------------------
+// Every pane reads header (dark), shelf (its buttons), well (its content).
+
+// A raised strip across the available width for a row (or a few) of buttons:
+// whatever is drawn between begin and end, SameLine/rv_editor_flow included.
+// Height follows the content; call once per shelf. Always pair with the end call.
+void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme);
+void rv_editor_shelf_end();
+
+// A child region with the inset background and a sunken bevel, for a pane's
+// content (trees, lists, the Game picture, inspector fields, logs). `size`
+// works as for BeginChild: 0 fills what is left. `flags` pass through.
+// Always pair with the end call.
+bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &theme, ImGuiWindowFlags flags = 0);
+void rv_editor_well_end();
+
 // --- panes --------------------------------------------------------------------
 // Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)
 // in the theme's colours; these are the pane pieces ImGui has no public form of.

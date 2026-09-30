@@ -1,6 +1,7 @@
 // Catalog section: tree, list, table, tab strip, splitter and pane headers.
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -145,6 +146,25 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
     rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area);
 }
 
+// Shelf over well: how a pane's three layers (header, shelf, well) look
+// stacked, so the tone and bevels can be checked by eye.
+void rv_editor_catalog_layers(const rv_editor_theme &t)
+{
+    ImGui::SeparatorText("Shelf and well");
+    rv_editor_pane_header("Files", true, t, true);
+    rv_editor_shelf_begin("##shelf", t);
+    if (rv_editor_letter_button("##new", rv_editor_glyph::new_, t.code_green, "New File", t)) {
+    }
+    rv_editor_flow(ImGui::GetFrameHeight());
+    if (rv_editor_letter_button("##del", rv_editor_glyph::delete_, t.code_red, "Delete", t)) {
+    }
+    rv_editor_shelf_end();
+    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * 6.0f), t)) {
+        rv_editor_catalog_tree();
+    }
+    rv_editor_well_end();
+}
+
 } // namespace
 
 void rv_editor_catalog_headers(const rv_editor_theme &theme)
@@ -156,6 +176,7 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
     rv_editor_pane_header("Boxes focused", true, theme, true, { rv_editor_look::focused });
     rv_editor_catalog_splitters(theme);
     rv_editor_catalog_tiles(theme);
+    rv_editor_catalog_layers(theme);
 }
 
 void rv_editor_catalog_lists(const rv_editor_theme &)
