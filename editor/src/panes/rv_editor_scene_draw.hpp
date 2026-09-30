@@ -62,12 +62,16 @@ struct rv_editor_tri
 };
 
 // An object's surface in scene space: a mesh's .obj triangles, or the unit cube while its
-// mesh is empty or does not load (the reason in *error when given); empty for other kinds.
-// Each triangle carries its .obj vt (or 0,0 for a corner without one; the whole unit square
-// per face for the placeholder cube).
+// mesh is empty or does not load (the reason in *error when given); a quad's two triangles
+// (rv_pdklib::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for other kinds
+// (a billboard's corners depend on the view, built only in rv_editor_draw_filled).
+// Each mesh triangle carries its .obj vt (or 0,0 for a corner without one; the whole unit
+// square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
+// rv_editor_draw_filled once a texture's pixel size is known.
 std::vector<rv_editor_tri> rv_editor_object_triangles(
     const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
-// Every mesh object filled, far to near, flat-shaded by face normal; the selected one tinted.
+// Every mesh, quad and billboard filled, far to near, flat-shaded by face normal (a billboard's
+// normal faces the camera by construction); the selected one tinted. Volumes are never filled.
 // `renderer` null: today's flat shading. Non-null: an object whose texture resolves and loads
 // draws textured (shade-multiplied, selected tinted instead of grey); others draw flat.
 void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,

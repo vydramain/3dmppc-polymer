@@ -144,6 +144,36 @@ void rv_editor_camera_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fu
     e.emplace_back(p(0, 0.35, 0.6), p(0.1, 0.25, 0.6));
 }
 
+// The local XY unit square (-0.5..0.5): a quad's outline and a billboard's card.
+void rv_editor_quad_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    const vec3 c[4] = { p(-0.5, -0.5, 0), p(0.5, -0.5, 0), p(0.5, 0.5, 0), p(-0.5, 0.5, 0) };
+    for (int i = 0; i < 4; ++i) {
+        e.emplace_back(c[i], c[(i + 1) % 4]);
+    }
+}
+
+// A billboard: the same card, plus a short tick off its face so the card does not read as flat.
+void rv_editor_billboard_edges(
+    std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    rv_editor_quad_edges(e, p);
+    e.emplace_back(p(0, 0, 0), p(0, 0, 0.3));
+}
+
+// A volume: the unit cube's 12 edges, never filled.
+void rv_editor_volume_edges(
+    std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+{
+    const vec3 b[8] = { p(-0.5, -0.5, -0.5), p(0.5, -0.5, -0.5), p(0.5, 0.5, -0.5), p(-0.5, 0.5, -0.5),
+        p(-0.5, -0.5, 0.5), p(0.5, -0.5, 0.5), p(0.5, 0.5, 0.5), p(-0.5, 0.5, 0.5) };
+    const int pairs[12][2] = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, { 4, 5 }, { 5, 6 }, { 6, 7 }, { 7, 4 },
+        { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+    for (const auto &pr : pairs) {
+        e.emplace_back(b[pr[0]], b[pr[1]]);
+    }
+}
+
 // A diamond (octahedron), the third marker: for a kind that is neither mesh, camera nor group.
 void rv_editor_other_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
@@ -178,6 +208,12 @@ std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
         rv_editor_camera_edges(e, p);
     } else if (kind == "group") {
         rv_editor_group_edges(e, p);
+    } else if (kind == "quad") {
+        rv_editor_quad_edges(e, p);
+    } else if (kind == "billboard") {
+        rv_editor_billboard_edges(e, p);
+    } else if (kind == "volume") {
+        rv_editor_volume_edges(e, p);
     } else {
         rv_editor_other_edges(e, p);
     }

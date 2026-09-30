@@ -236,12 +236,64 @@ rv_editor_icon rv_editor_object_texture(
     return rv_editor_asset_picture(renderer, asset);
 }
 
+// The four corners' pixel-rect uv, top-left, top-right, bottom-left, bottom-right, from an
+// object's `uv` (u0,v0,u1,v1). Raw pixels; rv_editor_draw_filled normalizes once a texture's
+// pixel size is known, or leaves them unused when the object draws flat.
+std::array<ImVec2, 4> rv_editor_quad_uv(const rv_editor_uv &uv)
+{
+    return { ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[1]) },
+        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[1]) },
+        ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[3]) },
+        ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[3]) } };
+}
+
+// A quad's two triangles: rv_pdklib::rv_scene_quad_corners' own local square and corner
+// order (top-left, top-right, bottom-left, bottom-right; scale is already in `m`).
+std::vector<rv_editor_tri> rv_editor_quad_triangles(const rv_editor_affine &m, const rv_editor_uv &uv)
+{
+    const vec3 c[4] = { rv_editor_affine_point(m, { -0.5, 0.5, 0.0 }), rv_editor_affine_point(m, { 0.5, 0.5, 0.0 }),
+        rv_editor_affine_point(m, { -0.5, -0.5, 0.0 }), rv_editor_affine_point(m, { 0.5, -0.5, 0.0 }) };
+    const std::array<ImVec2, 4> t = rv_editor_quad_uv(uv);
+    return {
+        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
+        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
+    };
+}
+
+// The world-space length of `m`'s column `col` (0: X, 1: Y): the parent chain's scale and
+// rotation folded in, unlike the object's own local `scale`.
+double rv_editor_affine_column_length(const rv_editor_affine &m, int col)
+{
+    return std::sqrt(m[0][col] * m[0][col] + m[1][col] * m[1][col] + m[2][col] * m[2][col]);
+}
+
+// A billboard's two triangles: a card of world size scale.xy (a scaled parent included)
+// centred on the object's world position, built from the view's right/up (not the object's
+// own rotation) so it always faces the camera.
+std::vector<rv_editor_tri> rv_editor_billboard_triangles(
+    const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
+{
+    const vec3 center = rv_editor_affine_point(m, { 0.0, 0.0, 0.0 });
+    const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * 0.5);
+    const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * 0.5);
+    const vec3 c[4] = { add(center, sub(up, right)), add(center, add(up, right)), sub(center, add(up, right)),
+        add(center, sub(right, up)) };
+    const std::array<ImVec2, 4> t = rv_editor_quad_uv(o.uv);
+    return {
+        { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
+        { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
+    };
+}
+
 } // namespace
 
 std::vector<rv_editor_tri> rv_editor_object_triangles(
     const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
+    if (o.kind == "quad") {
+        return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), o.uv);
+    }
     if (o.kind != "mesh") {
         return {};
     }
@@ -290,17 +342,24 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
         double depth;
         float shade;
         bool selected;
+        ImVec4 tint; // the object's tint/255, 0..1; identity (1,1,1) for a mesh's default
         ImTextureID tex; // 0: flat AddTriangleFilled; else textured via Prim*
     };
     std::vector<rv_editor_shaded_tri> shaded;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
-        if (o.kind != "mesh") {
-            continue;
+        if (o.kind != "mesh" && o.kind != "quad" && o.kind != "billboard") {
+            continue; // volumes, cameras, groups and other kinds are not filled
         }
         const bool is_selected = o.id == selected;
         const rv_editor_icon tex = rv_editor_object_texture(renderer, project, o);
-        for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, static_cast<int>(i))) {
+        // quad/billboard uv is a pixel rect, normalized here once the texture's size is known;
+        // a mesh's is already 0..1 from rv_editor_object_triangles.
+        const bool pixel_uv = o.kind != "mesh" && tex.id != ImTextureID{} && tex.w > 0 && tex.h > 0;
+        const std::vector<rv_editor_tri> tris = o.kind == "billboard"
+            ? rv_editor_billboard_triangles(v, rv_editor_scene_world(scene, static_cast<int>(i)), o)
+            : rv_editor_object_triangles(scene, project, static_cast<int>(i));
+        for (const rv_editor_tri &tri : tris) {
             rv_editor_shaded_tri st;
             st.depth = 0.0;
             bool visible = true;
@@ -312,7 +371,8 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
                 }
                 st.depth += view_p[2];
                 st.s[k] = v.to_screen(view_p);
-                st.uv[k] = tri.uv[k];
+                st.uv[k] = pixel_uv ? ImVec2(tri.uv[k].x / static_cast<float>(tex.w), tri.uv[k].y / static_cast<float>(tex.h))
+                                     : tri.uv[k];
             }
             if (!visible) {
                 continue;
@@ -321,6 +381,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
             st.shade = static_cast<float>(std::max(0.15, std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
+            st.tint = { o.tint[0] / 255.0f, o.tint[1] / 255.0f, o.tint[2] / 255.0f, 1.0f };
             st.tex = tex.id;
             shaded.push_back(st);
         }
@@ -331,6 +392,8 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
         [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) { return a.depth > b.depth; });
     for (const rv_editor_shaded_tri &st : shaded) {
         if (st.tex == ImTextureID{}) {
+            // Flat: the base or selection colour times shade; the object's tint is a texture
+            // modulation (quad/billboard) and does not apply to a flat fill.
             ImVec4 col = ImGui::ColorConvertU32ToFloat4(st.selected ? selected_color : base);
             col.x *= st.shade;
             col.y *= st.shade;
@@ -338,11 +401,14 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             dl->AddTriangleFilled(st.s[0], st.s[1], st.s[2], ImGui::ColorConvertFloat4ToU32(col));
             continue;
         }
-        // Textured: the picture multiplied by the flat shade; selected keeps its tint instead
-        // of grey. A push/pop per triangle keeps texture changes correct under the global sort.
-        const ImVec4 tint = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) : ImVec4(1, 1, 1, 1);
-        const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(tint.x * st.shade, tint.y * st.shade,
-            tint.z * st.shade, 1.0f));
+        // Textured: the picture multiplied by the flat shade and, unselected, the object's
+        // tint (a mesh's default tint is identity, so this leaves mesh unchanged); selected
+        // keeps its selection colour instead of grey or tint. A push/pop per triangle keeps
+        // texture changes correct under the global sort.
+        const ImVec4 sel_tint = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) : ImVec4(1, 1, 1, 1);
+        const ImVec4 obj_tint = st.selected ? ImVec4(1, 1, 1, 1) : st.tint;
+        const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(sel_tint.x * obj_tint.x * st.shade,
+            sel_tint.y * obj_tint.y * st.shade, sel_tint.z * obj_tint.z * st.shade, 1.0f));
         dl->PushTexture(st.tex);
         dl->PrimReserve(3, 3);
         dl->PrimVtx(st.s[0], st.uv[0], col);

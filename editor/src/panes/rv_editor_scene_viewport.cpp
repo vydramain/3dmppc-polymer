@@ -354,13 +354,17 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         const std::string &kind = doc.scene.objects[i].kind;
         const bool sel = doc.scene.objects[i].id == doc.selected;
         const ImU32 color = rv_editor_col(sel ? theme.selection
-                : kind == "mesh"                                       ? theme.text
-                : kind == "camera"                                     ? theme.code_yellow
-                                                                        : theme.code_subtext);
+                : kind == "mesh" || kind == "quad" || kind == "billboard" ? theme.text
+                : kind == "camera"                                       ? theme.code_yellow
+                                                                          : theme.code_subtext);
         std::string error;
-        // Filled/Textured mode already painted non-selected meshes; the selected one keeps its outline.
-        if (filled && kind == "mesh" && !sel) {
-            rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
+        // Filled/Textured mode already paints non-selected mesh/quad/billboard geometry; the
+        // selected one keeps its outline, and a volume (never filled) always keeps its edges.
+        const bool painted = filled && !sel && (kind == "mesh" || kind == "quad" || kind == "billboard");
+        if (painted) {
+            if (kind == "mesh") {
+                rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
+            }
         } else {
             for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
                 rv_editor_line(dl, v, a, b, color, sel ? 2.0f : 1.0f);
