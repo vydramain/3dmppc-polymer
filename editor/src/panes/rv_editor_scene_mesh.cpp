@@ -246,7 +246,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             bool visible = true;
             for (int k = 0; k < 3; ++k) {
                 const vec3 view_p = v.to_view(tri.p[k]);
-                if (view_p[2] < 0.05) { // rv_editor_near, kept local to avoid a cross-file constant
+                if (view_p[2] < rv_editor_near) {
                     visible = false;
                     break;
                 }
@@ -258,7 +258,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             }
             st.depth /= 3.0;
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            st.shade = static_cast<float>(std::max(0.15, dot(n, mul(v.forward, -1.0))));
+            st.shade = static_cast<float>(std::max(0.15, std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
             shaded.push_back(st);
         }

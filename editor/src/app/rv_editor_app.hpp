@@ -107,6 +107,7 @@ struct rv_editor_scene_camera
     bool snap = false;
     double snap_step = 0.25;
     bool grid = true;
+    bool filled = false; // false: Wireframe, true: Filled
     double yaw = 30.0;
     double pitch = 25.0;
     double distance = 8.0;

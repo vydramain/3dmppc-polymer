@@ -142,7 +142,7 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_flow(rv_editor_button_width("Home"));
     if (rv_editor_button("Home", theme)) {
-        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid };
+        cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.filled };
     }
     ImGui::SetItemTooltip("Home key: the view the scene opened with");
     rv_editor_flow(rv_editor_button_width("Seek"));
@@ -151,6 +151,12 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
         cam.seeking = seek;
     }
     ImGui::SetItemTooltip("Then click an object: the view turns about it");
+    rv_editor_flow(rv_editor_button_width("Filled"));
+    bool filled = cam.filled;
+    if (rv_editor_toggle("Filled", &filled, theme)) {
+        cam.filled = filled;
+    }
+    ImGui::SetItemTooltip("Off: Wireframe, edges only. On: Filled, shaded polygons");
 }
 
 } // namespace
@@ -244,7 +250,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
             cam.distance = std::min(200.0, cam.distance / 0.9);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
-            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid };
+            cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.filled };
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, false);
@@ -328,6 +334,10 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
         }
     }
     std::string mesh_error; // the first mesh resolve/parse error this frame, if any
+    if (cam.filled) {
+        rv_editor_draw_filled(dl, v, doc.scene, app.project, doc.selected, rv_editor_col(theme.code_subtext),
+            rv_editor_col(theme.selection));
+    }
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const std::string &kind = doc.scene.objects[i].kind;
         const bool sel = doc.scene.objects[i].id == doc.selected;
@@ -336,8 +346,13 @@ void rv_editor_scene_viewport(rv_editor_app &app, const rv_editor_theme &theme)
                 : kind == "camera"                                     ? theme.code_yellow
                                                                         : theme.code_subtext);
         std::string error;
-        for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
-            rv_editor_line(dl, v, a, b, color, sel ? 2.0f : 1.0f);
+        // Filled mode already painted non-selected meshes; the selected one keeps its outline.
+        if (cam.filled && kind == "mesh" && !sel) {
+            rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
+        } else {
+            for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
+                rv_editor_line(dl, v, a, b, color, sel ? 2.0f : 1.0f);
+            }
         }
         if (mesh_error.empty() && !error.empty()) {
             mesh_error = error;
