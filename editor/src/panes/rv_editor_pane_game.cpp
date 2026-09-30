@@ -206,16 +206,14 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 {
     rv_editor_session &s = app.session;
     app.game_drawn = true;
-    // The tile's own minimum: the mode row's shelf plus the status line
-    // rv_editor_game_picture puts over the frame, measured like a strip
-    // (rv_editor_shell_pane) rather than the frame at 1x, so the picture
-    // shrinks below 1x instead of the layout fighting a small window.
-    const float top = ImGui::GetCursorPosY();
+    // Chrome this pane adds around the picture: the shelf, the well's own padding
+    // on every side, and the status line, measured rather than listed, from the
+    // leaf's content region before the shelf and this frame's picture area below.
+    const ImVec2 region = ImGui::GetContentRegionAvail();
+
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_game_modes(app, theme);
     rv_editor_shelf_end();
-    const float shelf_tall = ImGui::GetCursorPosY() - top;
-    app.game_need = { 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
 
     // The well fills what the shelf leaves, no scrollbar and no wheel scroll
     // (the Game tile never scrolls): status line and picture, or the stopped
@@ -224,6 +222,15 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     app.game_area = { static_cast<int32_t>(avail.x),
         static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
+    // The tile's own minimum: the frame at 1x plus that measured chrome, so the
+    // picture never scales below 1x (fitting only ever grows the tile). Unset
+    // before a picture has been measured once.
+    app.game_need = app.game_area.w > 0 && app.game_area.h > 0
+        ? rv_editor_size{ static_cast<int32_t>(app.project.screen_w) +
+                std::max(0, static_cast<int32_t>(region.x) - app.game_area.w),
+              static_cast<int32_t>(app.project.screen_h) +
+                std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) }
+        : rv_editor_size{ 0, 0 };
 
     const auto body = [&]() {
         if (!s.live()) {

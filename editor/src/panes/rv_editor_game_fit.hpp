@@ -9,9 +9,10 @@ namespace rv_editor
 {
 
 // Where the console's frame goes inside the Game tile's picture area, in pixels
-// from the area's corner. The frame keeps its proportions and is never cut: a
-// fixed or integer multiple that does not fit is lowered to what fits, and
-// `reduced` says so.
+// from the area's corner. The frame keeps its proportions. Fit never scales below
+// 1x, so it is cut only when the window itself is smaller than the tile's 1x
+// minimum; a fixed or integer multiple that does not fit is instead lowered to
+// what fits, and `reduced` says so.
 struct rv_editor_game_view
 {
     float x, y, w, h;
@@ -31,7 +32,9 @@ inline rv_editor_game_view rv_editor_game_place(int frame_w, int frame_h, float 
     bool reduced = false;
     int wanted = 0;
     switch (mode) {
-        case rv_editor_game_scale::fit: break;
+        // Fit never drops below 1x: the tile's minimum keeps room for it, so this
+        // only clips when the window itself is smaller than that minimum.
+        case rv_editor_game_scale::fit: scale = std::max(fit, 1.0f); break;
         case rv_editor_game_scale::integer: wanted = static_cast<int>(std::max(1.0f, whole)); break;
         case rv_editor_game_scale::x1: wanted = 1; break;
         case rv_editor_game_scale::x2: wanted = 2; break;
