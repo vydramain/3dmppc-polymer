@@ -4,6 +4,8 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
 #include <string>
 
@@ -73,6 +75,103 @@ void rv_editor_inspector_vec(rv_editor_app &app, const char *label, rv_editor_ve
     }
     if (changed) {
         target = value;
+    }
+}
+
+// A fixed-size numeric array dragged or typed (uv, tint), the same undo and
+// Escape rule as rv_editor_inspector_vec above. `before` holds the array's own
+// type so uv (4 doubles) and tint (3 ints) each keep their own memory of it.
+template <typename Arr>
+void rv_editor_inspector_array(rv_editor_app &app, const char *label, Arr rv_editor_scene_object::*field,
+    ImGuiDataType type, float speed, const char *fmt, const std::string &id,
+    typename Arr::value_type lo, typename Arr::value_type hi)
+{
+    static Arr before{};
+    rv_editor_scene_doc &doc = *app.scene;
+    rv_editor_scene_ui &ui = app.scene_ui;
+    const int at = rv_editor_scene_find(doc.scene, id);
+    if (at < 0) {
+        return;
+    }
+    Arr value = doc.scene.objects[static_cast<size_t>(at)].*field;
+    rv_editor_inspector_label(label);
+    const bool changed = ImGui::DragScalarN((std::string("##") + label).c_str(), type, value.data(),
+        static_cast<int>(value.size()), speed, &lo, &hi, fmt);
+    if (ImGui::IsItemActivated()) {
+        rv_editor_scene_step(doc);
+        ui.editing = label;
+        before = doc.scene.objects[static_cast<size_t>(at)].*field;
+    }
+    Arr &target = doc.scene.objects[static_cast<size_t>(at)].*field;
+    const bool mine = ui.editing == label;
+    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
+    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
+    if (mine && !ui.cancelled && (escaped || idle)) {
+        ui.cancelled = escaped;
+        if (!doc.undo.empty()) {
+            doc.undo.pop_back();
+        }
+        if (!escaped) {
+            ui.editing.clear();
+        }
+    }
+    if (mine && ui.cancelled) {
+        target = before;
+        if (!ImGui::IsItemActive()) {
+            ui.cancelled = false;
+            ui.editing.clear();
+        }
+        return;
+    }
+    if (changed) {
+        target = value;
+    }
+}
+
+// A single number dragged or typed (tess), clamped to stay above zero.
+void rv_editor_inspector_tess(rv_editor_app &app, const char *label, double rv_editor_scene_object::*field,
+    float speed, const std::string &id)
+{
+    static double before = 0.0;
+    rv_editor_scene_doc &doc = *app.scene;
+    rv_editor_scene_ui &ui = app.scene_ui;
+    const int at = rv_editor_scene_find(doc.scene, id);
+    if (at < 0) {
+        return;
+    }
+    double value = doc.scene.objects[static_cast<size_t>(at)].*field;
+    rv_editor_inspector_label(label);
+    const double lo = 0.01;
+    const bool changed =
+        ImGui::DragScalar((std::string("##") + label).c_str(), ImGuiDataType_Double, &value, speed, &lo, nullptr, "%.3f");
+    if (ImGui::IsItemActivated()) {
+        rv_editor_scene_step(doc);
+        ui.editing = label;
+        before = doc.scene.objects[static_cast<size_t>(at)].*field;
+    }
+    double &target = doc.scene.objects[static_cast<size_t>(at)].*field;
+    const bool mine = ui.editing == label;
+    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
+    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
+    if (mine && !ui.cancelled && (escaped || idle)) {
+        ui.cancelled = escaped;
+        if (!doc.undo.empty()) {
+            doc.undo.pop_back();
+        }
+        if (!escaped) {
+            ui.editing.clear();
+        }
+    }
+    if (mine && ui.cancelled) {
+        target = before;
+        if (!ImGui::IsItemActive()) {
+            ui.cancelled = false;
+            ui.editing.clear();
+        }
+        return;
+    }
+    if (changed) {
+        target = std::max(value, lo);
     }
 }
 
@@ -150,6 +249,19 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
                 o.id, theme);
             ImGui::SetItemTooltip("A disc texture.");
+        }
+        if (o.kind == "quad" || o.kind == "billboard") {
+            ImGui::SeparatorText("Resources");
+            rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
+                o.id, theme);
+            ImGui::SetItemTooltip("A disc texture.");
+            rv_editor_inspector_array<rv_editor_uv>(app, "UV", &rv_editor_scene_object::uv, ImGuiDataType_Double, 0.5f,
+                "%.1f", o.id, -1e6, 1e6);
+            ImGui::SetItemTooltip("The texture rect, pixels: u0, v0, u1, v1");
+            rv_editor_inspector_array<rv_editor_tint>(app, "Tint", &rv_editor_scene_object::tint, ImGuiDataType_S32,
+                1.0f, "%d", o.id, 0, 255);
+            rv_editor_inspector_tess(app, "Tess", &rv_editor_scene_object::tess, 0.05f, o.id);
+            ImGui::SetItemTooltip("Subdivision density, above zero");
         }
         if (!o.extra.empty()) {
             ImGui::SeparatorText("Kept as read");

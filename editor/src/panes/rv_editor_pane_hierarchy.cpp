@@ -71,7 +71,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
     if (ImGui::BeginPopupContextItem()) {
         doc.selected = o.id;
         ImGui::BeginDisabled(read_only);
-        for (const char *kind : { "group", "camera", "mesh" }) {
+        for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
             if (ImGui::MenuItem(("Add " + std::string(rv_editor_scene_kind_label(kind)) + " Under It").c_str())) {
                 rv_editor_scene_add(doc, kind, o.id);
             }
@@ -147,7 +147,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
     const bool read_only = !doc.scene.read_only.empty();
     rv_editor_shelf_begin("##shelf", theme);
     ImGui::BeginDisabled(read_only);
-    for (const char *kind : { "group", "camera", "mesh" }) {
+    for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
         const std::string label = std::string("+ ") + rv_editor_scene_kind_label(kind);
         rv_editor_flow(rv_editor_button_width(label.c_str()));
         if (rv_editor_button(label.c_str(), theme)) {

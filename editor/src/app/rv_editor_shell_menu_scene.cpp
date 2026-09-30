@@ -186,8 +186,14 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
         const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == "group"
             ? app.scene->selected
             : std::string();
-        for (const char *kind : { "group", "camera", "mesh" }) {
-            if (ImGui::MenuItem(std::string(kind) == "mesh" ? "Box" : std::string(kind) == "camera" ? "Camera" : "Group")) {
+        for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
+            const std::string label = std::string(kind) == "mesh" ? "Box"
+                : std::string(kind) == "camera"                  ? "Camera"
+                : std::string(kind) == "quad"                    ? "Quad"
+                : std::string(kind) == "billboard"                ? "Billboard"
+                : std::string(kind) == "volume"                   ? "Volume"
+                                                                   : "Group";
+            if (ImGui::MenuItem(label.c_str())) {
                 rv_editor_scene_add(*app.scene, kind, parent);
             }
         }
