@@ -19,7 +19,7 @@ namespace rv_editor
 namespace
 {
 
-// A dimmed note that wraps at the pane's edge instead of running under it (UI-05).
+// A dimmed note that wraps at the pane's edge instead of running under it.
 void rv_editor_note(const std::string &text)
 {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -72,7 +72,7 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_
 }
 
 // The leaf a new pane goes to: the focused one, else the maximized one, else the
-// first leaf of the tree, so a menu command works with no tile focused (CAT-01).
+// first leaf of the tree, so a menu command works with no tile focused.
 uint32_t rv_editor_target_leaf(const rv_editor_workspace &ws)
 {
     const auto is_leaf = [&ws](uint32_t n) {
@@ -465,7 +465,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         }
         case rv_editor_pane_kind::runtime_log:
         case rv_editor_pane_kind::build_log: {
-            // One source each, until the user ticks more (TRM-02).
+            // One source each, until the user ticks more.
             const bool runtime = kind == rv_editor_pane_kind::runtime_log;
             rv_editor_output_view view;
             view.show.fill(false);

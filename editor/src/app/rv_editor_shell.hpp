@@ -71,7 +71,7 @@ struct rv_editor_shell
         none,
         quit,
         open,
-        build, // Build met unsaved files (BLD-03)
+        build, // Build met unsaved files
         run,
         build_restart, // Build and Restart met unsaved files
     };
@@ -131,7 +131,7 @@ inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_la
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
 
 // Layout > Reset Layout: the chosen layout's tree becomes its starting one; the
-// others keep theirs (LAY-06).
+// others keep theirs.
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset);
 
 // Once a frame: a starting tree's Game tile takes the proportions of the disc's
@@ -172,7 +172,7 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 // Help as a page or a tab: the keyboard shortcuts, filtered by what is typed.
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
-// A menu item that is disabled with its reason shown on hover (UI-04).
+// A menu item that is disabled with its reason shown on hover.
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
@@ -204,7 +204,7 @@ void rv_editor_shell_focus_terminal(rv_editor_shell &shell);
 // Window > Focus Next / Previous Pane: the next tile in reading order takes the keyboard.
 void rv_editor_shell_focus_next(rv_editor_shell &shell, bool back);
 
-// A live shell's tile closes only after this question (TRM-02); drawn after the workspace.
+// A live shell's tile closes only after this question; drawn after the workspace.
 void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A new tile of `kind` beside the focused tile (or the first), half and half.
@@ -233,11 +233,11 @@ std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::st
 void rv_editor_shell_save_as_start(rv_editor_shell &shell);
 
 // rv_editor_pane_close_fn for the window's workspace: a code tile whose buffer
-// is modified and shown nowhere else asks first (TXT-07).
+// is modified and shown nowhere else asks first.
 bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane);
 
 // True when the window may close now; otherwise it asks about the modified
-// buffers first and closes once answered (TXT-07, AC-22).
+// buffers first and closes once answered.
 bool rv_editor_shell_may_quit(rv_editor_shell &shell);
 
 // The questions about unsaved files, none of them over the window: inside the
@@ -254,7 +254,7 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
 
 // Once a frame after drawing: sends the Game's keys while a drawn Game tile
 // holds the keyboard of a focused window and a console runs, and every key up
-// the moment any of that stops (GAM-04).
+// the moment any of that stops.
 void rv_editor_shell_game_input(rv_editor_shell &shell);
 
 // rv_editor_pane_draw_fn for the window's workspace; `context` is the shell.
