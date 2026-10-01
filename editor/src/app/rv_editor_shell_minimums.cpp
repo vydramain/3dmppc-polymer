@@ -1,5 +1,5 @@
 // Minimum tile size per pane kind, so a default layout's controls stay visible
-// at the smallest supported window (1200x800, Steam Deck).
+// at the smallest supported window (1280x720 at UI scale 1).
 
 #include "app/rv_editor_shell.hpp"
 

@@ -51,23 +51,23 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     rv_editor_tile_activate(b.layout, output);
 }
 
-// A full-width tile of Assets, Files and Console Output (Assets in front) along
-// the bottom, given the bottom ~40% of the height so its icons have room; above
-// it, the Toolchest over the Hierarchy on the left, the Scene centered, and the
-// Game over Runtime Controls over the Inspector on the right.
+// Toolchest over Hierarchy down the left and Game over Inspector down the right,
+// both full height so the Inspector keeps its rows at 1280x720; between them the
+// Scene over a tile of Assets, Files and Console Output (Assets in front) above
+// Runtime Controls.
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
-    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.60f);
+    const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
+    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.29f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.62f);
+    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.52f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.55f);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
     rv_editor_tile_activate(b.layout, assets);
-    const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.29f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.59f);
-    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.92f);
-    // The controls are a strip as tall as their buttons: the game takes the rest.
-    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
+    // The controls are a strip as tall as their buttons: the assets take the rest.
+    b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
 }
 
 // Debug: the session in front. Runtime Controls beside the Session Toolchest
