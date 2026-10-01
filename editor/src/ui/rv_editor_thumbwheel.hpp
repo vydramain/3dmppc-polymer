@@ -5,7 +5,7 @@
 namespace rv_editor
 {
 
-// An Open Inventor thumbwheel (SCN-06): a ridged wheel dragged along its length
+// An Open Inventor thumbwheel: a ridged wheel dragged along its length
 // turns a value without end. It has a label, takes the keyboard (arrows turn it
 // by steps), and a double click asks for its home value. Returns the turn this
 // frame in pixels; `reset` becomes true on the double click.

@@ -25,7 +25,7 @@ struct rv_editor_state
 {
     rv_editor_look look = rv_editor_look::live;
     // Why the widget is unavailable. Non-null disables it and becomes its
-    // tooltip: a disabled control always says why (UI-04).
+    // tooltip: a disabled control always says why.
     const char *disabled = nullptr;
 };
 
