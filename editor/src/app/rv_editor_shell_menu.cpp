@@ -271,6 +271,17 @@ void rv_editor_menu_help(rv_editor_shell &shell)
     }
 }
 
+bool rv_editor_scene_pane_focused(const rv_editor_workspace &ws)
+{
+    if (ws.focused_leaf >= ws.layout.nodes.size()) {
+        return false;
+    }
+    const rv_editor_tile_node &node = ws.layout.nodes[ws.focused_leaf];
+    if (node.kind != rv_editor_tile_kind::leaf || node.leaf.active >= node.leaf.tabs.size()) {
+        return false;
+    }
+    return ws.panes.panes[node.leaf.tabs[node.leaf.active]].kind == rv_editor_pane_kind::scene;
+}
 } // namespace
 
 void rv_editor_shell_menu(rv_editor_shell &shell)
@@ -323,14 +334,9 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
         rv_editor_app_build(app);
     }
     // Ctrl+S in a Code tile stays with nvim; only a focused Scene pane saves the scene.
-    const rv_editor_workspace &ws = shell.ws;
-    if (!ImGui::GetIO().WantTextInput && ws.focused_leaf < ws.layout.nodes.size()
-        && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf
-        && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
-        const rv_editor_tile_leaf &leaf = ws.layout.nodes[ws.focused_leaf].leaf;
-        if (!leaf.tabs.empty() && ws.panes.panes[leaf.tabs[leaf.active]].kind == rv_editor_pane_kind::scene) {
-            rv_editor_shell_scene_save(shell);
-        }
+    if (!ImGui::GetIO().WantTextInput && rv_editor_scene_pane_focused(shell.ws) &&
+        ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
+        rv_editor_shell_scene_save(shell);
     }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F)) {
         app.project_search.focus = true;

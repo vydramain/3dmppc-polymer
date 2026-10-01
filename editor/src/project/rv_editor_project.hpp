@@ -62,7 +62,10 @@ public:
     void start(const std::filesystem::path &root);
     // True when no lookup runs (text() is final). Advances a running one.
     bool poll();
-    const std::string &text() const { return text_; }
+    const std::string &text() const
+    {
+        return text_;
+    }
 
 private:
     bool launch(const std::vector<std::string> &argv);
