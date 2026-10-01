@@ -1,5 +1,5 @@
 // Observe: what the running session says about itself, and its persistent Lua
-// state read through `keys` and `get` (SCN-08, read-only). Session: what ran, and
+// state read through `keys` and `get` (read-only). Session: what ran, and
 // after it ends, how.
 
 #include "panes/rv_editor_panes.hpp"

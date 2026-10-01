@@ -1,4 +1,4 @@
-// Output, Runtime Log and Build Log (LOG-01..03): one component over the shared
+// Output, Runtime Log and Build Log: one component over the shared
 // log, each view with its own sources, level, search, follow and wrap. Clear View
 // hides what is there now; it deletes nothing.
 
@@ -206,7 +206,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
-    // The lines, and what the filters keep out of sight (LOG-03).
+    // The lines, and what the filters keep out of sight.
     const std::string needle = rv_editor_output_lower(view.search);
     std::vector<const rv_editor_log_line *> shown;
     size_t hidden_errors = 0;
@@ -359,7 +359,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         copy_lines();
     }
     view.scroll_x = ImGui::GetScrollX();
-    // Scrolling up by hand stops following (LOG-02); a new line never takes the keyboard.
+    // Scrolling up by hand stops following; a new line never takes the keyboard.
     if (view.follow && ImGui::IsWindowHovered() && ImGui::GetIO().MouseWheel > 0.0f) {
         view.follow = false;
     }
