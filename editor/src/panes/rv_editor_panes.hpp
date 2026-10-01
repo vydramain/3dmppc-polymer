@@ -100,6 +100,8 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 // Create/Open row is shared with the other scene panes.
 void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
+// The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
+void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme);
 // Draws the Scene tile's tab strip (only when a tab is open) and, when the front
 // tab is a picture or a sound, its content. True when the scene viewport belongs
 // in front instead (no tabs open, or the scene tab is in front).

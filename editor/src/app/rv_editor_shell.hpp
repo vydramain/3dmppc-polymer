@@ -176,12 +176,9 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
-// Opens the New Scene dialog with today's free name (Scene > New Scene, the
+// Opens the New Scene area with today's free name (Scene > New Scene, the
 // empty Scene pane's Create Scene).
 void rv_editor_shell_new_scene_request(const rv_editor_app &app);
-// New Scene's dialog, drawn every frame after the menu bar regardless of which
-// menu is open (a click on New Scene closes the Scene menu the same frame).
-void rv_editor_shell_ask_new_scene(rv_editor_shell &shell, const rv_editor_theme &theme);
 
 // A page the Toolchest or a menu asks for: beside the Toolchest without a project,
 // a tab with one (Recent Projects and New Project are start pages only).

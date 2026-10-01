@@ -102,7 +102,6 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     // at the start of a render: one request here keeps the whole frame unsmoothed.
     ImGui::GetBackgroundDrawList()->AddCallback(ImGui::GetPlatformIO().DrawCallback_SetSamplerNearest, nullptr);
     rv_editor::rv_editor_shell_menu(shell);
-    rv_editor::rv_editor_shell_ask_new_scene(shell, theme);
     rv_editor::rv_editor_shell_shortcuts(shell);
 
     // The status bar takes a row; the tiles get the rest.

@@ -34,6 +34,7 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         rv_editor_open_project_row(app, theme);
         return;
     }
+    rv_editor_scene_new_area(app, theme);
     if (!rv_editor_scene_tabs_draw(app, renderer, theme)) {
         return; // a picture or a sound tab is in front; it drew its own content
     }

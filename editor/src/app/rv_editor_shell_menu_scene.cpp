@@ -1,6 +1,5 @@
-// Scene in the main menu: the scene document's commands (LAY-07), and the New
-// Scene dialog (its own state lives here, file-local: the editor has no
-// modal type of its own yet).
+// Scene in the main menu: the scene document's commands, and the New Scene area
+// (its state lives here, file-local; the Scene pane draws it).
 
 #include <cctype>
 #include <cstdio>
@@ -12,6 +11,7 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_panes.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -24,7 +24,6 @@ namespace
 struct rv_editor_new_scene_state
 {
     bool open = false;
-    bool pending_open = false; // OpenPopup must run from the same window as BeginPopupModal
     char name[64] = {};
     bool write_cpp = false;
     std::string error;
@@ -69,30 +68,24 @@ std::string rv_editor_new_scene_header_id(std::string_view name)
 void rv_editor_shell_new_scene_request(const rv_editor_app &app)
 {
     g_new_scene.open = true;
-    g_new_scene.pending_open = true;
     g_new_scene.write_cpp = false;
     g_new_scene.error.clear();
     g_new_scene.focus_name = true;
     std::snprintf(g_new_scene.name, sizeof(g_new_scene.name), "%s", rv_editor_app_scene_free_name(app).c_str());
 }
 
-void rv_editor_shell_ask_new_scene(rv_editor_shell &shell, const rv_editor_theme &theme)
+void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
 {
     if (!g_new_scene.open) {
         return;
     }
-    // OpenPopup and BeginPopupModal must see the same current-window ID stack,
-    // so OpenPopup runs here, not at the menu item that requested the dialog.
-    if (g_new_scene.pending_open) {
-        ImGui::OpenPopup("New Scene");
-        g_new_scene.pending_open = false;
-    }
-    ImGui::SetNextWindowSize(ImVec2(0.0f, 0.0f));
-    if (!ImGui::BeginPopupModal("New Scene", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        g_new_scene.open = false; // Escape or an outside click closed it
+    rv_editor_ask_begin("New Scene", theme);
+    // Escape closes it while this pane (or the name field in it) has the keyboard.
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Escape, false)) {
+        g_new_scene.open = false;
+        rv_editor_ask_end();
         return;
     }
-    rv_editor_app &app = shell.app;
     ImGui::Text("Name");
     if (g_new_scene.focus_name) {
         ImGui::SetKeyboardFocusHere();
@@ -125,15 +118,13 @@ void rv_editor_shell_ask_new_scene(rv_editor_shell &shell, const rv_editor_theme
         std::string error;
         if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error)) {
             g_new_scene.open = false;
-            ImGui::CloseCurrentPopup();
         } else {
             g_new_scene.error = error;
         }
     } else if (cancel) {
         g_new_scene.open = false;
-        ImGui::CloseCurrentPopup();
     }
-    ImGui::EndPopup();
+    rv_editor_ask_end();
 }
 
 // The scene document's commands (LAY-07); each edit is one undo step.
@@ -143,6 +134,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     const char *no_project = app.project.open ? nullptr : "No project is open";
     if (rv_editor_menu_item("New Scene", nullptr, no_project)) {
         rv_editor_shell_new_scene_request(app);
+        rv_editor_shell_show_pane(shell, rv_editor_pane_kind::scene);
     }
     if (ImGui::BeginMenu("Open Scene", app.project.open)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
