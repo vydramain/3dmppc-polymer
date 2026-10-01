@@ -179,6 +179,28 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     ImGui::SetItemTooltip("Filter: only names holding this text");
     rv_editor_flow(rv_editor_checkbox_width("Details"));
     rv_editor_checkbox("Details", &ui.details, theme);
+    if (!rv_editor_assets.selected.empty()) {
+        const std::filesystem::path file = app.project.root / rv_editor_assets.selected;
+        const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
+        const char *why = nullptr;
+        if (!app.session.live() || !rv_editor_app_can_reload(app)) {
+            why = "No running console that can reload";
+        } else if (plan.action != rv_editor_change_action::refresh_texture) {
+            why = "Not a texture of the running build";
+        } else {
+            why = rv_editor_app_why_not_reload(app);
+        }
+        rv_editor_flow(rv_editor_button_width("Refresh in Game"));
+        rv_editor_state state;
+        state.disabled = why;
+        if (rv_editor_button("Refresh in Game", theme, state)) {
+            app.texture_bake.message.clear();
+            rv_editor_app_texture_bake_start(app, plan.name, file);
+        }
+        if (why == nullptr) {
+            ImGui::SetItemTooltip("Bake the PNG and send it to the running game");
+        }
+    }
     rv_editor_shelf_end();
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
