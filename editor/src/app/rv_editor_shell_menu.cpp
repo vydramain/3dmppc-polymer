@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <string>
 #include <string_view>
 
@@ -153,7 +154,20 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             const char *label;
         } scales[] = { { 1.0f, "1x" }, { 1.5f, "1.5x" }, { 2.0f, "2x" } };
         for (const auto &s : scales) {
-            if (ImGui::MenuItem(s.label, nullptr, shell.ui_scale == s.scale)) {
+            const bool fits = rv_editor_shell_scale_fits(shell.window, s.scale);
+            const char *why_not = nullptr;
+            char why_not_buffer[64];
+            if (!fits && s.scale != 1.0f) {
+                const int needed_w = static_cast<int>(std::ceil(1280.0f * s.scale));
+                const int needed_h = static_cast<int>(std::ceil(720.0f * s.scale));
+                std::snprintf(why_not_buffer, sizeof(why_not_buffer), "Needs a %dx%d display", needed_w, needed_h);
+                why_not = why_not_buffer;
+            }
+            const bool clicked = ImGui::MenuItem(s.label, nullptr, shell.ui_scale == s.scale, fits || s.scale == 1.0f);
+            if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+                ImGui::SetTooltip("%s", why_not);
+            }
+            if (clicked) {
                 shell.ui_scale_request = s.scale;
             }
         }
