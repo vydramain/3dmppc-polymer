@@ -105,7 +105,7 @@ private:
     std::deque<rv_editor_log_line> lines_;
     uint64_t seq_ = 0;
     uint64_t dropped_ = 0;
-    // ponytail: at most 8 sinks open at once; a 9th attach closes the oldest (pid reuse after exit).
+    // At most 8 sinks open at once; a 9th attach closes the oldest (pid reuse after exit).
     std::vector<rv_editor_log_sink> sinks_;
 };
 

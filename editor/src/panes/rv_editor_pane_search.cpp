@@ -86,7 +86,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::SetItemTooltip("Also search %s", rv_editor_search_skipped);
     rv_editor_shelf_end();
     if (run && s.query[0] != '\0') {
-        // ponytail: runs on the UI thread; a worker thread when projects grow past a blink.
+        // Runs on the UI thread; a worker thread when projects grow past a blink.
         s.result = rv_editor_search_run(app.project.root, s.query, s.match_case, s.all);
         s.searched = s.query;
         s.searched_all = s.all;
