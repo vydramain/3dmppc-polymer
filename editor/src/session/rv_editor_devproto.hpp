@@ -13,7 +13,7 @@ namespace rv_editor
 // The development console's line protocol as the client reads it (README.md,
 // "The channel"): `<id> ok k=v ...`, `<id> err error=<token> ...`, and events
 // the console raises on its own, `0 event=<name> k=v ...`. No I/O here: bytes go
-// in as they arrive, whole messages come out (DEV-04).
+// in as they arrive, whole messages come out.
 
 struct rv_editor_devmsg
 {

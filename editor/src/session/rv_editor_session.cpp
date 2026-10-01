@@ -17,7 +17,7 @@ namespace
 // status gets longer, because the console loads its disc before answering.
 constexpr auto rv_editor_request_timeout = std::chrono::seconds(5);
 constexpr auto rv_editor_handshake_timeout = std::chrono::seconds(15);
-// After quit, a console still running this long counts as hung (DEV-09).
+// After quit, a console still running this long counts as hung.
 constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
 
 int64_t rv_editor_to_int(std::string_view s, int64_t fallback)
@@ -114,7 +114,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
         "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --frame-fd 3 --memcard " +
             memcard.string() + " " + disc_dir.string(), rv_editor_log_channel::none, proc_.pid(), number_);
-    // Nothing is enabled until this answers (DEV-02).
+    // Nothing is enabled until this answers.
     send("status", log);
     return true;
 }
@@ -359,7 +359,7 @@ void rv_editor_session::update(rv_editor_log &log)
             }
         }
 
-        // A timeout proves nothing about whether the request ran (DEV-07): say so,
+        // A timeout proves nothing about whether the request ran: say so,
         // ask for status, and never resend the request itself.
         bool ask_status = false;
         for (auto &[id, req] : pending_) {
