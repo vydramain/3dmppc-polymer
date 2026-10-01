@@ -258,7 +258,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_radio("Exploratory: free play, no checklist", f.test_case < 0, theme)) {
         f.test_case = -1;
     }
-    // ponytail: each case file is read every frame for its title; a cache when a project keeps dozens.
+    // Each case file is read every frame for its title; a cache when a project keeps dozens.
     for (size_t i = 0; i < f.cases.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         if (rv_editor_radio(rv_editor_case_read(f.cases[i]).title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
