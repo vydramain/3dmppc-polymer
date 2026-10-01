@@ -211,7 +211,7 @@ void rv_editor_build::update(rv_editor_log &log)
             : state_ == rv_editor_build_state::cancelling ? rv_editor_build_state::cancelled
                                                            : rv_editor_build_state::failed;
         if (!ok) {
-            // A partial image is never a candidate (BLD-06).
+            // A partial image is never a candidate.
             std::error_code ec;
             std::filesystem::remove(image_, ec);
         }
@@ -230,7 +230,7 @@ void rv_editor_build::update(rv_editor_log &log)
         return;
     }
 
-    // A partial output is never a disc: it goes (BLD-06).
+    // A partial output is never a disc: it goes.
     std::error_code ec;
     std::filesystem::remove_all(dir_, ec);
     if (state_ == rv_editor_build_state::cancelling) {

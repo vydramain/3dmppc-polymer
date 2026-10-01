@@ -35,12 +35,11 @@ struct rv_editor_artifact
     uint32_t number = 0;
 };
 
-// The build job (BLD-01): mppcburner in the background, writing each build to a
+// The build job: mppcburner in the background, writing each build to a
 // fresh numbered directory, <cache>/builds/<n>. Only a build that exited 0 is
 // published as the last successful artifact; a failed or cancelled one is
-// deleted and never runs (BLD-05, BLD-06). The job lives outside the UI, so
-// closing a tile does not cancel it (LAY-09), and it never touches the runtime
-// (BLD-09).
+// deleted and never runs. The job lives outside the UI, so
+// closing a tile does not cancel it, and it never touches the runtime.
 class rv_editor_build
 {
 public:
@@ -70,8 +69,7 @@ public:
     bool output_cut() const { return proc_.output_cut(); }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
-    // directories under this project's own builds directory are ever removed
-    // (NFR-07).
+    // directories under this project's own builds directory are ever removed.
     void prune(const std::filesystem::path &in_use);
 
 private:
