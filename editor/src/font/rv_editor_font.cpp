@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cmath>
 #include <cstring>
+#include <map>
 #include <string>
 
 #include "font/rv_editor_font_ttf.hpp"
@@ -16,7 +18,7 @@ namespace
 ImFont *rv_editor_ui = nullptr;
 ImFont *rv_editor_code_small = nullptr;
 ImFont *rv_editor_code_vga = nullptr;
-int rv_editor_font_scale = 1;
+float rv_editor_font_scale = 1.0f;
 rv_editor_code_size rv_editor_code_current = rv_editor_code_size::normal;
 
 // PxPlus IBM VGA 9x16 and IBM EGA 8x14: pixel outlines on a 16 and a 14 px em.
@@ -25,6 +27,11 @@ constexpr int rv_editor_code_ega_height = 14;
 
 // Every font here is pixel outlines on whole units, so at a whole multiple of its
 // cell every edge lands on a pixel boundary and nothing is smoothed.
+float rv_editor_font_size(int base, float scale)
+{
+    return std::floor(static_cast<float>(base) * scale + 0.5f);
+}
+
 ImFontConfig rv_editor_font_config(const char *name)
 {
     ImFontConfig config;
@@ -37,23 +44,30 @@ ImFontConfig rv_editor_font_config(const char *name)
 
 } // namespace
 
-bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
+bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
 {
-    const int k = std::max(1, scale);
+    const float k = std::max(1.0f, scale);
     rv_editor_font_scale = k;
-    // The atlas keeps a pointer to the bytes for as long as it lives.
-    static const std::string ui_ttf = rv_editor_font_ttf();
+    // Whole scales load the 1:1 grid at a multiple of its size; a fraction needs its own scaled grid.
+    // The atlas keeps a pointer to the bytes for as long as it lives, so they are kept per grid.
+    const bool whole = k == std::floor(k);
+    const double grid = whole ? 1.0 : static_cast<double>(k);
+    static std::map<int, std::string> ui_ttfs;
+    const std::string &ui_ttf = ui_ttfs.try_emplace(static_cast<int>(std::floor(grid * 1000.0 + 0.5)), rv_editor_font_ttf(grid))
+                                    .first->second;
+    const float ui_size = whole ? static_cast<float>(rv_editor_font_ui_height) * k
+                                : static_cast<float>(rv_editor_font_ttf_em(grid));
     ImFontConfig ui = rv_editor_font_config("rv_font 5x7");
     ui.FontDataOwnedByAtlas = false;
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
-        static_cast<float>(rv_editor_font_ui_height * k), &ui);
+        ui_size, &ui);
 
     ImFontConfig ega = rv_editor_font_config("PxPlus IBM EGA 8x14");
     rv_editor_code_small = atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_SMALL_FILE,
-        static_cast<float>(rv_editor_code_ega_height * k), &ega);
+        rv_editor_font_size(rv_editor_code_ega_height, k), &ega);
     ImFontConfig vga = rv_editor_font_config("PxPlus IBM VGA 9x16");
     rv_editor_code_vga =
-        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, static_cast<float>(rv_editor_code_vga_height * k), &vga);
+        atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, rv_editor_font_size(rv_editor_code_vga_height, k), &vga);
     if (rv_editor_code_small == nullptr) {
         std::fprintf(stderr, "3dmppc-editor: %s does not load; the small code size draws in 9x16\n",
             RV_EDITOR_CODE_FONT_SMALL_FILE);
@@ -65,9 +79,9 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, int scale)
     return rv_editor_ui != nullptr && (rv_editor_code_small != nullptr || rv_editor_code_vga != nullptr);
 }
 
-void rv_editor_font_scale_set(int scale)
+void rv_editor_font_scale_set(float scale)
 {
-    rv_editor_font_scale = std::max(1, scale);
+    rv_editor_font_scale = std::max(1.0f, scale);
 }
 
 ImFont *rv_editor_font_ui()
@@ -114,16 +128,16 @@ bool rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
 
 void rv_editor_font_code_push()
 {
-    const float k = static_cast<float>(rv_editor_font_scale);
+    const float k = rv_editor_font_scale;
     switch (rv_editor_code_current) {
         case rv_editor_code_size::small:
-            ImGui::PushFont(rv_editor_code_small, rv_editor_code_ega_height * k);
+            ImGui::PushFont(rv_editor_code_small, rv_editor_font_size(rv_editor_code_ega_height, k));
             return;
         case rv_editor_code_size::normal:
-            ImGui::PushFont(rv_editor_code_vga, rv_editor_code_vga_height * k);
+            ImGui::PushFont(rv_editor_code_vga, rv_editor_font_size(rv_editor_code_vga_height, k));
             return;
         case rv_editor_code_size::large:
-            ImGui::PushFont(rv_editor_code_vga, 2.0f * rv_editor_code_vga_height * k);
+            ImGui::PushFont(rv_editor_code_vga, rv_editor_font_size(2 * rv_editor_code_vga_height, k));
             return;
     }
 }

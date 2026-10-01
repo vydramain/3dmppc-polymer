@@ -6,6 +6,7 @@
 #include "font/rv_editor_font_ttf.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -20,7 +21,14 @@ namespace rv_editor
 namespace
 {
 
-constexpr int rv_editor_ttf_unit = 64; // font units per pixel
+constexpr int rv_editor_ttf_unit = 64; // font units per target pixel
+
+// Source pixel edge i lands on a whole target pixel by a fixed nearest rule (halves round up), so each
+// source pixel covers a whole number of target pixels and nothing is smoothed.
+int rv_editor_ttf_edge(int i, double scale)
+{
+    return static_cast<int>(std::floor(i * scale + 0.5)) * rv_editor_ttf_unit;
+}
 
 struct rv_editor_ttf_glyph
 {
@@ -51,7 +59,7 @@ struct rv_editor_ttf_out
 };
 
 // One glyph's glyf record: a rectangle contour per horizontal run of lit pixels.
-std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, int16_t bounds[4])
+std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double scale, int16_t bounds[4])
 {
     struct run
     {
@@ -70,8 +78,8 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, int16_t
                 ++x;
             }
             // Row 0 is the top of the cell; font y grows upward from the cell's bottom.
-            const int top = (cell_h - row) * rv_editor_ttf_unit;
-            runs.push_back({ start * rv_editor_ttf_unit, x * rv_editor_ttf_unit, top - rv_editor_ttf_unit, top });
+            runs.push_back({ rv_editor_ttf_edge(start, scale), rv_editor_ttf_edge(x, scale),
+                rv_editor_ttf_edge(cell_h - row - 1, scale), rv_editor_ttf_edge(cell_h - row, scale) });
         }
     }
     bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0;
@@ -126,10 +134,13 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, int16_t
     return o.b;
 }
 
-// A TrueType file of `glyphs` in a cell_w x cell_h cell; glyph 0 is notdef.
+// A TrueType file of `glyphs` in a source cell_w x cell_h cell drawn at `scale` target pixels per source
+// pixel; glyph 0 is notdef. The em is the scaled cell height, so size = em pixels draws 1 unit grid : 1 px.
 std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
-    const std::vector<std::pair<uint32_t, uint16_t>> &map, int cell_w, int cell_h)
+    const std::vector<std::pair<uint32_t, uint16_t>> &map, int src_cell_w, int src_cell_h, double scale)
 {
+    const int cell_h = static_cast<int>(std::floor(src_cell_h * scale + 0.5));
+    const int cell_w = static_cast<int>(std::floor(src_cell_w * scale + 0.5));
     // `map` is in increasing code point order, as cmap format 4 needs.
     std::string glyf;
     // glyf and loca.
@@ -139,7 +150,7 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     for (const rv_editor_ttf_glyph &g : glyphs) {
         loca.push_back(static_cast<uint32_t>(glyf.size()));
         int16_t b[4];
-        glyf += rv_editor_ttf_glyf(g, cell_h, b);
+        glyf += rv_editor_ttf_glyf(g, src_cell_h, scale, b);
         lsb.push_back(b[0]);
         for (int k = 0; k < 2; ++k) {
             font_bounds[k] = std::min(font_bounds[k], b[k]);
@@ -274,7 +285,12 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
 
 } // namespace
 
-std::string rv_editor_font_ttf()
+int rv_editor_font_ttf_em(double scale)
+{
+    return static_cast<int>(std::floor(rv_pdklib::rv_font_cell_height * scale + 0.5));
+}
+
+std::string rv_editor_font_ttf(double scale)
 {
     // Glyph 0 is notdef; then ASCII 32..126, then the Cyrillic block by slot.
     std::vector<rv_editor_ttf_glyph> glyphs;
@@ -301,7 +317,7 @@ std::string rv_editor_font_ttf()
 
     // Every glyph but notdef keeps its ink in the cell's left five columns: a
     // 6 px advance leaves one column between letters instead of three.
-    return rv_editor_ttf_build(glyphs, map, rv_editor_font_ui_advance, rv_pdklib::rv_font_cell_height);
+    return rv_editor_ttf_build(glyphs, map, rv_editor_font_ui_advance, rv_pdklib::rv_font_cell_height, scale);
 }
 
 } // namespace rv_editor
