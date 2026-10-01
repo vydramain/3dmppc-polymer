@@ -5,17 +5,18 @@ directory, drives `mppcburner` to build it and a development console
 (`3dmppc --dev`) to run it, and links none of their code.
 
 It shows its tiled workspace between the menu bar and a status bar, on a
-window of 1200x800 or bigger. A tile's header has X on the left to close it
-and M on the right to maximize it, and a right click on it opens the tile's
-menu; a tile can be split, closed, maximized or turned into another kind of
-pane (Window > New Tile lists every kind), and several panes in one tile show
-as folder tabs. Dragging a tile's header or a tab to the edge of another tile,
+window of 1280x720 times the UI scale or bigger. A tile's header has X on
+the left to close it and M on the right to maximize it, and a right click on
+it opens the tile's menu; a tile can be split, closed, maximized or turned
+into another kind of pane (Window > New Tile lists every kind), and several
+panes in one tile show as folder tabs. Dragging a tile's header or a tab to
+the edge of another tile,
 or into its tab strip, shows where it would land before it is dropped there;
 Escape cancels the drag and the tile stays where it was. Each kind of pane
 keeps a minimum size of its own - a log pane room for its control row, the
 Game its mode row and status line (the picture shrinks below 1x to fit, and
 never grows past the tile), a strip of buttons its buttons - so a default layout's
-controls stay visible even at 1200x800. The tile with the focus wears a brass
+controls stay visible even at 1280x720. The tile with the focus wears a brass
 frame; Ctrl+F6 and Ctrl+Shift+F6 (Window > Focus Next / Previous Pane) move
 the keyboard between tiles, as Tab belongs to the code editor and the
 terminal.
@@ -88,16 +89,17 @@ A player build of the console never builds it.
 ## Running
 
 ```sh
-./editor/build/3dmppc-editor [-s|--scale N] [PATH]
+./editor/build/3dmppc-editor [PATH]
 ```
 
 `PATH` is a game directory or its `disc.toml`; both open the same project.
 File > Open Project... does the same from the menu, for a directory.
 
 The editor draws one of its pixels per screen pixel, on a HiDPI display too.
-View > UI Scale sets 1x, 2x or 3x and keeps it; `--scale N` (a whole number,
-1..8) does the same for one run. The code text size and the Game scale are
-separate choices.
+View > UI Scale sets 1x, 1.5x or 2x and saves the choice; a scale the display
+cannot hold at 1280x720 times that scale is greyed out with a tooltip naming
+the display it needs; a saved scale the display cannot fit is lowered at
+startup. The code text size and the Game scale are separate choices.
 
 ### Building and running a game
 
