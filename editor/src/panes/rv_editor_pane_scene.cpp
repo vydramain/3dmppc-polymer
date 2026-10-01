@@ -1,5 +1,5 @@
-// Scene: the open scene document; without one, what a scene is and how to get one
-// (TPL-04). A game draws a scene only through a loader.
+// Scene: the open scene document; without one, what a scene is and how to get one.
+// A game draws a scene only through a loader.
 
 #include "panes/rv_editor_panes.hpp"
 

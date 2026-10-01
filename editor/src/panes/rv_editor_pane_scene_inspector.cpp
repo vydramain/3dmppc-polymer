@@ -1,6 +1,6 @@
 // Inspector: the selected scene object's values. A field's change is one undo
 // step; a drag is one step from press to release and Escape takes it back; a name
-// or a resource is committed on Enter or on leaving the field (SCN-03).
+// or a resource is committed on Enter or on leaving the field.
 
 #include "panes/rv_editor_panes.hpp"
 
