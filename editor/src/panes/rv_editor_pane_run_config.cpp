@@ -1,4 +1,4 @@
-// Run Configuration: the project's run profiles (CFG-01), a list beside a form, in a
+// Run Configuration: the project's run profiles, a list beside a form, in a
 // window of its own. Nothing here touches a running session: Apply is for the next
 // Run, Apply and Restart says so.
 

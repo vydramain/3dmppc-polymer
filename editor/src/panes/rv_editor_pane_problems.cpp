@@ -1,4 +1,4 @@
-// Problems: the places the latest build named (BLD-06) plus the language servers'
+// Problems: the places the latest build named plus the language servers'
 // current diagnostics, each opening its file at its line in a code tile. The full
 // build output stays in the Build Log.
 
@@ -97,7 +97,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::PushID(static_cast<int>(i));
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            // A word as well as a colour (UX-05).
+            // A word as well as a colour.
             rv_editor_status(p.error ? "error" : "warning",
                 p.error ? rv_editor_status_kind::error : rv_editor_status_kind::warning, theme);
             ImGui::TableNextColumn();
