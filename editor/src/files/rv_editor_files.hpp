@@ -17,16 +17,16 @@ struct rv_editor_file_node
     std::string name;
     std::filesystem::path path;
     bool dir = false;
-    bool symlink = false;  // shown, never followed (NFR-07)
+    bool symlink = false;  // shown, never followed.
     bool listed = false;   // children read from disk
     bool expanded = false; // open in the Files tree
     std::vector<rv_editor_file_node> children; // directories first, then by name
 };
 
 // The Files model: the project directory, read one directory at a time as the
-// tree opens it (NFR-04) and kept current by the watcher, whoever changed the
-// disk (PRJ-06). Every operation stays inside the project root and never
-// replaces an existing file without being asked (NFR-07, TPL-02).
+// tree opens it and kept current by the watcher, whoever changed the
+// disk. Every operation stays inside the project root and never
+// replaces an existing file without being asked.
 class rv_editor_files
 {
 public:
