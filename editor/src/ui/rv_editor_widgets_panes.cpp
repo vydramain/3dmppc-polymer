@@ -189,7 +189,7 @@ rv_editor_header_action rv_editor_pane_header(const char *title, bool active, co
     // The title sits on a solid patch so the stipple never runs through letters.
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
     // A title longer than the room between the boxes ends in "..." and shows whole
-    // in a tooltip (UI-05).
+    // in a tooltip.
     const char *end = rv_editor_label_end(title);
     const ImVec2 patch_min(title_x + pad, inner_min.y);
     const char *shown = rv_editor_text_fit(title, end, std::max(0.0f, title_limit - patch_min.x - pad * 3.0f));

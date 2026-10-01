@@ -1,5 +1,5 @@
 // Motif scroll areas: a child window without ImGui's own scrollbars, and the
-// editor's arrow scrollbars drawn beside it (UI-02).
+// editor's arrow scrollbars drawn beside it.
 
 #include <algorithm>
 #include <cmath>

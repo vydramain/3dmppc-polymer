@@ -145,7 +145,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         reload_slot,
     };
     const size_t shown = std::size(buttons); // Reload/Restart is always shown, disabled when it cannot act
-    // One row, never a second (LAY-04): what does not fit goes behind a labelled More,
+    // One row, never a second: what does not fit goes behind a labelled More,
     // Reload first, then Step, then Build, which the menus also have; the rest keep their order.
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     float width = 0.0f;
