@@ -1,5 +1,5 @@
 // A Terminal tile: its shell's screen drawn in the code font on the code area's
-// Mocha, and the keyboard sent to the shell while the tile has focus (TRM-01).
+// Mocha, and the keyboard sent to the shell while the tile has focus.
 
 #include <SDL3/SDL.h>
 
@@ -182,7 +182,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         }
     }
 
-    // Several lines are shown over the screen before they reach the shell (TRM-02).
+    // Several lines are shown over the screen before they reach the shell.
     if (!view.paste.empty() && view.term != nullptr) {
         rv_editor_font_code_pop();
         rv_editor_ask_begin("Paste into the terminal", theme);
@@ -208,7 +208,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         rv_editor_font_code_push();
     }
 
-    // The screen fills the tile in whole cells (TRM-01: no permanent status row).
+    // The screen fills the tile in whole cells: no permanent status row.
     const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();

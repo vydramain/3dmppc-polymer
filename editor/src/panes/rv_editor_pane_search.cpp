@@ -1,5 +1,5 @@
 // Search Results: the query, where it looked, and each file:line holding it, opening
-// in a code tile (TXT-06). Run on Enter or Find, never while typing.
+// in a code tile. Run on Enter or Find, never while typing.
 
 #include "panes/rv_editor_panes.hpp"
 
