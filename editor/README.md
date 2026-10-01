@@ -378,6 +378,12 @@ viewport, a status line reads "Game: not running", "Game: read this scene" or
 development console has reported opened; its tooltip says to restart after
 Save and Build, or names the open scene the running disc did not open.
 
+The viewport shows `.obj` meshes, quads, billboards and volumes, but a disc
+draws only what its own code draws. example-cpp, and a New Project made from
+it, draws every mesh object as a unit box, ignores its mesh file, and does not
+draw quads, billboards or volumes. Drawing `.obj` meshes, quads, polygons and
+the rest in the game comes in the next version.
+
 ### Game
 
 The Game tile shows the console's own frame. The editor makes a shared memory
