@@ -10,11 +10,11 @@ namespace rv_editor
 {
 
 // Watches a project tree for changes made by anyone: the editor, nvim, another
-// program (PRJ-06). A save through a temporary file
+// program. A save through a temporary file
 // and rename arrives as a change to the final name. Directories named in
 // `skip` (the burner's .mppcburn/, .git/) are not watched, symlinked
-// directories are never entered, so a link loop cannot run the watcher away
-// (NFR-07), and at most `watch_max` directories are watched (NFR-04).
+// directories are never entered, so a link loop cannot run the watcher away,
+// and at most `watch_max` directories are watched.
 class rv_editor_watch
 {
 public:
