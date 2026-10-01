@@ -1,4 +1,4 @@
-// The window's menu bar (spec LAY-07): File, Edit, View, Project, Run, Window,
+// The window's menu bar: File, Edit, View, Project, Run, Window,
 // Help, the layout switch at its right end, and the shortcuts behind them.
 
 #include "app/rv_editor_shell.hpp"
@@ -30,7 +30,7 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
 namespace
 {
 
-// A top-level menu with its mnemonic, the first letter, underlined (UX-06). Alt
+// A top-level menu with its mnemonic, the first letter, underlined. Alt
 // moves the keyboard into the bar; the arrows walk it.
 bool rv_editor_menu_begin(const char *label)
 {
@@ -146,7 +146,7 @@ void rv_editor_menu_view(rv_editor_shell &shell)
         }
         ImGui::EndMenu();
     }
-    // Independent of the code text size and of the Game scale (VIS-03).
+    // Independent of the code text size and of the Game scale.
     if (ImGui::BeginMenu("UI Scale")) {
         constexpr struct
         {
@@ -174,7 +174,7 @@ void rv_editor_menu_view(rv_editor_shell &shell)
         ImGui::EndMenu();
     }
     ImGui::Separator();
-    // Independent of the focused tile and of a project (CAT-01).
+    // Independent of the focused tile and of a project.
     if (ImGui::MenuItem("Widget Catalog")) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::catalog);
     }
@@ -253,7 +253,7 @@ void rv_editor_menu_window(rv_editor_shell &shell)
         rv_editor_shell_focus_next(shell, true);
     }
     ImGui::Separator();
-    // Every kind of tile, beside the focused one (LAY-01).
+    // Every kind of tile, beside the focused one.
     if (ImGui::BeginMenu("New Tile")) {
         for (uint32_t k = 1; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
             const auto kind = static_cast<rv_editor_pane_kind>(k);

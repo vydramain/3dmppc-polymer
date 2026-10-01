@@ -151,7 +151,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_ask_end();
 }
 
-// The scene document's commands (LAY-07); each edit is one undo step.
+// The scene document's commands; each edit is one undo step.
 void rv_editor_menu_scene(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
