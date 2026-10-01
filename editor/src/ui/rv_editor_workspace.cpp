@@ -297,7 +297,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     const ImVec2 glyph = ImGui::CalcTextSize("M");
     for (size_t i = 0; i < pane_min.size(); ++i) {
         // What the owner measured: the Game's frame at 1x once the console has
-        // sent one (LAY-03), a strip of controls as tall as its rows.
+        // sent one, a strip of controls as tall as its rows.
         const auto it = ws.minimums.find(static_cast<rv_editor_pane_id>(i));
         if (it != ws.minimums.end()) {
             pane_min[i] = it->second;
@@ -310,7 +310,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     }
 
     // A window smaller than the tree's minimum scrolls instead of squeezing tiles
-    // below their minimums, so every control stays reachable (LAY-04).
+    // below their minimums, so every control stays reachable.
     const uint32_t shown = ws.layout.maximized_leaf < ws.layout.nodes.size() ? ws.layout.maximized_leaf : ws.layout.root;
     const rv_editor_size need = rv_editor_tile_min_size(ws.layout, shown, m, pane_min);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
