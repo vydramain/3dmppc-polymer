@@ -1,6 +1,6 @@
 // Hierarchy: the scene's objects as a tree. Selection is by id and shared with the
 // viewport and Inspector; dragging one onto another moves it there keeping where
-// it is in the scene, or says why it cannot (SCN-02, SCN-03).
+// it is in the scene, or says why it cannot.
 
 #include "panes/rv_editor_panes.hpp"
 

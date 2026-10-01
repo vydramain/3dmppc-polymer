@@ -185,7 +185,7 @@ void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, st
 
 // Appends " stale: the last frame of session N, <state>" to status when a frame
 // from an ended session is still on the texture, marked as such rather than
-// looking like the game (DEV-07); returns whether it did.
+// looking like the game; returns whether it did.
 bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
 {
     const rv_editor_session &s = app.session;
@@ -269,7 +269,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 return;
             }
             if (app.release_view && app.release.player != nullptr) {
-                // The player draws in a window of its own: here only what the editor knows (BRN-04).
+                // The player draws in a window of its own: here only what the editor knows.
                 const rv_editor_release &r = app.release;
                 const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
                     r.player_started).count();
