@@ -1,4 +1,4 @@
-// The Scene viewport (SCN-05, SCN-06, SCL-02): the document drawn in wireframe
+// The Scene viewport: the document drawn in wireframe
 // through the editor's own camera, which is not the game's. Click picks, the tool
 // in the Toolchest moves, turns or scales the selected object, one undo step per
 // drag with Escape taking it back; the thumbwheels, the mouse and the keys orbit,
@@ -266,7 +266,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
             rv_editor_scene_frame(app, false);
         }
-        // One letter per tool, only here, where it is not typing (CMD-03).
+        // One letter per tool, only here, where it is not typing.
         const ImGuiKey keys[] = { ImGuiKey_Q, ImGuiKey_W, ImGuiKey_E, ImGuiKey_R };
         for (int t = 0; t < 4; ++t) {
             if (ImGui::IsKeyPressed(keys[t], false)) {
@@ -393,7 +393,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     }
     dl->PopClipRect();
 
-    // What the view is, in numbers (SCN-05), and which camera this is.
+    // What the view is, in numbers, and which camera this is.
     char buf[160];
     std::snprintf(buf, sizeof(buf), "Editor camera, not the game's: yaw %.0f, pitch %.0f, distance %.1f%s", cam.yaw,
         cam.pitch, cam.distance, cam.seeking ? " | Seek: click an object" : "");

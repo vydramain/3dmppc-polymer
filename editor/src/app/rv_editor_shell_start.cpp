@@ -1,4 +1,4 @@
-// The window with no project open (PRJ-07): the Project Catalog. The Toolchest on
+// The window with no project open: the Project Catalog. The Toolchest on
 // the left, and beside it the page it chose: the recent projects with the selected
 // one's card, New Project or Open Project. No page covers another.
 
