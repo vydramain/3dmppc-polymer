@@ -1,6 +1,6 @@
 // The catalog's sections on focus and keys, scrolling and overflow, code text,
 // the game frame, catalog cells and drop pockets, fonts, contrast and the
-// thumbwheel: each drawn with the widget the editor uses, on fixed data (CAT-02).
+// thumbwheel: each drawn with the widget the editor uses, on fixed data.
 
 #include "catalog/rv_editor_catalog.hpp"
 

@@ -231,7 +231,7 @@ enum class rv_editor_layout_preset
 // Name as a menu shows it: "Code", "Scene", "Debug", "Burn".
 const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset);
 
-// Replaces both outputs with the starting layout `preset` (LAY-07).
+// Replaces both outputs with the starting layout `preset`.
 void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
     rv_editor_layout &layout);
 
