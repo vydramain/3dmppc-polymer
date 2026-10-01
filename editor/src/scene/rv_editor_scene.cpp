@@ -234,11 +234,52 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
         t += '\n';
     }
     // Keep the file's own version; a legacy 0.0 header is upgraded to the current one.
+    // Content with quad/billboard/volume or uv/tint/tess keys requires at least 0.4.
     const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
-    std::string version(rv_pdklib::rv_version_str);
-    if (!legacy) {
-        version = std::to_string(scene.version_major) + "." + std::to_string(scene.version_minor);
+    uint32_t version_major = scene.version_major;
+    uint32_t version_minor = scene.version_minor;
+
+    if (legacy) {
+        // Upgrade legacy 0.0 to current version
+        version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
+        version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
+    } else {
+        // Check if content requires 0.4: quad, billboard, volume, or uv/tint/tess keys
+        bool needs_v04 = false;
+        for (const auto &obj : scene.objects) {
+            if (obj.kind == "quad" || obj.kind == "billboard" || obj.kind == "volume") {
+                needs_v04 = true;
+                break;
+            }
+            // Check for non-default uv/tint/tess
+            if (obj.uv[0] != 0.0 || obj.uv[1] != 0.0 || obj.uv[2] != 0.0 || obj.uv[3] != 0.0) {
+                needs_v04 = true;
+                break;
+            }
+            if (obj.tint[0] != 255 || obj.tint[1] != 255 || obj.tint[2] != 255) {
+                needs_v04 = true;
+                break;
+            }
+            if (obj.tess != 2.0) {
+                needs_v04 = true;
+                break;
+            }
+            // Check if extra has uv/tint/tess keys
+            if (rv_editor_scene_extra_has(obj.extra, "uv") || rv_editor_scene_extra_has(obj.extra, "tint") ||
+                rv_editor_scene_extra_has(obj.extra, "tess")) {
+                needs_v04 = true;
+                break;
+            }
+        }
+
+        // Upgrade to 0.4 if needed, but never downgrade
+        if (needs_v04 && version_major == 0 && version_minor < 4) {
+            version_major = 0;
+            version_minor = 4;
+        }
     }
+
+    std::string version = std::to_string(version_major) + "." + std::to_string(version_minor);
     t += "[scene]\nversion = " + rv_editor_toml_quote(version) + "\n";
     rv_editor_scene_entries(t, scene.scene_extra);
     for (const rv_editor_scene_object &o : scene.objects) {
