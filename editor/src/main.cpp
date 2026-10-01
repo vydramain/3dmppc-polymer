@@ -94,7 +94,7 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
             missing += t->problem.empty() ? 0 : 1;
         }
         const std::string tools = missing == 0 ? "Tools: ready" : "Tools: " + std::to_string(missing) + " missing";
-        // Build and runtime are separate facts (DAT-02), each with the job or session it is about.
+        // Build and runtime are separate facts, each with the job or session it is about.
         const std::string build = std::string("Build: ") + rv_editor::rv_editor_build_state_name(app.build.state()) +
             (app.build.number() != 0 ? " #" + std::to_string(app.build.number()) : "");
         const std::string runtime = std::string("Runtime: ") + rv_editor::rv_editor_run_state_name(app.session.state()) +
@@ -111,7 +111,7 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
-    // No project: its start screen instead of a grid of empty tiles (PRJ-07); the
+    // No project: its start screen instead of a grid of empty tiles; the
     // layouts wait unchanged.
     if (host && !shell.app.project.open) {
         rv_editor::rv_editor_shell_start_screen(shell, theme);
@@ -281,7 +281,7 @@ int main(int argc, char **argv)
             io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         }
         shell->app.text_focus = false;
-        // View > UI Scale between frames: the style and every size follow (VIS-04).
+        // View > UI Scale between frames: the style and every size follow.
         if (shell->ui_scale_request > 0.0f) {
             const float previous = theme.scale;
             theme.scale = shell->ui_scale_request;
@@ -311,7 +311,7 @@ int main(int argc, char **argv)
         SDL_RenderPresent(renderer);
     }
 
-    // No build and no runtime outlives the window (DEV-09); nor does a sound.
+    // No build and no runtime outlives the window; nor does a sound.
     rv_editor::rv_editor_app_shutdown(shell->app);
     rv_editor::rv_editor_sound_shutdown();
 
