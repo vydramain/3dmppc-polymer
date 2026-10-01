@@ -190,7 +190,7 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
         : kind == rv_editor_reload_kind::module ? "module " + target + ": "
                                                  : "asset " + target + ": ";
     if (err) {
-        // The previous code stays; whether its effects ran is the runtime's word (RLD-04).
+        // The previous code stays; whether its effects ran is the runtime's word.
         const std::string result = std::string(msg.get("error")) + ": " + rv_editor_hex_decode(msg.get("msg")) +
             (msg.get("effects") == "1" ? " (effects may have happened before it failed)" : "");
         log.add(rv_editor_log_source::runtime, rv_editor_log_level::error, "reload refused: " + named + result);

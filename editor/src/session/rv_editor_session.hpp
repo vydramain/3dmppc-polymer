@@ -95,10 +95,10 @@ enum class rv_editor_reload_kind
     texture,
 };
 
-// One runtime session (DEV-01..DEV-10): `3dmppc --dev` as a child process with
+// One runtime session: `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
-// here (LAY-09). One per window (PRJ-09).
+// here. One per window.
 class rv_editor_session
 {
 public:
@@ -146,7 +146,7 @@ public:
     void update(rv_editor_log &log);
 
     // Ends the session for good before the editor exits: quit, a short wait,
-    // then kill. Leaves no orphan (DEV-09).
+    // then kill. Leaves no orphan.
     void shutdown(rv_editor_log &log);
 
     rv_editor_run_state state() const { return state_; }
