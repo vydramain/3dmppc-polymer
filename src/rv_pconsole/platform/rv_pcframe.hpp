@@ -1,4 +1,4 @@
-// The development console's embedded screen (editor/docs/adr/0006-game-frame.md):
+// The development console's embedded screen:
 // finished frames go into a shared memory object an embedding program created and
 // passed as --frame-fd, pad buttons arrive over the dev channel, and no window
 // opens. Sound and gamepads stay the wrapped platform's.

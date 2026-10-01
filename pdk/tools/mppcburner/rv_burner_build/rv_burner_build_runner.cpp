@@ -400,7 +400,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         rv_burner_print_error(error);
         return 1;
     }
-    // Only a build that succeeded replaces the map (ADR 0011).
+    // Only a build that succeeded replaces the map.
     if (!options.map.empty() && write_map(fs::absolute(options.map, ec), manifest, sources, plan, error) != 0) {
         rv_burner_print_error(error);
         return 1;
