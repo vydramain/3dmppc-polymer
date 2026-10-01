@@ -63,7 +63,30 @@ std::string rv_editor_new_scene_header_id(std::string_view name)
     return id;
 }
 
+const char *rv_editor_scene_why_not_save(const rv_editor_app &app)
+{
+    if (app.scene == nullptr) {
+        return "No scene is open";
+    }
+    if (!app.scene->scene.read_only.empty()) {
+        return "The scene is read-only";
+    }
+    return app.scene->dirty ? nullptr : "Nothing to save";
+}
+
 } // namespace
+
+void rv_editor_shell_scene_save(rv_editor_shell &shell)
+{
+    rv_editor_app &app = shell.app;
+    if (rv_editor_scene_why_not_save(app) != nullptr) {
+        return;
+    }
+    std::string error;
+    if (!rv_editor_app_scene_save(app, error)) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
+    }
+}
 
 void rv_editor_shell_new_scene_request(const rv_editor_app &app)
 {
@@ -149,15 +172,8 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
         ImGui::EndMenu();
     }
     const char *no_scene = app.scene == nullptr ? "No scene is open" : nullptr;
-    const char *why_not_save = no_scene != nullptr ? no_scene
-        : !app.scene->scene.read_only.empty()      ? "The scene is read-only"
-        : !app.scene->dirty                        ? "Nothing to save"
-                                                   : nullptr;
-    if (rv_editor_menu_item("Save Scene", nullptr, why_not_save)) {
-        std::string error;
-        if (!rv_editor_app_scene_save(app, error)) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
-        }
+    if (rv_editor_menu_item("Save Scene", "Ctrl+S", rv_editor_scene_why_not_save(app))) {
+        rv_editor_shell_scene_save(shell);
     }
     ImGui::Separator();
     if (rv_editor_menu_item("Undo Scene Edit", nullptr,

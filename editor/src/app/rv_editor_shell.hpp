@@ -176,6 +176,8 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
 void rv_editor_menu_scene(rv_editor_shell &shell);
+// Save Scene: the menu item and Ctrl+S; does nothing when the item would be disabled.
+void rv_editor_shell_scene_save(rv_editor_shell &shell);
 // Opens the New Scene area with today's free name (Scene > New Scene, the
 // empty Scene pane's Create Scene).
 void rv_editor_shell_new_scene_request(const rv_editor_app &app);

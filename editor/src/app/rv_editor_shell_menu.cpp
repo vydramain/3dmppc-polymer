@@ -322,6 +322,16 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_B)) {
         rv_editor_app_build(app);
     }
+    // Ctrl+S in a Code tile stays with nvim; only a focused Scene pane saves the scene.
+    const rv_editor_workspace &ws = shell.ws;
+    if (!ImGui::GetIO().WantTextInput && ws.focused_leaf < ws.layout.nodes.size()
+        && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf
+        && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_S)) {
+        const rv_editor_tile_leaf &leaf = ws.layout.nodes[ws.focused_leaf].leaf;
+        if (!leaf.tabs.empty() && ws.panes.panes[leaf.tabs[leaf.active]].kind == rv_editor_pane_kind::scene) {
+            rv_editor_shell_scene_save(shell);
+        }
+    }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F)) {
         app.project_search.focus = true;
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
