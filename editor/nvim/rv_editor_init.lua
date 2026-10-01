@@ -41,7 +41,7 @@ o.keymodel = { "startsel", "stopsel" }
 o.selectmode = { "key" }
 o.whichwrap = "b,s,<,>,[,]"
 
--- Colours: Catppuccin Mocha, independent of the editor's olive chrome (TXT-02).
+-- Colours: Catppuccin Mocha, independent of the editor's olive chrome.
 local c = {
     base = "#1e1e2e", mantle = "#181825", crust = "#11111b", surface0 = "#313244", surface1 = "#45475a",
     overlay0 = "#6c7086", text = "#cdd6f4", subtext = "#a6adc8", red = "#f38ba8", peach = "#fab387",
@@ -87,7 +87,7 @@ hl("Delimiter", { fg = c.subtext })
 hl("Todo", { fg = c.base, bg = c.yellow })
 hl("@variable", { fg = c.text })
 
--- Per language (TXT-04): two spaces everywhere, four for C and C++ with the ruler
+-- Per language: two spaces everywhere, four for C and C++ with the ruler
 -- at 129, the first column past 128 (the owner's options.lua).
 local profiles = {
     c = { expandtab = true, tabstop = 4, shiftwidth = 4, softtabstop = 4, colorcolumn = "129" },
@@ -223,7 +223,7 @@ vim.keymap.set({ "n", "i", "v", "s" }, "<F2>", toggle_vim_mode)
 -- The same switch for the editor's Vim toggle.
 _G.rv_toggle_vim_mode = toggle_vim_mode
 
--- The usual keys, in every mode (TXT-01).
+-- The usual keys, in every mode.
 local map = vim.keymap.set
 map({ "n", "i", "v", "s" }, "<C-s>", "<Cmd>update<CR>")
 map({ "n", "i", "v", "s" }, "<C-S-s>", "<Cmd>wall<CR>")
@@ -245,7 +245,7 @@ map("i", "<C-h>", "<C-o>:%s/")
 map("i", "<C-g>", "<C-o>:")
 
 -- The editor keeps a list of buffers and whether they are modified, so it can
--- ask before a code tile or the editor closes (TXT-07). Sent on every change.
+-- ask before a code tile or the editor closes. Sent on every change.
 local function report()
     local out = {}
     for _, b in ipairs(vim.api.nvim_list_bufs()) do
