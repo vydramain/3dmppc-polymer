@@ -195,7 +195,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     const ImVec2 label_y = ImGui::CalcTextSize("Rot Y");
     const ImVec2 label_d = ImGui::CalcTextSize("Dolly");
     const ImVec2 size(std::max(40.0f, avail.x - 2.0f * wheel - label_x.x - label_d.x - 4.0f * gap),
-        std::max(40.0f, avail.y - wheel - line - gap));
+        std::max(40.0f, avail.y - wheel - 2.0f * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     cam.pitch = std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", "Rot X", true, size.y, theme, reset) * 0.4,
@@ -420,6 +420,18 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     }
     if (!read_tip.empty()) {
         ImGui::SetItemTooltip("%s", read_tip.c_str());
+    }
+    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + 2.0f + line));
+    ImGui::TextDisabled("Example draws meshes as boxes");
+    if (ImGui::BeginItemTooltip()) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0f);
+        ImGui::TextUnformatted("The viewport draws .obj meshes, quads, billboards and volumes. The example disc, and "
+                               "every New Project made from it, draws each mesh object as a unit box, ignores its mesh "
+                               "file, and does not draw quads, billboards or volumes. A disc draws only what its own "
+                               "code draws. Drawing .obj meshes, quads, polygons and the rest in the game comes in "
+                               "the next version.");
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
     }
     rv_editor_well_end();
 }
