@@ -217,9 +217,15 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         rv_editor_app_play_candidate(app);
     }
     rv_editor_flow(rv_editor_tool_button_width("Stop"));
-    if (rv_editor_tool_button("Stop", rv_editor_glyph::stop, theme.code_red, "Stop", "Shift+F5", theme,
-            { rv_editor_look::live, rv_editor_app_why_not_stop(app) })) {
-        rv_editor_app_stop(app);
+    const bool session_live = app.session.live();
+    const bool player_running = rv_editor_app_player_running(app);
+    const char *why_not_stop_release = player_running ? nullptr : rv_editor_app_why_not_stop(app);
+    if (rv_editor_tool_button("Stop", rv_editor_glyph::stop, theme.code_red, "Stop", nullptr, theme,
+            { rv_editor_look::live, why_not_stop_release })) {
+        if (session_live) {
+            app.session.stop(app.log);
+        }
+        rv_editor_app_stop_player(app);
     }
     rv_editor_flow(rv_editor_tool_button_width("Report"));
     const char *why_not_export = app.release.candidates.empty() ? "No candidate to report on" : nullptr;

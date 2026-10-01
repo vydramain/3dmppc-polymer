@@ -160,6 +160,12 @@ void rv_editor_app_stop_player(rv_editor_app &app)
         rv_editor_log_channel::none, r.player->pid(), rv_editor_player_run(r));
 }
 
+bool rv_editor_app_player_running(const rv_editor_app &app)
+{
+    const rv_editor_release &r = app.release;
+    return r.player != nullptr && r.player->running();
+}
+
 void rv_editor_app_player_update(rv_editor_app &app)
 {
     rv_editor_release &r = app.release;

@@ -456,6 +456,7 @@ void rv_editor_app_run_candidate(rv_editor_app &app);
 const char *rv_editor_app_why_not_play(const rv_editor_app &app);
 void rv_editor_app_play_candidate(rv_editor_app &app);
 void rv_editor_app_stop_player(rv_editor_app &app);
+bool rv_editor_app_player_running(const rv_editor_app &app);
 void rv_editor_app_player_update(rv_editor_app &app);
 void rv_editor_app_export_report(rv_editor_app &app);
 // Once a frame: a finished candidate build, hashes, the playtest's end.
