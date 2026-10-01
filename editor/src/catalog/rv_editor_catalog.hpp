@@ -7,12 +7,12 @@
 namespace rv_editor
 {
 
-// Widget Catalog (UI-07): every component in every state, drawn with the real
+// Widget Catalog: every component in every state, drawn with the real
 // theme, for checking the theme by eye. Draws into the current window, which
 // scrolls once every group is in.
 void rv_editor_catalog_draw(const rv_editor_theme &theme);
 
-// The parts the twelve sections are made of (CAT-01), by file.
+// The parts the twelve sections are made of, by file.
 void rv_editor_catalog_colours(const rv_editor_theme &theme);   // _theme: palette, primitives
 void rv_editor_catalog_icon_set(const rv_editor_theme &theme);  // _theme: file and tool icons
 void rv_editor_catalog_buttons(const rv_editor_theme &theme);   // _buttons

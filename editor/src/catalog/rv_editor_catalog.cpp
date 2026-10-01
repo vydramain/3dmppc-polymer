@@ -12,7 +12,7 @@ ImVec2 rv_editor_catalog_reserve(ImVec2 size)
 
 void rv_editor_catalog_draw(const rv_editor_theme &theme)
 {
-    // The spec's twelve sections, in its order (CAT-01).
+    // The spec's twelve sections, in its order.
     ImGui::SeparatorText("1. Pane headers, window buttons, splitters and focus");
     rv_editor_catalog_headers(theme);
     ImGui::SeparatorText("2. Buttons, toggles and toolbar icons in every state");
