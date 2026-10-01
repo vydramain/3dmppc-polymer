@@ -10,7 +10,7 @@ namespace rv_editor
 {
 
 // A scene being edited: the document, its undo and redo, and the selection,
-// which Hierarchy, the viewport and Inspector share by id (SCN-03).
+// which Hierarchy, the viewport and Inspector share by id.
 struct rv_editor_scene_doc
 {
     rv_editor_scene scene;

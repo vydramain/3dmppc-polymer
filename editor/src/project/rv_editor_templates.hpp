@@ -7,7 +7,7 @@
 namespace rv_editor
 {
 
-// The starting discs New Project copies (TPL-01): mppcdiscs/example-cpp and
+// The starting discs New Project copies: mppcdiscs/example-cpp and
 // example-lua of this repository, found at run time the way the icons are.
 struct rv_editor_template
 {
@@ -19,7 +19,7 @@ struct rv_editor_template
 
 std::vector<rv_editor_template> rv_editor_templates();
 
-// What New Project asks (TPL-02).
+// What New Project asks.
 struct rv_editor_new_project
 {
     std::string name;             // the disc's title
@@ -55,7 +55,7 @@ std::vector<std::string> rv_editor_new_project_files(const rv_editor_new_project
 // existing is written over. False with the reason; a failed attempt leaves nothing.
 bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor_template &t, std::string &error);
 
-// The projects opened lately, newest first (PRJ-07), kept one path a line in
+// The projects opened lately, newest first, kept one path a line in
 // $XDG_CONFIG_HOME/3dmppc-editor/recent. Removing one only forgets it.
 std::vector<std::filesystem::path> rv_editor_recent_load();
 void rv_editor_recent_add(const std::filesystem::path &root);
