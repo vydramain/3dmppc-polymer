@@ -94,8 +94,8 @@ struct rv_editor_candidate
     uint32_t playtests = 0;    // how many ran; each one's log is kept beside the record
     std::string last_run_end;  // how the last playtest ended
     bool last_run_clean = false; // ended by quit or by itself, not forced, crashed or refused
-    std::string source_revision; // the sources' commit and whether they differed from it (REL-01)
-    std::string operator_name;   // who approved or rejected it (REL-05)
+    std::string source_revision; // the sources' commit and whether they differed from it
+    std::string operator_name;   // who approved or rejected it
     bool dirty = false;          // changed since its record was written
     bool save_failed = false;    // the last write failed: tried again, said once
 };

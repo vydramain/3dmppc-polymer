@@ -10,7 +10,7 @@
 namespace rv_editor
 {
 
-// A candidate's record, <dir>/<n>.toml (DAT-03): identity, hash, checks and decision,
+// A candidate's record, <dir>/<n>.toml: identity, hash, checks and decision,
 // written whole. False with the reason.
 bool rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error);
 
