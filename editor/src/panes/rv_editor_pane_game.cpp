@@ -343,16 +343,38 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         }
 
         // A console that stopped answering leaves a frame that is no longer the game's.
-        const bool lost = s.state() == rv_editor_run_state::disconnected;
-        if (lost) {
+        const char *state = nullptr;
+        rv_editor_game_line line = rv_editor_game_line::normal;
+
+        if (s.state() == rv_editor_run_state::disconnected) {
+            state = "stale: the console stopped answering";
+            line = rv_editor_game_line::warn;
             app.game_captured = false;
+        } else if (s.state() == rv_editor_run_state::stopping && s.hung()) {
+            state = "not stopping: Force Stop ends it";
+            line = rv_editor_game_line::warn;
+        } else if (s.state() == rv_editor_run_state::stopping) {
+            state = "stopping";
+        } else if (s.uncertain()) {
+            state = "not answering: the last request timed out";
+            line = rv_editor_game_line::warn;
+        } else if (s.state() == rv_editor_run_state::paused) {
+            state = "paused";
+        } else if (s.state() == rv_editor_run_state::pausing || s.state() == rv_editor_run_state::stepping ||
+            s.state() == rv_editor_run_state::resuming || s.state() == rv_editor_run_state::starting) {
+            state = rv_editor_run_state_name(s.state());
+        } else if (s.state() == rv_editor_run_state::running) {
+            if (app.game_captured) {
+                state = "playing: Shift+Esc gives the keyboard back";
+            } else {
+                state = "click the picture to play";
+            }
+        } else {
+            state = rv_editor_run_state_name(s.state());
         }
-        const char *state = lost ? "stale: the console stopped answering"
-            : s.state() == rv_editor_run_state::paused ? "paused"
-            : app.game_captured                        ? "playing: Shift+Esc gives the keyboard back"
-                                                       : "click the picture to play";
-        rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state,
-            lost ? rv_editor_game_line::warn : rv_editor_game_line::normal, !lost);
+
+        rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, line,
+            s.state() != rv_editor_run_state::disconnected);
         shown = true;
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
