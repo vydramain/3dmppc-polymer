@@ -139,7 +139,7 @@ bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool 
     }
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "created " + rel);
 
-    // Whatever fails below, the scene file stays and is opened anyway (LAY-07);
+    // Whatever fails below, the scene file stays and is opened anyway;
     // only the last reason is reported back.
     bool ok = true;
     std::string reason;

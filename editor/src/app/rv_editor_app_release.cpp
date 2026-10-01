@@ -182,7 +182,7 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     }
     for (rv_editor_candidate &c : r.candidates) {
         rv_editor_candidate_poll(c);
-        // Written as soon as it changes: a closed window loses nothing (DAT-03).
+        // Written as soon as it changes: a closed window loses nothing.
         if (!c.dirty) {
             continue;
         }
