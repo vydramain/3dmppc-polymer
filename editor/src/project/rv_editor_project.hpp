@@ -1,6 +1,10 @@
 #pragma once
 
+#include "platform/rv_editor_process.hpp"
+
+#include <chrono>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -51,7 +55,27 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
 
 // The sources' version for a candidate record (REL-01): "git <commit>", then
 // " + uncommitted changes" when the project's files differ from it; else why unknown.
-std::string rv_editor_source_revision(const std::filesystem::path &root);
+// Runs git as child processes, each given 3 s; poll() once a frame, never blocks.
+class rv_editor_revision_job
+{
+public:
+    void start(const std::filesystem::path &root);
+    // True when no lookup runs (text() is final). Advances a running one.
+    bool poll();
+    const std::string &text() const { return text_; }
+
+private:
+    bool launch(const std::vector<std::string> &argv);
+
+    std::filesystem::path root_;
+    std::filesystem::path git_;
+    std::unique_ptr<rv_editor_process> proc_;
+    std::string out_;
+    std::string head_;
+    std::string text_;
+    std::chrono::steady_clock::time_point until_{};
+    bool status_step_ = false;
+};
 
 // The game directory the window works on (PRJ-01): a directory holding
 // disc.toml, whichever of the two was opened.

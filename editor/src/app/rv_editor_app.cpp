@@ -134,6 +134,9 @@ const char *rv_editor_app_why_not_build(const rv_editor_app &app)
     if (app.build.busy()) {
         return "A build is already running";
     }
+    if (app.release.building) {
+        return "Waiting for the candidate's source revision";
+    }
     if (!app.tools.burner.problem.empty()) {
         return app.tools.burner.problem.c_str();
     }

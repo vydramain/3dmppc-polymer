@@ -16,6 +16,9 @@ namespace rv_editor
 namespace
 {
 
+// The lookup of the running candidate build's sources; the record waits for it.
+rv_editor_revision_job g_revision;
+
 std::filesystem::path rv_editor_candidates_dir(const rv_editor_app &app)
 {
     return app.project.cache_dir / "candidates";
@@ -63,10 +66,13 @@ std::string rv_editor_lines(const rv_editor_log &log, uint64_t from, uint64_t to
     return out;
 }
 
+bool g_build_ended = false;
+
 void rv_editor_candidate_finish_build(rv_editor_app &app)
 {
     rv_editor_release &r = app.release;
     r.building = false;
+    r.building_revision = g_revision.text();
     if (app.build.state() != rv_editor_build_state::succeeded) {
         r.last_failure = "Candidate #" + std::to_string(r.building_number) + " was not made: the build " +
             rv_editor_build_state_name(app.build.state()) + ". Nothing below is new.";
@@ -117,8 +123,8 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     r.building = true;
     r.building_number = number;
     r.tree_changed_during = false;
-    // git runs on the UI thread, at most 3 s each; a job of its own if that shows.
-    r.building_revision = rv_editor_source_revision(app.project.root);
+    g_build_ended = false;
+    g_revision.start(app.project.root);
 }
 
 const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
@@ -168,7 +174,10 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
 {
     rv_editor_release &r = app.release;
     rv_editor_app_player_update(app);
-    if (build_ended && r.building) {
+    g_build_ended = g_build_ended || (build_ended && r.building);
+    const bool revision_known = r.building && g_revision.poll();
+    if (g_build_ended && revision_known) {
+        g_build_ended = false;
         rv_editor_candidate_finish_build(app);
     }
     for (rv_editor_candidate &c : r.candidates) {

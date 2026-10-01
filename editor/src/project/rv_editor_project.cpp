@@ -100,23 +100,70 @@ std::filesystem::path rv_editor_xdg_dir(const char *var, const char *home_fallba
     return {};
 }
 
-std::string rv_editor_source_revision(const std::filesystem::path &root)
+bool rv_editor_revision_job::launch(const std::vector<std::string> &argv)
 {
-    const std::filesystem::path git = rv_editor_process_find("git");
-    if (git.empty()) {
-        return "unknown: git is not on PATH";
+    proc_ = std::make_unique<rv_editor_process>();
+    std::string error;
+    out_.clear();
+    until_ = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    if (proc_->start(argv, root_, error)) {
+        return true;
     }
-    std::string head;
-    if (!rv_editor_process_output({ git.string(), "rev-parse", "--verify", "HEAD" }, root, head, 3) || head.empty()) {
-        return "unknown: not in a git work tree with a commit";
+    proc_.reset();
+    return false;
+}
+
+void rv_editor_revision_job::start(const std::filesystem::path &root)
+{
+    root_ = root;
+    proc_.reset();
+    status_step_ = false;
+    git_ = rv_editor_process_find("git");
+    if (git_.empty()) {
+        text_ = "unknown: git is not on PATH";
+        return;
     }
-    head = head.substr(0, head.find('\n'));
-    // Only this project's files: a project may sit in a larger repository.
-    std::string status;
-    if (!rv_editor_process_output({ git.string(), "status", "--porcelain", "--", "." }, root, status, 3)) {
-        return "git " + head + ", whether the files differ from it is unknown";
+    text_.clear();
+    if (!launch({ git_.string(), "rev-parse", "--verify", "HEAD" })) {
+        text_ = "unknown: not in a git work tree with a commit";
     }
-    return "git " + head + (status.empty() ? "" : " + uncommitted changes");
+}
+
+bool rv_editor_revision_job::poll()
+{
+    if (!proc_) {
+        return true;
+    }
+    std::string err;
+    proc_->read(out_, err, 65536);
+    const bool ended = proc_->poll();
+    if (!ended && std::chrono::steady_clock::now() < until_) {
+        return false;
+    }
+    proc_->read(out_, err, 65536);
+    const rv_editor_process::rv_editor_exit exit = proc_->exit_status();
+    const bool ok = exit.exited && exit.signal == 0 && exit.code == 0;
+    proc_.reset();
+    if (!status_step_) {
+        if (!ok || out_.empty()) {
+            text_ = "unknown: not in a git work tree with a commit";
+            return true;
+        }
+        head_ = out_.substr(0, out_.find('\n'));
+        status_step_ = true;
+        // Only this project's files: a project may sit in a larger repository.
+        if (launch({ git_.string(), "status", "--porcelain", "--", "." })) {
+            return false;
+        }
+        text_ = "git " + head_ + ", whether the files differ from it is unknown";
+        return true;
+    }
+    if (!ok) {
+        text_ = "git " + head_ + ", whether the files differ from it is unknown";
+        return true;
+    }
+    text_ = "git " + head_ + (out_.empty() ? "" : " + uncommitted changes");
+    return true;
 }
 
 rv_editor_toolchain rv_editor_toolchain_find()
