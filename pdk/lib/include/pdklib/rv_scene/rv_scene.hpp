@@ -11,7 +11,7 @@
 namespace rv_pdklib
 {
 
-// A scene document (editor/docs/adr/0009-scene-document.md) as a disc reads it:
+// A scene document as a disc reads it:
 // objects in file order with their parents resolved. It takes the file's BYTES,
 // never a path: reading is the drive's (rv_cd_asset_*), as for rv_obj. A disc
 // that draws no scene never calls it.

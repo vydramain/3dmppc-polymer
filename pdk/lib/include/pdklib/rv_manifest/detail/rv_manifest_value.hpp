@@ -10,7 +10,7 @@ namespace rv_pdklib
 
 // The value shapes of the dialect. The schema names one per key, the parser
 // produces them, the binder consumes them. disc.toml uses the first three; real
-// and numbers are for the other files in the dialect (a scene, ADR 0009).
+// and numbers are for the other files in the dialect.
 enum class rv_manifest_value_kind {
     string,
     integer,
