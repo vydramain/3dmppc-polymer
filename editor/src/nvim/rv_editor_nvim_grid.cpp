@@ -198,11 +198,13 @@ void rv_editor_nvim_screen::event(const std::string &name, const rv_editor_mpack
         g.anchor_col = a[5].is(mtype::real) ? a[5].d : static_cast<double>(rv_editor_int(a[5]));
         g.zindex = a.size() >= 8 ? rv_editor_int(a[7]) : 50;
         g.hidden = false;
-    } else if (name == "win_pos" && a.size() >= 2) {
+    } else if (name == "win_pos" && a.size() >= 4) {
         rv_editor_nvim_grid &g = grids_[rv_editor_int(a[0])];
         g.win = a[1].i;
         g.is_float = false;
         g.hidden = false;
+        g.window_row = a[2].is(mtype::real) ? a[2].d : static_cast<double>(rv_editor_int(a[2]));
+        g.window_col = a[3].is(mtype::real) ? a[3].d : static_cast<double>(rv_editor_int(a[3]));
     } else if ((name == "win_hide" || name == "win_close") && !a.empty()) {
         const auto it = grids_.find(rv_editor_int(a[0]));
         if (it != grids_.end()) {

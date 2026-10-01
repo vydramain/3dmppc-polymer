@@ -6,8 +6,10 @@
 #include <string>
 
 #include <SDL3/SDL.h>
+#include "imgui.h"
 
 #include "app/rv_editor_app.hpp"
+#include "nvim/rv_editor_nvim_grid.hpp"
 #include "theme/rv_editor_theme.hpp"
 
 namespace rv_editor
@@ -44,6 +46,15 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+
+// RGB to ImU32 conversion.
+ImU32 rv_editor_rgb(uint32_t rgb);
+// One nvim grid cell by cell with cursor.
+void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_editor_nvim_grid &grid, ImVec2 at,
+    ImVec2 cell, int32_t rows, bool cursor);
+// Floating windows sorted by zindex, clipped to tile.
+void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen, int32_t grid_id, ImVec2 tile_at, ImVec2 cell,
+    int32_t tile_cols, int32_t tile_rows, bool tile_focused);
 
 // A shell in the project's directory on a PTY of its own (TRM-01).
 void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);

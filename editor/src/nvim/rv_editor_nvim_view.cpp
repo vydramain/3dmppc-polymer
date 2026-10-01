@@ -22,64 +22,6 @@ namespace rv_editor
 namespace
 {
 
-ImU32 rv_editor_rgb(uint32_t rgb)
-{
-    return IM_COL32((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, 255);
-}
-
-// One grid, cell by cell, runs of one highlight drawn together.
-void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_editor_nvim_grid &grid, ImVec2 at,
-    ImVec2 cell, int32_t rows, bool cursor)
-{
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    std::string run;
-    for (int32_t r = 0; r < std::min(rows, grid.height); ++r) {
-        int32_t c = 0;
-        while (c < grid.width) {
-            const int32_t hl = grid.cells[static_cast<size_t>(r * grid.width + c)].hl;
-            const int32_t start = c;
-            run.clear();
-            while (c < grid.width && grid.cells[static_cast<size_t>(r * grid.width + c)].hl == hl) {
-                const std::string &t = grid.cells[static_cast<size_t>(r * grid.width + c)].text;
-                run += t; // a double-width character's second cell is empty
-                ++c;
-            }
-            uint32_t fg = 0;
-            uint32_t bg = 0;
-            screen.colors(hl, fg, bg);
-            const ImVec2 p0(at.x + start * cell.x, at.y + r * cell.y);
-            dl->AddRectFilled(p0, ImVec2(at.x + c * cell.x, p0.y + cell.y), rv_editor_rgb(bg));
-            dl->AddText(p0, rv_editor_rgb(fg), run.c_str());
-            if (screen.attr(hl).underline) {
-                dl->AddLine(ImVec2(p0.x, p0.y + cell.y - 1), ImVec2(at.x + c * cell.x, p0.y + cell.y - 1), rv_editor_rgb(fg));
-            }
-        }
-    }
-    if (!cursor || grid.cursor_row < 0 || grid.cursor_row >= std::min(rows, grid.height) || grid.cursor_col < 0 ||
-        grid.cursor_col >= grid.width) {
-        return;
-    }
-    // The shape nvim gives the current mode (guicursor, mode_info_set).
-    const rv_editor_nvim_cell &under = grid.cells[static_cast<size_t>(grid.cursor_row * grid.width + grid.cursor_col)];
-    uint32_t fg = 0;
-    uint32_t bg = 0;
-    screen.colors(under.hl, fg, bg);
-    const ImVec2 p0(at.x + grid.cursor_col * cell.x, at.y + grid.cursor_row * cell.y);
-    const rv_editor_nvim_cursor shape = screen.cursor_shape();
-    if (shape.kind == rv_editor_nvim_cursor_kind::vertical) {
-        const float w = std::max(2.0f, std::floor(cell.x * static_cast<float>(shape.percent) / 100.0f));
-        dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + cell.y), rv_editor_rgb(fg));
-        return;
-    }
-    if (shape.kind == rv_editor_nvim_cursor_kind::horizontal) {
-        const float h = std::max(2.0f, std::floor(cell.y * static_cast<float>(shape.percent) / 100.0f));
-        dl->AddRectFilled(ImVec2(p0.x, p0.y + cell.y - h), ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
-        return;
-    }
-    dl->AddRectFilled(p0, ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
-    dl->AddText(p0, rv_editor_rgb(bg), under.text.c_str());
-}
-
 // One code point as UTF-8 (ImGui's own encoder is internal API, 0001).
 void rv_editor_utf8_append(std::string &out, uint32_t cp)
 {
@@ -164,6 +106,9 @@ std::string rv_editor_nvim_keys()
                 ch = static_cast<char>('a' + (key - ImGuiKey_A));
             } else if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
                 ch = static_cast<char>('0' + (key - ImGuiKey_0));
+            } else if (key == ImGuiKey_Space) {
+                keys += "<" + std::string(io.KeyShift ? "S-" : "") + mods + "Space>";
+                continue;
             }
             if (ch != 0) {
                 keys += "<" + std::string(io.KeyShift ? "S-" : "") + mods + std::string(1, ch) + ">";
@@ -367,6 +312,9 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
     const bool cursor_here = focused && nvim.screen().cursor_grid() == grid_id;
     rv_editor_nvim_draw_grid(nvim.screen(), *grid, at, cell, rows, cursor_here);
+
+    // Floating windows (hover, completion menu, diagnostics) above the main grid.
+    rv_editor_nvim_draw_floats(nvim.screen(), grid_id, at, cell, cols, rows, focused);
 
     // The tile's status line: the file, and whether it is saved (TXT-07).
     const ImVec2 status(at.x, at.y + rows * cell.y);

@@ -61,6 +61,8 @@ struct rv_editor_nvim_grid
     double anchor_row = 0.0;   // row on anchor_grid, stored as-is (may be fractional)
     double anchor_col = 0.0;   // col on anchor_grid
     int32_t zindex = 50;       // layering (higher = on top)
+    double window_row = 0.0;   // row in grid 1 for non-floating windows (from win_pos)
+    double window_col = 0.0;   // col in grid 1 for non-floating windows
 
     rv_editor_nvim_cell &at(int32_t row, int32_t col) { return cells[static_cast<size_t>(row * width + col)]; }
 };
