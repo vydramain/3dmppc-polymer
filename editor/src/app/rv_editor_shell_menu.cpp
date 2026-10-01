@@ -203,7 +203,7 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item(paused ? "Resume" : "Run", "F5", rv_editor_app_why_not_run(app))) {
         rv_editor_app_run(app);
     }
-    if (rv_editor_menu_item("Run Last Successful Build", nullptr, rv_editor_app_why_not_run_last(app))) {
+    if (rv_editor_menu_item("Run Last Successful Build (current scripts and assets)", nullptr, rv_editor_app_why_not_run_last(app))) {
         rv_editor_app_run_last(app);
     }
     if (rv_editor_menu_item("Pause", "F6", rv_editor_app_why_not_pause(app))) {

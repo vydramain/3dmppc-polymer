@@ -110,6 +110,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         const auto until = s.live() ? std::chrono::system_clock::now() : s.ended_at();
         const long long seconds = std::chrono::duration_cast<std::chrono::seconds>(until - s.started_at()).count();
         const rv_editor_session_facts &f = s.facts();
+        const bool is_latest_build = s.build_number() == app.build.number();
         if (!ImGui::BeginTable("##session", 2, ImGuiTableFlags_SizingStretchProp)) {
             return;
         }
@@ -123,8 +124,17 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
         }
         if (f.lua_budget > 0) {
-            rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) +
-                (f.revision != f.first_revision ? ", reloaded from " + std::to_string(f.first_revision) : ", as built"));
+            std::string entry_suffix;
+            if (f.revision != f.first_revision) {
+                entry_suffix = ", reloaded from " + std::to_string(f.first_revision);
+            } else if (is_latest_build) {
+                entry_suffix = ", as built";
+            }
+            rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) + entry_suffix);
+        }
+        if (!is_latest_build) {
+            rv_editor_fact("Note",
+                "native code from build #" + std::to_string(s.build_number()) + "; scripts, assets, scenes from current disk");
         }
         if (!s.reload_result().empty()) {
             rv_editor_fact("Last reload", (s.reload_ok() ? "applied: " : "refused: ") + s.reload_result());
