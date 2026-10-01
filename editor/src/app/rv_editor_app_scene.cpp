@@ -1,4 +1,4 @@
-// The project's scene document (ADR 0009): opened from scenes/, created there
+// The project's scene document: opened from scenes/, created there
 // under a free name, saved back; the Scene layout's panes all show this one.
 
 #include "app/rv_editor_app.hpp"

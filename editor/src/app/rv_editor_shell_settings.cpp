@@ -1,6 +1,6 @@
 // Settings as a page: beside the Toolchest without a project, a tab with one.
 // Toolchain only for now. The fields are a draft until Apply rewrites settings.toml
-// [tools] (ADR 0010) and looks the tools up again; Revert takes the file's values back.
+// [tools] section and looks the tools up again; Revert takes the file's values back.
 
 #include <algorithm>
 #include <cstdio>

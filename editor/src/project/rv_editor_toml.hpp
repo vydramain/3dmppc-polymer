@@ -12,7 +12,7 @@ namespace rv_editor
 std::string rv_editor_toml_quote(std::string_view s);
 
 // Writes `text` to "<path>.tmp" and renames it over `path`, creating the directory
-// first: a reader sees the old file or the new one, never half of one (ADR 0010).
+// first: a reader sees the old file or the new one, never half of one.
 bool rv_editor_file_replace(const std::filesystem::path &path, const std::string &text, std::string &error);
 
 // The whole file, or empty when it cannot be read.
