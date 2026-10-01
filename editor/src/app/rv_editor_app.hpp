@@ -33,9 +33,8 @@
 namespace rv_editor
 {
 
-// One Output pane's own view of the shared log (LAY-08): which sources it
-// shows and whether it follows new lines. The protocol trace is off by default
-// (TRM-02).
+// One Output pane's own view of the shared log: which sources it
+// shows and whether it follows new lines. The protocol trace is off by default.
 struct rv_editor_output_view
 {
     std::array<bool, static_cast<size_t>(rv_editor_log_source::count)> show = { true, true, true, true, false };
@@ -75,7 +74,7 @@ struct rv_editor_files_view
     size_t doomed_total = 0;
 };
 
-// Run Configuration's form: the active profile as edited until Apply (CFG-02),
+// Run Configuration's form: the active profile as edited until Apply.
 // filled again whenever the profiles change.
 struct rv_editor_run_form
 {
@@ -92,7 +91,7 @@ struct rv_editor_run_form
     char env[1024] = {};
 };
 
-// The Scene viewport's tool and view (SCN-05, SCL-02): the editor's, never the game's camera.
+// The Scene viewport's tool and view: the editor's, never the game's camera.
 enum class rv_editor_scene_tool
 {
     select,
@@ -201,7 +200,7 @@ struct rv_editor_findings
 };
 
 // The project's release candidates, oldest first, and the one shown; their records
-// are read back when the project opens (DAT-03).
+// are read back when the project opens.
 struct rv_editor_release
 {
     std::vector<rv_editor_candidate> candidates;
@@ -214,7 +213,7 @@ struct rv_editor_release
     std::string last_failure;  // the newest candidate build did not make one
     int playing = -1;          // the candidate the session runs, or -1
     uint64_t playtest_first_seq = 0; // the first log line of that playtest
-    // The player playing a candidate in its own window (REL-06): the process, which
+    // The player playing a candidate in its own window: the process, which
     // candidate, since when, whether the operator stopped it, what it printed.
     std::unique_ptr<rv_editor_process> player;
     int player_candidate = -1;
@@ -243,7 +242,7 @@ struct rv_editor_texture_bake
     std::string message;        // one line, the last bake's outcome
 };
 
-// What waits on the window's unsaved-files question (BLD-03).
+// What waits on the window's unsaved-files question.
 enum class rv_editor_unsaved_ask
 {
     none,
@@ -330,7 +329,7 @@ struct rv_editor_app
     rv_editor_unsaved_ask unsaved_ask = rv_editor_unsaved_ask::none;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
-    // Run profiles (CFG-01), what stops the active one, and a count of their changes
+    // Run profiles, what stops the active one, and a count of their changes
     // for the form; Apply and Restart waits for the session to end, then runs.
     rv_editor_run_config run_config;
     std::string run_problem;
@@ -392,11 +391,10 @@ void rv_editor_app_profiles_save(rv_editor_app &app);
 void rv_editor_app_init(rv_editor_app &app);
 
 // Opens a game directory or its disc.toml. A running session and build keep
-// running on the project they started with until they end (PRJ-09 holds: one
-// session per window).
+// running on the project they started with until they end.
 bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target);
 
-// Why each action cannot run now, or nullptr when it can (UI-04). The text
+// Why each action cannot run now, or nullptr when it can. The text
 // lives until the next change to `app`.
 const char *rv_editor_app_why_not_build(const rv_editor_app &app);
 const char *rv_editor_app_why_not_run(const rv_editor_app &app);
@@ -428,7 +426,7 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
 // ended or another reload is in flight).
 void rv_editor_app_texture_bake_update(rv_editor_app &app);
 
-// Build and Run ask first when a named buffer is unsaved (BLD-03); the _saved
+// Build and Run ask first when a named buffer is unsaved; the _saved
 // forms go ahead with the files as they are on disk.
 void rv_editor_app_build(rv_editor_app &app);
 void rv_editor_app_build_saved(rv_editor_app &app);
@@ -467,7 +465,7 @@ void rv_editor_app_release_changed(rv_editor_app &app);
 // Runs the latest build, building the saved files first when rv_editor_app_run_builds;
 // on a paused session this resumes it.
 void rv_editor_app_run(rv_editor_app &app);
-// Runs the last successful build after a later build failed (BLD-05).
+// Runs the last successful build after a later build failed.
 void rv_editor_app_run_last(rv_editor_app &app);
 void rv_editor_app_pause(rv_editor_app &app);
 void rv_editor_app_step(rv_editor_app &app);
@@ -483,7 +481,7 @@ bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path,
 void rv_editor_app_update(rv_editor_app &app);
 
 // Before the window closes: cancels the build and ends the runtime, leaving no
-// process behind (DEV-09).
+// process behind.
 void rv_editor_app_shutdown(rv_editor_app &app);
 
 // Logs (editor/src/app/rv_editor_app_logs.cpp): each session and each
