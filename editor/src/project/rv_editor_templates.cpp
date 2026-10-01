@@ -210,7 +210,7 @@ bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_edito
     if (ec) {
         return fail(t.dir.string() + ": " + ec.message());
     }
-    // The rules for an id are pdklib's, not the editor's (ARC-02).
+    // The rules for an id are pdklib's, not the editor's.
     rv_pdklib::rv_manifest manifest;
     std::string why;
     if (rv_pdklib::rv_manifest_load((staging / "disc.toml").string(), manifest, why) != 0 ||

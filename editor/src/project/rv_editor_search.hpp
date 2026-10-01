@@ -10,7 +10,7 @@
 namespace rv_editor
 {
 
-// One line of a project file holding the query (TXT-06).
+// One line of a project file holding the query.
 struct rv_editor_search_hit
 {
     std::filesystem::path file; // absolute
