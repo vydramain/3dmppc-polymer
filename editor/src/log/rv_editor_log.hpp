@@ -18,7 +18,7 @@ enum class rv_editor_log_source : uint8_t
     build,
     candidate, // release-candidate builds, separate from ordinary dev builds
     runtime,
-    protocol, // the dev channel's own traffic, hidden by default (TRM-02)
+    protocol, // the dev channel's own traffic, hidden by default
     count,
 };
 
@@ -50,8 +50,8 @@ struct rv_editor_log_line
 };
 
 // Output's model: every process line the editor keeps, oldest first. Bounded
-// (NFR-04): past `capacity` the oldest lines go and `dropped` counts them. It
-// lives outside the UI, so closing an Output pane loses nothing (LAY-09).
+// past `capacity` the oldest lines go and `dropped` counts them. It
+// lives outside the UI, so closing an Output pane loses nothing.
 class rv_editor_log
 {
 public:
