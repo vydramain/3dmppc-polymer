@@ -69,7 +69,7 @@ std::string rv_editor_decision_text(const rv_editor_candidate &c)
     if (c.bytes_changed && c.decision != rv_editor_decision::none) {
         return "Decision void: it was made on bytes the image no longer holds";
     }
-    // Build succeeded, checks passed and approved are three facts (REL-05).
+    // Build succeeded, checks passed and approved are three facts.
     switch (c.decision) {
         case rv_editor_decision::approved:
             return "Approved for release by " + c.operator_name + " at " + c.decided_at + ", sha256 " +

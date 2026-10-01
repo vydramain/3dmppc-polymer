@@ -1,4 +1,4 @@
-// Assets: the project's resource files as an IRIX Icon Catalog (SCL-03): a
+// Assets: the project's resource files as an IRIX Icon Catalog: a
 // picture or a kind icon with a short label, or a list with details; a folder
 // and a filter. What each file is called on the disc comes from the burner's map
 // of the last build (ADR 0011), never from a rule of the editor's.
