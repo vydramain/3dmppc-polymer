@@ -46,17 +46,26 @@ ImFontConfig rv_editor_font_config(const char *name)
 
 bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
 {
+    ImFont *const old_ui = rv_editor_ui;
+    ImFont *const old_small = rv_editor_code_small;
+    ImFont *const old_vga = rv_editor_code_vga;
+    const float old_scale = rv_editor_font_scale;
     const float k = std::max(1.0f, scale);
     rv_editor_font_scale = k;
     // Whole scales load the 1:1 grid at a multiple of its size; a fraction needs its own scaled grid.
     // The atlas keeps a pointer to the bytes for as long as it lives, so they are kept per grid.
     const bool whole = k == std::floor(k);
     const double grid = whole ? 1.0 : static_cast<double>(k);
+    const int grid_key = static_cast<int>(std::floor(grid * 1000.0 + 0.5));
     static std::map<int, std::string> ui_ttfs;
-    const std::string &ui_ttf = ui_ttfs.try_emplace(static_cast<int>(std::floor(grid * 1000.0 + 0.5)), rv_editor_font_ttf(grid))
-                                    .first->second;
-    const float ui_size = whole ? static_cast<float>(rv_editor_font_ui_height) * k
-                                : static_cast<float>(rv_editor_font_ttf_em(grid));
+    if (!ui_ttfs.contains(grid_key)) {
+        ui_ttfs.emplace(grid_key, rv_editor_font_ttf(grid));
+    }
+    const std::string &ui_ttf = ui_ttfs.at(grid_key);
+    float ui_size = static_cast<float>(rv_editor_font_ui_height) * k;
+    if (!whole) {
+        ui_size = static_cast<float>(rv_editor_font_ttf_em(grid));
+    }
     ImFontConfig ui = rv_editor_font_config("rv_font 5x7");
     ui.FontDataOwnedByAtlas = false;
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
@@ -75,8 +84,23 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     if (rv_editor_code_vga == nullptr) {
         std::fprintf(stderr, "3dmppc-editor: %s does not load; code draws in 8x14\n", RV_EDITOR_CODE_FONT_FILE);
     }
+    const bool ok = rv_editor_ui != nullptr && (rv_editor_code_small != nullptr || rv_editor_code_vga != nullptr);
+    // The previous set stays in the atlas until the new one is known good; a failure drops the new one.
+    for (ImFont *font : { ok ? old_ui : rv_editor_ui, ok ? old_small : rv_editor_code_small,
+             ok ? old_vga : rv_editor_code_vga }) {
+        if (font != nullptr) {
+            atlas.RemoveFont(font);
+        }
+    }
+    if (!ok) {
+        rv_editor_ui = old_ui;
+        rv_editor_code_small = old_small;
+        rv_editor_code_vga = old_vga;
+        rv_editor_font_scale = old_scale;
+        return false;
+    }
     rv_editor_font_code_size_set(rv_editor_code_current);
-    return rv_editor_ui != nullptr && (rv_editor_code_small != nullptr || rv_editor_code_vga != nullptr);
+    return true;
 }
 
 void rv_editor_font_scale_set(float scale)

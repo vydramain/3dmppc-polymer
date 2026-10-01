@@ -183,10 +183,9 @@ void rv_editor_display_pixels(SDL_Window *window)
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 }
 
-// Fresh fonts for a scale: the atlas is cleared and refilled, and the style takes the interface size.
+// Fonts for a scale replace the current ones only when all are built; the style takes the interface size.
 bool rv_editor_fonts_build(ImGuiIO &io, float scale)
 {
-    io.Fonts->ClearFonts();
     if (!rv_editor::rv_editor_fonts_add(*io.Fonts, scale)) {
         return false;
     }
@@ -278,20 +277,14 @@ int main(int argc, char **argv)
             theme.scale = shell->ui_scale_request;
             shell->ui_scale_request = 0.0f;
             // Rebuilt, not resized: the same pixels as a start at this scale.
-            bool fonts_ok = rv_editor_fonts_build(io, theme.scale);
-            if (!fonts_ok) {
+            if (!rv_editor_fonts_build(io, theme.scale)) {
                 std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for scale %g; keeping %g\n", theme.scale, previous);
                 shell->app.log.add(rv_editor::rv_editor_log_source::editor, rv_editor::rv_editor_log_level::error,
                     "cannot build the fonts for the new UI scale; the previous scale stays");
                 theme.scale = previous;
-                fonts_ok = rv_editor_fonts_build(io, theme.scale);
             }
             shell->ui_scale = theme.scale;
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-            if (!fonts_ok) {
-                std::fprintf(stderr, "3dmppc-editor: cannot rebuild the fonts\n");
-                break;
-            }
         }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
