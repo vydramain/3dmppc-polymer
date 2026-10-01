@@ -23,7 +23,7 @@ struct rv_editor_tool
     std::filesystem::path path;
     std::string origin;  // "settings.toml" or "next to the editor"
     std::string problem; // why it cannot be used; empty when it can
-    std::string version; // its `--version` line, for the diagnostics (NFR-06)
+    std::string version; // its `--version` line, for the diagnostics
 };
 
 // The console and the authoring tools. Each is looked for next to the editor's
@@ -46,14 +46,14 @@ struct rv_editor_toolchain
 };
 
 // Looks the tools up again and asks the burner and the baker for their version,
-// so a replaced executable drops what was known about the old one (NFR-06).
+// so a replaced executable drops what was known about the old one.
 rv_editor_toolchain rv_editor_toolchain_find();
 
 // Settings' Check: the tool `key` ("console", "burner", "baker", "player") at
 // `override_path`, or where it is found automatically when that is empty.
 rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path);
 
-// The sources' version for a candidate record (REL-01): "git <commit>", then
+// The sources' version for a candidate record: "git <commit>", then
 // " + uncommitted changes" when the project's files differ from it; else why unknown.
 // Runs git as child processes, each given 3 s; poll() once a frame, never blocks.
 class rv_editor_revision_job
@@ -80,7 +80,7 @@ private:
     bool status_step_ = false;
 };
 
-// The game directory the window works on (PRJ-01): a directory holding
+// The game directory the window works on: a directory holding
 // disc.toml, whichever of the two was opened.
 struct rv_editor_project
 {

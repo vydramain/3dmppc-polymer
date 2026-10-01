@@ -8,7 +8,7 @@
 namespace rv_editor
 {
 
-// How Run starts the development console (CFG-01). Tool paths are Settings'; a
+// How Run starts the development console. Tool paths are Settings'; a
 // profile only says what differs for this project. Relative paths are the root's.
 struct rv_editor_run_profile
 {
@@ -21,10 +21,10 @@ struct rv_editor_run_profile
     bool fixed_step = false;       // --fixed-step: no real-time wait, no audio
     std::vector<std::string> args; // more console options, one per entry, before the disc
     std::vector<std::string> env;  // KEY=VALUE over the editor's environment
-    bool reload_on_save = false;   // a saved .lua file reloads a running entry script (RLD-01)
+    bool reload_on_save = false;   // a saved .lua file reloads a running entry script
 };
 
-// The profiles of <root>/.3dmppc-editor/project.toml (ADR 0010); one Default when
+// The profiles of <root>/.3dmppc-editor/project.toml; one Default when
 // the file is missing or unreadable.
 struct rv_editor_run_config
 {
@@ -38,7 +38,7 @@ rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root
 bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
     std::string &error);
 
-// Why the profile cannot start a console, known before it runs (CFG-02); empty
+// Why the profile cannot start a console, known before it runs; empty
 // when nothing stops it.
 std::string rv_editor_run_profile_problem(const rv_editor_run_profile &p, const std::filesystem::path &root);
 
