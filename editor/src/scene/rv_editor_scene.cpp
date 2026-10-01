@@ -235,8 +235,10 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
     }
     // Keep the file's own version; a legacy 0.0 header is upgraded to the current one.
     const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
-    const std::string version = legacy ? std::string(rv_pdklib::rv_version_str)
-                                       : std::to_string(scene.version_major) + "." + std::to_string(scene.version_minor);
+    std::string version(rv_pdklib::rv_version_str);
+    if (!legacy) {
+        version = std::to_string(scene.version_major) + "." + std::to_string(scene.version_minor);
+    }
     t += "[scene]\nversion = " + rv_editor_toml_quote(version) + "\n";
     rv_editor_scene_entries(t, scene.scene_extra);
     for (const rv_editor_scene_object &o : scene.objects) {
