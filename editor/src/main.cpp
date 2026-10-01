@@ -26,19 +26,16 @@
 namespace
 {
 
-constexpr int rv_editor_scale_max = 8;
-
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
         "usage: 3dmppc-editor [-s|--scale N] [PATH]\n"
         "  PATH            A game directory, or its disc.toml, to open.\n"
-        "  -s, --scale N   Integer UI scale, 1..%d. Default: 1. The editor draws one\n"
-        "                  of its pixels per screen pixel unless this asks for more.\n",
-        rv_editor_scale_max);
+        "  -s, --scale N   UI scale: 1, 1.5 or 2. Default: 1. The editor draws one\n"
+        "                  of its pixels per screen pixel unless this asks for more.\n");
 }
 
-// Whole-number scale from the command line. False with exit_code set when the
+// UI scale (1, 1.5 or 2) from the command line. False with exit_code set when the
 // program should stop: 0 after --help, 2 after a bad argument.
 bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path, int &exit_code)
 {
@@ -70,15 +67,15 @@ bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path
             return false;
         }
 
-        int parsed = 0;
+        float parsed = 0.0f;
         const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if (ec != std::errc{} || end != value.data() + value.size() || parsed < 1 || parsed > rv_editor_scale_max) {
-            std::fprintf(stderr, "3dmppc-editor: --scale takes a whole number 1..%d, not '%.*s'\n",
-                rv_editor_scale_max, static_cast<int>(value.size()), value.data());
+        if (ec != std::errc{} || end != value.data() + value.size() || (parsed != 1.0f && parsed != 1.5f && parsed != 2.0f)) {
+            std::fprintf(stderr, "3dmppc-editor: --scale takes 1, 1.5 or 2, not '%.*s'\n", static_cast<int>(value.size()),
+                value.data());
             exit_code = 2;
             return false;
         }
-        scale = static_cast<float>(parsed);
+        scale = parsed;
     }
     return true;
 }
@@ -186,6 +183,17 @@ void rv_editor_display_pixels(SDL_Window *window)
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 }
 
+// Fresh fonts for a scale: the atlas is cleared and refilled, and the style takes the interface size.
+bool rv_editor_fonts_build(ImGuiIO &io, float scale)
+{
+    io.Fonts->ClearFonts();
+    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, scale)) {
+        return false;
+    }
+    ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -225,7 +233,7 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
     theme.scale = scale > 0.0f ? scale : prefs.ui_scale;
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, static_cast<int>(theme.scale))) {
+    if (!rv_editor_fonts_build(io, theme.scale)) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
         ImGui::DestroyContext();
         SDL_DestroyRenderer(renderer);
@@ -233,7 +241,6 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 1;
     }
-    ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
 
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
@@ -267,12 +274,24 @@ int main(int argc, char **argv)
         shell->app.text_focus = false;
         // View > UI Scale between frames: the style and every size follow (VIS-04).
         if (shell->ui_scale_request > 0.0f) {
+            const float previous = theme.scale;
             theme.scale = shell->ui_scale_request;
-            shell->ui_scale = theme.scale;
             shell->ui_scale_request = 0.0f;
+            // Rebuilt, not resized: the same pixels as a start at this scale.
+            bool fonts_ok = rv_editor_fonts_build(io, theme.scale);
+            if (!fonts_ok) {
+                std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for scale %g; keeping %g\n", theme.scale, previous);
+                shell->app.log.add(rv_editor::rv_editor_log_source::editor, rv_editor::rv_editor_log_level::error,
+                    "cannot build the fonts for the new UI scale; the previous scale stays");
+                theme.scale = previous;
+                fonts_ok = rv_editor_fonts_build(io, theme.scale);
+            }
+            shell->ui_scale = theme.scale;
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
-            ImGui::GetStyle().FontSizeBase = static_cast<float>(rv_editor::rv_editor_font_ui_height) * theme.scale;
-            rv_editor::rv_editor_font_scale_set(static_cast<int>(theme.scale));
+            if (!fonts_ok) {
+                std::fprintf(stderr, "3dmppc-editor: cannot rebuild the fonts\n");
+                break;
+            }
         }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
