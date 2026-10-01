@@ -165,7 +165,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_flow(name_width);
     rv_editor_status(name, name_kind, theme);
 
-    // The last reload by the transport, as the runtime answered it (RLD-04). A
+    // The last reload by the transport, as the runtime answered it. A
     // texture bake's own state comes first: it is what Reload is waiting on, and
     // a bake that failed never reached the console, so its message would be lost
     // behind an older console answer otherwise.

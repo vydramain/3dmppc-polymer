@@ -56,14 +56,14 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_edit
 void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen, int32_t grid_id, ImVec2 tile_at, ImVec2 cell,
     int32_t tile_cols, int32_t tile_rows, bool tile_focused);
 
-// A shell in the project's directory on a PTY of its own (TRM-01).
+// A shell in the project's directory on a PTY of its own.
 void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
 
 // The console's own frame, scaled to the tile as View > Game Scale says, and its
 // pad while the tile holds the keyboard. Shift+Esc
 // lets the keyboard go.
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
-// Assets: the project's resource files as an Icon Catalog (SCL-03); its PNG pictures live on `renderer`.
+// Assets: the project's resource files as an Icon Catalog; its PNG pictures live on `renderer`.
 void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 // The code and colour that stand in for a file's icon, by its extension.
 void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color);
@@ -72,7 +72,7 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
 // (src/rv_pconsole/platform/sdl3/rv_pcwindow_sdl3.cpp).
 uint64_t rv_editor_game_keys();
 
-// The running session's facts and its persistent Lua state, read-only (SCN-08).
+// The running session's facts and its persistent Lua state, read-only.
 void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme);
 // What ran, from which build and profile, for how long, and how it ended.
 void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme);
@@ -98,16 +98,16 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
 // The layout's command palette (spec 7): Code, Debug and Burn each their few.
 void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme);
 
-// The last build job's outcome and diagnostics, and the next action (BRN-02).
+// The last build job's outcome and diagnostics, and the next action.
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme);
 
-// The latest build's diagnostics with a place, opening it (BLD-06).
+// The latest build's diagnostics with a place, opening it.
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 
-// Find in Project: the query, its scope, and each place, opening it (TXT-06).
+// Find in Project: the query, its scope, and each place, opening it.
 void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
-// Scene: the open scene document, or how to create or open one (TPL-04); the
+// Scene: the open scene document, or how to create or open one; the
 // Create/Open row is shared with the other scene panes.
 void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
@@ -126,7 +126,7 @@ void rv_editor_scene_keys(rv_editor_app &app);
 void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme);
 
-// The project's run profiles as a list beside a form: Apply, Apply and Restart (CFG-01/02).
+// The project's run profiles as a list beside a form: Apply, Apply and Restart.
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The project tree and the file operations on it.
