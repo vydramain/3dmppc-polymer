@@ -1,6 +1,6 @@
 // The player: a 3dmppc built without devtools plays a candidate's image in its
-// own window (REL-06). The editor sees its PID, its output and how it ended, and
-// nothing else: no pause, step or reload reaches it (REL-07).
+// own window. The editor sees its PID, its output and how it ended, and
+// nothing else: no pause, step or reload reaches it.
 
 #include "app/rv_editor_app.hpp"
 
@@ -63,7 +63,7 @@ void rv_editor_player_finish(rv_editor_app &app)
         rv_editor_log_channel::none, pid, run);
     if (r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()) {
         rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.player_candidate)];
-        // Stopped by the editor is the operator's act and proves no normal exit (REL-07).
+        // Stopped by the editor is the operator's act and proves no normal exit.
         const rv_editor_check_state state = r.player_stopped ? rv_editor_check_state::not_run
             : exit.signal == 0 && exit.code == 0             ? rv_editor_check_state::passed
                                                              : rv_editor_check_state::failed;
@@ -120,7 +120,7 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     }
     rv_editor_release &r = app.release;
     rv_editor_candidate &c = r.candidates[r.selected];
-    // Its identity is read again while it plays; a difference voids the results (REL-02).
+    // Its identity is read again while it plays; a difference voids the results.
     rv_editor_candidate_hash(c);
     // A card of its own: neither development saves nor the dev playtest's reach it.
     std::filesystem::path card = c.image;

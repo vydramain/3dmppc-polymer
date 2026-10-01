@@ -106,7 +106,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     for (const std::string &why : unread) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not read: " + why);
     }
-    // Their identity is checked again: the bytes may have changed while no window watched (REL-02).
+    // Their identity is checked again: the bytes may have changed while no window watched.
     for (rv_editor_candidate &c : app.release.candidates) {
         rv_editor_candidate_hash(c);
     }
@@ -410,7 +410,7 @@ void rv_editor_app_update(rv_editor_app &app)
         }
     }
     if (!app.files.changed.empty()) {
-        // Clean buffers follow the disk; nvim asks about modified ones (PRJ-07).
+        // Clean buffers follow the disk; nvim asks about modified ones.
         app.nvim.checktime();
     }
     if (!app.files.changed.empty()) {
@@ -422,7 +422,7 @@ void rv_editor_app_update(rv_editor_app &app)
             rv_editor_app_reload_queue_note(app, changed);
         }
         if (app.project.open && changed == app.project.manifest) {
-            // disc.toml is the source of truth (PRJ-03): what the Project pane
+            // disc.toml is the source of truth: what the Project pane
             // shows follows it; a running console keeps what it loaded.
             rv_editor_project_reload_manifest(app.project);
         }
@@ -435,7 +435,7 @@ void rv_editor_app_update(rv_editor_app &app)
         app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
         app.build_ended = std::filesystem::file_time_type::clock::now();
         if (app.run_after_build) {
-            // The build Run started runs, or Run says why not; never the one before (BLD-04).
+            // The build Run started runs, or Run says why not; never the one before.
             app.run_after_build = false;
             if (app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success()) {
                 rv_editor_app_start(app, *app.build.last_success());
@@ -445,7 +445,7 @@ void rv_editor_app_update(rv_editor_app &app)
             }
         }
     }
-    // The latest job's places, once per change of the log (BLD-06).
+    // The latest job's places, once per change of the log.
     if (app.problems_revision != app.log.revision()) {
         app.problems_revision = app.log.revision();
         app.problems.clear();
