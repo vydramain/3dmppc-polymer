@@ -1,6 +1,7 @@
 // 3dmppc-editor entry point: one SDL3 window and one Dear ImGui frame loop.
 
-#include <charconv>
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -29,15 +30,13 @@ namespace
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
-        "usage: 3dmppc-editor [-s|--scale N] [PATH]\n"
-        "  PATH            A game directory, or its disc.toml, to open.\n"
-        "  -s, --scale N   UI scale: 1, 1.5 or 2. Default: 1. The editor draws one\n"
-        "                  of its pixels per screen pixel unless this asks for more.\n");
+        "usage: 3dmppc-editor [PATH]\n"
+        "  PATH            A game directory, or its disc.toml, to open.\n");
 }
 
-// UI scale (1, 1.5 or 2) from the command line. False with exit_code set when the
-// program should stop: 0 after --help, 2 after a bad argument.
-bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path, int &exit_code)
+// Path from the command line. False with exit_code set when the program should stop:
+// 0 after --help, 2 after a bad argument.
+bool rv_editor_args_parse(int argc, char **argv, std::string &path, int &exit_code)
 {
     for (int i = 1; i < argc; ++i) {
         const std::string_view arg = argv[i];
@@ -45,37 +44,14 @@ bool rv_editor_args_parse(int argc, char **argv, float &scale, std::string &path
             rv_editor_usage(stdout);
             exit_code = 0;
             return false;
-        }
-
-        std::string_view value;
-        if (arg == "-s" || arg == "--scale") {
-            if (i + 1 >= argc) {
-                std::fprintf(stderr, "3dmppc-editor: %s needs a value\n", argv[i]);
-                exit_code = 2;
-                return false;
-            }
-            value = argv[++i];
-        } else if (arg.starts_with("--scale=")) {
-            value = arg.substr(8);
         } else if (!arg.starts_with("-") && path.empty()) {
             path = arg;
-            continue;
         } else {
             std::fprintf(stderr, "3dmppc-editor: unknown argument '%s'\n", argv[i]);
             rv_editor_usage(stderr);
             exit_code = 2;
             return false;
         }
-
-        float parsed = 0.0f;
-        const auto [end, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
-        if (ec != std::errc{} || end != value.data() + value.size() || (parsed != 1.0f && parsed != 1.5f && parsed != 2.0f)) {
-            std::fprintf(stderr, "3dmppc-editor: --scale takes 1, 1.5 or 2, not '%.*s'\n", static_cast<int>(value.size()),
-                value.data());
-            exit_code = 2;
-            return false;
-        }
-        scale = parsed;
     }
     return true;
 }
@@ -172,7 +148,7 @@ bool rv_editor_poll(SDL_Window *window, SDL_Renderer *renderer, bool &focused)
 
 // The backend reports the window in points and asks the renderer to scale by the
 // display's density. The editor takes the window in pixels at density 1 instead,
-// so no scale is applied that --scale did not ask for.
+// so no scale is applied beyond what the View menu and saved settings choose.
 void rv_editor_display_pixels(SDL_Window *window)
 {
     int w = 0;
@@ -193,14 +169,34 @@ bool rv_editor_fonts_build(ImGuiIO &io, float scale)
     return true;
 }
 
+// Set window size and minimum to 1280*scale x 720*scale pixels, accounting for pixel density.
+// If resize_up, enlarge window if it's too small; otherwise leave it as is.
+void rv_editor_set_window_size_for_scale(SDL_Window *window, float scale, bool resize_up)
+{
+    if (!window) {
+        return;
+    }
+    const float density = SDL_GetWindowPixelDensity(window);
+    const int w_points = static_cast<int>(std::ceil(1280 * scale / density));
+    const int h_points = static_cast<int>(std::ceil(720 * scale / density));
+    SDL_SetWindowMinimumSize(window, w_points, h_points);
+    if (resize_up) {
+        int cur_w;
+        int cur_h;
+        SDL_GetWindowSize(window, &cur_w, &cur_h);
+        if (cur_w < w_points || cur_h < h_points) {
+            SDL_SetWindowSize(window, std::max(cur_w, w_points), std::max(cur_h, h_points));
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char **argv)
 {
-    float scale = 0.0f; // 0: --scale was not given, the view file's choice stands
     std::string open_path;
     int exit_code = 0;
-    if (!rv_editor_args_parse(argc, argv, scale, open_path, exit_code)) {
+    if (!rv_editor_args_parse(argc, argv, open_path, exit_code)) {
         return exit_code;
     }
 
@@ -230,7 +226,21 @@ int main(int argc, char **argv)
     const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
     const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
-    theme.scale = scale > 0.0f ? scale : prefs.ui_scale;
+    theme.scale = prefs.ui_scale;
+
+    // Use largest fitting scale if saved one doesn't fit.
+    if (!rv_editor::rv_editor_shell_scale_fits(window, theme.scale)) {
+        constexpr float candidates[] = { 2.0f, 1.5f, 1.0f };
+        theme.scale = 1.0f;
+        for (float candidate : candidates) {
+            if (rv_editor::rv_editor_shell_scale_fits(window, candidate)) {
+                theme.scale = candidate;
+                break;
+            }
+        }
+    }
+
+    rv_editor_set_window_size_for_scale(window, theme.scale, true);
     rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
     if (!rv_editor_fonts_build(io, theme.scale)) {
         std::fprintf(stderr, "3dmppc-editor: cannot build the fonts\n");
@@ -284,6 +294,7 @@ int main(int argc, char **argv)
                 theme.scale = previous;
             }
             shell->ui_scale = theme.scale;
+            rv_editor_set_window_size_for_scale(window, theme.scale, true);
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
         }
         rv_editor::rv_editor_shell_update(*shell);

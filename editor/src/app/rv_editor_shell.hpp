@@ -267,4 +267,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
 void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind,
     rv_editor_size game_need);
 
+// True if UI scale fits on the window's display in 1280*scale x 720*scale pixels.
+bool rv_editor_shell_scale_fits(SDL_Window *window, float scale);
+
 } // namespace rv_editor

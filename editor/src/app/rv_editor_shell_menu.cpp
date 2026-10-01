@@ -366,6 +366,28 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     }
 }
 
+bool rv_editor_shell_scale_fits(SDL_Window *window, float scale)
+{
+    if (!window) {
+        return false;
+    }
+    SDL_DisplayID display_id = SDL_GetDisplayForWindow(window);
+    if (display_id == 0) {
+        return false;
+    }
+    const SDL_DisplayMode *mode = SDL_GetCurrentDisplayMode(display_id);
+    if (!mode) {
+        return false;
+    }
+    // Check if 1280*scale x 720*scale pixels fits on display.
+    // Display mode size is in points; convert to pixels using pixel density.
+    int display_w_pixels = static_cast<int>(mode->w * mode->pixel_density);
+    int display_h_pixels = static_cast<int>(mode->h * mode->pixel_density);
+    int needed_w = static_cast<int>(std::ceil(1280 * scale));
+    int needed_h = static_cast<int>(std::ceil(720 * scale));
+    return needed_w <= display_w_pixels && needed_h <= display_h_pixels;
+}
+
 void rv_editor_shell_new_file(rv_editor_shell &shell)
 {
     rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
