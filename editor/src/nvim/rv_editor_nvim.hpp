@@ -117,6 +117,12 @@ public:
     // while any buffer is modified.
     void switch_root(const std::filesystem::path &root, std::function<void(const std::string &failure)> done);
 
+    // File operations on buffers: check for modified buffers and adjust them
+    // to match disk changes (rename, delete).
+    std::string buffers_unsaved_at(const std::filesystem::path &path) const;
+    void rename_buffers_at(const std::filesystem::path &from, const std::filesystem::path &to);
+    void delete_buffers_at(const std::filesystem::path &path);
+
     // Full Vim (normal mode, Vim keys) instead of the ordinary editor: the same
     // switch as F2 in a code tile, which it follows.
     bool vim_mode() const { return vim_mode_; }
