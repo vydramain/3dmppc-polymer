@@ -316,7 +316,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     // Floating windows (hover, completion menu, diagnostics) above the main grid.
     rv_editor_nvim_draw_floats(nvim.screen(), grid_id, at, cell, cols, rows, focused);
 
-    // The tile's status line: the file, and whether it is saved (TXT-07).
+    // The tile's status line: the file, and whether it is saved.
     const ImVec2 status(at.x, at.y + rows * cell.y);
     dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), IM_COL32(0x45, 0x47, 0x5a, 255));
     std::string label = "Untitled";

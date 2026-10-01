@@ -20,7 +20,7 @@ namespace rv_editor
 // `nvim --embed` and its msgpack-rpc channel.
 // A reader thread decodes stdout into a bounded queue; when the queue is full it
 // waits, so nvim waits too and nothing is dropped. The UI thread sends requests
-// and handles responses and notifications once a frame (DEV-05).
+// and handles responses and notifications once a frame.
 class rv_editor_nvim_rpc
 {
 public:

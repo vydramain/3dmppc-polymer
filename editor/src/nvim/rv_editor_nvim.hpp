@@ -68,7 +68,7 @@ public:
     std::string problem;
 
     // Starts nvim once, with the editor's config, in `cwd`. False with the
-    // reason in `problem` (ARC-05: only the code tiles lose, nothing else).
+    // reason in `problem` (only the code tiles lose, nothing else).
     bool ensure_started(const std::filesystem::path &cwd, rv_editor_log &log);
     bool running() const { return started_ && rpc_.running(); }
 
@@ -94,7 +94,7 @@ public:
     // Opens `path` in `win`, at `line` when it is above 0, and at `col`
     // (1-based) when it is above 0; nvim clamps the column to the line.
     void open(int64_t win, const std::filesystem::path &path, int32_t line, int32_t col = 0);
-    // `:checktime`: re-reads buffers changed on disk (PRJ-06/PRJ-07 go through
+    // `:checktime`: re-reads buffers changed on disk (through
     // nvim's autoread and its own changed-file question).
     void checktime();
 
