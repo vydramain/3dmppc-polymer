@@ -55,6 +55,12 @@ struct rv_editor_nvim_grid
     int32_t cursor_col = -1;
     int64_t win = 0;      // the window it shows, 0 for grid 1 and message grids
     bool hidden = false;
+    bool is_float = false;     // floating window overlay
+    std::string anchor = "NW"; // NW, NE, SW, SE
+    int32_t anchor_grid = 1;   // grid id this float is anchored to
+    double anchor_row = 0.0;   // row on anchor_grid, stored as-is (may be fractional)
+    double anchor_col = 0.0;   // col on anchor_grid
+    int32_t zindex = 50;       // layering (higher = on top)
 
     rv_editor_nvim_cell &at(int32_t row, int32_t col) { return cells[static_cast<size_t>(row * width + col)]; }
 };
@@ -66,8 +72,15 @@ public:
     void apply(const rv_editor_mpack &batches);
 
     const rv_editor_nvim_grid *grid(int32_t id) const;
-    // The grid showing window `win`, or 0.
+    // The grid showing window `win`, or 0; does not return floating grids.
     int32_t grid_of_window(int64_t win) const;
+
+    // Visible floating grids ordered by zindex (ascending).
+    struct float_grid {
+        int32_t id;
+        const rv_editor_nvim_grid *grid;
+    };
+    std::vector<float_grid> float_grids() const;
 
     // Colours of one cell, the reverse attribute applied.
     void colors(int32_t hl, uint32_t &fg, uint32_t &bg) const;

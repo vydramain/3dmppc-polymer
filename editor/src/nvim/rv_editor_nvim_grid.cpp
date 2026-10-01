@@ -28,11 +28,26 @@ const rv_editor_nvim_grid *rv_editor_nvim_screen::grid(int32_t id) const
 int32_t rv_editor_nvim_screen::grid_of_window(int64_t win) const
 {
     for (const auto &[id, g] : grids_) {
-        if (g.win == win && !g.hidden) {
+        if (g.win == win && !g.hidden && !g.is_float) {
             return id;
         }
     }
     return 0;
+}
+
+std::vector<rv_editor_nvim_screen::float_grid> rv_editor_nvim_screen::float_grids() const
+{
+    std::vector<float_grid> result;
+    for (const auto &[id, g] : grids_) {
+        if (g.is_float && !g.hidden) {
+            result.push_back({ id, &g });
+        }
+    }
+    // Sort by zindex ascending.
+    std::sort(result.begin(), result.end(), [](const float_grid &a, const float_grid &b) {
+        return a.grid->zindex < b.grid->zindex;
+    });
+    return result;
 }
 
 const rv_editor_nvim_attr &rv_editor_nvim_screen::attr(int32_t hl) const
@@ -172,9 +187,21 @@ void rv_editor_nvim_screen::event(const std::string &name, const rv_editor_mpack
         g.cursor_col = rv_editor_int(a[2]);
     } else if (name == "grid_destroy" && !a.empty()) {
         grids_.erase(rv_editor_int(a[0]));
+    } else if (name == "win_float_pos" && a.size() >= 7) {
+        rv_editor_nvim_grid &g = grids_[rv_editor_int(a[0])];
+        g.win = rv_editor_int(a[1]);
+        g.is_float = true;
+        g.anchor = a[2].s;
+        g.anchor_grid = rv_editor_int(a[3]);
+        // nvim sends row/col as floats; store as-is for rendering precision.
+        g.anchor_row = a[4].is(mtype::real) ? a[4].d : static_cast<double>(rv_editor_int(a[4]));
+        g.anchor_col = a[5].is(mtype::real) ? a[5].d : static_cast<double>(rv_editor_int(a[5]));
+        g.zindex = a.size() >= 8 ? rv_editor_int(a[7]) : 50;
+        g.hidden = false;
     } else if (name == "win_pos" && a.size() >= 2) {
         rv_editor_nvim_grid &g = grids_[rv_editor_int(a[0])];
         g.win = a[1].i;
+        g.is_float = false;
         g.hidden = false;
     } else if ((name == "win_hide" || name == "win_close") && !a.empty()) {
         const auto it = grids_.find(rv_editor_int(a[0]));
