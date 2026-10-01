@@ -175,7 +175,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     if (s.live() && rv_editor_app_can_reload(app)) {
         std::string baking_name;
         const bool baking = rv_editor_app_texture_bake_busy(app, &baking_name);
-        // ponytail: a failed bake stays shown until the next bake or a session
+        // A failed bake stays shown until the next bake or a session
         // restart; a later unrelated console reload does not clear it. Upgrade
         // path: a reload-attempt sequence number if that ordering matters.
         const bool bake_failed = !baking && app.texture_bake.proc == nullptr && !app.texture_bake.ok &&

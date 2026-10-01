@@ -386,7 +386,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             shaded.push_back(st);
         }
     }
-    // ponytail: painter's algorithm, no depth buffer. Intersecting triangles can sort wrong;
+    // Painter's algorithm, no depth buffer. Intersecting triangles can sort wrong;
     // the upgrade is a real depth test if that ever shows on screen.
     std::sort(shaded.begin(), shaded.end(),
         [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) { return a.depth > b.depth; });
