@@ -4,6 +4,8 @@
 // never carries these fields at all.
 #pragma once
 
+#include <string>
+
 #include "rv_pconsole/platform/rv_pccmdchan.hpp"
 
 namespace rv_3dmppc
@@ -30,7 +32,7 @@ public:
 
     const char *closed_reason() const override
     {
-        return reason_;
+        return reason_.c_str();
     }
 
 private:
@@ -67,7 +69,7 @@ private:
     std::chrono::steady_clock::time_point payload_progress_;
 
     bool connected_ = true;
-    const char *reason_ = "";
+    std::string reason_;
 
     // The far end stopped writing, but what it already wrote is still ours to
     // execute. Kept separate from connected_ for exactly that reason: a stream

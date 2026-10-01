@@ -12,9 +12,10 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <csignal>
 #include <cstdlib>
-#include <cerrno>
+#include <cstring>
 #include <thread>
 
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -201,13 +202,22 @@ void rv_pccmdchan_stdio::pump_out()
             out_.erase(0, static_cast<std::size_t>(put));
             continue;
         }
-        if (put < 0 && errno == EINTR) {
+        const int err = errno;
+        if (put < 0 && err == EINTR) {
             continue;
         }
-        if (put < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (put < 0 && (err == EAGAIN || err == EWOULDBLOCK)) {
             return; // a slow reader is not an error; the queue waits its turn
         }
-        close("write on stdout failed (the client stopped reading)");
+        std::string msg;
+        if (put < 0 && err == EPIPE) {
+            msg = "write on stdout failed (the client stopped reading)";
+        } else if (put < 0) {
+            msg = std::string("write on stdout failed: ") + std::strerror(err);
+        } else { // put == 0
+            msg = "write on stdout failed";
+        }
+        close(msg.c_str());
         return;
     }
 }
