@@ -13,7 +13,7 @@
 namespace rv_editor
 {
 
-// The editor's own widgets (UI-03). Each returns what the matching ImGui call
+// The editor's own widgets. Each returns what the matching ImGui call
 // would: true when clicked or when its value changed. Behaviour comes from
 // ImGui through rv_editor_item_add; the look comes from rv_editor_draw.
 
@@ -49,7 +49,7 @@ float rv_editor_checkbox_width(const char *label);
 
 // Keeps the next item on the current row when `width` still fits in the window,
 // and starts a new row otherwise, so a row of controls wraps in a narrow pane
-// instead of running out of sight (UI-05). Call it between items, like SameLine.
+// instead of running out of sight. Call it between items, like SameLine.
 void rv_editor_flow(float width);
 
 // Diamond radio: returns true when clicked; the caller owns which one is active.
@@ -58,7 +58,7 @@ bool rv_editor_radio(const char *label, bool active, const rv_editor_theme &them
 // --- fields -------------------------------------------------------------------
 // Width comes from ImGui::SetNextItemWidth / PushItemWidth like any ImGui field.
 
-// The states a field has beyond a button's (UI-04).
+// The states a field has beyond a button's.
 struct rv_editor_field
 {
     rv_editor_state state;
@@ -99,14 +99,14 @@ void rv_editor_well_end();
 // Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)
 // in the theme's colours; these are the pane pieces ImGui has no public form of.
 
-// Slanted folder tabs (UI-02), one per label: the front tab in brass, the rest
+// Slanted folder tabs, one per label: the front tab in brass, the rest
 // behind it. Returns true when a click moved *active. Non-null `pressed` gets
 // the index of the tab the left button went down on this frame, for a caller
 // that tells a drag from a click without repeating this layout.
 bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
     const rv_editor_theme &theme, const rv_editor_state &state = {}, int *pressed = nullptr);
 
-// A scrolling area with Motif scrollbars (UI-02) instead of ImGui's: arrow boxes
+// A scrolling area with Motif scrollbars instead of ImGui's: arrow boxes
 // at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
 // the content does not fit. `size` works as for BeginChild; `horizontal` also
 // allows the horizontal bar. Always pair with rv_editor_scroll_end, whatever
@@ -162,7 +162,7 @@ struct rv_editor_workspace
     uint32_t focus_request = rv_editor_tile_none;
     // What the owner says about panes this frame, filled before each draw: a
     // title in place of the kind's (a code tile names its file), and the least
-    // content size a pane needs (the Game's frame at 1x, LAY-03).
+    // content size a pane needs (the Game's frame at 1x).
     std::map<rv_editor_pane_id, std::string> titles;
     std::map<rv_editor_pane_id, rv_editor_size> minimums;
     // Each node's rectangle at the last draw, by node index; a splitter was dragged.

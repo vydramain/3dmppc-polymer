@@ -36,7 +36,7 @@ rv_editor_field_look rv_editor_field_resolve(const rv_editor_field &f, bool hove
 }
 
 // Well edge, then the one frame that says the most: invalid, focus, hover.
-// An invalid field also gets a "!" so the error is not colour alone (UI-05).
+// An invalid field also gets a "!" so the error is not colour alone.
 // The markers stay clear of `reserve` pixels at the right end (a dropdown's button).
 void rv_editor_field_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &t, const rv_editor_field &f,
     rv_editor_field_look look, float reserve)
