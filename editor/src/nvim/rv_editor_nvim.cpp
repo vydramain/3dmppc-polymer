@@ -373,18 +373,6 @@ void rv_editor_nvim::input(const std::string &keys)
     held_.clear();
 }
 
-void rv_editor_nvim::open(int64_t win, const std::filesystem::path &path, int32_t line, int32_t col)
-{
-    if (!running() || win == 0) {
-        return;
-    }
-    exec_lua("local win, path, line, col = ...; win = tonumber(win); line = tonumber(line); col = tonumber(col)\n"
-             "vim.api.nvim_set_current_win(win)\n"
-             "vim.cmd.edit(vim.fn.fnameescape(path))\n"
-             "if line > 0 then pcall(vim.api.nvim_win_set_cursor, win, { line, col > 0 and col - 1 or 0 }) end",
-        { std::to_string(win), path.string(), std::to_string(line), std::to_string(col) });
-}
-
 void rv_editor_nvim::toggle_vim_mode()
 {
     if (running()) {
