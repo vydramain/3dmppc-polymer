@@ -317,7 +317,12 @@ void rv_editor_nvim::resize(int64_t win, int32_t cols, int32_t rows)
 void rv_editor_nvim::focus(int64_t win)
 {
     // Only a real switch: the cursor already in this window's grid needs none.
-    if (!running() || win == 0 || screen_.cursor_grid() == screen_.grid_of_window(win)) {
+    // A cursor on the message grid or grid 1 is a prompt or command line: keys must reach it.
+    if (!running() || win == 0) {
+        return;
+    }
+    const int32_t cursor = screen_.cursor_grid();
+    if (cursor == screen_.grid_of_window(win) || cursor == 1 || (cursor != 0 && cursor == screen_.message_grid())) {
         return;
     }
     rpc_.notify("nvim_set_current_win", rv_editor_args([win](rv_editor_mpack_writer &w) {
