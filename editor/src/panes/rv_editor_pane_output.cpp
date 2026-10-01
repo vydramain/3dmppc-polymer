@@ -274,7 +274,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     // Less the half cell each row starts in by, and as much again on the right.
     const float wrap_w = std::max(cell * 8.0f, ImGui::GetContentRegionAvail().x - at_message - cell);
     // A monospace line's rows: its characters over the width, give or take a word
-    // carried whole. ponytail: an estimate for lines out of sight, exact for the rest.
+    // carried whole. An estimate for lines out of sight, exact for the rest.
     const auto rows_of = [&](const rv_editor_log_line &line) {
         const size_t chars = static_cast<size_t>(std::count_if(line.text.begin(), line.text.end(),
             [](char c) { return (static_cast<unsigned char>(c) & 0xc0) != 0x80; }));

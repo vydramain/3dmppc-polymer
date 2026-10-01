@@ -117,7 +117,7 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     r.building = true;
     r.building_number = number;
     r.tree_changed_during = false;
-    // ponytail: git runs on the UI thread, at most 3 s each; a job of its own if that shows.
+    // git runs on the UI thread, at most 3 s each; a job of its own if that shows.
     r.building_revision = rv_editor_source_revision(app.project.root);
 }
 
