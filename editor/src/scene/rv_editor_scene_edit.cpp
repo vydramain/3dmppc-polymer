@@ -1,5 +1,5 @@
 // Scene edits: each one a step of undo, the tree kept free of cycles, a reparent
-// that keeps the world transform only when the file can hold it (SCN-02).
+// that keeps the world transform only when the file can hold it.
 
 #include "scene/rv_editor_scene_edit.hpp"
 

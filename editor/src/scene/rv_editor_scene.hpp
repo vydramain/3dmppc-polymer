@@ -14,7 +14,7 @@ namespace rv_editor
 
 // A scene document as the editor edits it.
 // The disc reads the same file with pdklib/rv_scene; the editor keeps its own
-// model so that nothing it does not understand is lost on save (SCN-04).
+// model so that nothing it does not understand is lost on save.
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
@@ -54,7 +54,7 @@ struct rv_editor_scene
 };
 
 // False with the reason when the file does not read at all. A version that is not
-// rv_version_compatible opens read-only (the reason in scene.read_only), never rewritten (SCN-04).
+// rv_version_compatible opens read-only (the reason in scene.read_only), never rewritten.
 bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
 // The document as text in the dialect, unknown keys and sections included.
