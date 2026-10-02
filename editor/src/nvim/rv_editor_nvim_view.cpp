@@ -256,6 +256,32 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     ImGui::SetItemTooltip("Full Vim: normal mode and Vim keys. Off: an ordinary editor. F2 switches too.");
     rv_editor_code_tab_row(app, pane, win, theme);
     rv_editor_shelf_end();
+    // Swap recovery UI when nvim opened a file read-only due to a crashed nvim.
+    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
+        if (const rv_editor_nvim_swap *swap = nvim.swap_for(buf->name)) {
+            rv_editor_shelf_begin("##swap", theme);
+            if (swap->state == "recoverable") {
+                ImGui::AlignTextToFramePadding();
+                ImGui::TextUnformatted(
+                    "Unsaved text from a crashed nvim is in its swap file. The file is read-only until you choose.");
+                ImGui::SameLine();
+                std::string name = buf->name;
+                if (rv_editor_button("Recover", theme)) {
+                    nvim.swap_resolve(win, name, true);
+                }
+                ImGui::SetItemTooltip("Load the unsaved text from the swap file; save it to keep it.");
+                ImGui::SameLine();
+                if (rv_editor_button("Discard", theme)) {
+                    nvim.swap_resolve(win, name, false);
+                }
+                ImGui::SetItemTooltip("Delete the swap file and keep the text on disk.");
+            } else if (swap->state == "in_use") {
+                ImGui::AlignTextToFramePadding();
+                ImGui::Text("Read-only: nvim process %lld is editing this file.", static_cast<long long>(swap->pid));
+            }
+            rv_editor_shelf_end();
+        }
+    }
     rv_editor_font_code_push();
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
