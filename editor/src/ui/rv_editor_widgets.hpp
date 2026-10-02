@@ -151,6 +151,22 @@ struct rv_editor_tile_drag
     ImVec2 press{ 0.0f, 0.0f }; // where the button went down
 };
 
+// A change to the tree, recorded while drawing and applied after it.
+struct rv_editor_tile_action {
+    enum class op {
+        none,
+        split,
+        set_kind,
+        maximize,
+        close,
+        close_leaf
+    } what = op::none;
+    uint32_t leaf = rv_editor_tile_none; // the leaf acted on (split, maximize)
+    rv_editor_pane_id pane = rv_editor_tile_none;
+    rv_editor_pane_kind kind = rv_editor_pane_kind::empty;
+    rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
+};
+
 // What the window shows: the pane registry and the tile tree over it.
 // Views only; no model lives here.
 struct rv_editor_workspace
@@ -169,6 +185,8 @@ struct rv_editor_workspace
     std::vector<rv_editor_rect> rects;
     bool dragged = false;
     rv_editor_tile_drag drag;
+    // A pane's request waits for a frame the menu left empty.
+    rv_editor_tile_action pending;
 };
 
 // Arms a tile drag when `title_pressed` says the header (rv_editor_pane_header)

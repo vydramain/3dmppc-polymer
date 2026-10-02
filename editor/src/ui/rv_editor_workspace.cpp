@@ -55,16 +55,6 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
 namespace
 {
 
-// A change to the tree, recorded while drawing and applied after it.
-struct rv_editor_tile_action
-{
-    enum class op { none, split, set_kind, maximize, close, close_leaf } what = op::none;
-    uint32_t leaf = rv_editor_tile_none; // the leaf acted on (split, maximize)
-    rv_editor_pane_id pane = rv_editor_tile_none;
-    rv_editor_pane_kind kind = rv_editor_pane_kind::empty;
-    rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
-};
-
 // A pane's title: the owner's for this frame, or its kind's.
 const char *rv_editor_title_of(const rv_editor_workspace &ws, rv_editor_pane_id pane)
 {
@@ -370,6 +360,13 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     // The content size the scrollbars measure.
     ImGui::SetCursorScreenPos(origin);
     ImGui::Dummy(ImVec2(static_cast<float>(placed.w), static_cast<float>(placed.h)));
+
+    // A pane's request waits for a frame the menu left empty.
+    if (action.what == rv_editor_tile_action::op::none &&
+        ws.pending.what != rv_editor_tile_action::op::none) {
+        action = ws.pending;
+    }
+    ws.pending = rv_editor_tile_action();
 
     rv_editor_tile_apply(ws, action, close_pane, context);
     rv_editor_scroll_end(theme);
