@@ -11,7 +11,8 @@ void rv_editor_nvim::open(int64_t win, const std::filesystem::path &path, int32_
         return;
     }
     // If buffer for path is already loaded, reuse it without :edit.
-    // Otherwise, :edit opens it. Either way, set cursor. This avoids E37
+    // Otherwise, :edit opens it; edit errors reported via rv_open_error notification.
+    // Either way, set cursor. This avoids E37
     // (No write since last change) when navigating to an open modified buffer.
     exec_lua("local win, path, line, col = ...\n"
              "win = tonumber(win); line = tonumber(line); col = tonumber(col)\n"
@@ -30,7 +31,11 @@ void rv_editor_nvim::open(int64_t win, const std::filesystem::path &path, int32_
              "if found_buf then\n"
              "  vim.api.nvim_set_current_buf(found_buf)\n"
              "else\n"
-             "  vim.cmd.edit(vim.fn.fnameescape(path))\n"
+             "  local ok, err = pcall(vim.cmd.edit, vim.fn.fnameescape(path))\n"
+             "  if not ok then\n"
+             "    vim.rpcnotify(0, \"rv_open_error\", { file = path, msg = tostring(err) })\n"
+             "    return\n"
+             "  end\n"
              "end\n"
              "if line > 0 then\n"
              "  pcall(vim.api.nvim_win_set_cursor, win, { line, col > 0 and col - 1 or 0 })\n"
