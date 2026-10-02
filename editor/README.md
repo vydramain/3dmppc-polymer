@@ -456,10 +456,10 @@ when its buffer is clean; when it is not, nvim asks.
 
 nvim's own LSP client connects clangd (C and C++, from `.mppcburn/`'s
 `compile_commands.json`) and lua-language-server (Lua): diagnostics feed
-Problems, Ctrl+Space completes, Ctrl+K shows hover and F12 goes to a
-definition. A Code tile's status line names a missing or stopped server,
-with the reason in its tooltip. While a session is running, the status line
-also says what saving the shown file would do to it - reload the entry
+Problems, Ctrl+K shows hover and F12 goes to a definition. A Code tile's
+status line names a missing or stopped server, with the reason in its
+tooltip. While a session is running, the status line also says what
+saving the shown file would do to it - reload the entry
 script or a module, refresh a texture, or Build and Restart - from the same
 plan Reload uses.
 
