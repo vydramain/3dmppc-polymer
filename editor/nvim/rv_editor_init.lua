@@ -41,6 +41,89 @@ o.keymodel = { "startsel", "stopsel" }
 o.selectmode = { "key" }
 o.whichwrap = "b,s,<,>,[,]"
 
+-- Swap file handling: RPC cannot answer the E325 prompt; autocommand decides and notifies.
+local rv_swap_answers = {}  -- pending answers keyed by full path; value "r" or "d"
+local rv_swap_sources = {}  -- old swap file paths keyed by full path (for cleanup after recover)
+
+vim.api.nvim_create_autocmd("SwapExists", {
+    callback = function()
+        local file = vim.fn.expand("<afile>:p")
+        local swapname = vim.v.swapname
+
+        if rv_swap_answers[file] then
+            vim.v.swapchoice = rv_swap_answers[file]
+            rv_swap_answers[file] = nil
+            return
+        end
+
+        local info = vim.fn.swapinfo(swapname)
+
+        if info.pid ~= 0 and info.pid ~= vim.fn.getpid() then
+            local success, result = pcall(vim.uv.kill, info.pid, 0)
+            if success and result == 0 then
+                vim.v.swapchoice = "o"
+                vim.rpcnotify(0, "rv_swap", { file = file, swap = swapname, state = "in_use", pid = info.pid })
+                return
+            end
+        end
+
+        if info.dirty == 0 then
+            vim.v.swapchoice = "d"
+            return
+        end
+
+        -- Swap holds unsaved text from a dead nvim: open read-only and notify.
+        vim.v.swapchoice = "o"
+        rv_swap_sources[file] = swapname
+        vim.rpcnotify(0, "rv_swap", { file = file, swap = swapname, state = "recoverable" })
+    end,
+})
+
+function _G.rv_swap_resolve(win, path, choice)
+    local fullpath = vim.fn.fnamemodify(path, ":p")
+
+    rv_swap_answers[fullpath] = (choice == "recover") and "r" or "d"
+
+    -- Find and wipe the loaded buffer so the next edit reads the file and swap fresh.
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == fullpath then
+            vim.api.nvim_buf_delete(b, { force = true })
+            break
+        end
+    end
+
+    local success, err = pcall(function()
+        if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_set_current_win(win)
+        end
+        vim.cmd.edit(vim.fn.fnameescape(fullpath))
+    end)
+
+    if not success then
+        vim.rpcnotify(0, "rv_open_error", { file = path, msg = tostring(err) })
+        return
+    end
+
+    -- After successful recover: delete the old swap if it is not the buffer's current swap.
+    if choice == "recover" then
+        local old_swap = rv_swap_sources[fullpath]
+        if old_swap then
+            for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) == fullpath then
+                    local current_swap = vim.fn.swapname(b)
+                    if old_swap ~= current_swap and vim.fn.filereadable(old_swap) == 1 then
+                        vim.fn.delete(old_swap)
+                    end
+                    break
+                end
+            end
+            rv_swap_sources[fullpath] = nil
+        end
+    end
+
+    vim.rpcnotify(0, "rv_swap", { file = fullpath, state = "resolved" })
+end
+
 -- Colours: Catppuccin Mocha, independent of the editor's olive chrome.
 local c = {
     base = "#1e1e2e", mantle = "#181825", crust = "#11111b", surface0 = "#313244", surface1 = "#45475a",
