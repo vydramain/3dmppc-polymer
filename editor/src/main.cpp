@@ -215,6 +215,14 @@ int main(int argc, char **argv)
     }
     SDL_SetRenderVSync(renderer, 1);
 
+    // Check if display is large enough (needs 1280x720 at scale 1.0).
+    const rv_editor::rv_editor_display_size display_size = rv_editor::rv_editor_get_display_size(window);
+    if (display_size.w_pixels < 1280 || display_size.h_pixels < 720) {
+        rv_editor::rv_editor_show_too_small_error(window, renderer, display_size);
+        SDL_Quit();
+        return 1;
+    }
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();

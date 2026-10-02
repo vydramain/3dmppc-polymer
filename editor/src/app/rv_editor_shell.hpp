@@ -270,4 +270,17 @@ void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane,
 // True if UI scale fits on the window's display in 1280*scale x 720*scale pixels.
 bool rv_editor_shell_scale_fits(SDL_Window *window, float scale);
 
+// Display size in pixels.
+struct rv_editor_display_size {
+    int w_pixels = 0;
+    int h_pixels = 0;
+};
+
+// Get display size in pixels for the given window's display.
+rv_editor_display_size rv_editor_get_display_size(SDL_Window *window);
+
+// Show error message window when display is too small; prints to stderr and exits via SDL_Quit.
+void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer,
+    const rv_editor_display_size &display_size);
+
 } // namespace rv_editor
