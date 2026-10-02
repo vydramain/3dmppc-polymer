@@ -19,7 +19,7 @@ ImFont *rv_editor_ui = nullptr;
 ImFont *rv_editor_code_small = nullptr;
 ImFont *rv_editor_code_vga = nullptr;
 float rv_editor_font_scale = 1.0f;
-rv_editor_code_size rv_editor_code_current = rv_editor_code_size::normal;
+rv_editor_code_size rv_editor_code_current = rv_editor_code_size::small;
 
 // PxPlus IBM VGA 9x16 and IBM EGA 8x14: pixel outlines on a 16 and a 14 px em.
 constexpr int rv_editor_code_vga_height = 16;
