@@ -88,13 +88,10 @@ bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
     return preset != rv_editor_layout_preset::debug;
 }
 
-// Walks from `node` up to the first ancestor split on `axis` whose sibling is not a
-// controls strip, and grows `node`'s share there by `delta` (>= 0). When
-// `guard_bottom_sibling` holds, an ancestor whose sibling is the bottom (second)
-// child is skipped instead: height never comes from a bottom row. Placement
-// clamps the resulting ratio to every pane's minimum on its own, so a grow that
-// would push a neighbor below it simply lands at that minimum, not past it.
-// False, changing nothing, when no eligible ancestor exists.
+// Walks up from `node` to find a split on `axis` whose sibling is not a strip,
+// adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
+// `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
+// Placement clamps results to panes' minimums; returns false if no suitable ancestor.
 bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis, int32_t delta,
     bool guard_bottom_sibling)
 {
@@ -103,7 +100,7 @@ bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor
         const rv_editor_tile_split &split = ws.layout.nodes[parent].split;
         const uint32_t sibling = node == split.first ? split.second : split.first;
         if (ws.layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
-            rv_editor_strip_leaf(ws, sibling) || (guard_bottom_sibling && sibling == split.second)) {
+            rv_editor_strip_leaf(ws, sibling) || (guard_bottom_sibling && delta > 0 && sibling == split.second)) {
             continue;
         }
         const rv_editor_rect &a = ws.rects[split.first];
@@ -266,15 +263,16 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     if (node == rv_editor_tile_none) {
         return;
     }
-    // Whole steps of the screen's proportion, 4 x 3 for 320 x 240: a picture area of
-    // whole steps takes the frame at Fit with not one pixel over.
+    // Aspect ratio steps: gcd-reduced from screen dimensions.
+    // Fit finds the largest whole-step size (min of width/height divisions) that fits.
     const int64_t sw = std::max<int64_t>(1, shell.app.project.screen_w);
     const int64_t sh = std::max<int64_t>(1, shell.app.project.screen_h);
     const int64_t step_w = sw / std::gcd(sw, sh);
     const int64_t step_h = sh / std::gcd(sw, sh);
-    // The smallest step count at or beyond both current dimensions: reaching it
-    // only grows the Game tile, on either axis, and never shrinks it.
-    const int64_t steps = std::max((area.w + step_w - 1) / step_w, (area.h + step_h - 1) / step_h);
+    const int64_t w_steps = static_cast<int64_t>(area.w) / step_w;
+    const int64_t h_steps = static_cast<int64_t>(area.h) / step_h;
+    const int64_t gcd_val = std::gcd(sw, sh);
+    const int64_t steps = std::max(gcd_val, std::min(w_steps, h_steps));
     const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
     const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
     if (delta_w == 0 && delta_h == 0) {
@@ -287,15 +285,13 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         return;
     }
     --shell.game_fit_tries;
-    // Width first; a try that changed nothing last time is stuck on a minimum,
-    // so height gets the turn instead. Growing height never takes from a bottom
-    // row (rv_editor_shell_grow_game skips a split whose sibling is one).
+    // Width first; if stuck, try height. Guard bottom row only when growing height.
     const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
     shell.game_fit_last = area;
-    if (delta_w > 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false)) {
+    if (delta_w != 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false)) {
         return;
     }
-    if (delta_h > 0) {
+    if (delta_h != 0) {
         rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
     }
 }
