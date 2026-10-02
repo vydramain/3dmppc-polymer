@@ -44,11 +44,11 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const rv_editor_build &b = app.build;
-    if (b.state() == rv_editor_build_state::idle) {
+    const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
+    if (b.state() == rv_editor_build_state::idle && problems.empty()) {
         ImGui::TextWrapped("No build in this window yet: Build lists here what the compiler finds.");
         return;
     }
-    const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
     size_t build_errors = 0;
     size_t build_total = 0;
     size_t lsp_errors = 0;
@@ -62,12 +62,20 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ++lsp_total;
         }
     }
-    std::string what = std::string(b.busy() ? "Building" : "Build") +
-        (b.image().empty() ? " #" + std::to_string(b.number()) : " of " + b.image().filename().string()) + ": " +
-        std::to_string(build_errors) + " errors, " + std::to_string(build_total - build_errors) + " warnings";
-    if (lsp_total != 0) {
-        what += "; language servers: " + std::to_string(lsp_errors) + " errors, " +
+    std::string what;
+    if (b.state() == rv_editor_build_state::idle) {
+        // Idle with diagnostics: show only language server info without pretending it's a build result.
+        what = "No build yet; language servers: " + std::to_string(lsp_errors) + " errors, " +
             std::to_string(lsp_total - lsp_errors) + " warnings";
+    } else {
+        what = std::string(b.busy() ? "Building" : "Build") +
+            (b.image().empty() ? " #" + std::to_string(b.number()) : " of " + b.image().filename().string()) +
+            ": " + std::to_string(build_errors) + " errors, " + std::to_string(build_total - build_errors) +
+            " warnings";
+        if (lsp_total != 0) {
+            what += "; language servers: " + std::to_string(lsp_errors) + " errors, " +
+                std::to_string(lsp_total - lsp_errors) + " warnings";
+        }
     }
     const size_t errors = build_errors + lsp_errors;
 
