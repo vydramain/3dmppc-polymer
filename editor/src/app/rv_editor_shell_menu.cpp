@@ -220,7 +220,8 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     const char *why_not_reload = can_reload
         ? rv_editor_app_why_not_reload(app)
         : "The running disc cannot reload: it runs from an image, or has no entry script";
-    const rv_editor_change_plan reload_plan = can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
+    const rv_editor_change_plan reload_plan =
+        can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
     const std::string reload_label = reload_plan.action == rv_editor_change_action::reload_module
         ? "Reload Module: " + reload_plan.name
         : reload_plan.action == rv_editor_change_action::refresh_texture ? "Refresh Texture: " + reload_plan.name
