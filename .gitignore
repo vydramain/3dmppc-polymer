@@ -3,6 +3,7 @@
 # so there is more than one of these.
 /build/
 /pdk/tools/build/
+/editor/build/
 /out/
 cmake-build-*/
 build-*/

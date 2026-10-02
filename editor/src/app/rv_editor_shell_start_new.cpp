@@ -1,0 +1,173 @@
+// New Project as a page beside the Toolchest: the form on the left, the template,
+// the path it makes and its files on the right (under it when narrow). Directory's
+// Browse opens the browser in the right column. What is typed stays until Reset.
+
+#include "app/rv_editor_shell.hpp"
+
+#include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+
+#include "imgui.h"
+
+#include "project/rv_editor_templates.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
+
+namespace rv_editor
+{
+
+namespace
+{
+
+void rv_editor_new_label(const char *label, float label_w)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(label_w);
+}
+
+// The problem under the field it is about; an empty name or id only disables Create.
+void rv_editor_new_problem_row(bool shown, const std::string &problem, float label_w, const rv_editor_theme &theme)
+{
+    if (!shown) {
+        return;
+    }
+    ImGui::SetCursorPosX(label_w);
+    rv_editor_status(problem.c_str(), rv_editor_status_kind::error, theme);
+}
+
+void rv_editor_new_copy(char *to, size_t size, const std::string &from)
+{
+    std::strncpy(to, from.c_str(), size - 1);
+    to[size - 1] = '\0';
+}
+
+// The template's description, the path it makes and the files it will hold: quieter than the form.
+void rv_editor_new_preview(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+    size_t index, const rv_editor_theme &theme)
+{
+    if (index >= templates.size()) {
+        return;
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+    ImGui::TextUnformatted(templates[index].name.c_str());
+    ImGui::PopStyleColor();
+    ImGui::TextWrapped("%s", templates[index].description.c_str());
+    ImGui::Spacing();
+    const std::string root = (p.parent / (p.disc_id.empty() ? "?" : p.disc_id)).string();
+    ImGui::TextUnformatted("Creates");
+    ImGui::TextWrapped("%s", root.c_str());
+    ImGui::Spacing();
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    for (const std::string &file : rv_editor_new_project_files(p, templates[index])) {
+        ImGui::Text("  %s", file.c_str());
+    }
+    ImGui::PopStyleColor();
+}
+
+} // namespace
+
+void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    rv_editor_start &f = shell.start;
+    // The home directory until one is chosen.
+    if (f.dir[0] == '\0') {
+        const char *home = std::getenv("HOME");
+        rv_editor_new_copy(f.dir, sizeof(f.dir), home != nullptr ? home : "");
+    }
+    const std::vector<rv_editor_template> templates = rv_editor_templates();
+    const rv_editor_new_project p{ f.name, f.id, f.dir, f.template_index };
+    rv_editor_new_project_field at = rv_editor_new_project_field::none;
+    const std::string problem = rv_editor_new_project_problem(p, templates, &at);
+    const bool blank = (at == rv_editor_new_project_field::name && p.name.empty()) ||
+        (at == rv_editor_new_project_field::disc_id && p.disc_id.empty());
+    const auto beside = [&](rv_editor_new_project_field field) { return !blank && at == field; };
+
+    rv_editor_pane_header("New Project", true, theme);
+    const float font = ImGui::GetFontSize();
+    const float form_w = font * 44.0f;
+    const bool wide = ImGui::GetContentRegionAvail().x >= form_w + font * 30.0f;
+    const float label_w = font * 9.0f;
+    const float field_w = form_w - label_w - font;
+
+    ImGui::BeginChild("##new_form", ImVec2(wide ? form_w : 0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
+    rv_editor_new_label("Template", label_w);
+    for (size_t i = 0; i < templates.size(); ++i) {
+        if (i > 0) {
+            ImGui::SameLine();
+        }
+        ImGui::PushID(static_cast<int>(i));
+        if (rv_editor_radio(templates[i].name.c_str(), f.template_index == i, theme)) {
+            f.template_index = i;
+        }
+        ImGui::PopID();
+    }
+    rv_editor_new_problem_row(beside(rv_editor_new_project_field::template_index), problem, label_w, theme);
+
+    rv_editor_new_label("Name", label_w);
+    ImGui::SetNextItemWidth(field_w);
+    if (rv_editor_text_field("##name", f.name, sizeof(f.name), theme) && !f.id_edited) {
+        rv_editor_new_copy(f.id, sizeof(f.id), rv_editor_disc_id_from(f.name));
+    }
+
+    rv_editor_new_label("Disc ID", label_w);
+    ImGui::SetNextItemWidth(field_w);
+    rv_editor_field id_field;
+    id_field.invalid = beside(rv_editor_new_project_field::disc_id) ? problem.c_str() : nullptr;
+    if (rv_editor_text_field("##id", f.id, sizeof(f.id), theme, id_field)) {
+        f.id_edited = true;
+    }
+    rv_editor_new_problem_row(beside(rv_editor_new_project_field::disc_id), problem, label_w, theme);
+
+    rv_editor_new_label("Directory", label_w);
+    ImGui::SetNextItemWidth(field_w - rv_editor_button_width("Browse...") - ImGui::GetStyle().ItemSpacing.x);
+    rv_editor_field dir_field;
+    dir_field.invalid = beside(rv_editor_new_project_field::parent) ? problem.c_str() : nullptr;
+    rv_editor_text_field("##dir", f.dir, sizeof(f.dir), theme, dir_field);
+    ImGui::SameLine();
+    if (rv_editor_button("Browse...", theme, { rv_editor_look::live, f.browsing ? "The browser is open" : nullptr })) {
+        rv_editor_browser_start(f.browser, "Select directory for New Project", "Select Directory",
+            rv_editor_browse_pick::directory, f.dir);
+        f.browsing = true;
+    }
+    rv_editor_new_problem_row(beside(rv_editor_new_project_field::parent), problem, label_w, theme);
+    rv_editor_new_problem_row(beside(rv_editor_new_project_field::root), problem, label_w, theme);
+
+    if (!f.error.empty()) {
+        rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
+    }
+    ImGui::Spacing();
+    if (rv_editor_button("Create Project", theme, { rv_editor_look::live, problem.empty() ? nullptr : problem.c_str() })) {
+        if (rv_editor_new_project_create(p, templates[f.template_index], f.error)) {
+            const std::filesystem::path created = std::filesystem::path(f.dir) / p.disc_id;
+            f = {};
+            rv_editor_shell_request_open(shell, created);
+        }
+    }
+    ImGui::SameLine();
+    if (rv_editor_button("Reset", theme)) {
+        f = {};
+    }
+    ImGui::EndChild();
+
+    if (wide) {
+        ImGui::SameLine(0.0f, font * 2.0f);
+    }
+    ImGui::BeginChild("##new_side", ImVec2(0.0f, 0.0f));
+    if (f.browsing) {
+        std::filesystem::path picked;
+        const rv_editor_browse_result r = rv_editor_browser_draw(f.browser, 0.0f, nullptr, picked, theme);
+        if (r == rv_editor_browse_result::picked) {
+            rv_editor_new_copy(f.dir, sizeof(f.dir), picked.string());
+        }
+        if (r != rv_editor_browse_result::none) {
+            f.browsing = false;
+        }
+    } else {
+        rv_editor_new_preview(p, templates, f.template_index, theme);
+    }
+    ImGui::EndChild();
+}
+
+} // namespace rv_editor

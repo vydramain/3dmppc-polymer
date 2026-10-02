@@ -60,6 +60,23 @@ static bool read_mppctex_header(
     return true;
 }
 
+// Sounds have no header to parse: the only shape a .pcm must have is an even
+// byte count, since it holds S16 samples.
+static bool check_pcm_size(const fs::path &path, std::string &error)
+{
+    std::error_code ec;
+    const uintmax_t size = fs::file_size(path, ec);
+    if (ec || size == 0) {
+        error = "baked sound '" + path.string() + "' is empty";
+        return false;
+    }
+    if (size % 2 != 0) {
+        error = "baked sound '" + path.string() + "' is not a whole number of S16 samples";
+        return false;
+    }
+    return true;
+}
+
 } // namespace rv_pdktools
 
 int rv_pdktools::bake_textures(
@@ -118,6 +135,45 @@ int rv_pdktools::bake_textures(
                 std::to_string(header.height) + ", over the budget of " +
                 std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
                 std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+int rv_pdktools::bake_sounds(
+    const std::string &baker_hint,
+    const fs::path &disc_dir,
+    const archive_plan &plan,
+    std::string &error)
+{
+    if (plan.sound_count == 0) {
+        return 0;
+    }
+
+    std::string baker;
+    if (!find_baker(baker_hint, baker, error)) {
+        return 1;
+    }
+
+    for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
+        const archive_item &item = plan.items[i];
+
+        const std::string command = shell_quote(baker) + " " +
+            shell_quote((disc_dir / item.source).string()) + " " +
+            shell_quote(item.payload);
+
+        std::string child_output;
+        const int status = run_capture(command, child_output);
+        if (status != 0) {
+            dump_child_output(child_output);
+            error = "mppcbaker failed on '" + item.source + "' (exit " +
+                std::to_string(status) + ")";
+            return 1;
+        }
+
+        if (!check_pcm_size(item.payload, error)) {
             return 1;
         }
     }

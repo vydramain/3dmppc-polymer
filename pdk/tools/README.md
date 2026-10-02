@@ -10,7 +10,9 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 A separate command from the console's build on purpose: the console is firmware,
 and building firmware must not drag in a compiler driver or an image decoder.
-These ship as their own package.
+These ship as their own package. The development console build
+(`-D3DMPPC_DEVTOOLS=ON`) also builds this project, as a project of its own, and
+puts the tools next to the console in `build-dev/pconsole/`.
 
 | Tool | Does | Produces |
 | --- | --- | --- |
@@ -44,4 +46,5 @@ host would happily pack far more than the console will ever accept.
 
 See [`mppcbaker/README.md`](mppcbaker/README.md) for the `.mppctex` layout and
 the palette traps, and the repository [`README.md`](../README.md) for the whole
-authoring flow. Both tools print `--help`.
+authoring flow. Both tools print `--help`, and `--version` prints one line,
+`<tool> <major>.<minor>`: the PDK version they build for.

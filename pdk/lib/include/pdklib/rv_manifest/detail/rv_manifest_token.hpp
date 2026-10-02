@@ -18,17 +18,19 @@ enum class rv_manifest_token_kind : int {
 	COMMA, // ',' — separates array elements
 	STRING, // "..." — quotes stripped, escapes already decoded
 	INTEGER, // decimal, optional leading '+' or '-'
+	REAL, // decimal with a fraction: 1.5, -0.25; no exponent
 	NEWLINE, // the grammar is line-oriented: one value per line
 	END_OF_FILE, // NOT `EOF`: <cstdio> defines that name as a macro
 	INVALID // NOT `ERROR`: <wingdi.h> defines that name as a macro
 };
 
 // `text` carries the spelling of an IDENT, the decoded contents of a STRING, or
-// the ready message of an INVALID; `num` only ever holds an INTEGER.
+// the ready message of an INVALID; `num` only ever holds an INTEGER, `real` a REAL.
 struct rv_manifest_token {
 	rv_manifest_token_kind kind = rv_manifest_token_kind::END_OF_FILE;
 	std::string text;
 	int64_t num = 0;
+	double real = 0.0;
 	int line = 0;
 };
 
@@ -51,6 +53,8 @@ inline std::string rv_manifest_token_spelling(const rv_manifest_token &t)
 		return "a string";
 	case rv_manifest_token_kind::INTEGER:
 		return "an integer";
+	case rv_manifest_token_kind::REAL:
+		return "a number";
 	case rv_manifest_token_kind::NEWLINE:
 		return "end of line";
 	case rv_manifest_token_kind::END_OF_FILE:

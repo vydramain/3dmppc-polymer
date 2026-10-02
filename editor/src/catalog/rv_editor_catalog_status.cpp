@@ -1,0 +1,130 @@
+// Catalog section: menus, context menu, dialog, status indicators, log rows and
+// the transport bar.
+
+#include "catalog/rv_editor_catalog.hpp"
+#include "ui/rv_editor_widgets.hpp"
+
+namespace rv_editor
+{
+
+namespace
+{
+
+struct rv_editor_status_values
+{
+    bool snap = true;
+};
+
+rv_editor_status_values rv_editor_status_data;
+
+void rv_editor_catalog_menus()
+{
+    rv_editor_menu_style_push();
+    ImGui::BeginChild("##menus", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
+        ImGuiWindowFlags_MenuBar);
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("File")) {
+            ImGui::MenuItem("New Project", "Ctrl+N");
+            ImGui::MenuItem("Open Project...", "Ctrl+O");
+            ImGui::Separator();
+            ImGui::MenuItem("Save All", "Ctrl+Shift+S", false, false);
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Scene")) {
+            ImGui::MenuItem("Snap", nullptr, &rv_editor_status_data.snap);
+            ImGui::EndMenu();
+        }
+        ImGui::BeginDisabled();
+        ImGui::BeginMenu("Run");
+        ImGui::EndDisabled();
+        ImGui::EndMenuBar();
+    }
+    ImGui::TextUnformatted("Right-click here for a context menu");
+    if (ImGui::BeginPopupContextWindow("##context")) {
+        ImGui::MenuItem("Rename", "F2");
+        ImGui::MenuItem("Delete", "Del");
+        ImGui::EndPopup();
+    }
+    ImGui::EndChild();
+    rv_editor_menu_style_pop();
+}
+
+// The area that asks inside a pane, as a question about unsaved files shows it:
+// the editor has no modal dialogs.
+void rv_editor_catalog_dialog(const rv_editor_theme &t)
+{
+    rv_editor_ask_begin("Unsaved Changes", t);
+    ImGui::TextUnformatted("main.lua has unsaved changes. The tile closes once they are saved or discarded.");
+    rv_editor_button("Save", t);
+    ImGui::SameLine();
+    rv_editor_button("Discard", t);
+    ImGui::SameLine();
+    rv_editor_button("Keep Open", t);
+    rv_editor_ask_end();
+}
+
+void rv_editor_catalog_indicators(const rv_editor_theme &t)
+{
+    rv_editor_status("Stopped", rv_editor_status_kind::idle, t);
+    ImGui::SameLine();
+    rv_editor_status("Building", rv_editor_status_kind::busy, t);
+    ImGui::SameLine();
+    rv_editor_status("Running", rv_editor_status_kind::active, t);
+    ImGui::SameLine();
+    rv_editor_status("Reload rejected", rv_editor_status_kind::warning, t);
+    ImGui::SameLine();
+    rv_editor_status("Crashed", rv_editor_status_kind::error, t);
+}
+
+void rv_editor_catalog_log(const rv_editor_theme &t)
+{
+    const float rows = 4.0f * ImGui::GetTextLineHeightWithSpacing() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
+    rv_editor_log_row("12:00:01", "burn", rv_editor_severity::info, "[4/4] burn build/example-lua.discdir", t);
+    rv_editor_log_row("12:00:02", "mppc", rv_editor_severity::info, "entry_revision=1 frame=120 mode=paused", t);
+    rv_editor_log_row("12:00:03", "disc", rv_editor_severity::warning, "texture 'tone' is not resident", t);
+    rv_editor_log_row("12:00:04", "mppc", rv_editor_severity::error, "script_error: main.lua:12: ')' expected", t);
+    rv_editor_log_end(t);
+}
+
+void rv_editor_catalog_transport(const rv_editor_theme &t)
+{
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Stopped:");
+    ImGui::SameLine();
+    rv_editor_transport_bar({nullptr, nullptr, "Nothing is running", "Nothing is running", "Nothing is running",
+                                "Nothing is running"},
+        t);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted("Paused: ");
+    ImGui::SameLine();
+    // Run is also Resume, so a paused session can run again.
+    rv_editor_transport_bar({nullptr, nullptr, "Already paused", nullptr, nullptr, nullptr}, t);
+    const char *const status_fields[] = {"Ready.", "Runtime: Stopped", "Line 24, Col 17"};
+    rv_editor_status_bar(status_fields, 3, t);
+}
+
+} // namespace
+
+void rv_editor_catalog_menus_dialogs(const rv_editor_theme &theme)
+{
+    rv_editor_catalog_menus();
+    rv_editor_catalog_dialog(theme);
+}
+
+void rv_editor_catalog_lamps(const rv_editor_theme &theme)
+{
+    rv_editor_catalog_indicators(theme);
+}
+
+void rv_editor_catalog_logs(const rv_editor_theme &theme)
+{
+    rv_editor_catalog_log(theme);
+}
+
+void rv_editor_catalog_transports(const rv_editor_theme &theme)
+{
+    rv_editor_catalog_transport(theme);
+}
+
+} // namespace rv_editor

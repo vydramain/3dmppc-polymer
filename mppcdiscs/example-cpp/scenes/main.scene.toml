@@ -1,0 +1,27 @@
+# The scene of this disc (pdklib/rv_scene/rv_scene.hpp): a camera and
+# one box. 3dmppc-editor's Scene layout edits it; src/example-cpp.cpp draws it.
+
+[scene]
+version = "0.3"
+
+[[object]]
+id = "c0a1e2f3"
+name = "Camera"
+parent = ""
+kind = "camera"
+position = [0, 0.8, -4]
+rotation = [8, 0, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "b0c1d2e3"
+name = "Box"
+parent = ""
+kind = "mesh"
+position = [0, -1.1, 0]
+rotation = [20, 30, 0]
+scale = [0.8, 0.8, 0.8]
+mesh = ""
+texture = ""

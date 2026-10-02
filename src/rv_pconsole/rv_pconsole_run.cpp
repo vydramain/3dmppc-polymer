@@ -204,8 +204,9 @@ bool rv_pconsole::run_hold_paused(run_state &run)
     if (paused_ && step_reply_id_ < 0) {
         // Built once per pause, not once per slice: the picture cannot change
         // while no frame is running. A headless run builds nothing at all -
-        // there would be nowhere to put it.
-        if (platform_.window().presenting()) {
+        // there would be nowhere to put it - and an embedded one keeps the
+        // disc's last frame, since its host shows the pause.
+        if (platform_.window().presenting() && !platform_.window().embedded()) {
             if (!pause_overlay_valid_) {
                 rv_pcpause_overlay_build(pause_overlay_, cv_->last_frame(), cv_->screen_width(),
                     cv_->screen_height());

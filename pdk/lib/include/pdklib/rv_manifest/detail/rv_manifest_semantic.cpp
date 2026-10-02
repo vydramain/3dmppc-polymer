@@ -49,6 +49,11 @@ void rv_manifest_check(const rv_manifest_tree &tree, rv_manifest_failer &failer)
 		if (section.poisoned) {
 			continue;
 		}
+		if (section.array) {
+			failer.fail(section.line,
+				"'[[" + section.name + "]]' is not a disc.toml section: the manifest has no arrays of tables");
+			continue;
+		}
 
 		const rv_manifest_section_spec *spec = symbols.lookup_section(section.name);
 		if (spec == nullptr) {

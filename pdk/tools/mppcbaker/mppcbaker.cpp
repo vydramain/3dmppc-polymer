@@ -13,11 +13,13 @@
 #include "pdk/cv/rv_texel.h"
 #include "pdk/cv/rv_texture.h"
 #include "pdk/cv/rv_vertex.h"
+#include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_baker_encode.hpp"
+#include "rv_baker_wav.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -101,13 +103,37 @@ void rv_baker_print_usage(std::FILE *out)
     rv_pdklib::rv_fprintf(out,
         "usage: mppcbaker <input.png> <output.mppctex> --format %s\n"
         "                [--transparent-key RRGGBB]\n"
+        "       mppcbaker <input.wav> <output.pcm>\n"
         "\n"
         "  --format            texel encoding (rv_texfmt): 4-bit or 8-bit palette\n"
         "                      index, or 15-bit direct colour.\n"
         "  --transparent-key   source colour (hex, e.g. FF00FF) to encode as the\n"
         "                      fully transparent value 0000h. PNG alpha < 128 is\n"
-        "                      treated as transparent as well, always.\n",
+        "                      treated as transparent as well, always.\n"
+        "\n"
+        "A .wav input is baked to headerless S16LE mono at 44100 Hz, the shape the\n"
+        "console plays; it must already be PCM 16-bit 44100 Hz mono or stereo, and\n"
+        "takes no --format.\n"
+        "\n"
+        "mppcbaker --version prints one line, `mppcbaker <major>.<minor>`.\n",
         format_texfmt_names("|").c_str());
+}
+
+// True when `path` ends in ".wav", case-insensitively: the one thing that picks
+// the WAV path over the PNG one.
+bool has_wav_extension(const std::string &path)
+{
+    constexpr std::string_view suffix = ".wav";
+    if (path.size() < suffix.size()) {
+        return false;
+    }
+    const std::string_view tail = std::string_view(path).substr(path.size() - suffix.size());
+    for (size_t i = 0; i < suffix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(tail[i])) != suffix[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // The ONE place a failure becomes something the user sees and a code the shell
@@ -206,12 +232,20 @@ rv_err parse_args(int argc, char **argv, options *out, baker_error *error)
         error->show_usage = true;
         return RV_ERR_INVAL;
     }
+    out->input = argv[optind];
+    out->output = argv[optind + 1];
+
+    if (has_wav_extension(out->input)) {
+        if (out->format.has_value() || out->key.has_value()) {
+            error->message = "'--format'/'--transparent-key' do not apply to a WAV input";
+            return RV_ERR_INVAL;
+        }
+        return RV_OK;
+    }
     if (!out->format.has_value()) {
         error->message = "--format is required (" + format_texfmt_names(", ") + ")";
         return RV_ERR_INVAL;
     }
-    out->input = argv[optind];
-    out->output = argv[optind + 1];
     return RV_OK;
 }
 
@@ -308,6 +342,22 @@ int run(int argc, char **argv)
         return RV_BAKER_EXIT_SUCCESS;
     }
 
+    if (has_wav_extension(opt.input)) {
+        std::vector<uint8_t> pcm;
+        if (load_wav_pcm(opt.input, &pcm, &error) != RV_OK) {
+            return report(error);
+        }
+        if (write_file(opt.output, pcm, &error) != RV_OK) {
+            return report(error);
+        }
+        std::printf("mppcbaker: %s -> %s (%zu samples, %zu bytes)\n",
+            opt.input.c_str(),
+            opt.output.c_str(),
+            pcm.size() / sizeof(int16_t),
+            pcm.size());
+        return RV_BAKER_EXIT_SUCCESS;
+    }
+
     source_image src;
     if (load_source(opt, &src, &error) != RV_OK) {
         return report(error);
@@ -337,5 +387,10 @@ int run(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    // One line a front end can show and compare (the editor's diagnostics).
+    if (argc == 2 && std::string_view(argv[1]) == "--version") {
+        rv_pdklib::rv_fprintf(stdout, "mppcbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        return 0;
+    }
     return rv_pdktools::run(argc, argv);
 }

@@ -49,4 +49,21 @@ int bake_textures(
     const archive_plan &plan,
     std::string &error);
 
+/// Bake every planned sound and refuse one whose baked .pcm is malformed.
+///
+/// Each entry in the plan's sound range is passed to mppcbaker, whose output
+/// lands at that entry's `payload`. A baked .pcm is checked only for a whole
+/// number of S16 samples; no budget applies to sounds.
+///
+/// @param baker_hint  value of `--baker`; empty means find mppcbaker
+/// @param disc_dir    absolute disc directory the sources are relative to
+/// @param plan        the planned archive; only its sound range is touched
+/// @param error       set with the refusal, naming the file
+/// @return 0 on success, 1 on refusal
+int bake_sounds(
+    const std::string &baker_hint,
+    const std::filesystem::path &disc_dir,
+    const archive_plan &plan,
+    std::string &error);
+
 } // namespace rv_pdktools

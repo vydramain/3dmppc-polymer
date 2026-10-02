@@ -34,16 +34,22 @@ int64_t rv_pccd_fs::asset_reload(const char* resname, rv_cd_resource_kind& kind_
     return RV_PCCD_NOT_RESIDENT;
 }
 
-// Re-reads and re-decodes `resname` and prepares a whole NEW upload before
-// touching the live record at all: the old blocks are only freed once the
-// new ones are fully written, so a failed reload leaves the old texture
-// exactly as it was rather than a torn or freed-then-hoped-for one.
+// Re-reads `resname` off the medium and hands the bytes to texture_refresh_.
 int64_t rv_pccd_fs::texture_reload_(const char* resname, texture_record& record) {
-    if (cv_ == nullptr) return RV_ERR_INVAL;
-
     std::vector<std::byte> bytes;
     const int64_t read_rc = asset_read_bytes_(resname, bytes);
     if (read_rc < 0) return read_rc;
+
+    return texture_refresh_(record, bytes);
+}
+
+// Decodes and re-uploads `bytes` and prepares a whole NEW upload before
+// touching the live record at all: the old blocks are only freed once the
+// new ones are fully written, so a failed refresh leaves the old texture
+// exactly as it was rather than a torn or freed-then-hoped-for one. Shared by
+// texture_reload_ (medium bytes) and asset_refresh (request bytes).
+int64_t rv_pccd_fs::texture_refresh_(texture_record& record, const std::vector<std::byte>& bytes) {
+    if (cv_ == nullptr) return RV_ERR_INVAL;
 
     rv_pdklib::rv_mppctex_header header;
     const std::byte* palette = nullptr;
@@ -67,6 +73,26 @@ int64_t rv_pccd_fs::texture_reload_(const char* resname, texture_record& record)
     if (old_pal_addr != 0) cv_->video_asset_free(old_pal_addr);
 
     return RV_OK;
+}
+
+// asset_reload's twin for bytes the request carried: same per-kind dispatch,
+// refreshing from `bytes` instead of re-reading the medium.
+int64_t rv_pccd_fs::asset_refresh(const char* resname, const void* bytes, int64_t nbytes,
+                                   rv_cd_resource_kind& kind_out) {
+    if (resname == nullptr || bytes == nullptr || nbytes < 0) return RV_ERR_INVAL;
+
+    const std::string key(resname);
+    if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
+        kind_out = RV_CD_RESOURCE_TEXTURE;
+        const auto* first = static_cast<const std::byte*>(bytes);
+        const std::vector<std::byte> payload(first, first + nbytes);
+        return texture_refresh_(textures_[static_cast<size_t>(it->second)], payload);
+    }
+    if (audio_by_name_.find(key) != audio_by_name_.end()) {
+        kind_out = RV_CD_RESOURCE_AUDIO;
+        return RV_PCCD_UNSUPPORTED_KIND;
+    }
+    return RV_PCCD_NOT_RESIDENT;
 }
 
 }  // namespace rv_3dmppc

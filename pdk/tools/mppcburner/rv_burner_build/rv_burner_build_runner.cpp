@@ -4,6 +4,8 @@
 #include <expected>
 #include <filesystem>
 #include <format>
+#include <fstream>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -12,6 +14,7 @@
 #include "rv_burner_assets/rv_burner_bake.hpp"
 #include "rv_burner_assets/rv_burner_compile_scripts.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
+#include "rv_burner_build/rv_burner_map.hpp"
 #include "rv_burner_burn/rv_burner_burn.hpp"
 #include "rv_burner_common/rv_burner_globs.hpp"
 #include "rv_burner_compile/rv_burner_check.hpp"
@@ -34,6 +37,7 @@ static constexpr const char *k_default_build_dir_name = ".mppcburn";
 static constexpr const char *k_binary_subdir = "build";
 static constexpr const char *k_scripts_subdir = "scripts";
 static constexpr const char *k_textures_subdir = "textures";
+static constexpr const char *k_sounds_subdir = "sounds";
 
 // The module compile_sources() produces, at the path the burn phase reads it
 // from.
@@ -79,7 +83,7 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
 // --- [1/4] manifest ---
 //
 // Loads and validates the disc's manifest, and prints step 1.
-static int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error)
+int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error)
 {
     std::string er;
     const fs::path manifest_path = disc_dir / "disc.toml";
@@ -129,9 +133,9 @@ static int rv_burner_build_compile(const rv_burner_options &options, const rv_pd
 // Plans, checks, compiles or copies scripts, bakes textures, and prints step 3.
 static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir, const fs::path &texture_dir, const fs::path &scripts_dir,
-    const rv_burner_destination &destination, archive_plan &plan, std::string &error)
+    const fs::path &sound_dir, const rv_burner_destination &destination, archive_plan &plan, std::string &error)
 {
-    if (plan_archive(manifest, disc_dir, texture_dir, scripts_dir, plan, error) != 0) {
+    if (plan_archive(manifest, disc_dir, texture_dir, scripts_dir, sound_dir, plan, error) != 0) {
         rv_burner_print_error(error);
         return 1;
     }
@@ -139,7 +143,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
     // Scripts and the memory they run in travel together, and the plan is the
     // first place both are known: the manifest states the budget, the glob
     // decides whether any .lua actually exists. Bytecode burned onto a disc
-    // whose manifest declares no [budget.pccl] is dead weight — the console
+    // whose manifest declares no [budget.pccl] is dead weight - the console
     // reads that manifest, finds no Lua machine, and the disc can never load
     // the very files it carries. That is a mistake to catch on the author's
     // desk, not a silent archive.
@@ -188,7 +192,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         }
     }
 
-    // Which of the two a script gets — left as .lua or turned into .luac — is
+    // Which of the two a script gets - left as .lua or turned into .luac - is
     // decided once here by the destination, in a switch rather than an
     // if/else chain, so a third destination kind added later fails to compile
     // instead of silently falling into one of these two. One failure check
@@ -203,7 +207,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         break;
     default:
         // Unreachable while rv_burner_destination_kind has only these two
-        // values — kept so the switch stays exhaustive under a compiler
+        // values - kept so the switch stays exhaustive under a compiler
         // warning and so a future third kind fails here, not silently.
         error = "unknown destination kind";
         break;
@@ -218,18 +222,66 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         return 1;
     }
 
+    if (bake_sounds(options.baker, disc_dir, plan, error) != 0) {
+        rv_burner_print_error(error);
+        return 1;
+    }
+
     const char *scripts_wording =
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
     rv_burner_print_step(3, "assets",
-        std::format("{} png -> .mppctex, {} {}, {} copied", plan.texture_count, plan.script_count,
-            scripts_wording, plan.asset_count));
+        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied", plan.texture_count,
+            plan.sound_count, plan.script_count, scripts_wording, plan.asset_count));
     return 0;
+}
+
+// --- compile database for clangd ---
+//
+// configure_cmake() asked cmake to write compile_commands.json into binary_dir
+// (the standard cmake mechanism). Read here, before cleanup deletes binary_dir,
+// but written to disc_dir/.mppcburn only after cleanup runs: with a default
+// build_dir that IS disc_dir/.mppcburn, cleanup would otherwise remove the
+// copy along with the scratch tree it just left. Best-effort throughout: a
+// disc's compile database is a convenience, never a reason to fail a build.
+static bool rv_burner_read_compile_database(const fs::path &binary_dir, std::string &content)
+{
+    std::ifstream in(binary_dir / "compile_commands.json", std::ios::binary);
+    if (!in) {
+        return false;
+    }
+    std::ostringstream buffer;
+    buffer << in.rdbuf();
+    content = buffer.str();
+    return true;
+}
+
+static void rv_burner_write_compile_database(const fs::path &disc_dir, const std::string &content)
+{
+    std::error_code ec;
+    const fs::path dest_dir = disc_dir / k_default_build_dir_name;
+    fs::create_directories(dest_dir, ec);
+    const fs::path dest = dest_dir / "compile_commands.json";
+    const fs::path temp = dest_dir / "compile_commands.json.tmp";
+
+    std::ofstream out(temp, std::ios::binary | std::ios::trunc);
+    out.write(content.data(), static_cast<std::streamsize>(content.size()));
+    bool ok = static_cast<bool>(out);
+    out.close();
+    if (ok) { // rename, not copy: a reader of dest never sees a half-written file
+        fs::rename(temp, dest, ec);
+        ok = !ec;
+    }
+    if (!ok) {
+        fs::remove(temp, ec);
+        rv_burner_print_warning(
+            std::format("could not export the compile database to '{}'", dest.string()));
+    }
 }
 
 // --- clean up ---
 //
 // The build tree is scratch space and goes away, unless the developer asked
-// to keep it — in which case it is a readable CMake project they can run
+// to keep it - in which case it is a readable CMake project they can run
 // `ninja -v` in. It is also kept after a FAILURE, by every early return in
 // rv_burner_build_run, for exactly that reason.
 static void rv_burner_build_cleanup(const fs::path &project_dir, bool keep_build)
@@ -313,10 +365,12 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     const fs::path binary_dir = project_dir / k_binary_subdir;
     const fs::path scripts_dir = project_dir / k_scripts_subdir;
     const fs::path texture_dir = project_dir / k_textures_subdir;
+    const fs::path sound_dir = project_dir / k_sounds_subdir;
 
     fs::create_directories(binary_dir, ec);
     fs::create_directories(scripts_dir, ec);
     fs::create_directories(texture_dir, ec);
+    fs::create_directories(sound_dir, ec);
     if (ec) {
         rv_burner_print_error(std::format("cannot create build directory '{}'", project_dir.string()));
         return 1;
@@ -327,12 +381,16 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return 1;
     }
 
+    // Read now, while binary_dir still exists; written out only after cleanup.
+    std::string compile_database;
+    const bool have_compile_database = rv_burner_read_compile_database(binary_dir, compile_database);
+
     // The phase above proved this file exists; the burn phase carries it.
     const fs::path disc_module = binary_dir / k_disc_module_name;
 
     archive_plan plan;
-    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, destination,
-            plan, error) != 0) {
+    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, sound_dir,
+            destination, plan, error) != 0) {
         return 1;
     }
 
@@ -342,7 +400,15 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         rv_burner_print_error(error);
         return 1;
     }
+    // Only a build that succeeded replaces the map.
+    if (!options.map.empty() && write_map(fs::absolute(options.map, ec), manifest, sources, plan, error) != 0) {
+        rv_burner_print_error(error);
+        return 1;
+    }
 
     rv_burner_build_cleanup(project_dir, options.keep_build);
+    if (have_compile_database) {
+        rv_burner_write_compile_database(disc_dir, compile_database);
+    }
     return 0;
 }

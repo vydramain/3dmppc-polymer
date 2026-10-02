@@ -29,34 +29,17 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
 # decoding whatever a disc chose to store is the DISC's business (via rv_cd).
 
-# --- phantasy development kit -------------------------------------------------
-
-add_library(3dmppc_pdk INTERFACE)
-target_include_directories(3dmppc_pdk INTERFACE ${CMAKE_SOURCE_DIR}/pdk/include)
-
-# --- shared helper library (pdklib) -------------------------------------------
-# Disc-side helpers written AGAINST the contract: mostly header-only math,
-# camera, transform, text, and diagnostics, plus the statically linked manifest
-# parser implementation. It is not the contract (the console implements nothing
-# here) and not a game, so it is its own tree.
-#
-# Linking it now delivers both things pdklib owns: the include directory and the
-# manifest parser object code built from pdk/lib/include/pdklib/rv_manifest/.
-#
-# Discs get it a different way - mppcburner writes the path into the CMakeLists
-# it generates for a disc project - so this target serves only what is built
-# from this file.
 # The 512-line rule, checked at configure time rather than trusted. See
 # cmake/rv_file_length.cmake for why the build is the right place for it.
 include(cmake/rv_file_length.cmake)
 rv_check_file_lengths()
 
-file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
-  ${CMAKE_SOURCE_DIR}/pdk/lib/include/pdklib/*.cpp
-)
-add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
-target_include_directories(3dmppc_pdklib PUBLIC ${CMAKE_SOURCE_DIR}/pdk/lib/include)
-target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)
+# --- the contract and pdklib --------------------------------------------------
+# 3dmppc_pdk and 3dmppc_pdklib come from one module the tools and the editor
+# include too; see cmake/pdklib.cmake for what each one is. Discs get pdklib a
+# different way - mppcburner writes its path into the CMakeLists it generates
+# for a disc project - so these targets serve only what is built from here.
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/pdklib.cmake)
 
 # --- the disc -----------------------------------------------------------------
 # rv_dmain is a GAME, not part of the machine, so it is built as its own target
@@ -118,6 +101,8 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs
 # it, so that build simply does not compile it. Its declaration stays visible -
 # a header nobody calls costs nothing - but the encoder itself is dev code.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdhex_devtools\\.cpp")
+# The embedded screen: --frame-fd exists only in a development build.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcframe_(devtools|standard)\\.cpp")
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_devtools.cpp)
@@ -130,6 +115,7 @@ if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdhex_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_devtools.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcframe_devtools.cpp)
 else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_standard.cpp)
@@ -137,6 +123,7 @@ else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_standard.cpp)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcframe_standard.cpp)
 endif()
 
 
@@ -231,12 +218,39 @@ endif()
 # No asset copying: nothing reads files yet. Disc assets come back when the disc
 # drive (rv_cd) lands and a disc reads them by name instead of by path.
 
-# The authoring tools are NOT built here. They live in pdk/tools/ and build with
-# their own command:
+# --- the development kit ------------------------------------------------------
+# A player console builds alone. It is firmware: it loads a disc and runs it,
+# and building it must not drag in a compiler driver, an image decoder, an
+# editor, or anything else a player's machine has no use for.
 #
-#   cmake -S pdk/tools -B pdk/tools/build && cmake --build pdk/tools/build
-#
-# The console is firmware: it loads a disc and runs it. It must never look like
-# the thing that compiles one, and building it must not drag in a compiler
-# driver, an image decoder, or anything else a player's machine has no use for.
+# A development console is a developer's machine by definition, so it also
+# builds the authoring tools (pdk/tools/) and the editor (editor/). Each stays
+# its own CMake project, configured in its own subdirectory of this build tree
+# and linking nothing from here; only their binaries land next to the console
+# in pconsole/. Both still build on their own with their own command.
+if(3DMPPC_DEVTOOLS)
+  include(ExternalProject)
+
+  set(RV_DEVKIT_CMAKE_ARGS
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+  )
+
+  # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
+  # build every time and lets it answer "no work to do".
+  ExternalProject_Add(3dmppc_pdktools
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
+    BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools
+    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+  ExternalProject_Add(3dmppc_editor
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
+    BINARY_DIR ${CMAKE_BINARY_DIR}/editor
+    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+endif()
 

@@ -12,12 +12,14 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <csignal>
 #include <cstdlib>
-#include <cerrno>
+#include <cstring>
 #include <thread>
 
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
 
 namespace rv_3dmppc
@@ -102,7 +104,7 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
         reason_ = "stdin/stdout cannot be made non-blocking";
         return;
     }
-    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol 1)");
+    RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol {})", rv_pdklib::rv_version_str);
 }
 
 rv_pccmdchan_stdio::~rv_pccmdchan_stdio()
@@ -200,13 +202,22 @@ void rv_pccmdchan_stdio::pump_out()
             out_.erase(0, static_cast<std::size_t>(put));
             continue;
         }
-        if (put < 0 && errno == EINTR) {
+        const int err = errno;
+        if (put < 0 && err == EINTR) {
             continue;
         }
-        if (put < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
+        if (put < 0 && (err == EAGAIN || err == EWOULDBLOCK)) {
             return; // a slow reader is not an error; the queue waits its turn
         }
-        close("write on stdout failed (the client stopped reading)");
+        std::string msg;
+        if (put < 0 && err == EPIPE) {
+            msg = "write on stdout failed (the client stopped reading)";
+        } else if (put < 0) {
+            msg = std::string("write on stdout failed: ") + std::strerror(err);
+        } else { // put == 0
+            msg = "write on stdout failed";
+        }
+        close(msg.c_str());
         return;
     }
 }

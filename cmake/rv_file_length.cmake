@@ -30,6 +30,8 @@ function(rv_check_file_lengths)
         ${CMAKE_SOURCE_DIR}/pdk/lib/*.hpp
         ${CMAKE_SOURCE_DIR}/pdk/tools/*.cpp
         ${CMAKE_SOURCE_DIR}/pdk/tools/*.hpp
+        ${CMAKE_SOURCE_DIR}/editor/*.cpp
+        ${CMAKE_SOURCE_DIR}/editor/*.hpp
         ${CMAKE_SOURCE_DIR}/mppcdiscs/*.cpp
         ${CMAKE_SOURCE_DIR}/mppcdiscs/*.hpp)
 
@@ -40,8 +42,17 @@ function(rv_check_file_lengths)
         if(candidate MATCHES "/third_party/|/build/|/_deps/")
             continue()
         endif()
-        file(STRINGS ${candidate} lines)
-        list(LENGTH lines count)
+        # Newlines, not file(STRINGS): that splits at non-ASCII bytes and list(LENGTH) at ';' and '['.
+        file(READ ${candidate} content)
+        string(LENGTH "${content}" full)
+        string(REPLACE "\n" "" stripped "${content}")
+        string(LENGTH "${stripped}" rest)
+        math(EXPR count "${full} - ${rest}")
+        # A last line without a newline is still a line.
+        string(REGEX MATCH "[^\n]$" unterminated "${content}")
+        if(unterminated)
+            math(EXPR count "${count} + 1")
+        endif()
         if(count GREATER RV_FILE_LENGTH_MAX)
             file(RELATIVE_PATH shown ${CMAKE_SOURCE_DIR} ${candidate})
             list(APPEND RV_TOO_LONG "  ${count} lines: ${shown}")

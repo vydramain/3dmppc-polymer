@@ -14,6 +14,35 @@ headers rather than the firmware source.
 
 ---
 
+## Versions
+
+PDK has one version number (`RV_MPPC_VER_MAJOR`/`MINOR` in `de/rv_dv.h`,
+derived into `rv_version_str`, `rv_version_packed16` and
+`rv_version_packed32` by `pdklib/rv_version/rv_version.hpp`). Every format
+this kit defines carries it, but not every reader requires the same match:
+
+| Rule | Formats |
+| --- | --- |
+| Compatible: major equal, minor at most the reader's (`rv_version_compatible`) | disc, `.mppccard` saves, `.mppctex` textures, scene files |
+| Exact match | dev protocol, the shared frame header, the burner's build map, the editor's layout and view files |
+
+A version change is not free for a live install: a `.mppccard` of an older
+minor is read and restamped to the current version; one of an older major
+is migrated by the console — the old file is kept beside it as
+`<image>.<M.m>`, and a new card of the current version is created with the
+old slots copied in; one of a newer version is set aside by the same
+`<image>.<M.m>` naming and the console starts with an empty card. The
+card container's own layout (the header and slot table, not a game's slot
+contents) may change only with a major version, and whoever changes it
+adds the migration from the previous layout. `.mppctex` files are baked
+again by the next build regardless, since baking is cheap and keeps the
+output current. An editor layout or view file of another version is read
+as absent, so the standard layout and default view come back; a scene of
+an incompatible version opens read-only. A console and an editor of
+different versions refuse each other.
+
+---
+
 ## Purpose — why this directory exists
 
 The console must be **game-agnostic**: it has its own life cycle and just lives by

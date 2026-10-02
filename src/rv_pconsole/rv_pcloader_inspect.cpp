@@ -12,6 +12,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdklib/rv_disc_hash/rv_disc_hash.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/cd/rv_zipreader.hpp"
 #include "rv_pconsole/rv_pcloader_detail.hpp"
 
@@ -247,10 +248,9 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
 // Compares version_info against this console's RV_MPPC_VER_MAJOR/MINOR.
 bool version_compatible(const rv_mppc_note_desc &version_info)
 {
-    if (RV_MPPC_VER_MAJOR != version_info.version_major ||
-        RV_MPPC_VER_MINOR < version_info.version_minor) {
+    if (!rv_pdklib::rv_version_compatible(version_info.version_major, version_info.version_minor)) {
         RV_LOG_ERR("pcloader",
-            "disc version are incompatible to currect console version: "
+            "disc version is incompatible with the current console version: "
             "disc version is: {}.{}; ",
             version_info.version_major, version_info.version_minor);
         return false;

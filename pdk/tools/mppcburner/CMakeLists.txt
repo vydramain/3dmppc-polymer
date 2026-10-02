@@ -14,6 +14,8 @@ add_executable(mppcburner
 
   # the two subcommands, named for what the user types
   rv_burner_build/rv_burner_build_runner.cpp
+  rv_burner_build/rv_burner_bake_texture.cpp
+  rv_burner_build/rv_burner_map.cpp
   rv_burner_inspect/rv_burner_inspect_runner.cpp
 
   # shared by every phase

@@ -1,0 +1,152 @@
+// Starting layouts of Code, Scene, Debug and Burn: what each shows the first
+// time it is chosen and after Layout > Reset Layout.
+
+#include "layout/rv_editor_tile.hpp"
+
+namespace rv_editor
+{
+
+namespace
+{
+
+// Builds a tree by inserting panes next to panes already placed.
+struct rv_editor_preset_builder
+{
+    rv_editor_pane_registry panes{};
+    rv_editor_layout layout{};
+
+    explicit rv_editor_preset_builder(rv_editor_pane_kind first)
+    {
+        layout = rv_editor_layout_make(rv_editor_pane_add(panes, first));
+    }
+
+    // Places a new pane of `kind` beside the leaf holding `next_to`; `ratio` is the
+    // first child's share of the split this creates. Returns the new pane.
+    rv_editor_pane_id add(rv_editor_pane_kind kind, rv_editor_pane_id next_to, rv_editor_tile_dock dock, float ratio)
+    {
+        const rv_editor_pane_id pane = rv_editor_pane_add(panes, kind);
+        const uint32_t leaf = rv_editor_tile_insert(layout, rv_editor_tile_find(layout, next_to), pane, dock);
+        if (dock != rv_editor_tile_dock::tab) {
+            rv_editor_tile_set_ratio(layout, layout.nodes[leaf].parent, ratio);
+        }
+        return pane;
+    }
+};
+
+// Reference 0003, without its Toolchest: files on the left, the code beside the
+// game over its controls, and under both one tile of Output, Problems, Terminal
+// and Search, Output in front. Ratios are the picture's, measured in pixels, but
+// the game is narrower: the Game's fit sets the height above Output from its width.
+void rv_editor_preset_code(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id code = 0;
+    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.60f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
+    // The controls are a strip as tall as their buttons: the game takes the rest.
+    b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
+    b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, output);
+}
+
+// Toolchest over Hierarchy down the left and Game over Inspector down the right,
+// both full height so the Inspector keeps its rows at 1280x720; between them the
+// Scene over a tile of Assets, Files and Console Output (Assets in front) above
+// Runtime Controls.
+void rv_editor_preset_scene(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id scene = 0;
+    const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
+    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.29f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.62f);
+    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.52f);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.55f);
+    b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, assets);
+    // The controls are a strip as tall as their buttons: the assets take the rest.
+    b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
+}
+
+// Debug: the session in front. Runtime Controls beside the Session Toolchest
+// along the top (both strips, fit to the taller); below them the Game beside
+// Session, Observe and Test Case; the Runtime Log and Findings along the
+// bottom; Code, Files and the Terminal open from Window > New Tile.
+void rv_editor_preset_debug(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.71f);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, 0.68f);
+    b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
+    b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
+    // Toolchest aligned with the Session column below it: same 0.68 split.
+    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, 0.68f);
+    rv_editor_tile_activate(b.layout, session);
+    rv_editor_tile_activate(b.layout, log);
+}
+
+// Burn (reference 0007): the release controls over the candidate beside its
+// playtest, the build's and the playtest's logs underneath (68/32, 35/65).
+void rv_editor_preset_burn(rv_editor_preset_builder &b)
+{
+    const rv_editor_pane_id controls = 0;
+    const rv_editor_pane_id candidate =
+        b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.68f);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
+    b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
+    rv_editor_tile_activate(b.layout, log);
+}
+
+} // namespace
+
+const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
+{
+    switch (preset) {
+    case rv_editor_layout_preset::code:
+        return "Code";
+    case rv_editor_layout_preset::scene:
+        return "Scene";
+    case rv_editor_layout_preset::debug:
+        return "Debug";
+    case rv_editor_layout_preset::burn:
+        return "Burn";
+    }
+    return "";
+}
+
+void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
+    rv_editor_layout &layout)
+{
+    rv_editor_pane_kind first = rv_editor_pane_kind::code;
+    if (preset == rv_editor_layout_preset::scene) {
+        first = rv_editor_pane_kind::scene;
+    } else if (preset == rv_editor_layout_preset::burn) {
+        first = rv_editor_pane_kind::release_controls;
+    } else if (preset == rv_editor_layout_preset::debug) {
+        first = rv_editor_pane_kind::controls;
+    }
+    rv_editor_preset_builder b(first);
+    switch (preset) {
+    case rv_editor_layout_preset::code:
+        rv_editor_preset_code(b);
+        break;
+    case rv_editor_layout_preset::scene:
+        rv_editor_preset_scene(b);
+        break;
+    case rv_editor_layout_preset::debug:
+        rv_editor_preset_debug(b);
+        break;
+    case rv_editor_layout_preset::burn:
+        rv_editor_preset_burn(b);
+        break;
+    }
+    panes = b.panes;
+    layout = b.layout;
+}
+
+} // namespace rv_editor

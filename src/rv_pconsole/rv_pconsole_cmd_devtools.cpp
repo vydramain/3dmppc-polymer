@@ -13,6 +13,8 @@
 // dependency to speak it.
 #include "rv_pconsole/rv_pconsole.hpp"
 
+#include <charconv>
+#include <cstddef>
 #include <format>
 #include <string>
 #include <string_view>
@@ -21,8 +23,11 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
+#include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/platform/rv_pccmdhex.hpp"
+#include "rv_pconsole/platform/rv_pcframe.hpp"
 
 namespace
 {
@@ -39,6 +44,14 @@ bool cmd_close_logged = false;
 // rv_pccl counts every failed hook call; comparing against that count is how a
 // broken game hook is noticed without the disc having to tell anyone.
 int64_t cmd_error_seq = 0;
+
+// How many of rv_pccd_fs's scene_names_ this file has already sent as
+// `event=scene`, and the generation (rv_pccd_fs::scene_generation) that
+// count was taken against. A generation change means medium_insert() cleared
+// scene_names_, so the cursor resets to 0 regardless of the new list's
+// length.
+size_t cmd_scene_sent = 0;
+uint64_t cmd_scene_generation = 0;
 
 } // namespace
 
@@ -93,6 +106,29 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
         cmd_->reply(
             std::format("{} ok completed=1 frame={} mode=paused", step_reply_id_, frames_ + 1));
         step_reply_id_ = -1;
+    }
+
+    // The embedding program's cue that a new frame is in shared memory
+    // (--frame-fd): the frame's number and the slot it was published in.
+    uint32_t slot = 0;
+    uint64_t presented = 0; // the slot's own count, which pause pictures raise too: not sent
+    if (rv_pcframe_latest(platform_, slot, presented)) {
+        cmd_->reply(std::format("0 event=frame frame={} slot={}", frames_ + 1, slot));
+    }
+
+    // Which scenes has the disc opened? rv_pccd_fs is the only drive that
+    // tracks this (see its scene_names_); the cast is null for rv_pccd_null,
+    // meaning nothing was ever opened. A release console never runs this
+    // file, so only a developer session ever sends `event=scene`.
+    if (auto *fs = dynamic_cast<rv_pccd_fs *>(cd_.get())) {
+        const std::vector<std::string> &scenes = fs->scene_names();
+        if (const uint64_t generation = fs->scene_generation(); generation != cmd_scene_generation) {
+            cmd_scene_sent = 0;
+            cmd_scene_generation = generation;
+        }
+        for (; cmd_scene_sent < scenes.size(); ++cmd_scene_sent) {
+            cmd_->reply(std::format("0 event=scene name={}", rv_pccmd_hex(scenes[cmd_scene_sent])));
+        }
     }
 
     // Did a game hook fail this frame? rv_pccl counts every failed call, so
@@ -161,6 +197,24 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
         cmd_->reply(std::format("{} ok mode=stopped frame={}", req.id, frames_));
         return;
     }
+    if (verb == "pad") {
+        // `pad <port> <buttons-hex>`: what the embedding program's keyboard holds
+        // now. Port 0 only, the port the console's own keyboard drives.
+        uint64_t buttons = 0;
+        const std::string_view port = req.arg(0);
+        const std::string_view hex = req.arg(1);
+        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), buttons, 16);
+        if (port != "0" || hex.empty() || ec != std::errc{} || end != hex.data() + hex.size()) {
+            cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "pad takes port 0 and hex buttons"));
+            return;
+        }
+        if (!rv_pcframe_set_pad(platform_, buttons)) {
+            cmd_->reply(rv_pccmd_err(req.id, "no_frame", RV_ERR_INVAL, false, "pad needs --frame-fd"));
+            return;
+        }
+        cmd_->reply(std::format("{} ok port=0 buttons={:x}", req.id, buttons));
+        return;
+    }
     if (verb == "gc") {
         int64_t used = 0;
         const int64_t rc = cl_->state_collect(&used);
@@ -192,7 +246,7 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
     }
 
     cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
-        "unknown request; this console speaks status pause resume step reload asset get keys gc quit"));
+        "unknown request; this console speaks status pause resume step pad reload asset get keys gc quit"));
 }
 
 void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
@@ -215,10 +269,10 @@ void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
         loader_ != nullptr && !loader_->code_hash().empty() ? loader_->code_hash() : std::string("none");
 
     cmd_->reply(std::format(
-        "{} ok protocol=1 frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
+        "{} ok protocol={} frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
         "entry_reloadable={} entry_revision={} entry_hash={:016x} lua_used={} lua_budget={} "
         "chunks={} error_seq={} script_error={}",
-        id, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
+        id, rv_pdklib::rv_version_str, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
         rv_pccmd_hex(disc_id), code_hash, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR, script.reloadable ? 1 : 0,
         script.revision, script.hash, script.used, script.budget, script.slots, script.error_seq,
         rv_pccmd_hex_msg(script.error)));
@@ -310,6 +364,46 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
             "asset needs the name of an entry on the mounted medium"));
         return;
     }
+    const std::string key(name);
+    if (req.has_payload) {
+        // The bytes travel with the request, so the medium's own content is
+        // never read for them; the name still has to be a real entry, as
+        // the no-payload path checks below.
+        if (cd_->asset_open(key.c_str()) < 0) {
+            cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
+                "the mounted medium has no entry by that name"));
+            return;
+        }
+        rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
+        const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(),
+            static_cast<int64_t>(req.payload.size()), kind);
+        if (rc == RV_PCCD_REFRESH_UNSUPPORTED) {
+            // Same token a refused reload uses; the contract has no separate
+            // one for "this drive never learned to refresh from bytes".
+            cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false,
+                "this drive cannot refresh an asset from bytes"));
+            return;
+        }
+        if (rc == RV_PCCD_UNSUPPORTED_KIND) {
+            cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
+                "a sound is resident under that name; its bytes change only across a restart"));
+            return;
+        }
+        if (rc == RV_PCCD_NOT_RESIDENT) {
+            cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
+            return;
+        }
+        if (rc < 0) {
+            cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not refresh that asset"));
+            return;
+        }
+        const int64_t width = cd_->resource_width(kind, key.c_str());
+        const int64_t height = cd_->resource_height(kind, key.c_str());
+        cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key),
+            width < 0 ? 0 : width, height < 0 ? 0 : height));
+        return;
+    }
+
     if (!params_.medium_live) {
         // An archive entry cannot have changed, so there is nothing to refresh
         // and telling the game otherwise would have it re-upload the same bytes
@@ -323,7 +417,6 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // refused it"; the medium is asked at open time, so an entry added to a
     // live directory after boot is found, and a texture nobody holds
     // resident has nothing to refresh.
-    const std::string key(name);
     if (cd_->asset_open(key.c_str()) < 0) {
         cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
             "the mounted medium has no entry by that name"));

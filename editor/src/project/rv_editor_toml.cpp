@@ -1,0 +1,59 @@
+// The editor's own files: quoting for disc.toml's dialect and atomic replacement.
+
+#include "project/rv_editor_toml.hpp"
+
+#include <fstream>
+#include <sstream>
+#include <system_error>
+
+namespace rv_editor
+{
+
+std::string rv_editor_toml_quote(std::string_view s)
+{
+    std::string out = "\"";
+    for (const char c : s) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\t': out += "\\t"; break;
+            case '\r': out += "\\r"; break;
+            default: out += c; break;
+        }
+    }
+    return out + "\"";
+}
+
+bool rv_editor_file_replace(const std::filesystem::path &path, const std::string &text, std::string &error)
+{
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    const std::filesystem::path tmp = path.string() + ".tmp";
+    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+    out << text;
+    out.close();
+    if (!out) {
+        error = "cannot write " + tmp.string();
+        return false;
+    }
+    std::filesystem::rename(tmp, path, ec);
+    if (ec) {
+        error = path.string() + ": " + ec.message();
+        return false;
+    }
+    return true;
+}
+
+std::string rv_editor_file_text(const std::filesystem::path &path)
+{
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return {};
+    }
+    std::ostringstream all;
+    all << in.rdbuf();
+    return all.str();
+}
+
+} // namespace rv_editor

@@ -32,6 +32,8 @@ struct archive_plan {
     std::size_t texture_count = 0;  ///< how many texture entries follow it
     std::size_t first_script = 0;   ///< index of the first script entry
     std::size_t script_count = 0;   ///< how many script entries follow it
+    std::size_t first_sound = 0;    ///< index of the first sound entry
+    std::size_t sound_count = 0;    ///< how many sound entries follow it
 };
 
 /// Plan every archive entry the manifest asks for, and refuse a plan whose flat
@@ -43,6 +45,7 @@ struct archive_plan {
 /// @param disc_dir     absolute, canonical disc directory the globs resolve against
 /// @param texture_dir  directory baked .mppctex files will be written to
 /// @param scripts_dir  directory compiled .luac files will be written to
+/// @param sound_dir    directory baked .pcm files will be written to
 /// @param out          receives the plan; untouched on failure
 /// @param error        set with a message that already names its manifest section
 /// @return 0 on success, 1 on refusal
@@ -51,6 +54,7 @@ int plan_archive(
     const std::filesystem::path &disc_dir,
     const std::filesystem::path &texture_dir,
     const std::filesystem::path &scripts_dir,
+    const std::filesystem::path &sound_dir,
     archive_plan &out,
     std::string &error);
 
