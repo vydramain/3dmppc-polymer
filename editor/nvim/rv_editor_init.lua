@@ -163,7 +163,8 @@ local rv_servers = {
         cmd = { "lua-language-server" },
         filetypes = { "lua" },
         root_dir = rv_root_dir,
-        settings = { Lua = { runtime = { version = "LuaJIT" }, diagnostics = { globals = { "state" } } } },
+        -- The console gives every script `pdk` and its persistent `state`.
+        settings = { Lua = { runtime = { version = "LuaJIT" }, diagnostics = { globals = { "state", "pdk" } } } },
     },
 }
 for name, cfg in pairs(rv_servers) do
