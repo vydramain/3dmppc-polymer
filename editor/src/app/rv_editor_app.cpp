@@ -349,7 +349,8 @@ void rv_editor_app_run_last(rv_editor_app &app)
     }
     const rv_editor_artifact artifact = *app.build.last_success();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-        "running the last successful build, #" + std::to_string(artifact.number) + ": its native code with the current scripts, assets and scenes");
+        "running the last successful build, #" + std::to_string(artifact.number) +
+            ": its native code with the current scripts, assets and scenes");
     rv_editor_app_start(app, artifact);
 }
 
