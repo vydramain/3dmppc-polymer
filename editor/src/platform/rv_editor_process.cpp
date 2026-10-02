@@ -80,6 +80,7 @@ rv_editor_process::~rv_editor_process()
         int status = 0;
         while (::waitpid(pid_, &status, 0) < 0 && errno == EINTR) {
         }
+        rv_editor_guard_remove(pid_);
     }
     close_fds();
 }
@@ -182,6 +183,7 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     }
 
     pid_ = pid;
+    rv_editor_guard_add(pid);
     in_ = in[1];
     out_ = out[0];
     err_ = err[0];
@@ -193,6 +195,7 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
             stop(true);
             while (::waitpid(pid_, nullptr, 0) < 0 && errno == EINTR) {
             }
+            rv_editor_guard_remove(pid_);
             pid_ = -1;
             close_fds();
             return false;
@@ -268,6 +271,7 @@ bool rv_editor_process::poll()
     }
     exited_at_ = std::chrono::steady_clock::now();
     rv_editor_close(in_);
+    rv_editor_guard_remove(pid_);
     return true;
 }
 
