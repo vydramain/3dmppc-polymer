@@ -193,6 +193,9 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
         }
         return;
     }
+    if (swap_notified(method, params, log)) {
+        return;
+    }
     if (method != "rv_buffers" || params.items.empty()) {
         return;
     }

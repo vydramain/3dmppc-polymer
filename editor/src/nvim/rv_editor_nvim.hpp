@@ -47,6 +47,13 @@ struct rv_editor_nvim_lsp
     std::string reason; // why, when not "running"
 };
 
+// Swap file state when nvim opened a file read-only.
+struct rv_editor_nvim_swap {
+    std::string swap;  // path to the swap file
+    std::string state; // "recoverable", "in_use", or "resolved"
+    int64_t pid = 0;   // process id when state is "in_use"
+};
+
 // One LSP diagnostic, as "rv_diagnostics" reports it for one file.
 struct rv_editor_nvim_diagnostic
 {
@@ -141,6 +148,10 @@ public:
     static std::string lsp_server_for(const std::string &path);
     // That server's latest state, or nullptr before nvim has reported one.
     const rv_editor_nvim_lsp *lsp_status(const std::string &server) const;
+    // Swap state for `file`, or nullptr when no swap is waiting for Recover/Discard.
+    const rv_editor_nvim_swap *swap_for(const std::string &file) const;
+    // Call rv_swap_resolve(win, file, choice) in nvim: choice "recover" or "discard".
+    void swap_resolve(int64_t win, const std::string &file, bool recover);
 
     // The latest diagnostics nvim reported for `path`, or an empty vector when
     // nvim reported none (or cleared them).
@@ -157,6 +168,7 @@ public:
 private:
     void attach();
     void notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
+    bool swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
     void exec_lua(const std::string &code, const std::vector<std::string> &args, rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {});
 
     rv_editor_nvim_rpc rpc_;
@@ -168,6 +180,7 @@ private:
     std::vector<int64_t> spare_;          // windows no pane shows, the first is nvim's own
     std::vector<rv_editor_nvim_buffer> buffers_;
     std::map<std::string, rv_editor_nvim_lsp> lsp_; // server name -> latest state
+    std::map<std::string, rv_editor_nvim_swap> swaps_;                          // file -> swap waiting for Recover/Discard
     std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> diagnostics_; // file -> its diagnostics
     bool vim_mode_ = false;
     std::map<int64_t, std::pair<int32_t, int32_t>> sizes_;
