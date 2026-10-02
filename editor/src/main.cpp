@@ -17,6 +17,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "platform/rv_editor_process.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -199,6 +200,8 @@ int main(int argc, char **argv)
     if (!rv_editor_args_parse(argc, argv, open_path, exit_code)) {
         return exit_code;
     }
+
+    rv_editor::rv_editor_guard_start();
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_Init: %s\n", SDL_GetError());

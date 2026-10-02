@@ -104,4 +104,13 @@ std::filesystem::path rv_editor_process_find(const char *name);
 bool rv_editor_process_output(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
     std::string &out, int seconds);
 
+// Guard process that kills all children on editor exit. Call once from main() before SDL_Init.
+void rv_editor_guard_start();
+
+// Register a process group with the guard; unregistered groups survive the editor's death.
+void rv_editor_guard_add(pid_t group);
+
+// Unregister a process group from the guard.
+void rv_editor_guard_remove(pid_t group);
+
 } // namespace rv_editor
