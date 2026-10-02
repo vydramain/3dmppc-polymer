@@ -135,4 +135,10 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
 // The open project, its manifest, and where the tools and the editor's own files are.
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme);
 
+// Forward declaration for the empty pane (avoids circular includes).
+struct rv_editor_shell;
+
+// Empty pane: displays selectable pane kinds, transforms into the chosen kind.
+void rv_editor_pane_empty(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme);
+
 } // namespace rv_editor

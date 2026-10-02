@@ -19,14 +19,6 @@ namespace rv_editor
 namespace
 {
 
-// A dimmed note that wraps at the pane's edge instead of running under it.
-void rv_editor_note(const std::string &text)
-{
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
-}
-
 // Code panes the tree shows now.
 std::vector<rv_editor_pane_id> rv_editor_code_panes(const rv_editor_workspace &ws)
 {
@@ -503,9 +495,14 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::open_project: rv_editor_page_open_project(shell, theme); return;
         case rv_editor_pane_kind::settings: rv_editor_page_settings(shell, theme); return;
         case rv_editor_pane_kind::help: rv_editor_page_help(shell, theme); return;
+        case rv_editor_pane_kind::empty:
+            rv_editor_pane_empty(shell, pane, theme);
+            return;
         default: break;
     }
-    rv_editor_note(std::string(rv_editor_pane_title(kind)) + ": not implemented yet.");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("%s: this pane kind has no view", rv_editor_pane_title(kind));
+    ImGui::PopStyleColor();
 }
 
 } // namespace rv_editor
