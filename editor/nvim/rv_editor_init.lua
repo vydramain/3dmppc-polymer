@@ -96,7 +96,8 @@ function _G.rv_swap_resolve(win, path, choice)
         if vim.api.nvim_win_is_valid(win) then
             vim.api.nvim_set_current_win(win)
         end
-        vim.cmd.edit(vim.fn.fnameescape(fullpath))
+        -- silent: recovery messages would open a Press-ENTER prompt RPC cannot answer.
+        vim.cmd.edit({ args = { fullpath }, mods = { silent = true } })
     end)
 
     if not success then
