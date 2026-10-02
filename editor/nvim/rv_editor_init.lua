@@ -186,16 +186,12 @@ vim.api.nvim_create_autocmd("LspAttach", {
             return
         end
         rv_lsp_report(client.name, "running", nil)
-        if client:supports_method("textDocument/completion") then
-            vim.lsp.completion.enable(true, client.id, ev.buf, { autotrigger = true })
-        end
     end,
 })
 
 -- Hover and go-to-definition, in both editing modes.
 vim.keymap.set({ "n", "i" }, "<C-k>", function() vim.lsp.buf.hover() end)
 vim.keymap.set({ "n", "i" }, "<F12>", function() vim.lsp.buf.definition() end)
-vim.keymap.set("i", "<C-Space>", function() vim.lsp.completion.get() end)
 
 -- Editor mode or Vim mode. In editor mode a buffer is always typed into.
 vim.g.rv_vim_mode = false

@@ -313,7 +313,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     const bool cursor_here = focused && nvim.screen().cursor_grid() == grid_id;
     rv_editor_nvim_draw_grid(nvim.screen(), *grid, at, cell, rows, cursor_here);
 
-    // Floating windows (hover, completion menu, diagnostics) above the main grid.
+    // Floating windows (hover, diagnostics) above the main grid.
     rv_editor_nvim_draw_floats(nvim.screen(), grid_id, at, cell, cols, rows, focused);
 
     // The tile's status line: the file, and whether it is saved.
@@ -330,8 +330,8 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
     dl->AddText(ImVec2(status.x + cell.x, status.y), IM_COL32(0xcd, 0xd6, 0xf4, 255), label.c_str());
 
-    // LSP note: nothing when running, otherwise why diagnostics/completion are
-    // absent for this file type, with the exact reason as a tooltip.
+    // LSP note: nothing when running, otherwise why diagnostics are absent
+    // for this file type, with the exact reason as a tooltip.
     float note_x = status.x + cell.x * 2 + ImGui::CalcTextSize(label.c_str()).x;
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         const std::string server = nvim.lsp_server_for(buf->name);
