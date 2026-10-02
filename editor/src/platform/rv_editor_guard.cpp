@@ -24,6 +24,19 @@ int rv_editor_guard_write_fd = -1;
 bool rv_editor_guard_failed = false;
 bool rv_editor_guard_write_error_printed = false;
 
+// Kill process groups: SIGTERM first (build tool stops child jobs), wait, then SIGKILL.
+void rv_editor_kill_groups(const std::set<pid_t> &groups, int exit_code)
+{
+    for (pid_t group : groups) {
+        ::kill(-group, SIGTERM);
+    }
+    ::sleep(1);
+    for (pid_t group : groups) {
+        ::kill(-group, SIGKILL);
+    }
+    ::_exit(exit_code);
+}
+
 // Guard loop: read "a<pid>\n" and "r<pid>\n" records, kill all groups on EOF.
 void rv_editor_guard_loop(int read_fd)
 {
@@ -35,10 +48,7 @@ void rv_editor_guard_loop(int read_fd)
 
         // EOF: editor is gone, clean up and exit.
         if (n == 0) {
-            for (pid_t group : groups) {
-                ::kill(-group, SIGKILL);
-            }
-            ::_exit(0);
+            rv_editor_kill_groups(groups, 0);
         }
 
         // Read error other than EINTR: assume editor crashed, clean up.
@@ -46,10 +56,7 @@ void rv_editor_guard_loop(int read_fd)
             if (errno == EINTR) {
                 continue;
             }
-            for (pid_t group : groups) {
-                ::kill(-group, SIGKILL);
-            }
-            ::_exit(1);
+            rv_editor_kill_groups(groups, 1);
         }
 
         // Parse fixed-size record: "a<10-digit-pid>\n" or "r<10-digit-pid>\n".
