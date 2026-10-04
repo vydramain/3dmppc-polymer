@@ -199,9 +199,8 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
 
 // Burn's tile: the shelf's Run Candidate and, once a candidate's image runs, its
 // own frame. The unpacked development build never stands in for it (README),
-// whether stopped or a development session is live. True when a stale picture
-// was drawn.
-bool rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme)
+// whether stopped or a development session is live.
+void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme)
 {
     std::string status = app.release.candidates.empty()
         ? "Stopped. No candidate yet: Build Candidate, then Run Candidate plays it here."
@@ -209,7 +208,6 @@ bool rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &th
             std::to_string(app.release.candidates[app.release.selected].number) + "'s image here.";
     const bool stale = rv_editor_game_join_stale(app, status);
     rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
-    return stale;
 }
 
 } // namespace
@@ -258,9 +256,6 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     app.game_area = { static_cast<int32_t>(avail.x),
         static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
 
-    // True once a picture (live or stale) is actually drawn this frame: set by
-    // the body below, at every call to rv_editor_game_picture.
-    bool shown = false;
     const auto body = [&]() {
         if (!s.live()) {
             app.game_captured = false;
@@ -284,7 +279,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 return;
             }
             if (app.release_view) {
-                shown = rv_editor_game_candidate_tile(app, theme);
+                rv_editor_game_candidate_tile(app, theme);
                 return;
             }
             // Stopped: what the shelf's Run starts; a stale frame, if one is left,
@@ -295,7 +290,6 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             const bool stale = rv_editor_game_join_stale(app, status);
             rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
                 false);
-            shown = stale;
             return;
         }
 
@@ -303,7 +297,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         // frame is not a candidate's image, so Burn still shows the stopped tile.
         if (app.release_view && app.release.playing < 0) {
             app.game_captured = false;
-            shown = rv_editor_game_candidate_tile(app, theme);
+            rv_editor_game_candidate_tile(app, theme);
             return;
         }
 
@@ -375,7 +369,6 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
         rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, line,
             s.state() != rv_editor_run_state::disconnected);
-        shown = true;
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
         if (app.game_captured &&
@@ -385,16 +378,15 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         }
     };
     body();
-    // The tile's own minimum: the frame at 1x plus the measured chrome while a
-    // picture is actually on screen, so it never scales below 1x (fitting only
-    // grows the tile); otherwise just the shelf and status line, so a stopped
-    // Game tile with nothing to protect never forces the workspace to scroll.
-    app.game_need = shown && app.game_area.w > 0 && app.game_area.h > 0
-        ? rv_editor_size{ static_cast<int32_t>(app.project.screen_w) +
+    // The tile's own minimum: the frame at 1x plus the measured chrome when
+    // screen size is known, else just the shelf and status line.
+    app.game_need = rv_editor_size{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
+    if (app.project.screen_w > 0 && app.project.screen_h > 0) {
+        app.game_need = rv_editor_size{ static_cast<int32_t>(app.project.screen_w) +
                 std::max(0, static_cast<int32_t>(region.x) - app.game_area.w),
-              static_cast<int32_t>(app.project.screen_h) +
-                std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) }
-        : rv_editor_size{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
+            static_cast<int32_t>(app.project.screen_h) +
+                std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) };
+    }
     rv_editor_well_end();
 }
 
