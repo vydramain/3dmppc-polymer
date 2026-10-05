@@ -84,7 +84,7 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
         const std::string key = line.substr(0, space);
         const std::string value = line.substr(space + 1);
         if (key == "code-font") {
-            rv_editor_code_size_parse(value.c_str(), prefs.code_size);
+            (void)rv_editor_code_size_parse(value.c_str(), prefs.code_size);
         } else if (key == "game-scale") {
             (void)rv_editor_game_scale_parse(value, prefs.game_scale);
         } else if (key == "workspace") {

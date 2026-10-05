@@ -161,8 +161,9 @@ void rv_editor_display_pixels(SDL_Window *window)
 // Fonts for a scale replace the current ones only when all are built; the style takes the interface size.
 int rv_editor_fonts_build(ImGuiIO &io, float scale)
 {
-    if (!rv_editor::rv_editor_fonts_add(*io.Fonts, scale)) {
-        return RV_ERR_NOENT;
+    const int err = rv_editor::rv_editor_fonts_add(*io.Fonts, scale);
+    if (err != RV_OK) {
+        return err;
     }
     ImGui::GetStyle().FontSizeBase = rv_editor::rv_editor_font_ui()->LegacySize;
     return RV_OK;

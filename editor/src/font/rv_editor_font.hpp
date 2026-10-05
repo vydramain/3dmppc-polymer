@@ -20,9 +20,9 @@ enum class rv_editor_code_size
 
 // Adds the fonts at their heights times `scale` (1, 1.5, 2; code sizes round to whole pixels, the
 // interface font is rebuilt on the scaled pixel grid so it stays unsmoothed); the interface font becomes
-// ImGui's default. False when ImGui refuses the interface font or both code
+// ImGui's default. Returns RV_OK on success or RV_ERR_NOENT when ImGui refuses the interface font or both code
 // fonts; a code font file that does not load leaves the other's sizes, and says so.
-bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale);
+int rv_editor_fonts_add(ImFontAtlas &atlas, float scale);
 
 // The scale the code sizes are multiplied by, after View > UI Scale.
 void rv_editor_font_scale_set(float scale);
@@ -35,7 +35,7 @@ void rv_editor_font_code_size_set(rv_editor_code_size size);
 rv_editor_code_size rv_editor_font_code_size();
 // "small", "normal", "large", as the view file and the menu name them.
 const char *rv_editor_code_size_name(rv_editor_code_size size);
-bool rv_editor_code_size_parse(const char *name, rv_editor_code_size &size);
+int rv_editor_code_size_parse(const char *name, rv_editor_code_size &size);
 
 // Draws what follows in the code font, until rv_editor_font_code_pop().
 void rv_editor_font_code_push();

@@ -187,8 +187,9 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
 
 static int rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale)
 {
-    if (!rv_editor_fonts_add(*io.Fonts, scale)) {
-        return RV_ERR_NOENT;
+    const int err = rv_editor_fonts_add(*io.Fonts, scale);
+    if (err != RV_OK) {
+        return err;
     }
     ImGui::GetStyle().FontSizeBase = rv_editor_font_ui()->LegacySize;
     return RV_OK;

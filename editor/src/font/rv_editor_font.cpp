@@ -7,6 +7,8 @@
 #include <map>
 #include <string>
 
+#include "pdk/rv_err.h"
+
 #include "font/rv_editor_font_ttf.hpp"
 
 namespace rv_editor
@@ -44,7 +46,7 @@ ImFontConfig rv_editor_font_config(const char *name)
 
 } // namespace
 
-bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
+int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
 {
     ImFont *const old_ui = rv_editor_ui;
     ImFont *const old_small = rv_editor_code_small;
@@ -97,10 +99,10 @@ bool rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
         rv_editor_code_small = old_small;
         rv_editor_code_vga = old_vga;
         rv_editor_font_scale = old_scale;
-        return false;
+        return RV_ERR_NOENT;
     }
     rv_editor_font_code_size_set(rv_editor_code_current);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_font_scale_set(float scale)
@@ -138,16 +140,16 @@ const char *rv_editor_code_size_name(rv_editor_code_size size)
     return "normal";
 }
 
-bool rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
+int rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
 {
     for (const rv_editor_code_size s : { rv_editor_code_size::small, rv_editor_code_size::normal,
              rv_editor_code_size::large }) {
         if (std::strcmp(name, rv_editor_code_size_name(s)) == 0) {
             size = s;
-            return true;
+            return RV_OK;
         }
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
 void rv_editor_font_code_push()
