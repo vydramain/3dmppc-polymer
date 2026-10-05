@@ -21,9 +21,10 @@ o.hlsearch = false
 o.updatetime = 250
 o.timeoutlen = 500
 o.expandtab = true
-o.tabstop = 2
-o.shiftwidth = 2
-o.softtabstop = 2
+o.tabstop = 4
+o.shiftwidth = 4
+o.softtabstop = 4
+o.colorcolumn = "129"
 o.smartindent = true
 o.hidden = true
 o.autoread = true
@@ -172,18 +173,8 @@ hl("Delimiter", { fg = c.subtext })
 hl("Todo", { fg = c.base, bg = c.yellow })
 hl("@variable", { fg = c.text })
 
--- Per language: two spaces everywhere, four for C and C++ with the ruler
--- at 129, the first column past 128 (the owner's options.lua).
-local profiles = {
-    c = { expandtab = true, tabstop = 4, shiftwidth = 4, softtabstop = 4, colorcolumn = "129" },
-    cpp = { expandtab = true, tabstop = 4, shiftwidth = 4, softtabstop = 4, colorcolumn = "129" },
-}
 vim.api.nvim_create_autocmd("FileType", {
     callback = function(ev)
-        local p = profiles[ev.match]
-        if p then
-            for k, v in pairs(p) do vim.opt_local[k] = v end
-        end
         -- The bundled parsers highlight what they know; the rest keeps syntax.
         pcall(vim.treesitter.start, ev.buf)
     end,
