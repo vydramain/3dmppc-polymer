@@ -3,6 +3,7 @@
 
 #include "project/rv_editor_settings.hpp"
 
+#include "pdk/rv_err.h"
 #include "project/rv_editor_toml.hpp"
 
 
@@ -70,10 +71,13 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
     return out;
 }
 
-bool rv_editor_settings_save_tools(const std::filesystem::path &path, const std::vector<rv_editor_settings_tool> &tools,
+int rv_editor_settings_save_tools(const std::filesystem::path &path, const std::vector<rv_editor_settings_tool> &tools,
     std::string &error)
 {
-    return rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
+    if (!rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error)) {
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 } // namespace rv_editor

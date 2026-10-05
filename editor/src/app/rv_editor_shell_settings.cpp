@@ -12,6 +12,7 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
 #include "app/rv_editor_shell.hpp"
 #include "project/rv_editor_settings.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -175,7 +176,7 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
         tools.push_back({ rv_editor_settings_rows[i].key, shell.settings_paths[i] });
     }
     std::string error;
-    if (!rv_editor_settings_save_tools(app.tools.settings_path, tools, error)) {
+    if (rv_editor_settings_save_tools(app.tools.settings_path, tools, error) != RV_OK) {
         shell.settings_error = error;
         return;
     }
