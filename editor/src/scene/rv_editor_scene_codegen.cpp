@@ -4,6 +4,8 @@
 #include <fstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -55,7 +57,7 @@ std::string rv_editor_scene_codegen_text(std::string_view scene_name)
     return text;
 }
 
-bool rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
+int rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
     std::filesystem::path &written, std::string &error)
 {
     const std::filesystem::path src_dir = root / "src";
@@ -65,25 +67,25 @@ bool rv_editor_scene_codegen_write(const std::filesystem::path &root, std::strin
     std::filesystem::create_directories(src_dir, ec);
     if (ec) {
         error = "could not create " + src_dir.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
     if (std::filesystem::exists(path, ec)) {
         error = path.string() + " already exists";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     std::ofstream out(path, std::ios::binary);
     if (!out) {
         error = "could not open " + path.string() + " for writing";
-        return false;
+        return RV_ERR_IO;
     }
     out << rv_editor_scene_codegen_text(scene_name);
     if (!out) {
         error = "could not write " + path.string();
-        return false;
+        return RV_ERR_IO;
     }
     written = path;
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

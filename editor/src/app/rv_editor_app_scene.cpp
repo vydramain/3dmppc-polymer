@@ -160,7 +160,7 @@ bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool 
     if (write_cpp && app.project.has_build_section) {
         std::filesystem::path written;
         std::string cpp_error;
-        if (rv_editor_scene_codegen_write(app.project.root, name, written, cpp_error)) {
+        if (rv_editor_scene_codegen_write(app.project.root, name, written, cpp_error) == RV_OK) {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
                 "wrote " + rv_editor_scene_label(app, written));
         } else {

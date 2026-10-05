@@ -16,9 +16,9 @@ std::string rv_editor_scene_codegen_text(std::string_view scene_name);
 
 // Writes root/src/<id>_scene.hpp, <id> being scene_name as a C identifier
 // (it is #included, so it must be one); creates src/ if missing. Never
-// overwrites an existing file: returns false with `error` set and `written`
-// untouched. On success `written` holds the path written.
-bool rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
+// overwrites an existing file: returns RV_ERR_INVAL with `error` set and `written`
+// untouched. On success (RV_OK) `written` holds the path written; RV_ERR_IO if write failed.
+int rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
     std::filesystem::path &written, std::string &error);
 
 } // namespace rv_editor
