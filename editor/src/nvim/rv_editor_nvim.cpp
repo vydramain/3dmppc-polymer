@@ -45,10 +45,11 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
         "let g:rv_editor_palette='" + std::string(RV_EDITOR_NVIM_PALETTE) + "'", "-u",
         RV_EDITOR_NVIM_CONFIG, "-i", "NONE" };
     std::string error;
-    if (!rpc_.start(argv, cwd, error)) {
+    const int err = rpc_.start(argv, cwd, error);
+    if (err != RV_OK) {
         problem = "cannot start nvim: " + error;
-        last_error_ = RV_ERR_IO;
-        return RV_ERR_IO;
+        last_error_ = err;
+        return err;
     }
     started_ = true;
     attached_ = false;

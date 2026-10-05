@@ -25,12 +25,13 @@ rv_editor_nvim_rpc::~rv_editor_nvim_rpc()
     stop();
 }
 
-bool rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
+int rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
     std::string &error)
 {
     stop();
-    if (proc_.start(argv, cwd, error) != RV_OK) {
-        return false;
+    const int err = proc_.start(argv, cwd, error);
+    if (err != RV_OK) {
+        return err;
     }
     quit_ = false;
     eof_ = false;
@@ -38,7 +39,7 @@ bool rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::
     queue_.clear();
     pending_.clear();
     thread_ = std::thread([this] { reader(); });
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_nvim_rpc::stop()

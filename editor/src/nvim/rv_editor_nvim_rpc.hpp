@@ -31,8 +31,8 @@ public:
 
     ~rv_editor_nvim_rpc();
 
-    // argv[0] is the nvim executable. False with the reason.
-    bool start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error);
+    // argv[0] is the nvim executable. Returns RV_OK or RV_ERR_* with the reason in error.
+    int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error);
     // Ends nvim: closes its input, waits a moment, then kills it.
     void stop();
     bool running() const { return proc_.running(); }
