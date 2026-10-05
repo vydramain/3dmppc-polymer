@@ -1,0 +1,2 @@
+# Vendored files are kept verbatim (third_party/README.md, rule 4) and are never formatted.
+DisableFormat: true
