@@ -472,10 +472,10 @@ void rv_editor_app_step(rv_editor_app &app);
 void rv_editor_app_stop(rv_editor_app &app);
 void rv_editor_app_reload(rv_editor_app &app);
 
-// Renames or deletes inside the project; false with the reason.
-bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
+// Renames or deletes inside the project; RV_OK or RV_ERR_* with the reason in error.
+int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
     std::string &error);
-bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
+int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
 
 // Once a frame, before drawing.
 void rv_editor_app_update(rv_editor_app &app);

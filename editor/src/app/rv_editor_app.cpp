@@ -6,6 +6,8 @@
 #include <system_error>
 #include <thread>
 
+#include "pdk/rv_err.h"
+
 #include "project/rv_editor_templates.hpp"
 #include "release/rv_editor_candidate_store.hpp"
 
@@ -369,35 +371,35 @@ void rv_editor_app_stop(rv_editor_app &app)
     app.session.stop(app.log);
 }
 
-bool rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
+int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
     std::string &error)
 {
     error = app.nvim.buffers_unsaved_at(from);
     if (!error.empty()) {
-        return false;
+        return RV_ERR_BUSY;
     }
     const std::filesystem::path to = from.parent_path() / name;
     if (!app.files.rename(from, name, error)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     app.nvim.rename_buffers_at(from, to);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
         "renamed " + from.string() + " to " + name);
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
+int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
 {
     error = app.nvim.buffers_unsaved_at(path);
     if (!error.empty()) {
-        return false;
+        return RV_ERR_BUSY;
     }
     if (!app.files.remove(path, error)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     app.nvim.delete_buffers_at(path);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "deleted " + path.string());
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_app_update(rv_editor_app &app)

@@ -272,10 +272,10 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
             ok = (app.files.create_dir(view.target, name, view.error) == RV_OK);
             break;
         case dialog_kind::rename:
-            ok = rv_editor_app_rename(app, view.target, name, view.error);
+            ok = (rv_editor_app_rename(app, view.target, name, view.error) == RV_OK);
             break;
         case dialog_kind::remove:
-            ok = rv_editor_app_remove(app, view.target, view.error);
+            ok = (rv_editor_app_remove(app, view.target, view.error) == RV_OK);
             break;
         default:
             break;
