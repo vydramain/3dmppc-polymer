@@ -142,7 +142,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
     const bool cancel = rv_editor_button("Cancel", theme);
     if (create) {
         std::string error;
-        if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error)) {
+        if (rv_editor_app_scene_create(app, name, g_new_scene.write_cpp, error) == RV_OK) {
             g_new_scene.open = false;
         } else {
             g_new_scene.error = error;

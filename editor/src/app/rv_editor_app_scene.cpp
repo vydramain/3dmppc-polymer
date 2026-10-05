@@ -115,35 +115,36 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
     return name;
 }
 
-bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error)
+int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error)
 {
     if (rv_editor_app_scene_dirty(app)) {
         error = rv_editor_app_scene_name(app) + " has unsaved changes: save it (Scene > Save Scene) or undo "
                                                  "them before creating a new scene";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!rv_editor_scene_name_valid(name)) {
         error = "name must be non-empty letters, digits, _ or -";
-        return false;
+        return RV_ERR_INVAL;
     }
     const std::string rel = "scenes/" + std::string(name) + ".scene.toml";
     const std::filesystem::path path = app.project.root / rel;
     std::error_code ec;
     if (std::filesystem::exists(path, ec)) {
         error = rel + " already exists";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const rv_editor_scene scene = rv_editor_scene_make(path);
-    if (rv_editor_scene_save(scene, error) != RV_OK) {
+    const int save_code = rv_editor_scene_save(scene, error);
+    if (save_code != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not created: " + error);
-        return false;
+        return save_code;
     }
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "created " + rel);
 
     // Whatever fails below, the scene file stays and is opened anyway;
     // only the last reason is reported back.
-    bool ok = true;
+    int result = RV_OK;
     std::string reason;
     if (!rv_editor_project_on_disc(app.project, rel)) {
         std::string add_error;
@@ -152,7 +153,7 @@ bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool 
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
                 "disc.toml: added scenes/*.scene.toml to [assets]");
         } else {
-            ok = false;
+            result = RV_ERR_IO;
             reason = "not added to disc.toml: " + add_error;
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, reason);
         }
@@ -160,21 +161,22 @@ bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool 
     if (write_cpp && app.project.has_build_section) {
         std::filesystem::path written;
         std::string cpp_error;
-        if (rv_editor_scene_codegen_write(app.project.root, name, written, cpp_error) == RV_OK) {
+        const int codegen_code = rv_editor_scene_codegen_write(app.project.root, name, written, cpp_error);
+        if (codegen_code == RV_OK) {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
                 "wrote " + rv_editor_scene_label(app, written));
         } else {
-            ok = false;
+            result = codegen_code;
             reason = "C++ not written: " + cpp_error;
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, reason);
         }
     }
 
     rv_editor_app_scene_open(app, path);
-    if (!ok) {
+    if (result != RV_OK) {
         error = reason;
     }
-    return ok;
+    return result;
 }
 
 bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error)

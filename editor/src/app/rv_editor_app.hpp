@@ -376,9 +376,11 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
 void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::path &path);
 // Creates scenes/<name>.scene.toml (name: non-empty, letters/digits/_/-, must not
 // exist yet), puts it on the disc if no pattern already matches it, writes
-// src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. False with
-// the reason on any failure; the scene file and whatever else already succeeded stay.
-bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
+// src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. RV_OK on success,
+// RV_ERR_INVAL if name is invalid, RV_ERR_* from scene_save, RV_ERR_IO if disc.toml update fails,
+// or from codegen_write if C++ write fails; the scene file and whatever else already succeeded stay.
+// Reason in error.
+int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
 bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // The project's first scene, or none; called when a project opens.
 void rv_editor_app_scene_first(rv_editor_app &app);
