@@ -318,14 +318,15 @@ const char *rv_editor_project_disc_section(std::string_view rel)
     return "assets";
 }
 
-bool rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
+int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
 {
     const char *section = rv_editor_project_disc_section(rel);
-    if (rv_editor_manifest_add_pattern(project.manifest, section, rel, error) != RV_OK) {
-        return false;
+    const int err = rv_editor_manifest_add_pattern(project.manifest, section, rel, error);
+    if (err != RV_OK) {
+        return err;
     }
     rv_editor_project_reload_manifest(project);
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

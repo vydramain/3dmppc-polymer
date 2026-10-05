@@ -11,6 +11,7 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
 #include "ui/rv_editor_sound.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -188,7 +189,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
             ImGui::SameLine();
             if (rv_editor_button("Add to disc", theme)) {
                 std::string error;
-                if (rv_editor_project_put_on_disc(project, a->rel, error)) {
+                if (rv_editor_project_put_on_disc(project, a->rel, error) == RV_OK) {
                     rv_editor_add_last_error = {};
                 } else {
                     rv_editor_add_last_error = { a->rel, error };

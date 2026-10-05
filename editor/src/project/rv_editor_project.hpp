@@ -111,8 +111,8 @@ bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_vie
 const char *rv_editor_project_disc_section(std::string_view rel);
 
 // Adds `rel` itself as a pattern to its section and reloads the manifest.
-// False with the reason on failure; disc.toml is untouched on failure.
-bool rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error);
+// RV_OK on success, error code from rv_editor_manifest_add_pattern on failure. disc.toml is untouched on failure.
+int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error);
 
 // Opens `target`, a directory or its disc.toml. False with the reason when it
 // is neither a directory with disc.toml nor a disc.toml.
