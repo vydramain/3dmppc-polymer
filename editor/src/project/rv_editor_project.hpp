@@ -68,7 +68,9 @@ public:
     }
 
 private:
-    bool launch(const std::vector<std::string> &argv);
+    // Starts a child process with argv in root directory. Returns RV_OK on success,
+    // RV_ERR_IO when it cannot start.
+    int launch(const std::vector<std::string> &argv);
 
     std::filesystem::path root_;
     std::filesystem::path git_;

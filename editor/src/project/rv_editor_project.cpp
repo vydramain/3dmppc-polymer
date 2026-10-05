@@ -10,6 +10,7 @@
 #include <system_error>
 #include <thread>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
@@ -100,17 +101,17 @@ std::filesystem::path rv_editor_xdg_dir(const char *var, const char *home_fallba
     return {};
 }
 
-bool rv_editor_revision_job::launch(const std::vector<std::string> &argv)
+int rv_editor_revision_job::launch(const std::vector<std::string> &argv)
 {
     proc_ = std::make_unique<rv_editor_process>();
     std::string error;
     out_.clear();
     until_ = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     if (proc_->start(argv, root_, error)) {
-        return true;
+        return RV_OK;
     }
     proc_.reset();
-    return false;
+    return RV_ERR_IO;
 }
 
 void rv_editor_revision_job::start(const std::filesystem::path &root)
@@ -124,7 +125,7 @@ void rv_editor_revision_job::start(const std::filesystem::path &root)
         return;
     }
     text_.clear();
-    if (!launch({ git_.string(), "rev-parse", "--verify", "HEAD" })) {
+    if (launch({ git_.string(), "rev-parse", "--verify", "HEAD" }) != RV_OK) {
         text_ = "unknown: not in a git work tree with a commit";
     }
 }
@@ -152,7 +153,7 @@ bool rv_editor_revision_job::poll()
         head_ = out_.substr(0, out_.find('\n'));
         status_step_ = true;
         // Only this project's files: a project may sit in a larger repository.
-        if (launch({ git_.string(), "status", "--porcelain", "--", "." })) {
+        if (launch({ git_.string(), "status", "--porcelain", "--", "." }) == RV_OK) {
             return false;
         }
         text_ = "git " + head_ + ", whether the files differ from it is unknown";
