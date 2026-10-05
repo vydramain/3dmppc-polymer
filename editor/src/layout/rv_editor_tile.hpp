@@ -214,9 +214,9 @@ std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout 
 // record per line, first line "3dmppc-editor-layout <PDK version>".
 std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout);
 
-// Reads what rv_editor_layout_write wrote. False, with both outputs untouched,
-// unless `text` is one whole valid layout.
-bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout);
+// Reads what rv_editor_layout_write wrote. RV_OK, or RV_ERR_INVAL when `text` is
+// not one whole valid layout; both outputs untouched on error.
+int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout);
 
 // --- starting layouts ---------------------------------------------------------
 

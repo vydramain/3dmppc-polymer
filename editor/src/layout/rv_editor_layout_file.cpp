@@ -8,6 +8,8 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -47,7 +49,7 @@ bool rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_reg
         return false;
     }
 
-    return rv_editor_layout_read(text, panes, layout);
+    return rv_editor_layout_read(text, panes, layout) == RV_OK;
 }
 
 bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
