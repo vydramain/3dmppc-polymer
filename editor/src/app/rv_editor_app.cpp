@@ -336,7 +336,7 @@ void rv_editor_app_run_saved(rv_editor_app &app)
 void rv_editor_app_profiles_save(rv_editor_app &app)
 {
     std::string error;
-    if (!rv_editor_run_config_save(app.project.root, app.run_config, error)) {
+    if (rv_editor_run_config_save(app.project.root, app.run_config, error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "run profiles not saved: " + error);
     }
     app.run_config.error.clear();

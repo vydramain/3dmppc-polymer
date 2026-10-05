@@ -10,6 +10,8 @@
 #include <string_view>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
 
@@ -116,7 +118,7 @@ rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root
     return config;
 }
 
-bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
+int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
     std::string &error)
 {
     std::string t = "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
@@ -133,7 +135,10 @@ bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_edito
         t += "env = " + rv_editor_run_array(p.env) + "\n";
         t += "reload_on_save = " + std::to_string(p.reload_on_save ? 1 : 0) + "\n";
     }
-    return rv_editor_file_replace(rv_editor_run_config_path(root), t, error);
+    if (!rv_editor_file_replace(rv_editor_run_config_path(root), t, error)) {
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 std::filesystem::path rv_editor_run_profile_path(const std::string &path, const std::filesystem::path &root)

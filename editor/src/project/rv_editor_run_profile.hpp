@@ -34,8 +34,8 @@ struct rv_editor_run_config
 };
 
 rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root);
-// Written through a temporary file and a rename. False with the reason.
-bool rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
+// Written through a temporary file and a rename. RV_OK or RV_ERR_IO with the reason.
+int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
     std::string &error);
 
 // Why the profile cannot start a console, known before it runs; empty
