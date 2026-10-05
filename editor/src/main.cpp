@@ -166,8 +166,8 @@ bool rv_editor_fonts_build(ImGuiIO &io, float scale)
     return true;
 }
 
-// Set window size and minimum to 1280*scale x 720*scale pixels, accounting for pixel density.
-// If resize_up, enlarge window if it's too small; otherwise leave it as is.
+// Set minimum window size to 1280x720 UI points at the given scale, accounting for pixel density (window can be larger).
+// If resize_up, enlarge to minimum when too small; otherwise leave size unchanged.
 void rv_editor_set_window_size_for_scale(SDL_Window *window, float scale, bool resize_up)
 {
     if (!window) {
