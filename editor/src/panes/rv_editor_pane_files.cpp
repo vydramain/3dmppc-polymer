@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include "panes/rv_editor_panes.hpp"
+#include "rv_editor_catppuccin_mocha.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -106,7 +107,7 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
 {
     if (node.symlink) {
         code = rv_editor_glyph::link;
-        color = 0x77836b;
+        color = rv_editor_mocha_overlay0;
         return;
     }
     if (node.dir) {
@@ -128,18 +129,18 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
         const char *code;
         uint32_t color;
     };
-    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, 0xb98bb4 },
-        { ".cpp", rv_editor_glyph::cpp, 0x7da3c4 }, { ".c", rv_editor_glyph::cpp, 0x7da3c4 },
-        { ".cc", rv_editor_glyph::cpp, 0x7da3c4 }, { ".hpp", rv_editor_glyph::header, 0x6fb0bf },
-        { ".h", rv_editor_glyph::header, 0x6fb0bf }, { ".toml", rv_editor_glyph::toml, 0xd99a5e },
-        { ".png", rv_editor_glyph::image, 0xa3bf6e }, { ".pcm", rv_editor_glyph::sound, 0x79b8a4 },
-        { ".wav", rv_editor_glyph::sound, 0x79b8a4 }, { ".md", rv_editor_glyph::text, 0xd8ded3 },
-        { ".txt", rv_editor_glyph::text, 0xd8ded3 } };
+    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve },
+        { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
+        { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
+        { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire }, { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach },
+        { ".png", rv_editor_glyph::image, rv_editor_mocha_green }, { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal },
+        { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal }, { ".md", rv_editor_glyph::text, rv_editor_mocha_text },
+        { ".txt", rv_editor_glyph::text, rv_editor_mocha_text } };
     code = rv_editor_glyph::other_file;
-    color = 0xa3ac97;
+    color = rv_editor_mocha_subtext0;
     if (path.filename() == "disc.toml") {
         code = rv_editor_glyph::disc_toml;
-        color = 0xd99a5e;
+        color = rv_editor_mocha_peach;
         return;
     }
     for (const kind &k : kinds) {
@@ -313,7 +314,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
         rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, 0x79b8a4, "Refresh", theme)) {
+    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, rv_editor_mocha_teal, "Refresh", theme)) {
         app.files.refresh();
     }
     rv_editor_shelf_end();

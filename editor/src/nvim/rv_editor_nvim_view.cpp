@@ -14,6 +14,7 @@
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -330,9 +331,9 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         }
     }
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), IM_COL32(0x1d, 0x21, 0x19, 255));
+    dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), rv_editor_col(rv_editor_mocha_base));
     if (grid == nullptr) {
-        dl->AddText(at, IM_COL32(0xa3, 0xac, 0x97, 255), "Starting nvim...");
+        dl->AddText(at, rv_editor_col(rv_editor_mocha_subtext0), "Starting nvim...");
         rv_editor_well_end();
         return;
     }
@@ -344,7 +345,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
 
     // The tile's status line: the file, and whether it is saved.
     const ImVec2 status(at.x, at.y + rows * cell.y);
-    dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), IM_COL32(0x3a, 0x42, 0x32, 255));
+    dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_col(rv_editor_mocha_surface1));
     std::string label = "Untitled";
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win)) {
         std::error_code ec;
@@ -354,7 +355,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         label = buf->name.empty() ? "Untitled" : (ec || rel.empty() ? buf->name : rel.string());
         label += buf->modified ? " [+]" : "";
     }
-    dl->AddText(ImVec2(status.x + cell.x, status.y), IM_COL32(0xd8, 0xde, 0xd3, 255), label.c_str());
+    dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_col(rv_editor_mocha_text), label.c_str());
 
     // LSP note: nothing when running, otherwise why diagnostics are absent
     // for this file type, with the exact reason as a tooltip.

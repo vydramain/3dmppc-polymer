@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "rv_editor_catppuccin_mocha.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_glyphs.hpp"
@@ -129,15 +130,15 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         bool *clicked;
     };
     // Reload's slot: Build and Restart when Reload cannot apply the pending change.
-    rv_editor_transport_button reload_slot = { "Reload", rv_editor_glyph::reload, 0x79b8a4,
+    rv_editor_transport_button reload_slot = { "Reload", rv_editor_glyph::reload, rv_editor_mocha_teal,
         state.reload_name != nullptr ? state.reload_name : "Reload Entry Script", "F8", state.reload,
         &out.reload };
     if (state.build_restart) {
-        reload_slot = { "Restart", rv_editor_glyph::restart, 0xd9776b, "Build and Restart", nullptr,
+        reload_slot = { "Restart", rv_editor_glyph::restart, rv_editor_mocha_red, "Build and Restart", nullptr,
             state.build_restart_disabled, &out.build_restart };
     }
     const rv_editor_transport_button buttons[] = {
-        { "Build", rv_editor_glyph::build, 0xd99a5e, "Build", "Ctrl+B", state.build, &out.build },
+        { "Build", rv_editor_glyph::build, rv_editor_mocha_peach, "Build", "Ctrl+B", state.build, &out.build },
         { state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, state.resume ? "Resume" : "Run",
             "F5", state.run, &out.run },
         { "Pause", rv_editor_glyph::pause, theme.code_yellow, "Pause", "F6", state.pause, &out.pause },

@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "rv_editor_catppuccin_mocha.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -202,7 +203,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     }
     // Only controls, no separate content: the whole pane is a shelf.
     rv_editor_shelf_begin("##shelf", theme);
-    if (rv_editor_tool_button("Build", rv_editor_glyph::build, 0xd99a5e, "Build Candidate", nullptr, theme,
+    if (rv_editor_tool_button("Build", rv_editor_glyph::build, rv_editor_mocha_peach, "Build Candidate", nullptr, theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build_candidate(app);
     }
@@ -212,7 +213,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         rv_editor_app_run_candidate(app);
     }
     rv_editor_flow(rv_editor_tool_button_width("Player"));
-    if (rv_editor_tool_button("Player", rv_editor_glyph::run_in_player, 0xb98bb4, "Run in Player", nullptr, theme,
+    if (rv_editor_tool_button("Player", rv_editor_glyph::run_in_player, rv_editor_mocha_mauve, "Run in Player", nullptr, theme,
             { rv_editor_look::live, rv_editor_app_why_not_play(app) })) {
         rv_editor_app_play_candidate(app);
     }
