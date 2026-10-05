@@ -74,8 +74,10 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
 int rv_editor_settings_save_tools(const std::filesystem::path &path, const std::vector<rv_editor_settings_tool> &tools,
     std::string &error)
 {
-    if (!rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error)) {
-        return RV_ERR_IO;
+    const int code = rv_editor_file_replace(
+        path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
+    if (code != RV_OK) {
+        return code;
     }
     return RV_OK;
 }

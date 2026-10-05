@@ -322,8 +322,9 @@ int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error)
         error = "read-only: " + scene.read_only;
         return RV_ERR_INVAL;
     }
-    if (!rv_editor_file_replace(scene.path, rv_editor_scene_render(scene), error)) {
-        return RV_ERR_IO;
+    const int code = rv_editor_file_replace(scene.path, rv_editor_scene_render(scene), error);
+    if (code != RV_OK) {
+        return code;
     }
     return RV_OK;
 }

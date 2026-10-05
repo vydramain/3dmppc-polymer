@@ -133,8 +133,9 @@ int rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_c
         t += "at = " + q(check.at) + "\n";
         t += "hash = " + q(check.hash) + "\n";
     }
-    if (!rv_editor_file_replace(dir / (std::to_string(c.number) + ".toml"), t, error)) {
-        return RV_ERR_IO;
+    const int code = rv_editor_file_replace(dir / (std::to_string(c.number) + ".toml"), t, error);
+    if (code != RV_OK) {
+        return code;
     }
     return RV_OK;
 }

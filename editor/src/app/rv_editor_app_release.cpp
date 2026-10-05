@@ -93,8 +93,8 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.source_revision = r.building_revision;
     c.checks = rv_editor_checks_make();
     std::string error;
-    if (!rv_editor_file_replace(rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "build"),
-            rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error)) {
+    if (rv_editor_file_replace(rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "build"),
+            rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "build log not kept: " + error);
     }
     c.dirty = true;
@@ -227,9 +227,9 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     }
     ++c.playtests;
     std::string error;
-    if (!rv_editor_file_replace(
+    if (rv_editor_file_replace(
             rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "playtest-" + std::to_string(c.playtests)),
-            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()), error)) {
+            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()), error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest log not kept: " + error);
     }
     c.dirty = true;

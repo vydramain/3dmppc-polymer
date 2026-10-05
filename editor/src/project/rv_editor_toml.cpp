@@ -6,6 +6,8 @@
 #include <sstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -25,7 +27,7 @@ std::string rv_editor_toml_quote(std::string_view s)
     return out + "\"";
 }
 
-bool rv_editor_file_replace(const std::filesystem::path &path, const std::string &text, std::string &error)
+int rv_editor_file_replace(const std::filesystem::path &path, const std::string &text, std::string &error)
 {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
@@ -35,14 +37,14 @@ bool rv_editor_file_replace(const std::filesystem::path &path, const std::string
     out.close();
     if (!out) {
         error = "cannot write " + tmp.string();
-        return false;
+        return RV_ERR_IO;
     }
     std::filesystem::rename(tmp, path, ec);
     if (ec) {
         error = path.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
-    return true;
+    return RV_OK;
 }
 
 std::string rv_editor_file_text(const std::filesystem::path &path)

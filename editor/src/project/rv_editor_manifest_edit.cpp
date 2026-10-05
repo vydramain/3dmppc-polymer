@@ -8,6 +8,7 @@
 #include <system_error>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
@@ -279,14 +280,14 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
         }
     }
 
-    if (!rv_editor_file_replace(manifest, text, error)) {
+    if (rv_editor_file_replace(manifest, text, error) != RV_OK) {
         return false;
     }
     rv_pdklib::rv_manifest check;
     std::string load_error;
     if (rv_pdklib::rv_manifest_load(manifest.string(), check, load_error) != 0) {
         std::string restore_error;
-        rv_editor_file_replace(manifest, original, restore_error);
+        (void)rv_editor_file_replace(manifest, original, restore_error);
         error = load_error;
         return false;
     }

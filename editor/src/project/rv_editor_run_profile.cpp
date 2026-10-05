@@ -135,8 +135,9 @@ int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor
         t += "env = " + rv_editor_run_array(p.env) + "\n";
         t += "reload_on_save = " + std::to_string(p.reload_on_save ? 1 : 0) + "\n";
     }
-    if (!rv_editor_file_replace(rv_editor_run_config_path(root), t, error)) {
-        return RV_ERR_IO;
+    const int code = rv_editor_file_replace(rv_editor_run_config_path(root), t, error);
+    if (code != RV_OK) {
+        return code;
     }
     return RV_OK;
 }

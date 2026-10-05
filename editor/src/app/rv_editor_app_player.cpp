@@ -10,6 +10,8 @@
 #include "project/rv_editor_toml.hpp"
 #include "release/rv_editor_candidate_store.hpp"
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -79,8 +81,8 @@ void rv_editor_player_finish(rv_editor_app &app)
             ++k;
         }
         std::string error;
-        if (!rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, "player-" + std::to_string(k)),
-                r.player_output, error)) {
+        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, "player-" + std::to_string(k)),
+                r.player_output, error) != RV_OK) {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player log not kept: " + error,
                 rv_editor_log_channel::none, pid, run);
         }
