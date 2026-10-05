@@ -442,7 +442,8 @@ bool rv_editor_app_run_builds(const rv_editor_app &app);
 // Buffers with a file name and unsaved changes: what a build would miss.
 std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app);
 // Starts a console on `artifact` with memory card `card` (empty: the project's).
-bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
+// Returns RV_OK on success, RV_ERR_IO if runtime process or storage failed.
+int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
 
 // Release (editor/src/app/rv_editor_app_release.cpp): Build Candidate writes a new
 // numbered image; Run Candidate runs the one shown on the development console.

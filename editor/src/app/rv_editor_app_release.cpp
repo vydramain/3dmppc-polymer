@@ -10,6 +10,8 @@
 #include <fstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -162,7 +164,7 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
     std::filesystem::path card = c.image;
     card.replace_extension(".mppccard");
     r.playtest_first_seq = app.log.revision() + 1;
-    if (!rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card)) {
+    if (rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card) != RV_OK) {
         return;
     }
     r.playing = static_cast<int>(r.selected);

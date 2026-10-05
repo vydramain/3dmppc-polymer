@@ -30,14 +30,14 @@ void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_edit
 
 } // namespace
 
-bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
+int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
 {
     std::error_code ec;
     std::filesystem::create_directories(app.project.state_dir, ec);
     if (ec) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
             app.project.state_dir.string() + ": " + ec.message());
-        return false;
+        return RV_ERR_IO;
     }
     app.build.prune(artifact.dir);
     // A new console starts with every key up: no capture carries over.
@@ -62,7 +62,7 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
             cwd.empty() ? app.project.root : cwd, artifact.number, rv_editor_run_profile_args(profile), profile.env,
             app.log, error)) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
-        return false;
+        return RV_ERR_IO;
     }
     const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
     app.build_map = rv_editor_build_map_read(map_path);
@@ -71,7 +71,7 @@ bool rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact,
             map_path.string() + ": no map; reload targets fall back to the entry script");
     }
     rv_editor_app_attach_session_log(app);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_app_init(rv_editor_app &app)
@@ -326,7 +326,7 @@ void rv_editor_app_run_saved(rv_editor_app &app)
     app.restart_after_build = false;
     app.restart_after_stop = false;
     if (!rv_editor_app_run_builds(app)) {
-        rv_editor_app_start(app, *app.build.last_success());
+        (void)rv_editor_app_start(app, *app.build.last_success());
         return;
     }
     rv_editor_app_build_saved(app);
@@ -353,7 +353,7 @@ void rv_editor_app_run_last(rv_editor_app &app)
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
         "running the last successful build, #" + std::to_string(artifact.number) +
             ": its native code with the current scripts, assets and scenes");
-    rv_editor_app_start(app, artifact);
+    (void)rv_editor_app_start(app, artifact);
 }
 
 void rv_editor_app_pause(rv_editor_app &app)
@@ -441,7 +441,7 @@ void rv_editor_app_update(rv_editor_app &app)
             // The build Run started runs, or Run says why not; never the one before.
             app.run_after_build = false;
             if (app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success()) {
-                rv_editor_app_start(app, *app.build.last_success());
+                (void)rv_editor_app_start(app, *app.build.last_success());
             } else {
                 app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
                     std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));

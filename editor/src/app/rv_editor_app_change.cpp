@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <chrono>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -125,7 +127,7 @@ void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended)
                 app.restart_after_stop = true;
                 app.session.stop(app.log);
             } else {
-                rv_editor_app_start(app, *app.build.last_success());
+                (void)rv_editor_app_start(app, *app.build.last_success());
             }
         } else {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
@@ -135,7 +137,7 @@ void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended)
     }
     if (app.restart_after_stop && !app.session.live()) {
         app.restart_after_stop = false;
-        rv_editor_app_start(app, *app.build.last_success());
+        (void)rv_editor_app_start(app, *app.build.last_success());
     }
 }
 
