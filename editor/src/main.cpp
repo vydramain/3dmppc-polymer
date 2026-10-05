@@ -338,12 +338,12 @@ int main(int argc, char **argv)
     rv_editor::rv_editor_sound_shutdown();
 
     std::string error;
-    if (!layout_path.empty() && !rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error)) {
+    if (!layout_path.empty() && rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
     const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(), shell->app.game_scale,
         rv_editor::rv_editor_shell_workspace_key(*shell), shell->ui_scale };
-    if (!prefs_path.empty() && !rv_editor::rv_editor_prefs_save(prefs_path, chosen, error)) {
+    if (!prefs_path.empty() && rv_editor::rv_editor_prefs_save(prefs_path, chosen, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }
 

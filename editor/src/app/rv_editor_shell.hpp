@@ -151,9 +151,9 @@ void rv_editor_shell_frame_start(rv_editor_shell &shell);
 // "burn"; anything else is Code).
 void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem::path &path, const std::string &active);
 
-// Writes every layout's tree to `path`-<name>. False with the reason of the
-// first that failed; the others are still written.
-bool rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesystem::path &path, std::string &error);
+// Writes every layout's tree to `path`-<name>. RV_OK or the code of the first that failed; the others
+// are still written.
+int rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesystem::path &path, std::string &error);
 
 // The active workspace's name as the view file keeps it.
 const char *rv_editor_shell_workspace_key(const rv_editor_shell &shell);

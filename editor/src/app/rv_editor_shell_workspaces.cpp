@@ -335,19 +335,20 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
     shell.ws.focused_leaf = rv_editor_tile_none;
 }
 
-bool rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesystem::path &path, std::string &error)
+int rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesystem::path &path, std::string &error)
 {
-    bool ok = true;
+    int result = RV_OK;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
         const rv_editor_layout &tree =
             preset == shell.active ? shell.ws.layout : shell.trees[rv_editor_workspace_slot(preset)];
         std::string why;
-        if (rv_editor_layout_save(rv_editor_workspace_file(path, preset), shell.ws.panes, tree, why) != RV_OK && ok) {
+        const int err = rv_editor_layout_save(rv_editor_workspace_file(path, preset), shell.ws.panes, tree, why);
+        if (err != RV_OK && result == RV_OK) {
             error = why;
-            ok = false;
+            result = err;
         }
     }
-    return ok;
+    return result;
 }
 
 const char *rv_editor_shell_workspace_key(const rv_editor_shell &shell)

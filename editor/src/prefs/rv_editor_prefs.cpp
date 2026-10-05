@@ -123,13 +123,13 @@ rv_editor_prefs rv_editor_prefs_load(const std::filesystem::path &path)
     return rv_editor_prefs_read(text);
 }
 
-bool rv_editor_prefs_save(const std::filesystem::path &path, const rv_editor_prefs &prefs, std::string &error)
+int rv_editor_prefs_save(const std::filesystem::path &path, const rv_editor_prefs &prefs, std::string &error)
 {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
     if (ec) {
         error = path.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
     std::filesystem::path tmp = path;
     tmp += ".tmp";
@@ -138,16 +138,16 @@ bool rv_editor_prefs_save(const std::filesystem::path &path, const rv_editor_pre
     out.close();
     if (!out) {
         error = path.string() + ": write failed";
-        return false;
+        return RV_ERR_IO;
     }
     std::filesystem::rename(tmp, path, ec);
     if (ec) {
         std::error_code ignored;
         std::filesystem::remove(tmp, ignored);
         error = path.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

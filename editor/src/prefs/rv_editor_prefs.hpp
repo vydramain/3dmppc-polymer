@@ -46,7 +46,7 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text);
 std::filesystem::path rv_editor_prefs_file_path();
 // The defaults when the file is missing or unreadable.
 rv_editor_prefs rv_editor_prefs_load(const std::filesystem::path &path);
-// Written to "<path>.tmp" and renamed over `path`. False with the reason.
-bool rv_editor_prefs_save(const std::filesystem::path &path, const rv_editor_prefs &prefs, std::string &error);
+// Written to "<path>.tmp" and renamed over `path`. RV_OK or RV_ERR_IO with the reason.
+int rv_editor_prefs_save(const std::filesystem::path &path, const rv_editor_prefs &prefs, std::string &error);
 
 } // namespace rv_editor
