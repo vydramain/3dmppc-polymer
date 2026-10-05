@@ -13,6 +13,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -68,16 +70,16 @@ std::string rv_editor_session_text(const rv_editor_app &app)
     return out;
 }
 
-bool rv_editor_write_file(const std::filesystem::path &path, const std::string &text, std::string &error)
+int rv_editor_write_file(const std::filesystem::path &path, const std::string &text, std::string &error)
 {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << text;
     out.close();
     if (!out) {
         error = "cannot write " + path.string();
-        return false;
+        return RV_ERR_IO;
     }
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_capture(rv_editor_app &app, const std::filesystem::path &dir)
@@ -115,7 +117,7 @@ void rv_editor_record(rv_editor_app &app, const std::filesystem::path &dir)
         std::string(f.actual) + "\n";
     const std::filesystem::path path = dir / (stem + ".txt");
     std::string error;
-    if (!rv_editor_write_file(log_path, log, error) || !rv_editor_write_file(path, text, error)) {
+    if (rv_editor_write_file(log_path, log, error) != RV_OK || rv_editor_write_file(path, text, error) != RV_OK) {
         f.error = error;
         return;
     }
@@ -202,7 +204,7 @@ void rv_editor_case_new(rv_editor_app &app)
         path = dir / ("case-" + std::to_string(n) + ".txt");
     }
     std::string error;
-    if (!rv_editor_write_file(path, "title: What this checks\nsteps:\n1. \nexpected:\n\n", error)) {
+    if (rv_editor_write_file(path, "title: What this checks\nsteps:\n1. \nexpected:\n\n", error) != RV_OK) {
         app.findings.error = error;
         return;
     }
@@ -219,7 +221,7 @@ void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const ch
     const std::filesystem::path path = dir / (rv_editor_now_text("%Y%m%d-%H%M%S") + "-" + result + ".txt");
     std::string text = "test case: " + c.title + "\nresult: " + result + "\nnote: " + f.note + "\nrecorded: " +
         rv_editor_now_text("%Y-%m-%d %H:%M:%S") + "\n" + rv_editor_session_text(app);
-    if (!rv_editor_write_file(path, text, f.error)) {
+    if (rv_editor_write_file(path, text, f.error) != RV_OK) {
         return;
     }
     f.error.clear();

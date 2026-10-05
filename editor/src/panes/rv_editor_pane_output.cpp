@@ -15,6 +15,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "font/rv_editor_font.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -90,7 +92,7 @@ std::string rv_editor_output_text(const rv_editor_log_line &line)
         rv_editor_log_source_name(line.source) + " pid " + std::to_string(line.pid) + channel + " " + line.text + "\n";
 }
 
-bool rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
+int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
     std::string &where)
 {
     const std::filesystem::path dir = app.project.cache_dir / "logs";
@@ -102,8 +104,12 @@ bool rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_edit
         out << rv_editor_output_text(*line);
     }
     out.close();
-    where = out ? path.string() : "cannot write " + path.string();
-    return static_cast<bool>(out);
+    if (!out) {
+        where = "cannot write " + path.string();
+        return RV_ERR_IO;
+    }
+    where = path.string();
+    return RV_OK;
 }
 
 // Time, Lvl, Source and Message over the lines, in the UI font but at the cells'
@@ -255,7 +261,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         copy_lines();
     }
     if (exporting) {
-        rv_editor_output_export(app, shown, view.exported);
+        (void)rv_editor_output_export(app, shown, view.exported);
     }
     if (!view.exported.empty()) {
         rv_editor_path_row("Exported", view.exported, theme);
