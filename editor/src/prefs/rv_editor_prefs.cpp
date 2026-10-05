@@ -6,6 +6,8 @@
 #include <sstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "layout/rv_editor_tile.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
@@ -34,15 +36,15 @@ const char *rv_editor_game_scale_name(rv_editor_game_scale scale)
     return "fit";
 }
 
-bool rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scale)
+int rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scale)
 {
     for (const rv_editor_game_scale s : rv_editor_game_scales) {
         if (name == rv_editor_game_scale_name(s)) {
             scale = s;
-            return true;
+            return RV_OK;
         }
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
 std::string rv_editor_prefs_write(const rv_editor_prefs &prefs)
@@ -84,7 +86,7 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
         if (key == "code-font") {
             rv_editor_code_size_parse(value.c_str(), prefs.code_size);
         } else if (key == "game-scale") {
-            rv_editor_game_scale_parse(value, prefs.game_scale);
+            (void)rv_editor_game_scale_parse(value, prefs.game_scale);
         } else if (key == "workspace") {
             prefs.workspace = value;
         } else if (key == "ui-scale") {

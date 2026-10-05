@@ -23,7 +23,8 @@ enum class rv_editor_game_scale
 
 // "fit", "integer", "1x", "2x", "3x", as the view file and the menu name them.
 const char *rv_editor_game_scale_name(rv_editor_game_scale scale);
-bool rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scale);
+// Parse the scale name into scale; RV_OK on success, RV_ERR_INVAL if name is not recognized.
+int rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scale);
 
 // What the user chose for the view, kept between runs in its own file next to
 // the layout, never in settings.toml or disc.toml.
