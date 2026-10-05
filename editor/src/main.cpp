@@ -4,9 +4,9 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <getopt.h>
 #include <memory>
 #include <string>
-#include <string_view>
 
 #include <SDL3/SDL.h>
 
@@ -39,21 +39,35 @@ void rv_editor_usage(std::FILE *out)
 // 0 after --help, 2 after a bad argument.
 bool rv_editor_args_parse(int argc, char **argv, std::string &path, int &exit_code)
 {
-    for (int i = 1; i < argc; ++i) {
-        const std::string_view arg = argv[i];
-        if (arg == "-h" || arg == "--help") {
+    static struct option long_opts[] = { { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+
+    int c;
+    while ((c = getopt_long(argc, argv, "h", long_opts, nullptr)) != -1) {
+        switch (c) {
+        case 'h':
             rv_editor_usage(stdout);
             exit_code = 0;
             return false;
-        } else if (!arg.starts_with("-") && path.empty()) {
-            path = arg;
-        } else {
-            std::fprintf(stderr, "3dmppc-editor: unknown argument '%s'\n", argv[i]);
+        case '?':
+            // getopt has already printed its own error message on stderr.
             rv_editor_usage(stderr);
             exit_code = 2;
             return false;
         }
     }
+
+    // optind is where getopt_long left the first non-flag argument.
+    if (argc - optind > 1) {
+        std::fprintf(stderr, "3dmppc-editor: unexpected argument '%s'\n", argv[optind + 1]);
+        rv_editor_usage(stderr);
+        exit_code = 2;
+        return false;
+    }
+
+    if (argc - optind == 1) {
+        path = argv[optind];
+    }
+
     return true;
 }
 
