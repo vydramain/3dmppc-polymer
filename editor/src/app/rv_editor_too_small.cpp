@@ -6,6 +6,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "pdk/rv_err.h"
+
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
@@ -56,7 +58,7 @@ static void rv_editor_draw_too_small_message(const rv_editor_display_size &displ
 }
 
 // Forward declaration.
-static bool rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale);
+static int rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale);
 
 void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer,
     const rv_editor_display_size &display_size)
@@ -70,7 +72,7 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     theme.scale = 1.0f;
     rv_editor_theme_apply(theme, ImGui::GetStyle());
 
-    if (!rv_editor_fonts_build_for_too_small(io, 1.0f)) {
+    if (rv_editor_fonts_build_for_too_small(io, 1.0f) != RV_OK) {
         ImGui::DestroyContext();
         return;
     }
@@ -183,13 +185,13 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     window = nullptr;
 }
 
-static bool rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale)
+static int rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale)
 {
     if (!rv_editor_fonts_add(*io.Fonts, scale)) {
-        return false;
+        return RV_ERR_NOENT;
     }
     ImGui::GetStyle().FontSizeBase = rv_editor_font_ui()->LegacySize;
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

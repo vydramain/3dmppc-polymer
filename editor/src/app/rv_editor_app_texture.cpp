@@ -6,6 +6,8 @@
 #include <fstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -23,24 +25,24 @@ std::string rv_editor_texture_last_line(const std::string &text)
     return text.substr(start == std::string::npos ? 0 : start + 1, end - (start == std::string::npos ? 0 : start));
 }
 
-// Reads the whole file into bytes; false on any I/O error.
-bool rv_editor_texture_read(const std::filesystem::path &path, std::vector<unsigned char> &bytes)
+// Reads the whole file into bytes; RV_OK on success, RV_ERR_IO on any I/O error.
+int rv_editor_texture_read(const std::filesystem::path &path, std::vector<unsigned char> &bytes)
 {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        return false;
+        return RV_ERR_IO;
     }
     in.seekg(0, std::ios::end);
     const std::streamoff size = in.tellg();
     if (size < 0) {
-        return false;
+        return RV_ERR_IO;
     }
     bytes.resize(static_cast<size_t>(size));
     in.seekg(0, std::ios::beg);
     if (!bytes.empty()) {
         in.read(reinterpret_cast<char *>(bytes.data()), size);
     }
-    return static_cast<bool>(in) || in.eof();
+    return (static_cast<bool>(in) || in.eof()) ? RV_OK : RV_ERR_IO;
 }
 
 // The bake ended (successfully or not): logs it, keeps the outcome, sends on success.
@@ -75,7 +77,7 @@ void rv_editor_texture_bake_finish(rv_editor_app &app)
         return;
     }
     std::vector<unsigned char> bytes;
-    if (!rv_editor_texture_read(out, bytes)) {
+    if (rv_editor_texture_read(out, bytes) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
             "texture " + name + " baked but not sent: " + out.string() + " could not be read");
         return;
