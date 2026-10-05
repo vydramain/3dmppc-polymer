@@ -41,7 +41,8 @@ o.keymodel = { "startsel", "stopsel" }
 o.selectmode = { "key" }
 o.whichwrap = "b,s,<,>,[,]"
 
--- Swap file handling: RPC cannot answer the E325 prompt; autocommand decides and notifies.
+-- E325 "ATTENTION" when file has swap (crash or concurrent edit). RPC (msgpack to nvim --embed)
+-- cannot press keys to answer. SwapExists autocommand chooses instead and notifies the editor.
 local rv_swap_answers = {}  -- pending answers keyed by full path; value "r" or "d"
 local rv_swap_sources = {}  -- old swap file paths keyed by full path (for cleanup after recover)
 
