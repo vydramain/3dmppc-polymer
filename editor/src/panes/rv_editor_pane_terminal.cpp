@@ -1,5 +1,5 @@
 // A Terminal tile: its shell's screen drawn in the code font on the code area's
-// palette, and the keyboard sent to the shell while the tile has focus.
+// Mocha, and the keyboard sent to the shell while the tile has focus.
 
 #include <SDL3/SDL.h>
 

@@ -119,7 +119,7 @@ bool rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int r
         };
         vterm_screen_set_callbacks(screen_, &callbacks, this);
         vterm_screen_enable_altscreen(screen_, 1);
-        // The ANSI colours from the code area's palette.
+        // The ANSI colours from the code area's Catppuccin Mocha.
         const uint32_t palette[16] = {
             theme.code_surface, theme.code_red, theme.code_green, theme.code_yellow,
             theme.code_blue, theme.code_magenta, theme.code_cyan, theme.code_subtext,

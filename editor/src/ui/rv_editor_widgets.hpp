@@ -261,7 +261,7 @@ void rv_editor_status(const char *label, rv_editor_status_kind kind, const rv_ed
 // that follows something else on the same row.
 float rv_editor_status_width(const char *label, rv_editor_status_kind kind, const rv_editor_theme &theme);
 
-// A log's text area: code palette base under code palette text, with the Motif scrollbars of
+// A log's text area: Mocha base under Mocha text, with the Motif scrollbars of
 // rv_editor_scroll_begin. Rows go between the two calls; always pair them.
 bool rv_editor_log_begin(const char *id, ImVec2 size, const rv_editor_theme &theme);
 void rv_editor_log_end(const rv_editor_theme &theme);
