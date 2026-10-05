@@ -468,7 +468,7 @@ plan Reload uses.
 A Terminal tile runs your `$SHELL` (else `/bin/sh`) on a pseudo-terminal of its
 own, in the project's directory, with `TERM=xterm-256color`. The screen is kept
 by [libvterm](../third_party/libvterm/ORIGIN.md) and drawn in the code font on
-Catppuccin Mocha. Ctrl+C interrupts, the terminal takes the tile's size, the
+the editor's code palette. Ctrl+C interrupts, the terminal takes the tile's size, the
 wheel scrolls back through up to 5000 lines and typing returns to the bottom.
 F5, F6, F7 and Ctrl+B stay the editor's own. It is a session of its own that
 never sees the console's dev channel. When the shell ends the tile says how and

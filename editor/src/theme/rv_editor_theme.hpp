@@ -20,15 +20,15 @@ struct rv_editor_theme
     uint32_t text_bright;
     uint32_t text_disabled;
     uint32_t dark;          // title bars, the deepest surface
-    uint32_t code_base;     // code area, Catppuccin Mocha base
-    // Text in a code area (Code, Output), Catppuccin Mocha as nvim's colorscheme.
+    uint32_t code_base;     // code area
+    // Text in a code area (Code, Output). Same palette as rv_editor_init.lua.
     uint32_t code_text;     // text
-    uint32_t code_subtext;  // subtext0: times, sources
+    uint32_t code_subtext;  // times, sources
     uint32_t code_yellow;   // warnings
     uint32_t code_red;      // errors
     uint32_t code_green;
     uint32_t code_blue;     // information
-    uint32_t code_magenta;  // pink, cyan (teal) and surface2: the rest of a terminal's ANSI colours
+    uint32_t code_magenta;  // pink, cyan (teal) and others: the rest of a terminal's ANSI colours
     uint32_t code_cyan;
     uint32_t code_surface;
     uint32_t error;
@@ -50,16 +50,16 @@ inline constexpr rv_editor_theme rv_editor_theme_olive = {
     .text_bright = 0xf1f2f0,
     .text_disabled = 0x758666,
     .dark = 0x282e20,
-    .code_base = 0x1e1e2e,
-    .code_text = 0xcdd6f4,
-    .code_subtext = 0xa6adc8,
-    .code_yellow = 0xf9e2af,
-    .code_red = 0xf38ba8,
-    .code_green = 0xa6e3a1,
-    .code_blue = 0x89b4fa,
-    .code_magenta = 0xf5c2e7,
-    .code_cyan = 0x94e2d5,
-    .code_surface = 0x585b70,
+    .code_base = 0x1d2119,
+    .code_text = 0xd8ded3,
+    .code_subtext = 0xa3ac97,
+    .code_yellow = 0xd8c36a,
+    .code_red = 0xd9776b,
+    .code_green = 0xa3bf6e,
+    .code_blue = 0x7da3c4,
+    .code_magenta = 0xc99bb0,
+    .code_cyan = 0x79b8a4,
+    .code_surface = 0x59634f,
     .error = 0xda4453,
     .warning = 0xf67400,
     .ok = 0x27ae60,

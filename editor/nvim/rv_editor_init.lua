@@ -127,21 +127,21 @@ function _G.rv_swap_resolve(win, path, choice)
     vim.rpcnotify(0, "rv_swap", { file = fullpath, state = "resolved" })
 end
 
--- Colours: Catppuccin Mocha, independent of the editor's olive chrome.
+-- Editor's code palette; see code_* tokens in editor/src/theme/rv_editor_theme.hpp.
 local c = {
-    base = "#1e1e2e", mantle = "#181825", crust = "#11111b", surface0 = "#313244", surface1 = "#45475a",
-    overlay0 = "#6c7086", text = "#cdd6f4", subtext = "#a6adc8", red = "#f38ba8", peach = "#fab387",
-    yellow = "#f9e2af", green = "#a6e3a1", teal = "#94e2d5", blue = "#89b4fa", mauve = "#cba6f7",
-    lavender = "#b4befe",
+    base = "#1d2119", mantle = "#191d16", crust = "#151812", surface0 = "#2c3226", surface1 = "#3a4232",
+    overlay0 = "#77836b", cursorline = "#252a20", text = "#d8ded3", subtext = "#a3ac97", red = "#d9776b",
+    peach = "#d99a5e", yellow = "#d8c36a", green = "#a3bf6e", teal = "#79b8a4", blue = "#7da3c4",
+    mauve = "#b98bb4", violet = "#a99bc9",
 }
 local function hl(group, spec) vim.api.nvim_set_hl(0, group, spec) end
 vim.cmd("highlight clear")
-vim.g.colors_name = "rv_mocha"
+vim.g.colors_name = "rv_editor"
 hl("Normal", { fg = c.text, bg = c.base })
 hl("NormalNC", { fg = c.text, bg = c.base })
 hl("LineNr", { fg = c.overlay0, bg = c.base })
-hl("CursorLineNr", { fg = c.lavender, bg = c.base })
-hl("CursorLine", { bg = "#2a2b3c" })
+hl("CursorLineNr", { fg = c.violet, bg = c.base })
+hl("CursorLine", { bg = c.cursorline })
 hl("SignColumn", { bg = c.base })
 hl("StatusLine", { fg = c.text, bg = c.surface1 })
 hl("StatusLineNC", { fg = c.subtext, bg = c.surface0 })
@@ -168,7 +168,7 @@ hl("Keyword", { fg = c.mauve })
 hl("Operator", { fg = c.teal })
 hl("Type", { fg = c.yellow })
 hl("PreProc", { fg = c.red })
-hl("Special", { fg = c.lavender })
+hl("Special", { fg = c.violet })
 hl("Delimiter", { fg = c.subtext })
 hl("Todo", { fg = c.base, bg = c.yellow })
 hl("@variable", { fg = c.text })

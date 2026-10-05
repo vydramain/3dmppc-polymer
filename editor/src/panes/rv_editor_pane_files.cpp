@@ -106,7 +106,7 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
 {
     if (node.symlink) {
         code = rv_editor_glyph::link;
-        color = 0x6c7086;
+        color = 0x77836b;
         return;
     }
     if (node.dir) {
@@ -128,18 +128,18 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
         const char *code;
         uint32_t color;
     };
-    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, 0xcba6f7 },
-        { ".cpp", rv_editor_glyph::cpp, 0x89b4fa }, { ".c", rv_editor_glyph::cpp, 0x89b4fa },
-        { ".cc", rv_editor_glyph::cpp, 0x89b4fa }, { ".hpp", rv_editor_glyph::header, 0x74c7ec },
-        { ".h", rv_editor_glyph::header, 0x74c7ec }, { ".toml", rv_editor_glyph::toml, 0xfab387 },
-        { ".png", rv_editor_glyph::image, 0xa6e3a1 }, { ".pcm", rv_editor_glyph::sound, 0x94e2d5 },
-        { ".wav", rv_editor_glyph::sound, 0x94e2d5 }, { ".md", rv_editor_glyph::text, 0xcdd6f4 },
-        { ".txt", rv_editor_glyph::text, 0xcdd6f4 } };
+    static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, 0xb98bb4 },
+        { ".cpp", rv_editor_glyph::cpp, 0x7da3c4 }, { ".c", rv_editor_glyph::cpp, 0x7da3c4 },
+        { ".cc", rv_editor_glyph::cpp, 0x7da3c4 }, { ".hpp", rv_editor_glyph::header, 0x6fb0bf },
+        { ".h", rv_editor_glyph::header, 0x6fb0bf }, { ".toml", rv_editor_glyph::toml, 0xd99a5e },
+        { ".png", rv_editor_glyph::image, 0xa3bf6e }, { ".pcm", rv_editor_glyph::sound, 0x79b8a4 },
+        { ".wav", rv_editor_glyph::sound, 0x79b8a4 }, { ".md", rv_editor_glyph::text, 0xd8ded3 },
+        { ".txt", rv_editor_glyph::text, 0xd8ded3 } };
     code = rv_editor_glyph::other_file;
-    color = 0xa6adc8;
+    color = 0xa3ac97;
     if (path.filename() == "disc.toml") {
         code = rv_editor_glyph::disc_toml;
-        color = 0xfab387;
+        color = 0xd99a5e;
         return;
     }
     for (const kind &k : kinds) {
@@ -313,7 +313,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
         rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, 0x94e2d5, "Refresh", theme)) {
+    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, 0x79b8a4, "Refresh", theme)) {
         app.files.refresh();
     }
     rv_editor_shelf_end();

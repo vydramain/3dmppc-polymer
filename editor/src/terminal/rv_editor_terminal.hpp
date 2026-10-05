@@ -31,7 +31,7 @@ struct rv_editor_term_cell
 using rv_editor_term_line = std::vector<rv_editor_term_cell>;
 
 // A shell on a PTY with its screen kept by libvterm: ANSI colours in the
-// code area's Mocha, resize, Ctrl+C through the terminal, and the lines that
+// code area's palette, resize, Ctrl+C through the terminal, and the lines that
 // scrolled off the top kept up to scrollback_max. Each terminal is a session of
 // its own; none sees the dev protocol.
 class rv_editor_terminal

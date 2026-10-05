@@ -129,19 +129,20 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         bool *clicked;
     };
     // Reload's slot: Build and Restart when Reload cannot apply the pending change.
-    const rv_editor_transport_button reload_slot = state.build_restart
-        ? rv_editor_transport_button{"Restart", rv_editor_glyph::restart, 0xf38ba8, "Build and Restart", nullptr,
-              state.build_restart_disabled, &out.build_restart}
-        : rv_editor_transport_button{"Reload", rv_editor_glyph::reload, 0x94e2d5,
-              state.reload_name != nullptr ? state.reload_name : "Reload Entry Script", "F8", state.reload,
-              &out.reload};
+    rv_editor_transport_button reload_slot = { "Reload", rv_editor_glyph::reload, 0x79b8a4,
+        state.reload_name != nullptr ? state.reload_name : "Reload Entry Script", "F8", state.reload,
+        &out.reload };
+    if (state.build_restart) {
+        reload_slot = { "Restart", rv_editor_glyph::restart, 0xd9776b, "Build and Restart", nullptr,
+            state.build_restart_disabled, &out.build_restart };
+    }
     const rv_editor_transport_button buttons[] = {
-        {"Build", rv_editor_glyph::build, 0xfab387, "Build", "Ctrl+B", state.build, &out.build},
-        {state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, state.resume ? "Resume" : "Run",
-            "F5", state.run, &out.run},
-        {"Pause", rv_editor_glyph::pause, theme.code_yellow, "Pause", "F6", state.pause, &out.pause},
-        {"Step", rv_editor_glyph::step_frame, theme.code_blue, "Step Frame", "F7", state.step, &out.step},
-        {"Stop", rv_editor_glyph::stop, theme.code_red, "Stop", "Shift+F5", state.stop, &out.stop},
+        { "Build", rv_editor_glyph::build, 0xd99a5e, "Build", "Ctrl+B", state.build, &out.build },
+        { state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, state.resume ? "Resume" : "Run",
+            "F5", state.run, &out.run },
+        { "Pause", rv_editor_glyph::pause, theme.code_yellow, "Pause", "F6", state.pause, &out.pause },
+        { "Step", rv_editor_glyph::step_frame, theme.code_blue, "Step Frame", "F7", state.step, &out.step },
+        { "Stop", rv_editor_glyph::stop, theme.code_red, "Stop", "Shift+F5", state.stop, &out.stop },
         reload_slot,
     };
     const size_t shown = std::size(buttons); // Reload/Restart is always shown, disabled when it cannot act
