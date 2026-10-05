@@ -189,7 +189,7 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
             continue;
         }
         std::string error;
-        if (rv_editor_candidate_save(rv_editor_candidates_dir(app), c, error)) {
+        if (rv_editor_candidate_save(rv_editor_candidates_dir(app), c, error) == RV_OK) {
             c.dirty = false;
             c.save_failed = false;
         } else if (!c.save_failed) {

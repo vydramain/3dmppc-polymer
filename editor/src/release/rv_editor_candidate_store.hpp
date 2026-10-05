@@ -11,8 +11,8 @@ namespace rv_editor
 {
 
 // A candidate's record, <dir>/<n>.toml: identity, hash, checks and decision,
-// written whole. False with the reason.
-bool rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error);
+// written whole. RV_OK or RV_ERR_IO with the reason in error.
+int rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error);
 
 // The records in `dir` by number. One that does not read is left out and named in
 // `errors`; a check a closed window left Running comes back Not run, never Passed.

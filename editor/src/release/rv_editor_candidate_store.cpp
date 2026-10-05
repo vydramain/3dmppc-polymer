@@ -9,6 +9,7 @@
 #include <string_view>
 #include <system_error>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
 
@@ -100,7 +101,7 @@ std::filesystem::path rv_editor_candidate_log(const std::filesystem::path &dir, 
     return dir / (std::to_string(number) + "-" + what + ".log");
 }
 
-bool rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error)
+int rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error)
 {
     const auto q = [](std::string_view s) { return rv_editor_toml_quote(s); };
     std::string t = "# A release candidate of 3dmppc-editor; the editor rewrites this file.\n\n[candidate]\n";
@@ -132,7 +133,10 @@ bool rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_
         t += "at = " + q(check.at) + "\n";
         t += "hash = " + q(check.hash) + "\n";
     }
-    return rv_editor_file_replace(dir / (std::to_string(c.number) + ".toml"), t, error);
+    if (!rv_editor_file_replace(dir / (std::to_string(c.number) + ".toml"), t, error)) {
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 std::vector<rv_editor_candidate> rv_editor_candidates_load(const std::filesystem::path &dir,
