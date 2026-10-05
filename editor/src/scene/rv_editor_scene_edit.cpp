@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -62,15 +64,15 @@ rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
     return r;
 }
 
-// T R S back out of a matrix; false when it holds a shear, which T R S cannot.
-bool rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
+// T R S back out of a matrix; RV_ERR_INVAL when it holds a shear, which T R S cannot.
+int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
 {
     rv_editor_vec3 s{};
     mat3 r{};
     for (int j = 0; j < 3; ++j) {
         s[j] = std::sqrt(m[0][j] * m[0][j] + m[1][j] * m[1][j] + m[2][j] * m[2][j]);
         if (s[j] < 1e-12) {
-            return false;
+            return RV_ERR_INVAL;
         }
         for (int i = 0; i < 3; ++i) {
             r[i][j] = m[i][j] / s[j];
@@ -106,14 +108,14 @@ bool rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
     for (int i = 0; i < 3; ++i) {
         for (int j = 0; j < 4; ++j) {
             if (std::fabs(back[i][j] - m[i][j]) > 1e-6 * (1.0 + std::fabs(m[i][j]))) {
-                return false;
+                return RV_ERR_INVAL;
             }
         }
     }
     o.position = t.position;
     o.rotation = t.rotation;
     o.scale = t.scale;
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_scene_subtree(const rv_editor_scene &scene, const std::string &id, std::vector<int> &out)
@@ -328,7 +330,7 @@ bool rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, c
                 return false;
             }
         }
-        if (!rv_editor_decompose(local, moved)) {
+        if (rv_editor_decompose(local, moved) != RV_OK) {
             why = "keeping where it is would need a shear under that parent, which position, rotation and scale "
                   "cannot hold; Reparent (Keep Local Values) moves it without";
             return false;

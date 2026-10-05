@@ -6,6 +6,7 @@
 #include <charconv>
 #include <random>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
 
@@ -75,40 +76,40 @@ bool rv_editor_scene_extra_has(const std::vector<rv_pdklib::rv_manifest_tree_ent
     return false;
 }
 
-bool rv_editor_scene_vec_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_vec3 &out)
+int rv_editor_scene_vec_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_vec3 &out)
 {
     if (v.kind != kind::numbers || v.nums.size() != 3) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = { v.nums[0], v.nums[1], v.nums[2] };
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_scene_uv_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_uv &out)
+int rv_editor_scene_uv_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_uv &out)
 {
     if (v.kind != kind::numbers || v.nums.size() != 4) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = { v.nums[0], v.nums[1], v.nums[2], v.nums[3] };
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_scene_tint_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_tint &out)
+int rv_editor_scene_tint_of(const rv_pdklib::rv_manifest_mvalue &v, rv_editor_tint &out)
 {
     if (v.kind != kind::numbers || v.nums.size() != 3) {
-        return false;
+        return RV_ERR_INVAL;
     }
     for (int i = 0; i < 3; ++i) {
         const double n = v.nums[static_cast<size_t>(i)];
         if (n < 0.0 || n > 255.0 || n != static_cast<double>(static_cast<int>(n))) {
-            return false;
+            return RV_ERR_INVAL;
         }
     }
     out = { static_cast<int>(v.nums[0]), static_cast<int>(v.nums[1]), static_cast<int>(v.nums[2]) };
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out)
+int rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out)
 {
     double n;
     if (v.kind == kind::integer) {
@@ -116,13 +117,13 @@ bool rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out
     } else if (v.kind == kind::real) {
         n = v.real;
     } else {
-        return false;
+        return RV_ERR_INVAL;
     }
     if (n <= 0.0) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = n;
-    return true;
+    return RV_OK;
 }
 
 } // namespace
@@ -178,23 +179,23 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
             if (field != nullptr && e.value.kind == kind::string) {
                 *field = e.value.str;
             } else if (field != nullptr || vec != nullptr) {
-                if (vec != nullptr && rv_editor_scene_vec_of(e.value, *vec)) {
+                if (vec != nullptr && rv_editor_scene_vec_of(e.value, *vec) == RV_OK) {
                     continue;
                 }
                 o.extra.push_back(e);
                 s.read_only = "object '" + o.id + "': '" + e.key + "' is not what this editor writes";
             } else if (e.key == "uv") {
-                if (!rv_editor_scene_uv_of(e.value, o.uv)) {
+                if (rv_editor_scene_uv_of(e.value, o.uv) != RV_OK) {
                     o.extra.push_back(e);
                     s.read_only = "object '" + o.id + "': 'uv' must be four numbers";
                 }
             } else if (e.key == "tint") {
-                if (!rv_editor_scene_tint_of(e.value, o.tint)) {
+                if (rv_editor_scene_tint_of(e.value, o.tint) != RV_OK) {
                     o.extra.push_back(e);
                     s.read_only = "object '" + o.id + "': 'tint' must be three integers from 0 to 255";
                 }
             } else if (e.key == "tess") {
-                if (!rv_editor_scene_tess_of(e.value, o.tess)) {
+                if (rv_editor_scene_tess_of(e.value, o.tess) != RV_OK) {
                     o.extra.push_back(e);
                     s.read_only = "object '" + o.id + "': 'tess' must be a number greater than zero";
                 }
