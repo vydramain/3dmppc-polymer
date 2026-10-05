@@ -11,6 +11,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -65,7 +67,7 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == tab.path;
     if (rv_editor_button("Play", theme)) {
         std::string error;
-        if (rv_editor_sound_play(tab.path, error)) {
+        if (rv_editor_sound_play(tab.path, error) == RV_OK) {
             rv_editor_scene_sound_last_error = {};
         } else {
             rv_editor_scene_sound_last_error = { tab.path, error };

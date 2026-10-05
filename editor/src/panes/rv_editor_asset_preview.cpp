@@ -155,7 +155,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
             const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == a->path;
             if (rv_editor_button("Play", theme)) {
                 std::string error;
-                if (rv_editor_sound_play(a->path, error)) {
+                if (rv_editor_sound_play(a->path, error) == RV_OK) {
                     rv_editor_sound_last_error = {};
                 } else {
                     rv_editor_sound_last_error = { a->path, error };

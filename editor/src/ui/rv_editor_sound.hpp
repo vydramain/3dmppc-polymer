@@ -11,9 +11,9 @@ namespace rv_editor
 // fatal. A .wav plays in its own format; a .pcm is the console's raw S16LE
 // mono 44100 Hz. Playing another file, or rv_editor_sound_stop, replaces it.
 
-// Starts `file` playing, replacing whatever played before. False with
-// `error` set on failure (bad subsystem, unreadable file, unknown format).
-bool rv_editor_sound_play(const std::filesystem::path &file, std::string &error);
+// Starts `file` playing, replacing whatever played before. RV_OK on success,
+// RV_ERR_INVAL if WAV could not be read or file type unknown, RV_ERR_IO if file open/read or SDL failed.
+int rv_editor_sound_play(const std::filesystem::path &file, std::string &error);
 
 // Stops whatever plays; harmless when nothing does.
 void rv_editor_sound_stop();

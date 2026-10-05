@@ -5,6 +5,8 @@
 
 #include <SDL3/SDL.h>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -34,14 +36,14 @@ std::vector<uint8_t> rv_editor_pcm_read(const std::filesystem::path &file, std::
 
 } // namespace
 
-bool rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
+int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
 {
     rv_editor_sound_stop();
 
     if (!rv_editor_sound.audio_ready) {
         if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
             error = SDL_GetError();
-            return false;
+            return RV_ERR_IO;
         }
         rv_editor_sound.audio_ready = true;
     }
@@ -56,14 +58,14 @@ bool rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
     if (file.extension() == ".wav") {
         if (!SDL_LoadWAV(file.string().c_str(), &spec, &wav_buf, &wav_len)) {
             error = SDL_GetError();
-            return false;
+            return RV_ERR_INVAL;
         }
         data = wav_buf;
         len = wav_len;
     } else if (file.extension() == ".pcm") {
         pcm = rv_editor_pcm_read(file, error);
         if (pcm.empty() && !error.empty()) {
-            return false;
+            return RV_ERR_IO;
         }
         spec.format = SDL_AUDIO_S16LE;
         spec.channels = 1;
@@ -72,14 +74,14 @@ bool rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         len = static_cast<uint32_t>(pcm.size());
     } else {
         error = "not a sound file";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     rv_editor_sound.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
     if (rv_editor_sound.stream == nullptr) {
         error = SDL_GetError();
         SDL_free(wav_buf);
-        return false;
+        return RV_ERR_IO;
     }
     const bool put = SDL_PutAudioStreamData(rv_editor_sound.stream, data, static_cast<int>(len));
     SDL_free(wav_buf);
@@ -87,10 +89,10 @@ bool rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         error = SDL_GetError();
         SDL_DestroyAudioStream(rv_editor_sound.stream);
         rv_editor_sound.stream = nullptr;
-        return false;
+        return RV_ERR_IO;
     }
     rv_editor_sound.path = file;
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_sound_stop()
