@@ -88,7 +88,7 @@ void rv_editor_capture(rv_editor_app &app, const std::filesystem::path &dir)
     const std::filesystem::path path =
         dir / (rv_editor_now_text("%Y%m%d-%H%M%S") + "-frame" + std::to_string(app.session.frame()) + ".png");
     std::string error;
-    if (!rv_editor_game_capture(app, path, error)) {
+    if (rv_editor_game_capture(app, path, error) != RV_OK) {
         f.error = error;
         return;
     }

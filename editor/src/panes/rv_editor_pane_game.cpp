@@ -12,6 +12,7 @@
 #include "imgui.h"
 #include "panes/rv_editor_game_fit.hpp"
 #include "pdk/cio/rv_isource.h"
+#include "pdk/rv_err.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -212,25 +213,25 @@ void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &th
 
 } // namespace
 
-bool rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
+int rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
 {
     // Only a frame this session's console wrote: the pixels a stopped or older one left are not it.
     if (!app.session.live() || app.session.frame_memory().fd() != rv_editor_game_fd || rv_editor_game_frame == 0) {
         error = "no frame of the running session has arrived yet";
-        return false;
+        return RV_ERR_NOENT;
     }
     SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h),
         SDL_PIXELFORMAT_ARGB8888, rv_editor_game_pixels.data(), static_cast<int>(rv_editor_game_w * 4));
     if (surface == nullptr) {
         error = SDL_GetError();
-        return false;
+        return RV_ERR_IO;
     }
     const bool saved = SDL_SavePNG(surface, path.c_str());
     if (!saved) {
         error = path.string() + ": " + SDL_GetError();
     }
     SDL_DestroySurface(surface);
-    return saved;
+    return saved ? RV_OK : RV_ERR_IO;
 }
 
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
