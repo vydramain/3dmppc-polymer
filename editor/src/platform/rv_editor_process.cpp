@@ -16,6 +16,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "pdk/rv_err.h"
+
 extern char **environ;
 
 namespace rv_editor
@@ -44,9 +46,9 @@ void rv_editor_close(int &fd)
     }
 }
 
-bool rv_editor_pipe(int fds[2])
+int rv_editor_pipe(int fds[2])
 {
-    return ::pipe2(fds, O_CLOEXEC) == 0;
+    return ::pipe2(fds, O_CLOEXEC) == 0 ? RV_OK : RV_ERR_IO;
 }
 
 // Drains one non-blocking pipe. Closes it at end of file.
@@ -109,7 +111,8 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
     int in[2] = { -1, -1 };
     int out[2] = { -1, -1 };
     int err[2] = { -1, -1 };
-    if (!rv_editor_pipe(in) || !rv_editor_pipe(out) || !rv_editor_pipe(err)) {
+    if (rv_editor_pipe(in) != RV_OK || rv_editor_pipe(out) != RV_OK ||
+        rv_editor_pipe(err) != RV_OK) {
         error = std::string("pipe: ") + std::strerror(errno);
         for (int fd : { in[0], in[1], out[0], out[1], err[0], err[1] }) {
             if (fd >= 0) {
