@@ -310,7 +310,7 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
         if (!file.empty() && !std::filesystem::exists(file, ec) && !rv_editor_workspace_old_file(path, preset).empty()) {
             file = rv_editor_workspace_old_file(path, preset);
         }
-        if (!file.empty() && rv_editor_layout_load(file, own, layout)) {
+        if (!file.empty() && rv_editor_layout_load(file, own, layout) == RV_OK) {
             rv_editor_pane_adopt(shell.ws.panes, own, layout);
             tree = std::move(layout);
             continue;
@@ -342,7 +342,7 @@ bool rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::files
         const rv_editor_layout &tree =
             preset == shell.active ? shell.ws.layout : shell.trees[rv_editor_workspace_slot(preset)];
         std::string why;
-        if (!rv_editor_layout_save(rv_editor_workspace_file(path, preset), shell.ws.panes, tree, why) && ok) {
+        if (rv_editor_layout_save(rv_editor_workspace_file(path, preset), shell.ws.panes, tree, why) != RV_OK && ok) {
             error = why;
             ok = false;
         }

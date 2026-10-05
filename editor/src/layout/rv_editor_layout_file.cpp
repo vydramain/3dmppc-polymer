@@ -34,32 +34,35 @@ std::filesystem::path rv_editor_layout_file_path()
     return {};
 }
 
-bool rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes,
+int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes,
     rv_editor_layout &layout)
 {
     std::error_code ec;
     const auto sz = std::filesystem::file_size(path, ec);
-    if (ec || sz > (1 << 20)) {
-        return false;
+    if (ec) {
+        return RV_ERR_IO;
+    }
+    if (sz > (1 << 20)) {
+        return RV_ERR_INVAL;
     }
 
     std::ifstream file(path, std::ios::binary);
     std::string text(sz, '\0');
     if (!file.read(text.data(), sz)) {
-        return false;
+        return RV_ERR_IO;
     }
 
-    return rv_editor_layout_read(text, panes, layout) == RV_OK;
+    return rv_editor_layout_read(text, panes, layout);
 }
 
-bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
+int rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
     const rv_editor_layout &layout, std::string &error)
 {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
     if (ec) {
         error = path.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
 
     std::filesystem::path tmp = path;
@@ -70,7 +73,7 @@ bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pa
     out.close();
     if (!out) {
         error = path.string() + ": write failed";
-        return false;
+        return RV_ERR_IO;
     }
 
     std::filesystem::rename(tmp, path, ec);
@@ -78,10 +81,10 @@ bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pa
         std::error_code ec2;
         std::filesystem::remove(tmp, ec2);
         error = path.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
 
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

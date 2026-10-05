@@ -241,12 +241,14 @@ void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane
 // or not absolute. Empty when neither gives an absolute directory.
 std::filesystem::path rv_editor_layout_file_path();
 
-// False, with both outputs untouched, when the file is missing, larger than 1 MiB or not one whole valid layout.
-bool rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes, rv_editor_layout &layout);
+// Returns RV_OK, with both outputs set; RV_ERR_IO when the file is missing or cannot be read; RV_ERR_INVAL when
+// the file is larger than 1 MiB or the text is not one whole valid layout. Both outputs untouched on error.
+int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes,
+    rv_editor_layout &layout);
 
 // Creates the directory, writes "<path>.tmp" and renames it over `path`, so a crash never leaves half a file.
-// False with the reason in `error` when any step fails; the old file then stays as it was.
-bool rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
+// Returns RV_OK on success; RV_ERR_IO when any step fails, with the reason in `error`; the old file then stays.
+int rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
     const rv_editor_layout &layout, std::string &error);
 
 } // namespace rv_editor
