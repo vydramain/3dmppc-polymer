@@ -8,6 +8,8 @@
 #include <map>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -204,44 +206,59 @@ bool rv_editor_files::inside(const std::filesystem::path &path) const
     return p.native() == r || p.native().starts_with(r + "/");
 }
 
-bool rv_editor_files::create_file(const std::filesystem::path &dir, const std::string &name, std::string &error)
+int rv_editor_files::create_file(const std::filesystem::path &dir, const std::string &name,
+    std::string &error)
 {
     if (!valid_name(name, error)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     const std::filesystem::path path = dir / name;
     if (!inside(path)) {
         error = path.string() + " is outside the project";
-        return false;
+        return RV_ERR_INVAL;
     }
     // "x": fails when the file exists, so nothing is overwritten.
     std::FILE *f = std::fopen(path.c_str(), "wx");
     if (f == nullptr) {
-        error = path.string() + ": " + std::error_code(errno, std::generic_category()).message();
-        return false;
+        int err = errno;
+        error = path.string() + ": " + std::error_code(err, std::generic_category()).message();
+        if (err == EEXIST) {
+            return RV_ERR_INVAL;
+        }
+        if (err == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        return RV_ERR_IO;
     }
     std::fclose(f);
     relist(dir);
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_files::create_dir(const std::filesystem::path &dir, const std::string &name, std::string &error)
+int rv_editor_files::create_dir(const std::filesystem::path &dir, const std::string &name,
+    std::string &error)
 {
     if (!valid_name(name, error)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     const std::filesystem::path path = dir / name;
     if (!inside(path)) {
         error = path.string() + " is outside the project";
-        return false;
+        return RV_ERR_INVAL;
     }
     std::error_code ec;
     if (!std::filesystem::create_directory(path, ec)) {
         error = path.string() + ": " + (ec ? ec.message() : "already exists");
-        return false;
+        if (!ec) {
+            return RV_ERR_INVAL;
+        }
+        if (ec.value() == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        return RV_ERR_IO;
     }
     relist(dir);
-    return true;
+    return RV_OK;
 }
 
 bool rv_editor_files::rename(const std::filesystem::path &from, const std::string &name, std::string &error)

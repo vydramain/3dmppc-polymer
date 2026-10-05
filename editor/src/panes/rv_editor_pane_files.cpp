@@ -8,6 +8,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_catppuccin_mocha.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -263,11 +265,20 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
         bool ok = false;
         const std::string name = view.name;
         switch (view.dialog) {
-            case dialog_kind::new_file: ok = app.files.create_file(view.target, name, view.error); break;
-            case dialog_kind::new_dir: ok = app.files.create_dir(view.target, name, view.error); break;
-            case dialog_kind::rename: ok = rv_editor_app_rename(app, view.target, name, view.error); break;
-            case dialog_kind::remove: ok = rv_editor_app_remove(app, view.target, view.error); break;
-            default: break;
+        case dialog_kind::new_file:
+            ok = (app.files.create_file(view.target, name, view.error) == RV_OK);
+            break;
+        case dialog_kind::new_dir:
+            ok = (app.files.create_dir(view.target, name, view.error) == RV_OK);
+            break;
+        case dialog_kind::rename:
+            ok = rv_editor_app_rename(app, view.target, name, view.error);
+            break;
+        case dialog_kind::remove:
+            ok = rv_editor_app_remove(app, view.target, view.error);
+            break;
+        default:
+            break;
         }
         if (ok) {
             if (view.dialog == dialog_kind::new_file) {

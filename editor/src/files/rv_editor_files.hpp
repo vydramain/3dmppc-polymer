@@ -51,8 +51,8 @@ public:
     // True when `path` is the root or lies under it, after resolving "..".
     bool inside(const std::filesystem::path &path) const;
 
-    bool create_file(const std::filesystem::path &dir, const std::string &name, std::string &error);
-    bool create_dir(const std::filesystem::path &dir, const std::string &name, std::string &error);
+    int create_file(const std::filesystem::path &dir, const std::string &name, std::string &error);
+    int create_dir(const std::filesystem::path &dir, const std::string &name, std::string &error);
     bool rename(const std::filesystem::path &from, const std::string &name, std::string &error);
     // Deletes a file, a symlink (not what it points to) or a whole directory.
     bool remove(const std::filesystem::path &path, std::string &error);
