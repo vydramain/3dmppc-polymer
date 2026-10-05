@@ -6,7 +6,7 @@ local o = vim.opt
 
 o.number = true
 o.termguicolors = true
--- The owner's everyday settings (~/.config/nvim/lua/options.lua), without plugins.
+-- Editor defaults for appearance and text editing.
 o.relativenumber = true
 o.cursorline = true
 o.signcolumn = "yes"
