@@ -21,9 +21,9 @@ public:
     ~rv_editor_frame_memory();
 
     // A fresh, empty memory object, replacing any earlier one. Its descriptor is
-    // close-on-exec and never below 10, so a child gets it only as asked. False
-    // with the reason.
-    bool create(std::string &error);
+    // close-on-exec and never below 10, so a child gets it only as asked. Returns
+    // RV_OK on success, RV_ERR_IO if memfd_create or fcntl failed.
+    int create(std::string &error);
     void close();
     int fd() const { return fd_; }
 

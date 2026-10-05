@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
@@ -35,26 +36,27 @@ rv_editor_frame_memory::~rv_editor_frame_memory()
     close();
 }
 
-bool rv_editor_frame_memory::create(std::string &error)
+int rv_editor_frame_memory::create(std::string &error)
 {
     close();
     int fd = memfd_create("rv-editor-frame", MFD_CLOEXEC);
     if (fd < 0) {
         error = std::string("memfd_create: ") + std::strerror(errno);
-        return false;
+        return RV_ERR_IO;
     }
     // posix_spawn's dup2 onto descriptor 3 must never be dup2(3, 3), which would keep close-on-exec.
     if (fd < 10) {
         const int high = fcntl(fd, F_DUPFD_CLOEXEC, 10);
-        ::close(fd);
         if (high < 0) {
             error = std::string("fcntl: ") + std::strerror(errno);
-            return false;
+            ::close(fd);
+            return RV_ERR_IO;
         }
+        ::close(fd);
         fd = high;
     }
     fd_ = fd;
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_frame_memory::close()

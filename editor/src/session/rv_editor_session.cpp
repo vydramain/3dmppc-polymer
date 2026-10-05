@@ -7,6 +7,8 @@
 #include <thread>
 #include <vector>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -67,7 +69,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
         error = "a runtime is already running in this window";
         return false;
     }
-    if (!frame_mem_.create(error)) {
+    if (frame_mem_.create(error) != RV_OK) {
         return false;
     }
     // The console writes its frames into frame_mem_, handed over as descriptor 3.
