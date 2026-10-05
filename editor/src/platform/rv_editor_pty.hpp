@@ -27,8 +27,9 @@ public:
     ~rv_editor_pty();
 
     // argv[0] is run as is (no PATH search) in `cwd`, on a terminal of cols x rows,
-    // with TERM naming the emulator. False with the reason in `error`.
-    bool start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols, int rows,
+    // with TERM naming the emulator. RV_OK on success; RV_ERR_INVAL for invalid call,
+    // RV_ERR_NOENT if program not found, RV_ERR_IO for OS failures. Reason in `error`.
+    int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols, int rows,
         std::string &error);
 
     bool running() const { return pid_ > 0 && !exit_.exited; }
@@ -41,8 +42,8 @@ public:
     // Keys typed ahead of a child that is not reading: past this they are refused.
     static constexpr size_t input_max = 1 << 16;
     // Queues keys and writes as much as the terminal takes; the rest goes on the
-    // next flush. False, with nothing queued, past input_max or once closed.
-    bool write(std::string_view bytes);
+    // next flush. RV_OK if queued; RV_ERR_BUSY if input_max exceeded, RV_ERR_IO if closed.
+    int write(std::string_view bytes);
     void flush();
 
     // The terminal's size; the kernel tells the child with SIGWINCH.

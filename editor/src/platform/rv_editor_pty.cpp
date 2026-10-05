@@ -18,6 +18,8 @@
 #include <thread>
 #include <unistd.h>
 
+#include "pdk/rv_err.h"
+
 extern char **environ;
 
 namespace rv_editor
@@ -103,12 +105,12 @@ rv_editor_pty::~rv_editor_pty()
     stop();
 }
 
-bool rv_editor_pty::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols,
+int rv_editor_pty::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols,
     int rows, std::string &error)
 {
     if (argv.empty() || running()) {
         error = argv.empty() ? "nothing to run" : "already running";
-        return false;
+        return RV_ERR_INVAL;
     }
     stop();
     pending_.clear();
@@ -123,7 +125,7 @@ bool rv_editor_pty::start(const std::vector<std::string> &argv, const std::files
         if (master >= 0) {
             ::close(master);
         }
-        return false;
+        return RV_ERR_IO;
     }
     const winsize ws = rv_editor_winsize(cols, rows);
     ::ioctl(master, TIOCSWINSZ, &ws);
@@ -170,7 +172,10 @@ bool rv_editor_pty::start(const std::vector<std::string> &argv, const std::files
     if (rc != 0) {
         ::close(master);
         error = argv[0] + ": " + std::strerror(rc);
-        return false;
+        if (rc == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        return RV_ERR_IO;
     }
     pid_ = pid;
     rv_editor_guard_add(pid);
@@ -180,9 +185,9 @@ bool rv_editor_pty::start(const std::vector<std::string> &argv, const std::files
         // A blocking terminal would stall the UI thread: this child is not kept.
         error = std::string("fcntl: ") + std::strerror(errno);
         stop();
-        return false;
+        return RV_ERR_IO;
     }
-    return true;
+    return RV_OK;
 }
 
 bool rv_editor_pty::read(std::string &out, size_t limit)
@@ -210,20 +215,20 @@ bool rv_editor_pty::read(std::string &out, size_t limit)
     return master_ >= 0;
 }
 
-bool rv_editor_pty::write(std::string_view bytes)
+int rv_editor_pty::write(std::string_view bytes)
 {
     if (master_ < 0) {
-        return false;
+        return RV_ERR_IO;
     }
     if (pending_.size() + bytes.size() > input_max) {
         flush();
         if (pending_.size() + bytes.size() > input_max) {
-            return false;
+            return RV_ERR_BUSY;
         }
     }
     pending_.append(bytes);
     flush();
-    return master_ >= 0;
+    return master_ >= 0 ? RV_OK : RV_ERR_IO;
 }
 
 void rv_editor_pty::flush()

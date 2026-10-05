@@ -7,6 +7,8 @@
 
 #include <vterm.h>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -46,7 +48,7 @@ struct rv_editor_terminal::hooks
     // What the emulator answers the shell (cursor reports, key sequences).
     static void output(const char *s, size_t len, void *user)
     {
-        static_cast<rv_editor_terminal *>(user)->pty_.write(std::string_view(s, len));
+        (void)static_cast<rv_editor_terminal *>(user)->pty_.write(std::string_view(s, len));
     }
 
     static int pushline(int cols, const VTermScreenCell *cells, void *user)
@@ -141,7 +143,7 @@ bool rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int r
 
     const char *shell = std::getenv("SHELL");
     const std::string program = shell != nullptr && shell[0] == '/' ? shell : "/bin/sh";
-    return pty_.start({ program }, cwd, cols_, rows_, error);
+    return pty_.start({ program }, cwd, cols_, rows_, error) == RV_OK;
 }
 
 std::string rv_editor_terminal::ended() const
