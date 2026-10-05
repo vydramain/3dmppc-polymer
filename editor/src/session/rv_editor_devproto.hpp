@@ -49,8 +49,8 @@ private:
     bool skipping_ = false;
 };
 
-// Parses one line without its newline. False with the reason in `error`.
-bool rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::string &error);
+// Parses one line without its newline. Returns RV_OK on success, RV_ERR_INVAL with reason in `error`.
+int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::string &error);
 
 // The protocol's lowercase hex back to bytes; stops at the first non-hex pair.
 std::string rv_editor_hex_decode(std::string_view hex);

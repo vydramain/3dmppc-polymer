@@ -4,6 +4,8 @@
 
 #include <charconv>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -27,7 +29,7 @@ bool rv_editor_devmsg::has(std::string_view key) const
     return false;
 }
 
-bool rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::string &error)
+int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::string &error)
 {
     std::vector<std::string_view> words;
     size_t p = 0;
@@ -44,14 +46,14 @@ bool rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::s
     }
     if (words.size() < 2) {
         error = "not a protocol line";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     int64_t id = -1;
     const auto [ptr, ec] = std::from_chars(words[0].data(), words[0].data() + words[0].size(), id);
     if (ec != std::errc{} || ptr != words[0].data() + words[0].size() || id < 0) {
         error = "no request id";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     rv_editor_devmsg m;
@@ -67,23 +69,23 @@ bool rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::s
         m.kind = rv_editor_devmsg::rv_editor_devmsg_kind::err;
     } else {
         error = "reply is neither ok nor err";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     for (size_t i = first_field; i < words.size(); ++i) {
         const size_t eq = words[i].find('=');
         if (eq == std::string_view::npos || eq == 0) {
             error = "field without key=value";
-            return false;
+            return RV_ERR_INVAL;
         }
         m.fields.emplace_back(std::string(words[i].substr(0, eq)), std::string(words[i].substr(eq + 1)));
     }
     if (m.kind == rv_editor_devmsg::rv_editor_devmsg_kind::event && !m.has("event")) {
         error = "event without a name";
-        return false;
+        return RV_ERR_INVAL;
     }
     msg = std::move(m);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_devmsg> &out,
@@ -113,7 +115,7 @@ void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_dev
 
         rv_editor_devmsg msg;
         std::string error;
-        if (rv_editor_devmsg_parse(line_, msg, error)) {
+        if (rv_editor_devmsg_parse(line_, msg, error) == RV_OK) {
             out.push_back(std::move(msg));
         } else {
             errors.push_back(error + ": " + line_.substr(0, 200));
