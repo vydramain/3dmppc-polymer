@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
@@ -33,68 +34,68 @@ std::string_view kind_name(rv_editor_pane_kind k)
     return i >= 0 && i < static_cast<int>(std::size(kind_names)) ? kind_names[i] : "";
 }
 
-bool kind_from_name(std::string_view s, rv_editor_pane_kind &k)
+int kind_from_name(std::string_view s, rv_editor_pane_kind &k)
 {
     // A layout saved by an earlier editor names this pane "console"; it loads as output.
     if (s == "console") {
         k = rv_editor_pane_kind::output;
-        return true;
+        return RV_OK;
     }
     for (int i = 0; i < static_cast<int>(std::size(kind_names)); ++i) {
         if (kind_names[i] == s) {
             k = static_cast<rv_editor_pane_kind>(i);
-            return true;
+            return RV_OK;
         }
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
-bool axis_from_name(std::string_view s, rv_editor_axis &a)
+int axis_from_name(std::string_view s, rv_editor_axis &a)
 {
     if (s == "x") {
         a = rv_editor_axis::x;
-        return true;
+        return RV_OK;
     }
     if (s == "y") {
         a = rv_editor_axis::y;
-        return true;
+        return RV_OK;
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
-bool parse_u32(std::string_view s, uint32_t &out)
+int parse_u32(std::string_view s, uint32_t &out)
 {
     if (s.empty()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     uint32_t v = 0;
     auto result = std::from_chars(s.data(), s.data() + s.size(), v);
     if (result.ec != std::errc{} || result.ptr != s.data() + s.size()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = v;
-    return true;
+    return RV_OK;
 }
 
-bool parse_f32(std::string_view s, float &out)
+int parse_f32(std::string_view s, float &out)
 {
     if (s.empty()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     float v = 0.0f;
     auto result = std::from_chars(s.data(), s.data() + s.size(), v);
     if (result.ec != std::errc{} || result.ptr != s.data() + s.size()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = v;
-    return true;
+    return RV_OK;
 }
 
-bool parse_index(std::string_view s, uint32_t &out)
+int parse_index(std::string_view s, uint32_t &out)
 {
     if (s == "-") {
         out = rv_editor_tile_none;
-        return true;
+        return RV_OK;
     }
     return parse_u32(s, out);
 }
@@ -203,7 +204,7 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
             return false;
         }
         rv_editor_pane_kind k;
-        if (!kind_from_name(p[1], k)) {
+        if (kind_from_name(p[1], k) != RV_OK) {
             return false;
         }
         np.panes.push_back({k});
@@ -230,15 +231,15 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
                 return false;
             }
             n.kind = rv_editor_tile_kind::leaf;
-            if (!parse_index(p[2], n.parent)) {
+            if (parse_index(p[2], n.parent) != RV_OK) {
                 return false;
             }
-            if (!parse_u32(p[3], n.leaf.active)) {
+            if (parse_u32(p[3], n.leaf.active) != RV_OK) {
                 return false;
             }
             for (size_t i = 4; i < p.size(); ++i) {
                 uint32_t tab_id = 0;
-                if (!parse_u32(p[i], tab_id)) {
+                if (parse_u32(p[i], tab_id) != RV_OK) {
                     return false;
                 }
                 n.leaf.tabs.push_back(tab_id);
@@ -248,21 +249,21 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
                 return false;
             }
             n.kind = rv_editor_tile_kind::split;
-            if (!parse_index(p[2], n.parent)) {
+            if (parse_index(p[2], n.parent) != RV_OK) {
                 return false;
             }
             rv_editor_axis a;
-            if (!axis_from_name(p[3], a)) {
+            if (axis_from_name(p[3], a) != RV_OK) {
                 return false;
             }
             n.split.axis = a;
-            if (!parse_f32(p[4], n.split.ratio)) {
+            if (parse_f32(p[4], n.split.ratio) != RV_OK) {
                 return false;
             }
-            if (!parse_u32(p[5], n.split.first)) {
+            if (parse_u32(p[5], n.split.first) != RV_OK) {
                 return false;
             }
-            if (!parse_u32(p[6], n.split.second)) {
+            if (parse_u32(p[6], n.split.second) != RV_OK) {
                 return false;
             }
         } else {
@@ -278,7 +279,7 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
     if (p.size() != 2 || p[0] != "root") {
         return false;
     }
-    if (!parse_u32(p[1], nl.root)) {
+    if (parse_u32(p[1], nl.root) != RV_OK) {
         return false;
     }
     ++idx;
@@ -289,7 +290,7 @@ bool rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes
     if (p.size() != 2 || p[0] != "maximized") {
         return false;
     }
-    if (!parse_index(p[1], nl.maximized_leaf)) {
+    if (parse_index(p[1], nl.maximized_leaf) != RV_OK) {
         return false;
     }
     ++idx;
