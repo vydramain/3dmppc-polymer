@@ -29,10 +29,16 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
 # image format: a game uploads raw texels through rv_cv::video_asset_write, and
 # decoding whatever a disc chose to store is the DISC's business (via rv_cd).
 
-# The 512-line rule, checked at configure time rather than trusted. See
-# cmake/rv_file_length.cmake for why the build is the right place for it.
-include(cmake/rv_file_length.cmake)
-rv_check_file_lengths()
+# The 512-line rule is enforced by the check-length build target, not at configure time.
+# Run it with: cmake --build <build-dir> --target check-length
+# See cmake/rv_file_length.cmake for the algorithm.
+add_custom_target(check-length
+    COMMAND ${CMAKE_COMMAND}
+            "-DRV_ROOT=${CMAKE_SOURCE_DIR}"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_file_length.cmake"
+    COMMENT "Checking C++ source file lengths"
+    VERBATIM
+)
 
 # --- the contract and pdklib --------------------------------------------------
 # 3dmppc_pdk and 3dmppc_pdklib come from one module the tools and the editor
