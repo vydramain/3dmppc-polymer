@@ -127,21 +127,24 @@ function _G.rv_swap_resolve(win, path, choice)
     vim.rpcnotify(0, "rv_swap", { file = fullpath, state = "resolved" })
 end
 
--- Editor's code palette; see code_* tokens in editor/src/theme/rv_editor_theme.hpp.
-local c = {
-    base = "#1d2119", mantle = "#191d16", crust = "#151812", surface0 = "#2c3226", surface1 = "#3a4232",
-    overlay0 = "#77836b", cursorline = "#252a20", text = "#d8ded3", subtext = "#a3ac97", red = "#d9776b",
-    peach = "#d99a5e", yellow = "#d8c36a", green = "#a3bf6e", teal = "#79b8a4", blue = "#7da3c4",
-    mauve = "#b98bb4", violet = "#a99bc9",
-}
+-- Catppuccin Mocha palette (third_party/catppuccin-palette/palette.json, MIT).
+if not vim.g.rv_editor_palette or vim.g.rv_editor_palette == "" then
+    error("rv_editor_palette not set: nvim started without the palette path")
+end
+local c = dofile(vim.g.rv_editor_palette)
+if not c then
+    error("Failed to load palette from " .. vim.g.rv_editor_palette)
+end
+-- Alias for compatibility: the old code used 'subtext', Catppuccin has 'subtext0'.
+c.subtext = c.subtext0
 local function hl(group, spec) vim.api.nvim_set_hl(0, group, spec) end
 vim.cmd("highlight clear")
-vim.g.colors_name = "rv_editor"
+vim.g.colors_name = "rv_mocha"
 hl("Normal", { fg = c.text, bg = c.base })
 hl("NormalNC", { fg = c.text, bg = c.base })
 hl("LineNr", { fg = c.overlay0, bg = c.base })
-hl("CursorLineNr", { fg = c.violet, bg = c.base })
-hl("CursorLine", { bg = c.cursorline })
+hl("CursorLineNr", { fg = c.lavender, bg = c.base })
+hl("CursorLine", { bg = "#2a2b3c" })
 hl("SignColumn", { bg = c.base })
 hl("StatusLine", { fg = c.text, bg = c.surface1 })
 hl("StatusLineNC", { fg = c.subtext, bg = c.surface0 })
@@ -168,7 +171,7 @@ hl("Keyword", { fg = c.mauve })
 hl("Operator", { fg = c.teal })
 hl("Type", { fg = c.yellow })
 hl("PreProc", { fg = c.red })
-hl("Special", { fg = c.violet })
+hl("Special", { fg = c.lavender })
 hl("Delimiter", { fg = c.subtext })
 hl("Todo", { fg = c.base, bg = c.yellow })
 hl("@variable", { fg = c.text })

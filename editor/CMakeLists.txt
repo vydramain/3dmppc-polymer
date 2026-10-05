@@ -80,6 +80,54 @@ target_compile_definitions(3dmppc-editor PRIVATE
 target_compile_definitions(3dmppc-editor PRIVATE
   RV_EDITOR_NVIM_CONFIG="${CMAKE_CURRENT_SOURCE_DIR}/nvim/rv_editor_init.lua")
 
+# --- Catppuccin Mocha palette (third_party/catppuccin-palette/palette.json) ----
+set(RV_PALETTE_JSON "${RV_REPO_ROOT}/third_party/catppuccin-palette/palette.json")
+set(RV_PALETTE_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(RV_PALETTE_HPP "${RV_PALETTE_GEN_DIR}/rv_editor_catppuccin_mocha.hpp")
+set(RV_PALETTE_LUA "${RV_PALETTE_GEN_DIR}/rv_editor_catppuccin_mocha.lua")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RV_PALETTE_JSON}")
+
+file(READ "${RV_PALETTE_JSON}" RV_PALETTE_CONTENT)
+string(JSON RV_MOCHA_COLORS GET "${RV_PALETTE_CONTENT}" "mocha" "colors")
+string(JSON RV_MOCHA_LENGTH LENGTH "${RV_MOCHA_COLORS}")
+
+if(RV_MOCHA_LENGTH LESS_EQUAL 0)
+  message(FATAL_ERROR "Catppuccin Mocha palette is empty")
+endif()
+
+math(EXPR RV_MOCHA_LAST_INDEX "${RV_MOCHA_LENGTH} - 1")
+
+# Get all colour names in JSON order.
+set(RV_MOCHA_NAMES)
+foreach(i RANGE 0 ${RV_MOCHA_LAST_INDEX})
+  string(JSON RV_NAME MEMBER "${RV_MOCHA_COLORS}" ${i})
+  list(APPEND RV_MOCHA_NAMES "${RV_NAME}")
+endforeach()
+
+# Generate C++ header and Lua table.
+set(RV_CPP_LINES "// Generated from third_party/catppuccin-palette/palette.json by editor/CMakeLists.txt\n#pragma once\n#include <cstdint>\n\nnamespace rv_editor\n{\n")
+set(RV_LUA_LINES "-- Generated from third_party/catppuccin-palette/palette.json by editor/CMakeLists.txt\nreturn {\n")
+
+foreach(name IN LISTS RV_MOCHA_NAMES)
+  string(JSON hex GET "${RV_MOCHA_COLORS}" "${name}" "hex")
+  # Convert #rrggbb to 0xrrggbb (as uint32_t)
+  string(REPLACE "#" "" hex_digits "${hex}")
+  string(TOLOWER "${hex_digits}" hex_lower)
+  set(cpp_var "rv_editor_mocha_${name}")
+  string(APPEND RV_CPP_LINES "  inline constexpr uint32_t ${cpp_var} = 0x${hex_lower};\n")
+  string(APPEND RV_LUA_LINES "  ${name} = \"${hex}\",\n")
+endforeach()
+
+string(APPEND RV_CPP_LINES "}\n")
+string(APPEND RV_LUA_LINES "}\n")
+
+file(CONFIGURE OUTPUT "${RV_PALETTE_HPP}" CONTENT "${RV_CPP_LINES}")
+file(CONFIGURE OUTPUT "${RV_PALETTE_LUA}" CONTENT "${RV_LUA_LINES}")
+
+target_include_directories(3dmppc-editor PRIVATE "${RV_PALETTE_GEN_DIR}")
+target_compile_definitions(3dmppc-editor PRIVATE
+  RV_EDITOR_NVIM_PALETTE="${RV_PALETTE_LUA}")
+
 # nvim's channel is read on a thread of its own.
 find_package(Threads REQUIRED)
 target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)

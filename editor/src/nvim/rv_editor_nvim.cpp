@@ -35,7 +35,9 @@ bool rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_
         problem = "nvim is not installed or not on PATH; the code editor needs it";
         return false;
     }
-    const std::vector<std::string> argv = { nvim.string(), "--embed", "-u", RV_EDITOR_NVIM_CONFIG, "-i", "NONE" };
+    const std::vector<std::string> argv = { nvim.string(), "--embed", "--cmd",
+        "let g:rv_editor_palette='" + std::string(RV_EDITOR_NVIM_PALETTE) + "'", "-u",
+        RV_EDITOR_NVIM_CONFIG, "-i", "NONE" };
     std::string error;
     if (!rpc_.start(argv, cwd, error)) {
         problem = "cannot start nvim: " + error;
