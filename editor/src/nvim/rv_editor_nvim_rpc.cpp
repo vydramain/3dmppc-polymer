@@ -137,7 +137,7 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
     w.integer(id);
     w.string(method);
     out += args;
-    if (!proc_.write(out)) {
+    if (proc_.write(out) != RV_OK) {
         // Never sent, so never answered: the caller hears it now.
         if (reply) {
             rv_editor_mpack error;
@@ -158,7 +158,7 @@ void rv_editor_nvim_rpc::notify(const std::string &method, const std::string &ar
     w.integer(2);
     w.string(method);
     out += args;
-    proc_.write(out);
+    (void)proc_.write(out);
 }
 
 bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::string &why)
@@ -202,7 +202,7 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
             w.integer(m.items[1].i);
             w.string("not supported by 3dmppc-editor");
             w.nil();
-            proc_.write(out);
+            (void)proc_.write(out);
         }
     }
 

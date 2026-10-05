@@ -5,6 +5,8 @@
 
 #include <charconv>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -57,7 +59,7 @@ int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log, std
     const std::string line = std::to_string(id) + " " + verb + "\n";
     std::string wire = line;
     wire.append(payload);
-    if (!proc_.write(wire)) {
+    if (proc_.write(wire) != RV_OK) {
         if (!proc_.stdin_open()) {
             log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
                 "cannot send '" + verb + "': the runtime's input is closed", rv_editor_log_channel::none,

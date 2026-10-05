@@ -220,20 +220,20 @@ bool rv_editor_process::read(std::string &out, std::string &err, size_t limit)
     return out_ >= 0 || err_ >= 0;
 }
 
-bool rv_editor_process::write(std::string_view bytes)
+int rv_editor_process::write(std::string_view bytes)
 {
     if (in_ < 0) {
-        return false;
+        return RV_ERR_IO;
     }
     if (pending_.size() + bytes.size() > input_max) {
         flush();
         if (pending_.size() + bytes.size() > input_max) {
-            return false;
+            return RV_ERR_BUSY;
         }
     }
     pending_.append(bytes);
     flush();
-    return in_ >= 0;
+    return in_ >= 0 ? RV_OK : RV_ERR_IO;
 }
 
 void rv_editor_process::flush()

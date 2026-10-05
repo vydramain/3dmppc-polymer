@@ -60,10 +60,10 @@ public:
     static constexpr size_t input_max = 1 << 20;
 
     // Queues bytes for stdin and writes as much as the pipe takes; the rest goes
-    // on the next flush. Whole or nothing, so a message is never cut: false, with
-    // nothing queued, when the bytes would take the queue past input_max, when
+    // on the next flush. Whole or nothing, so a message is never cut: RV_OK on success,
+    // RV_ERR_BUSY when the bytes would take the queue past input_max, RV_ERR_IO when
     // stdin is closed or when the child is gone. Never waits for the child.
-    bool write(std::string_view bytes);
+    int write(std::string_view bytes);
     void flush();
 
     // Reaps the child when it has ended. Returns true when it is (now) ended.
