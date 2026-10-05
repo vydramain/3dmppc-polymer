@@ -45,8 +45,8 @@ public:
     ~rv_editor_terminal();
 
     // The user's shell ($SHELL, else /bin/sh) in `cwd`, on cols x rows, in the
-    // theme's code colours. False with the reason in `error`.
-    bool start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
+    // theme's code colours. RV_OK or RV_ERR_* with the reason in `error`.
+    int start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
         std::string &error);
     bool running() const { return pty_.running(); }
     // How the shell ended ("exit code 0"), empty while it runs.

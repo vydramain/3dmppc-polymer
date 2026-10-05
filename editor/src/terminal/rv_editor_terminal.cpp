@@ -98,7 +98,7 @@ rv_editor_terminal::~rv_editor_terminal()
     }
 }
 
-bool rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
+int rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
     std::string &error)
 {
     cols_ = std::max(cols, 2);
@@ -143,7 +143,7 @@ bool rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int r
 
     const char *shell = std::getenv("SHELL");
     const std::string program = shell != nullptr && shell[0] == '/' ? shell : "/bin/sh";
-    return pty_.start({ program }, cwd, cols_, rows_, error) == RV_OK;
+    return pty_.start({ program }, cwd, cols_, rows_, error);
 }
 
 std::string rv_editor_terminal::ended() const
