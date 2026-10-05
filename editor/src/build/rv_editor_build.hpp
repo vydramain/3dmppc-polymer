@@ -43,10 +43,10 @@ struct rv_editor_artifact
 class rv_editor_build
 {
 public:
-    // False with the reason when a build cannot start now. With `image` the
+    // RV_OK if the build starts, or an rv_err code with the reason. With `image` the
     // burner writes that disc image (-o) instead of a numbered directory: a
     // release candidate, which Run never picks up.
-    bool start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
+    int start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
         std::string &error, const std::filesystem::path &image = {});
     // Stops the burner and everything it started.
     void cancel();

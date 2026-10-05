@@ -82,28 +82,28 @@ const char *rv_editor_build_state_name(rv_editor_build_state state)
     return "?";
 }
 
-bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
+int rv_editor_build::start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
     std::string &error, const std::filesystem::path &image)
 {
     if (busy()) {
         error = "a build is already running";
-        return false;
+        return RV_ERR_BUSY;
     }
     if (!project.open) {
         error = "no project is open";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!tools.burner.problem.empty()) {
         error = tools.burner.problem;
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!tools.baker.problem.empty()) {
         error = tools.baker.problem;
-        return false;
+        return RV_ERR_INVAL;
     }
     if (project.cache_dir.empty()) {
         error = "no cache directory: neither XDG_CACHE_HOME nor HOME is set";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // A new project starts a new count; the numbers already on disk are kept.
@@ -119,13 +119,14 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
         std::error_code ec;
         if (std::filesystem::exists(image_, ec)) {
             error = image_.string() + " already exists";
-            return false;
+            return RV_ERR_INVAL;
         }
         const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "-o",
             image_.string(), "--baker", tools.baker.path.string(), "--map",
             rv_editor_build_map_path(image_).string() };
-        if (proc_.start(argv, project.root, error) != RV_OK) {
-            return false;
+        const int err = proc_.start(argv, project.root, error);
+        if (err != RV_OK) {
+            return err;
         }
         state_ = rv_editor_build_state::building;
         out_partial_.clear();
@@ -134,13 +135,13 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
             "candidate image started: " + tools.burner.path.string() + " build " + project.root.string() + " -o " +
                 image_.string(),
             rv_editor_log_channel::none, proc_.pid(), rv_editor_image_number(image_));
-        return true;
+        return RV_OK;
     }
     std::error_code ec;
     std::filesystem::create_directories(builds_, ec);
     if (ec) {
         error = builds_.string() + ": " + ec.message();
-        return false;
+        return RV_ERR_IO;
     }
     const std::vector<uint32_t> numbers = rv_editor_build_numbers(builds_);
     number_ = numbers.empty() ? 1 : numbers.back() + 1;
@@ -148,8 +149,9 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
 
     const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "--unpacked",
         dir_.string(), "--baker", tools.baker.path.string(), "--map", rv_editor_build_map_path(dir_).string() };
-    if (proc_.start(argv, project.root, error) != RV_OK) {
-        return false;
+    const int err = proc_.start(argv, project.root, error);
+    if (err != RV_OK) {
+        return err;
     }
     state_ = rv_editor_build_state::building;
     out_partial_.clear();
@@ -158,7 +160,7 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
         "build #" + std::to_string(number_) + " started: " + tools.burner.path.string() + " build " +
             project.root.string() + " --unpacked " + dir_.string(),
         rv_editor_log_channel::none, proc_.pid(), number_);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_build::cancel()

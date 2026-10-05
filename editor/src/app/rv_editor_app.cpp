@@ -294,7 +294,7 @@ void rv_editor_app_build_saved(rv_editor_app &app)
     app.run_after_build = false;
     app.restart_after_build = false;
     app.restart_after_stop = false;
-    if (!app.build.start(app.project, app.tools, app.log, error)) {
+    if (app.build.start(app.project, app.tools, app.log, error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
         return;
     }
