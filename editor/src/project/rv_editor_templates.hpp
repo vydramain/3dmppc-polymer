@@ -52,8 +52,9 @@ std::vector<std::string> rv_editor_new_project_files(const rv_editor_new_project
 
 // Copies the template into <parent>/.<id>.creating with its names and ids
 // replaced, checks the manifest with pdklib, then renames it into place. Nothing
-// existing is written over. False with the reason; a failed attempt leaves nothing.
-bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor_template &t, std::string &error);
+// existing is written over. RV_OK on success; RV_ERR_INVAL for invalid data, RV_ERR_IO
+// for filesystem errors; error holds the reason in both cases.
+int rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor_template &t, std::string &error);
 
 // The projects opened lately, newest first, kept one path a line in
 // $XDG_CONFIG_HOME/3dmppc-editor/recent. Removing one only forgets it.

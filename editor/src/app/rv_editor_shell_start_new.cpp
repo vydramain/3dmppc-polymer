@@ -11,6 +11,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "project/rv_editor_templates.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -139,7 +141,7 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     }
     ImGui::Spacing();
     if (rv_editor_button("Create Project", theme, { rv_editor_look::live, problem.empty() ? nullptr : problem.c_str() })) {
-        if (rv_editor_new_project_create(p, templates[f.template_index], f.error)) {
+        if (rv_editor_new_project_create(p, templates[f.template_index], f.error) == RV_OK) {
             const std::filesystem::path created = std::filesystem::path(f.dir) / p.disc_id;
             f = {};
             rv_editor_shell_request_open(shell, created);

@@ -8,6 +8,8 @@
 #include <sstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "layout/rv_editor_tile.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 
@@ -152,22 +154,22 @@ std::vector<std::string> rv_editor_new_project_files(const rv_editor_new_project
     return out;
 }
 
-bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor_template &t, std::string &error)
+int rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor_template &t, std::string &error)
 {
     const std::vector<rv_editor_template> all = rv_editor_templates();
     error = rv_editor_new_project_problem(p, all);
     if (!error.empty()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     const std::filesystem::path staging = p.parent / ("." + p.disc_id + ".creating");
     const std::filesystem::path root = p.parent / p.disc_id;
     std::error_code ec;
     std::filesystem::remove_all(staging, ec);
-    const auto fail = [&](const std::string &why) {
+    const auto fail = [&](const std::string &why, int code = RV_ERR_IO) {
         std::error_code ignored;
         std::filesystem::remove_all(staging, ignored);
         error = why;
-        return false;
+        return code;
     };
     for (std::filesystem::recursive_directory_iterator it(t.dir, ec), end; !ec && it != end; it.increment(ec)) {
         if (!it->is_regular_file(ec)) {
@@ -215,13 +217,13 @@ bool rv_editor_new_project_create(const rv_editor_new_project &p, const rv_edito
     std::string why;
     if (rv_pdklib::rv_manifest_load((staging / "disc.toml").string(), manifest, why) != 0 ||
         !rv_pdklib::rv_manifest_validate(manifest, why)) {
-        return fail("the new disc.toml is not valid: " + why);
+        return fail("the new disc.toml is not valid: " + why, RV_ERR_INVAL);
     }
     std::filesystem::rename(staging, root, ec);
     if (ec) {
         return fail("cannot move the new project into place: " + ec.message());
     }
-    return true;
+    return RV_OK;
 }
 
 std::vector<std::filesystem::path> rv_editor_recent_load()
