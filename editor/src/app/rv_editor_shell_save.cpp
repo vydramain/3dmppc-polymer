@@ -10,6 +10,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "app/rv_editor_shell.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -165,15 +167,15 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
     }
 }
 
-// The scene first, as it saves at once; false with its failure among the others.
-bool rv_editor_shell_save_scene(rv_editor_shell &shell)
+// The scene first, as it saves at once; RV_OK on success, RV_ERR_IO on failure.
+int rv_editor_shell_save_scene(rv_editor_shell &shell)
 {
     std::string error;
     if (rv_editor_app_scene_save(shell.app, error)) {
-        return true;
+        return RV_OK;
     }
     shell.save_failed.push_back({ 0, rv_editor_app_scene_name(shell.app), false, error });
-    return false;
+    return RV_ERR_IO;
 }
 
 } // namespace
@@ -371,7 +373,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
         const bool back = rv_editor_button("Return", theme);
         if (save) {
             const std::vector<int64_t> ids = rv_editor_app_unsaved(app);
-            if (rv_editor_shell_save_scene(shell) && ids.empty()) {
+            if (rv_editor_shell_save_scene(shell) == RV_OK && ids.empty()) {
                 shell.save_done = true;
             } else if (shell.save_failed.empty()) {
                 rv_editor_shell_save(shell, ids);
@@ -396,7 +398,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     const bool discard = rv_editor_button("Discard All", theme, busy);
     ImGui::SameLine();
     const bool back = rv_editor_button("Return", theme);
-    if (save && rv_editor_shell_save_scene(shell)) {
+    if (save && rv_editor_shell_save_scene(shell) == RV_OK) {
         rv_editor_shell_save(shell, {});
     }
     if (discard) {

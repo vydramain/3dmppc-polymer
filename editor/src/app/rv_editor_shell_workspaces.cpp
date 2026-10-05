@@ -8,6 +8,8 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -91,8 +93,8 @@ bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
 // Walks up from `node` to find a split on `axis` whose sibling is not a strip,
 // adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
 // `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
-// Placement clamps results to panes' minimums; returns false if no suitable ancestor.
-bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis, int32_t delta,
+// Placement clamps results to panes' minimums; returns RV_OK or RV_ERR_NOENT if no ancestor has space.
+int rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis, int32_t delta,
     bool guard_bottom_sibling)
 {
     for (uint32_t parent = ws.layout.nodes[node].parent; parent != rv_editor_tile_none;
@@ -112,9 +114,9 @@ bool rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor
         }
         const int32_t want = first + (node == split.first ? delta : -delta);
         rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
-        return true;
+        return RV_OK;
     }
-    return false;
+    return RV_ERR_NOENT;
 }
 
 // `node`'s size along `axis`, the largest of its tabs' minimums (ws.minimums,
@@ -288,11 +290,11 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     // Width first; if stuck, try height. Guard bottom row only when growing height.
     const bool held = area.w == shell.game_fit_last.w && area.h == shell.game_fit_last.h;
     shell.game_fit_last = area;
-    if (delta_w != 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false)) {
+    if (delta_w != 0 && !held && rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::x, delta_w, false) == RV_OK) {
         return;
     }
     if (delta_h != 0) {
-        rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
+        (void)rv_editor_shell_grow_game(shell.ws, node, rv_editor_axis::y, delta_h, true);
     }
 }
 
