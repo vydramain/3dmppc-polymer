@@ -10,6 +10,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -29,8 +31,8 @@ const char *rv_editor_scene_kind_label(const std::string &kind)
 void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const std::string &parent, bool keep_world)
 {
     std::string why;
-    app.scene_ui.note = rv_editor_scene_reparent(*app.scene, id, parent, keep_world, why) ? std::string()
-                                                                                           : "Not moved: " + why;
+    const int err = rv_editor_scene_reparent(*app.scene, id, parent, keep_world, why);
+    app.scene_ui.note = err == RV_OK ? std::string() : "Not moved: " + why;
 }
 
 void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)

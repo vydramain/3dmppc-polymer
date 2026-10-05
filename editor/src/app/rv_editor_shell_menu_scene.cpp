@@ -10,6 +10,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -219,7 +221,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     }
     if (rv_editor_menu_item("Move to Root", nullptr, no_selection)) {
         std::string why;
-        if (!rv_editor_scene_reparent(*app.scene, app.scene->selected, "", true, why)) {
+        if (rv_editor_scene_reparent(*app.scene, app.scene->selected, "", true, why) != RV_OK) {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "not moved: " + why);
         }
     }

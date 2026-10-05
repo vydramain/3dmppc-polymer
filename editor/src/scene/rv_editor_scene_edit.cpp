@@ -301,21 +301,21 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
     return made.front().id;
 }
 
-bool rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, const std::string &parent,
+int rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, const std::string &parent,
     bool keep_world, std::string &why)
 {
     const int at = rv_editor_scene_find(doc.scene, id);
     if (at < 0) {
         why = "no such object";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!parent.empty() && rv_editor_scene_find(doc.scene, parent) < 0) {
         why = "no such parent";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!parent.empty() && rv_editor_scene_under(doc.scene, parent, id)) {
         why = "an object cannot go under itself or its own children";
-        return false;
+        return RV_ERR_INVAL;
     }
     rv_editor_scene_object moved = doc.scene.objects[static_cast<size_t>(at)];
     if (keep_world) {
@@ -327,19 +327,19 @@ bool rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, c
             local = rv_editor_affine_mul(rv_editor_affine_inverse(rv_editor_scene_world(doc.scene, p), ok), world);
             if (!ok) {
                 why = "the new parent's scale is zero";
-                return false;
+                return RV_ERR_INVAL;
             }
         }
         if (rv_editor_decompose(local, moved) != RV_OK) {
             why = "keeping where it is would need a shear under that parent, which position, rotation and scale "
                   "cannot hold; Reparent (Keep Local Values) moves it without";
-            return false;
+            return RV_ERR_INVAL;
         }
     }
     moved.parent = parent;
     rv_editor_scene_step(doc);
     doc.scene.objects[static_cast<size_t>(at)] = moved;
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor
