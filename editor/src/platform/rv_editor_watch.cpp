@@ -8,6 +8,8 @@
 #include <system_error>
 #include <unistd.h>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -29,23 +31,23 @@ bool rv_editor_watch::skipped(const std::string &name)
     return name == ".git" || name == ".mppcburn" || name == ".3dmppc-editor";
 }
 
-bool rv_editor_watch::start(const std::filesystem::path &root, std::string &error)
+int rv_editor_watch::start(const std::filesystem::path &root, std::string &error)
 {
     stop();
     root_ = root;
     fd_ = ::inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
     if (fd_ < 0) {
         error = std::string("inotify: ") + std::strerror(errno);
-        return false;
+        return RV_ERR_IO;
     }
     bool overflowed = false;
     add_tree(root, overflowed);
     if (dirs_.empty()) {
         error = root.string() + ": cannot watch";
         stop();
-        return false;
+        return RV_ERR_IO;
     }
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_watch::stop()
@@ -137,7 +139,7 @@ void rv_editor_watch::poll(std::vector<rv_editor_watch_event> &out, bool &overfl
     if (rewatch) {
         const std::filesystem::path root = root_;
         std::string error;
-        start(root, error);
+        (void)start(root, error);
         overflowed = true;
     }
 }

@@ -24,7 +24,7 @@ void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log
     root_.dir = true;
     root_.expanded = true;
     std::string error;
-    watching_ = watch_.start(root_.path, error);
+    watching_ = watch_.start(root_.path, error) == RV_OK;
     if (!watching_) {
         log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
             "files are not watched, Refresh shows changes: " + error);

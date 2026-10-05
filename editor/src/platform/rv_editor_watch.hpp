@@ -32,8 +32,9 @@ public:
     rv_editor_watch &operator=(const rv_editor_watch &) = delete;
     ~rv_editor_watch();
 
-    // Watches `root` and every directory under it. False with the reason.
-    bool start(const std::filesystem::path &root, std::string &error);
+    // Watches `root` and every directory under it. Returns RV_OK or RV_ERR_IO;
+    // reason in error.
+    int start(const std::filesystem::path &root, std::string &error);
     void stop();
 
     // Appends what changed since the last call; never blocks. `overflowed` turns
