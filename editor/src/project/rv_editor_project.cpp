@@ -321,7 +321,7 @@ const char *rv_editor_project_disc_section(std::string_view rel)
 bool rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
 {
     const char *section = rv_editor_project_disc_section(rel);
-    if (!rv_editor_manifest_add_pattern(project.manifest, section, rel, error)) {
+    if (rv_editor_manifest_add_pattern(project.manifest, section, rel, error) != RV_OK) {
         return false;
     }
     rv_editor_project_reload_manifest(project);

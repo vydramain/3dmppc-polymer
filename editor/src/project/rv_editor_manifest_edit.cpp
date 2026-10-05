@@ -211,7 +211,7 @@ void rv_manifest_edit_append_element(std::string &text,
 
 } // namespace
 
-bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
+int rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
     std::string_view section,
     std::string_view pattern,
     std::string &error)
@@ -219,7 +219,7 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
     std::ifstream in(manifest, std::ios::binary);
     if (!in) {
         error = manifest.string() + ": cannot read";
-        return false;
+        return RV_ERR_IO;
     }
     std::ostringstream buffer;
     buffer << in.rdbuf();
@@ -228,7 +228,7 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
 
     rv_pdklib::rv_manifest_tree tree;
     if (rv_pdklib::rv_manifest_read_tree(original, manifest.string(), tree, error) != 0) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const std::string quoted = rv_editor_toml_quote(pattern);
@@ -261,11 +261,11 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
             text.insert(insert_at, (need_nl ? eol : std::string()) + "files = [" + quoted + "]" + eol);
         } else if (files->value.kind != rv_pdklib::rv_manifest_value_kind::array) {
             error = manifest.string() + ": '" + std::string(section) + ".files' is not an array";
-            return false;
+            return RV_ERR_INVAL;
         } else {
             for (const std::string &existing : files->value.arr) {
                 if (existing == pattern) {
-                    return true; // already present, nothing to do
+                    return RV_OK; // already present, nothing to do
                 }
             }
             const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
@@ -274,14 +274,15 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
                                                              : rv_manifest_edit_array_close(text, open);
             if (open == std::string::npos || close == std::string::npos) {
                 error = manifest.string() + ": could not locate '" + std::string(section) + ".files' in the text";
-                return false;
+                return RV_ERR_INVAL;
             }
             rv_manifest_edit_append_element(text, open, close, files->value.arr.empty(), quoted, eol);
         }
     }
 
-    if (rv_editor_file_replace(manifest, text, error) != RV_OK) {
-        return false;
+    const int write_code = rv_editor_file_replace(manifest, text, error);
+    if (write_code != RV_OK) {
+        return write_code;
     }
     rv_pdklib::rv_manifest check;
     std::string load_error;
@@ -289,9 +290,9 @@ bool rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
         std::string restore_error;
         (void)rv_editor_file_replace(manifest, original, restore_error);
         error = load_error;
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_editor

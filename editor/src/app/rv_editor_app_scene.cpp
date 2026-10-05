@@ -148,12 +148,14 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
     std::string reason;
     if (!rv_editor_project_on_disc(app.project, rel)) {
         std::string add_error;
-        if (rv_editor_manifest_add_pattern(app.project.manifest, "assets", "scenes/*.scene.toml", add_error)) {
+        const int add_code = rv_editor_manifest_add_pattern(app.project.manifest, "assets",
+            "scenes/*.scene.toml", add_error);
+        if (add_code == RV_OK) {
             rv_editor_project_reload_manifest(app.project);
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
                 "disc.toml: added scenes/*.scene.toml to [assets]");
         } else {
-            result = RV_ERR_IO;
+            result = add_code;
             reason = "not added to disc.toml: " + add_error;
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, reason);
         }

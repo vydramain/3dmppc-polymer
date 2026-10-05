@@ -377,9 +377,9 @@ void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::pat
 // Creates scenes/<name>.scene.toml (name: non-empty, letters/digits/_/-, must not
 // exist yet), puts it on the disc if no pattern already matches it, writes
 // src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. RV_OK on success,
-// RV_ERR_INVAL if name is invalid, RV_ERR_* from scene_save, RV_ERR_IO if disc.toml update fails,
-// or from codegen_write if C++ write fails; the scene file and whatever else already succeeded stay.
-// Reason in error.
+// RV_ERR_INVAL if name is invalid, RV_ERR_* from scene_save, code from manifest_add_pattern if
+// disc.toml update fails, or from codegen_write if C++ write fails; the scene file and whatever else
+// already succeeded stay. Reason in error.
 int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
 // Saves the scene if dirty. RV_OK when already saved or successfully saved; RV_ERR_* on save failure.
 int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
