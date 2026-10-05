@@ -128,12 +128,12 @@ int rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out)
 
 } // namespace
 
-bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error)
+int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error)
 {
     const std::string text = rv_editor_file_text(path);
     rv_pdklib::rv_manifest_tree tree;
     if (rv_pdklib::rv_manifest_read_tree(text, path.string(), tree, error) != 0) {
-        return false;
+        return RV_ERR_INVAL;
     }
     rv_editor_scene s;
     s.path = path;
@@ -209,7 +209,7 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
         uint32_t major = 0, minor = 0;
         if (!rv_pdklib::rv_version_parse(version_str, major, minor)) {
             error = path.string() + ": malformed [scene] version '" + version_str + "'";
-            return false;
+            return RV_ERR_INVAL;
         }
         s.version_major = major;
         s.version_minor = minor;
@@ -218,14 +218,14 @@ bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sc
         s.version_minor = 0;
     } else {
         error = path.string() + ": no [scene] version";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!rv_pdklib::rv_version_compatible(s.version_major, s.version_minor)) {
         s.read_only = "scene version " + std::to_string(s.version_major) + "." + std::to_string(s.version_minor) +
             " is not compatible with this editor's " + rv_pdklib::rv_version_str;
     }
     scene = std::move(s);
-    return true;
+    return RV_OK;
 }
 
 std::string rv_editor_scene_render(const rv_editor_scene &scene)
@@ -316,13 +316,16 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
     return t;
 }
 
-bool rv_editor_scene_save(const rv_editor_scene &scene, std::string &error)
+int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error)
 {
     if (!scene.read_only.empty()) {
         error = "read-only: " + scene.read_only;
-        return false;
+        return RV_ERR_INVAL;
     }
-    return rv_editor_file_replace(scene.path, rv_editor_scene_render(scene), error);
+    if (!rv_editor_file_replace(scene.path, rv_editor_scene_render(scene), error)) {
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path)

@@ -7,6 +7,8 @@
 #include <cctype>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "project/rv_editor_manifest_edit.hpp"
 #include "scene/rv_editor_scene_codegen.hpp"
 
@@ -88,7 +90,7 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
     }
     rv_editor_scene scene;
     std::string error;
-    if (!rv_editor_scene_load(path, scene, error)) {
+    if (rv_editor_scene_load(path, scene, error) != RV_OK) {
         app.scene_error = error;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not opened: " + error);
         return;
@@ -133,7 +135,7 @@ bool rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool 
     }
 
     const rv_editor_scene scene = rv_editor_scene_make(path);
-    if (!rv_editor_scene_save(scene, error)) {
+    if (rv_editor_scene_save(scene, error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not created: " + error);
         return false;
     }
@@ -180,7 +182,7 @@ bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
     if (!rv_editor_app_scene_dirty(app)) {
         return true;
     }
-    if (!rv_editor_scene_save(app.scene->scene, error)) {
+    if (rv_editor_scene_save(app.scene->scene, error) != RV_OK) {
         return false;
     }
     app.scene->dirty = false;

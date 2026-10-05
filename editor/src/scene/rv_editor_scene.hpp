@@ -53,15 +53,17 @@ struct rv_editor_scene
     std::string read_only;
 };
 
-// False with the reason when the file does not read at all. A version that is not
-// rv_version_compatible opens read-only (the reason in scene.read_only), never rewritten.
-bool rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
+// RV_OK on success; RV_ERR_INVAL if file unreadable or content malformed (reason in error).
+// A version that is not rv_version_compatible opens read-only (the reason in scene.read_only),
+// never rewritten.
+int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
 // The document as text in the dialect, unknown keys and sections included.
 std::string rv_editor_scene_render(const rv_editor_scene &scene);
 
-// Writes it through a temporary file and a rename; refuses a read-only one.
-bool rv_editor_scene_save(const rv_editor_scene &scene, std::string &error);
+// RV_OK on success; RV_ERR_INVAL if read-only; RV_ERR_IO if file write fails.
+// Writes through a temporary file and a rename.
+int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error);
 
 // A new scene: a camera looking at one box, as the template's.
 rv_editor_scene rv_editor_scene_make(const std::filesystem::path &path);
