@@ -85,7 +85,7 @@ void rv_editor_shell_scene_save(rv_editor_shell &shell)
         return;
     }
     std::string error;
-    if (!rv_editor_app_scene_save(app, error)) {
+    if (rv_editor_app_scene_save(app, error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
     }
 }

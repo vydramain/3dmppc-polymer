@@ -381,7 +381,8 @@ void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::pat
 // or from codegen_write if C++ write fails; the scene file and whatever else already succeeded stay.
 // Reason in error.
 int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
-bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
+// Saves the scene if dirty. RV_OK when already saved or successfully saved; RV_ERR_* on save failure.
+int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // The project's first scene, or none; called when a project opens.
 void rv_editor_app_scene_first(rv_editor_app &app);
 

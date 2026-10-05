@@ -167,15 +167,16 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
     }
 }
 
-// The scene first, as it saves at once; RV_OK on success, RV_ERR_IO on failure.
+// The scene first, as it saves at once; RV_OK on success, RV_ERR_* on failure.
 int rv_editor_shell_save_scene(rv_editor_shell &shell)
 {
     std::string error;
-    if (rv_editor_app_scene_save(shell.app, error)) {
+    const int code = rv_editor_app_scene_save(shell.app, error);
+    if (code == RV_OK) {
         return RV_OK;
     }
     shell.save_failed.push_back({ 0, rv_editor_app_scene_name(shell.app), false, error });
-    return RV_ERR_IO;
+    return code;
 }
 
 } // namespace
@@ -227,7 +228,7 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
 void rv_editor_shell_save_all(rv_editor_shell &shell)
 {
     std::string error;
-    if (!rv_editor_app_scene_save(shell.app, error)) {
+    if (rv_editor_app_scene_save(shell.app, error) != RV_OK) {
         shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
     }
     rv_editor_shell_save(shell, {});

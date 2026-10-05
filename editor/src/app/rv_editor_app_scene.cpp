@@ -179,18 +179,19 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
     return result;
 }
 
-bool rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
+int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
 {
     if (!rv_editor_app_scene_dirty(app)) {
-        return true;
+        return RV_OK;
     }
-    if (rv_editor_scene_save(app.scene->scene, error) != RV_OK) {
-        return false;
+    const int code = rv_editor_scene_save(app.scene->scene, error);
+    if (code != RV_OK) {
+        return code;
     }
     app.scene->dirty = false;
     app.scene_error.clear();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "saved " + rv_editor_app_scene_name(app));
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_app_scene_first(rv_editor_app &app)
