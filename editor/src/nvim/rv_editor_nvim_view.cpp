@@ -11,6 +11,8 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
+
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
@@ -233,7 +235,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
 {
     rv_editor_nvim &nvim = app.nvim;
     if (!nvim.running()) {
-        nvim.ensure_started(app.project.open ? app.project.root : std::filesystem::current_path(), app.log);
+        (void)nvim.ensure_started(app.project.open ? app.project.root : std::filesystem::current_path(), app.log);
     }
     if (!nvim.problem.empty()) {
         ImGui::TextWrapped("%s", nvim.problem.c_str());

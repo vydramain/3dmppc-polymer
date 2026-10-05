@@ -74,9 +74,10 @@ public:
     // Why the code editor cannot run, or empty. Checked before starting.
     std::string problem;
 
-    // Starts nvim once, with the editor's config, in `cwd`. False with the
+    // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success or if
+    // already running. RV_ERR_NOENT if nvim not found, RV_ERR_IO if startup failed;
     // reason in `problem` (only the code tiles lose, nothing else).
-    bool ensure_started(const std::filesystem::path &cwd, rv_editor_log &log);
+    int ensure_started(const std::filesystem::path &cwd, rv_editor_log &log);
     bool running() const { return started_ && rpc_.running(); }
 
     // Once a frame: applies redraws and answers. Returns false the frame nvim ends.
@@ -174,6 +175,7 @@ private:
     rv_editor_nvim_rpc rpc_;
     rv_editor_nvim_screen screen_;
     bool started_ = false;
+    int last_error_ = 0; // RV_OK if started, RV_ERR_NOENT/IO on failure
     bool attached_ = false;
     std::map<uint32_t, int64_t> windows_; // code pane -> nvim window
     std::map<uint32_t, bool> asked_;      // a window was requested for this pane

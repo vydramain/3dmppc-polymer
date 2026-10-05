@@ -6,6 +6,8 @@
 #include <sstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -24,16 +26,20 @@ std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &
 
 } // namespace
 
-bool rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_log &log)
+int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_log &log)
 {
-    if (started_ || !problem.empty()) {
-        return started_;
+    if (started_) {
+        return RV_OK;
+    }
+    if (!problem.empty()) {
+        return last_error_;
     }
     // From PATH: it is the user's own editor, not one this repository ships.
     const std::filesystem::path nvim = rv_editor_process_find("nvim");
     if (nvim.empty()) {
         problem = "nvim is not installed or not on PATH; the code editor needs it";
-        return false;
+        last_error_ = RV_ERR_NOENT;
+        return RV_ERR_NOENT;
     }
     const std::vector<std::string> argv = { nvim.string(), "--embed", "--cmd",
         "let g:rv_editor_palette='" + std::string(RV_EDITOR_NVIM_PALETTE) + "'", "-u",
@@ -41,7 +47,8 @@ bool rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_
     std::string error;
     if (!rpc_.start(argv, cwd, error)) {
         problem = "cannot start nvim: " + error;
-        return false;
+        last_error_ = RV_ERR_IO;
+        return RV_ERR_IO;
     }
     started_ = true;
     attached_ = false;
@@ -56,7 +63,7 @@ bool rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_
     screen_ = {};
     log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "code editor: " + nvim.string() + " --embed");
     attach();
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_nvim::attach()
@@ -78,6 +85,7 @@ void rv_editor_nvim::attach()
         [this](const rv_editor_mpack &error, const rv_editor_mpack &) {
             if (!error.is(mtype::nil)) {
                 problem = "nvim refused the UI: " + (error.items.size() > 1 ? error.items[1].s : std::string("?"));
+                last_error_ = RV_ERR_IO;
                 return;
             }
             attached_ = true;
@@ -121,6 +129,7 @@ void rv_editor_nvim::update(rv_editor_log &log)
         started_ = false;
         attached_ = false;
         problem = why + ". Unsaved text is in nvim's swap files (:recover)";
+        last_error_ = RV_ERR_IO;
         log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "code editor: " + problem);
         rpc_.stop();
         return;
