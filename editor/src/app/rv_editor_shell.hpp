@@ -192,6 +192,21 @@ void rv_editor_shell_open_project(rv_editor_shell &shell);
 // tile, or of the first tile when none is focused; `roomy`: of the biggest tile.
 void rv_editor_shell_show_pane(rv_editor_shell &shell, rv_editor_pane_kind kind, bool roomy = false);
 
+// Status bar's four texts: project name, tools, build and runtime states.
+struct rv_editor_status_text {
+    std::string where;
+    std::string tools;
+    std::string build;
+    std::string runtime;
+    int shown; // 2 without open project, 4 with one
+};
+
+// Builds the bar's texts from the app's state.
+rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app);
+
+// Draws the status bar's four texts with the theme.
+void rv_editor_shell_status(const rv_editor_shell &shell, const rv_editor_theme &theme);
+
 // The window's content while no project is open (rv_editor_shell_start.cpp).
 void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme &theme);
 // The start screen's pages that are drawn in a tab too: New Project
