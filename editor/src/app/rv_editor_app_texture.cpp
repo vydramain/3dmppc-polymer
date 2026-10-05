@@ -126,7 +126,7 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
     bake.err_partial.clear();
     bake.err_all.clear();
     std::string error;
-    if (!bake.proc->start(argv, app.project.root, error)) {
+    if (bake.proc->start(argv, app.project.root, error) != RV_OK) {
         bake.proc.reset();
         bake.ok = false;
         bake.message = "texture " + name + " not baked: " + error;

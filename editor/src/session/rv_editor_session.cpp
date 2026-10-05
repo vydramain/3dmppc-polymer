@@ -76,7 +76,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
     std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string() };
     argv.insert(argv.end(), options.begin(), options.end());
     argv.push_back(disc_dir.string());
-    if (!proc_.start(argv, cwd, error, frame_mem_.fd(), env)) {
+    if (proc_.start(argv, cwd, error, frame_mem_.fd(), env) != RV_OK) {
         return false;
     }
 

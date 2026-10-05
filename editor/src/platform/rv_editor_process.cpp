@@ -94,13 +94,13 @@ void rv_editor_process::close_fds()
     rv_editor_close(err_);
 }
 
-bool rv_editor_process::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
+int rv_editor_process::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
     std::string &error, int inherit_fd, const std::vector<std::string> &env)
 {
     rv_editor_ignore_sigpipe();
     if (argv.empty() || running()) {
         error = argv.empty() ? "nothing to run" : "already running";
-        return false;
+        return RV_ERR_INVAL;
     }
     close_fds();
     pending_.clear();
@@ -119,7 +119,7 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
                 ::close(fd);
             }
         }
-        return false;
+        return RV_ERR_IO;
     }
 
     posix_spawn_file_actions_t actions;
@@ -182,7 +182,13 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
         ::close(out[0]);
         ::close(err[0]);
         error = argv[0] + ": " + std::strerror(rc);
-        return false;
+        if (rc == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        if (rc == EINVAL) {
+            return RV_ERR_INVAL;
+        }
+        return RV_ERR_IO;
     }
 
     pid_ = pid;
@@ -201,10 +207,10 @@ bool rv_editor_process::start(const std::vector<std::string> &argv, const std::f
             rv_editor_guard_remove(pid_);
             pid_ = -1;
             close_fds();
-            return false;
+            return RV_ERR_IO;
         }
     }
-    return true;
+    return RV_OK;
 }
 
 bool rv_editor_process::read(std::string &out, std::string &err, size_t limit)
@@ -339,7 +345,7 @@ bool rv_editor_process_output(const std::vector<std::string> &argv, const std::f
 {
     rv_editor_process proc;
     std::string error;
-    if (!proc.start(argv, cwd, error)) {
+    if (proc.start(argv, cwd, error) != RV_OK) {
         return false;
     }
     std::string err;

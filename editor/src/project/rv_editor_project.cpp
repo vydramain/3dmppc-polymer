@@ -66,7 +66,7 @@ void rv_editor_tool_version(rv_editor_tool &tool)
     }
     rv_editor_process proc;
     std::string error;
-    if (!proc.start({ tool.path.string(), "--version" }, {}, error)) {
+    if (proc.start({ tool.path.string(), "--version" }, {}, error) != RV_OK) {
         tool.version = error;
         return;
     }
@@ -107,7 +107,7 @@ int rv_editor_revision_job::launch(const std::vector<std::string> &argv)
     std::string error;
     out_.clear();
     until_ = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    if (proc_->start(argv, root_, error)) {
+    if (proc_->start(argv, root_, error) == RV_OK) {
         return RV_OK;
     }
     proc_.reset();

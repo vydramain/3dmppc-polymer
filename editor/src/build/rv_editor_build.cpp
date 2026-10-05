@@ -4,6 +4,8 @@
 
 #include "build/rv_editor_build_map.hpp"
 
+#include "pdk/rv_err.h"
+
 #include <algorithm>
 #include <charconv>
 #include <system_error>
@@ -122,7 +124,7 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
         const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "-o",
             image_.string(), "--baker", tools.baker.path.string(), "--map",
             rv_editor_build_map_path(image_).string() };
-        if (!proc_.start(argv, project.root, error)) {
+        if (proc_.start(argv, project.root, error) != RV_OK) {
             return false;
         }
         state_ = rv_editor_build_state::building;
@@ -146,7 +148,7 @@ bool rv_editor_build::start(const rv_editor_project &project, const rv_editor_to
 
     const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "--unpacked",
         dir_.string(), "--baker", tools.baker.path.string(), "--map", rv_editor_build_map_path(dir_).string() };
-    if (!proc_.start(argv, project.root, error)) {
+    if (proc_.start(argv, project.root, error) != RV_OK) {
         return false;
     }
     state_ = rv_editor_build_state::building;

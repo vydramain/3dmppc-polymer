@@ -7,6 +7,8 @@
 #include <poll.h>
 #include <unistd.h>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -27,7 +29,7 @@ bool rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::
     std::string &error)
 {
     stop();
-    if (!proc_.start(argv, cwd, error)) {
+    if (proc_.start(argv, cwd, error) != RV_OK) {
         return false;
     }
     quit_ = false;

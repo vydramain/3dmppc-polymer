@@ -129,8 +129,8 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     card.replace_extension(".player.mppccard");
     auto player = std::make_unique<rv_editor_process>();
     std::string error;
-    if (!player->start({ app.tools.player.path.string(), "--memcard", card.string(), c.image.string() },
-            c.image.parent_path(), error)) {
+    if (player->start({ app.tools.player.path.string(), "--memcard", card.string(), c.image.string() },
+            c.image.parent_path(), error) != RV_OK) {
         rv_editor_check_set(c, rv_editor_check_player, rv_editor_check_state::failed,
             "the player did not start: " + error, app.tools.player.path.string());
         return;
