@@ -15,29 +15,63 @@ namespace rv_editor
 namespace
 {
 
+// RGB channel shift: red in bits 16-23.
+constexpr int channel_shift_red = 16;
+// RGB channel shift: green in bits 8-15.
+constexpr int channel_shift_green = 8;
+// Mask for 8-bit colour channel.
+constexpr uint32_t rgb_channel_mask = 0xffu;
+// Minimum columns or rows for terminal grid.
+constexpr int min_terminal_size = 2;
+// ANSI color palette size (standard 16 colours).
+constexpr int ansi_palette_size = 16;
+// Maximum valid Unicode codepoint.
+constexpr uint32_t unicode_max_codepoint = 0x10ffffu;
+// PTY read buffer size in bytes (1 MiB).
+constexpr size_t pty_read_buffer_size = 1 << 20;
+// Environment variable name for user shell.
+constexpr std::string_view env_shell_name = "SHELL";
+// Fallback shell program.
+constexpr std::string_view default_shell_path = "/bin/sh";
+// Root filesystem path indicator for absolute path check.
+constexpr char path_root_indicator = '/';
+// UTF-8 encoding (RFC 3629).
+constexpr uint32_t utf8_1byte_limit = 0x80;
+constexpr uint32_t utf8_2byte_limit = 0x800;
+constexpr uint32_t utf8_3byte_limit = 0x10000;
+constexpr uint8_t utf8_lead_2 = 0xc0;
+constexpr uint8_t utf8_lead_3 = 0xe0;
+constexpr uint8_t utf8_lead_4 = 0xf0;
+constexpr uint8_t utf8_cont_byte = 0x80;
+constexpr uint8_t utf8_cont_mask = 0x3f;
+constexpr int utf8_cont_bits = 6;
+constexpr int utf8_shift_2bits = 2 * utf8_cont_bits;
+constexpr int utf8_shift_3bits = 3 * utf8_cont_bits;
+
 VTermColor rv_editor_vterm_rgb(uint32_t rgb)
 {
     VTermColor c;
-    vterm_color_rgb(&c, (rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff);
+    vterm_color_rgb(&c, (rgb >> channel_shift_red) & rgb_channel_mask,
+        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask);
     return c;
 }
 
 void rv_editor_utf8(std::string &out, uint32_t cp)
 {
-    if (cp < 0x80) {
+    if (cp < utf8_1byte_limit) {
         out += static_cast<char>(cp);
-    } else if (cp < 0x800) {
-        out += static_cast<char>(0xc0 | (cp >> 6));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
-    } else if (cp < 0x10000) {
-        out += static_cast<char>(0xe0 | (cp >> 12));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3f));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
+    } else if (cp < utf8_2byte_limit) {
+        out += static_cast<char>(utf8_lead_2 | (cp >> utf8_cont_bits));
+        out += static_cast<char>(utf8_cont_byte | (cp & utf8_cont_mask));
+    } else if (cp < utf8_3byte_limit) {
+        out += static_cast<char>(utf8_lead_3 | (cp >> utf8_shift_2bits));
+        out += static_cast<char>(utf8_cont_byte | ((cp >> utf8_cont_bits) & utf8_cont_mask));
+        out += static_cast<char>(utf8_cont_byte | (cp & utf8_cont_mask));
     } else {
-        out += static_cast<char>(0xf0 | (cp >> 18));
-        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3f));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3f));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
+        out += static_cast<char>(utf8_lead_4 | (cp >> utf8_shift_3bits));
+        out += static_cast<char>(utf8_cont_byte | ((cp >> utf8_shift_2bits) & utf8_cont_mask));
+        out += static_cast<char>(utf8_cont_byte | ((cp >> utf8_cont_bits) & utf8_cont_mask));
+        out += static_cast<char>(utf8_cont_byte | (cp & utf8_cont_mask));
     }
 }
 
@@ -101,8 +135,8 @@ rv_editor_terminal::~rv_editor_terminal()
 int rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
     std::string &error)
 {
-    cols_ = std::max(cols, 2);
-    rows_ = std::max(rows, 2);
+    cols_ = std::max(cols, min_terminal_size);
+    rows_ = std::max(rows, min_terminal_size);
     if (vt_ == nullptr) {
         vt_ = vterm_new(rows_, cols_);
         vterm_set_utf8(vt_, 1);
@@ -122,14 +156,26 @@ int rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int ro
         vterm_screen_set_callbacks(screen_, &callbacks, this);
         vterm_screen_enable_altscreen(screen_, 1);
         // The ANSI colours from the code area's Catppuccin Mocha.
-        const uint32_t palette[16] = {
-            theme.code_surface, theme.code_red, theme.code_green, theme.code_yellow,
-            theme.code_blue, theme.code_magenta, theme.code_cyan, theme.code_subtext,
-            theme.code_surface, theme.code_red, theme.code_green, theme.code_yellow,
-            theme.code_blue, theme.code_magenta, theme.code_cyan, theme.code_text,
+        const uint32_t palette[ansi_palette_size] = {
+            theme.code_surface,
+            theme.code_red,
+            theme.code_green,
+            theme.code_yellow,
+            theme.code_blue,
+            theme.code_magenta,
+            theme.code_cyan,
+            theme.code_subtext,
+            theme.code_surface,
+            theme.code_red,
+            theme.code_green,
+            theme.code_yellow,
+            theme.code_blue,
+            theme.code_magenta,
+            theme.code_cyan,
+            theme.code_text,
         };
         VTermState *state = vterm_obtain_state(vt_);
-        for (int i = 0; i < 16; ++i) {
+        for (int i = 0; i < ansi_palette_size; ++i) {
             const VTermColor c = rv_editor_vterm_rgb(palette[i]);
             vterm_state_set_palette_color(state, i, &c);
         }
@@ -141,8 +187,8 @@ int rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int ro
         vterm_set_size(vt_, rows_, cols_);
     }
 
-    const char *shell = std::getenv("SHELL");
-    const std::string program = shell != nullptr && shell[0] == '/' ? shell : "/bin/sh";
+    const char *shell = std::getenv(env_shell_name.data());
+    const std::string program = shell != nullptr && shell[0] == path_root_indicator ? shell : std::string(default_shell_path);
     return pty_.start({ program }, cwd, cols_, rows_, error);
 }
 
@@ -157,7 +203,7 @@ void rv_editor_terminal::update()
         return;
     }
     std::string bytes;
-    pty_.read(bytes, 1 << 20);
+    pty_.read(bytes, pty_read_buffer_size);
     if (!bytes.empty()) {
         vterm_input_write(vt_, bytes.data(), bytes.size());
         vterm_screen_flush_damage(screen_);
@@ -168,8 +214,8 @@ void rv_editor_terminal::update()
 
 void rv_editor_terminal::resize(int cols, int rows)
 {
-    cols = std::max(cols, 2);
-    rows = std::max(rows, 2);
+    cols = std::max(cols, min_terminal_size);
+    rows = std::max(rows, min_terminal_size);
     if (vt_ == nullptr || (cols == cols_ && rows == rows_)) {
         return;
     }
@@ -198,13 +244,15 @@ rv_editor_term_cell rv_editor_terminal::convert(const void *raw) const
     VTermScreenCell cell = *static_cast<const VTermScreenCell *>(raw);
     rv_editor_term_cell out;
     // A wide character's second cell holds (uint32_t)-1: no code point, drawn blank.
-    for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0 && cell.chars[i] <= 0x10ffff; ++i) {
+    for (int i = 0; i < VTERM_MAX_CHARS_PER_CELL && cell.chars[i] != 0 && cell.chars[i] <= unicode_max_codepoint; ++i) {
         rv_editor_utf8(out.text, cell.chars[i]);
     }
     vterm_screen_convert_color_to_rgb(screen_, &cell.fg);
     vterm_screen_convert_color_to_rgb(screen_, &cell.bg);
-    out.fg = (uint32_t(cell.fg.rgb.red) << 16) | (uint32_t(cell.fg.rgb.green) << 8) | cell.fg.rgb.blue;
-    out.bg = (uint32_t(cell.bg.rgb.red) << 16) | (uint32_t(cell.bg.rgb.green) << 8) | cell.bg.rgb.blue;
+    out.fg = (uint32_t(cell.fg.rgb.red) << channel_shift_red) |
+        (uint32_t(cell.fg.rgb.green) << channel_shift_green) | cell.fg.rgb.blue;
+    out.bg = (uint32_t(cell.bg.rgb.red) << channel_shift_red) |
+        (uint32_t(cell.bg.rgb.green) << channel_shift_green) | cell.bg.rgb.blue;
     if (cell.attrs.reverse) {
         std::swap(out.fg, out.bg);
     }
