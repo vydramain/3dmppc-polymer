@@ -352,3 +352,18 @@ section_10_game_frame = "10. Game test frame: native aspect, Fit, Integer, stale
 section_11_icons_catalog = "11. Icons, catalog cells, drop pocket, a picture that failed"
 section_12_palette_fonts = "12. Palette, fonts, UI scale, read-only against editable, thumbwheel"
 section_menus_dialogs = "Menus and dialogs"
+
+[pane_hierarchy]
+unnamed = "(unnamed)"
+add_prefix = "+ "
+add_under = "Add {} Under It"
+move_label = "Move {}"
+node_label = "{}  [{}]"
+duplicate = "Duplicate"
+shortcut_duplicate = "Ctrl+D"
+delete = "Delete"
+shortcut_delete = "Delete"
+move_to_root = "Move to Root"
+move_to_root_keep_local = "Move to Root (Keep Local Values)"
+no_scene_open = "No scene is open."
+not_moved = "Not moved: {}"

@@ -12,6 +12,7 @@
 
 #include "pdk/rv_err.h"
 
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -32,7 +33,11 @@ void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const s
 {
     std::string why;
     const int err = rv_editor_scene_reparent(*app.scene, id, parent, keep_world, why);
-    app.scene_ui.note = err == RV_OK ? std::string() : "Not moved: " + why;
+    if (err == RV_OK) {
+        app.scene_ui.note = std::string();
+    } else {
+        app.scene_ui.note = rv_editor_text_format("pane_hierarchy.not_moved", std::make_format_args(why));
+    }
 }
 
 void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
@@ -53,15 +58,17 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
     if (doc.selected == o.id) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
-    const std::string label = (o.name.empty() ? std::string("(unnamed)") : o.name) + "  [" +
-        rv_editor_scene_kind_label(o.kind) + "]";
+    const char *node_name = o.name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : o.name.c_str();
+    const char *kind_label_str = rv_editor_scene_kind_label(o.kind);
+    const auto fmt_args = std::make_format_args(node_name, kind_label_str);
+    const std::string label = rv_editor_text_format("pane_hierarchy.node_label", fmt_args);
     const bool open = ImGui::TreeNodeEx(o.id.c_str(), flags, "%s", label.c_str());
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
         doc.selected = o.id;
     }
     if (!read_only && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(rv_editor_scene_payload, o.id.c_str(), o.id.size() + 1);
-        ImGui::Text("Move %s", label.c_str());
+        ImGui::Text("%s", rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label)).c_str());
         ImGui::EndDragDropSource();
     }
     if (!read_only && ImGui::BeginDragDropTarget()) {
@@ -74,23 +81,25 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
         doc.selected = o.id;
         ImGui::BeginDisabled(read_only);
         for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
-            if (ImGui::MenuItem(("Add " + std::string(rv_editor_scene_kind_label(kind)) + " Under It").c_str())) {
+            const char *kind_label = rv_editor_scene_kind_label(kind);
+            const std::string add_label = rv_editor_text_format("pane_hierarchy.add_under", std::make_format_args(kind_label));
+            if (ImGui::MenuItem(add_label.c_str())) {
                 rv_editor_scene_add(doc, kind, o.id);
             }
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Duplicate", "Ctrl+D")) {
+        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.duplicate"), rv_editor_text("pane_hierarchy.shortcut_duplicate"))) {
             rv_editor_scene_duplicate(doc, o.id);
         }
-        if (ImGui::MenuItem("Delete", "Delete")) {
+        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.delete"), rv_editor_text("pane_hierarchy.shortcut_delete"))) {
             rv_editor_scene_delete(doc, o.id);
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Move to Root")) {
+        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root"))) {
             rv_editor_hierarchy_move(app, o.id, "", true);
         }
         // The other meaning, asked for by name: the numbers stay, the place changes.
-        if (ImGui::MenuItem("Move to Root (Keep Local Values)")) {
+        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root_keep_local"))) {
             rv_editor_hierarchy_move(app, o.id, "", false);
         }
         ImGui::EndDisabled();
@@ -140,7 +149,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     if (app.scene == nullptr) {
-        ImGui::TextWrapped("No scene is open.");
+        ImGui::TextWrapped("%s", rv_editor_text("pane_hierarchy.no_scene_open"));
         rv_editor_scene_open_row(app, theme);
         return;
     }
@@ -150,7 +159,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_shelf_begin("##shelf", theme);
     ImGui::BeginDisabled(read_only);
     for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
-        const std::string label = std::string("+ ") + rv_editor_scene_kind_label(kind);
+        const std::string label = std::string(rv_editor_text("pane_hierarchy.add_prefix")) + rv_editor_scene_kind_label(kind);
         rv_editor_flow(rv_editor_button_width(label.c_str()));
         if (rv_editor_button(label.c_str(), theme)) {
             // Under the selected group, else at the root.
