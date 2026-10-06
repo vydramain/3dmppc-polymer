@@ -15,11 +15,13 @@ namespace
 constexpr size_t rv_editor_search_max_hits = 2000;
 constexpr uintmax_t rv_editor_search_max_bytes = 4u << 20;
 constexpr size_t rv_editor_search_excerpt = 200;
+constexpr std::string_view skipped_dir_prefix = "build"; // directories skipped by project search
+constexpr std::string_view leading_blanks_chars = " \t"; // whitespace to trim from excerpt
 
 bool rv_editor_search_skips(const std::filesystem::path &dir)
 {
     const std::string name = dir.filename().string();
-    return name.starts_with('.') || name.starts_with("build");
+    return name.starts_with('.') || name.starts_with(skipped_dir_prefix);
 }
 
 char rv_editor_search_lower(char c)
@@ -56,7 +58,7 @@ bool rv_editor_search_file(const std::filesystem::path &file, std::string_view q
         if (at == std::string_view::npos) {
             continue;
         }
-        const size_t lead = std::min(line.find_first_not_of(" \t"), line.size());
+        const size_t lead = std::min(line.find_first_not_of(leading_blanks_chars), line.size());
         std::string excerpt = line.substr(lead, rv_editor_search_excerpt);
         if (!excerpt.empty() && excerpt.back() == '\r') {
             excerpt.pop_back();

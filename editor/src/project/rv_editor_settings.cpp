@@ -13,10 +13,13 @@ namespace rv_editor
 namespace
 {
 
+constexpr std::string_view leading_blanks_chars = " \t"; // whitespace to trim
+constexpr std::string_view section_name_tools = "tools"; // the [tools] section name
+
 // True for a "[name]" header line, with the name between the brackets.
 bool rv_editor_settings_header(std::string_view line, std::string_view &name)
 {
-    const size_t open = line.find_first_not_of(" \t");
+    const size_t open = line.find_first_not_of(leading_blanks_chars);
     if (open == std::string_view::npos || line[open] != '[') {
         return false;
     }
@@ -25,8 +28,13 @@ bool rv_editor_settings_header(std::string_view line, std::string_view &name)
         return false;
     }
     name = line.substr(open + 1, close - open - 1);
-    const size_t first = name.find_first_not_of(" \t");
-    name = first == std::string_view::npos ? std::string_view() : name.substr(first, name.find_last_not_of(" \t") - first + 1);
+    const size_t first = name.find_first_not_of(leading_blanks_chars);
+    if (first != std::string_view::npos) {
+        const size_t last = name.find_last_not_of(leading_blanks_chars);
+        name = name.substr(first, last - first + 1);
+    } else {
+        name = std::string_view();
+    }
     return true;
 }
 
@@ -34,7 +42,7 @@ bool rv_editor_settings_header(std::string_view line, std::string_view &name)
 
 std::string rv_editor_settings_with_tools(std::string_view text, const std::vector<rv_editor_settings_tool> &tools)
 {
-    std::string section = "[tools]\n";
+    std::string section = "[" + std::string(section_name_tools) + "]\n";
     for (const auto &[key, path] : tools) {
         if (!path.empty()) {
             section += key + " = " + rv_editor_toml_quote(path) + "\n";
@@ -51,7 +59,7 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
         at = end;
         std::string_view name;
         if (rv_editor_settings_header(line, name)) {
-            in_tools = name == "tools";
+            in_tools = name == section_name_tools;
             if (in_tools && !written) {
                 out += section + "\n";
                 written = true;
