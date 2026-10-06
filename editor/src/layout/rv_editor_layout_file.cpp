@@ -19,23 +19,30 @@ namespace
 // Largest layout file read; anything bigger is not a layout.
 constexpr auto layout_file_max_bytes = 1 << 20;
 
+constexpr const char *env_xdg_config_home = "XDG_CONFIG_HOME"; // XDG config home directory environment variable
+constexpr const char *env_home = "HOME";                       // home directory environment variable
+constexpr std::string_view app_name = "3dmppc-editor";         // application name in config path
+constexpr std::string_view layout_dir = "layout";              // layout subdirectory name
+constexpr std::string_view config_dir = ".config";             // standard config directory name
+constexpr std::string_view temp_file_suffix = ".tmp";          // temporary file suffix for atomic writes
+
 } // namespace
 
 std::filesystem::path rv_editor_layout_file_path()
 {
-    const char *xdg = std::getenv("XDG_CONFIG_HOME");
+    const char *xdg = std::getenv(env_xdg_config_home);
     if (xdg && xdg[0] != '\0') {
         std::filesystem::path p(xdg);
         if (p.is_absolute()) {
-            return p / "3dmppc-editor" / "layout";
+            return p / app_name / layout_dir;
         }
     }
 
-    const char *home = std::getenv("HOME");
+    const char *home = std::getenv(env_home);
     if (home && home[0] != '\0') {
         std::filesystem::path p(home);
         if (p.is_absolute()) {
-            return p / ".config" / "3dmppc-editor" / "layout";
+            return p / config_dir / app_name / layout_dir;
         }
     }
 
@@ -74,7 +81,7 @@ int rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pan
     }
 
     std::filesystem::path tmp = path;
-    tmp += ".tmp";
+    tmp += temp_file_suffix;
 
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
     out << rv_editor_layout_write(panes, layout);

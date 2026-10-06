@@ -26,6 +26,10 @@ constexpr float footer_frames = 2.0f;
 // Smallest list height in frames.
 constexpr float list_min_frames = 3.0f;
 
+constexpr const char *env_home = "HOME";    // home directory the browser starts in
+constexpr std::string_view root_path = "/"; // fallback start directory when HOME is unset
+constexpr const char *dir_marker = "/";     // appended to directory names in the listing
+
 void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir)
 {
     b.dir = dir;
@@ -82,14 +86,14 @@ void rv_editor_browser_start(rv_editor_browser &b, std::string purpose, std::str
     b.pick = pick;
     std::filesystem::path dir = start;
     if (dir.empty()) {
-        const char *home = std::getenv("HOME");
-        dir = home != nullptr ? home : "/";
+        const char *home = std::getenv(env_home);
+        dir = home != nullptr ? home : root_path;
     }
     std::error_code ec;
     while (!dir.empty() && !std::filesystem::is_directory(dir, ec) && dir != dir.parent_path()) {
         dir = dir.parent_path();
     }
-    rv_editor_browser_go(b, dir.empty() ? std::filesystem::path("/") : dir);
+    rv_editor_browser_go(b, dir.empty() ? std::filesystem::path(root_path) : dir);
 }
 
 std::filesystem::path rv_editor_browser_target(const rv_editor_browser &b)
@@ -133,7 +137,7 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
         std::filesystem::path enter;
         for (const rv_editor_browser::rv_editor_entry &e : b.entries) {
             const std::filesystem::path full = b.dir / e.name;
-            const std::string label = e.name + (e.dir ? "/" : "");
+            const std::string label = e.name + (e.dir ? dir_marker : "");
             const bool selected = b.selected == full;
             if (!e.dir) {
                 ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
