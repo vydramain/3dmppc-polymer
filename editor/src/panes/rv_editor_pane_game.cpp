@@ -76,6 +76,24 @@ uint64_t rv_editor_game_keys()
 namespace
 {
 
+// Status line: dimension separator (width x height).
+constexpr std::string_view dimension_sep = "x";
+
+// Status line: separator between dimensions and scale text.
+constexpr std::string_view dimensions_scale_sep = "  ";
+
+// File path and error text separator when saving screenshot.
+constexpr std::string_view error_kv_sep = ": ";
+
+// Game picture tint color when console disconnected, hung, timeout, or stale: white semi-transparent.
+constexpr uint32_t warn_picture_tint = IM_COL32(255, 255, 255, 96);
+
+// Keyboard capture border thickness: drawn when game has focus and captures input.
+constexpr float frame_thickness_px = 2.0f;
+
+// Pixel format: bytes per pixel for SDL ARGB8888 format.
+constexpr size_t bytes_per_pixel_argb8888 = 4;
+
 // Fit, Integer, 1x, 2x, 3x (View > Game Scale), then Run: one shelf, same in
 // every state, so it never changes the well's height between them. Burn's
 // candidate view carries its own Run Candidate here instead of the dev Run.
@@ -157,8 +175,9 @@ void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, st
     if (have) {
         view = rv_editor_game_place(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h), area.x,
             area.y, app.game_scale);
-        status = std::to_string(rv_editor_game_w) + "x" + std::to_string(rv_editor_game_h) + "  " +
-            rv_editor_game_scale_text(app.game_scale, view) + "  " + status;
+        status = std::to_string(rv_editor_game_w) + dimension_sep.data() + std::to_string(rv_editor_game_h) +
+            dimensions_scale_sep.data() + rv_editor_game_scale_text(app.game_scale, view) +
+            dimensions_scale_sep.data() + status;
     }
     if (line == rv_editor_game_line::warn) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
@@ -193,10 +212,10 @@ void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, st
     const ImVec2 i0(p0.x + view.x, p0.y + view.y);
     const ImVec2 i1(i0.x + view.w, i0.y + view.h);
     dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), i0, i1, ImVec2(0.0f, 0.0f),
-        ImVec2(1.0f, 1.0f), line == rv_editor_game_line::warn ? IM_COL32(255, 255, 255, 96) : IM_COL32_WHITE);
+        ImVec2(1.0f, 1.0f), line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
     if (app.game_captured) {
         dl->AddRect(ImVec2(i0.x - 1, i0.y - 1), ImVec2(i1.x + 1, i1.y + 1), rv_editor_col(theme.selection), 0.0f,
-            2.0f);
+            frame_thickness_px);
     }
 }
 
@@ -245,14 +264,15 @@ int rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path
         return RV_ERR_NOENT;
     }
     SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h),
-        SDL_PIXELFORMAT_ARGB8888, rv_editor_game_pixels.data(), static_cast<int>(rv_editor_game_w * 4));
+        SDL_PIXELFORMAT_ARGB8888, rv_editor_game_pixels.data(),
+        static_cast<int>(rv_editor_game_w * bytes_per_pixel_argb8888));
     if (surface == nullptr) {
         error = SDL_GetError();
         return RV_ERR_IO;
     }
     const bool saved = SDL_SavePNG(surface, path.c_str());
     if (!saved) {
-        error = path.string() + ": " + SDL_GetError();
+        error = path.string() + error_kv_sep.data() + SDL_GetError();
     }
     SDL_DestroySurface(surface);
     return saved ? RV_OK : RV_ERR_IO;
@@ -360,7 +380,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             }
             if (rv_editor_game_texture != nullptr) {
                 SDL_UpdateTexture(rv_editor_game_texture, nullptr, rv_editor_game_pixels.data(),
-                    static_cast<int>(w * 4));
+                    static_cast<int>(w * bytes_per_pixel_argb8888));
             }
             rv_editor_game_frame = f;
         }
