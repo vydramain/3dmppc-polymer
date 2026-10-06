@@ -4,6 +4,7 @@
 #include <cmath>
 
 #include "rv_editor_catppuccin_mocha.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_glyphs.hpp"
@@ -26,32 +27,32 @@ rv_editor_mark rv_editor_status_mark(rv_editor_status_kind kind, const rv_editor
 {
     switch (kind) {
     case rv_editor_status_kind::idle:
-        return {"[-]", t.text_disabled};
+        return { rv_editor_text("widgets_status.status_idle"), t.text_disabled };
     case rv_editor_status_kind::busy:
-        return {"[~]", t.selection};
+        return { rv_editor_text("widgets_status.status_busy"), t.selection };
     case rv_editor_status_kind::ok:
-        return {"[OK]", t.ok};
+        return { rv_editor_text("widgets_status.status_ok"), t.ok };
     case rv_editor_status_kind::active:
-        return {"[*]", t.ok};
+        return { rv_editor_text("widgets_status.status_active"), t.ok };
     case rv_editor_status_kind::warning:
-        return {"[!]", t.warning};
+        return { rv_editor_text("widgets_status.status_warning"), t.warning };
     case rv_editor_status_kind::error:
-        return {"[X]", t.error};
+        return { rv_editor_text("widgets_status.status_error"), t.error };
     }
-    return {"[?]", t.text};
+    return { rv_editor_text("widgets_status.status_unknown"), t.text };
 }
 
 rv_editor_mark rv_editor_severity_mark(rv_editor_severity severity, const rv_editor_theme &t)
 {
     switch (severity) {
     case rv_editor_severity::info:
-        return {"INF", t.code_blue};
+        return { rv_editor_text("widgets_status.severity_info"), t.code_blue };
     case rv_editor_severity::warning:
-        return {"WRN", t.code_yellow};
+        return { rv_editor_text("widgets_status.severity_warning"), t.code_yellow };
     case rv_editor_severity::error:
-        return {"ERR", t.code_red};
+        return { rv_editor_text("widgets_status.severity_error"), t.code_red };
     }
-    return {"???", t.code_text};
+    return { rv_editor_text("widgets_status.severity_unknown"), t.code_text };
 }
 
 } // namespace
@@ -130,20 +131,32 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
         bool *clicked;
     };
     // Reload's slot: Build and Restart when Reload cannot apply the pending change.
-    rv_editor_transport_button reload_slot = { "Reload", rv_editor_glyph::reload, rv_editor_mocha_teal,
-        state.reload_name != nullptr ? state.reload_name : "Reload Entry Script", "F8", state.reload,
-        &out.reload };
+    rv_editor_transport_button reload_slot = { rv_editor_text("widgets_status.button_reload"),
+        rv_editor_glyph::reload, rv_editor_mocha_teal,
+        state.reload_name != nullptr ? state.reload_name : rv_editor_text("widgets_status.tooltip_reload"),
+        rv_editor_text("widgets_status.shortcut_reload"), state.reload, &out.reload };
     if (state.build_restart) {
-        reload_slot = { "Restart", rv_editor_glyph::restart, rv_editor_mocha_red, "Build and Restart", nullptr,
+        reload_slot = { rv_editor_text("widgets_status.button_restart"), rv_editor_glyph::restart,
+            rv_editor_mocha_red, rv_editor_text("widgets_status.tooltip_restart"), nullptr,
             state.build_restart_disabled, &out.build_restart };
     }
+    const char *run_resume_label =
+        rv_editor_text(state.resume ? "widgets_status.button_resume" : "widgets_status.button_run");
     const rv_editor_transport_button buttons[] = {
-        { "Build", rv_editor_glyph::build, rv_editor_mocha_peach, "Build", "Ctrl+B", state.build, &out.build },
-        { state.resume ? "Resume" : "Run", rv_editor_glyph::run, theme.code_green, state.resume ? "Resume" : "Run",
-            "F5", state.run, &out.run },
-        { "Pause", rv_editor_glyph::pause, theme.code_yellow, "Pause", "F6", state.pause, &out.pause },
-        { "Step", rv_editor_glyph::step_frame, theme.code_blue, "Step Frame", "F7", state.step, &out.step },
-        { "Stop", rv_editor_glyph::stop, theme.code_red, "Stop", "Shift+F5", state.stop, &out.stop },
+        { rv_editor_text("widgets_status.button_build"), rv_editor_glyph::build, rv_editor_mocha_peach,
+            rv_editor_text("widgets_status.button_build"), rv_editor_text("widgets_status.shortcut_build"), state.build,
+            &out.build },
+        { run_resume_label, rv_editor_glyph::run, theme.code_green, run_resume_label,
+            rv_editor_text("widgets_status.shortcut_run"), state.run, &out.run },
+        { rv_editor_text("widgets_status.button_pause"), rv_editor_glyph::pause, theme.code_yellow,
+            rv_editor_text("widgets_status.button_pause"), rv_editor_text("widgets_status.shortcut_pause"), state.pause,
+            &out.pause },
+        { rv_editor_text("widgets_status.button_step"), rv_editor_glyph::step_frame, theme.code_blue,
+            rv_editor_text("widgets_status.button_step_frame"), rv_editor_text("widgets_status.shortcut_step"), state.step,
+            &out.step },
+        { rv_editor_text("widgets_status.button_stop"), rv_editor_glyph::stop, theme.code_red,
+            rv_editor_text("widgets_status.button_stop"), rv_editor_text("widgets_status.shortcut_stop"), state.stop,
+            &out.stop },
         reload_slot,
     };
     const size_t shown = std::size(buttons); // Reload/Restart is always shown, disabled when it cannot act
@@ -158,7 +171,7 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     bool hidden[std::size(buttons)] = {};
     bool any_hidden = false;
     if (width + tail > ImGui::GetContentRegionAvail().x) {
-        width += gap + rv_editor_tool_button_width("More");
+        width += gap + rv_editor_tool_button_width(rv_editor_text("widgets_status.button_more"));
         constexpr size_t drop_order[] = { 5, 3, 0, 2, 4, 1 };
         for (const size_t i : drop_order) {
             if (i >= shown || width + tail <= ImGui::GetContentRegionAvail().x) {
@@ -188,7 +201,8 @@ rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_st
     if (!first) {
         ImGui::SameLine();
     }
-    if (rv_editor_tool_button("More", rv_editor_glyph::more, theme.text, "The buttons that do not fit", nullptr, theme)) {
+    if (rv_editor_tool_button(rv_editor_text("widgets_status.button_more"), rv_editor_glyph::more, theme.text,
+            rv_editor_text("widgets_status.tooltip_more"), nullptr, theme)) {
         ImGui::OpenPopup("##transport_more");
     }
     rv_editor_menu_style_push();
