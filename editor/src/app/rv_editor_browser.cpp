@@ -20,6 +20,12 @@ namespace rv_editor
 namespace
 {
 
+// Footer height in framed rows: path field and buttons.
+constexpr float footer_frames = 2.0f;
+
+// Smallest list height in frames.
+constexpr float list_min_frames = 3.0f;
+
 void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir)
 {
     b.dir = dir;
@@ -120,10 +126,9 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
         rv_editor_browser_go(b, b.path);
     }
 
-    const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f;
-    const float list_h = height > 0.0f ? std::max(height - footer - ImGui::GetFrameHeightWithSpacing() * 2.0f,
-                                                  ImGui::GetFrameHeight() * 3.0f)
-                                       : -footer;
+    const float footer = ImGui::GetFrameHeightWithSpacing() * footer_frames;
+    const float list_room = height - footer - ImGui::GetFrameHeightWithSpacing() * footer_frames;
+    const float list_h = height > 0.0f ? std::max(list_room, ImGui::GetFrameHeight() * list_min_frames) : -footer;
     if (ImGui::BeginListBox("##entries", ImVec2(-1.0f, list_h))) {
         std::filesystem::path enter;
         for (const rv_editor_browser::rv_editor_entry &e : b.entries) {

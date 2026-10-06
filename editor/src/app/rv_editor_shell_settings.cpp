@@ -24,6 +24,18 @@ namespace rv_editor
 namespace
 {
 
+// Path field minimum width in font size units.
+constexpr float path_field_min_em = 10.0f;
+
+// Browser height in font size units.
+constexpr float browser_height_em = 24.0f;
+
+// Window width from which labels get their own column.
+constexpr float label_column_min_width_em = 50.0f;
+
+// Label column width in font size units.
+constexpr float label_column_em = 15.0f;
+
 struct rv_editor_settings_row
 {
     const char *key;
@@ -94,7 +106,7 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     rv_editor_settings_label(rv_editor_text("shell_settings.override_path"), label_w);
     const float browse_btn_w = rv_editor_button_width(rv_editor_text("shell_settings.browse_button"));
     const float buttons = browse_btn_w + ImGui::GetStyle().ItemSpacing.x;
-    ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * 10.0f, ImGui::GetContentRegionAvail().x - buttons));
+    ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * path_field_min_em, ImGui::GetContentRegionAvail().x - buttons));
     if (rv_editor_text_field("##path", shell.settings_paths[i], sizeof(shell.settings_paths[i]), theme)) {
         shell.settings_checks[i].reset();
     }
@@ -124,7 +136,7 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     if (browsing) {
         std::filesystem::path picked;
         const rv_editor_browse_result r =
-            rv_editor_browser_draw(shell.settings_browser, ImGui::GetFontSize() * 24.0f, nullptr, picked, theme);
+            rv_editor_browser_draw(shell.settings_browser, ImGui::GetFontSize() * browser_height_em, nullptr, picked, theme);
         if (r == rv_editor_browse_result::picked) {
             std::snprintf(shell.settings_paths[i], sizeof(shell.settings_paths[i]), "%s", picked.c_str());
             shell.settings_checks[i].reset();
@@ -178,7 +190,7 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     ImGui::TextWrapped("%s", msg.c_str());
     ImGui::Separator();
     const float font = ImGui::GetFontSize();
-    const float label_w = ImGui::GetContentRegionAvail().x >= font * 50.0f ? font * 15.0f : 0.0f;
+    const float label_w = ImGui::GetContentRegionAvail().x >= font * label_column_min_width_em ? font * label_column_em : 0.0f;
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
         rv_editor_settings_block(shell, i, label_w, theme);
         ImGui::Separator();
