@@ -13,6 +13,13 @@ namespace rv_editor
 namespace
 {
 
+// Scene TOML file extension: file suffix for generated codegen scene name.
+constexpr std::string_view scene_toml_suffix = ".scene.toml";
+// Codegen output directory in the project root.
+constexpr std::string_view codegen_src_dir = "src";
+// Codegen output file suffix: generated C++ header for a scene.
+constexpr std::string_view codegen_header_suffix = "_scene.hpp";
+
 // scene_name as a C identifier: anything not [A-Za-z0-9_] becomes '_', and a
 // leading digit gets a '_' prefix so the generated symbols always compile.
 std::string rv_editor_scene_codegen_id(std::string_view scene_name)
@@ -34,7 +41,7 @@ std::string rv_editor_scene_codegen_id(std::string_view scene_name)
 std::string rv_editor_scene_codegen_text(std::string_view scene_name)
 {
     const std::string id = rv_editor_scene_codegen_id(scene_name);
-    const std::string asset = std::string(scene_name) + ".scene.toml";
+    const std::string asset = std::string(scene_name) + std::string(scene_toml_suffix);
 
     std::string text;
     text += "#pragma once\n\n";
@@ -61,8 +68,9 @@ std::string rv_editor_scene_codegen_text(std::string_view scene_name)
 int rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
     std::filesystem::path &written, std::string &error)
 {
-    const std::filesystem::path src_dir = root / "src";
-    const std::filesystem::path path = src_dir / (rv_editor_scene_codegen_id(scene_name) + "_scene.hpp");
+    const std::filesystem::path src_dir = root / std::string(codegen_src_dir);
+    const std::filesystem::path path =
+        src_dir / (rv_editor_scene_codegen_id(scene_name) + std::string(codegen_header_suffix));
 
     std::error_code ec;
     std::filesystem::create_directories(src_dir, ec);
