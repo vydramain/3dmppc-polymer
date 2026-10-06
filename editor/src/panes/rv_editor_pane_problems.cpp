@@ -10,6 +10,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -46,7 +47,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_build &b = app.build;
     const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
     if (b.state() == rv_editor_build_state::idle && problems.empty()) {
-        ImGui::TextWrapped("No build in this window yet: Build lists here what the compiler finds.");
+        ImGui::TextWrapped("%s", rv_editor_text("pane_problems.heading_empty"));
         return;
     }
     size_t build_errors = 0;
@@ -65,16 +66,26 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     std::string what;
     if (b.state() == rv_editor_build_state::idle) {
         // Idle with diagnostics: show only language server info without pretending it's a build result.
-        what = "No build yet; language servers: " + std::to_string(lsp_errors) + " errors, " +
-            std::to_string(lsp_total - lsp_errors) + " warnings";
+        const size_t lsp_warnings = lsp_total - lsp_errors;
+        what = rv_editor_text_format("pane_problems.idle_servers",
+            std::make_format_args(lsp_errors, lsp_warnings));
     } else {
-        what = std::string(b.busy() ? "Building" : "Build") +
-            (b.image().empty() ? " #" + std::to_string(b.number()) : " of " + b.image().filename().string()) +
-            ": " + std::to_string(build_errors) + " errors, " + std::to_string(build_total - build_errors) +
-            " warnings";
+        const char *build_word = b.busy() ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
+        std::string build_ref;
+        const size_t build_number = b.number();
+        if (b.image().empty()) {
+            build_ref = rv_editor_text_format("pane_problems.build_number", std::make_format_args(build_number));
+        } else {
+            const std::string image_name = b.image().filename().string();
+            build_ref = rv_editor_text_format("pane_problems.build_image", std::make_format_args(image_name));
+        }
+        const size_t build_warnings = build_total - build_errors;
+        what = rv_editor_text_format("pane_problems.build_status",
+            std::make_format_args(build_word, build_ref, build_errors, build_warnings));
         if (lsp_total != 0) {
-            what += "; language servers: " + std::to_string(lsp_errors) + " errors, " +
-                std::to_string(lsp_total - lsp_errors) + " warnings";
+            const size_t lsp_warnings = lsp_total - lsp_errors;
+            what += rv_editor_text_format("pane_problems.servers_suffix",
+                std::make_format_args(lsp_errors, lsp_warnings));
         }
     }
     const size_t errors = build_errors + lsp_errors;
@@ -86,7 +97,8 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
                                                  : rv_editor_status_kind::warning,
             theme);
         if (problems.empty()) {
-            ImGui::TextWrapped(b.busy() ? "None so far." : "None with a place. Anything else is in the Build Log.");
+            const char *id = b.busy() ? "pane_problems.none_building" : "pane_problems.none_idle";
+            ImGui::TextWrapped("%s", rv_editor_text(id));
             return;
         }
         if (!ImGui::BeginTable("##problems", 5,
@@ -94,10 +106,10 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             return;
         }
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Source", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("File", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Line", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn("Message");
+        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_source"), ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_file"), ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_line"), ImGuiTableColumnFlags_WidthFixed);
+        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_message"));
         ImGui::TableSetupScrollFreeze(0, 1);
         ImGui::TableHeadersRow();
         for (size_t i = 0; i < problems.size(); ++i) {
@@ -106,8 +118,10 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             // A word as well as a colour.
-            rv_editor_status(p.error ? "error" : "warning",
-                p.error ? rv_editor_status_kind::error : rv_editor_status_kind::warning, theme);
+            const bool is_error = p.error;
+            const char *severity_id = is_error ? "pane_problems.severity_error" : "pane_problems.severity_warning";
+            const auto kind = is_error ? rv_editor_status_kind::error : rv_editor_status_kind::warning;
+            rv_editor_status(rv_editor_text(severity_id), kind, theme);
             ImGui::TableNextColumn();
             ImGui::TextUnformatted(p.source.c_str());
             ImGui::TableNextColumn();
@@ -131,11 +145,11 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             std::string message = p.message;
             const bool from_build = p.source == "build";
             if (from_build && !there) {
-                message = "(file missing) " + message;
+                message = std::string(rv_editor_text("pane_problems.prefix_file_missing")) + message;
             } else if (from_build && app.build_ended != std::filesystem::file_time_type{} &&
                 std::filesystem::last_write_time(p.file, ec) > app.build_ended) {
                 // The line may have moved since the build saw it.
-                message = "(changed since this build) " + message;
+                message = std::string(rv_editor_text("pane_problems.prefix_changed")) + message;
             }
             ImGui::TextUnformatted(message.c_str());
             ImGui::PopID();
