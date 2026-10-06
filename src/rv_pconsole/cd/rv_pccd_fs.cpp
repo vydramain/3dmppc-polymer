@@ -214,7 +214,7 @@ int64_t rv_pccd_fs::asset_read_bytes_(const char* resname, std::vector<std::byte
 int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte>& bytes, rv_pdklib::rv_mppctex_header& header_out,
                                      const std::byte*& palette_out, const std::byte*& texels_out) const {
     std::string error;
-    if (!rv_pdklib::rv_mppctex_parse(bytes, header_out, palette_out, texels_out, error)) {
+    if (rv_pdklib::rv_mppctex_parse(bytes, header_out, palette_out, texels_out, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
     return RV_OK;

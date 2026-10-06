@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "pdk/cv/rv_texture.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_pdklib
@@ -113,17 +114,17 @@ inline uint16_t rv_mppctex_read_le16(const std::byte *p)
 ///
 /// On success, fills `header_out` and points `palette_out` / `texels_out`
 /// INTO `bytes` (nothing is copied; `bytes` must outlive them). `palette_out`
-/// is null exactly when the format carries no palette (DIRECT15).
+/// is null exactly when the format carries no palette (DIRECT15). Returns RV_OK.
 ///
-/// On failure, returns false, leaves the out-parameters unspecified, and sets
-/// `error` to one sentence naming which rule the container broke.
-inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header &header_out,
-                              const std::byte *&palette_out, const std::byte *&texels_out,
-                              std::string &error)
+/// On failure, returns RV_ERR_INVAL, leaves the out-parameters unspecified,
+/// and sets `error` to one sentence naming which rule the container broke.
+inline int rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header &header_out,
+    const std::byte *&palette_out, const std::byte *&texels_out,
+    std::string &error)
 {
     if (static_cast<int64_t>(bytes.size()) < rv_mppctex_header_size) {
         error = "is shorter than its own header";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const std::byte *raw = bytes.data();
@@ -136,7 +137,7 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
     }
     if (!magic_ok) {
         error = "has no MPTX magic";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const uint16_t version = detail::rv_mppctex_read_le16(raw + RV_MPPCTEX_OFF_VERSION);
@@ -144,7 +145,7 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
         error = "is container version " + std::to_string(version >> 8) + "." +
                 std::to_string(version & 0xFF) + ", not compatible with the version " + rv_version_str +
                 " this code reads";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     rv_mppctex_header header;
@@ -163,14 +164,14 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
         if (header.palette_count == 0 || header.palette_count > 16) {
             error = "declares an IDX4 palette of " + std::to_string(header.palette_count) +
                     " entries, not 1..16";
-            return false;
+            return RV_ERR_INVAL;
         }
         break;
     case RV_TEXFMT_IDX8:
         if (header.palette_count == 0 || header.palette_count > 256) {
             error = "declares an IDX8 palette of " + std::to_string(header.palette_count) +
                     " entries, not 1..256";
-            return false;
+            return RV_ERR_INVAL;
         }
         break;
     case RV_TEXFMT_DIRECT15:
@@ -179,19 +180,19 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
         if (header.palette_count != 0) {
             error = "is DIRECT15 but declares a " + std::to_string(header.palette_count) +
                     "-entry palette";
-            return false;
+            return RV_ERR_INVAL;
         }
         break;
     default:
         error = "claims unknown format " + std::to_string(static_cast<int>(header.format));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Zero of either dimension uploads nothing and draws nothing; it is a
     // corrupt header, not an empty picture.
     if (header.width == 0 || header.height == 0) {
         error = "has a zero width or height";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const int64_t palette_bytes = header.palette_count * rv_mppctex_palette_entry_bytes;
@@ -200,13 +201,13 @@ inline bool rv_mppctex_parse(std::span<const std::byte> bytes, rv_mppctex_header
     if (static_cast<int64_t>(bytes.size()) < need) {
         error = "is " + std::to_string(bytes.size()) + " bytes, short of the " + std::to_string(need) +
                 " its header, palette and texels require";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     header_out = header;
     palette_out = header.palette_count > 0 ? raw + rv_mppctex_header_size : nullptr;
     texels_out = raw + rv_mppctex_header_size + palette_bytes;
-    return true;
+    return RV_OK;
 }
 
 /// Appends the 16-byte header for a texture of `format`, `width` x `height`

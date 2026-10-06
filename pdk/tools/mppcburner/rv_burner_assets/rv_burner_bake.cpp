@@ -8,6 +8,7 @@
 #include <system_error>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_textures/rv_mppctex.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_burner_assets/rv_burner_baker_path.hpp"
@@ -25,7 +26,7 @@ namespace rv_pdktools
 // four fields, which is how a zero-dimension or truncated .mppctex used to
 // pass here and only fail once a disc tried to load it; that gap is closed by
 // asking the same question the console asks, not a looser one of our own.
-static bool read_mppctex_header(
+static int read_mppctex_header(
     const fs::path &path,
     rv_pdklib::rv_mppctex_header &out,
     std::string &error)
@@ -33,31 +34,31 @@ static bool read_mppctex_header(
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         error = "cannot reopen baked texture '" + path.string() + "'";
-        return false;
+        return RV_ERR_IO;
     }
 
     std::error_code ec;
     const uintmax_t size = fs::file_size(path, ec);
     if (ec) {
         error = "cannot size baked texture '" + path.string() + "'";
-        return false;
+        return RV_ERR_IO;
     }
 
     std::vector<std::byte> bytes(static_cast<size_t>(size));
     file.read(reinterpret_cast<char *>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
     if (file.gcount() != static_cast<std::streamsize>(bytes.size())) {
         error = "baked texture '" + path.string() + "' is shorter than its own reported size";
-        return false;
+        return RV_ERR_IO;
     }
 
     const std::byte *palette = nullptr;
     const std::byte *texels = nullptr;
     std::string reason;
-    if (!rv_pdklib::rv_mppctex_parse(bytes, out, palette, texels, reason)) {
+    if (rv_pdklib::rv_mppctex_parse(bytes, out, palette, texels, reason) != RV_OK) {
         error = "baked texture '" + path.string() + "' " + reason;
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 // Sounds have no header to parse: the only shape a .pcm must have is an even
@@ -123,7 +124,7 @@ int rv_pdktools::bake_textures(
         // --- read back what it produced ---
 
         rv_pdklib::rv_mppctex_header header;
-        if (!read_mppctex_header(item.payload, header, error)) {
+        if (read_mppctex_header(item.payload, header, error) != RV_OK) {
             return 1;
         }
 
