@@ -34,9 +34,6 @@ constexpr std::string_view memory_card_ext = ".mppccard";
 // Candidate build log file name.
 constexpr std::string_view candidate_log_name_build = "build";
 
-// Prefix of session end reason for forced stops.
-constexpr std::string_view session_end_prefix_forced = "force";
-
 std::filesystem::path rv_editor_candidates_dir(const rv_editor_app &app)
 {
     return app.project.cache_dir / candidates_dir_name;
@@ -251,7 +248,7 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     c.dirty = true;
     c.last_run_end = end_reason;
     c.last_run_clean = !s.live() && s.state() == rv_editor_run_state::exited &&
-        s.end_reason().rfind(session_end_prefix_forced, 0) != 0;
+        s.end_reason().rfind(end_reason_force_stopped, 0) != 0;
     r.playing = -1;
 }
 

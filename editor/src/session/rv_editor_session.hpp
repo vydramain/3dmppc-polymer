@@ -20,6 +20,9 @@
 namespace rv_editor
 {
 
+// Prefix of session end reason after a forced stop; the release flow checks for it.
+inline constexpr std::string_view end_reason_force_stopped = "force-stopped";
+
 // What the runtime is doing, as far as the console has confirmed it (section 12
 // of the requirements). Pending states last until the console answers.
 enum class rv_editor_run_state

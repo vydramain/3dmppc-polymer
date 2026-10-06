@@ -351,7 +351,7 @@ void rv_editor_session::finish(rv_editor_log &log)
         }
     } else if (forced_) {
         state_ = rv_editor_run_state::exited;
-        end_reason_ = "force-stopped (" + how + ")";
+        end_reason_ = std::string(end_reason_force_stopped) + " (" + how + ")";
     } else if (exit.signal != 0 || exit.code != 0) {
         state_ = rv_editor_run_state::crashed;
         end_reason_ = how;
