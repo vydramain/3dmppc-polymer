@@ -13,9 +13,6 @@ namespace rv_editor
 namespace
 {
 
-// Status query command (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
-constexpr std::string_view cmd_status = "status";
-
 // Query request prefixes recognized by the protocol (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
 constexpr std::string_view cmd_get_prefix = "get ";
 constexpr std::string_view cmd_keys_prefix = "keys ";

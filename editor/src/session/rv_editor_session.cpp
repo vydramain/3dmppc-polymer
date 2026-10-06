@@ -22,13 +22,6 @@ constexpr auto rv_editor_handshake_timeout = std::chrono::seconds(15);
 // After quit, a console still running this long counts as hung.
 constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
 
-// Commands the console reads (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
-constexpr std::string_view cmd_status = "status";
-constexpr std::string_view cmd_pause = "pause";
-constexpr std::string_view cmd_resume = "resume";
-constexpr std::string_view cmd_step = "step";
-constexpr std::string_view cmd_quit = "quit";
-
 constexpr std::string_view pad_prefix = "pad 0 ";
 constexpr std::string_view protocol_frame_event = "0 event=frame ";
 

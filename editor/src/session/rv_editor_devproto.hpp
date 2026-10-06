@@ -10,7 +10,7 @@
 namespace rv_editor
 {
 
-// The development console's line protocol as the client reads it (README.md,
+// The development console's line protocol as the client reads and writes it (README.md,
 // "The channel"): `<id> ok k=v ...`, `<id> err error=<token> ...`, and events
 // the console raises on its own, `0 event=<name> k=v ...`. No I/O here: bytes go
 // in as they arrive, whole messages come out.
@@ -54,5 +54,12 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
 
 // The protocol's lowercase hex back to bytes; stops at the first non-hex pair.
 std::string rv_editor_hex_decode(std::string_view hex);
+
+// Commands the client sends (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
+inline constexpr std::string_view cmd_status = "status";
+inline constexpr std::string_view cmd_pause = "pause";
+inline constexpr std::string_view cmd_resume = "resume";
+inline constexpr std::string_view cmd_step = "step";
+inline constexpr std::string_view cmd_quit = "quit";
 
 } // namespace rv_editor
