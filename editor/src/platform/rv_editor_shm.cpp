@@ -29,6 +29,28 @@ constexpr uint32_t RV_PCFRAME_HEADER_BYTES = 64;
 constexpr uint32_t RV_PCFRAME_SLOT_HEADER_BYTES = 32;
 constexpr uint32_t RV_PCFRAME_FORMAT_ARGB8888 = 1;
 
+// Shared memory object name passed to memfd_create for frame buffer
+constexpr std::string_view shm_memfd_name = "rv-editor-frame";
+
+// Child gets descriptor 3 via dup2; dup2(3,3) keeps close-on-exec, so move fd above low numbers
+constexpr int min_fd_inherit_threshold = 10;
+
+// Byte offsets within the pcframe_header structure, from src/rv_pconsole/platform/rv_pcframe.hpp
+constexpr uint64_t header_version_offset = 4;
+constexpr uint64_t header_slot_count_offset = 8;
+constexpr uint64_t header_slot_bytes_offset = 12;
+constexpr uint64_t header_latest_offset = 16;
+
+// Byte offsets within each pcframe_slot structure, from src/rv_pconsole/platform/rv_pcframe.hpp
+constexpr uint64_t slot_format_offset = 4;
+constexpr uint64_t slot_frame_offset = 8;
+constexpr uint64_t slot_width_offset = 16;
+constexpr uint64_t slot_height_offset = 20;
+constexpr uint64_t slot_stride_offset = 24;
+
+// Bytes per pixel for ARGB8888 format in stride calculation
+constexpr int argb8888_bytes_per_pixel = 4;
+
 } // namespace
 
 rv_editor_frame_memory::~rv_editor_frame_memory()
@@ -39,14 +61,14 @@ rv_editor_frame_memory::~rv_editor_frame_memory()
 int rv_editor_frame_memory::create(std::string &error)
 {
     close();
-    int fd = memfd_create("rv-editor-frame", MFD_CLOEXEC);
+    int fd = memfd_create(shm_memfd_name.data(), MFD_CLOEXEC);
     if (fd < 0) {
         error = std::string("memfd_create: ") + std::strerror(errno);
         return RV_ERR_IO;
     }
     // posix_spawn's dup2 onto descriptor 3 must never be dup2(3, 3), which would keep close-on-exec.
-    if (fd < 10) {
-        const int high = fcntl(fd, F_DUPFD_CLOEXEC, 10);
+    if (fd < min_fd_inherit_threshold) {
+        const int high = fcntl(fd, F_DUPFD_CLOEXEC, min_fd_inherit_threshold);
         if (high < 0) {
             error = std::string("fcntl: ") + std::strerror(errno);
             ::close(fd);
@@ -112,22 +134,22 @@ bool rv_editor_frame_memory::read(uint64_t &frame, uint32_t &width, uint32_t &he
         return false;
     }
 
-    uint32_t version = load32(4, std::memory_order_relaxed);
+    uint32_t version = load32(header_version_offset, std::memory_order_relaxed);
     if (version != RV_PCFRAME_VERSION) {
         return false;
     }
 
-    uint32_t slot_count = load32(8, std::memory_order_relaxed);
+    uint32_t slot_count = load32(header_slot_count_offset, std::memory_order_relaxed);
     if (slot_count != RV_PCFRAME_SLOTS) {
         return false;
     }
 
-    uint32_t slot_bytes = load32(12, std::memory_order_relaxed);
+    uint32_t slot_bytes = load32(header_slot_bytes_offset, std::memory_order_relaxed);
     if (size_ < RV_PCFRAME_HEADER_BYTES + uint64_t(RV_PCFRAME_SLOTS) * slot_bytes) {
         return false;
     }
 
-    uint32_t latest = load32(16, std::memory_order_acquire);
+    uint32_t latest = load32(header_latest_offset, std::memory_order_acquire);
     if (latest >= RV_PCFRAME_SLOTS) {
         return false;
     }
@@ -144,11 +166,11 @@ bool rv_editor_frame_memory::read(uint64_t &frame, uint32_t &width, uint32_t &he
     uint64_t frame_num;
     uint32_t w, h, stride;
 
-    std::memcpy(&format, base + slot_offset + 4, sizeof(format));
-    std::memcpy(&frame_num, base + slot_offset + 8, sizeof(frame_num));
-    std::memcpy(&w, base + slot_offset + 16, sizeof(w));
-    std::memcpy(&h, base + slot_offset + 20, sizeof(h));
-    std::memcpy(&stride, base + slot_offset + 24, sizeof(stride));
+    std::memcpy(&format, base + slot_offset + slot_format_offset, sizeof(format));
+    std::memcpy(&frame_num, base + slot_offset + slot_frame_offset, sizeof(frame_num));
+    std::memcpy(&w, base + slot_offset + slot_width_offset, sizeof(w));
+    std::memcpy(&h, base + slot_offset + slot_height_offset, sizeof(h));
+    std::memcpy(&stride, base + slot_offset + slot_stride_offset, sizeof(stride));
 
     if (frame_num <= frame) {
         return false;
@@ -159,7 +181,7 @@ bool rv_editor_frame_memory::read(uint64_t &frame, uint32_t &width, uint32_t &he
     if (w == 0 || h == 0) {
         return false;
     }
-    if (stride != w * 4) {
+    if (stride != w * argb8888_bytes_per_pixel) {
         return false;
     }
     if (RV_PCFRAME_SLOT_HEADER_BYTES + uint64_t(stride) * h > slot_bytes) {
