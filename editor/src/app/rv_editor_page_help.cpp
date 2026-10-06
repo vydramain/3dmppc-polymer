@@ -16,9 +16,9 @@ namespace rv_editor
 
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    rv_editor_pane_header("Help: Keyboard Shortcuts", true, theme);
+    rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted("Filter");
+    ImGui::TextUnformatted(rv_editor_text("page_help.filter_label"));
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 30.0f);
     rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
@@ -34,46 +34,49 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
     // where a shortcut with no menu works. Within a group, the menu's own order.
     struct rv_editor_help_row
     {
-        const char *group;
-        const char *label;
-        const char *keys;
+        const char *group_id;
+        const char *label_id;
+        const char *keys_id;
     };
     constexpr rv_editor_help_row rows[] = {
-        { "File", "Save / Save All", "Ctrl+S / Ctrl+Shift+S" },
-        { "Edit", "Undo / Redo", "Ctrl+Z / Ctrl+Shift+Z" },
-        { "Edit", "Find in Project", "Ctrl+Shift+F" },
-        { "Project", "Build", "Ctrl+B" },
-        { "Run", "Run / Resume", "F5" },
-        { "Run", "Pause", "F6" },
-        { "Run", "Step Frame", "F7" },
-        { "Run", "Stop", "Shift+F5" },
-        { "Run", "Reload", "F8" },
-        { "Window", "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" },
-        { "Game", "Release Game input", "Shift+Esc" },
-        { "Code", "Vim mode in a code tile", "F2" },
-        { "Help", "Manual", "F1" },
+        { "catalog_status.menu_file", "page_help.label_save", "page_help.shortcut_save" },
+        { "shell_menu.edit", "page_help.label_undo", "page_help.shortcut_undo" },
+        { "shell_menu.edit", "shell_menu.find_in_project", "shell_menu.shortcut_find" },
+        { "shell_menu.project", "widgets_status.button_build", "widgets_status.shortcut_build" },
+        { "catalog_status.menu_run", "page_help.label_run", "widgets_status.shortcut_run" },
+        { "catalog_status.menu_run", "widgets_status.button_pause", "widgets_status.shortcut_pause" },
+        { "catalog_status.menu_run", "widgets_status.button_step_frame", "widgets_status.shortcut_step" },
+        { "catalog_status.menu_run", "widgets_status.button_stop", "widgets_status.shortcut_stop" },
+        { "catalog_status.menu_run", "widgets_status.button_reload", "widgets_status.shortcut_reload" },
+        { "shell_menu.window", "page_help.label_focus", "page_help.shortcut_focus" },
+        { "workspace.pane_game", "page_help.label_release_input", "page_help.shortcut_game" },
+        { "workspace.pane_code", "page_help.label_vim", "page_help.shortcut_vim" },
+        { "shell_menu.help", "manual.start_label", "page_help.shortcut_f1" },
     };
     if (!ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
         return;
     }
-    const char *group = nullptr;
+    const char *last_group_text = nullptr;
     for (const auto &r : rows) {
-        if (!holds(r.label) && !holds(r.keys)) {
+        const char *label_text = rv_editor_text(r.label_id);
+        const char *keys_text = rv_editor_text(r.keys_id);
+        if (!holds(label_text) && !holds(keys_text)) {
             continue;
         }
-        if (group == nullptr || std::string_view(group) != r.group) {
-            group = r.group;
+        const char *group_text = rv_editor_text(r.group_id);
+        if (last_group_text == nullptr || std::string_view(last_group_text) != group_text) {
+            last_group_text = group_text;
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-            ImGui::TextUnformatted(group);
+            ImGui::TextUnformatted(group_text);
             ImGui::PopStyleColor();
         }
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(r.label);
+        ImGui::TextUnformatted(label_text);
         ImGui::TableNextColumn();
-        ImGui::TextUnformatted(r.keys);
+        ImGui::TextUnformatted(keys_text);
     }
     ImGui::EndTable();
 }
