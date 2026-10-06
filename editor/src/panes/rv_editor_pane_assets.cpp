@@ -50,6 +50,77 @@ struct rv_editor_assets_cache
     double sound_seconds = 0.0;
 };
 
+// Assets list refresh rate: rescan at most once per second.
+constexpr int refresh_period_seconds = 1;
+
+// Folder and filter field width in font size units.
+constexpr float folder_filter_width_em = 9.0f;
+
+// Minimum width for side-by-side layout: preview fits beside list only if wider.
+constexpr float side_by_side_threshold_em = 28.0f;
+
+// Preview pane size constraints in em for wide layout: 1/3 of width, clamped.
+constexpr float preview_width_min_em = 14.0f;
+constexpr float preview_width_max_em = 32.0f;
+
+// Preview pane height constraints in em: narrow layout only, clamped.
+constexpr float preview_height_min_em = 6.0f;
+constexpr float preview_height_max_em = 14.0f;
+
+// Preview height in narrow layout: 40% of available height before clamping.
+constexpr float preview_narrow_height_ratio = 0.4f;
+
+// Preview width divisor: preview initially occupies 1/3 of available width.
+constexpr float preview_width_divisor = 3.0f;
+
+// Horizontal centering: half the gap for centering on both axes (0.5 = symmetric centering).
+constexpr float center_offset_ratio = 0.5f;
+
+// Icon cell dimensions in font size units.
+constexpr float icon_cell_size_em = 5.5f;
+constexpr float icon_glyph_size_em = 3.0f;
+
+// Icon cell: bottom margin added to button height (space for label clearance in pixels).
+constexpr float icon_cell_padding_px = 4.0f;
+
+// Icon glyph: initial size in font units before fit scaling.
+constexpr float icon_glyph_initial_size_em = 2.0f;
+
+// Icon glyph: max scale as fraction of art width (0.9 * art width to prevent overflow).
+constexpr float icon_glyph_scale_max = 0.9f;
+
+// Icon art: top margin in the cell before glyph is drawn (pixels).
+constexpr float icon_art_y_offset_px = 2.0f;
+
+// Icon label: offset below glyph and cell height (pixels).
+constexpr float icon_label_y_offset_px = 2.0f;
+
+// Icon label: margin subtracted from cell width while truncating (pixels).
+constexpr float icon_label_margin_px = 4.0f;
+
+// Label truncation: minimum chars before shortening with ellipsis.
+constexpr size_t label_ellipsis_min_chars = 3;
+
+// File extensions and special markers.
+constexpr std::string_view png_extension = ".png";
+constexpr std::string_view wav_extension = ".wav";
+constexpr std::string_view pcm_extension = ".pcm";
+constexpr std::string_view scene_toml_suffix = ".scene.toml";
+constexpr std::string_view label_ellipsis = "...";
+
+// Label ellipsis: chars erased per iteration (one char + old ellipsis length).
+constexpr size_t label_ellipsis_erase_count = label_ellipsis.size() + 1;
+
+// Selection highlight: alpha opacity of the background rect.
+constexpr float selection_highlight_alpha = 0.35f;
+
+// Folder names: excluded from assets or navigation.
+constexpr std::string_view build_folder = "build";
+constexpr std::string_view src_folder = "src";
+
+// Table and label markers.
+constexpr std::string_view entry_not_on_disc = "-";
+
 rv_editor_assets_cache rv_editor_assets;
 
 // Resource files: not code (src/), not hidden, not build output, not the files at the root.
@@ -63,7 +134,8 @@ void rv_editor_assets_scan(const std::filesystem::path &root)
         const std::string name = it->path().filename().string();
         std::error_code type_ec;
         if (it->is_directory(type_ec)) {
-            if (name.starts_with('.') || name.starts_with("build") || (it.depth() == 0 && name == "src")) {
+            if (name.starts_with('.') || name.starts_with(build_folder) ||
+                (it.depth() == 0 && name == src_folder)) {
                 it.disable_recursion_pending();
             }
             continue;
@@ -85,7 +157,8 @@ void rv_editor_assets_scan(const std::filesystem::path &root)
 void rv_editor_assets_refresh(const rv_editor_app &app)
 {
     const auto now = std::chrono::steady_clock::now();
-    if (rv_editor_assets.root != app.project.root || now - rv_editor_assets.read > std::chrono::seconds(1)) {
+    if (rv_editor_assets.root != app.project.root ||
+        now - rv_editor_assets.read > std::chrono::seconds(refresh_period_seconds)) {
         rv_editor_assets.root = app.project.root;
         rv_editor_assets.read = now;
         rv_editor_assets_scan(app.project.root);
@@ -132,11 +205,11 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         const std::string ext = a.path.extension().string();
-        if (ext == ".png" || ext == ".wav" || ext == ".pcm") {
+        if (ext == png_extension || ext == wav_extension || ext == pcm_extension) {
             rv_editor_app_scene_tab_open(app, a.path);
             app.layout_request = rv_editor_layout_preset::scene;
             app.show_request = rv_editor_pane_kind::scene;
-        } else if (a.rel.ends_with(".scene.toml")) {
+        } else if (a.rel.ends_with(scene_toml_suffix)) {
             rv_editor_app_scene_open(app, a.path);
             app.scene_tabs.front = 0;
             app.layout_request = rv_editor_layout_preset::scene;
@@ -185,10 +258,10 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         names.push_back(f.c_str());
     }
     ui.folder = std::min(ui.folder, static_cast<int>(folders.size()) - 1);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
     rv_editor_dropdown("##folder", &ui.folder, names.data(), static_cast<int>(names.size()), theme);
-    rv_editor_flow(ImGui::GetFontSize() * 9.0f);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
+    rv_editor_flow(ImGui::GetFontSize() * folder_filter_width_em);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
     rv_editor_text_field("##filter", ui.filter, sizeof(ui.filter), theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.filter_tooltip"));
     const char *details_text = rv_editor_text("pane_assets.details");
@@ -230,13 +303,15 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
 
     // The preview strip: beside the list when the tile is wide, below it when narrow.
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const bool side_by_side = avail.x > ImGui::GetFontSize() * 28.0f;
-    const float preview_w = std::max(1.0f, side_by_side
-        ? std::clamp(avail.x / 3.0f, ImGui::GetFontSize() * 14.0f, ImGui::GetFontSize() * 32.0f)
-        : avail.x);
-    const float preview_h = std::max(1.0f, side_by_side
-        ? avail.y
-        : std::clamp(avail.y * 0.4f, ImGui::GetFontSize() * 6.0f, ImGui::GetFontSize() * 14.0f));
+    const float font = ImGui::GetFontSize();
+    const bool side_by_side = avail.x > font * side_by_side_threshold_em;
+    const float preview_w_wide =
+        std::clamp(avail.x / preview_width_divisor, font * preview_width_min_em, font * preview_width_max_em);
+    const float preview_w = std::max(1.0f, side_by_side ? preview_w_wide : avail.x);
+    const float preview_h_narrow =
+        std::clamp(avail.y * preview_narrow_height_ratio, font * preview_height_min_em,
+            font * preview_height_max_em);
+    const float preview_h = std::max(1.0f, side_by_side ? avail.y : preview_h_narrow);
     const float list_w = std::max(1.0f, side_by_side ? avail.x - preview_w - ImGui::GetStyle().ItemSpacing.x : avail.x);
     const float list_h = std::max(1.0f, side_by_side ? avail.y : avail.y - preview_h - ImGui::GetStyle().ItemSpacing.y);
 
@@ -289,7 +364,9 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
                 rv_editor_asset_item(app, *a);
                 const auto entry = rv_editor_assets.map.find(a->rel);
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted(entry == rv_editor_assets.map.end() ? "-" : entry->second.kind.c_str());
+                const char *kind_text =
+                    entry == rv_editor_assets.map.end() ? entry_not_on_disc.data() : entry->second.kind.c_str();
+                ImGui::TextUnformatted(kind_text);
                 ImGui::TableNextColumn();
                 const char *disc_name = entry == rv_editor_assets.map.end() ?
                     rv_editor_text("pane_assets.not_on_disc") :
@@ -302,8 +379,8 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         }
     } else {
         // Icons: a cell each, the picture or the kind's icon over a short label.
-        const float cell = ImGui::GetFontSize() * 5.5f;
-        const float art = ImGui::GetFontSize() * 3.0f;
+        const float cell = ImGui::GetFontSize() * icon_cell_size_em;
+        const float art = ImGui::GetFontSize() * icon_glyph_size_em;
         const float width = ImGui::GetContentRegionAvail().x;
         const int columns = std::max(1, static_cast<int>(width / cell));
         ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -314,43 +391,49 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             }
             ImGui::PushID(a.rel.c_str());
             const ImVec2 p0 = ImGui::GetCursorScreenPos();
-            ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + 4.0f));
+            ImGui::InvisibleButton(
+                "##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + icon_cell_padding_px));
             rv_editor_asset_item(app, a);
             if (a.rel == rv_editor_assets.selected) {
-                dl->AddRectFilled(p0, ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Header, 0.35f));
+                dl->AddRectFilled(p0, ImGui::GetItemRectMax(),
+                    ImGui::GetColorU32(ImGuiCol_Header, selection_highlight_alpha));
             }
             if (ImGui::IsItemHovered()) {
                 dl->AddRect(p0, ImGui::GetItemRectMax(), rv_editor_col(theme.selection));
             }
-            const ImVec2 at(p0.x + (cell - art) * 0.5f, p0.y + 2.0f);
+            const ImVec2 at(p0.x + (cell - art) * center_offset_ratio, p0.y + icon_art_y_offset_px);
             const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
             if (picture.id != ImTextureID{}) {
                 const float k = std::min(art / static_cast<float>(picture.w), art / static_cast<float>(picture.h));
                 const ImVec2 size(picture.w * k, picture.h * k);
-                const ImVec2 q0(at.x + (art - size.x) * 0.5f, at.y + (art - size.y) * 0.5f);
+                const ImVec2 q0(at.x + (art - size.x) * center_offset_ratio,
+                    at.y + (art - size.y) * center_offset_ratio);
                 dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
             } else {
                 // The file's code, sized down from twice the font until it fits the tile's width.
                 const char *code = rv_editor_glyph::other_file;
                 uint32_t color = 0;
                 rv_editor_file_chip(a.path, code, color);
-                float size = ImGui::GetFontSize() * 2.0f;
+                float size = ImGui::GetFontSize() * icon_glyph_initial_size_em;
                 float w = ImGui::GetFont()->CalcTextSizeA(size, FLT_MAX, 0.0f, code).x;
-                if (w > art * 0.9f) {
-                    size *= art * 0.9f / w;
-                    w = art * 0.9f;
+                if (w > art * icon_glyph_scale_max) {
+                    size *= art * icon_glyph_scale_max / w;
+                    w = art * icon_glyph_scale_max;
                 }
-                dl->AddText(ImGui::GetFont(), size, ImVec2(std::floor(at.x + (art - w) * 0.5f),
-                    std::floor(at.y + (art - size) * 0.5f)), rv_editor_col(color), code);
+                const ImVec2 glyph_pos(std::floor(at.x + (art - w) * center_offset_ratio),
+                    std::floor(at.y + (art - size) * center_offset_ratio));
+                dl->AddText(ImGui::GetFont(), size, glyph_pos, rv_editor_col(color), code);
             }
             // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
             std::string label = a.path.filename().string();
-            while (label.size() > 3 && ImGui::CalcTextSize(label.c_str()).x > cell - 4.0f) {
-                label.erase(label.size() - 4);
-                label += "...";
+            while (label.size() > label_ellipsis_min_chars &&
+                ImGui::CalcTextSize(label.c_str()).x > cell - icon_label_margin_px) {
+                label.erase(label.size() - label_ellipsis_erase_count);
+                label += label_ellipsis;
             }
             const float lw = ImGui::CalcTextSize(label.c_str()).x;
-            dl->AddText(ImVec2(p0.x + (cell - lw) * 0.5f, at.y + art + 2.0f), rv_editor_col(theme.text), label.c_str());
+            dl->AddText(ImVec2(p0.x + (cell - lw) * center_offset_ratio, at.y + art + icon_label_y_offset_px),
+                rv_editor_col(theme.text), label.c_str());
             ImGui::PopID();
         }
     }
