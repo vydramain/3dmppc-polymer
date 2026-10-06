@@ -41,15 +41,15 @@ namespace
 
 // Parses the command line, resolves the mode/slots and the pause/dump
 // combination, and learns the machine - all of it before any disc code, any
-// archive and any allocation. Returns true to continue booting; on false,
+// archive and any allocation. Returns RV_OK to continue booting; on error,
 // `exit_code` is what rv_pboot_run must return immediately.
-bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &slots,
+int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &slots,
     rv_pboot_mode_info &machine, int &exit_code)
 {
     // Parse the command line and validate the mode name. Nothing is
     // brought up here: a bad argument must cost a diagnostic, not a machine.
     if (rv_pboot_args_parse(argc, argv, args, exit_code) != RV_OK) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // SIGINT/SIGTERM become an ordinary shutdown request, seen through
@@ -61,7 +61,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
     // this run boots with. Nothing is brought up yet: a bad --mode or
     // --mode_<slot> must still cost a diagnostic, not a machine.
     if (rv_pboot_modes_resolve(args, slots, exit_code) != RV_OK) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // A run whose cv slot is null never presents a frame, so a dump would
@@ -72,7 +72,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
     if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
         rv_console_print_error("cv is null, nothing to dump");
         exit_code = 2;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // --paused stops the loop before frame 0, so something has to be able to
@@ -90,26 +90,26 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
                         "pause key") +
             RV_PBOOT_ARGS_CMD_PAUSE_HINT);
         exit_code = 2;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Prepare the mode and learn the machine before any disc code, any
     // archive and any allocation.
     if (rv_pboot_mode_prepare(args, machine) < 0) {
         exit_code = 1;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Report the preparation. This states what the mode is ready to offer;
     // it must not be read as any disc having been found compatible yet.
     rv_pboot_mode_report(args, slots, machine);
-    return true;
+    return RV_OK;
 }
 
 // Resolves cl, checks the budget against the machine, and builds the run's
-// conf - all of it before any of the disc's code is loaded. Returns true to
-// continue booting; on false, `exit_code` is what rv_pboot_run must return.
-bool rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
+// conf - all of it before any of the disc's code is loaded. Returns RV_OK to
+// continue booting; on error, `exit_code` is what rv_pboot_run must return.
+int rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
     const rv_pboot_mode_info &machine, const rv_pdklib::rv_manifest_budget *budget,
     bool medium_live, rv_pconsole_conf &conf, int &exit_code)
 {
@@ -125,7 +125,7 @@ bool rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
             "refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
         exit_code = 1;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // The disc's numbers become the machine's. Only the parameters that
@@ -139,7 +139,7 @@ bool rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
     // verdict, from the one mount rv_pboot_disc_mount() already made, not a
     // second filesystem answer of this function's own.
     conf.params.medium_live = medium_live;
-    return true;
+    return RV_OK;
 }
 
 } // namespace
@@ -157,7 +157,7 @@ int rv_pboot_run(int argc, char **argv)
     rv_pcslots slots;
     rv_pboot_mode_info machine;
     int exit_code = 0;
-    if (!rv_pboot_preflight(argc, argv, args, slots, machine, exit_code)) {
+    if (rv_pboot_preflight(argc, argv, args, slots, machine, exit_code) != RV_OK) {
         return exit_code;
     }
 
@@ -184,7 +184,7 @@ int rv_pboot_run(int argc, char **argv)
     }
 
     rv_pconsole_conf conf;
-    if (!rv_pboot_prepare_conf(args, slots, machine, budget, medium_live, conf, exit_code)) {
+    if (rv_pboot_prepare_conf(args, slots, machine, budget, medium_live, conf, exit_code) != RV_OK) {
         return exit_code;
     }
 
