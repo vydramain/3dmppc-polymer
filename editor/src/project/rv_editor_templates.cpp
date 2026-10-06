@@ -216,7 +216,7 @@ int rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor
     rv_pdklib::rv_manifest manifest;
     std::string why;
     if (rv_pdklib::rv_manifest_load((staging / "disc.toml").string(), manifest, why) != 0 ||
-        !rv_pdklib::rv_manifest_validate(manifest, why)) {
+        rv_pdklib::rv_manifest_validate(manifest, why) != RV_OK) {
         return fail("the new disc.toml is not valid: " + why, RV_ERR_INVAL);
     }
     std::filesystem::rename(staging, root, ec);

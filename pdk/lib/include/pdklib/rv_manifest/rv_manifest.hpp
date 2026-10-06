@@ -172,8 +172,8 @@ std::string rv_manifest_render(const rv_manifest &manifest);
 
 // Check the manifest describes a disc that can be burned at all: non-empty id,
 // an id that is a safe filename, a known texture format, and a [budget] that
-// is present with every field positive. Returns true when sound, otherwise
-// fills `error`.
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error);
+// is present with every field positive. Returns RV_OK when sound, otherwise
+// fills `error` and returns RV_ERR_INVAL.
+int rv_manifest_validate(const rv_manifest &manifest, std::string &error);
 
 } // namespace rv_pdklib

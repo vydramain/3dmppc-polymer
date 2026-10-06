@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_assets/rv_burner_bake.hpp"
 #include "rv_burner_assets/rv_burner_compile_scripts.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
@@ -93,7 +94,7 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
         return 1;
     }
 
-    if (!rv_pdklib::rv_manifest_validate(manifest, error)) {
+    if (rv_pdklib::rv_manifest_validate(manifest, error) != RV_OK) {
         rv_burner_print_error(std::format("{}: {}", manifest_path.string(), error));
         return 1;
     }
