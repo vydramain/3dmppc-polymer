@@ -22,6 +22,42 @@ namespace rv_editor
 namespace
 {
 
+// Manifest filename identifying a project directory.
+constexpr const char *disc_manifest_filename = "disc.toml";
+
+// Placeholder character when the project directory name is empty.
+constexpr char empty_name_placeholder = '?';
+
+// Chip is a square twice the font height; used for project icon columns and rows.
+constexpr float chip_height_em = 2.0f;
+
+// Recent projects section spacing when there are no projects.
+constexpr float empty_recent_spacing_factor = 0.5f;
+
+// A catalog row is at least this many font heights or text lines tall.
+constexpr float row_height_min_factor = 2.0f;
+
+// Cell padding counts twice in a row's height: above and below the text.
+constexpr float cell_padding_sides = 2.0f;
+
+// Number of columns in the recent projects catalog table.
+constexpr int table_num_columns = 3;
+
+// Status column width is twice the width of the widest status text.
+constexpr float status_column_width_scale = 2.0f;
+
+// Frame padding is scaled by this factor for roomier controls on the start screen.
+constexpr float frame_padding_scale = 2.0f;
+
+// Start screen padding is scaled by this factor for spacing.
+constexpr float pad_scale_factor = 3.0f;
+
+// Toolchest (left panel with command buttons) width in font size units.
+constexpr float toolchest_width_em = 18.0f;
+
+// Vertical centering divisor: divide available height by 2 to center an element.
+constexpr float center_divisor = 2.0f;
+
 // A recent project as the catalog shows it.
 struct rv_editor_recent_row
 {
@@ -34,7 +70,7 @@ std::vector<rv_editor_recent_row> rv_editor_recent_rows()
     std::vector<rv_editor_recent_row> rows;
     for (const std::filesystem::path &root : rv_editor_recent_load()) {
         std::error_code ec;
-        rows.push_back({ root, std::filesystem::exists(root / "disc.toml", ec) });
+        rows.push_back({ root, std::filesystem::exists(root / disc_manifest_filename, ec) });
     }
     return rows;
 }
@@ -50,8 +86,9 @@ std::string rv_editor_start_name(const rv_editor_recent_row &row)
 void rv_editor_start_chip(ImVec2 at, const rv_editor_recent_row &row, const rv_editor_theme &theme)
 {
     const std::string name = row.root.filename().string();
-    const char letter = name.empty() ? '?' : static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
-    const float side = ImGui::GetFontSize() * 2.0f;
+    const char letter =
+        name.empty() ? empty_name_placeholder : static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+    const float side = ImGui::GetFontSize() * chip_height_em;
     rv_editor_draw_chip(ImGui::GetWindowDrawList(), at, ImVec2(at.x + side, at.y + side), theme, letter,
         row.there ? theme.selection : theme.text_disabled);
 }
@@ -102,7 +139,7 @@ void rv_editor_start_empty(rv_editor_shell &shell, const rv_editor_theme &theme)
     ImGui::TextUnformatted(rv_editor_text("shell_start.no_recent"));
     ImGui::PopStyleColor();
     ImGui::TextWrapped("%s", rv_editor_text("shell_start.no_recent_hint"));
-    ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight() * 0.5f));
+    ImGui::Dummy(ImVec2(0.0f, ImGui::GetFrameHeight() * empty_recent_spacing_factor));
     if (rv_editor_button(rv_editor_text("shell_start.new_project"), theme)) {
         shell.start_page = rv_editor_start_page::new_project;
     }
@@ -119,19 +156,20 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
     const rv_editor_theme &theme)
 {
     const float line = ImGui::GetTextLineHeightWithSpacing();
-    const float row_h = std::max(ImGui::GetFontSize() * 2.0f, line * 2.0f) + ImGui::GetStyle().CellPadding.y * 2.0f;
+    const float row_h = std::max(ImGui::GetFontSize() * row_height_min_factor, line * row_height_min_factor) +
+        ImGui::GetStyle().CellPadding.y * cell_padding_sides;
     constexpr size_t max_visible_rows = 6;
     const float height =
         ImGui::GetFrameHeight() + row_h * static_cast<float>(std::min(rows.size(), max_visible_rows));
     constexpr ImGuiTableFlags flags = ImGuiTableFlags_BordersOuter | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY;
-    if (!ImGui::BeginTable("##recent", 3, flags, ImVec2(0.0f, height))) {
+    if (!ImGui::BeginTable("##recent", table_num_columns, flags, ImVec2(0.0f, height))) {
         return;
     }
     ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * 2.0f);
+    ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed, ImGui::GetFontSize() * chip_height_em);
     ImGui::TableSetupColumn(rv_editor_text("shell_start.table_project"), ImGuiTableColumnFlags_WidthStretch);
     ImGui::TableSetupColumn(rv_editor_text("shell_start.table_status"), ImGuiTableColumnFlags_WidthFixed,
-        ImGui::CalcTextSize(rv_editor_text("shell_start.status_missing")).x * 2.0f);
+        ImGui::CalcTextSize(rv_editor_text("shell_start.status_missing")).x * status_column_width_scale);
     ImGui::TableHeadersRow();
     for (const rv_editor_recent_row &row : rows) {
         ImGui::PushID(row.root.c_str());
@@ -163,7 +201,8 @@ void rv_editor_start_list(rv_editor_shell &shell, const std::vector<rv_editor_re
             ImGui::SetItemTooltip("%s", rv_editor_text("shell_start.remove_recent_tooltip"));
             ImGui::EndPopup();
         }
-        rv_editor_start_chip(ImVec2(at.x, at.y + (row_h - ImGui::GetFontSize() * 2.0f) / 2.0f), row, theme);
+        rv_editor_start_chip(ImVec2(at.x, at.y + (row_h - ImGui::GetFontSize() * chip_height_em) / center_divisor),
+            row, theme);
         ImGui::TableNextColumn();
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
         ImGui::TextUnformatted(row.root.filename().c_str());
@@ -280,7 +319,7 @@ void rv_editor_page_open_project(rv_editor_shell &shell, const rv_editor_theme &
     rv_editor_pane_header(rv_editor_text("shell_start.open_project"), true, theme);
     std::error_code ec;
     const std::filesystem::path target = rv_editor_browser_target(b);
-    const bool found = std::filesystem::exists(target / "disc.toml", ec);
+    const bool found = std::filesystem::exists(target / disc_manifest_filename, ec);
     const std::string target_path = target.string();
     const std::string found_msg =
         rv_editor_text_format("shell_start.disc_found_with_path", std::make_format_args(target_path));
@@ -310,10 +349,11 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     rv_editor_pane_header(rv_editor_text("shell_start.catalog_title"), true, theme);
     // Roomier controls here than in the tool panes; the font stays as it is.
     const ImVec2 frame = ImGui::GetStyle().FramePadding;
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(frame.x * 2.0f, frame.y * 2.0f));
-    const float pad = static_cast<float>(theme.pad_px) * theme.scale * 3.0f;
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+        ImVec2(frame.x * frame_padding_scale, frame.y * frame_padding_scale));
+    const float pad = static_cast<float>(theme.pad_px) * theme.scale * pad_scale_factor;
     ImGui::SetCursorPos(ImVec2(ImGui::GetCursorPosX() + pad, ImGui::GetCursorPosY() + pad));
-    const float column = ImGui::GetFontSize() * 18.0f;
+    const float column = ImGui::GetFontSize() * toolchest_width_em;
     ImGui::BeginChild("##start_tools", ImVec2(column, -pad), ImGuiChildFlags_Borders);
     rv_editor_start_toolchest(shell, theme);
     ImGui::EndChild();
