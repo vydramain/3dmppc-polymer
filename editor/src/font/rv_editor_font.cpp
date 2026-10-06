@@ -6,6 +6,7 @@
 #include <cstring>
 #include <map>
 #include <string>
+#include <string_view>
 
 #include "pdk/rv_err.h"
 
@@ -27,11 +28,37 @@ rv_editor_code_size rv_editor_code_current = rv_editor_code_size::small;
 constexpr int rv_editor_code_vga_height = 16;
 constexpr int rv_editor_code_ega_height = 14;
 
+// Rounding adjustment for font size calculation to nearest pixel
+constexpr float font_size_rounding_adjustment = 0.5f;
+
+// Grid key multiplier to preserve fractional scale precision
+constexpr double grid_key_scale_multiplier = 1000.0;
+
+// Rounding adjustment for grid key fractional part
+constexpr double grid_key_rounding_adjustment = 0.5;
+
+// UI font configuration name (pdklib 5x7 font)
+constexpr std::string_view ui_font_config_name = "rv_font 5x7";
+
+// EGA font configuration name (PxPlus IBM EGA 8x14)
+constexpr std::string_view ega_font_config_name = "PxPlus IBM EGA 8x14";
+
+// VGA font configuration name (PxPlus IBM VGA 9x16)
+constexpr std::string_view vga_font_config_name = "PxPlus IBM VGA 9x16";
+
+// Code size names as stored in view preferences file
+constexpr std::string_view code_size_name_small = "small";
+constexpr std::string_view code_size_name_normal = "normal";
+constexpr std::string_view code_size_name_large = "large";
+
+// Multiplier for large code size relative to VGA normal size
+constexpr int large_code_size_multiplier = 2;
+
 // Every font here is pixel outlines on whole units, so at a whole multiple of its
 // cell every edge lands on a pixel boundary and nothing is smoothed.
 float rv_editor_font_size(int base, float scale)
 {
-    return std::floor(static_cast<float>(base) * scale + 0.5f);
+    return std::floor(static_cast<float>(base) * scale + font_size_rounding_adjustment);
 }
 
 ImFontConfig rv_editor_font_config(const char *name)
@@ -58,7 +85,8 @@ int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     // The atlas keeps a pointer to the bytes for as long as it lives, so they are kept per grid.
     const bool whole = k == std::floor(k);
     const double grid = whole ? 1.0 : static_cast<double>(k);
-    const int grid_key = static_cast<int>(std::floor(grid * 1000.0 + 0.5));
+    const int grid_key = static_cast<int>(std::floor(grid * grid_key_scale_multiplier +
+        grid_key_rounding_adjustment));
     static std::map<int, std::string> ui_ttfs;
     if (!ui_ttfs.contains(grid_key)) {
         ui_ttfs.emplace(grid_key, rv_editor_font_ttf(grid));
@@ -68,15 +96,15 @@ int rv_editor_fonts_add(ImFontAtlas &atlas, float scale)
     if (!whole) {
         ui_size = static_cast<float>(rv_editor_font_ttf_em(grid));
     }
-    ImFontConfig ui = rv_editor_font_config("rv_font 5x7");
+    ImFontConfig ui = rv_editor_font_config(ui_font_config_name.data());
     ui.FontDataOwnedByAtlas = false;
     rv_editor_ui = atlas.AddFontFromMemoryTTF(const_cast<char *>(ui_ttf.data()), static_cast<int>(ui_ttf.size()),
         ui_size, &ui);
 
-    ImFontConfig ega = rv_editor_font_config("PxPlus IBM EGA 8x14");
+    ImFontConfig ega = rv_editor_font_config(ega_font_config_name.data());
     rv_editor_code_small = atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_SMALL_FILE,
         rv_editor_font_size(rv_editor_code_ega_height, k), &ega);
-    ImFontConfig vga = rv_editor_font_config("PxPlus IBM VGA 9x16");
+    ImFontConfig vga = rv_editor_font_config(vga_font_config_name.data());
     rv_editor_code_vga =
         atlas.AddFontFromFileTTF(RV_EDITOR_CODE_FONT_FILE, rv_editor_font_size(rv_editor_code_vga_height, k), &vga);
     if (rv_editor_code_small == nullptr) {
@@ -133,11 +161,14 @@ rv_editor_code_size rv_editor_font_code_size()
 const char *rv_editor_code_size_name(rv_editor_code_size size)
 {
     switch (size) {
-        case rv_editor_code_size::small: return "small";
-        case rv_editor_code_size::normal: return "normal";
-        case rv_editor_code_size::large: return "large";
+    case rv_editor_code_size::small:
+        return code_size_name_small.data();
+    case rv_editor_code_size::normal:
+        return code_size_name_normal.data();
+    case rv_editor_code_size::large:
+        return code_size_name_large.data();
     }
-    return "normal";
+    return code_size_name_normal.data();
 }
 
 int rv_editor_code_size_parse(const char *name, rv_editor_code_size &size)
@@ -163,7 +194,8 @@ void rv_editor_font_code_push()
             ImGui::PushFont(rv_editor_code_vga, rv_editor_font_size(rv_editor_code_vga_height, k));
             return;
         case rv_editor_code_size::large:
-            ImGui::PushFont(rv_editor_code_vga, rv_editor_font_size(2 * rv_editor_code_vga_height, k));
+            ImGui::PushFont(rv_editor_code_vga,
+                rv_editor_font_size(large_code_size_multiplier * rv_editor_code_vga_height, k));
             return;
     }
 }
