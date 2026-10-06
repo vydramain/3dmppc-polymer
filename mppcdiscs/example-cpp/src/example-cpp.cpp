@@ -73,7 +73,7 @@ public:
         }
 
         std::vector<uint8_t> text;
-        if (read_asset("example-text.txt", text)) {
+        if (read_asset("example-text.txt", text) == RV_OK) {
             text_bytes_ = static_cast<int64_t>(text.size());
         }
 

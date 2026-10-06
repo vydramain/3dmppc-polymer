@@ -28,7 +28,8 @@
 //     three-call dance and the same "any of these can fail" handling
 //     regardless of which asset or which game - the asset's NAME and what
 //     the bytes mean once read are the only things that differ disc to
-//     disc, and those stay the caller's.
+//     disc, and those stay the caller's. read_asset() returns RV_OK, or the
+//     failing call's rv_err code (RV_ERR_INVAL without a drive).
 //
 //   - the screen's size, taken once where it is already being checked.
 //     Every disc that lays anything out asks for it, and it cannot change
@@ -112,27 +113,27 @@
         }                                                                          \
                                                                                    \
     protected:                                                                     \
-        bool read_asset(const char *name, std::vector<uint8_t> &out)               \
+        int read_asset(const char *name, std::vector<uint8_t> &out)                \
         {                                                                          \
             rv_cd *cd = rv_pdko_cd(pdk_);                                          \
             if (!cd) {                                                             \
-                return false;                                                      \
+                return RV_ERR_INVAL;                                               \
             }                                                                      \
             const int64_t handle = rv_cd_asset_open(cd, name);                     \
             if (handle < 0) {                                                      \
-                return false;                                                      \
+                return static_cast<int>(handle);                                   \
             }                                                                      \
             const int64_t size = rv_cd_asset_size(cd, handle);                     \
             if (size < 0) {                                                        \
-                return false;                                                      \
+                return static_cast<int>(size);                                     \
             }                                                                      \
             out.assign(static_cast<std::size_t>(size), 0);                         \
             const int64_t read = rv_cd_asset_read(cd, handle, out.data(), size);   \
             if (read < 0) {                                                        \
-                return false;                                                      \
+                return static_cast<int>(read);                                     \
             }                                                                      \
             out.resize(static_cast<std::size_t>(read));                            \
-            return true;                                                           \
+            return RV_OK;                                                          \
         }                                                                          \
                                                                                    \
         void frame_begin(rv_color background)                                      \
