@@ -197,11 +197,11 @@ uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_edito
     return added;
 }
 
-bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
+int rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
 {
     const uint32_t leaf = rv_editor_tile_find(layout, pane);
     if (leaf == rv_editor_tile_none) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     rv_editor_tile_leaf &tabs = layout.nodes[leaf].leaf;
@@ -220,7 +220,7 @@ bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
         tabs.previous = rv_editor_tile_none;
     }
     if (!tabs.tabs.empty() || leaf == layout.root) {
-        return true;
+        return RV_OK;
     }
 
     const uint32_t split = layout.nodes[leaf].parent;
@@ -232,7 +232,7 @@ bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
     if (layout.maximized_leaf == leaf) {
         layout.maximized_leaf = rv_editor_tile_none;
     }
-    return true;
+    return RV_OK;
 }
 
 int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock)
@@ -248,16 +248,16 @@ int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32
 
     // `leaf` survives the removal: only `from` and its parent split can go, and
     // neither is `leaf` here.
-    rv_editor_tile_remove(layout, pane);
+    (void)rv_editor_tile_remove(layout, pane);
     rv_editor_tile_insert(layout, leaf, pane, dock);
     return RV_OK;
 }
 
-bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane)
+int rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane)
 {
     const uint32_t leaf = rv_editor_tile_find(layout, pane);
     if (leaf == rv_editor_tile_none) {
-        return false;
+        return RV_ERR_INVAL;
     }
     rv_editor_tile_leaf &tabs = layout.nodes[leaf].leaf;
     const uint32_t index = static_cast<uint32_t>(std::find(tabs.tabs.begin(), tabs.tabs.end(), pane) - tabs.tabs.begin());
@@ -265,17 +265,17 @@ bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane)
         tabs.previous = tabs.tabs[tabs.active];
     }
     tabs.active = index;
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ratio)
+int rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ratio)
 {
     if (!rv_editor_tile_is(layout, split, rv_editor_tile_kind::split)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     // NaN fails both comparisons and lands on 0.
     layout.nodes[split].split.ratio = ratio >= 0.0f ? std::min(ratio, 1.0f) : 0.0f;
-    return true;
+    return RV_OK;
 }
 
 int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf)

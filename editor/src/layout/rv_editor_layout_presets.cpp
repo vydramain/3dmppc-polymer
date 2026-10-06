@@ -27,7 +27,7 @@ struct rv_editor_preset_builder
         const rv_editor_pane_id pane = rv_editor_pane_add(panes, kind);
         const uint32_t leaf = rv_editor_tile_insert(layout, rv_editor_tile_find(layout, next_to), pane, dock);
         if (dock != rv_editor_tile_dock::tab) {
-            rv_editor_tile_set_ratio(layout, layout.nodes[leaf].parent, ratio);
+            (void)rv_editor_tile_set_ratio(layout, layout.nodes[leaf].parent, ratio);
         }
         return pane;
     }
@@ -48,7 +48,7 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::terminal, output, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::search, output, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, output);
+    (void)rv_editor_tile_activate(b.layout, output);
 }
 
 // Toolchest over Hierarchy down the left and Game over Inspector down the right,
@@ -65,7 +65,7 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
     const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.55f);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, assets);
+    (void)rv_editor_tile_activate(b.layout, assets);
     // The controls are a strip as tall as their buttons: the assets take the rest.
     b.add(rv_editor_pane_kind::controls, assets, rv_editor_tile_dock::bottom, 1.0f);
 }
@@ -85,8 +85,8 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     // Toolchest aligned with the Session column below it: same 0.68 split.
     b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, 0.68f);
-    rv_editor_tile_activate(b.layout, session);
-    rv_editor_tile_activate(b.layout, log);
+    (void)rv_editor_tile_activate(b.layout, session);
+    (void)rv_editor_tile_activate(b.layout, log);
 }
 
 // Burn (reference 0007): the release controls over the candidate beside its
@@ -99,7 +99,7 @@ void rv_editor_preset_burn(rv_editor_preset_builder &b)
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.68f);
     b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
-    rv_editor_tile_activate(b.layout, log);
+    (void)rv_editor_tile_activate(b.layout, log);
 }
 
 } // namespace

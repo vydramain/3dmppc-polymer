@@ -73,7 +73,7 @@ void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &th
     int active = static_cast<int>(leaf.active);
     int pressed = -1;
     if (rv_editor_tab_strip("##tabs", labels.data(), static_cast<int>(labels.size()), &active, theme, {}, &pressed)) {
-        rv_editor_tile_activate(ws.layout, leaf.tabs[static_cast<size_t>(active)]);
+        (void)rv_editor_tile_activate(ws.layout, leaf.tabs[static_cast<size_t>(active)]);
     }
     rv_editor_tile_drag_tabs(ws, node, pressed);
 }
@@ -237,12 +237,12 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
     } else if (a.what == rv_editor_tile_action::op::maximize) {
         (void)rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
     } else if (a.what == rv_editor_tile_action::op::close) {
-        rv_editor_tile_remove(ws.layout, a.pane);
+        (void)rv_editor_tile_remove(ws.layout, a.pane);
     } else if (a.what == rv_editor_tile_action::op::close_leaf) {
         // A copy: removing the last pane frees the leaf the list lives in.
         const std::vector<rv_editor_pane_id> tabs = ws.layout.nodes[a.leaf].leaf.tabs;
         for (const rv_editor_pane_id pane : tabs) {
-            rv_editor_tile_remove(ws.layout, pane);
+            (void)rv_editor_tile_remove(ws.layout, pane);
         }
     }
 
@@ -346,7 +346,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
             char id[32];
             std::snprintf(id, sizeof(id), "##split%u", place.node);
             if (rv_editor_splitter(id, sp.axis, length, &fa, &fb, min_a, min_b, theme) && fa + fb > 0) {
-                rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
+                (void)rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
                 ws.dragged = true;
             }
         } else if (node.kind == rv_editor_tile_kind::leaf) {

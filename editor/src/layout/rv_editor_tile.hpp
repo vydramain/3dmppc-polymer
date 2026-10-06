@@ -167,14 +167,17 @@ uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_edito
 
 // Take `pane` out of the tree. A leaf left without tabs is removed and its parent
 // split gives its place to the sibling; the last leaf stays, empty.
-bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane);
+// Returns RV_OK, or RV_ERR_INVAL when pane is not found.
+int rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane);
 
 // Move `pane` into or beside `leaf`. RV_OK, or RV_ERR_INVAL when the move is impossible:
 // a leaf split or tabbed by its own only pane, or an unknown pane or leaf.
 int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock);
 
-bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane);
-bool rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ratio);
+// Returns RV_OK, or RV_ERR_INVAL when pane is not found.
+int rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane);
+// Returns RV_OK, or RV_ERR_INVAL when split is not a split node.
+int rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ratio);
 
 // Maximize `leaf`, or restore the tree when it is already the maximized one.
 // Returns RV_OK, or RV_ERR_INVAL for invalid leaf.

@@ -415,7 +415,7 @@ void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme 
     ImGui::TextWrapped("The shell in this terminal is still running. Closing the tile ends it and everything "
                        "started in it. Another tab keeps it running instead.");
     if (rv_editor_button("End Shell", theme)) {
-        rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
+        (void)rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
         shell.closing_terminal = rv_editor_tile_none;
     }
     ImGui::SameLine();

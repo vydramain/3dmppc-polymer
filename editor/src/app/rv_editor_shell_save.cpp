@@ -203,7 +203,7 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
     }
     shell.save_done = false;
     if (shell.closing != rv_editor_tile_none) {
-        rv_editor_tile_remove(shell.ws.layout, shell.closing);
+        (void)rv_editor_tile_remove(shell.ws.layout, shell.closing);
         shell.closing = rv_editor_tile_none;
         return;
     }
@@ -317,7 +317,7 @@ void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &th
         }
         if (discard) {
             app.nvim.discard(win);
-            rv_editor_tile_remove(shell.ws.layout, shell.closing);
+            (void)rv_editor_tile_remove(shell.ws.layout, shell.closing);
         }
         if (discard || keep) {
             shell.closing = rv_editor_tile_none;
@@ -432,7 +432,7 @@ void rv_editor_shell_review_tab(rv_editor_shell &shell)
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::review_changes, true);
     }
     if (!waits && shown != rv_editor_tile_none) {
-        rv_editor_tile_remove(shell.ws.layout, shown);
+        (void)rv_editor_tile_remove(shell.ws.layout, shown);
     }
     const bool alone = shell.save_as_buffer != 0 && shell.closing == rv_editor_tile_none && !waits;
     if (alone && rv_editor_tile_find(shell.ws.layout, shell.save_as_pane) == rv_editor_tile_none) {

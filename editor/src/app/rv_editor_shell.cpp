@@ -48,18 +48,18 @@ rv_editor_pane_id rv_editor_code_target(rv_editor_workspace &ws, rv_editor_pane_
     }
     const std::vector<rv_editor_pane_id> code = rv_editor_code_panes(ws);
     if (std::find(code.begin(), code.end(), last) != code.end()) {
-        rv_editor_tile_activate(ws.layout, last);
+        (void)rv_editor_tile_activate(ws.layout, last);
         return last;
     }
     if (!code.empty()) {
-        rv_editor_tile_activate(ws.layout, code.front());
+        (void)rv_editor_tile_activate(ws.layout, code.front());
         return code.front();
     }
     const bool focused =
         ws.focused_leaf < ws.layout.nodes.size() && ws.layout.nodes[ws.focused_leaf].kind == rv_editor_tile_kind::leaf;
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, rv_editor_pane_kind::code);
     rv_editor_tile_insert(ws.layout, focused ? ws.focused_leaf : ws.layout.root, pane, rv_editor_tile_dock::tab);
-    rv_editor_tile_activate(ws.layout, pane);
+    (void)rv_editor_tile_activate(ws.layout, pane);
     return pane;
 }
 
@@ -108,7 +108,7 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
         }
         for (const rv_editor_pane_id pane : node.leaf.tabs) {
             if (ws.panes.panes[pane].kind == kind) {
-                rv_editor_tile_activate(ws.layout, pane);
+                (void)rv_editor_tile_activate(ws.layout, pane);
                 return pane;
             }
         }
@@ -116,7 +116,7 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     rv_editor_tile_insert(ws.layout, roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws), pane,
         rv_editor_tile_dock::tab);
-    rv_editor_tile_activate(ws.layout, pane);
+    (void)rv_editor_tile_activate(ws.layout, pane);
     return pane;
 }
 
@@ -259,7 +259,7 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     const uint32_t leaf = rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::right);
     if (leaf != rv_editor_tile_none) {
-        rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, 0.5f);
+        (void)rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, 0.5f);
         ws.focused_leaf = leaf;
     }
 }

@@ -113,7 +113,7 @@ int rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_
             continue;
         }
         const int32_t want = first + (node == split.first ? delta : -delta);
-        rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
+        (void)rv_editor_tile_set_ratio(ws.layout, parent, static_cast<float>(want) / static_cast<float>(total));
         return RV_OK;
     }
     return RV_ERR_NOENT;
@@ -187,7 +187,7 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
         const int32_t need = rv_editor_strip_like_min_along(ws, strip, axis);
         const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total)
                                             : 1.0f - static_cast<float>(need) / static_cast<float>(total);
-        rv_editor_tile_set_ratio(ws.layout, i, ratio);
+        (void)rv_editor_tile_set_ratio(ws.layout, i, ratio);
     }
 }
 
