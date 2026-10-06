@@ -10,6 +10,31 @@ namespace rv_editor
 namespace
 {
 
+// Code preset: left sidebar ratio.
+constexpr float code_sidebar_ratio = 0.16f;
+// Code preset: lower output panel ratio.
+constexpr float code_output_ratio = 0.60f;
+// Code preset: right game panel ratio.
+constexpr float code_game_ratio = 0.60f;
+// Scene preset: left sidebar ratio.
+constexpr float scene_sidebar_ratio = 0.16f;
+// Scene preset: top toolchest ratio above hierarchy.
+constexpr float scene_toolchest_ratio = 0.29f;
+// Scene preset: right game panel ratio.
+constexpr float scene_game_ratio = 0.62f;
+// Scene preset: bottom inspector ratio below game.
+constexpr float scene_inspector_ratio = 0.52f;
+// Scene preset: center assets panel ratio.
+constexpr float scene_assets_ratio = 0.55f;
+// Debug preset: runtime log ratio at bottom.
+constexpr float debug_log_ratio = 0.71f;
+// Debug preset: right column (session and toolchest) ratio.
+constexpr float debug_column_ratio = 0.68f;
+// Burn preset: build log ratio at bottom.
+constexpr float burn_log_ratio = 0.68f;
+// Burn preset: right game panel ratio.
+constexpr float burn_game_ratio = 0.35f;
+
 // Builds a tree by inserting panes next to panes already placed.
 struct rv_editor_preset_builder
 {
@@ -41,9 +66,9 @@ struct rv_editor_preset_builder
 void rv_editor_preset_code(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id code = 0;
-    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, 0.16f);
-    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, 0.60f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, 0.60f);
+    b.add(rv_editor_pane_kind::files, code, rv_editor_tile_dock::left, code_sidebar_ratio);
+    const rv_editor_pane_id output = b.add(rv_editor_pane_kind::output, code, rv_editor_tile_dock::bottom, code_output_ratio);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, code, rv_editor_tile_dock::right, code_game_ratio);
     // The controls are a strip as tall as their buttons: the game takes the rest.
     b.add(rv_editor_pane_kind::controls, game, rv_editor_tile_dock::bottom, 1.0f);
     b.add(rv_editor_pane_kind::problems, output, rv_editor_tile_dock::tab, 0.0f);
@@ -59,11 +84,12 @@ void rv_editor_preset_code(rv_editor_preset_builder &b)
 void rv_editor_preset_scene(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id scene = 0;
-    const rv_editor_pane_id hierarchy = b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, 0.16f);
-    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, 0.29f);
-    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, 0.62f);
-    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, 0.52f);
-    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, 0.55f);
+    const rv_editor_pane_id hierarchy =
+        b.add(rv_editor_pane_kind::hierarchy, scene, rv_editor_tile_dock::left, scene_sidebar_ratio);
+    b.add(rv_editor_pane_kind::toolchest, hierarchy, rv_editor_tile_dock::top, scene_toolchest_ratio);
+    const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, scene, rv_editor_tile_dock::right, scene_game_ratio);
+    b.add(rv_editor_pane_kind::inspector, game, rv_editor_tile_dock::bottom, scene_inspector_ratio);
+    const rv_editor_pane_id assets = b.add(rv_editor_pane_kind::assets, scene, rv_editor_tile_dock::bottom, scene_assets_ratio);
     b.add(rv_editor_pane_kind::files, assets, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::output, assets, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, assets);
@@ -78,14 +104,15 @@ void rv_editor_preset_scene(rv_editor_preset_builder &b)
 void rv_editor_preset_debug(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, 0.71f);
+    const rv_editor_pane_id log =
+        b.add(rv_editor_pane_kind::runtime_log, controls, rv_editor_tile_dock::bottom, debug_log_ratio);
     const rv_editor_pane_id game = b.add(rv_editor_pane_kind::game, controls, rv_editor_tile_dock::bottom, 0.0f);
-    const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, 0.68f);
+    const rv_editor_pane_id session = b.add(rv_editor_pane_kind::session, game, rv_editor_tile_dock::right, debug_column_ratio);
     b.add(rv_editor_pane_kind::observe, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::test_case, session, rv_editor_tile_dock::tab, 0.0f);
     b.add(rv_editor_pane_kind::findings, log, rv_editor_tile_dock::tab, 0.0f);
     // Toolchest aligned with the Session column below it: same 0.68 split.
-    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, 0.68f);
+    b.add(rv_editor_pane_kind::toolchest, controls, rv_editor_tile_dock::right, debug_column_ratio);
     (void)rv_editor_tile_activate(b.layout, session);
     (void)rv_editor_tile_activate(b.layout, log);
 }
@@ -97,8 +124,8 @@ void rv_editor_preset_burn(rv_editor_preset_builder &b)
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id candidate =
         b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
-    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, 0.68f);
-    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, 0.35f);
+    const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
+    b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_game_ratio);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
     (void)rv_editor_tile_activate(b.layout, log);
 }
