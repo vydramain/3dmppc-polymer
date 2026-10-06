@@ -71,29 +71,29 @@ void rv_editor_menu_code_keys(rv_editor_shell &shell, const char *keys)
 
 void rv_editor_menu_file(rv_editor_shell &shell)
 {
-    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? "No code tile yet: Window > New Tile > Code" : nullptr;
-    if (rv_editor_menu_item("New File", nullptr, no_code)) {
+    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? rv_editor_text("shell_menu.why_no_code_tile") : nullptr;
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.new_file"), nullptr, no_code)) {
         rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
     }
-    if (ImGui::MenuItem("Open Project...")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_start.open_project"))) {
         rv_editor_shell_open_project(shell);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item("Save", "Ctrl+S", no_code)) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.save"), rv_editor_text("shell_menu.shortcut_save"), no_code)) {
         rv_editor_menu_code_keys(shell, "<C-s>");
     }
-    if (ImGui::MenuItem("Save All", "Ctrl+Shift+S")) {
+    if (ImGui::MenuItem(rv_editor_text("catalog_status.menu_save_all"), rv_editor_text("catalog_status.shortcut_save_all"))) {
         rv_editor_shell_save_all(shell);
     }
-    if (ImGui::MenuItem("Save As...")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.save_as"))) {
         rv_editor_shell_save_as_start(shell);
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Settings...")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.settings"))) {
         rv_editor_shell_page(shell, rv_editor_start_page::settings);
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Quit")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.quit"))) {
         SDL_Event quit{};
         quit.type = SDL_EVENT_QUIT;
         SDL_PushEvent(&quit);
@@ -102,15 +102,15 @@ void rv_editor_menu_file(rv_editor_shell &shell)
 
 void rv_editor_menu_edit(rv_editor_shell &shell)
 {
-    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? "No code tile to undo in" : nullptr;
-    if (rv_editor_menu_item("Undo", "Ctrl+Z", no_code)) {
+    const char *no_code = rv_editor_menu_code_window(shell) == 0 ? rv_editor_text("shell_menu.why_no_code_edit") : nullptr;
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.undo"), rv_editor_text("shell_menu.shortcut_undo"), no_code)) {
         rv_editor_menu_code_keys(shell, "<C-z>");
     }
-    if (rv_editor_menu_item("Redo", "Ctrl+Shift+Z", no_code)) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.redo"), rv_editor_text("shell_menu.shortcut_redo"), no_code)) {
         rv_editor_menu_code_keys(shell, "<C-S-z>");
     }
     ImGui::Separator();
-    if (ImGui::MenuItem("Find in Project", "Ctrl+Shift+F")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.find_in_project"), rv_editor_text("shell_menu.shortcut_find"))) {
         shell.app.project_search.focus = true;
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
     }
@@ -119,52 +119,57 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
 void rv_editor_menu_view(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
-    if (ImGui::BeginMenu("Code Text Size")) {
-        constexpr struct
-        {
+    if (ImGui::BeginMenu(rv_editor_text("shell_menu.code_text_size"))) {
+        struct {
             rv_editor_code_size size;
-            const char *label;
-        } sizes[] = { { rv_editor_code_size::small, "Small (8x14)" }, { rv_editor_code_size::normal, "Normal (9x16)" },
-            { rv_editor_code_size::large, "Large (9x16, doubled)" } };
+            const char *text_key;
+        } sizes[] = { { rv_editor_code_size::small, "shell_menu.size_small" },
+            { rv_editor_code_size::normal, "shell_menu.size_normal" },
+            { rv_editor_code_size::large, "shell_menu.size_large" } };
         for (const auto &s : sizes) {
-            if (ImGui::MenuItem(s.label, nullptr, rv_editor_font_code_size() == s.size)) {
+            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, rv_editor_font_code_size() == s.size)) {
                 rv_editor_font_code_size_set(s.size);
             }
         }
         ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu("Game Scale")) {
-        constexpr struct
-        {
+    if (ImGui::BeginMenu(rv_editor_text("shell_menu.game_scale"))) {
+        struct {
             rv_editor_game_scale scale;
-            const char *label;
-        } scales[] = { { rv_editor_game_scale::fit, "Fit" }, { rv_editor_game_scale::integer, "Integer" },
-            { rv_editor_game_scale::x1, "1x" }, { rv_editor_game_scale::x2, "2x" }, { rv_editor_game_scale::x3, "3x" } };
+            const char *text_key;
+        } scales[] = { { rv_editor_game_scale::fit, "pane_game.scale_fit" },
+            { rv_editor_game_scale::integer, "pane_game.scale_integer" },
+            { rv_editor_game_scale::x1, "pane_game.scale_1x" },
+            { rv_editor_game_scale::x2, "pane_game.scale_2x" },
+            { rv_editor_game_scale::x3, "pane_game.scale_3x" } };
         for (const auto &s : scales) {
-            if (ImGui::MenuItem(s.label, nullptr, app.game_scale == s.scale)) {
+            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, app.game_scale == s.scale)) {
                 app.game_scale = s.scale;
             }
         }
         ImGui::EndMenu();
     }
     // Independent of the code text size and of the Game scale.
-    if (ImGui::BeginMenu("UI Scale")) {
-        constexpr struct
-        {
+    if (ImGui::BeginMenu(rv_editor_text("shell_menu.ui_scale"))) {
+        struct {
             float scale;
-            const char *label;
-        } scales[] = { { 1.0f, "1x" }, { 1.5f, "1.5x" }, { 2.0f, "2x" } };
+            const char *text_key;
+        } scales[] = { { 1.0f, "shell_menu.ui_scale_1x" },
+            { 1.5f, "shell_menu.ui_scale_15x" },
+            { 2.0f, "shell_menu.ui_scale_2x" } };
         for (const auto &s : scales) {
             const bool fits = rv_editor_shell_scale_fits(shell.window, s.scale);
             const char *why_not = nullptr;
-            char why_not_buffer[64];
+            std::string why_not_str;
             if (!fits && s.scale != 1.0f) {
                 const int needed_w = static_cast<int>(std::ceil(static_cast<float>(window_min_width) * s.scale));
                 const int needed_h = static_cast<int>(std::ceil(static_cast<float>(window_min_height) * s.scale));
-                std::snprintf(why_not_buffer, sizeof(why_not_buffer), "Needs a %dx%d display", needed_w, needed_h);
-                why_not = why_not_buffer;
+                why_not_str = rv_editor_text_format(rv_editor_text("shell_menu.scale_needs_display"),
+                    std::make_format_args(needed_w, needed_h));
+                why_not = why_not_str.c_str();
             }
-            const bool clicked = ImGui::MenuItem(s.label, nullptr, shell.ui_scale == s.scale, fits || s.scale == 1.0f);
+            const bool clicked =
+                ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, shell.ui_scale == s.scale, fits || s.scale == 1.0f);
             if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                 ImGui::SetTooltip("%s", why_not);
             }
@@ -176,7 +181,7 @@ void rv_editor_menu_view(rv_editor_shell &shell)
     }
     ImGui::Separator();
     // Independent of the focused tile and of a project.
-    if (ImGui::MenuItem("Widget Catalog")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.widget_catalog"))) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::catalog);
     }
 }
@@ -184,15 +189,17 @@ void rv_editor_menu_view(rv_editor_shell &shell)
 void rv_editor_menu_project(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
-    if (ImGui::MenuItem("Project Settings")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.project_settings"))) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::project);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item("Build", "Ctrl+B", rv_editor_app_why_not_build(app))) {
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_build"), rv_editor_text("widgets_status.shortcut_build"),
+            rv_editor_app_why_not_build(app))) {
         rv_editor_app_build(app);
     }
-    const char *why_not_cancel = app.build.state() == rv_editor_build_state::building ? nullptr : "No build to cancel";
-    if (rv_editor_menu_item("Cancel Build", nullptr, why_not_cancel)) {
+    const bool can_cancel = app.build.state() == rv_editor_build_state::building;
+    const char *why_not_cancel = can_cancel ? nullptr : rv_editor_text("shell_menu.why_no_build");
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.cancel_build"), nullptr, why_not_cancel)) {
         app.build.cancel();
     }
 }
@@ -201,63 +208,76 @@ void rv_editor_menu_run(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
     const bool paused = app.session.state() == rv_editor_run_state::paused;
-    if (rv_editor_menu_item(paused ? "Resume" : "Run", "F5", rv_editor_app_why_not_run(app))) {
+    const char *resume_text = rv_editor_text("widgets_status.button_resume");
+    const char *run_text = rv_editor_text("widgets_status.button_run");
+    const char *run_label = paused ? resume_text : run_text;
+    const char *shortcut = rv_editor_text("widgets_status.shortcut_run");
+    if (rv_editor_menu_item(run_label, shortcut, rv_editor_app_why_not_run(app))) {
         rv_editor_app_run(app);
     }
-    if (rv_editor_menu_item("Run Last Successful Build (current scripts and assets)", nullptr,
-            rv_editor_app_why_not_run_last(app))) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.run_last"), nullptr, rv_editor_app_why_not_run_last(app))) {
         rv_editor_app_run_last(app);
     }
-    if (rv_editor_menu_item("Pause", "F6", rv_editor_app_why_not_pause(app))) {
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_pause"), rv_editor_text("widgets_status.shortcut_pause"),
+            rv_editor_app_why_not_pause(app))) {
         rv_editor_app_pause(app);
     }
-    if (rv_editor_menu_item("Step Frame", "F7", rv_editor_app_why_not_step(app))) {
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_step_frame"), rv_editor_text("widgets_status.shortcut_step"),
+            rv_editor_app_why_not_step(app))) {
         rv_editor_app_step(app);
     }
-    if (rv_editor_menu_item("Stop", "Shift+F5", rv_editor_app_why_not_stop(app))) {
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_stop"), rv_editor_text("widgets_status.shortcut_stop"),
+            rv_editor_app_why_not_stop(app))) {
         rv_editor_app_stop(app);
     }
     const bool can_reload = app.session.live() && rv_editor_app_can_reload(app);
-    const char *why_not_reload = can_reload
-        ? rv_editor_app_why_not_reload(app)
-        : "The running disc cannot reload: it runs from an image, or has no entry script";
+    const char *why_not_reload = can_reload ? rv_editor_app_why_not_reload(app) : rv_editor_text("shell_menu.why_no_reload");
     const rv_editor_change_plan reload_plan =
         can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
-    const std::string reload_label = reload_plan.action == rv_editor_change_action::reload_module
-        ? "Reload Module: " + reload_plan.name
-        : reload_plan.action == rv_editor_change_action::refresh_texture ? "Refresh Texture: " + reload_plan.name
-                                                                          : "Reload Entry Script";
-    if (rv_editor_menu_item(reload_label.c_str(), "F8", why_not_reload)) {
+    std::string reload_label;
+    if (reload_plan.action == rv_editor_change_action::reload_module) {
+        reload_label = rv_editor_text_format(rv_editor_text("shell_menu.reload_module"),
+            std::make_format_args(reload_plan.name));
+    } else if (reload_plan.action == rv_editor_change_action::refresh_texture) {
+        reload_label = rv_editor_text_format(rv_editor_text("shell_menu.refresh_texture"),
+            std::make_format_args(reload_plan.name));
+    } else {
+        reload_label = rv_editor_text("widgets_status.tooltip_reload");
+    }
+    if (rv_editor_menu_item(reload_label.c_str(), rv_editor_text("widgets_status.shortcut_reload"), why_not_reload)) {
         rv_editor_app_reload(app);
     }
-    const char *why_not_build_restart = app.session.live() ? rv_editor_app_why_not_build(app) : "No game is running";
-    if (rv_editor_menu_item("Build and Restart", nullptr, why_not_build_restart)) {
+    const char *why_not_build_restart =
+        app.session.live() ? rv_editor_app_why_not_build(app) : rv_editor_text("shell_menu.why_no_game");
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.tooltip_restart"), nullptr, why_not_build_restart)) {
         rv_editor_app_build_restart(app);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item("Force Stop", nullptr, app.session.live() ? nullptr : "No runtime is running")) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.force_stop"), nullptr,
+            app.session.live() ? nullptr : rv_editor_text("shell_menu.why_no_runtime"))) {
         app.session.force_stop(app.log);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item("Run Configuration...", nullptr, app.project.open ? nullptr : "No project is open")) {
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.run_config"), nullptr,
+            app.project.open ? nullptr : rv_editor_text("shell_menu.why_no_project"))) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::run_config, true);
     }
 }
 
 void rv_editor_menu_window(rv_editor_shell &shell)
 {
-    if (ImGui::MenuItem("Terminal")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.terminal"))) {
         rv_editor_shell_focus_terminal(shell);
     }
-    if (ImGui::MenuItem("Focus Next Pane", "Ctrl+F6")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.focus_next_pane"), rv_editor_text("shell_menu.shortcut_focus_next"))) {
         rv_editor_shell_focus_next(shell, false);
     }
-    if (ImGui::MenuItem("Focus Previous Pane", "Ctrl+Shift+F6")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.focus_prev_pane"), rv_editor_text("shell_menu.shortcut_focus_prev"))) {
         rv_editor_shell_focus_next(shell, true);
     }
     ImGui::Separator();
     // Every kind of tile, beside the focused one.
-    if (ImGui::BeginMenu("New Tile")) {
+    if (ImGui::BeginMenu(rv_editor_text("shell_menu.new_tile"))) {
         for (uint32_t k = 1; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
             const auto kind = static_cast<rv_editor_pane_kind>(k);
             if (ImGui::MenuItem(rv_editor_pane_title(kind))) {
@@ -268,7 +288,7 @@ void rv_editor_menu_window(rv_editor_shell &shell)
     }
     ImGui::Separator();
     // The same four the bar's right end switches between; each keeps its tiles.
-    if (ImGui::BeginMenu("Reference Layouts")) {
+    if (ImGui::BeginMenu(rv_editor_text("shell_menu.reference_layouts"))) {
         for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
             if (ImGui::MenuItem(rv_editor_layout_preset_name(preset), nullptr, shell.active == preset)) {
                 rv_editor_shell_switch(shell, preset);
@@ -276,7 +296,7 @@ void rv_editor_menu_window(rv_editor_shell &shell)
         }
         ImGui::EndMenu();
     }
-    if (ImGui::MenuItem("Reset Layout")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.reset_layout"))) {
         rv_editor_shell_reset_layout(shell, shell.active);
     }
 }
@@ -286,7 +306,7 @@ void rv_editor_menu_help(rv_editor_shell &shell)
     if (ImGui::MenuItem(rv_editor_text("manual.menu_item"), "F1")) {
         rv_editor_shell_page(shell, rv_editor_start_page::manual);
     }
-    if (ImGui::MenuItem("Keyboard Shortcuts")) {
+    if (ImGui::MenuItem(rv_editor_text("shell_menu.keyboard_shortcuts"))) {
         rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
 }
@@ -311,16 +331,19 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
         rv_editor_menu_style_pop();
         return;
     }
-    constexpr struct
-    {
-        const char *label;
+    struct {
+        const char *text_key;
         void (*draw)(rv_editor_shell &);
-    } menus[] = { { "File", rv_editor_menu_file }, { "Edit", rv_editor_menu_edit }, { "View", rv_editor_menu_view },
-        { "Project", rv_editor_menu_project }, { "Scene", rv_editor_menu_scene }, { "Run", rv_editor_menu_run },
-        { "Window", rv_editor_menu_window },
-        { "Help", rv_editor_menu_help } };
+    } menus[] = { { "catalog_status.menu_file", rv_editor_menu_file },
+        { "shell_menu.edit", rv_editor_menu_edit },
+        { "shell_menu.view", rv_editor_menu_view },
+        { "shell_menu.project", rv_editor_menu_project },
+        { "catalog_status.menu_scene", rv_editor_menu_scene },
+        { "catalog_status.menu_run", rv_editor_menu_run },
+        { "shell_menu.window", rv_editor_menu_window },
+        { "shell_menu.help", rv_editor_menu_help } };
     for (const auto &m : menus) {
-        if (rv_editor_menu_begin(m.label)) {
+        if (rv_editor_menu_begin(rv_editor_text(m.text_key))) {
             m.draw(shell);
             ImGui::EndMenu();
         }
@@ -418,15 +441,14 @@ void rv_editor_shell_new_file(rv_editor_shell &shell)
 
 void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
-    rv_editor_ask_begin("End the shell?", theme);
-    ImGui::TextWrapped("The shell in this terminal is still running. Closing the tile ends it and everything "
-                       "started in it. Another tab keeps it running instead.");
-    if (rv_editor_button("End Shell", theme)) {
+    rv_editor_ask_begin(rv_editor_text("shell_menu.ask_terminal_title"), theme);
+    ImGui::TextWrapped("%s", rv_editor_text("shell_menu.ask_terminal_message"));
+    if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_end"), theme)) {
         (void)rv_editor_tile_remove(shell.ws.layout, shell.closing_terminal);
         shell.closing_terminal = rv_editor_tile_none;
     }
     ImGui::SameLine();
-    if (rv_editor_button("Keep", theme)) {
+    if (rv_editor_button(rv_editor_text("shell_menu.ask_terminal_keep"), theme)) {
         shell.closing_terminal = rv_editor_tile_none;
     }
     rv_editor_ask_end();
