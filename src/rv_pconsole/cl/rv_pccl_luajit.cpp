@@ -8,6 +8,7 @@
 // boundary has leaked.
 #include "lua.hpp"
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_dscript/rv_dscript_lua.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
@@ -126,7 +127,7 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     // debugs a difference that exists only when the channel is open.
     lua_pushcfunction(L_, print_to_log);
     lua_setglobal(L_, "print");
-    if (!bootstrap_pdk()) {
+    if (bootstrap_pdk() != RV_OK) {
         RV_LOG_ERR("pccl", "pdk bootstrap failed, lua machine going down");
         lua_close(L_);
         L_ = nullptr; // same shape as a failed lua_newstate: valid() below goes false
@@ -227,19 +228,19 @@ int rv_pccl_luajit::panic(lua_State *L)
 // console's own, installed by the constructor and reading modules off the
 // drive - see rv_pccl_luajit_require.cpp), and glue rv_pdk_cdef /
 // rv_pdk_consts into the pieces that Lua chunk needs.
-bool rv_pccl_luajit::bootstrap_pdk()
+int rv_pccl_luajit::bootstrap_pdk()
 {
     const int top = lua_gettop(L_);
     // A failed lua_pcall leaves its error string on top; log and unwind to it.
     auto fail_err = [&](const char *what) {
         RV_LOG_ERR("pccl", "pdk bootstrap: {}: {}", what, lua_tostring(L_, -1));
         lua_settop(L_, top);
-        return false;
+        return RV_ERR_INVAL;
     };
     auto fail = [&](const char *why) {
         RV_LOG_ERR("pccl", "pdk bootstrap: {}", why);
         lua_settop(L_, top);
-        return false;
+        return RV_ERR_INVAL;
     };
 
     // Unlike open_lib() above, this keeps luaopen_ffi's return value
@@ -308,7 +309,7 @@ bool rv_pccl_luajit::bootstrap_pdk()
     lua_pushvalue(L_, pdk_idx);
     lua_setglobal(L_, "pdk");
     lua_settop(L_, top);
-    return true;
+    return RV_OK;
 }
 
 int rv_pccl_luajit::protected_invoke_(lua_State *L)

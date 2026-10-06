@@ -279,11 +279,11 @@ private:
     // Builds the console<->script vocabulary: opens ffi, feeds it
     // rv_pdk_cdef, and turns rv_pdk_consts into the global `pdk` table (see
     // rv_pccl_luajit.cpp for the whole recipe and why it is not inlined in
-    // the constructor). Returns false on ANY failure - a bad cdef, a symbol
-    // the build never exported - and touches nothing that survives that: the
-    // constructor closes L_ down on a false return, same as a failed
+    // the constructor). Returns RV_OK on success, RV_ERR_INVAL on any failure
+    // (a bad cdef, a symbol the build never exported) - and touches nothing that
+    // survives that: the constructor closes L_ down on error, same as a failed
     // lua_newstate.
-    bool bootstrap_pdk();
+    int bootstrap_pdk();
 
 public:
     rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd);
