@@ -798,3 +798,22 @@ paste = "Paste"
 cancel = "Cancel"
 unknown_error = "unknown error"
 scroll_back_status = "{} lines back: type or scroll down to return"
+
+[nvim_rpc]
+sent_not_msgpack = "nvim sent something that is not msgpack"
+not_reading_input = "nvim is not reading its input"
+input_closed = "nvim's input is closed"
+ended = "nvim ended: {}"
+closed_channel = "nvim closed its channel"
+
+[templates]
+minimal_cpp_name = "Minimal C++"
+minimal_cpp_desc = "A C++ disc: a sprite grid and a line of text, drawn by its own code. Build, then restart to see a change."
+minimal_lua_name = "Minimal Lua"
+minimal_lua_desc = "A Lua entry script over a small C++ bridge: persistent state and reload while it runs. It still needs the C++ compiler for the bridge."
+problem_name = "Give the project a name"
+problem_disc_id = "Give the disc an id"
+problem_id_letter = "A disc id starts with a letter"
+problem_parent = "Choose the directory the project goes in"
+problem_template = "Choose a template"
+problem_template_missing = "The template is missing: {}"

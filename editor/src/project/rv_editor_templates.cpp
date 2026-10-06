@@ -12,6 +12,7 @@
 
 #include "layout/rv_editor_tile.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -74,12 +75,10 @@ std::vector<rv_editor_template> rv_editor_templates()
 {
     const std::filesystem::path root = RV_EDITOR_TEMPLATE_DIR;
     return {
-        { "example-cpp", "Minimal C++", "A C++ disc: a sprite grid and a line of text, drawn by its own code. "
-                                        "Build, then restart to see a change.",
-            root / "example-cpp" },
-        { "example-lua", "Minimal Lua", "A Lua entry script over a small C++ bridge: persistent state and "
-                                        "reload while it runs. It still needs the C++ compiler for the bridge.",
-            root / "example-lua" },
+        { "example-cpp", rv_editor_text("templates.minimal_cpp_name"),
+            rv_editor_text("templates.minimal_cpp_desc"), root / "example-cpp" },
+        { "example-lua", rv_editor_text("templates.minimal_lua_name"),
+            rv_editor_text("templates.minimal_lua_desc"), root / "example-lua" },
     };
 }
 
@@ -107,19 +106,19 @@ std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const 
     rv_editor_new_project_field &at = field != nullptr ? *field : unused;
     at = rv_editor_new_project_field::name;
     if (p.name.empty()) {
-        return "Give the project a name";
+        return rv_editor_text("templates.problem_name");
     }
     at = rv_editor_new_project_field::disc_id;
     if (p.disc_id.empty()) {
-        return "Give the disc an id";
+        return rv_editor_text("templates.problem_disc_id");
     }
     // The id names the templates' C++ namespace too, which cannot start with a digit.
     if (!std::isalpha(static_cast<unsigned char>(p.disc_id.front()))) {
-        return "A disc id starts with a letter";
+        return rv_editor_text("templates.problem_id_letter");
     }
     at = rv_editor_new_project_field::parent;
     if (p.parent.empty()) {
-        return "Choose the directory the project goes in";
+        return rv_editor_text("templates.problem_parent");
     }
     std::error_code ec;
     if (!std::filesystem::is_directory(p.parent, ec)) {
@@ -127,10 +126,12 @@ std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const 
     }
     at = rv_editor_new_project_field::template_index;
     if (p.template_index >= templates.size()) {
-        return "Choose a template";
+        return rv_editor_text("templates.problem_template");
     }
     if (!std::filesystem::is_directory(templates[p.template_index].dir, ec)) {
-        return "The template is missing: " + templates[p.template_index].dir.string();
+        const std::string dir = templates[p.template_index].dir.string();
+        return rv_editor_text_format("templates.problem_template_missing",
+            std::make_format_args(dir));
     }
     at = rv_editor_new_project_field::root;
     if (std::filesystem::exists(p.parent / p.disc_id, ec)) {

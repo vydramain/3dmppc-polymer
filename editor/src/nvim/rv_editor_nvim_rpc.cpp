@@ -9,6 +9,8 @@
 
 #include "pdk/rv_err.h"
 
+#include "text/rv_editor_text.hpp"
+
 namespace rv_editor
 {
 
@@ -146,7 +148,7 @@ void rv_editor_nvim_rpc::reader()
             }
             std::unique_lock<std::mutex> lock(mutex_);
             if (r < 0) {
-                broken_ = "nvim sent something that is not msgpack";
+                broken_ = rv_editor_text("nvim_rpc.sent_not_msgpack");
                 eof_ = true;
                 return;
             }
@@ -177,7 +179,11 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
         if (reply) {
             rv_editor_mpack error;
             error.type = rv_editor_mpack::rv_editor_mpack_type::string;
-            error.s = proc_.stdin_open() ? "nvim is not reading its input" : "nvim's input is closed";
+            if (proc_.stdin_open()) {
+                error.s = rv_editor_text("nvim_rpc.not_reading_input");
+            } else {
+                error.s = rv_editor_text("nvim_rpc.input_closed");
+            }
             reply(error, rv_editor_mpack{});
         }
         return;
@@ -244,8 +250,13 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
     if (eof || !proc_.running()) {
         proc_.poll();
         if (why.empty()) {
-            why = proc_.exit_status().exited ? "nvim ended: " + rv_editor_exit_text(proc_.exit_status())
-                                             : "nvim closed its channel";
+            if (proc_.exit_status().exited) {
+                const std::string exit_info = rv_editor_exit_text(proc_.exit_status());
+                why = rv_editor_text_format("nvim_rpc.ended",
+                    std::make_format_args(exit_info));
+            } else {
+                why = rv_editor_text("nvim_rpc.closed_channel");
+            }
         }
         return false;
     }
