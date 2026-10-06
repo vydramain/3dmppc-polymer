@@ -9,6 +9,7 @@
 #include <system_error>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_common/rv_burner_process.hpp"
 #include "pdklib/rv_disc_hash/rv_disc_hash.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
@@ -57,15 +58,15 @@ static bool stamp_checksum(const fs::path &disc_module, std::string &error)
 
     unsigned char checksum[rv_pdklib::RV_DISC_HASH_BYTES];
     std::string hash_error;
-    if (!rv_pdklib::rv_disc_hash_compute(bytes.data(), bytes.size(), checksum, hash_error)) {
+    if (rv_pdklib::rv_disc_hash_compute(bytes.data(), bytes.size(), checksum, hash_error) != RV_OK) {
         error = "cannot checksum '" + disc_module.string() + "': " + hash_error;
         return false;
     }
 
     std::size_t magic_offset = 0;
     std::string locate_error;
-    if (!rv_pdklib::rv_disc_hash_magic_offset(bytes.data(), bytes.size(), magic_offset,
-            locate_error)) {
+    if (rv_pdklib::rv_disc_hash_magic_offset(bytes.data(), bytes.size(), magic_offset,
+            locate_error) != RV_OK) {
         error = "'" + disc_module.string() +
             "' was built without RV_MPPC_DISC_VERSION_DEF, so there is no checksum "
             "field to stamp: " +

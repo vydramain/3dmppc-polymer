@@ -4,6 +4,7 @@
 #include <cstring>
 #include <elf.h>
 
+#include "pdk/rv_err.h"
 #include "pdk/de/rv_dv.h"
 
 namespace rv_pdklib
@@ -245,9 +246,9 @@ bool in_bounds(std::size_t elf_size, uint64_t off, uint64_t len)
     return len <= elf_size - off;
 }
 
-// Finds a section by name. Returns true and fills `sh` on success (including
+// Finds a section by name. Returns RV_OK and fills `sh` on success (including
 // "not found", which reports offset=0/size=0 via `found=false`).
-bool find_section(
+int find_section(
     const unsigned char *elf,
     std::size_t elf_size,
     const char *name,
@@ -261,7 +262,7 @@ bool find_section(
 
     if (elf_size < sizeof(Elf64_Ehdr)) {
         error = "ELF image is smaller than an ELF64 header.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     Elf64_Ehdr ehdr;
@@ -269,33 +270,33 @@ bool find_section(
 
     if (std::memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
         error = "Missing ELF magic.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_ident[EI_CLASS] != ELFCLASS64) {
         error = "Only ELFCLASS64 is supported.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
         error = "Only little-endian ELF is supported.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (ehdr.e_shentsize != sizeof(Elf64_Shdr)) {
         error = "Unexpected e_shentsize.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_shnum == 0) {
         error = "ELF image has no section headers.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (!in_bounds(elf_size, ehdr.e_shoff,
             uint64_t(ehdr.e_shnum) * sizeof(Elf64_Shdr))) {
         error = "Section header table is out of bounds.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_shstrndx == SHN_UNDEF || ehdr.e_shstrndx >= ehdr.e_shnum) {
         error = "Invalid section header string table index.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const unsigned char *shtab = elf + ehdr.e_shoff;
@@ -305,7 +306,7 @@ bool find_section(
         sizeof(strtab_shdr));
     if (!in_bounds(elf_size, strtab_shdr.sh_offset, strtab_shdr.sh_size)) {
         error = "Section header string table is out of bounds.";
-        return false;
+        return RV_ERR_INVAL;
     }
     const char *strtab = reinterpret_cast<const char *>(elf + strtab_shdr.sh_offset);
     uint64_t strtab_size = strtab_shdr.sh_size;
@@ -316,7 +317,7 @@ bool find_section(
 
         if (shdr.sh_name >= strtab_size) {
             error = "Section name offset is out of bounds.";
-            return false;
+            return RV_ERR_INVAL;
         }
         // Find the NUL terminator within the string table, do not run past it.
         uint64_t max_len = strtab_size - shdr.sh_name;
@@ -327,7 +328,7 @@ bool find_section(
         }
         if (candidate_len == max_len) {
             error = "Section name is not NUL-terminated within the string table.";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         if (std::strcmp(candidate, name) != 0) {
@@ -337,7 +338,7 @@ bool find_section(
         if (shdr.sh_type != SHT_NOBITS) {
             if (!in_bounds(elf_size, shdr.sh_offset, shdr.sh_size)) {
                 error = std::string("Section '") + name + "' data is out of bounds.";
-                return false;
+                return RV_ERR_INVAL;
             }
         }
 
@@ -345,13 +346,13 @@ bool find_section(
         sh_offset = shdr.sh_offset;
         sh_size = shdr.sh_size;
         sh_type = shdr.sh_type;
-        return true;
+        return RV_OK;
     }
 
-    return true; // not found is not an error: contributes size 0.
+    return RV_OK; // not found is not an error: contributes size 0.
 }
 
-bool feed_section(
+int feed_section(
     const unsigned char *elf,
     std::size_t elf_size,
     const char *name,
@@ -363,8 +364,8 @@ bool feed_section(
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (!find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error)) {
-        return false;
+    if (find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
 
     uint64_t size = found ? sh_size : 0;
@@ -378,12 +379,12 @@ bool feed_section(
         sha256_update(ctx, elf + sh_offset, sh_size);
     }
 
-    return true;
+    return RV_OK;
 }
 
 } // namespace
 
-bool rv_disc_hash_magic_offset(
+int rv_disc_hash_magic_offset(
     const unsigned char *elf,
     std::size_t elf_size,
     std::size_t &magic_offset,
@@ -394,22 +395,22 @@ bool rv_disc_hash_magic_offset(
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (!find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset,
-            sh_size, sh_type, error)) {
-        return false;
+    if (find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset,
+            sh_size, sh_type, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
     if (!found) {
         error = "ELF image has no " RV_MPPC_SECTION_NAME_DEF " section.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (sh_type == SHT_NOBITS) {
         error = "Version note section has no file contents.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (sh_size < sizeof(Elf64_Nhdr)) {
         error = "Version note section is smaller than an ELF note header.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     Elf64_Nhdr nhdr;
@@ -420,15 +421,15 @@ bool rv_disc_hash_magic_offset(
 
     if (nhdr.n_namesz != RV_DISC_HASH_OWNER_SIZE) {
         error = "Version note owner size does not match RV_MPPC_NOTE_OWNER_DEF.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (nhdr.n_descsz != RV_DISC_HASH_DESC_SIZE) {
         error = "Version note descriptor size does not match rv_mppc_note_desc.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (nhdr.n_type != RV_MPPC_NOTE_TYPE) {
         error = "Version note type does not match RV_MPPC_NOTE_TYPE.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     auto align4 = [](uint64_t n) -> uint64_t {
@@ -445,20 +446,20 @@ bool rv_disc_hash_magic_offset(
         !in_bounds(elf_size, desc_offset, aligned_desc_size) ||
         note_end > sh_offset + sh_size) {
         error = "Version note extends outside its section.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (std::memcmp(elf + owner_offset, RV_MPPC_NOTE_OWNER_DEF, RV_DISC_HASH_OWNER_SIZE) != 0) {
         error = "Version note owner does not match RV_MPPC_NOTE_OWNER_DEF.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // magic is at descriptor offset 0 (rv_mppc_note_desc's first field).
     magic_offset = static_cast<std::size_t>(desc_offset);
-    return true;
+    return RV_OK;
 }
 
-bool rv_disc_hash_compute(
+int rv_disc_hash_compute(
     const unsigned char *elf,
     std::size_t elf_size,
     unsigned char out[RV_DISC_HASH_BYTES],
@@ -468,15 +469,15 @@ bool rv_disc_hash_compute(
 
     static const char *const sections[] = { ".text", ".rodata", ".data" };
     for (const char *name : sections) {
-        if (!feed_section(elf, elf_size, name, ctx, error)) {
-            return false;
+        if (feed_section(elf, elf_size, name, ctx, error) != RV_OK) {
+            return RV_ERR_INVAL;
         }
     }
 
     unsigned char digest[32];
     sha256_final(ctx, digest);
     std::memcpy(out, digest, RV_DISC_HASH_BYTES);
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_pdklib

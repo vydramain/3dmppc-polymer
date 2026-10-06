@@ -303,8 +303,8 @@ bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
 {
     unsigned char computed_checksum[rv_pdklib::RV_DISC_HASH_BYTES];
     std::string hash_error;
-    if (!rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(),
-            computed_checksum, hash_error)) {
+    if (rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(),
+            computed_checksum, hash_error) != RV_OK) {
         RV_LOG_ERR("pcloader",
             "cannot checksum code entry '{}': {}",
             rv_pdklib::rv_log_escape(info_entry), hash_error);
