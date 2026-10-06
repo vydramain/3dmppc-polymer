@@ -5,6 +5,7 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_zip/rv_burner_zipwrite.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
@@ -46,7 +47,7 @@ int rv_pdktools::burn_archive(
     // --- the manifest ---
 
     const std::string manifest_text = rv_pdklib::rv_manifest_render(manifest);
-    if (!writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error)) {
+    if (writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error) != RV_OK) {
         return 1;
     }
 
@@ -58,7 +59,7 @@ int rv_pdktools::burn_archive(
 
     const std::string entry_module = manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
-    if (!writer.add_file(entry_module, disc_module.string(), error)) {
+    if (writer.add_file(entry_module, disc_module.string(), error) != RV_OK) {
         return 1;
     }
     rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
@@ -66,14 +67,14 @@ int rv_pdktools::burn_archive(
     // --- everything the plan named ---
 
     for (const archive_item &item : plan.items) {
-        if (!writer.add_file(item.name, item.payload, error)) {
+        if (writer.add_file(item.name, item.payload, error) != RV_OK) {
             return 1;
         }
     }
 
     // Not optional: an archive without a central directory is not an archive,
     // and no reader will open it.
-    if (!writer.finish(error)) {
+    if (writer.finish(error) != RV_OK) {
         return 1;
     }
 

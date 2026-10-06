@@ -13,6 +13,7 @@
 
 #include "rv_burner_zipwrite.hpp"
 
+#include "pdk/rv_err.h"
 #include "rv_burner_common/rv_burner_bytes.hpp"
 #include "pdklib/rv_zip/rv_zip_format.hpp"
 
@@ -174,21 +175,21 @@ struct rv_zipwriter::rv_zipwriter_impl {
     std::vector<zip_write_entry> entries;
     std::vector<std::string> names;
 
-    bool write(const void *data, std::size_t size)
+    int write(const void *data, std::size_t size)
     {
         if (size == 0) {
-            return true;
+            return RV_OK;
         }
         out.write(static_cast<const char *>(data), static_cast<std::streamsize>(size));
         if (!out) {
             broken = true;
-            return false;
+            return RV_ERR_IO;
         }
         offset += size;
-        return true;
+        return RV_OK;
     }
 
-    bool write(const std::vector<uint8_t> &bytes)
+    int write(const std::vector<uint8_t> &bytes)
     {
         return write(bytes.data(), bytes.size());
     }
@@ -230,29 +231,29 @@ bool rv_zipwriter::ok() const
     return impl_->opened && !impl_->broken && !impl_->finished;
 }
 
-bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t size,
+int rv_zipwriter::add(const std::string &name, const void *data, std::size_t size,
     std::string &error)
 {
     error.clear();
     if (!impl_->opened) {
         error = "archive '" + impl_->path + "' is not open";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->finished) {
         error = "archive '" + impl_->path + "' is already finished";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->broken) {
         error = "archive '" + impl_->path + "' already failed to write";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (name.empty()) {
         error = "entry name is empty";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (name.size() > RV_BURNER_ZIP_MAX_NAME_LENGTH) {
         error = "entry name is longer than 65535 bytes";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // A duplicate is refused rather than appended. Every reader resolves a name
@@ -262,22 +263,22 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     // explains nothing when it finally shows up.
     if (std::find(impl_->names.begin(), impl_->names.end(), name) != impl_->names.end()) {
         error = "duplicate entry name '" + name + "'";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (impl_->entries.size() >= RV_BURNER_ZIP_MAX_ENTRIES) {
         error = "too many entries for a classic zip (limit 65535)";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (static_cast<uint64_t>(size) > RV_BURNER_ZIP_MAX_SIZE) {
         error = "entry '" + name + "' is larger than 4 GiB, which needs zip64";
-        return false;
+        return RV_ERR_INVAL;
     }
     // Local header + name + data must also stay inside a 32-bit offset, because
     // that is the width of the field the central directory points back with.
     if (impl_->offset + rv_pdklib::rv_zip_local_header_size + name.size() + size > RV_BURNER_ZIP_MAX_SIZE) {
         error = "archive would exceed 4 GiB, which needs zip64";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     zip_write_entry entry;
@@ -303,49 +304,55 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     put_le_u16(header, 0); // extra field length
     put_bytes(header, name);
 
-    if (!impl_->write(header) || !impl_->write(data, size)) {
+    int result = impl_->write(header);
+    if (result != RV_OK) {
         error = "cannot write entry '" + name + "' to '" + impl_->path + "'";
-        return false;
+        return result;
+    }
+    result = impl_->write(data, size);
+    if (result != RV_OK) {
+        error = "cannot write entry '" + name + "' to '" + impl_->path + "'";
+        return result;
     }
 
     impl_->entries.push_back(entry);
     impl_->names.push_back(name);
-    return true;
+    return RV_OK;
 }
 
-bool rv_zipwriter::add_file(const std::string &name, const std::string &source_path,
+int rv_zipwriter::add_file(const std::string &name, const std::string &source_path,
     std::string &error)
 {
     error.clear();
     std::ifstream in(source_path, std::ios::binary);
     if (!in) {
         error = "cannot open '" + source_path + "'";
-        return false;
+        return RV_ERR_IO;
     }
     std::vector<char> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     if (in.bad()) {
         error = "cannot read '" + source_path + "'";
-        return false;
+        return RV_ERR_IO;
     }
     return add(name, data.data(), data.size(), error);
 }
 
-bool rv_zipwriter::finish(std::string &error)
+int rv_zipwriter::finish(std::string &error)
 {
     error.clear();
     if (!impl_->opened) {
         error = "archive '" + impl_->path + "' is not open";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->finished) {
         error = "archive '" + impl_->path + "' is already finished";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->broken) {
         error = "archive '" + impl_->path + "' failed to write earlier";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const uint64_t directory_offset = impl_->offset;
@@ -377,7 +384,7 @@ bool rv_zipwriter::finish(std::string &error)
         error = "archive would exceed 4 GiB, which needs zip64";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     std::vector<uint8_t> eocd;
@@ -391,11 +398,19 @@ bool rv_zipwriter::finish(std::string &error)
     put_le_u32(eocd, static_cast<uint32_t>(directory_offset));
     put_le_u16(eocd, 0); // archive comment length
 
-    if (!impl_->write(directory) || !impl_->write(eocd)) {
+    int result = impl_->write(directory);
+    if (result != RV_OK) {
         error = "cannot write central directory of '" + impl_->path + "'";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return result;
+    }
+    result = impl_->write(eocd);
+    if (result != RV_OK) {
+        error = "cannot write central directory of '" + impl_->path + "'";
+        impl_->discard();
+        impl_->finished = true;
+        return result;
     }
 
     impl_->out.flush();
@@ -407,11 +422,11 @@ bool rv_zipwriter::finish(std::string &error)
         error = "cannot close '" + impl_->path + "'";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_IO;
     }
 
     impl_->finished = true;
-    return true;
+    return RV_OK;
 }
 
 const std::vector<std::string> &rv_zipwriter::entries() const
