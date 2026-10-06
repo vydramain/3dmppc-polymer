@@ -177,7 +177,8 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     rv_editor_font_code_pop();
     rv_editor_shelf_begin("##shelf", theme);
     bool vim = nvim.vim_mode();
-    if (rv_editor_toggle("Vim##mode", &vim, theme)) {
+    const std::string vim_label = std::string(rv_editor_text("pane_code.vim_toggle")) + "##mode";
+    if (rv_editor_toggle(vim_label.c_str(), &vim, theme)) {
         nvim.toggle_vim_mode();
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.vim_mode_tooltip"));

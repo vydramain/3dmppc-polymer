@@ -315,7 +315,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_wrapped(rv_editor_text("panes.no_project_open_full"));
     } else {
         rv_editor_project_group(rv_editor_text("panes.disc_heading"), theme);
-        const std::string disc_id = p.disc_id.empty() ? "?" : p.disc_id;
+        const std::string disc_id = p.disc_id.empty() ? rv_editor_text("panes.disc_id_unknown") : p.disc_id;
         const std::string disc_title = p.disc_title;
         std::string disc_info;
         if (p.disc_title.empty()) {

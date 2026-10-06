@@ -208,16 +208,30 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
         uint32_t color;
     };
     const piece rows[][code_sample_pieces_per_line] = {
-        { { "local ", theme.code_magenta }, { "M", theme.code_text }, { " = {}", theme.code_text }, { "", 0 } },
-        { { "function ", theme.code_magenta }, { "M.frame_update", theme.code_blue }, { "(dt)", theme.code_text },
+        { { rv_editor_text("catalog_more.code_sample_1_1"), theme.code_magenta },
+            { rv_editor_text("catalog_more.code_sample_1_2"), theme.code_text },
+            { rv_editor_text("catalog_more.code_sample_1_3"), theme.code_text },
             { "", 0 } },
-        { { "  -- ", theme.code_subtext }, { "\xd0\xba\xd0\xb0\xd0\xb4\xd1\x80: Cyrillic in a comment", theme.code_subtext },
-            { "", 0 }, { "", 0 } },
-        { { "  state.x = state.x + ", theme.code_text }, { "1.5", theme.code_yellow }, { " * dt", theme.code_text },
+        { { rv_editor_text("catalog_more.code_sample_2_1"), theme.code_magenta },
+            { rv_editor_text("catalog_more.code_sample_2_2"), theme.code_blue },
+            { rv_editor_text("catalog_more.code_sample_2_3"), theme.code_text },
             { "", 0 } },
-        { { "#include ", theme.code_magenta }, { "\"pdk/rv_pdko.h\"", theme.code_green }, { "", 0 }, { "", 0 } },
-        { { "constexpr int32_t ", theme.code_magenta }, { "DEPTH", theme.code_text },
-            { " = 400; int broken =", theme.code_text }, { "", 0 } },
+        { { rv_editor_text("catalog_more.code_sample_3_1"), theme.code_subtext },
+            { rv_editor_text("catalog_more.code_sample_3_2"), theme.code_subtext },
+            { "", 0 },
+            { "", 0 } },
+        { { rv_editor_text("catalog_more.code_sample_4_1"), theme.code_text },
+            { rv_editor_text("catalog_more.code_sample_4_2"), theme.code_yellow },
+            { rv_editor_text("catalog_more.code_sample_4_3"), theme.code_text },
+            { "", 0 } },
+        { { rv_editor_text("catalog_more.code_sample_5_1"), theme.code_magenta },
+            { rv_editor_text("catalog_more.code_sample_5_2"), theme.code_green },
+            { "", 0 },
+            { "", 0 } },
+        { { rv_editor_text("catalog_more.code_sample_6_1"), theme.code_magenta },
+            { rv_editor_text("catalog_more.code_sample_6_2"), theme.code_text },
+            { rv_editor_text("catalog_more.code_sample_6_3"), theme.code_text },
+            { "", 0 } },
     };
     for (int r = 0; r < static_cast<int>(std::size(rows)); ++r) {
         float x = p0.x + code_lines_left_margin_px;
