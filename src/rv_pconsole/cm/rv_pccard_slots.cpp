@@ -58,28 +58,28 @@ const uint8_t *rv_pccard::slot_data(int64_t slot) const
     return image_.data() + payload_offset_ + slot * slot_size_;
 }
 
-bool rv_pccard::slot_write(int64_t slot, const void *data, int64_t size)
+int rv_pccard::slot_write(int64_t slot, const void *data, int64_t size)
 {
     if (!medium_ok_) {
-        return false;
+        return RV_ERR_IO;
     }
     return commit(slot, size, data);
 }
 
-bool rv_pccard::slot_erase(int64_t slot)
+int rv_pccard::slot_erase(int64_t slot)
 {
     if (!medium_ok_) {
-        return false;
+        return RV_ERR_IO;
     }
     if (length_at(slot) < 0) {
         // Already empty. Skipping the flush keeps erase from creating an image
         // file for a card that has never held a save.
-        return true;
+        return RV_OK;
     }
     return commit(slot, -1, nullptr);
 }
 
-bool rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
+int rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
 {
     const int64_t old_length = length_at(slot);
     uint8_t *payload = payload_at(slot);
@@ -98,8 +98,9 @@ bool rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
     }
     set_length(slot, new_length);
 
-    if (flush()) {
-        return true;
+    const int rc = flush();
+    if (rc == RV_OK) {
+        return RV_OK;
     }
 
     std::memset(payload, 0, static_cast<size_t>(slot_size_));
@@ -107,10 +108,10 @@ bool rv_pccard::commit(int64_t slot, int64_t new_length, const void *data)
         std::memcpy(payload, undo.data(), static_cast<size_t>(old_length));
     }
     set_length(slot, old_length);
-    return false;
+    return rc;
 }
 
-bool rv_pccard::flush()
+int rv_pccard::flush()
 {
     // Atomic replace via rename - POSIX requires rename(2) to be
     // atomic WITHIN ONE FILESYSTEM: any observer, including the next boot after
@@ -138,7 +139,7 @@ bool rv_pccard::flush()
         std::filesystem::create_directories(dir, ec);
         if (ec) {
             RV_LOG_ERR(RV_PCCARD_TAG, "cannot create '{}': {}", dir.string(), ec.message());
-            return false;
+            return RV_ERR_IO;
         }
     } else {
         dir = std::filesystem::path(".");
@@ -150,7 +151,7 @@ bool rv_pccard::flush()
     const int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
         RV_LOG_ERR(RV_PCCARD_TAG, "cannot create '{}': {}", tmp_path, errno_text(errno));
-        return false;
+        return RV_ERR_IO;
     }
 
     bool ok = true;
@@ -185,7 +186,7 @@ bool rv_pccard::flush()
 
     if (!ok) {
         ::unlink(tmp_path.c_str());
-        return false;
+        return RV_ERR_IO;
     }
 
     const int dir_fd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY);
@@ -200,7 +201,7 @@ bool rv_pccard::flush()
     } else {
         RV_LOG_WARN(RV_PCCARD_TAG, "cannot open '{}' to sync: {}", dir.string(), errno_text(errno));
     }
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

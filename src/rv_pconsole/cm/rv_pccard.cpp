@@ -229,7 +229,7 @@ bool rv_pccard::load()
             return false;
         }
         image_ = std::move(migrated);
-        if (!flush()) {
+        if (flush() != RV_OK) {
             // Aside already happened; a crash between here and the next save
             // must not leave the card missing entirely, only unwritten - retry
             // the write, do not fall back to refusing after the old file is gone.

@@ -116,11 +116,8 @@ int64_t rv_pccm_posix::card_write(int64_t slot, const void *data, int64_t data_s
         return RV_ERR_INVAL;
     }
     // Atomicity lives one layer down, in rv_pccard::flush: when this returns
-    // false the slot still holds its previous bytes, in RAM and on disk alike.
-    if (!card_.slot_write(slot, data, data_size)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
+    // an error the slot still holds its previous bytes, in RAM and on disk alike.
+    return card_.slot_write(slot, data, data_size);
 }
 
 int64_t rv_pccm_posix::card_erase(int64_t slot)
@@ -128,10 +125,7 @@ int64_t rv_pccm_posix::card_erase(int64_t slot)
     if (!slot_in_range(slot)) {
         return RV_ERR_INVAL;
     }
-    if (!card_.slot_erase(slot)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
+    return card_.slot_erase(slot);
 }
 
 } // namespace rv_3dmppc

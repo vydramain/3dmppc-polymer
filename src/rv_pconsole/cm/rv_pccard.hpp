@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "pdk/rv_err.h"
+
 namespace rv_3dmppc
 {
 
@@ -85,26 +87,26 @@ public:
     const uint8_t *slot_data(int64_t slot) const;
 
     // Replace `slot` with `size` bytes of `data` and persist the image.
-    // Returns false on a medium failure, and then the slot - in memory and on
-    // disk alike - still holds exactly what it held before the call.
-    bool slot_write(int64_t slot, const void *data, int64_t size);
+    // Returns RV_OK on success; RV_ERR_IO on a medium failure, and then the slot -
+    // in memory and on disk alike - still holds exactly what it held before the call.
+    int slot_write(int64_t slot, const void *data, int64_t size);
 
     // Empty `slot` and persist. Erasing an already-empty slot touches nothing
-    // and succeeds, so it never brings a file into existence.
-    bool slot_erase(int64_t slot);
+    // and succeeds, so it never brings a file into existence. Returns RV_OK or RV_ERR_IO.
+    int slot_erase(int64_t slot);
 
 private:
     // Reads the file into image_. Returns false only for a file that exists and
     // cannot be trusted; a missing file yields a freshly formatted RAM image.
     bool load();
 
-    // Writes image_ out atomically (temp file + fsync + rename).
-    bool flush();
+    // Writes image_ out atomically (temp file + fsync + rename). Returns RV_OK or RV_ERR_IO.
+    int flush();
 
     // Apply one slot mutation (`new_length` < 0 empties the slot) and persist
     // it, undoing the in-RAM change when the persist fails. The single place
-    // where the contract's "old content intact" promise is kept.
-    bool commit(int64_t slot, int64_t new_length, const void *data);
+    // where the contract's "old content intact" promise is kept. Returns RV_OK or RV_ERR_IO.
+    int commit(int64_t slot, int64_t new_length, const void *data);
 
     void format_empty();
     int64_t length_at(int64_t slot) const;
