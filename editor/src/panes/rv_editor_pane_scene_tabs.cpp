@@ -15,6 +15,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_sound.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -52,10 +53,14 @@ void rv_editor_scene_tab_picture(rv_editor_app &app, SDL_Renderer *renderer, con
     a.rel = rv_editor_scene_tab_rel(app, tab.path);
     const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
     if (picture.id == ImTextureID{}) {
-        ImGui::TextWrapped("Could not load the picture: %s", a.rel.c_str());
+        const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load",
+            std::make_format_args(a.rel));
+        ImGui::TextWrapped("%s", error_msg.c_str());
         return;
     }
-    ImGui::Text("%d x %d px  %s", picture.w, picture.h, a.rel.c_str());
+    const std::string picture_info = rv_editor_text_format("pane_scene_tabs.picture_info",
+        std::make_format_args(picture.w, picture.h, a.rel));
+    ImGui::Text("%s", picture_info.c_str());
     const ImVec2 room = ImGui::GetContentRegionAvail();
     ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y));
 }
@@ -63,9 +68,10 @@ void rv_editor_scene_tab_picture(rv_editor_app &app, SDL_Renderer *renderer, con
 void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_theme &theme)
 {
     ImGui::Text("%s", tab.path.filename().string().c_str());
-    ImGui::Text("%.2f s", tab.sound_seconds);
+    const double sound_seconds = tab.sound_seconds;
+    ImGui::Text("%s", rv_editor_text_format("pane_scene_tabs.sound_seconds", std::make_format_args(sound_seconds)).c_str());
     const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == tab.path;
-    if (rv_editor_button("Play", theme)) {
+    if (rv_editor_button(rv_editor_text("pane_scene_tabs.button_play"), theme)) {
         std::string error;
         if (rv_editor_sound_play(tab.path, error) == RV_OK) {
             rv_editor_scene_sound_last_error = {};
@@ -74,13 +80,14 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
         }
     }
     ImGui::SameLine();
-    const rv_editor_state stop_state{ rv_editor_look::live, playing_this ? nullptr : "Nothing is playing" };
-    if (rv_editor_button("Stop", theme, stop_state)) {
+    const rv_editor_state stop_state{ rv_editor_look::live,
+        playing_this ? nullptr : rv_editor_text("pane_scene_tabs.tooltip_nothing_playing") };
+    if (rv_editor_button(rv_editor_text("pane_scene_tabs.button_stop"), theme, stop_state)) {
         rv_editor_sound_stop();
     }
     if (playing_this) {
         ImGui::SameLine();
-        ImGui::TextDisabled("Playing");
+        ImGui::TextDisabled("%s", rv_editor_text("pane_scene_tabs.status_playing"));
     }
     if (rv_editor_scene_sound_last_error.path == tab.path && !rv_editor_scene_sound_last_error.text.empty()) {
         ImGui::TextWrapped("%s", rv_editor_scene_sound_last_error.text.c_str());
@@ -146,7 +153,8 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
         return true;
     }
     std::vector<std::string> text;
-    text.push_back(app.scene != nullptr ? rv_editor_app_scene_name(app) : std::string("Scene"));
+    const char *scene_tab_label = rv_editor_text("pane_scene_tabs.tab_scene");
+    text.push_back(app.scene != nullptr ? rv_editor_app_scene_name(app) : std::string(scene_tab_label));
     for (const rv_editor_scene_tab &tab : st.tabs) {
         text.push_back(tab.path.filename().string());
     }
@@ -165,11 +173,11 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
     rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##scene_tabmenu")) {
         const bool closable = st.front > 0;
-        if (ImGui::MenuItem("Close Tab", nullptr, false, closable)) {
+        if (ImGui::MenuItem(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, false, closable)) {
             rv_editor_scene_tab_close(app, static_cast<size_t>(st.front - 1));
         }
         if (!closable && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("The scene stays in front.");
+            ImGui::SetTooltip("%s", rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front"));
         }
         ImGui::EndPopup();
     }
