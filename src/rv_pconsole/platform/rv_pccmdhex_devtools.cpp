@@ -9,16 +9,25 @@
 
 namespace rv_3dmppc
 {
+namespace
+{
+
+// Hex encoding constants.
+constexpr std::size_t HEX_CHARS_PER_BYTE = 2; // Two hex digits represent one byte
+constexpr int HIGH_NIBBLE_SHIFT = 4;          // Bit shift to extract high nibble
+constexpr uint8_t NIBBLE_MASK = 0x0F;         // Mask to extract low nibble
+
+} // namespace
 
 std::string rv_pccmd_hex(std::string_view bytes)
 {
     static constexpr char digits[] = "0123456789abcdef";
     std::string out;
-    out.reserve(bytes.size() * 2);
+    out.reserve(bytes.size() * HEX_CHARS_PER_BYTE);
     for (const char c : bytes) {
         const unsigned char byte = static_cast<unsigned char>(c);
-        out.push_back(digits[byte >> 4]);
-        out.push_back(digits[byte & 0x0F]);
+        out.push_back(digits[byte >> HIGH_NIBBLE_SHIFT]);
+        out.push_back(digits[byte & NIBBLE_MASK]);
     }
     return out;
 }
