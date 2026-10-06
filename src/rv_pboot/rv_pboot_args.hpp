@@ -25,6 +25,10 @@
 namespace rv_3dmppc
 {
 
+// Exit code for invalid command-line argument or configuration: same as getopt's
+// unrecognized option error. Returned when bad input makes boot impossible.
+constexpr int EXIT_CODE_INVALID_ARGS = 2;
+
 // Taken from argv[0] rather than written down, so the prefix keeps matching
 // getopt's after the binary is renamed.
 inline const char *rv_console_progname()

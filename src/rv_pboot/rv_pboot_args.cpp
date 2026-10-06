@@ -60,7 +60,7 @@ int refuse(const std::string &what, int &exit_code)
 {
     rv_3dmppc::rv_console_print_error(what);
     rv_3dmppc::rv_console_print_usage(stderr);
-    exit_code = 2;
+    exit_code = EXIT_CODE_INVALID_ARGS;
     return RV_ERR_INVAL;
 }
 
@@ -275,7 +275,7 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
             case '?':
                 // getopt has already named the offending option on stderr.
                 rv_3dmppc::rv_console_print_usage(stderr);
-                exit_code = 2;
+                exit_code = EXIT_CODE_INVALID_ARGS;
                 return RV_ERR_INVAL;
             default:
                 break;

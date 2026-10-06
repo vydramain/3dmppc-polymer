@@ -71,7 +71,7 @@ int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &s
     // --mode_cv.
     if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
         rv_console_print_error("cv is null, nothing to dump");
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_INVAL;
     }
 
@@ -89,7 +89,7 @@ int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &s
             std::string("--paused would never be lifted: this mode has no window for the "
                         "pause key") +
             RV_PBOOT_ARGS_CMD_PAUSE_HINT);
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_INVAL;
     }
 
@@ -197,7 +197,7 @@ int rv_pboot_run(int argc, char **argv)
     if (args.frame_fd >= 0) {
         if (!args.dev) {
             rv_console_print_error("--frame-fd needs --dev: the pad buttons arrive over its channel");
-            return 2;
+            return EXIT_CODE_INVALID_ARGS;
         }
         wants.window = false;
     }

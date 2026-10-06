@@ -23,6 +23,9 @@ namespace rv_3dmppc
 namespace
 {
 
+// Preset section name prefix in modes.toml: all sections named "[mode.<NAME>]"
+constexpr std::string_view MODES_SECTION_PREFIX = "mode.";
+
 struct rv_pboot_preset {
     const char *name;
     rv_pcslots slots;
@@ -87,7 +90,7 @@ int apply_override(const Table &table, const std::string &slot_flag, const std::
     rv_console_print_error(std::format("unknown --mode_{} '{}', available: {}", slot_flag,
         rv_pdklib::rv_log_escape(value.c_str()), available));
     rv_console_print_usage(stderr);
-    exit_code = 2;
+    exit_code = EXIT_CODE_INVALID_ARGS;
     return RV_ERR_INVAL;
 }
 
@@ -138,12 +141,12 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
         if (section.poisoned) {
             continue;
         }
-        if (!section.name.starts_with("mode.") || section.name.size() == 5) {
+        if (!section.name.starts_with(MODES_SECTION_PREFIX) || section.name.size() == MODES_SECTION_PREFIX.size()) {
             failer.fail(section.line,
                 std::format("section '[{}]' is not a preset - expected '[mode.<NAME>]'", section.name));
             continue;
         }
-        const std::string name = section.name.substr(5);
+        const std::string name = section.name.substr(MODES_SECTION_PREFIX.size());
 
         bool duplicate = false;
         for (const pending_preset &p : pendings) {
@@ -228,14 +231,14 @@ int load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         rv_console_print_error(std::format("cannot open modes file '{}'", path.string()));
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_IO;
     }
     std::ostringstream buffer;
     buffer << in.rdbuf();
     if (in.bad()) {
         rv_console_print_error(std::format("cannot read modes file '{}'", path.string()));
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_IO;
     }
     const std::string text = buffer.str();
@@ -261,7 +264,7 @@ int load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
             }
             start = nl + 1;
         }
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_INVAL;
     }
 
@@ -311,7 +314,7 @@ int rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit
             std::format("unknown --mode '{}', available: {}", rv_pdklib::rv_log_escape(args.mode.c_str()),
                 available));
         rv_console_print_usage(stderr);
-        exit_code = 2;
+        exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_NOENT;
     }
 
