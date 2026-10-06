@@ -11,6 +11,7 @@
 #include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_game_fit.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -55,17 +56,20 @@ void rv_editor_catalog_frame(ImDrawList *dl, ImVec2 p0, float scale, bool stale,
 void rv_editor_catalog_keys(const rv_editor_theme &theme)
 {
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
-    ImGui::TextWrapped("Tab and Shift+Tab walk these; Space toggles a box, the arrows choose a diamond; the dotted "
-                       "ring marks the one with the keyboard.");
-    const char *labels[] = { "Mute", "Start Paused", "Snap (disabled)" };
+    ImGui::TextWrapped("%s", rv_editor_text("catalog_more.keys_help"));
+    const char *labels[] = { rv_editor_text("catalog_more.checkbox_mute"),
+        rv_editor_text("catalog_more.checkbox_start_paused"),
+        rv_editor_text("catalog_more.checkbox_snap_disabled") };
     for (int i = 0; i < 3; ++i) {
         if (i > 0) {
             ImGui::SameLine();
         }
         rv_editor_checkbox(labels[i], &d.checks[i], theme,
-            { rv_editor_look::live, i == 2 ? "Disabled: shows the reason on hover" : nullptr });
+            { rv_editor_look::live, i == 2 ? rv_editor_text("catalog_more.disabled_shows_reason") : nullptr });
     }
-    const char *radios[] = { "Select", "Move", "Rotate", "Scale" };
+    const char *radios[] = { rv_editor_text("catalog_more.radio_select"),
+        rv_editor_text("catalog_more.radio_move"), rv_editor_text("catalog_more.radio_rotate"),
+        rv_editor_text("catalog_more.radio_scale") };
     for (int i = 0; i < 4; ++i) {
         if (i > 0) {
             ImGui::SameLine();
@@ -82,16 +86,17 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
     rv_editor_scroll_begin("##cat_scroll", ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * 4.0f), true,
         ImGuiChildFlags_Borders);
     for (int i = 1; i <= 12; ++i) {
-        ImGui::Text("%02d  a line long enough to need the horizontal bar as well: scenes/level-%02d.scene.toml, "
-                    "assets/textures/very-long-texture-name-%02d.png, assets/sounds/very-long-sound-name-%02d.pcm, "
-                    "scripts/very-long-module-name-%02d.lua",
-            i, i, i, i, i);
+        const auto args = std::make_format_args(i, i, i, i, i);
+        const auto text = rv_editor_text_format("catalog_more.overflow_long_line", args);
+        ImGui::Text("%s", text.c_str());
     }
     rv_editor_scroll_end(theme);
     // The transport in a narrow strip: what does not fit goes behind More.
-    ImGui::TextUnformatted("Transport at 220 px:");
+    ImGui::TextUnformatted(rv_editor_text("catalog_more.overflow_transport_label"));
     ImGui::BeginChild("##cat_narrow", ImVec2(220.0f, ImGui::GetFrameHeight() * 3.2f), ImGuiChildFlags_Borders);
-    const rv_editor_transport_state state{ nullptr, "Already running", nullptr, "Pause first", nullptr, nullptr, false };
+    const rv_editor_transport_state state{ nullptr,
+        rv_editor_text("catalog_more.transport_already_running"), nullptr,
+        rv_editor_text("catalog_more.transport_pause_first"), nullptr, nullptr, false };
     rv_editor_transport_bar(state, theme);
     ImGui::EndChild();
 }
@@ -99,7 +104,7 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
 void rv_editor_catalog_code(const rv_editor_theme &theme)
 {
     // The code font and the colours the code tile's nvim draws with; the tile itself needs a running nvim.
-    ImGui::TextDisabled("The code tile is nvim; this shows its font and colours on fixed text.");
+    ImGui::TextDisabled("%s", rv_editor_text("catalog_more.code_tile_description"));
     const float w = ImGui::GetContentRegionAvail().x;
     const float line = ImGui::GetTextLineHeightWithSpacing();
     const ImVec2 p0 = rv_editor_catalog_reserve(ImVec2(w, line * 7.5f));
@@ -144,7 +149,8 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
         if (r == 5) {
             // A build diagnostic under its place.
             dl->AddLine(ImVec2(p0.x + 36.0f, y + cl - 1.0f), ImVec2(x, y + cl - 1.0f), rv_editor_col(theme.code_red), 1.0f);
-            dl->AddText(ImVec2(x + 12.0f, y), rv_editor_col(theme.code_red), "error: expected expression");
+            dl->AddText(ImVec2(x + 12.0f, y), rv_editor_col(theme.code_red),
+                rv_editor_text("catalog_more.code_error_example"));
         }
         if (r == 3) {
             dl->AddRectFilled(ImVec2(x, y), ImVec2(x + 2.0f, y + cl), rv_editor_col(theme.code_text));
@@ -163,14 +169,18 @@ void rv_editor_catalog_game(const rv_editor_theme &theme)
         rv_editor_game_scale mode;
         float w;
         bool stale;
-    } cases[] = { { "Fit", rv_editor_game_scale::fit, h * 1.9f, false }, { "Integer", rv_editor_game_scale::integer,
-                      h * 1.9f, false },
-        { "Fit, stale", rv_editor_game_scale::fit, h * 1.4f, true } };
+    } cases[] = { { "catalog_more.game_fit", rv_editor_game_scale::fit, h * 1.9f, false },
+        { "catalog_more.game_integer", rv_editor_game_scale::integer, h * 1.9f, false },
+        { "catalog_more.game_fit_stale", rv_editor_game_scale::fit, h * 1.4f, true } };
     ImDrawList *dl = ImGui::GetWindowDrawList();
     for (const auto &c : cases) {
         ImGui::BeginGroup();
         const rv_editor_game_view view = rv_editor_game_place(320, 240, c.w, h, c.mode);
-        ImGui::Text("%s %.2fx%s", c.label, view.scale, c.stale ? ": the last frame of an ended session" : "");
+        const char *label = rv_editor_text(c.label);
+        const auto view_args = std::make_format_args(label, view.scale);
+        const auto view_text = rv_editor_text_format(
+            c.stale ? "catalog_more.game_view_stale" : "catalog_more.game_view", view_args);
+        ImGui::Text("%s", view_text.c_str());
         const ImVec2 p0 = rv_editor_catalog_reserve(ImVec2(c.w, h));
         dl->AddRectFilled(p0, ImVec2(p0.x + c.w, p0.y + h), rv_editor_col(theme.code_base));
         rv_editor_catalog_frame(dl, ImVec2(p0.x + view.x, p0.y + view.y), view.scale, c.stale, theme);
@@ -216,17 +226,19 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
         ImGui::EndDragDropTarget();
     }
     ImGui::SameLine();
-    ImGui::TextUnformatted("Drop pocket: drag a cell here");
+    ImGui::TextUnformatted(rv_editor_text("catalog_more.cells_drop_pocket"));
 }
 
 void rv_editor_catalog_type(const rv_editor_theme &theme)
 {
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
-    ImGui::Text("UI font %.0f px at this scale; the code text has its own size (View > Code Text Size).",
-        ImGui::GetFontSize());
-    ImGui::TextUnformatted("Interface: pdklib's 5x7 font in an 8 px line, 0O 1lI");
+    const float font_size = ImGui::GetFontSize();
+    const auto font_args = std::make_format_args(font_size);
+    const auto font_text = rv_editor_text_format("catalog_more.type_ui_font_description", font_args);
+    ImGui::Text("%s", font_text.c_str());
+    ImGui::TextUnformatted(rv_editor_text("catalog_more.type_interface_font"));
     rv_editor_font_code_push();
-    ImGui::TextUnformatted("Code and logs: PxPlus IBM VGA 9x16, 0O 1lI");
+    ImGui::TextUnformatted(rv_editor_text("catalog_more.type_code_font"));
     rv_editor_font_code_pop();
     // Editable next to read-only: the two must not be mistaken.
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
@@ -236,12 +248,16 @@ void rv_editor_catalog_type(const rv_editor_theme &theme)
     rv_editor_text_field("##locked", d.locked, sizeof(d.locked), theme, { {}, true });
     // The viewer's thumbwheel.
     bool reset = false;
-    d.wheel += rv_editor_thumbwheel("##cat_wheel", "Rot Y", false, ImGui::GetFontSize() * 14.0f, theme, reset);
+    d.wheel += rv_editor_thumbwheel("##cat_wheel", rv_editor_text("catalog_more.type_thumbwheel_label"), false,
+        ImGui::GetFontSize() * 14.0f, theme, reset);
     if (reset) {
         d.wheel = 0.0f;
     }
     ImGui::SameLine();
-    ImGui::Text("Rot Y %+.0f (double click resets)", std::fmod(d.wheel * 0.4f, 360.0f));
+    const float wheel_angle = std::fmod(d.wheel * 0.4f, 360.0f);
+    const auto status_args = std::make_format_args(wheel_angle);
+    const auto status_text = rv_editor_text_format("catalog_more.type_thumbwheel_status", status_args);
+    ImGui::Text("%s", status_text.c_str());
 }
 
 } // namespace rv_editor
