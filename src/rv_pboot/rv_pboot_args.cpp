@@ -53,6 +53,10 @@ std::string join_names_or(const Table &table) {
     return result;
 }
 
+// Separator between last preset and wrapped line: replaced with newline +
+// indent + 'and ' to rewrap the help text across multiple lines.
+constexpr std::string_view preset_and_sep = " and ";
+
 // Every bad argument ends the same way: name it, print the usage, exit 2.
 // Written once because it was written five times, and the fifth copy is where
 // one of them stops matching the others.
@@ -82,9 +86,9 @@ void rv_console_print_usage(std::FILE *stream)
     // The sentence wraps after the first preset, same as the literal help
     // text used to: rewrap " and " onto its own indented line.
     std::string presets = rv_pboot_builtin_presets_summary();
-    const std::size_t and_pos = presets.rfind(" and ");
+    const std::size_t and_pos = presets.rfind(preset_and_sep);
     if (and_pos != std::string::npos) {
-        presets.replace(and_pos, 5, "\n                       and ");
+        presets.replace(and_pos, preset_and_sep.size(), "\n                       and ");
     }
     const std::string platform_list = join_names_or(RV_PCSLOTS_PLATFORM);
     const std::string ca_list = join_names_or(RV_PCSLOTS_CA);
