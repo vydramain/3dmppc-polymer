@@ -367,3 +367,11 @@ move_to_root = "Move to Root"
 move_to_root_keep_local = "Move to Root (Keep Local Values)"
 no_scene_open = "No scene is open."
 not_moved = "Not moved: {}"
+
+[pane_scene]
+create_scene = "Create Scene"
+create_scene_tooltip = "A camera and a box in scenes/, under a name no file has"
+open_file = "Open {}"
+no_scene_open = "No scene is open. A scene is a file in scenes/ with objects in it: groups, cameras and boxes, each with a position, rotation and scale."
+game_loader_explanation = "The game shows a scene only if its code reads it through a loader, pdklib/rv_scene, as example-cpp does. Geometry written in C++ is not a scene here, and nothing is converted into one."
+read_only_format = "Read-only: {}"

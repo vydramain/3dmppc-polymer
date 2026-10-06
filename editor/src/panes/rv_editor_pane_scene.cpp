@@ -8,6 +8,7 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -16,13 +17,16 @@ namespace rv_editor
 
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    if (rv_editor_button("Create Scene", theme)) {
+    if (rv_editor_button(rv_editor_text("pane_scene.create_scene"), theme)) {
         rv_editor_shell_new_scene_request(app);
     }
-    ImGui::SetItemTooltip("A camera and a box in scenes/, under a name no file has");
+    ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene.create_scene_tooltip"));
     for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {
         ImGui::SameLine();
-        if (rv_editor_button(("Open " + path.filename().string()).c_str(), theme)) {
+        const std::string filename = path.filename().string();
+        const auto open_label = rv_editor_text_format("pane_scene.open_file",
+            std::make_format_args(filename));
+        if (rv_editor_button(open_label.c_str(), theme)) {
             rv_editor_app_scene_open(app, path);
         }
     }
@@ -39,8 +43,7 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         return; // a picture or a sound tab is in front; it drew its own content
     }
     if (app.scene == nullptr) {
-        ImGui::TextWrapped("No scene is open. A scene is a file in scenes/ with objects in it: groups, cameras "
-                           "and boxes, each with a position, rotation and scale.");
+        ImGui::TextWrapped("%s", rv_editor_text("pane_scene.no_scene_open"));
         if (!app.scene_error.empty()) {
             ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
             ImGui::TextWrapped("%s", app.scene_error.c_str());
@@ -48,14 +51,14 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         }
         rv_editor_scene_open_row(app, theme);
         ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("The game shows a scene only if its code reads it through a loader, "
-                           "pdklib/rv_scene, as example-cpp does. Geometry written in C++ is not a scene "
-                           "here, and nothing is converted into one.");
+        ImGui::TextWrapped("%s", rv_editor_text("pane_scene.game_loader_explanation"));
         ImGui::PopStyleColor();
         return;
     }
     if (!app.scene->scene.read_only.empty()) {
-        ImGui::TextWrapped("Read-only: %s", app.scene->scene.read_only.c_str());
+        const auto read_only_msg = rv_editor_text_format("pane_scene.read_only_format",
+            std::make_format_args(app.scene->scene.read_only));
+        ImGui::TextWrapped("%s", read_only_msg.c_str());
     }
     if (!app.scene_error.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
