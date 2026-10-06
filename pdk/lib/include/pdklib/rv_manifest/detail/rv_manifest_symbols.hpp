@@ -16,21 +16,21 @@ namespace rv_pdklib
 class rv_manifest_symbols
 {
 public:
-	// --- static: the schema ---------------------------------------------------
+    // --- static: the schema ---------------------------------------------------
 
-	const rv_manifest_section_spec *lookup_section(std::string_view name) const;
-	const rv_manifest_key_spec *lookup_key(const rv_manifest_section_spec &section,
-		std::string_view name) const;
+    const rv_manifest_section_spec *lookup_section(std::string_view name) const;
+    const rv_manifest_key_spec *lookup_key(const rv_manifest_section_spec &section,
+        std::string_view name) const;
 
-	// --- dynamic: what the file has said so far -------------------------------
+    // --- dynamic: what the file has said so far -------------------------------
 
-	// False when the name is already defined; `first_line` then says where.
-	bool define_section(const std::string &name, int line, int &first_line);
-	bool define_key(const std::string &section, const std::string &key, int line, int &first_line);
+    // RV_OK on success; RV_ERR_INVAL when the name is already defined (first_line says where).
+    int define_section(const std::string &name, int line, int &first_line);
+    int define_key(const std::string &section, const std::string &key, int line, int &first_line);
 
 private:
-	std::map<std::string, int> sections_; // name → line
-	std::map<std::string, int> keys_; // "section.key" → line
+    std::map<std::string, int> sections_; // name → line
+    std::map<std::string, int> keys_;     // "section.key" → line
 };
 
 } // namespace rv_pdklib
