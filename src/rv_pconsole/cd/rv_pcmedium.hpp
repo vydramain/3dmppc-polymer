@@ -72,12 +72,14 @@ class rv_pcdirmedium : public rv_pcmedium {
     int64_t entry_size(const char* resname) const override;
     int64_t entry_read(const char* resname, void* baddr, int64_t cap) const override;
 
-   private:
+private:
     // Maps an already-validated name onto a path inside `root_`, and re-checks
-    // that the result really is a direct child of the root. Defence in depth:
-    // rv_pccd rejects escaping names long before this, and this catches the day
-    // someone adds a second caller that forgets to.
-    bool entry_path(const char* resname, std::filesystem::path& out) const;
+    // that the result really is a direct child of the root. Returns RV_OK on
+    // success, RV_ERR_NOENT if the medium is unmounted, the name is invalid, or
+    // the path escapes the root. Defence in depth: rv_pccd rejects escaping names
+    // long before this, and this catches the day someone adds a second caller that
+    // forgets to.
+    int entry_path(const char *resname, std::filesystem::path &out) const;
 
     std::filesystem::path root_;
     bool mounted_ = false;

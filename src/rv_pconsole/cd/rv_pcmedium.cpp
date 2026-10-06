@@ -80,10 +80,10 @@ rv_pcdirmedium::rv_pcdirmedium(const std::string &dir_path)
     RV_LOG_INFO("pcmedium", "mounted directory medium '{}'", root_.string());
 }
 
-bool rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out) const
+int rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out) const
 {
     if (!mounted_ || !rv_pcresname_valid(resname)) {
-        return false;
+        return RV_ERR_NOENT;
     }
 
     std::filesystem::path candidate = (root_ / resname).lexically_normal();
@@ -93,17 +93,17 @@ bool rv_pcdirmedium::entry_path(const char *resname, std::filesystem::path &out)
     // - which is exactly why a failure here means the validator was bypassed.
     if (candidate.parent_path() != root_) {
         RV_LOG_ERR("pcmedium", "entry name '{}' escapes the medium root; refused", resname);
-        return false;
+        return RV_ERR_NOENT;
     }
 
     out = std::move(candidate);
-    return true;
+    return RV_OK;
 }
 
 int64_t rv_pcdirmedium::entry_size(const char *resname) const
 {
     std::filesystem::path path;
-    if (!entry_path(resname, path)) {
+    if (entry_path(resname, path) != RV_OK) {
         return RV_ERR_NOENT;
     }
 
@@ -136,7 +136,7 @@ int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap
     }
 
     std::filesystem::path path;
-    if (!entry_path(resname, path)) {
+    if (entry_path(resname, path) != RV_OK) {
         return RV_ERR_NOENT;
     }
 
