@@ -70,4 +70,8 @@ inline constexpr std::string_view msg_key_medium = "medium";
 inline constexpr std::string_view msg_key_error = "error";
 inline constexpr std::string_view msg_key_message = "msg";
 
+// Values of the medium field: disc directory vs. burned image.
+inline constexpr std::string_view medium_live = "live";
+inline constexpr std::string_view medium_fixed = "fixed";
+
 } // namespace rv_editor

@@ -121,7 +121,7 @@ const char *rv_editor_app_why_not_stop(const rv_editor_app &app)
 bool rv_editor_app_can_reload(const rv_editor_app &app)
 {
     const rv_editor_session_facts &f = app.session.facts();
-    return app.session.connected() && f.medium == "live" && f.reloadable;
+    return app.session.connected() && f.medium == medium_live && f.reloadable;
 }
 
 const char *rv_editor_app_why_not_reload(const rv_editor_app &app)

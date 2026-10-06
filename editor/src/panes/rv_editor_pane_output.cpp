@@ -32,11 +32,6 @@ namespace
 // Style colours pushed for the output well.
 constexpr int pushed_style_colors = 3;
 
-// Export format: level codes (Error, Warning, Info).
-constexpr std::string_view export_level_error = "ERR";
-constexpr std::string_view export_level_warning = "WRN";
-constexpr std::string_view export_level_info = "INF";
-
 // Export format: channel markers (stdout/stderr) and separators.
 constexpr std::string_view export_channel_out = " out";
 constexpr std::string_view export_channel_err = " err";
@@ -86,17 +81,6 @@ constexpr unsigned char utf8_continuation_marker = 0x80;
 
 // Log row highlight: semi-transparent alpha when hovered (ImGuiCol_HeaderHovered in Selectable rows).
 constexpr unsigned header_hovered_alpha = 0x60u;
-
-const char *rv_editor_output_level(rv_editor_log_level level)
-{
-    if (level == rv_editor_log_level::error) {
-        return export_level_error.data();
-    }
-    if (level == rv_editor_log_level::warning) {
-        return export_level_warning.data();
-    }
-    return export_level_info.data();
-}
 
 // Display text for log level in UI table.
 const char *rv_editor_output_level_text(rv_editor_log_level level)
@@ -171,7 +155,7 @@ std::string rv_editor_output_text(const rv_editor_log_line &line)
         channel = export_channel_err;
     }
     const std::string stamp = rv_editor_log_stamp(line, true);
-    const std::string level = rv_editor_output_level(line.level);
+    const char *level = rv_editor_log_level_code(line.level);
     const std::string source = rv_editor_log_source_name(line.source);
     const std::string head = stamp + export_field_separator.data() + level + export_field_separator.data() + source;
     const std::string pid_str = std::string(export_channel_pid) + std::to_string(line.pid);

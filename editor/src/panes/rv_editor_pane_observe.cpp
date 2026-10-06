@@ -259,7 +259,7 @@ void rv_editor_observe_facts(const rv_editor_session &s)
         "pane_observe.fact_frame_running";
     rv_editor_fact(rv_editor_text("pane_observe.fact_frame"),
         rv_editor_text_format(frame_key, std::make_format_args(frame)));
-    const char *disc_key = f.medium == "live" ?
+    const char *disc_key = f.medium == medium_live ?
         "pane_observe.fact_disc_directory" :
         "pane_observe.fact_disc_image";
     rv_editor_fact(rv_editor_text("pane_observe.fact_disc"),

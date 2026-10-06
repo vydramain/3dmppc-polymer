@@ -33,11 +33,6 @@ constexpr float multiline_input_height_lines = 3.5f;
 // Default line number to open new test case file in editor.
 constexpr int case_file_open_line = 3;
 
-// Log level display strings for console output.
-constexpr const char *log_level_error_str = "ERR";
-constexpr const char *log_level_warn_str = "WRN";
-constexpr const char *log_level_info_str = "INF";
-
 // Case file section markers and template.
 constexpr std::string_view case_file_marker_title = "title:";
 constexpr std::string_view case_file_marker_steps = "steps:";
@@ -97,12 +92,7 @@ std::string rv_editor_now_text(const char *format)
 
 std::string rv_editor_log_text(const rv_editor_log_line &line)
 {
-    const char *level = log_level_info_str;
-    if (line.level == rv_editor_log_level::error) {
-        level = log_level_error_str;
-    } else if (line.level == rv_editor_log_level::warning) {
-        level = log_level_warn_str;
-    }
+    const char *level = rv_editor_log_level_code(line.level);
     return rv_editor_log_stamp(line, true) + std::string(log_text_open) + rv_editor_log_source_name(line.source) +
         std::string(log_text_close) + level + std::string(log_text_level_sep) + line.text;
 }

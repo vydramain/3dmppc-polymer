@@ -22,9 +22,24 @@ namespace
 // The lookup of the running candidate build's sources; the record waits for it.
 rv_editor_revision_job g_revision;
 
+// Directory name for cached release candidates.
+constexpr std::string_view candidates_dir_name = "candidates";
+
+// Disc image file extension.
+constexpr std::string_view disc_image_ext = ".mppcdisc";
+
+// Memory card file extension.
+constexpr std::string_view memory_card_ext = ".mppccard";
+
+// Candidate build log file name.
+constexpr std::string_view candidate_log_name_build = "build";
+
+// Prefix of session end reason for forced stops.
+constexpr std::string_view session_end_prefix_forced = "force";
+
 std::filesystem::path rv_editor_candidates_dir(const rv_editor_app &app)
 {
-    return app.project.cache_dir / "candidates";
+    return app.project.cache_dir / candidates_dir_name;
 }
 
 // One more than the highest <n>.mppcdisc already there: no image is written over.
@@ -33,7 +48,7 @@ uint32_t rv_editor_candidate_next(const std::filesystem::path &dir)
     uint32_t top = 0;
     std::error_code ec;
     for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
-        if (it->path().extension() != ".mppcdisc") {
+        if (it->path().extension() != disc_image_ext) {
             continue;
         }
         const std::string stem = it->path().stem().string();
@@ -48,10 +63,8 @@ uint32_t rv_editor_candidate_next(const std::filesystem::path &dir)
 
 std::string rv_editor_line_text(const rv_editor_log_line &line)
 {
-    const char *level = line.level == rv_editor_log_level::error ? "ERR"
-        : line.level == rv_editor_log_level::warning             ? "WRN"
-                                                                 : "INF";
-    return std::string("[") + rv_editor_log_source_name(line.source) + "] " + level + " " + line.text + "\n";
+    return std::string("[") + rv_editor_log_source_name(line.source) + "] " + rv_editor_log_level_code(line.level) +
+        " " + line.text + "\n";
 }
 
 // The log lines seq `from`..`to` (0: to the end), and a note when older ones were dropped.
@@ -94,8 +107,9 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.source_revision = r.building_revision;
     c.checks = rv_editor_checks_make();
     std::string error;
-    if (rv_editor_file_replace(rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "build"),
-            rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error) != RV_OK) {
+    const auto log_path = rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number,
+        std::string(candidate_log_name_build));
+    if (rv_editor_file_replace(log_path, rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "build log not kept: " + error);
     }
     c.dirty = true;
@@ -119,7 +133,8 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     std::string error;
     r.build_first_seq = app.log.revision() + 1;
     app.build_first_seq = r.build_first_seq;
-    if (app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + ".mppcdisc")) != RV_OK) {
+    if (app.build.start(app.project, app.tools, app.log, error,
+            dir / (std::to_string(number) + std::string(disc_image_ext))) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
         return;
     }
@@ -163,7 +178,7 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
     rv_editor_candidate_hash(c);
     // Its own memory card, so no save of the development builds reaches it.
     std::filesystem::path card = c.image;
-    card.replace_extension(".mppccard");
+    card.replace_extension(memory_card_ext);
     r.playtest_first_seq = app.log.revision() + 1;
     if (rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card) != RV_OK) {
         return;
@@ -213,7 +228,7 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
                                                         : app.tools.console.path.string();
     if (loads.state == rv_editor_check_state::running && still_playing && s.connected()) {
         // Mounted as an image (medium fixed) and answering: the claim of this check, no more.
-        const bool image = s.facts().medium == "fixed";
+        const bool image = s.facts().medium == medium_fixed;
         rv_editor_check_set(c, rv_editor_check_loads, image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
             image ? "mounted as an image, disc " + s.facts().disc : "the console did not mount it as an image", env);
     }
@@ -235,7 +250,8 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     }
     c.dirty = true;
     c.last_run_end = end_reason;
-    c.last_run_clean = !s.live() && s.state() == rv_editor_run_state::exited && s.end_reason().rfind("force", 0) != 0;
+    c.last_run_clean = !s.live() && s.state() == rv_editor_run_state::exited &&
+        s.end_reason().rfind(session_end_prefix_forced, 0) != 0;
     r.playing = -1;
 }
 
@@ -283,8 +299,9 @@ void rv_editor_app_export_report(rv_editor_app &app)
     t += "\n";
     // The logs kept beside the record, so a report written days later still has them.
     const std::filesystem::path dir = rv_editor_candidates_dir(app);
-    t += "\n--- build log (" + rv_editor_candidate_log(dir, c.number, "build").string() + ") ---\n" +
-        rv_editor_file_text(rv_editor_candidate_log(dir, c.number, "build"));
+    const std::filesystem::path build_log =
+        rv_editor_candidate_log(dir, c.number, std::string(candidate_log_name_build));
+    t += "\n--- build log (" + build_log.string() + ") ---\n" + rv_editor_file_text(build_log);
     for (uint32_t i = 1; i <= c.playtests; ++i) {
         const std::filesystem::path log = rv_editor_candidate_log(dir, c.number, "playtest-" + std::to_string(i));
         t += "\n--- playtest " + std::to_string(i) + " log (" + log.string() + ") ---\n" + rv_editor_file_text(log);

@@ -23,6 +23,11 @@ constexpr int ms_per_second = 1000;
 // Timestamp buffer: stores formatted time strings like "HH:MM:SS.mmm" (12 chars + NUL)
 constexpr size_t log_stamp_buf_bytes = 16;
 
+// Log level codes for exported text.
+constexpr const char *log_level_error_code = "ERR";
+constexpr const char *log_level_warning_code = "WRN";
+constexpr const char *log_level_info_code = "INF";
+
 const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
 {
     switch (channel) {
@@ -246,6 +251,19 @@ const char *rv_editor_log_source_name(rv_editor_log_source source)
         case rv_editor_log_source::count: break;
     }
     return "?";
+}
+
+const char *rv_editor_log_level_code(rv_editor_log_level level)
+{
+    switch (level) {
+    case rv_editor_log_level::error:
+        return log_level_error_code;
+    case rv_editor_log_level::warning:
+        return log_level_warning_code;
+    case rv_editor_log_level::info:
+        break;
+    }
+    return log_level_info_code;
 }
 
 } // namespace rv_editor
