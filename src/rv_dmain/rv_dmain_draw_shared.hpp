@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 
 #include "pdk/cv/rv_cv.h"
 
@@ -11,14 +12,16 @@ namespace rv_service
 namespace rv_dmain_detail
 {
 
+constexpr float ROUNDING_ADJUST = 0.5f;
+
 inline int16_t to_screen(float value)
 {
-    const float rounded = std::floor(value + 0.5f);
-    if (rounded <= -32768.0f) {
-        return -32768;
+    const float rounded = std::floor(value + ROUNDING_ADJUST);
+    if (rounded <= static_cast<float>(std::numeric_limits<int16_t>::min())) {
+        return std::numeric_limits<int16_t>::min();
     }
-    if (rounded >= 32767.0f) {
-        return 32767;
+    if (rounded >= static_cast<float>(std::numeric_limits<int16_t>::max())) {
+        return std::numeric_limits<int16_t>::max();
     }
     return static_cast<int16_t>(rounded);
 }
