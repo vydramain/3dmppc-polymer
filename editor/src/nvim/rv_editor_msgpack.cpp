@@ -87,6 +87,15 @@ constexpr int mpack_fixext16_bytes = 16;
 // Bits per byte for big-endian encoding/decoding.
 constexpr int bits_per_byte = 8;
 
+// MessagePack spec, formats (encoding boundaries and limits).
+constexpr int64_t mpack_negative_fixint_max_value = -32;
+constexpr uint8_t mpack_fixstr_max = 31;
+constexpr uint8_t mpack_fixarray_max = 15;
+constexpr uint8_t mpack_fixmap_max = 15;
+constexpr uint8_t mpack_uint8_max = 0xff;
+constexpr uint16_t mpack_uint16_max = 0xffff;
+constexpr uint32_t mpack_uint32_max = 0xffffffffu;
+
 class rv_editor_mpack_cursor
 {
 public:
@@ -353,41 +362,41 @@ void rv_editor_mpack_writer::put_be(uint64_t v, int bytes)
 
 void rv_editor_mpack_writer::nil()
 {
-    put(0xc0);
+    put(mpack_nil);
 }
 
 void rv_editor_mpack_writer::boolean(bool v)
 {
-    put(v ? 0xc3 : 0xc2);
+    put(v ? mpack_true : mpack_false);
 }
 
 void rv_editor_mpack_writer::integer(int64_t v)
 {
-    if (v >= 0 && v <= 0x7f) {
+    if (v >= 0 && v <= mpack_positive_fixint_max) {
         put(static_cast<uint8_t>(v));
-    } else if (v < 0 && v >= -32) {
+    } else if (v < 0 && v >= mpack_negative_fixint_max_value) {
         put(static_cast<uint8_t>(v));
-    } else if (v >= 0 && v <= 0xffffffffll) {
-        put(0xce);
+    } else if (v >= 0 && v <= mpack_uint32_max) {
+        put(mpack_uint32);
         put_be(static_cast<uint64_t>(v), 4);
     } else {
-        put(0xd3);
+        put(mpack_int64);
         put_be(static_cast<uint64_t>(v), 8);
     }
 }
 
 void rv_editor_mpack_writer::string(std::string_view v)
 {
-    if (v.size() <= 31) {
-        put(static_cast<uint8_t>(0xa0 | v.size()));
-    } else if (v.size() <= 0xff) {
-        put(0xd9);
+    if (v.size() <= mpack_fixstr_max) {
+        put(static_cast<uint8_t>(mpack_fixstr_value | v.size()));
+    } else if (v.size() <= mpack_uint8_max) {
+        put(mpack_str8);
         put_be(v.size(), 1);
-    } else if (v.size() <= 0xffff) {
-        put(0xda);
+    } else if (v.size() <= mpack_uint16_max) {
+        put(mpack_str16);
         put_be(v.size(), 2);
     } else {
-        put(0xdb);
+        put(mpack_str32);
         put_be(v.size(), 4);
     }
     out_.append(v);
@@ -395,26 +404,26 @@ void rv_editor_mpack_writer::string(std::string_view v)
 
 void rv_editor_mpack_writer::array(uint32_t count)
 {
-    if (count <= 15) {
-        put(static_cast<uint8_t>(0x90 | count));
-    } else if (count <= 0xffff) {
-        put(0xdc);
+    if (count <= mpack_fixarray_max) {
+        put(static_cast<uint8_t>(mpack_fixarray_value | count));
+    } else if (count <= mpack_uint16_max) {
+        put(mpack_array16);
         put_be(count, 2);
     } else {
-        put(0xdd);
+        put(mpack_array32);
         put_be(count, 4);
     }
 }
 
 void rv_editor_mpack_writer::map(uint32_t count)
 {
-    if (count <= 15) {
-        put(static_cast<uint8_t>(0x80 | count));
-    } else if (count <= 0xffff) {
-        put(0xde);
+    if (count <= mpack_fixmap_max) {
+        put(static_cast<uint8_t>(mpack_fixmap_value | count));
+    } else if (count <= mpack_uint16_max) {
+        put(mpack_map16);
         put_be(count, 2);
     } else {
-        put(0xdf);
+        put(mpack_map32);
         put_be(count, 4);
     }
 }
