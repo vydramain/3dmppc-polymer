@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "theme/rv_editor_theme.hpp"
+#include "ui/rv_editor_field_sizes.hpp"
 
 namespace rv_editor
 {
@@ -32,7 +33,7 @@ struct rv_editor_browser
     rv_editor_browse_pick pick = rv_editor_browse_pick::directory;
     std::filesystem::path dir;      // the directory listed
     std::filesystem::path selected; // an entry of dir; empty: none
-    char path[512] = {};            // the path field: follows dir, or typed
+    char path[filesystem_path_field_size] = {}; // the path field: follows dir, or typed
     // The entries of `listed`, directories first, read again when dir changes.
     struct rv_editor_entry
     {

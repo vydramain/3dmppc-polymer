@@ -30,9 +30,9 @@ enum class rv_editor_start_page
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
 struct rv_editor_start
 {
-    char name[128] = {};
-    char id[64] = {};
-    char dir[512] = {};
+    char name[identifier_field_size] = {};
+    char id[short_text_field_size] = {};
+    char dir[filesystem_path_field_size] = {};
     bool id_edited = false; // the id no longer follows the name
     size_t template_index = 0;
     std::string error;
@@ -95,7 +95,7 @@ struct rv_editor_shell
     bool save_done = false;
     // Save As: the buffer being named (0: none), the path typed, why it failed.
     int64_t save_as_buffer = 0;
-    char save_as_path[512] = {};
+    char save_as_path[filesystem_path_field_size] = {};
     std::string save_as_error;
     rv_editor_pane_id save_as_pane = rv_editor_tile_none; // the code tile Save As shows in
     // The window has the keyboard, as SDL's focus events say.
@@ -106,7 +106,7 @@ struct rv_editor_shell
     // The code tile used last: what Files opens goes there while Files has the focus.
     rv_editor_pane_id last_code = rv_editor_tile_none;
     // Help's filter as typed, kept while other pages or tabs are in front.
-    char help_filter[64] = {};
+    char help_filter[short_text_field_size] = {};
     rv_editor_start start;
     rv_editor_start_page start_page = rv_editor_start_page::recent;
     std::filesystem::path start_selected; // the Project Catalog's selected project; kept while New Project resets start
@@ -123,7 +123,7 @@ struct rv_editor_shell
     // Settings' draft: read from the tools when the page first shows and after
     // Apply or Revert, kept while other pages or tabs are in front.
     bool settings_loaded = false;
-    char settings_paths[settings_tools_count][512] = {};
+    char settings_paths[settings_tools_count][filesystem_path_field_size] = {};
     std::string settings_error;
     // What Check found for a field as it stood; dropped when the field changes.
     std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;

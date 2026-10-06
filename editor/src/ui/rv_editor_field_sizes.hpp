@@ -13,7 +13,7 @@ constexpr size_t short_text_field_size = 64;
 // One-line search/filter query field: Output pane search
 constexpr size_t search_field_size = 128;
 
-// Object name identifier: scene object names
+// Object name identifier: scene objects, new project name
 constexpr size_t identifier_field_size = 128;
 
 // Mark moment note: debug session annotations
@@ -24,6 +24,9 @@ constexpr size_t title_field_size = 160;
 
 // Asset name and file identifier: mesh, texture, file names
 constexpr size_t asset_identifier_field_size = 256;
+
+// Project file search query: Search Results pane
+constexpr size_t project_search_query_field_size = 256;
 
 // Filesystem path: runtime, memory card, working directory
 constexpr size_t filesystem_path_field_size = 512;

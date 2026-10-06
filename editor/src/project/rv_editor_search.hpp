@@ -7,6 +7,8 @@
 #include <string_view>
 #include <vector>
 
+#include "ui/rv_editor_field_sizes.hpp"
+
 namespace rv_editor
 {
 
@@ -39,7 +41,7 @@ rv_editor_search_result rv_editor_search_run(const std::filesystem::path &root, 
 // The Search Results pane's state: the field and the result of the query last run.
 struct rv_editor_search_view
 {
-    char query[256] = {};
+    char query[project_search_query_field_size] = {};
     bool match_case = false;
     bool all = false;
     bool focus = false;   // Ctrl+Shift+F: the field takes the keyboard next frame
