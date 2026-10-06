@@ -1,8 +1,5 @@
-// rv_dmain: per-frame drawing of the test grid and the status POST.
+// rv_dmain: per-frame drawing of the test grid.
 #include "rv_dmain.hpp"
-
-#include <cmath>
-#include <cstdio>
 
 #include "pdk/cv/rv_cv.h"
 #include "pdklib/rv_camera/rv_camera.hpp"
@@ -10,6 +7,8 @@
 #include "pdklib/rv_math/rv_math.hpp"
 #include "pdklib/rv_font/rv_font.hpp"
 #include "pdklib/rv_math/rv_xform.hpp"
+
+#include "rv_dmain_draw_shared.hpp"
 
 namespace rv_service
 {
@@ -21,40 +20,7 @@ namespace
 // the cube and the status bars sit in front of it.
 constexpr int32_t RV_DMAIN_DEPTH_ART_LO = -400;
 constexpr int32_t RV_DMAIN_DEPTH_ART_HI = 400;
-constexpr int32_t RV_DMAIN_DEPTH_PANEL = 880; // the slab text sits on
 constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900;  // over everything, it explains it
-
-// The screen is a POST: it reports WHAT THE MACHINE IS and whether each part
-// answered - not a caption for what is drawn below it.
-//
-// The first version of this screen labelled the picture ("textures", "cube",
-// "ticks", "bar", "south") and was useless: those are the names of THIS FILE's
-// implementation details, and nobody outside it can know that "south" is what
-// the input contract calls the bottom face button. Every number below instead
-// comes from a real query - screen_width(), voice_count(), card_slots() - so
-// the fact that it is on screen at all is itself the proof that the query
-// answers.
-constexpr const char *RV_DMAIN_TITLE = "3DMPPC";
-constexpr const char *RV_DMAIN_NO_DISC = "NO DISC INSERTED";
-// Named by the KEY a person can press. "south" is what the input contract calls
-// the bottom face button, and nobody outside that header knows it.
-constexpr const char *RV_DMAIN_HINTS = "Z sound   ESC power off";
-
-// Human sizes. 1048576 reads as "1 MB", 524288 as "512 KB" - a service screen
-// that prints raw byte counts makes the reader do arithmetic to learn something
-// the machine already knows.
-void format_bytes(char *out, std::size_t cap, int64_t bytes)
-{
-    // The buffer must fit the widest int64 plus a unit; snprintf truncating a
-    // diagnostic silently is the last thing a diagnostic screen should do.
-    if (bytes >= 1024 * 1024 && bytes % (1024 * 1024) == 0) {
-        std::snprintf(out, cap, "%lld MB", static_cast<long long>(bytes / (1024 * 1024)));
-    } else if (bytes >= 1024) {
-        std::snprintf(out, cap, "%lld KB", static_cast<long long>(bytes / 1024));
-    } else {
-        std::snprintf(out, cap, "%lld B", static_cast<long long>(bytes));
-    }
-}
 
 // The unit cube: six quads, each in the PDK's Z ORDER, because the console
 // splits a quad into triangles (1,2,3) and (2,3,4) rather than walking the rim.
@@ -74,40 +40,8 @@ constexpr rv_dmain_face RV_DMAIN_CUBE[6] = {
     { { { -1, -1, 1 }, { 1, -1, 1 }, { -1, -1, -1 }, { 1, -1, -1 } }, { 0, -1, 0 } },
 };
 
-int16_t to_screen(float value)
-{
-    const float rounded = std::floor(value + 0.5f);
-    if (rounded <= -32768.0f) {
-        return -32768;
-    }
-    if (rounded >= 32767.0f) {
-        return 32767;
-    }
-    return static_cast<int16_t>(rounded);
-}
-
-// A flat rectangle, filled in completely so no byte of the union is left
-// indeterminate. Factory method - rv_primitive is a tagged union of
-// constructor-less structs, and an "almost filled" literal leaves live fields
-// holding whatever the stack had.
-rv_primitive make_bar(float x, float y, float w, float h, rv_color color, int32_t depth)
-{
-    rv_primitive primitive{};
-    primitive.type = RV_PRIMITIVE_SPRITE;
-    primitive.depth = depth;
-
-    rv_sprite &sprite = primitive.data.sprite;
-    sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
-    sprite.addr_texture = 0;
-    sprite.addr_palette = 0;
-    sprite.color = color;
-    sprite.mapping = RV_TEXWRAP_CLAMP;
-    sprite.x = to_screen(x);
-    sprite.y = to_screen(y);
-    sprite.width = static_cast<uint16_t>(w < 0.0f ? 0.0f : w);
-    sprite.height = static_cast<uint16_t>(h < 0.0f ? 0.0f : h);
-    return primitive;
-}
+using rv_dmain_detail::make_bar;
+using rv_dmain_detail::to_screen;
 
 // Screen-space vertex, filled completely - rv_vertex is a plain struct and an
 // "almost filled" literal leaves live fields holding whatever the stack had.
@@ -406,98 +340,6 @@ void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, i
     sprite.height = static_cast<uint16_t>(h);
 
     rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);
-}
-
-// POST header. Two lines that say what this machine IS - the virtual
-// budget it imposes on itself - and one bottom line saying whether each
-// subsystem answered. The numbers come straight from the contract's geometry
-// queries, so a line that prints at all is a query that worked.
-//
-// An earlier version of this screen captioned the picture instead ("textures",
-// "cube", "ticks", "bar", "south") and was useless: those are the names of THIS
-// file's internals, and nobody outside it can know that "south" is what the
-// input contract calls the bottom face button.
-void rv_dmain::draw_post_row(int, const char *, const char *, const char *, bool)
-{
-}
-
-void rv_dmain::draw_post()
-{
-    if (addr_font_ == 0) {
-        return;
-    }
-
-    rv_cv *cv = rv_pdko_cv(pdk_);
-    auto file = [cv](const rv_primitive &primitive) {
-        rv_cv_frame_put(cv, &primitive);
-    };
-
-    const int width = static_cast<int>(screen_width_);
-    const int height = static_cast<int>(screen_height_);
-    const rv_color slab{ 12, 14, 22 };
-    const rv_pdklib::rv_font_style ink =
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
-    const rv_pdklib::rv_font_style bad =
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
-
-    // Opaque slabs, not a dim overlay: the console has no blending, and light
-    // ink over lit geometry is exactly what made the first version unreadable.
-    const rv_primitive top_slab =
-        make_bar(0.0f, 0.0f, static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
-    rv_cv_frame_put(cv, &top_slab);
-    rv_pdklib::rv_font_draw(ink, 4, 2, RV_DMAIN_TITLE, file);
-    rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
-        2, RV_DMAIN_NO_DISC, file);
-
-    // The budget line. Saying VIRTUAL out loud matters: none of this is what the
-    // host has, all of it is what the fantasy machine is defined to have, and
-    // the pools really do refuse past the line.
-    char budget[96];
-    char vram[24];
-    char sram[24];
-    format_bytes(vram, sizeof(vram), video_memory_size_);
-    format_bytes(sram, sizeof(sram), sound_memory_size_);
-    std::snprintf(budget, sizeof(budget), "VIRTUAL %lldx%lld %s %lldv %s",
-        static_cast<long long>(screen_width_), static_cast<long long>(screen_height_),
-        vram, static_cast<long long>(voice_count_), sram);
-    rv_pdklib::rv_font_draw(ink, 4, 13, budget, file);
-
-    // The bottom slab: one word per subsystem, and the word is the whole report.
-    const rv_primitive bottom_slab = make_bar(0.0f, static_cast<float>(height) - 24.0f,
-        static_cast<float>(width), 24.0f, slab, RV_DMAIN_DEPTH_PANEL);
-    rv_cv_frame_put(cv, &bottom_slab);
-
-    struct rv_dmain_probe {
-        const char *label;
-        bool ok;
-        bool absent; // legal "nothing there", which is not a failure
-    };
-    const rv_dmain_probe probes[4] = {
-        { "AUDIO", beep_ok_, false },
-        { "DRIVE", asset_ok_, asset_bytes_ == 0 },
-        { "CARD", card_ok_, false },
-        { "PATHS", drive_rejects_paths_, false },
-    };
-
-    int pen = 4;
-    for (const rv_dmain_probe &probe : probes) {
-        rv_pdklib::rv_font_draw(ink, pen, static_cast<int>(height) - 21, probe.label, file);
-        pen += rv_pdklib::rv_font_measure_width(probe.label, 1) + 8;
-
-        const char *mark = probe.absent ? "-" : (probe.ok ? "OK" : "FAIL");
-        rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad, pen,
-            static_cast<int>(height) - 21, mark, file);
-        pen += rv_pdklib::rv_font_measure_width(mark, 1) + 10;
-    }
-
-    // The probe row owns its whole line: four labels and four verdicts already
-    // fill 40 columns, and anything sharing the row lands on top of them.
-    char pads[32];
-    std::snprintf(pads, sizeof(pads), "%lld pad(s) boot %lu",
-        static_cast<long long>(pads_connected_), static_cast<unsigned long>(boot_count_));
-    rv_pdklib::rv_font_draw(ink, 4, height - 11, pads, file);
-    rv_pdklib::rv_font_draw(ink, width - 4 - rv_pdklib::rv_font_measure_width(RV_DMAIN_HINTS, 1),
-        height - 11, RV_DMAIN_HINTS, file);
 }
 
 } // namespace rv_service
