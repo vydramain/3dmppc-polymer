@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "ui/rv_editor_field_sizes.hpp"
 #include "app/rv_editor_scene_tabs.hpp"
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_build_map.hpp"
@@ -46,7 +47,7 @@ struct rv_editor_output_view
     rv_editor_log_level level = rv_editor_log_level::info; // Level: this and worse
     bool follow = true;
     bool wrap = true;
-    char search[128] = {};
+    char search[search_field_size] = {};
     uint64_t hide_before = 0;  // Clear View: lines older than this seq are not shown here
     std::string exported;      // where Export wrote, or why it could not
     std::array<float, 3> columns = { output_column_time_width, output_column_level_width,
@@ -72,7 +73,7 @@ struct rv_editor_files_view
 
     rv_editor_files_dialog dialog = rv_editor_files_dialog::none;
     std::filesystem::path target; // the directory for new entries, the entry otherwise
-    char name[256] = {};
+    char name[asset_identifier_field_size] = {};
     std::string error;
     bool opening = false;
     // Delete: what goes, relative to the target's parent, as found when asked.
@@ -85,16 +86,16 @@ struct rv_editor_files_view
 struct rv_editor_run_form
 {
     uint64_t loaded = 0; // the run_config_revision it was filled at
-    char name[64] = {};
-    char runtime[512] = {};
-    char memcard[512] = {};
-    char cwd[512] = {};
+    char name[short_text_field_size] = {};
+    char runtime[filesystem_path_field_size] = {};
+    char memcard[filesystem_path_field_size] = {};
+    char cwd[filesystem_path_field_size] = {};
     bool mute = false;
     bool paused = false;
     bool fixed_step = false;
     bool reload_on_save = false;
-    char args[1024] = {};
-    char env[1024] = {};
+    char args[command_line_field_size] = {};
+    char env[command_line_field_size] = {};
 };
 
 // The Scene viewport's tool and view: the editor's, never the game's camera.
@@ -140,9 +141,9 @@ struct rv_editor_scene_camera
 struct rv_editor_scene_ui
 {
     std::string shown;
-    char name[128] = {};
-    char mesh[256] = {};
-    char texture[256] = {};
+    char name[identifier_field_size] = {};
+    char mesh[asset_identifier_field_size] = {};
+    char texture[asset_identifier_field_size] = {};
     std::string editing;
     rv_editor_vec3 before{};
     bool cancelled = false; // Escape took the drag back; it ends when the button is let go
@@ -160,7 +161,7 @@ struct rv_editor_scene_ui
 struct rv_editor_assets_ui
 {
     int folder = 0;
-    char filter[64] = {};
+    char filter[short_text_field_size] = {};
     bool details = false;
 };
 
@@ -196,10 +197,10 @@ struct rv_editor_observe
 // The finding being written and the ones saved in this window.
 struct rv_editor_findings
 {
-    char title[160] = {};
-    char steps[2048] = {};
-    char expected[1024] = {};
-    char actual[1024] = {};
+    char title[title_field_size] = {};
+    char steps[test_steps_field_size] = {};
+    char expected[report_field_size] = {};
+    char actual[report_field_size] = {};
     std::filesystem::path capture; // the frame captured for it, if any
     std::vector<std::filesystem::path> saved;
     std::string error;
@@ -207,7 +208,7 @@ struct rv_editor_findings
     std::vector<std::filesystem::path> cases;
     std::filesystem::file_time_type cases_read{};
     int32_t test_case = -1;
-    char note[512] = {};
+    char note[note_field_size] = {};
     std::vector<std::string> results;
 };
 
@@ -325,7 +326,7 @@ struct rv_editor_app
     // "frame 812: the door opens late".
     std::string session_profile;
     std::vector<std::string> marks;
-    char mark_note[128] = {};
+    char mark_note[mark_note_field_size] = {};
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
     // What that job's lines name, re-read when the log changes; and when the job ended.
