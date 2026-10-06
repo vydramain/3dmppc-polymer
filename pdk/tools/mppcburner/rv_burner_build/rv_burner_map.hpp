@@ -13,7 +13,7 @@ namespace rv_pdktools
 /// Which entry of the disc each of the author's files became,
 /// so a tool never restates the naming rules. The first line is
 /// `mppcburner-map <PDK version>`, e.g.
-/// `mppcburner-map 0.3`; then one line per
+/// `mppcburner-map 1.0`; then one line per
 /// entry, its fields separated by TABs so that a path may hold spaces:
 ///
 ///     <source, relative to the disc directory> <kind> <entry name> [<parameter>]

@@ -19,7 +19,7 @@
 namespace rv_pdklib
 {
 
-/// "M.m", e.g. "0.3", built at compile time from the PDK macros.
+/// "M.m", e.g. "1.0", built at compile time from the PDK macros.
 inline constexpr char rv_version_str[] =
     RV_MPPC_STR_DEF(RV_MPPC_VER_MAJOR) "." RV_MPPC_STR_DEF(RV_MPPC_VER_MINOR);
 
