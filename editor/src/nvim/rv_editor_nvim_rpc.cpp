@@ -18,6 +18,40 @@ namespace
 // nvim's stderr kept for Output, at most this much between two takes.
 constexpr size_t rv_editor_nvim_stderr_max = 64 * 1024;
 
+// msgpack-rpc message types from spec (https://github.com/msgpack-rpc/msgpack-rpc/blob/master/spec.md)
+constexpr int32_t msgpack_rpc_request_type = 0;
+constexpr int32_t msgpack_rpc_response_type = 1;
+constexpr int32_t msgpack_rpc_notification_type = 2;
+
+// msgpack-rpc message array sizes
+constexpr size_t msgpack_rpc_request_size = 4;      // [type, id, method, args]
+constexpr size_t msgpack_rpc_response_size = 4;     // [type, id, error, result]
+constexpr size_t msgpack_rpc_notification_size = 3; // [type, method, params]
+
+// Field positions in msgpack-rpc message arrays
+constexpr size_t msgpack_message_type_idx = 0;
+constexpr size_t msgpack_message_id_idx = 1;
+constexpr size_t msgpack_response_error_idx = 2;
+constexpr size_t msgpack_response_result_idx = 3;
+constexpr size_t msgpack_notification_method_idx = 1;
+constexpr size_t msgpack_notification_params_idx = 2;
+
+// Poll parameters for nvim stdout and stderr
+constexpr size_t poll_fd_count = 2;
+constexpr int poll_timeout_ms = 100;
+constexpr size_t poll_stdout_fd_idx = 0;
+constexpr size_t poll_stderr_fd_idx = 1;
+
+// I/O buffer size for reading nvim output in chunks
+constexpr size_t read_chunk_size = 65536;
+
+// nvim shutdown parameters
+constexpr int nvim_shutdown_timeout_sec = 2;
+constexpr int nvim_shutdown_poll_ms = 10;
+
+// Error message for unsupported RPC requests
+constexpr std::string_view unsupported_request_error = "not supported by 3dmppc-editor";
+
 } // namespace
 
 rv_editor_nvim_rpc::~rv_editor_nvim_rpc()
@@ -55,9 +89,9 @@ void rv_editor_nvim_rpc::stop()
     if (proc_.running()) {
         // nvim --embed leaves when its channel closes; a hung one is killed.
         proc_.close_stdin();
-        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(nvim_shutdown_timeout_sec);
         while (!proc_.poll() && std::chrono::steady_clock::now() < until) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(nvim_shutdown_poll_ms));
         }
     }
     // The destructor of a running process kills and reaps it.
@@ -66,7 +100,7 @@ void rv_editor_nvim_rpc::stop()
 void rv_editor_nvim_rpc::reader()
 {
     std::string buf;
-    char chunk[65536];
+    char chunk[read_chunk_size];
     const int out = proc_.stdout_fd();
     const int err = proc_.stderr_fd();
     for (;;) {
@@ -76,11 +110,11 @@ void rv_editor_nvim_rpc::reader()
                 return;
             }
         }
-        pollfd fds[2] = { { out, POLLIN, 0 }, { err, POLLIN, 0 } };
-        if (::poll(fds, 2, 100) <= 0) {
+        pollfd fds[poll_fd_count] = { { out, POLLIN, 0 }, { err, POLLIN, 0 } };
+        if (::poll(fds, poll_fd_count, poll_timeout_ms) <= 0) {
             continue;
         }
-        if (fds[1].revents & (POLLIN | POLLHUP)) {
+        if (fds[poll_stderr_fd_idx].revents & (POLLIN | POLLHUP)) {
             const ssize_t n = ::read(err, chunk, sizeof(chunk));
             if (n > 0) {
                 const std::lock_guard<std::mutex> lock(mutex_);
@@ -89,7 +123,7 @@ void rv_editor_nvim_rpc::reader()
                 }
             }
         }
-        if (!(fds[0].revents & (POLLIN | POLLHUP))) {
+        if (!(fds[poll_stdout_fd_idx].revents & (POLLIN | POLLHUP))) {
             continue;
         }
         const ssize_t n = ::read(out, chunk, sizeof(chunk));
@@ -133,8 +167,8 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
     const uint32_t id = next_id_++;
     std::string out;
     rv_editor_mpack_writer w(out);
-    w.array(4);
-    w.integer(0);
+    w.array(msgpack_rpc_request_size);
+    w.integer(msgpack_rpc_request_type);
     w.integer(id);
     w.string(method);
     out += args;
@@ -155,8 +189,8 @@ void rv_editor_nvim_rpc::notify(const std::string &method, const std::string &ar
 {
     std::string out;
     rv_editor_mpack_writer w(out);
-    w.array(3);
-    w.integer(2);
+    w.array(msgpack_rpc_notification_size);
+    w.integer(msgpack_rpc_notification_type);
     w.string(method);
     out += args;
     (void)proc_.write(out);
@@ -182,26 +216,26 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
         if (!m.is(mtype::array) || m.items.empty()) {
             continue;
         }
-        const int64_t kind = m.items[0].i;
-        if (kind == 1 && m.items.size() == 4) {
-            const auto it = pending_.find(static_cast<uint32_t>(m.items[1].i));
+        const int64_t kind = m.items[msgpack_message_type_idx].i;
+        if (kind == msgpack_rpc_response_type && m.items.size() == msgpack_rpc_response_size) {
+            const auto it = pending_.find(static_cast<uint32_t>(m.items[msgpack_message_id_idx].i));
             if (it != pending_.end()) {
                 rv_editor_nvim_reply reply = std::move(it->second);
                 pending_.erase(it);
                 if (reply) {
-                    reply(m.items[2], m.items[3]);
+                    reply(m.items[msgpack_response_error_idx], m.items[msgpack_response_result_idx]);
                 }
             }
-        } else if (kind == 2 && m.items.size() == 3) {
-            on_notify(m.items[1].s, m.items[2]);
-        } else if (kind == 0 && m.items.size() == 4) {
+        } else if (kind == msgpack_rpc_notification_type && m.items.size() == msgpack_rpc_notification_size) {
+            on_notify(m.items[msgpack_notification_method_idx].s, m.items[msgpack_notification_params_idx]);
+        } else if (kind == msgpack_rpc_request_type && m.items.size() == msgpack_rpc_request_size) {
             // nvim asking the UI something: this client answers nothing.
             std::string out;
             rv_editor_mpack_writer w(out);
-            w.array(4);
-            w.integer(1);
-            w.integer(m.items[1].i);
-            w.string("not supported by 3dmppc-editor");
+            w.array(msgpack_rpc_response_size);
+            w.integer(msgpack_rpc_response_type);
+            w.integer(m.items[msgpack_message_id_idx].i);
+            w.string(unsupported_request_error);
             w.nil();
             (void)proc_.write(out);
         }
