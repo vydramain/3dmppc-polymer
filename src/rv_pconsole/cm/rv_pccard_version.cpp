@@ -17,26 +17,45 @@ namespace
 constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
 constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
 
+// Bit and byte operations
+constexpr int BITS_PER_BYTE = 8;
+constexpr uint8_t BYTE_MASK = 0xFFu;
+
+// Integer type sizes for put/get operations
+constexpr int BYTES_PER_U32 = sizeof(uint32_t);
+constexpr int BYTES_PER_I64 = sizeof(int64_t);
+
+// Version packing: major in bits[31:16], minor in bits[15:0]
+constexpr int VERSION_MAJOR_SHIFT = 16;
+constexpr uint32_t VERSION_MINOR_MASK = 0xFFFFu;
+
+// Header layout: magic[8] version[4] reserved[4] slot_count[8] slot_size[8]
+constexpr int HEADER_MAGIC_SIZE = 8;
+constexpr int64_t HEADER_OFFSET_VERSION = HEADER_MAGIC_SIZE;
+constexpr int64_t HEADER_OFFSET_RESERVED = HEADER_OFFSET_VERSION + BYTES_PER_U32;
+constexpr int64_t HEADER_OFFSET_SLOT_COUNT = HEADER_OFFSET_RESERVED + BYTES_PER_U32;
+constexpr int64_t HEADER_OFFSET_SLOT_SIZE = HEADER_OFFSET_SLOT_COUNT + BYTES_PER_I64;
+
 void put_u32(uint8_t *p, uint32_t v)
 {
-    for (int i = 0; i < 4; ++i) {
-        p[i] = static_cast<uint8_t>((v >> (8 * i)) & 0xFFu);
+    for (int i = 0; i < BYTES_PER_U32; ++i) {
+        p[i] = static_cast<uint8_t>((v >> (BITS_PER_BYTE * i)) & BYTE_MASK);
     }
 }
 
 void put_i64(uint8_t *p, int64_t v)
 {
     const uint64_t u = static_cast<uint64_t>(v);
-    for (int i = 0; i < 8; ++i) {
-        p[i] = static_cast<uint8_t>((u >> (8 * i)) & 0xFFu);
+    for (int i = 0; i < BYTES_PER_I64; ++i) {
+        p[i] = static_cast<uint8_t>((u >> (BITS_PER_BYTE * i)) & BYTE_MASK);
     }
 }
 
 int64_t get_i64(const uint8_t *p)
 {
     uint64_t u = 0;
-    for (int i = 0; i < 8; ++i) {
-        u |= static_cast<uint64_t>(p[i]) << (8 * i);
+    for (int i = 0; i < BYTES_PER_I64; ++i) {
+        u |= static_cast<uint64_t>(p[i]) << (BITS_PER_BYTE * i);
     }
     return static_cast<int64_t>(u);
 }
@@ -45,14 +64,14 @@ int64_t get_i64(const uint8_t *p)
 
 std::string rv_pccard_version_text(uint32_t v)
 {
-    return std::to_string(v >> 16) + "." + std::to_string(v & 0xFFFFu);
+    return std::to_string(v >> VERSION_MAJOR_SHIFT) + "." + std::to_string(v & VERSION_MINOR_MASK);
 }
 
 rv_pccard_version_case rv_pccard_classify_version(uint32_t file_version, uint32_t console_version)
 {
-    const uint32_t file_major = file_version >> 16;
-    const uint32_t file_minor = file_version & 0xFFFFu;
-    const uint32_t console_major = console_version >> 16;
+    const uint32_t file_major = file_version >> VERSION_MAJOR_SHIFT;
+    const uint32_t file_minor = file_version & VERSION_MINOR_MASK;
+    const uint32_t console_major = console_version >> VERSION_MAJOR_SHIFT;
 
     // Callers only reach here when file_version != console_version, so a
     // compatible major/minor pair here means strictly older, never equal.
@@ -79,12 +98,12 @@ std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer, i
     }
 
     std::vector<uint8_t> image(static_cast<size_t>(payload_offset + slot_count * slot_size), 0);
-    static constexpr uint8_t magic[8] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
+    static constexpr uint8_t magic[HEADER_MAGIC_SIZE] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
     std::memcpy(image.data(), magic, sizeof(magic));
-    put_u32(image.data() + 8, console_version);
-    put_u32(image.data() + 12, 0);
-    put_i64(image.data() + 16, slot_count);
-    put_i64(image.data() + 24, slot_size);
+    put_u32(image.data() + HEADER_OFFSET_VERSION, console_version);
+    put_u32(image.data() + HEADER_OFFSET_RESERVED, 0);
+    put_i64(image.data() + HEADER_OFFSET_SLOT_COUNT, slot_count);
+    put_i64(image.data() + HEADER_OFFSET_SLOT_SIZE, slot_size);
     for (int64_t i = 0; i < slot_count; ++i) {
         put_i64(image.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY, -1);
     }
