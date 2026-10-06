@@ -63,19 +63,19 @@ static int read_mppctex_header(
 
 // Sounds have no header to parse: the only shape a .pcm must have is an even
 // byte count, since it holds S16 samples.
-static bool check_pcm_size(const fs::path &path, std::string &error)
+static int check_pcm_size(const fs::path &path, std::string &error)
 {
     std::error_code ec;
     const uintmax_t size = fs::file_size(path, ec);
     if (ec || size == 0) {
         error = "baked sound '" + path.string() + "' is empty";
-        return false;
+        return RV_ERR_IO;
     }
     if (size % 2 != 0) {
         error = "baked sound '" + path.string() + "' is not a whole number of S16 samples";
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_pdktools
@@ -92,7 +92,7 @@ int rv_pdktools::bake_textures(
     }
 
     std::string baker;
-    if (!find_baker(baker_hint, baker, error)) {
+    if (find_baker(baker_hint, baker, error) != RV_OK) {
         return 1;
     }
 
@@ -154,7 +154,7 @@ int rv_pdktools::bake_sounds(
     }
 
     std::string baker;
-    if (!find_baker(baker_hint, baker, error)) {
+    if (find_baker(baker_hint, baker, error) != RV_OK) {
         return 1;
     }
 
@@ -174,7 +174,7 @@ int rv_pdktools::bake_sounds(
             return 1;
         }
 
-        if (!check_pcm_size(item.payload, error)) {
+        if (check_pcm_size(item.payload, error) != RV_OK) {
             return 1;
         }
     }

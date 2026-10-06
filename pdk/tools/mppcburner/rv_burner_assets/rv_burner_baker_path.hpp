@@ -22,7 +22,8 @@ namespace rv_pdktools
 /// @param hint   value of `--baker`; empty means search
 /// @param out    receives the path of an executable file
 /// @param error  set when @p hint is not executable, or nothing was found
-/// @return true when @p out holds a runnable mppcbaker
-bool find_baker(const std::string &hint, std::string &out, std::string &error);
+/// @return RV_OK when @p out holds a runnable mppcbaker; RV_ERR_INVAL if hint
+/// is not executable; RV_ERR_NOENT if not found
+int find_baker(const std::string &hint, std::string &out, std::string &error);
 
 } // namespace rv_pdktools

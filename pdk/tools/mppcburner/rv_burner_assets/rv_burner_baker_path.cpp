@@ -9,6 +9,8 @@
 #include <string_view>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace fs = std::filesystem;
 
 namespace rv_pdktools
@@ -51,7 +53,7 @@ static fs::path executable_directory()
 
 } // namespace rv_pdktools
 
-bool rv_pdktools::find_baker(const std::string &hint, std::string &out, std::string &error)
+int rv_pdktools::find_baker(const std::string &hint, std::string &out, std::string &error)
 {
     // --- an explicit --baker wins ---
     //
@@ -61,10 +63,10 @@ bool rv_pdktools::find_baker(const std::string &hint, std::string &out, std::str
     if (!hint.empty()) {
         if (!is_executable(hint)) {
             error = "--baker '" + hint + "' is not an executable file";
-            return false;
+            return RV_ERR_INVAL;
         }
         out = hint;
-        return true;
+        return RV_OK;
     }
 
     // --- next to ourselves ---
@@ -81,7 +83,7 @@ bool rv_pdktools::find_baker(const std::string &hint, std::string &out, std::str
         for (const fs::path &candidate : candidates) {
             if (is_executable(candidate)) {
                 out = candidate.string();
-                return true;
+                return RV_OK;
             }
         }
     }
@@ -101,7 +103,7 @@ bool rv_pdktools::find_baker(const std::string &hint, std::string &out, std::str
                 const fs::path candidate = fs::path(std::string(head)) / k_baker_name;
                 if (is_executable(candidate)) {
                     out = candidate.string();
-                    return true;
+                    return RV_OK;
                 }
             }
             if (colon == std::string_view::npos) {
@@ -112,5 +114,5 @@ bool rv_pdktools::find_baker(const std::string &hint, std::string &out, std::str
     }
 
     error = "mppcbaker not found next to mppcburner or in $PATH; pass --baker PATH";
-    return false;
+    return RV_ERR_NOENT;
 }
