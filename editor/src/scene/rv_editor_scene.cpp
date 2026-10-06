@@ -45,7 +45,6 @@ constexpr std::string_view kind_camera = "camera";
 constexpr std::string_view kind_mesh = "mesh";
 constexpr std::string_view kind_quad = "quad";
 constexpr std::string_view kind_billboard = "billboard";
-constexpr std::string_view kind_volume = "volume";
 
 // Default names for newly created objects.
 constexpr std::string_view default_camera_name = "Camera";
@@ -61,20 +60,11 @@ constexpr size_t uv_size = 4;
 // Tint value range (0-255 inclusive).
 constexpr double tint_min = 0.0;
 constexpr double tint_max = 255.0;
-// Default tint value for all channels.
-constexpr int default_tint_value = 255;
-
-// Default property values.
-constexpr double default_uv_value = 0.0;
-constexpr double default_tess_value = 2.0;
 
 // Initial camera properties in new scenes.
 constexpr double initial_camera_y = 0.8;
 constexpr double initial_camera_z = -4.0;
 constexpr double initial_camera_rot_x = 8.0;
-
-// Version that requires new properties (quad, billboard, volume, uv, tint, tess).
-constexpr uint32_t min_new_features_minor = 4;
 
 // Mask for random ID generation to ensure minimum value.
 constexpr uint32_t id_generation_mask = 0x10000000u;
@@ -331,7 +321,6 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
         t += '\n';
     }
     // Keep the file's own version; a legacy 0.0 header is upgraded to the current one.
-    // Content with quad/billboard/volume or uv/tint/tess keys requires at least 0.4.
     const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
     uint32_t version_major = scene.version_major;
     uint32_t version_minor = scene.version_minor;
@@ -340,43 +329,6 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
         // Upgrade legacy 0.0 to current version
         version_major = static_cast<uint32_t>(RV_MPPC_VER_MAJOR);
         version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
-    } else {
-        // Check if content requires 0.4: quad, billboard, volume, or uv/tint/tess keys
-        bool needs_v04 = false;
-        for (const auto &obj : scene.objects) {
-            if (obj.kind == kind_quad || obj.kind == kind_billboard || obj.kind == kind_volume) {
-                needs_v04 = true;
-                break;
-            }
-            // Check for non-default uv/tint/tess
-            if (obj.uv[0] != default_uv_value || obj.uv[1] != default_uv_value ||
-                obj.uv[2] != default_uv_value || obj.uv[3] != default_uv_value) {
-                needs_v04 = true;
-                break;
-            }
-            if (obj.tint[0] != default_tint_value || obj.tint[1] != default_tint_value ||
-                obj.tint[2] != default_tint_value) {
-                needs_v04 = true;
-                break;
-            }
-            if (obj.tess != default_tess_value) {
-                needs_v04 = true;
-                break;
-            }
-            // Check if extra has uv/tint/tess keys
-            if (rv_editor_scene_extra_has(obj.extra, std::string(object_uv_key)) ||
-                rv_editor_scene_extra_has(obj.extra, std::string(object_tint_key)) ||
-                rv_editor_scene_extra_has(obj.extra, std::string(object_tess_key))) {
-                needs_v04 = true;
-                break;
-            }
-        }
-
-        // Upgrade to 0.4 if needed, but never downgrade
-        if (needs_v04 && version_major == 0 && version_minor < min_new_features_minor) {
-            version_major = 0;
-            version_minor = min_new_features_minor;
-        }
     }
 
     std::string version = std::to_string(version_major) + "." + std::to_string(version_minor);
