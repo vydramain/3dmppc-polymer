@@ -9,6 +9,7 @@
 #include <system_error>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -188,11 +189,11 @@ void rv_editor_files::relist(const std::filesystem::path &dir)
 bool rv_editor_files::valid_name(const std::string &name, std::string &error)
 {
     if (name.empty() || name == "." || name == "..") {
-        error = "a name is needed";
+        error = rv_editor_text("files.name_is_needed");
         return false;
     }
     if (name.find('/') != std::string::npos || name.find('\0') != std::string::npos) {
-        error = "a name cannot hold '/'";
+        error = rv_editor_text("files.name_cannot_hold_slash");
         return false;
     }
     return true;
@@ -276,7 +277,7 @@ int rv_editor_files::rename(const std::filesystem::path &from, const std::string
     }
     const std::filesystem::path to = from.parent_path() / name;
     if (from == root_.path || !inside(from) || !inside(to)) {
-        error = "only files and directories inside the project can be renamed";
+        error = rv_editor_text("files.cannot_rename_outside");
         return RV_ERR_INVAL;
     }
     std::error_code ec;
@@ -306,7 +307,7 @@ int rv_editor_files::remove(const std::filesystem::path &path, std::string &erro
     const std::filesystem::path parent = path.parent_path();
     std::string bad;
     if (path == root_.path || !valid_name(path.filename().string(), bad) || !inside(parent)) {
-        error = "only files and directories inside the project can be deleted";
+        error = rv_editor_text("files.cannot_delete_outside");
         return RV_ERR_INVAL;
     }
     std::error_code ec;

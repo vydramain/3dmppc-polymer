@@ -6,6 +6,7 @@
 #include <SDL3/SDL.h>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -31,7 +32,7 @@ std::vector<uint8_t> rv_editor_pcm_read(const std::filesystem::path &file, std::
 {
     std::ifstream f(file, std::ios::binary);
     if (!f) {
-        error = "cannot open the file";
+        error = rv_editor_text("sound.cannot_open_file");
         return {};
     }
     return std::vector<uint8_t>(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
@@ -76,7 +77,7 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         data = pcm.data();
         len = static_cast<uint32_t>(pcm.size());
     } else {
-        error = "not a sound file";
+        error = rv_editor_text("sound.not_a_sound_file");
         return RV_ERR_INVAL;
     }
 

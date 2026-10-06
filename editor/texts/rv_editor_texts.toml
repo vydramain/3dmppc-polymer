@@ -1099,3 +1099,13 @@ no_such_parent = "no such parent"
 cannot_go_under_itself = "an object cannot go under itself or its own children"
 new_parent_scale_zero = "the new parent's scale is zero"
 keeping_would_need_shear = "keeping where it is would need a shear under that parent, which position, rotation and scale cannot hold; Reparent (Keep Local Values) moves it without"
+
+[files]
+name_is_needed = "a name is needed"
+name_cannot_hold_slash = "a name cannot hold '/'"
+cannot_rename_outside = "only files and directories inside the project can be renamed"
+cannot_delete_outside = "only files and directories inside the project can be deleted"
+
+[sound]
+cannot_open_file = "cannot open the file"
+not_a_sound_file = "not a sound file"
