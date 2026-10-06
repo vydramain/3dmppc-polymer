@@ -1109,3 +1109,13 @@ cannot_delete_outside = "only files and directories inside the project can be de
 [sound]
 cannot_open_file = "cannot open the file"
 not_a_sound_file = "not a sound file"
+
+[build]
+already_running = "a build is already running"
+no_project = "no project is open"
+no_cache_dir = "no cache directory: neither XDG_CACHE_HOME nor HOME is set"
+
+[scene_codegen]
+could_not_create = "could not create {}: {}"
+could_not_open = "could not open {} for writing"
+could_not_write = "could not write {}"

@@ -5,6 +5,7 @@
 #include "build/rv_editor_build_map.hpp"
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -89,11 +90,11 @@ int rv_editor_build::start(const rv_editor_project &project, const rv_editor_too
     std::string &error, const std::filesystem::path &image)
 {
     if (busy()) {
-        error = "a build is already running";
+        error = rv_editor_text("build.already_running");
         return RV_ERR_BUSY;
     }
     if (!project.open) {
-        error = "no project is open";
+        error = rv_editor_text("build.no_project");
         return RV_ERR_INVAL;
     }
     if (!tools.burner.problem.empty()) {
@@ -105,7 +106,7 @@ int rv_editor_build::start(const rv_editor_project &project, const rv_editor_too
         return RV_ERR_INVAL;
     }
     if (project.cache_dir.empty()) {
-        error = "no cache directory: neither XDG_CACHE_HOME nor HOME is set";
+        error = rv_editor_text("build.no_cache_dir");
         return RV_ERR_INVAL;
     }
 
