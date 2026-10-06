@@ -15,6 +15,7 @@
 #include "pdk/rv_err.h"
 #include "app/rv_editor_shell.hpp"
 #include "project/rv_editor_settings.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
@@ -26,20 +27,18 @@ namespace
 struct rv_editor_settings_row
 {
     const char *key;
-    const char *label;
-    const char *automatic; // what an empty field means
+    const char *label_text_id;
+    const char *automatic_text_id; // what an empty field means
     rv_editor_tool rv_editor_toolchain::*tool;
 };
 
 // Pipeline order: baker bakes textures, burner writes the disc image, console
 // runs it with devtools, player is the candidate's final check without them.
 constexpr rv_editor_settings_row rv_editor_settings_rows[] = {
-    { "baker", "Baker: mppcbaker", "Empty: found automatically next to the editor", &rv_editor_toolchain::baker },
-    { "burner", "Burner: mppcburner", "Empty: found automatically next to the editor", &rv_editor_toolchain::burner },
-    { "console", "Runtime: 3dmppc built with devtools", "Empty: found automatically next to the editor",
-        &rv_editor_toolchain::console },
-    { "player", "Player: 3dmppc built without devtools, for a candidate's final check",
-        "Empty: no player; it has no default place", &rv_editor_toolchain::player },
+    { "baker", "shell_settings.label_baker", "shell_settings.empty_auto_next", &rv_editor_toolchain::baker },
+    { "burner", "shell_settings.label_burner", "shell_settings.empty_auto_next", &rv_editor_toolchain::burner },
+    { "console", "shell_settings.label_console", "shell_settings.empty_auto_next", &rv_editor_toolchain::console },
+    { "player", "shell_settings.label_player", "shell_settings.empty_no_player", &rv_editor_toolchain::player },
 };
 static_assert(std::size(rv_editor_settings_rows) == std::extent_v<decltype(rv_editor_shell::settings_paths)>);
 
@@ -73,7 +72,13 @@ void rv_editor_settings_status(const rv_editor_tool &tool, const rv_editor_theme
         rv_editor_status(tool.problem.c_str(), rv_editor_status_kind::error, theme);
         return;
     }
-    const std::string ready = tool.version.empty() ? "Ready" : "Ready: " + tool.version;
+    std::string ready;
+    if (tool.version.empty()) {
+        ready = rv_editor_text("shell_settings.status_ready");
+    } else {
+        const std::string &version = tool.version;
+        ready = rv_editor_text_format("shell_settings.status_ready_version", std::make_format_args(version));
+    }
     rv_editor_status(ready.c_str(), rv_editor_status_kind::ok, theme);
 }
 
@@ -83,28 +88,37 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     const rv_editor_tool &tool = shell.app.tools.*row.tool;
     ImGui::PushID(static_cast<int>(i));
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(row.label);
+    ImGui::TextUnformatted(rv_editor_text(row.label_text_id));
     ImGui::PopStyleColor();
 
-    rv_editor_settings_label("Override path", label_w);
-    const float buttons = rv_editor_button_width("Browse...") + ImGui::GetStyle().ItemSpacing.x;
+    rv_editor_settings_label(rv_editor_text("shell_settings.override_path"), label_w);
+    const float browse_btn_w = rv_editor_button_width(rv_editor_text("shell_settings.browse_button"));
+    const float buttons = browse_btn_w + ImGui::GetStyle().ItemSpacing.x;
     ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * 10.0f, ImGui::GetContentRegionAvail().x - buttons));
     if (rv_editor_text_field("##path", shell.settings_paths[i], sizeof(shell.settings_paths[i]), theme)) {
         shell.settings_checks[i].reset();
     }
     ImGui::SameLine();
     const bool browsing = shell.settings_browse == static_cast<int>(i);
-    if (rv_editor_button("Browse...", theme, { rv_editor_look::live, browsing ? "The browser is open below" : nullptr })) {
-        rv_editor_browser_start(shell.settings_browser, std::string("Select executable for ") + row.label,
-            "Select Executable", rv_editor_browse_pick::executable, shell.settings_paths[i][0] != '\0'
-                ? std::filesystem::path(shell.settings_paths[i])
-                : tool.path);
+    const char *browse_tooltip = browsing ? rv_editor_text("shell_settings.browser_open_tooltip") : nullptr;
+    if (rv_editor_button(rv_editor_text("shell_settings.browse_button"), theme,
+            { rv_editor_look::live, browse_tooltip })) {
+        const char *label_text = rv_editor_text(row.label_text_id);
+        const std::string label_str = label_text;
+        std::string browser_title = rv_editor_text_format("shell_settings.select_executable_for",
+            std::make_format_args(label_str));
+        std::filesystem::path start_path = tool.path;
+        if (shell.settings_paths[i][0] != '\0') {
+            start_path = shell.settings_paths[i];
+        }
+        rv_editor_browser_start(shell.settings_browser, browser_title,
+            rv_editor_text("shell_settings.select_executable_button"), rv_editor_browse_pick::executable, start_path);
         shell.settings_browse = static_cast<int>(i);
     }
     if (shell.settings_paths[i][0] == '\0') {
         ImGui::SetCursorPosX(label_w);
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted(row.automatic);
+        ImGui::TextUnformatted(rv_editor_text(row.automatic_text_id));
         ImGui::PopStyleColor();
     }
     if (browsing) {
@@ -120,21 +134,29 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
         }
     }
 
-    rv_editor_settings_label("Resolved path", label_w);
-    const std::string resolved = tool.path.empty() ? "none" : tool.path.string() + " (" + tool.origin + ")";
+    rv_editor_settings_label(rv_editor_text("shell_settings.resolved_path"), label_w);
+    std::string resolved;
+    if (tool.path.empty()) {
+        resolved = rv_editor_text("shell_settings.path_none");
+    } else {
+        const std::string path_str = tool.path.string();
+        const std::string &origin = tool.origin;
+        resolved = rv_editor_text_format("shell_settings.resolved_with_origin",
+            std::make_format_args(path_str, origin));
+    }
     ImGui::TextWrapped("%s", resolved.c_str());
 
-    rv_editor_settings_label("Status", label_w);
+    rv_editor_settings_label(rv_editor_text("shell_settings.status_label"), label_w);
     const std::optional<rv_editor_tool> &checked = shell.settings_checks[i];
     rv_editor_settings_status(checked ? *checked : tool, theme);
     if (checked) {
         ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted("(the field as it stands, not yet applied)");
+        ImGui::TextUnformatted(rv_editor_text("shell_settings.not_yet_applied"));
         ImGui::PopStyleColor();
     }
     ImGui::SetCursorPosX(label_w);
-    if (rv_editor_button("Check", theme)) {
+    if (rv_editor_button(rv_editor_text("shell_settings.check_button"), theme)) {
         shell.settings_checks[i] = rv_editor_tool_probe(row.key, shell.settings_paths[i]);
     }
     ImGui::PopID();
@@ -148,10 +170,12 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     if (!shell.settings_loaded) {
         rv_editor_settings_load(shell);
     }
-    rv_editor_pane_header("Settings: Toolchain", true, theme);
+    rv_editor_pane_header(rv_editor_text("shell_settings.pane_header"), true, theme);
     const bool nowhere = app.tools.settings_path.empty();
-    ImGui::TextWrapped("Kept in %s. Applying does not stop a build or a game: they keep the tools they started with.",
-        nowhere ? "no file: neither XDG_CONFIG_HOME nor HOME is set" : app.tools.settings_path.c_str());
+    const char *file_info =
+        nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
+    auto msg = rv_editor_text_format("shell_settings.settings_desc", std::make_format_args(file_info));
+    ImGui::TextWrapped("%s", msg.c_str());
     ImGui::Separator();
     const float font = ImGui::GetFontSize();
     const float label_w = ImGui::GetContentRegionAvail().x >= font * 50.0f ? font * 15.0f : 0.0f;
@@ -162,10 +186,11 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     if (!shell.settings_error.empty()) {
         rv_editor_status(shell.settings_error.c_str(), rv_editor_status_kind::error, theme);
     }
-    const bool apply = rv_editor_button("Apply", theme,
-        { rv_editor_look::live, nowhere ? "No settings directory: set XDG_CONFIG_HOME or HOME" : nullptr });
+    const char *no_dir_tooltip = nowhere ? rv_editor_text("shell_settings.no_dir_tooltip") : nullptr;
+    const bool apply = rv_editor_button(rv_editor_text("shell_settings.apply_button"), theme,
+        { rv_editor_look::live, no_dir_tooltip });
     ImGui::SameLine();
-    if (rv_editor_button("Revert", theme)) {
+    if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme)) {
         shell.settings_loaded = false;
     }
     if (!apply) {
