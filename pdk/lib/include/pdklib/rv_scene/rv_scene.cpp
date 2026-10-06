@@ -17,19 +17,26 @@ namespace
 {
 
 constexpr float rv_scene_degrees = 3.14159265358979f / 180.0f;
+constexpr float rv_scene_right_angle_degrees = 90.0f; // right angle for rotation checks
+constexpr int rv_scene_rotation_quarters = 4;         // four 90-degree rotations make a full circle
+constexpr int rv_scene_vector_components = 3;         // position, rotation, scale vectors
+constexpr int rv_scene_uv_components = 4;             // u0, v0, u1, v1 texture rect
+constexpr int rv_scene_tint_channels = 3;             // RGB color channels
+constexpr double rv_scene_color_max = 255.0;          // max value for each color channel
+constexpr int rv_scene_quad_corners_count = 4;        // four corners: TL, TR, BL, BR
 
 // sin/cos of a degree angle, exact 0/1/-1 on a multiple of 90 (any sign, any
 // winding) instead of the ~1e-8 float noise std::cos leaves there -- the
 // difference an axis-aligned quad's corners (rv_scene_quad_corners) show up.
 void rv_scene_sincos(float degrees, float &s, float &c)
 {
-    const float quarter = std::round(degrees / 90.0f);
-    if (quarter * 90.0f == degrees) {
-        constexpr float sins[4] = { 0.0f, 1.0f, 0.0f, -1.0f };
-        constexpr float coss[4] = { 1.0f, 0.0f, -1.0f, 0.0f };
-        int k = static_cast<int>(quarter) % 4;
+    const float quarter = std::round(degrees / rv_scene_right_angle_degrees);
+    if (quarter * rv_scene_right_angle_degrees == degrees) {
+        constexpr float sins[rv_scene_rotation_quarters] = { 0.0f, 1.0f, 0.0f, -1.0f };
+        constexpr float coss[rv_scene_rotation_quarters] = { 1.0f, 0.0f, -1.0f, 0.0f };
+        int k = static_cast<int>(quarter) % rv_scene_rotation_quarters;
         if (k < 0) {
-            k += 4;
+            k += rv_scene_rotation_quarters;
         }
         s = sins[k];
         c = coss[k];
@@ -84,7 +91,7 @@ std::string rv_scene_at(const std::string &origin, int line)
 
 int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 3) {
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
         return RV_ERR_INVAL;
     }
     out = { static_cast<float>(e.value.nums[0]), static_cast<float>(e.value.nums[1]),
@@ -92,12 +99,12 @@ int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
     return RV_OK;
 }
 
-int rv_scene_uv(const rv_manifest_tree_entry &e, float out[4])
+int rv_scene_uv(const rv_manifest_tree_entry &e, float out[rv_scene_uv_components])
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 4) {
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_uv_components) {
         return RV_ERR_INVAL;
     }
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < rv_scene_uv_components; ++i) {
         out[i] = static_cast<float>(e.value.nums[i]);
     }
     return RV_OK;
@@ -105,12 +112,12 @@ int rv_scene_uv(const rv_manifest_tree_entry &e, float out[4])
 
 int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 3) {
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_tint_channels) {
         return RV_ERR_INVAL;
     }
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < rv_scene_tint_channels; ++i) {
         const double v = e.value.nums[static_cast<size_t>(i)];
-        if (v < 0.0 || v > 255.0 || v != static_cast<double>(static_cast<int>(v))) {
+        if (v < 0.0 || v > rv_scene_color_max || v != static_cast<double>(static_cast<int>(v))) {
             return RV_ERR_INVAL;
         }
     }
@@ -286,18 +293,18 @@ rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
     return m;
 }
 
-void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[4])
+void rv_scene_quad_corners(const rv_scene &scene, std::size_t index, rv_vec3 out[rv_scene_quad_corners_count])
 {
     const rv_mat4 world = rv_scene_world(scene, index);
     // Local unit square, +y up, front face towards +z: top-left, top-right,
     // bottom-left, bottom-right -- the PDK's quad Z order.
-    const rv_vec3 local[4] = {
+    const rv_vec3 local[rv_scene_quad_corners_count] = {
         { -0.5f, 0.5f, 0.0f },
         { 0.5f, 0.5f, 0.0f },
         { -0.5f, -0.5f, 0.0f },
         { 0.5f, -0.5f, 0.0f },
     };
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < rv_scene_quad_corners_count; ++i) {
         out[i] = rv_mat4_mul_point(world, local[i]);
     }
 }
