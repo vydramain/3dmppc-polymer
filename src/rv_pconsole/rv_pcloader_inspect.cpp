@@ -44,26 +44,26 @@ std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 }
 
 template <typename O>
-bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out)
+int pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out)
 {
     static_assert(std::is_trivially_copyable_v<O>);
 
     if (off_start < 0 || off_start > (int64_t)buf.size() - (int64_t)sizeof(O)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     if (off_end < off_start || off_end > (int64_t)buf.size()) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     std::memcpy(&out, buf.data() + off_start, sizeof(O));
-    return true;
+    return RV_OK;
 }
 
 // ELF64 header: magic, class/byte order, e_type/e_machine, program-header
 // stride. Each check legalises exactly the fields the next step relies on;
 // until a check has passed, the fields it covers are just bytes. Fills
-// out_ehdr on success.
-bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
+// out_ehdr and returns RV_OK on success, RV_ERR_INVAL on any failed check.
+int elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
     const char *origin, Elf64_Ehdr &out_ehdr)
 {
     const int64_t size = static_cast<int64_t>(buffer.size());
@@ -72,17 +72,17 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "code entry '{}' in '{}' is missing or empty; there is no binary "
             "to version-check",
             rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(origin));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // The ELF header lives at offset 0 by definition - elf(5), "ELF header
     // (Ehdr)".
-    if (!pod_peek(buffer, 0, sizeof(out_ehdr), out_ehdr)) {
+    if (pod_peek(buffer, 0, sizeof(out_ehdr), out_ehdr) != RV_OK) {
         RV_LOG_ERR("pcloader",
             "code entry '{}' is only {} bytes - smaller than an ELF64 header; "
             "not a loadable binary",
             rv_pdklib::rv_log_escape(info_entry), size);
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (memcmp(out_ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
@@ -90,7 +90,7 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "code entry '{}' does not start with the ELF magic; it is not an "
             "ELF object at all",
             rv_pdklib::rv_log_escape(info_entry));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Single-byte fields, so they are readable regardless of byte order - and
@@ -102,7 +102,7 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "data {}); this console only runs ELF64 LE discs",
             rv_pdklib::rv_log_escape(info_entry), (int)out_ehdr.e_ident[EI_CLASS],
             (int)out_ehdr.e_ident[EI_DATA]);
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (out_ehdr.e_type != ET_DYN || out_ehdr.e_machine != EM_X86_64) {
@@ -110,7 +110,7 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "code entry '{}' is not an x86-64 shared object (e_type {}, "
             "e_machine {}); it cannot run on this console",
             rv_pdklib::rv_log_escape(info_entry), out_ehdr.e_type, out_ehdr.e_machine);
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // The program-header walk steps by e_phentsize; if the file declares a
@@ -121,10 +121,10 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "code entry '{}' declares {}-byte program headers, elf(5) says {}; "
             "its segment table cannot be walked",
             rv_pdklib::rv_log_escape(info_entry), out_ehdr.e_phentsize, sizeof(Elf64_Phdr));
-        return false;
+        return RV_ERR_INVAL;
     }
 
-    return true;
+    return RV_OK;
 }
 
 // Walks ehdr's program headers for the first PT_NOTE segment. found stays
@@ -136,9 +136,9 @@ int64_t find_note_segment(std::vector<unsigned char> &buffer, const Elf64_Ehdr &
     found = false;
     Elf64_Phdr potential_note;
     for (int i = 0; i < ehdr.e_phnum; ++i) {
-        if (!pod_peek(buffer, ehdr.e_phoff + i * ehdr.e_phentsize,
+        if (pod_peek(buffer, ehdr.e_phoff + i * ehdr.e_phentsize,
                 (ehdr.e_phoff + i * ehdr.e_phentsize) + sizeof(potential_note),
-                potential_note)) {
+                potential_note) != RV_OK) {
             RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from disc.so ");
             continue;
         }
@@ -193,7 +193,7 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
 
         const uint64_t note_header_end = note_offset + sizeof(note);
 
-        if (!pod_peek(buffer, note_offset, note_header_end, note)) {
+        if (pod_peek(buffer, note_offset, note_header_end, note) != RV_OK) {
             RV_LOG_ERR("pcloader", "cannot read ELF note header from mppcdisc");
             return RV_ERR_INVAL;
         }
@@ -233,7 +233,7 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
             continue;
         }
 
-        if (!pod_peek(buffer, desc_offset, note_end, version_info)) {
+        if (pod_peek(buffer, desc_offset, note_end, version_info) != RV_OK) {
             RV_LOG_WARN("pcloader", "cannot read version descriptor from ELF note");
             continue;
         }
@@ -340,7 +340,7 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
     const char *info_entry, const char *origin)
 {
     Elf64_Ehdr mppcdisc_ehdr;
-    if (!elf_header_ok(buffer, info_entry, origin, mppcdisc_ehdr)) {
+    if (elf_header_ok(buffer, info_entry, origin, mppcdisc_ehdr) != RV_OK) {
         return RV_ERR_INVAL;
     }
 
