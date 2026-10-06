@@ -381,8 +381,9 @@ int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, 
         return RV_ERR_BUSY;
     }
     const std::filesystem::path to = from.parent_path() / name;
-    if (!app.files.rename(from, name, error)) {
-        return RV_ERR_INVAL;
+    const int err = app.files.rename(from, name, error);
+    if (err != RV_OK) {
+        return err;
     }
     app.nvim.rename_buffers_at(from, to);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
@@ -396,8 +397,9 @@ int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, 
     if (!error.empty()) {
         return RV_ERR_BUSY;
     }
-    if (!app.files.remove(path, error)) {
-        return RV_ERR_INVAL;
+    const int err = app.files.remove(path, error);
+    if (err != RV_OK) {
+        return err;
     }
     app.nvim.delete_buffers_at(path);
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "deleted " + path.string());

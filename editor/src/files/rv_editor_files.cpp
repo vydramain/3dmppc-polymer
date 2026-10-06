@@ -261,34 +261,37 @@ int rv_editor_files::create_dir(const std::filesystem::path &dir, const std::str
     return RV_OK;
 }
 
-bool rv_editor_files::rename(const std::filesystem::path &from, const std::string &name, std::string &error)
+int rv_editor_files::rename(const std::filesystem::path &from, const std::string &name, std::string &error)
 {
     if (!valid_name(name, error)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     const std::filesystem::path to = from.parent_path() / name;
     if (from == root_.path || !inside(from) || !inside(to)) {
         error = "only files and directories inside the project can be renamed";
-        return false;
+        return RV_ERR_INVAL;
     }
     std::error_code ec;
     if (std::filesystem::exists(std::filesystem::symlink_status(to, ec))) {
         error = to.string() + " already exists";
-        return false;
+        return RV_ERR_INVAL;
     }
     std::filesystem::rename(from, to, ec);
     if (ec) {
         error = from.string() + ": " + ec.message();
-        return false;
+        if (ec.value() == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        return RV_ERR_IO;
     }
     relist(from.parent_path());
     if (selected == from) {
         selected = to;
     }
-    return true;
+    return RV_OK;
 }
 
-bool rv_editor_files::remove(const std::filesystem::path &path, std::string &error)
+int rv_editor_files::remove(const std::filesystem::path &path, std::string &error)
 {
     // The link itself is judged, not its target: deleting a link that points
     // outside the project removes only the link.
@@ -296,19 +299,22 @@ bool rv_editor_files::remove(const std::filesystem::path &path, std::string &err
     std::string bad;
     if (path == root_.path || !valid_name(path.filename().string(), bad) || !inside(parent)) {
         error = "only files and directories inside the project can be deleted";
-        return false;
+        return RV_ERR_INVAL;
     }
     std::error_code ec;
     std::filesystem::remove_all(path, ec);
     if (ec) {
         error = path.string() + ": " + ec.message();
-        return false;
+        if (ec.value() == ENOENT) {
+            return RV_ERR_NOENT;
+        }
+        return RV_ERR_IO;
     }
     relist(parent);
     if (selected == path) {
         selected.clear();
     }
-    return true;
+    return RV_OK;
 }
 
 bool rv_editor_file_binary(const std::filesystem::path &path, uintmax_t &size)

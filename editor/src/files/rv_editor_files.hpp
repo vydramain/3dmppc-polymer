@@ -53,9 +53,9 @@ public:
 
     int create_file(const std::filesystem::path &dir, const std::string &name, std::string &error);
     int create_dir(const std::filesystem::path &dir, const std::string &name, std::string &error);
-    bool rename(const std::filesystem::path &from, const std::string &name, std::string &error);
+    int rename(const std::filesystem::path &from, const std::string &name, std::string &error);
     // Deletes a file, a symlink (not what it points to) or a whole directory.
-    bool remove(const std::filesystem::path &path, std::string &error);
+    int remove(const std::filesystem::path &path, std::string &error);
 
     std::filesystem::path selected;
     std::vector<std::filesystem::path> changed;
