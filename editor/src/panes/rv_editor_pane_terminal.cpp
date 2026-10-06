@@ -46,6 +46,16 @@ constexpr uint8_t utf8_initial_mask = 0x7f;
 constexpr int utf8_continuation_bits = 6;
 // UTF-8 continuation byte mask (0b00111111).
 constexpr uint8_t utf8_continuation_mask = 0x3f;
+// UTF-8 lead byte pattern detection: shifts to align lead pattern bits (RFC 3629).
+constexpr int utf8_2byte_lead_shift = 5; // Check bits 7:5 match utf8_2byte_lead_check
+constexpr int utf8_3byte_lead_shift = 4; // Check bits 7:4 match utf8_3byte_lead_check
+constexpr int utf8_4byte_lead_shift = 3; // Check bits 7:3 match utf8_4byte_lead_check
+// UTF-8 byte sequence lengths decoded from lead byte pattern (RFC 3629).
+constexpr int utf8_2byte_length = 2;
+constexpr int utf8_3byte_length = 3;
+constexpr int utf8_4byte_length = 4;
+// Grid cell width probe glyph for layout measurement (editor assumption: monospace font).
+constexpr const char *grid_cell_width_probe = "M";
 // Maximum preview lines in paste confirmation dialog.
 constexpr int max_paste_preview_lines = 8;
 // FramePadding counts on both sides.
@@ -130,10 +140,10 @@ void rv_editor_term_type(rv_editor_terminal &term, const std::string &text)
     while (i < text.size()) {
         // One code point; a byte that starts none is skipped.
         const auto b = static_cast<unsigned char>(text[i]);
-        const size_t n = b < utf8_1byte_limit ? 1 : (b >> 5) == utf8_2byte_lead_check ? 2 :
-            (b >> 4) == utf8_3byte_lead_check                                         ? 3 :
-            (b >> 3) == utf8_4byte_lead_check                                         ? 4 :
-                                                                                        0;
+        const size_t n = b < utf8_1byte_limit ? 1 : (b >> utf8_2byte_lead_shift) == utf8_2byte_lead_check ? utf8_2byte_length :
+            (b >> utf8_3byte_lead_shift) == utf8_3byte_lead_check                                         ? utf8_3byte_length :
+            (b >> utf8_4byte_lead_shift) == utf8_4byte_lead_check                                         ? utf8_4byte_length :
+                                                                                                            0;
         if (n == 0 || i + n > text.size()) {
             ++i;
             continue;
@@ -256,7 +266,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     }
 
     // The screen fills the tile in whole cells: no permanent status row.
-    const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
+    const ImVec2 cell(ImGui::CalcTextSize(grid_cell_width_probe).x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const int cols = std::max(min_terminal_cols, static_cast<int>(avail.x / cell.x));

@@ -20,6 +20,10 @@ constexpr uint32_t utf8_3byte_start = 0xe0;
 constexpr uint32_t utf8_4byte_start = 0xf0;
 constexpr uint32_t utf8_cont = 0x80;
 constexpr uint32_t utf8_cont_mask = 0x3f;
+// UTF-8 encoding: bit shifts for extracting codepoint payload into continuation bytes (RFC 3629).
+constexpr int utf8_payload_shift_1 = 6;  // Extract bits for 1st continuation byte
+constexpr int utf8_payload_shift_2 = 12; // Extract bits for 2nd continuation byte
+constexpr int utf8_payload_shift_3 = 18; // Extract bits for 3rd continuation byte
 
 // nvim_input key names for special keys: :help keycodes.
 constexpr const char *nvim_key_cr = "CR";
@@ -61,16 +65,16 @@ void rv_editor_utf8_append(std::string &out, uint32_t cp)
     if (cp < utf8_1byte_limit) {
         out += static_cast<char>(cp);
     } else if (cp < utf8_2byte_limit) {
-        out += static_cast<char>(utf8_2byte_start | (cp >> 6));
+        out += static_cast<char>(utf8_2byte_start | (cp >> utf8_payload_shift_1));
         out += static_cast<char>(utf8_cont | (cp & utf8_cont_mask));
     } else if (cp < utf8_3byte_limit) {
-        out += static_cast<char>(utf8_3byte_start | (cp >> 12));
-        out += static_cast<char>(utf8_cont | ((cp >> 6) & utf8_cont_mask));
+        out += static_cast<char>(utf8_3byte_start | (cp >> utf8_payload_shift_2));
+        out += static_cast<char>(utf8_cont | ((cp >> utf8_payload_shift_1) & utf8_cont_mask));
         out += static_cast<char>(utf8_cont | (cp & utf8_cont_mask));
     } else {
-        out += static_cast<char>(utf8_4byte_start | (cp >> 18));
-        out += static_cast<char>(utf8_cont | ((cp >> 12) & utf8_cont_mask));
-        out += static_cast<char>(utf8_cont | ((cp >> 6) & utf8_cont_mask));
+        out += static_cast<char>(utf8_4byte_start | (cp >> utf8_payload_shift_3));
+        out += static_cast<char>(utf8_cont | ((cp >> utf8_payload_shift_2) & utf8_cont_mask));
+        out += static_cast<char>(utf8_cont | ((cp >> utf8_payload_shift_1) & utf8_cont_mask));
         out += static_cast<char>(utf8_cont | (cp & utf8_cont_mask));
     }
 }
