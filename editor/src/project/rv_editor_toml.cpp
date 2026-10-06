@@ -11,6 +11,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Temporary-file suffix for atomic replacement.
+constexpr std::string_view temp_file_suffix = ".tmp";
+
+} // namespace
+
 std::string rv_editor_toml_quote(std::string_view s)
 {
     std::string out = "\"";
@@ -31,7 +39,7 @@ int rv_editor_file_replace(const std::filesystem::path &path, const std::string 
 {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    const std::filesystem::path tmp = path.string() + ".tmp";
+    const std::filesystem::path tmp = path.string() + std::string(temp_file_suffix);
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
     out << text;
     out.close();

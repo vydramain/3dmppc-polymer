@@ -3,6 +3,7 @@
 #include "project/rv_editor_templates.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <fstream>
 #include <sstream>
@@ -28,10 +29,21 @@ constexpr unsigned char ascii_limit = 0x80;
 // Search key for the project title in disc.toml.
 constexpr std::string_view title_key = "title = \"";
 
+// File name of the recent-projects list, next to the layout.
+constexpr std::string_view recent_file_name = "recent";
+
+// Temporary-file suffix for atomic replacement.
+constexpr std::string_view temp_file_suffix = ".tmp";
+
+// Files a new project's template text is rewritten in.
+constexpr std::array<std::string_view, 8> template_text_extensions = {
+    ".toml", ".md", ".lua", ".cpp", ".hpp", ".h", ".c", ".txt"
+};
+
 std::filesystem::path rv_editor_recent_path()
 {
     const std::filesystem::path layout = rv_editor_layout_file_path();
-    return layout.empty() ? layout : layout.parent_path() / "recent";
+    return layout.empty() ? layout : layout.parent_path() / recent_file_name;
 }
 
 void rv_editor_recent_save(const std::vector<std::filesystem::path> &list)
@@ -42,13 +54,13 @@ void rv_editor_recent_save(const std::vector<std::filesystem::path> &list)
     }
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
-    std::ofstream out(path.string() + ".tmp", std::ios::binary | std::ios::trunc);
+    std::ofstream out(path.string() + std::string(temp_file_suffix), std::ios::binary | std::ios::trunc);
     for (const std::filesystem::path &p : list) {
         out << p.string() << "\n";
     }
     out.close();
     if (out) {
-        std::filesystem::rename(path.string() + ".tmp", path, ec);
+        std::filesystem::rename(path.string() + std::string(temp_file_suffix), path, ec);
     }
 }
 
@@ -71,8 +83,8 @@ std::string rv_editor_template_rename(std::string s, const std::string &from, co
 bool rv_editor_is_text(const std::filesystem::path &p)
 {
     const std::string ext = p.extension().string();
-    return ext == ".toml" || ext == ".md" || ext == ".lua" || ext == ".cpp" || ext == ".hpp" || ext == ".h" ||
-        ext == ".c" || ext == ".txt";
+    return std::find(template_text_extensions.begin(), template_text_extensions.end(), ext) !=
+        template_text_extensions.end();
 }
 
 } // namespace
