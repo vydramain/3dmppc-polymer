@@ -298,6 +298,10 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     }
 }
 
+// Legacy view-file keys from an earlier editor: "test" for Debug, "release" for Burn.
+constexpr const char *legacy_debug_key = "test";
+constexpr const char *legacy_burn_key = "release";
+
 void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem::path &path, const std::string &active)
 {
     shell.ws.panes = {};
@@ -323,8 +327,14 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
         shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
         shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
     }
-    // "test" and "release" are what an earlier editor wrote for Debug and Burn.
-    const std::string key = active == "test" ? "debug" : active == "release" ? "burn" : active;
+    std::string key;
+    if (active == legacy_debug_key) {
+        key = rv_editor_workspace_key_of(rv_editor_layout_preset::debug);
+    } else if (active == legacy_burn_key) {
+        key = rv_editor_workspace_key_of(rv_editor_layout_preset::burn);
+    } else {
+        key = active;
+    }
     shell.active = rv_editor_layout_preset::code;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
         if (key == rv_editor_workspace_key_of(preset)) {

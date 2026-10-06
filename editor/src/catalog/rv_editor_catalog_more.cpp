@@ -34,6 +34,9 @@ constexpr size_t code_line_number_buffer_size = 8; // code sample line number fo
 // Code sample display dimensions
 constexpr int code_sample_pieces_per_line = 4; // text segments per code line row
 
+// Payload type tag shared by drag source and drop target in catalog.
+constexpr const char *asset_payload_type = "RV_ASSET";
+
 struct rv_editor_catalog_more_data
 {
     bool checks[demo_checkbox_count] = { false, true, false };
@@ -300,7 +303,7 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
         const ImVec2 p0 = ImGui::GetCursorScreenPos();
         ImGui::InvisibleButton("##cell", ImVec2(cell, cell * asset_cell_height_ratio));
         if (ImGui::BeginDragDropSource()) {
-            ImGui::SetDragDropPayload("RV_ASSET", files[i], std::strlen(files[i]) + 1);
+            ImGui::SetDragDropPayload(asset_payload_type, files[i], std::strlen(files[i]) + 1);
             ImGui::TextUnformatted(files[i]);
             ImGui::EndDragDropSource();
         }
@@ -316,7 +319,7 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * asset_pocket_width_em);
     rv_editor_text_field("##pocket", d.pocket, sizeof(d.pocket), theme);
     if (ImGui::BeginDragDropTarget()) {
-        if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload("RV_ASSET")) {
+        if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(asset_payload_type)) {
             std::snprintf(d.pocket, sizeof(d.pocket), "%s", static_cast<const char *>(p->Data));
         }
         ImGui::EndDragDropTarget();
