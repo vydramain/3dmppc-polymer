@@ -564,3 +564,11 @@ no_candidate = "No candidate yet: Build Candidate first"
 image_bytes_changed = "The image's bytes changed after it was built"
 hashing_image = "Hashing the image first"
 session_running = "A session is running: Stop it first"
+
+[browser]
+up = "Up"
+up_tooltip = "This is the top"
+select_executable = "Select an executable file"
+select_directory = "Select a directory"
+nothing_selected = "Nothing selected"
+cancel = "Cancel"

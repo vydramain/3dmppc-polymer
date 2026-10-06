@@ -10,6 +10,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -104,7 +105,8 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
     ImGui::PopStyleColor();
 
     const std::filesystem::path parent = b.dir.parent_path();
-    if (rv_editor_button("Up", theme, { rv_editor_look::live, parent == b.dir ? "This is the top" : nullptr })) {
+    if (rv_editor_button(rv_editor_text("browser.up"), theme,
+            { rv_editor_look::live, parent == b.dir ? rv_editor_text("browser.up_tooltip") : nullptr })) {
         rv_editor_browser_go(b, parent);
     }
     ImGui::SameLine();
@@ -154,17 +156,16 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
 
     const std::filesystem::path target = rv_editor_browser_target(b);
     const bool usable = b.pick == rv_editor_browse_pick::directory ? !target.empty() : rv_editor_is_executable(target);
-    const char *why = why_not != nullptr ? why_not
-        : usable                         ? nullptr
-        : b.pick == rv_editor_browse_pick::executable ? "Select an executable file"
-                                                      : "Select a directory";
-    ImGui::TextUnformatted(target.empty() ? "Nothing selected" : target.c_str());
+    const char *why = why_not != nullptr ? why_not : usable ? nullptr :
+        b.pick == rv_editor_browse_pick::executable         ? rv_editor_text("browser.select_executable") :
+                                                              rv_editor_text("browser.select_directory");
+    ImGui::TextUnformatted(target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str());
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;
         result = rv_editor_browse_result::picked;
     }
     ImGui::SameLine();
-    if (rv_editor_button("Cancel", theme)) {
+    if (rv_editor_button(rv_editor_text("browser.cancel"), theme)) {
         result = rv_editor_browse_result::cancelled;
     }
     ImGui::PopID();
