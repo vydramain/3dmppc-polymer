@@ -22,13 +22,11 @@ constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
 
 void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_editor_tool &tool)
 {
-    if (tool.problem.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-            std::string(name) + ": " + tool.path.string() + " (" + tool.origin + ")" +
-                (tool.version.empty() ? "" : ", " + tool.version));
-        return;
-    }
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string(name) + ": " + tool.problem);
+    const bool ok = tool.problem.empty();
+    const rv_editor_log_level level = ok ? rv_editor_log_level::info : rv_editor_log_level::warning;
+    const std::string version_suffix = ok && !tool.version.empty() ? ", " + tool.version : "";
+    const std::string detail = ok ? tool.path.string() + " (" + tool.origin + ")" + version_suffix : tool.problem;
+    app.log.add(rv_editor_log_source::editor, level, std::string(name) + ": " + detail);
 }
 
 } // namespace
