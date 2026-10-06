@@ -71,10 +71,11 @@ enum class rv_editor_pane_kind : uint32_t
     settings,         // Settings, as a tab
     help,             // Help, as a tab
     review_changes,   // the unsaved files quitting, opening, building or running waits on
+    manual,           // the embedded user manual, as a tab
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::review_changes;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::manual;
 
 struct rv_editor_pane
 {

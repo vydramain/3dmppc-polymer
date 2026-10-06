@@ -48,7 +48,9 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         case rv_editor_pane_kind::settings: return "Settings";
         case rv_editor_pane_kind::help: return "Help";
         case rv_editor_pane_kind::review_changes: return "Review Changes";
-    }
+        case rv_editor_pane_kind::manual:
+            return "Manual";
+        }
     return "?";
 }
 

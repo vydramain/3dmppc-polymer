@@ -495,6 +495,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         case rv_editor_pane_kind::open_project: rv_editor_page_open_project(shell, theme); return;
         case rv_editor_pane_kind::settings: rv_editor_page_settings(shell, theme); return;
         case rv_editor_pane_kind::help: rv_editor_page_help(shell, theme); return;
+        case rv_editor_pane_kind::manual:
+            rv_editor_page_manual(shell, theme);
+            return;
         case rv_editor_pane_kind::empty:
             rv_editor_pane_empty(shell, pane, theme);
             return;
