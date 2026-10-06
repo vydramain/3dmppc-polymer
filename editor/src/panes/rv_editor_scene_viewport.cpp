@@ -14,6 +14,7 @@
 #include "imgui.h"
 
 #include "panes/rv_editor_scene_draw.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
@@ -249,16 +250,15 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const std::string &kind = doc.scene.objects[i].kind;
         const bool sel = doc.scene.objects[i].id == doc.selected;
-        const ImU32 color = rv_editor_col(sel ? theme.selection
-                : kind == "mesh" || kind == "quad" || kind == "billboard" ? theme.text
-                : kind == "camera"                                       ? theme.code_yellow
-                                                                          : theme.code_subtext);
+        const ImU32 color = rv_editor_col(sel ? theme.selection : kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
+                kind == kind_camera                                                                                                ? theme.code_yellow :
+                                                                                                                                     theme.code_subtext);
         std::string error;
         // Filled/Textured mode already paints non-selected mesh/quad/billboard geometry; the
         // selected one keeps its outline, and a volume (never filled) always keeps its edges.
-        const bool painted = filled && !sel && (kind == "mesh" || kind == "quad" || kind == "billboard");
+        const bool painted = filled && !sel && (kind == kind_mesh || kind == kind_quad || kind == kind_billboard);
         if (painted) {
-            if (kind == "mesh") {
+            if (kind == kind_mesh) {
                 rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
             }
         } else {

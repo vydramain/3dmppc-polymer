@@ -14,6 +14,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -26,6 +27,9 @@ namespace
 
 // Scene name buffer: the name entered in the New Scene dialog, with room including NUL
 constexpr size_t new_scene_name_bytes = 64;
+
+// Kinds the Add menu offers, in menu order
+constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
 
 struct rv_editor_new_scene_state
 {
@@ -226,27 +230,24 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     }
     if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.add_menu"), read_only == nullptr)) {
         const int sel = rv_editor_scene_find(app.scene->scene, app.scene->selected);
-        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == "group"
-            ? app.scene->selected
-            : std::string();
-        for (const char *kind : { "group", "camera", "mesh", "quad", "billboard", "volume" }) {
+        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ? app.scene->selected : std::string();
+        for (std::string_view kind : scene_kinds) {
             const char *label;
-            std::string kind_str = kind;
-            if (kind_str == "mesh") {
+            if (kind == kind_mesh) {
                 label = rv_editor_text("shell_menu_scene.add_box");
-            } else if (kind_str == "camera") {
+            } else if (kind == kind_camera) {
                 label = rv_editor_text("shell_menu_scene.add_camera");
-            } else if (kind_str == "quad") {
+            } else if (kind == kind_quad) {
                 label = rv_editor_text("shell_menu_scene.add_quad");
-            } else if (kind_str == "billboard") {
+            } else if (kind == kind_billboard) {
                 label = rv_editor_text("shell_menu_scene.add_billboard");
-            } else if (kind_str == "volume") {
+            } else if (kind == kind_volume) {
                 label = rv_editor_text("shell_menu_scene.add_volume");
             } else {
                 label = rv_editor_text("shell_menu_scene.add_group");
             }
             if (ImGui::MenuItem(label)) {
-                rv_editor_scene_add(*app.scene, kind, parent);
+                rv_editor_scene_add(*app.scene, kind.data(), parent);
             }
         }
         ImGui::EndMenu();
