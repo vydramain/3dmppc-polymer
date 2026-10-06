@@ -120,25 +120,27 @@ namespace
 // refused. Bounded by the same depth/node budget capture_walk uses, and for
 // the same reason - this walks data a script put in `state`, which the shape
 // walk itself only ever certified up to that same budget in the first place.
-bool mirror_table_(lua_State *L, int dst_idx, int src_idx, int &nodes, int depth)
+// Returns RV_OK on success, RV_ERR_INVAL if depth/node budget exceeded.
+int mirror_table_(lua_State *L, int dst_idx, int src_idx, int &nodes, int depth)
 {
     if (depth > kShapeMaxDepth || ++nodes > kShapeMaxNodes) {
-        return false;
+        return RV_ERR_INVAL;
     }
     lua_pushnil(L);
     while (lua_next(L, src_idx) != 0) {
         // [key, value]
         if (++nodes > kShapeMaxNodes) {
             lua_pop(L, 2);
-            return false;
+            return RV_ERR_INVAL;
         }
         const int value_idx = lua_gettop(L);
         if (lua_type(L, value_idx) == LUA_TTABLE) {
             lua_newtable(L); // [key, value, child]
             const int child_idx = lua_gettop(L);
-            if (!mirror_table_(L, child_idx, value_idx, nodes, depth + 1)) {
+            const int rc = mirror_table_(L, child_idx, value_idx, nodes, depth + 1);
+            if (rc != RV_OK) {
                 lua_pop(L, 3); // child, value, key
-                return false;
+                return rc;
             }
             lua_pushvalue(L, -3); // [key, value, child, key]
             lua_insert(L, -2);    // [key, value, key, child]
@@ -152,7 +154,7 @@ bool mirror_table_(lua_State *L, int dst_idx, int src_idx, int &nodes, int depth
         lua_rawset(L, dst_idx);      // dst[key] = value; [key, value]
         lua_pop(L, 1);               // drop value; key stays for lua_next
     }
-    return true;
+    return RV_OK;
 }
 
 // Empties a table IN PLACE, never replacing it: every other reference to this
@@ -205,7 +207,7 @@ int rv_pccl_luajit::state_snapshot_trampoline_(lua_State *L)
     const int src_idx = lua_gettop(L);
 
     int nodes = 0;
-    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0);
+    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0) == RV_OK;
     lua_pop(L, 1); // src
     if (args->ok) {
         args->ref_out = luaL_ref(L, LUA_REGISTRYINDEX); // pops dst
@@ -261,7 +263,7 @@ int rv_pccl_luajit::state_restore_trampoline_(lua_State *L)
     const int src_idx = lua_gettop(L);
 
     int nodes = 0;
-    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0);
+    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0) == RV_OK;
     lua_pop(L, 2); // src, dst
     return 0;
 }
