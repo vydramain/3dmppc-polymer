@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "font/rv_editor_font.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -48,10 +49,10 @@ rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 const char *rv_editor_why_not_reload_shown(const rv_editor_app &app)
 {
     if (!app.session.live()) {
-        return "No session is running";
+        return rv_editor_text("panes.no_session_running");
     }
     if (!rv_editor_app_can_reload(app)) {
-        return "This disc has no Lua entry script to reload";
+        return rv_editor_text("panes.disc_no_lua_entry");
     }
     return rv_editor_app_why_not_reload(app);
 }
@@ -125,13 +126,15 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             plan.action == rv_editor_change_action::restart_required);
     // The disc itself refusing to reload always wins over the plan's own wording
     // (which may name a module reload that the disc could never do).
-    const std::string why_not_reload = !can_reload
-        ? "The running disc cannot reload: it runs from an image or has no Lua entry script."
-        : plan.reason;
-    const std::string reload_name = plan.action == rv_editor_change_action::reload_module
-        ? "Reload Module: " + plan.name
-        : plan.action == rv_editor_change_action::refresh_texture ? "Refresh Texture: " + plan.name
-                                                                    : "Reload Entry Script";
+    const std::string why_not_reload = !can_reload ? rv_editor_text("panes.disc_cannot_reload") : plan.reason;
+    std::string reload_name;
+    if (plan.action == rv_editor_change_action::reload_module) {
+        reload_name = rv_editor_text_format("panes.reload_module", std::make_format_args(plan.name));
+    } else if (plan.action == rv_editor_change_action::refresh_texture) {
+        reload_name = rv_editor_text_format("panes.refresh_texture", std::make_format_args(plan.name));
+    } else {
+        reload_name = rv_editor_text("panes.reload_entry_script");
+    }
     // Reload is always shown; it is disabled with a reason when the disc cannot take one.
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
@@ -167,7 +170,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // Build and Restart took Reload's slot: say why, plainly, not only in its tooltip.
     // why_not_reload already ends in ".": add the state-loss warning as its own sentence.
     const std::string build_restart_message =
-        offer_build_restart ? why_not_reload + " Restarting loses the game's current state." : std::string();
+        offer_build_restart ? why_not_reload + " " + rv_editor_text("panes.restart_loses_state") : std::string();
 
     // The runtime's confirmed state follows the transport bar on the same row;
     // the bar hides its own buttons first rather than let that status get clipped.
@@ -191,35 +194,43 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             !app.texture_bake.message.empty() && app.texture_bake.build_number == s.build_number();
         const bool on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
         if (baking) {
-            badge_label = "Baking texture " + baking_name;
+            badge_label = rv_editor_text_format("panes.baking_texture", std::make_format_args(baking_name));
             badge_kind = rv_editor_status_kind::active;
         } else if (bake_failed) {
-            badge_label = "Bake failed";
+            badge_label = rv_editor_text("panes.bake_failed");
             badge_kind = rv_editor_status_kind::error;
             detail = app.texture_bake.message;
         } else if (s.reloading()) {
-            badge_label = "Reloading";
+            badge_label = rv_editor_text("panes.reloading");
             badge_kind = rv_editor_status_kind::active;
         } else if (!s.reload_result().empty()) {
-            badge_label = s.reload_ok() ? "Reload accepted" : "Reload refused";
+            badge_label = s.reload_ok() ? rv_editor_text("panes.reload_accepted") : rv_editor_text("panes.reload_refused");
             badge_kind = s.reload_ok() ? rv_editor_status_kind::ok : rv_editor_status_kind::error;
             detail = s.reload_result();
         } else if (on_save) {
-            badge_label = "Reload On Save";
+            badge_label = rv_editor_text("panes.reload_on_save");
         }
     }
-    const std::string last_run_message =
-        !s.live() && !s.end_reason().empty() ? "Last run: " + s.end_reason() : std::string();
+    const std::string end_reason = s.end_reason();
+    std::string last_run_message;
+    if (!s.live() && !end_reason.empty()) {
+        last_run_message = rv_editor_text_format("panes.last_run", std::make_format_args(end_reason));
+    }
 
     // One message area, 2 lines: the strip has many things it might say but
     // never more than one matters at once, by priority (an unanswered request
     // outranks a stale reload detail, which outranks the reload/build-restart
     // note, which outranks what the last run ended with).
-    const std::string message = s.uncertain()
-        ? "A request went unanswered; the state shown is the last one the console confirmed."
-        : !detail.empty()                 ? detail
-        : !build_restart_message.empty()  ? build_restart_message
-                                           : last_run_message;
+    std::string message;
+    if (s.uncertain()) {
+        message = rv_editor_text("panes.request_unanswered");
+    } else if (!detail.empty()) {
+        message = detail;
+    } else if (!build_restart_message.empty()) {
+        message = build_restart_message;
+    } else {
+        message = last_run_message;
+    }
     rv_editor_reserved("##message", message, reserved_message_lines);
 
     // Facts/target and the profile button share one row: facts clips rather
@@ -227,18 +238,29 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     const bool debug_preset = app.preset == rv_editor_layout_preset::debug;
     std::string facts;
     if (s.live() && !debug_preset) {
-        facts = "frame " + std::to_string(s.frame()) + " | session #" + std::to_string(s.number()) + " | build #" +
-            std::to_string(s.build_number());
+        const int frame_num = s.frame();
+        const int session_num = s.number();
+        const int build_num = s.build_number();
+        facts = rv_editor_text_format("panes.facts_live",
+            std::make_format_args(frame_num, session_num, build_num));
         if (s.facts().lua_budget > 0) {
-            facts += " | script revision " + std::to_string(s.facts().revision) +
-                (s.facts().revision != s.facts().first_revision ? " (reloaded)" : "");
+            const int revision = s.facts().revision;
+            const int first_revision = s.facts().first_revision;
+            if (revision != first_revision) {
+                facts += rv_editor_text_format("panes.script_revision_reloaded",
+                    std::make_format_args(revision));
+            } else {
+                facts += rv_editor_text_format("panes.script_revision", std::make_format_args(revision));
+            }
         }
     } else if (!s.live() && app.build.last_success()) {
-        facts = "Target: build #" + std::to_string(app.build.last_success()->number);
+        const int build_number = app.build.last_success()->number;
+        facts = rv_editor_text_format("panes.target_build", std::make_format_args(build_number));
     } else if (!s.live()) {
-        facts = "Target: nothing built yet";
+        facts = rv_editor_text("panes.target_nothing_built");
     }
-    const std::string profile = "Profile: " + app.run_config.profiles[app.run_config.active].name;
+    const std::string profile_name = app.run_config.profiles[app.run_config.active].name;
+    const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
     const float profile_w = rv_editor_button_width(profile.c_str());
     const float facts_w = std::max(1.0f, ImGui::GetContentRegionAvail().x - profile_w - ImGui::GetStyle().ItemSpacing.x);
     rv_editor_reserved_line("##facts", facts, facts_w);
@@ -246,22 +268,25 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_button(profile.c_str(), theme)) {
         app.show_request = rv_editor_pane_kind::run_config;
     }
-    ImGui::SetItemTooltip("Run Configuration: how Run starts the runtime");
+    ImGui::SetItemTooltip("%s", rv_editor_text("panes.run_config_tooltip"));
 
     // One action row shared by the three things it can offer, by priority: a
     // hung runtime needs Force Stop first, then a running build needs Cancel,
     // and only then the reload badge, the least urgent of the three.
     if (s.hung() || s.state() == rv_editor_run_state::disconnected) {
-        if (rv_editor_button("Force Stop", theme)) {
+        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme)) {
             app.session.force_stop(app.log);
         }
         ImGui::SameLine();
-        ImGui::TextUnformatted(s.hung() ? "the runtime did not end after quit" : "the channel is gone");
+        const char *msg =
+            s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
+        ImGui::TextUnformatted(msg);
     } else if (app.build.busy()) {
-        const rv_editor_state cancel = app.build.state() == rv_editor_build_state::cancelling
-            ? rv_editor_state{ rv_editor_look::live, "Already cancelling" }
-            : rv_editor_state{};
-        if (rv_editor_button("Cancel Build", theme, cancel)) {
+        rv_editor_state cancel;
+        if (app.build.state() == rv_editor_build_state::cancelling) {
+            cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("panes.already_cancelling") };
+        }
+        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, cancel)) {
             app.build.cancel();
         }
     } else if (!badge_label.empty()) {
@@ -274,9 +299,9 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    ImGui::TextUnformatted("No project is open.");
+    ImGui::TextUnformatted(rv_editor_text("panes.no_project_open_message"));
     ImGui::SameLine();
-    if (rv_editor_button("Open Project...", theme)) {
+    if (rv_editor_button(rv_editor_text("panes.open_project_button"), theme)) {
         app.open_folder_request = true;
     }
 }
@@ -287,47 +312,61 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const rv_editor_project &p = app.project;
     if (!p.open) {
-        rv_editor_wrapped("No project is open. File > Open Project... opens a game directory with its disc.toml.");
+        rv_editor_wrapped(rv_editor_text("panes.no_project_open_full"));
     } else {
-        rv_editor_project_group("Disc", theme);
-        rv_editor_wrapped("Disc: " + (p.disc_id.empty() ? std::string("?") : p.disc_id) +
-            (p.disc_title.empty() ? "" : " - " + p.disc_title));
+        rv_editor_project_group(rv_editor_text("panes.disc_heading"), theme);
+        const std::string disc_id = p.disc_id.empty() ? "?" : p.disc_id;
+        const std::string disc_title = p.disc_title;
+        std::string disc_info;
+        if (p.disc_title.empty()) {
+            disc_info = rv_editor_text_format("panes.disc_info", std::make_format_args(disc_id));
+        } else {
+            disc_info = rv_editor_text_format("panes.disc_info_with_title",
+                std::make_format_args(disc_id, disc_title));
+        }
+        rv_editor_wrapped(disc_info);
         if (!p.manifest_error.empty()) {
-            rv_editor_wrapped("disc.toml does not parse:\n" + p.manifest_error);
+            rv_editor_wrapped(rv_editor_text("panes.manifest_parse_error") + p.manifest_error);
         }
     }
 
     // The editor's own paths and tools, not disc.toml sections.
-    rv_editor_project_group("Editor", theme);
+    rv_editor_project_group(rv_editor_text("panes.editor_heading"), theme);
     if (p.open) {
-        rv_editor_path_row("Root", p.root.string(), theme);
-        rv_editor_path_row("Builds", (p.cache_dir / builds_dir_name).string(), theme);
-        rv_editor_path_row("Memory card", (p.state_dir / memcard_filename).string(), theme);
+        rv_editor_path_row(rv_editor_text("panes.root_path"), p.root.string(), theme);
+        rv_editor_path_row(rv_editor_text("panes.builds_path"), (p.cache_dir / builds_dir_name).string(), theme);
+        rv_editor_path_row(rv_editor_text("panes.memory_card_path"), (p.state_dir / memcard_filename).string(), theme);
     }
 
-    ImGui::SeparatorText("Toolchain");
+    ImGui::SeparatorText(rv_editor_text("panes.toolchain_header"));
     const rv_editor_tool *tools[] = { &app.tools.console, &app.tools.burner, &app.tools.baker };
-    const char *names[] = { "Runtime", "Burner", "Baker" };
+    const char *tool_names[] = { rv_editor_text("panes.tool_runtime"), rv_editor_text("panes.tool_burner"),
+        rv_editor_text("panes.tool_baker") };
     for (size_t i = 0; i < std::size(tools); ++i) {
         const rv_editor_tool &t = *tools[i];
-        rv_editor_status(names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
+        rv_editor_status(
+            tool_names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
         ImGui::SameLine();
         if (!t.problem.empty()) {
             rv_editor_wrapped(t.problem);
             continue;
         }
-        rv_editor_wrapped(t.version.empty() ? "found in " + t.origin : t.version + ", found in " + t.origin);
+        const std::string origin = t.origin;
+        const std::string origin_text =
+            rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
+        rv_editor_wrapped(t.version.empty() ? origin_text : t.version + ", " + origin_text);
         ImGui::PushID(i);
-        rv_editor_path_row("Path", t.path.string(), theme);
+        rv_editor_path_row(rv_editor_text("panes.path_label"), t.path.string(), theme);
         ImGui::PopID();
     }
-    const rv_editor_state look_again = app.build.busy() || app.session.live()
-        ? rv_editor_state{ rv_editor_look::live, "Not while a build or the runtime is running" }
-        : rv_editor_state{};
-    if (rv_editor_button("Look for Tools Again", theme, look_again)) {
+    rv_editor_state look_again;
+    if (app.build.busy() || app.session.live()) {
+        look_again = rv_editor_state{ rv_editor_look::live, rv_editor_text("panes.tools_not_while_running") };
+    }
+    if (rv_editor_button(rv_editor_text("panes.look_for_tools_button"), theme, look_again)) {
         rv_editor_app_init(app);
     }
-    rv_editor_path_row("Settings", app.tools.settings_path.string(), theme);
+    rv_editor_path_row(rv_editor_text("panes.settings_path"), app.tools.settings_path.string(), theme);
     if (!app.tools.settings_error.empty()) {
         rv_editor_wrapped(app.tools.settings_error);
     }
