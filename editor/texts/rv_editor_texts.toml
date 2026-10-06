@@ -224,6 +224,7 @@ kind_session = "session"
 origin_pid = "pid {}, {} #{}"
 origin_stdout = ", stdout"
 origin_stderr = ", stderr"
+export_failed = "cannot write {}"
 
 [pane_output_controls]
 level_errors = "Errors"

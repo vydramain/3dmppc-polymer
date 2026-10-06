@@ -189,7 +189,8 @@ int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_edito
     }
     out.close();
     if (!out) {
-        where = "cannot write " + path.string();
+        const std::string path_str = path.string();
+        where = rv_editor_text_format("pane_output.export_failed", std::make_format_args(path_str));
         return RV_ERR_IO;
     }
     where = path.string();
