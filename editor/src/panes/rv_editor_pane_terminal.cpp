@@ -24,9 +24,43 @@ namespace rv_editor
 namespace
 {
 
+// RGB channel shift: red in bits 16-23.
+constexpr int channel_shift_red = 16;
+// RGB channel shift: green in bits 8-15.
+constexpr int channel_shift_green = 8;
+// Mask for 8-bit colour channel.
+constexpr uint32_t rgb_channel_mask = 0xff;
+// Alpha channel fully opaque.
+constexpr int alpha_opaque = 255;
+// UTF-8 single-byte lead threshold.
+constexpr uint8_t utf8_1byte_limit = 0x80;
+// UTF-8 two-byte lead byte pattern check (bits 7:5 = 0b110).
+constexpr uint8_t utf8_2byte_lead_check = 0x6;
+// UTF-8 three-byte lead byte pattern check (bits 7:4 = 0b1110).
+constexpr uint8_t utf8_3byte_lead_check = 0xe;
+// UTF-8 four-byte lead byte pattern check (bits 7:3 = 0b11110).
+constexpr uint8_t utf8_4byte_lead_check = 0x1e;
+// UTF-8 initial byte mask after lead pattern.
+constexpr uint8_t utf8_initial_mask = 0x7f;
+// UTF-8 continuation byte bits per character.
+constexpr int utf8_continuation_bits = 6;
+// UTF-8 continuation byte mask (0b00111111).
+constexpr uint8_t utf8_continuation_mask = 0x3f;
+// Maximum preview lines in paste confirmation dialog.
+constexpr int max_paste_preview_lines = 8;
+// FramePadding counts on both sides.
+constexpr float frame_padding_sides = 2.0f;
+// Minimum terminal grid columns.
+constexpr int min_terminal_cols = 2;
+// Minimum terminal grid rows.
+constexpr int min_terminal_rows = 3;
+// Scrollback lines per mouse wheel notch.
+constexpr int scroll_lines_per_notch = 3;
+
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
-    return IM_COL32((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, 255);
+    return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask, (rgb >> channel_shift_green) & rgb_channel_mask,
+        rgb & rgb_channel_mask, alpha_opaque);
 }
 
 // One line of cells: backgrounds other than the area's own in runs, then each
@@ -96,14 +130,17 @@ void rv_editor_term_type(rv_editor_terminal &term, const std::string &text)
     while (i < text.size()) {
         // One code point; a byte that starts none is skipped.
         const auto b = static_cast<unsigned char>(text[i]);
-        const size_t n = b < 0x80 ? 1 : (b >> 5) == 0x6 ? 2 : (b >> 4) == 0xe ? 3 : (b >> 3) == 0x1e ? 4 : 0;
+        const size_t n = b < utf8_1byte_limit ? 1 : (b >> 5) == utf8_2byte_lead_check ? 2 :
+            (b >> 4) == utf8_3byte_lead_check                                         ? 3 :
+            (b >> 3) == utf8_4byte_lead_check                                         ? 4 :
+                                                                                        0;
         if (n == 0 || i + n > text.size()) {
             ++i;
             continue;
         }
-        uint32_t ch = n == 1 ? b : b & (0x7fu >> n);
+        uint32_t ch = n == 1 ? b : b & (utf8_initial_mask >> n);
         for (size_t k = 1; k < n; ++k) {
-            ch = (ch << 6) | (static_cast<unsigned char>(text[i + k]) & 0x3fu);
+            ch = (ch << utf8_continuation_bits) | (static_cast<unsigned char>(text[i + k]) & utf8_continuation_mask);
         }
         i += n;
         if (ch == '\n') {
@@ -200,10 +237,12 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
         ImGui::SameLine();
         const bool cancel = rv_editor_button(rv_editor_text("pane_terminal.cancel"), theme);
-        const float lines = static_cast<float>(std::min<size_t>(8, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
+        const float lines = static_cast<float>(std::min<size_t>(max_paste_preview_lines,
+            1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
         rv_editor_font_code_push();
-        ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1,
-            ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * lines + ImGui::GetStyle().FramePadding.y * 2.0f),
+        const float box_height = ImGui::GetTextLineHeightWithSpacing() * lines +
+            ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+        ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1, ImVec2(-1.0f, box_height),
             ImGuiInputTextFlags_ReadOnly);
         rv_editor_font_code_pop();
         if (paste) {
@@ -220,8 +259,8 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const int cols = std::max(2, static_cast<int>(avail.x / cell.x));
-    const int rows = std::max(3, static_cast<int>(avail.y / cell.y));
+    const int cols = std::max(min_terminal_cols, static_cast<int>(avail.x / cell.x));
+    const int rows = std::max(min_terminal_rows, static_cast<int>(avail.y / cell.y));
     if (view.term == nullptr && view.error.empty()) {
         view.term = std::make_unique<rv_editor_terminal>();
         view.cwd = app.project.open ? app.project.root : std::filesystem::current_path();
@@ -244,7 +283,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     // The wheel scrolls back through the lines above the screen, three a notch.
     if (ImGui::IsItemHovered() && ImGui::GetIO().MouseWheel != 0.0f) {
         const int notches = static_cast<int>(std::lround(ImGui::GetIO().MouseWheel));
-        view.scroll += (notches == 0 ? (ImGui::GetIO().MouseWheel > 0.0f ? 1 : -1) : notches) * 3;
+        view.scroll += (notches == 0 ? (ImGui::GetIO().MouseWheel > 0.0f ? 1 : -1) : notches) * scroll_lines_per_notch;
     }
     view.scroll = std::clamp(view.scroll, 0, static_cast<int>(back.size()));
 
