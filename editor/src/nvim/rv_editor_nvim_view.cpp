@@ -43,6 +43,13 @@ constexpr const char *nvim_swap_state_in_use = "in_use";
 constexpr const char *nvim_lsp_state_running = "running";
 constexpr const char *nvim_lsp_state_missing = "missing";
 
+// Code grid dimensions and layout.
+constexpr int tile_min_rows = 3;                   // Minimum tile height in rows: two UI lines + one grid row.
+constexpr int grid_ui_reserved_rows = 2;           // Rows reserved for status and command line.
+constexpr const char *grid_cell_width_probe = "M"; // Glyph to measure monospace cell width.
+constexpr int status_line_text_offset_cells = 2;   // Horizontal offset for notes on status line.
+constexpr size_t min_tabs_for_close = 2;           // Minimum tabs required to allow closing one.
+
 } // namespace
 
 namespace
@@ -116,7 +123,7 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
         const char *why_not = nullptr;
         if (!named) {
             why_not = rv_editor_text("pane_code.close_tab_untitled");
-        } else if (tabs.names.size() < 2) {
+        } else if (tabs.names.size() < min_tabs_for_close) {
             why_not = rv_editor_text("pane_code.close_tab_only_file");
         } else if (held(tabs.names[static_cast<size_t>(active)])->modified) {
             why_not = rv_editor_text("pane_code.close_tab_unsaved");
@@ -209,14 +216,14 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
 
     // The code area fills the tile in whole cells, two rows kept under it: the
     // tile's status line and the command line.
-    const ImVec2 cell(ImGui::CalcTextSize("M").x, ImGui::GetTextLineHeight());
+    const ImVec2 cell(ImGui::CalcTextSize(grid_cell_width_probe).x, ImGui::GetTextLineHeight());
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const int32_t cols = std::max(1, static_cast<int32_t>(avail.x / cell.x));
-    const int32_t rows = std::max(3, static_cast<int32_t>(avail.y / cell.y)) - 2;
+    const int32_t rows = std::max(tile_min_rows, static_cast<int32_t>(avail.y / cell.y)) - grid_ui_reserved_rows;
     nvim.resize(win, cols, rows);
 
-    ImGui::InvisibleButton("##code", ImVec2(cols * cell.x, (rows + 2) * cell.y));
+    ImGui::InvisibleButton("##code", ImVec2(cols * cell.x, (rows + grid_ui_reserved_rows) * cell.y));
     const bool focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows);
     if (ImGui::IsItemClicked()) {
         nvim.focus(win);
@@ -254,7 +261,8 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         }
     }
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), rv_editor_col(rv_editor_mocha_base));
+    const ImVec2 tile_end(at.x + cols * cell.x, at.y + (rows + grid_ui_reserved_rows) * cell.y);
+    dl->AddRectFilled(at, tile_end, rv_editor_col(rv_editor_mocha_base));
     if (grid == nullptr) {
         dl->AddText(at, rv_editor_col(rv_editor_mocha_subtext0), rv_editor_text("pane_code.starting_nvim"));
         rv_editor_well_end();
@@ -288,7 +296,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
 
     // LSP note: nothing when running, otherwise why diagnostics are absent
     // for this file type, with the exact reason as a tooltip.
-    float note_x = status.x + cell.x * 2 + ImGui::CalcTextSize(label.c_str()).x;
+    float note_x = status.x + cell.x * status_line_text_offset_cells + ImGui::CalcTextSize(label.c_str()).x;
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         const std::string server = nvim.lsp_server_for(buf->name);
         const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
