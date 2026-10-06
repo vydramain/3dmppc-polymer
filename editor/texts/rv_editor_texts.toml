@@ -4,3 +4,17 @@
 title = "Display too small"
 required = "Required: 1280 x 720"
 current = "Current: {} x {}"
+
+[shell_start_new]
+title = "New Project"
+template = "Template"
+name = "Name"
+disc_id = "Disc ID"
+directory = "Directory"
+browse = "Browse..."
+browser_open = "The browser is open"
+select_dir_for_new = "Select directory for New Project"
+select_dir_title = "Select Directory"
+create_project = "Create Project"
+reset = "Reset"
+creates = "Creates"
