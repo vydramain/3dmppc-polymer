@@ -14,6 +14,18 @@ namespace rv_editor
 namespace
 {
 
+// Edge band width for dock zone detection, as a fraction of the smaller tile dimension.
+constexpr float edge_band_ratio = 0.3f;
+
+// Drag movement threshold before drag activates, in scale-relative units (multiplied by theme.scale).
+constexpr float drag_threshold_base = 4.0f;
+
+// Split ratio for dock preview rectangle: half the tile width or height.
+constexpr float dock_preview_split_ratio = 0.5f;
+
+// Dock preview overlay alpha bits: 0x90 is about 56% opacity.
+constexpr uint32_t dock_preview_alpha_bits = 0x90000000u;
+
 // The leaf whose placed rectangle contains `pos`, or rv_editor_tile_none.
 uint32_t rv_editor_tile_leaf_at(const rv_editor_layout &layout, const std::vector<rv_editor_rect> &rect_of, ImVec2 pos)
 {
@@ -45,7 +57,7 @@ bool rv_editor_tile_drop_zone(const rv_editor_layout &layout, uint32_t leaf, con
         dock = rv_editor_tile_dock::tab;
         return true;
     }
-    const float band = std::min(static_cast<float>(rect.w), static_cast<float>(rect.h)) * 0.3f;
+    const float band = std::min(static_cast<float>(rect.w), static_cast<float>(rect.h)) * edge_band_ratio;
     const float d_left = x;
     const float d_right = static_cast<float>(rect.w) - x;
     const float d_top = y;
@@ -128,7 +140,7 @@ void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_ed
     if (!drag.dragging) {
         const float dx = pos.x - drag.press.x;
         const float dy = pos.y - drag.press.y;
-        const float threshold = 4.0f * theme.scale;
+        const float threshold = drag_threshold_base * theme.scale;
         if (dx * dx + dy * dy < threshold * threshold) {
             return;
         }
@@ -146,15 +158,15 @@ void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_ed
     ImVec2 pmin(static_cast<float>(r.x), static_cast<float>(r.y));
     ImVec2 pmax(static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h));
     if (dock == rv_editor_tile_dock::left) {
-        pmax.x = pmin.x + static_cast<float>(r.w) * 0.5f;
+        pmax.x = pmin.x + static_cast<float>(r.w) * dock_preview_split_ratio;
     } else if (dock == rv_editor_tile_dock::right) {
-        pmin.x = pmax.x - static_cast<float>(r.w) * 0.5f;
+        pmin.x = pmax.x - static_cast<float>(r.w) * dock_preview_split_ratio;
     } else if (dock == rv_editor_tile_dock::top) {
-        pmax.y = pmin.y + static_cast<float>(r.h) * 0.5f;
+        pmax.y = pmin.y + static_cast<float>(r.h) * dock_preview_split_ratio;
     } else if (dock == rv_editor_tile_dock::bottom) {
-        pmin.y = pmax.y - static_cast<float>(r.h) * 0.5f;
+        pmin.y = pmax.y - static_cast<float>(r.h) * dock_preview_split_ratio;
     }
-    const ImU32 fill = (rv_editor_col(theme.selection) & 0x00ffffffu) | 0x90000000u;
+    const ImU32 fill = (rv_editor_col(theme.selection) & ~IM_COL32_A_MASK) | dock_preview_alpha_bits;
     ImGui::GetForegroundDrawList()->AddRectFilled(pmin, pmax, fill);
 }
 
