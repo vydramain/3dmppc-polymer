@@ -3,6 +3,7 @@
 #include <string>
 #include <utility>
 
+#include "pdk/rv_err.h"
 #include "rv_manifest_token.hpp"
 #include "rv_manifest_tree.hpp"
 #include "rv_manifest_value.hpp"
@@ -29,13 +30,13 @@ rv_manifest_tree rv_manifest_parser::run()
             continue;
         }
         if (at(tk::LBRACKET)) {
-            if (!parse_section()) {
+            if (parse_section() != RV_OK) {
                 recover();
             }
             continue;
         }
         if (at(tk::IDENT)) {
-            if (!parse_assignment()) {
+            if (parse_assignment() != RV_OK) {
                 recover();
             }
             continue;
@@ -72,7 +73,7 @@ bool rv_manifest_parser::at(rv_manifest_token_kind kind) const
 
 // --- grammar ------------------------------------------------------------------
 
-bool rv_manifest_parser::parse_section()
+int rv_manifest_parser::parse_section()
 {
     const int line = peek().line;
     get(); // '['
@@ -103,7 +104,7 @@ bool rv_manifest_parser::parse_section()
     return expect_line_end("section header");
 }
 
-bool rv_manifest_parser::parse_assignment()
+int rv_manifest_parser::parse_assignment()
 {
     const std::string key = peek().text;
     const int line = get().line;
@@ -121,14 +122,14 @@ bool rv_manifest_parser::parse_assignment()
     rv_manifest_tree_entry entry;
     entry.key = key;
     entry.line = line;
-    if (!parse_value(entry.value)) {
-        return false;
+    if (parse_value(entry.value) != RV_OK) {
+        return RV_ERR_INVAL;
     }
     current_section().entries.push_back(std::move(entry));
     return expect_line_end("value");
 }
 
-bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
+int rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
 {
     const rv_manifest_token &token = peek();
     out.line = token.line;
@@ -136,15 +137,15 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
     case tk::STRING:
         out.kind = rv_manifest_value_kind::string;
         out.str = get().text;
-        return true;
+        return RV_OK;
     case tk::INTEGER:
         out.kind = rv_manifest_value_kind::integer;
         out.num = get().num;
-        return true;
+        return RV_OK;
     case tk::REAL:
         out.kind = rv_manifest_value_kind::real;
         out.real = get().real;
-        return true;
+        return RV_OK;
     case tk::LBRACKET:
         out.kind = rv_manifest_value_kind::array;
         return parse_array(out);
@@ -170,7 +171,7 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
 
 // Newlines inside the brackets are skipped, which is the whole of the
 // multi-line array support: both shapes parse to the same value.
-bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
+int rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
 {
     const int start = get().line; // '['
     for (;;) {
@@ -182,7 +183,7 @@ bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
         }
         if (at(tk::RBRACKET)) {
             get();
-            return true;
+            return RV_OK;
         }
         if (at(tk::INVALID)) {
             return failer_.fail(peek().line, peek().text);
@@ -218,7 +219,7 @@ bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
         }
         if (at(tk::RBRACKET)) {
             get();
-            return true;
+            return RV_OK;
         }
         if (at(tk::END_OF_FILE)) {
             return failer_.fail(start, "unterminated array — no closing ']' before end of file");
@@ -228,14 +229,14 @@ bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
     }
 }
 
-bool rv_manifest_parser::expect_line_end(const char *what)
+int rv_manifest_parser::expect_line_end(const char *what)
 {
     if (at(tk::END_OF_FILE)) {
-        return true;
+        return RV_OK;
     }
     if (at(tk::NEWLINE)) {
         get();
-        return true;
+        return RV_OK;
     }
     return failer_.fail(peek().line,
         std::string("unexpected text after ") + what + " — one " + what + " per line");
