@@ -6,6 +6,15 @@ namespace rv_editor
 namespace
 {
 
+// Theme pads for window padding and item spacing.
+constexpr float spacing_pads = 2.0f;
+// Theme pads for the vertical cell padding (half a pad).
+constexpr float cell_padding_v_pads = 0.5f;
+// Highlight alpha for drag-drop target feedback.
+constexpr float drag_drop_highlight_alpha = 0.25f;
+// Dimming alpha for modal and navigation overlays.
+constexpr float dim_overlay_alpha = 0.5f;
+
 ImVec4 rv_editor_vec(uint32_t rgb, float alpha = 1.0f)
 {
     ImVec4 v = ImGui::ColorConvertU32ToFloat4(rv_editor_col(rgb));
@@ -72,12 +81,12 @@ void rv_editor_theme_colors(const rv_editor_theme &t, ImVec4 *c)
     c[ImGuiCol_TextSelectedBg] = rv_editor_vec(t.selection);
     c[ImGuiCol_TreeLines] = rv_editor_vec(t.bevel_hi);
     c[ImGuiCol_DragDropTarget] = rv_editor_vec(t.selection);
-    c[ImGuiCol_DragDropTargetBg] = rv_editor_vec(t.selection, 0.25f);
+    c[ImGuiCol_DragDropTargetBg] = rv_editor_vec(t.selection, drag_drop_highlight_alpha);
     c[ImGuiCol_UnsavedMarker] = rv_editor_vec(t.warning);
     c[ImGuiCol_NavCursor] = rv_editor_vec(t.selection);
     c[ImGuiCol_NavWindowingHighlight] = rv_editor_vec(t.selection);
-    c[ImGuiCol_NavWindowingDimBg] = rv_editor_vec(t.dark, 0.5f);
-    c[ImGuiCol_ModalWindowDimBg] = rv_editor_vec(t.dark, 0.5f);
+    c[ImGuiCol_NavWindowingDimBg] = rv_editor_vec(t.dark, dim_overlay_alpha);
+    c[ImGuiCol_ModalWindowDimBg] = rv_editor_vec(t.dark, dim_overlay_alpha);
 }
 
 } // namespace
@@ -89,11 +98,11 @@ void rv_editor_theme_apply(const rv_editor_theme &theme, ImGuiStyle &style)
 
     const float pad = static_cast<float>(theme.pad_px);
     const float bevel = static_cast<float>(theme.bevel_px);
-    style.WindowPadding = ImVec2(pad * 2.0f, pad * 2.0f);
+    style.WindowPadding = ImVec2(pad * spacing_pads, pad * spacing_pads);
     style.FramePadding = ImVec2(pad, pad);
-    style.ItemSpacing = ImVec2(pad * 2.0f, pad);
+    style.ItemSpacing = ImVec2(pad * spacing_pads, pad);
     style.ItemInnerSpacing = ImVec2(pad, pad);
-    style.CellPadding = ImVec2(pad, pad / 2.0f);
+    style.CellPadding = ImVec2(pad, pad * cell_padding_v_pads);
     style.WindowBorderSize = bevel;
     style.ChildBorderSize = bevel;
     style.PopupBorderSize = bevel;
