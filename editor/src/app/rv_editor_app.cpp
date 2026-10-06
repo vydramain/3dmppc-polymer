@@ -19,6 +19,8 @@ namespace
 
 constexpr auto shutdown_wait_timeout = std::chrono::seconds(4);
 constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
+// Cache subdirectory holding release candidates and their logs.
+constexpr std::string_view candidates_dir_name = "candidates";
 
 void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_editor_tool &tool)
 {
@@ -107,7 +109,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.session.pad(0, app.log);
     app.files.open(app.project.root, app.log);
     std::vector<std::string> unread;
-    app.release.candidates = rv_editor_candidates_load(app.project.cache_dir / "candidates", unread);
+    app.release.candidates = rv_editor_candidates_load(app.project.cache_dir / std::string(candidates_dir_name), unread);
     for (const std::string &why : unread) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not read: " + why);
     }

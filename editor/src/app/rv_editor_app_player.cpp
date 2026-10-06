@@ -21,6 +21,14 @@ namespace
 
 // Bytes read from the player per poll.
 constexpr size_t read_chunk_bytes = 65536;
+// Cache subdirectory holding release candidates and their logs.
+constexpr std::string_view candidates_dir_name = "candidates";
+// Prefix of a player run's log name within the candidates directory.
+constexpr std::string_view player_log_prefix = "player-";
+// Extension of the player's own memory card, separate from development saves.
+constexpr std::string_view player_card_extension = ".player.mppccard";
+// Command-line flag for the player's memory card path.
+constexpr std::string_view memcard_flag = "--memcard";
 
 // The candidate's number the player runs, or 0 outside a run.
 uint32_t rv_editor_player_run(const rv_editor_release &r)
@@ -78,14 +86,16 @@ void rv_editor_player_finish(rv_editor_app &app)
                                                      : "ended " + ended;
         rv_editor_check_set(c, rv_editor_check_player, state, note, app.tools.player.path.string());
         // Its output beside the record, as the first free player-<k>.log.
-        const std::filesystem::path dir = app.project.cache_dir / "candidates";
+        const std::filesystem::path dir = app.project.cache_dir / std::string(candidates_dir_name);
         uint32_t k = 1;
         std::error_code ec;
-        while (std::filesystem::exists(rv_editor_candidate_log(dir, c.number, "player-" + std::to_string(k)), ec)) {
+        std::string log_name = std::string(player_log_prefix) + std::to_string(k);
+        while (std::filesystem::exists(rv_editor_candidate_log(dir, c.number, log_name), ec)) {
             ++k;
+            log_name = std::string(player_log_prefix) + std::to_string(k);
         }
         std::string error;
-        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, "player-" + std::to_string(k)),
+        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, log_name),
                 r.player_output, error) != RV_OK) {
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player log not kept: " + error,
                 rv_editor_log_channel::none, pid, run);
@@ -130,10 +140,10 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     rv_editor_candidate_hash(c);
     // A card of its own: neither development saves nor the dev playtest's reach it.
     std::filesystem::path card = c.image;
-    card.replace_extension(".player.mppccard");
+    card.replace_extension(std::string(player_card_extension));
     auto player = std::make_unique<rv_editor_process>();
     std::string error;
-    if (player->start({ app.tools.player.path.string(), "--memcard", card.string(), c.image.string() },
+    if (player->start({ app.tools.player.path.string(), std::string(memcard_flag), card.string(), c.image.string() },
             c.image.parent_path(), error) != RV_OK) {
         rv_editor_check_set(c, rv_editor_check_player, rv_editor_check_state::failed,
             "the player did not start: " + error, app.tools.player.path.string());

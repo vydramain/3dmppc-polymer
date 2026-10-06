@@ -34,6 +34,9 @@ constexpr int identity_table_columns = 2;
 // Candidate selector dropdown width in em.
 constexpr float candidate_dropdown_width_em = 16.0f;
 
+// Cache subdirectory holding release candidates and their logs.
+constexpr std::string_view candidates_dir_name = "candidates";
+
 void rv_editor_dim_text(const std::string &text)
 {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -335,7 +338,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         }
         if (r.candidates.empty()) {
             ImGui::TextWrapped("%s", rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"));
-            const auto dir = (app.project.cache_dir / "candidates").string();
+            const auto dir = (app.project.cache_dir / std::string(candidates_dir_name)).string();
             std::string note = rv_editor_text_format("pane_candidate.candidates_dir_note",
                 std::make_format_args(dir));
             rv_editor_dim_text(note);
