@@ -14,6 +14,9 @@ namespace rv_editor
 namespace
 {
 
+// Bytes read from the baker per poll.
+constexpr size_t read_chunk_bytes = 1 << 20;
+
 // The last non-empty line of `text`, for a one-line failure summary.
 std::string rv_editor_texture_last_line(const std::string &text)
 {
@@ -146,7 +149,7 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     }
     std::string out;
     std::string err;
-    bake.proc->read(out, err, 1 << 20);
+    bake.proc->read(out, err, read_chunk_bytes);
     app.log.add_stream(rv_editor_log_source::build, bake.out_partial, out, rv_editor_log_channel::out,
         bake.proc->pid(), bake.build_number);
     app.log.add_stream(rv_editor_log_source::build, bake.err_partial, err, rv_editor_log_channel::err,
@@ -157,7 +160,7 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     }
     out.clear();
     err.clear();
-    bake.proc->read(out, err, 1 << 20);
+    bake.proc->read(out, err, read_chunk_bytes);
     app.log.add_stream(rv_editor_log_source::build, bake.out_partial, out, rv_editor_log_channel::out,
         bake.proc->pid(), bake.build_number);
     app.log.add_stream(rv_editor_log_source::build, bake.err_partial, err, rv_editor_log_channel::err,

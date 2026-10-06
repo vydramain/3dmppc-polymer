@@ -17,6 +17,9 @@ namespace rv_editor
 namespace
 {
 
+// Bytes read from the build process per poll.
+constexpr size_t read_chunk_bytes = 1 << 20;
+
 // A cancelled burner gets this long to stop by itself before it is killed.
 constexpr auto rv_editor_cancel_grace = std::chrono::seconds(3);
 
@@ -183,7 +186,7 @@ void rv_editor_build::update(rv_editor_log &log)
     const rv_editor_log_source source = image_.empty() ? rv_editor_log_source::build : rv_editor_log_source::candidate;
     const int64_t pid = proc_.pid();
     const uint32_t run = image_.empty() ? number_ : rv_editor_image_number(image_);
-    proc_.read(out, err, 1 << 20);
+    proc_.read(out, err, read_chunk_bytes);
     log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
     log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
 
@@ -197,7 +200,7 @@ void rv_editor_build::update(rv_editor_log &log)
     // Whatever the pipes still held when output completed.
     out.clear();
     err.clear();
-    proc_.read(out, err, 1 << 20);
+    proc_.read(out, err, read_chunk_bytes);
     log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
     log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
     log.flush_stream(source, out_partial_, rv_editor_log_channel::out, pid, run);
