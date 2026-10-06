@@ -22,10 +22,13 @@ enum class rv_editor_nvim_cursor_kind
     horizontal, // a bar at the cell's bottom
 };
 
+// Cursor fill percentage of the cell's width (vertical) or height (horizontal)
+constexpr int32_t nvim_cursor_default_fill_percent = 100;
+
 struct rv_editor_nvim_cursor
 {
     rv_editor_nvim_cursor_kind kind = rv_editor_nvim_cursor_kind::block;
-    int32_t percent = 100; // of the cell's width (vertical) or height (horizontal)
+    int32_t percent = nvim_cursor_default_fill_percent;
 };
 
 struct rv_editor_nvim_attr
@@ -46,6 +49,9 @@ struct rv_editor_nvim_cell
     int32_t hl = 0;
 };
 
+// Floating grid layering z-index (higher values render on top)
+constexpr int32_t nvim_float_default_zindex = 50;
+
 struct rv_editor_nvim_grid
 {
     int32_t width = 0;
@@ -60,7 +66,7 @@ struct rv_editor_nvim_grid
     int32_t anchor_grid = 1;   // grid id this float is anchored to
     double anchor_row = 0.0;   // row on anchor_grid, stored as-is (may be fractional)
     double anchor_col = 0.0;   // col on anchor_grid
-    int32_t zindex = 50;       // layering (higher = on top)
+    int32_t zindex = nvim_float_default_zindex;
     double window_row = 0.0;   // row in grid 1 for non-floating windows (from win_pos)
     double window_col = 0.0;   // col in grid 1 for non-floating windows
 

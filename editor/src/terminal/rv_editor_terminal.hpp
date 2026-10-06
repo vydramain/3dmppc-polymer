@@ -30,6 +30,10 @@ struct rv_editor_term_cell
 
 using rv_editor_term_line = std::vector<rv_editor_term_cell>;
 
+// Classic VT100 terminal size (80x24) that programs assume before the first resize arrives
+constexpr int terminal_default_cols = 80;
+constexpr int terminal_default_rows = 24;
+
 // A shell on a PTY with its screen kept by libvterm: ANSI colours in the
 // code area's Mocha, resize, Ctrl+C through the terminal, and the lines that
 // scrolled off the top kept up to scrollback_max. Each terminal is a session of
@@ -80,8 +84,8 @@ private:
     VTerm *vt_ = nullptr;
     VTermScreen *screen_ = nullptr;
     std::deque<rv_editor_term_line> scrollback_;
-    int cols_ = 80;
-    int rows_ = 24;
+    int cols_ = terminal_default_cols;
+    int rows_ = terminal_default_rows;
     int cursor_row_ = 0;
     int cursor_col_ = 0;
     bool cursor_visible_ = true;
