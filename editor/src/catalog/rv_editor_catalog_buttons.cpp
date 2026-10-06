@@ -2,6 +2,7 @@
 // row per widget, one column per state; the last column is live.
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -10,8 +11,6 @@ namespace rv_editor
 namespace
 {
 
-constexpr const char *rv_editor_disabled_reason = "Disabled: shown here to check the look";
-
 struct rv_editor_column
 {
     const char *name;
@@ -19,12 +18,12 @@ struct rv_editor_column
 };
 
 constexpr rv_editor_column rv_editor_columns[] = {
-    {"normal", {rv_editor_look::normal, nullptr}},
-    {"hovered", {rv_editor_look::hovered, nullptr}},
-    {"pressed", {rv_editor_look::pressed, nullptr}},
-    {"focused", {rv_editor_look::focused, nullptr}},
-    {"disabled", {rv_editor_look::normal, rv_editor_disabled_reason}},
-    {"live", {rv_editor_look::live, nullptr}},
+    { "catalog_buttons.col_normal", { rv_editor_look::normal, nullptr } },
+    { "catalog_buttons.col_hovered", { rv_editor_look::hovered, nullptr } },
+    { "catalog_buttons.col_pressed", { rv_editor_look::pressed, nullptr } },
+    { "catalog_buttons.col_focused", { rv_editor_look::focused, nullptr } },
+    { "catalog_buttons.col_disabled", { rv_editor_look::normal, "catalog_buttons.disabled_reason" } },
+    { "catalog_buttons.col_live", { rv_editor_look::live, nullptr } },
 };
 
 constexpr int rv_editor_column_count = static_cast<int>(sizeof(rv_editor_columns) / sizeof(rv_editor_columns[0]));
@@ -50,39 +49,54 @@ void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
     for (int c = 0; c < rv_editor_column_count; ++c) {
         ImGui::TableNextColumn();
         ImGui::PushID(row * rv_editor_column_count + c);
-        const rv_editor_state &s = rv_editor_columns[c].state;
+        rv_editor_state s = rv_editor_columns[c].state;
+        if (s.disabled != nullptr) {
+            s.disabled = rv_editor_text(s.disabled);
+        }
         const bool live = s.look == rv_editor_look::live && s.disabled == nullptr;
         bool frozen_off = false;
         bool frozen_on = true;
         switch (row) {
         case 0:
-            rv_editor_button("OK", t, s);
+            rv_editor_button(rv_editor_text("catalog_buttons.button_ok"), t, s);
             break;
         case 1:
             rv_editor_icon_button("##icon", rv_editor_icon_name::folder, t, s);
             break;
-        case 2:
-            rv_editor_toggle("Snap", live ? &rv_editor_live_values.toggle_off : &frozen_off, t, s);
+        case 2: {
+            const char *snap = rv_editor_text("catalog_buttons.toggle_snap");
+            rv_editor_toggle(snap, live ? &rv_editor_live_values.toggle_off : &frozen_off, t, s);
             break;
-        case 3:
-            rv_editor_toggle("Snap", live ? &rv_editor_live_values.toggle_on : &frozen_on, t, s);
+        }
+        case 3: {
+            const char *snap = rv_editor_text("catalog_buttons.toggle_snap");
+            rv_editor_toggle(snap, live ? &rv_editor_live_values.toggle_on : &frozen_on, t, s);
             break;
-        case 4:
-            rv_editor_checkbox("Grid", live ? &rv_editor_live_values.check_off : &frozen_off, t, s);
+        }
+        case 4: {
+            const char *grid = rv_editor_text("catalog_buttons.checkbox_grid");
+            rv_editor_checkbox(grid, live ? &rv_editor_live_values.check_off : &frozen_off, t, s);
             break;
-        case 5:
-            rv_editor_checkbox("Grid", live ? &rv_editor_live_values.check_on : &frozen_on, t, s);
+        }
+        case 5: {
+            const char *grid = rv_editor_text("catalog_buttons.checkbox_grid");
+            rv_editor_checkbox(grid, live ? &rv_editor_live_values.check_on : &frozen_on, t, s);
             break;
-        case 6:
-            if (rv_editor_radio("Lua", live ? rv_editor_live_values.radio == 0 : false, t, s) && live) {
+        }
+        case 6: {
+            const char *lua_text = rv_editor_text("catalog_buttons.radio_lua");
+            if (rv_editor_radio(lua_text, live ? rv_editor_live_values.radio == 0 : false, t, s) && live) {
                 rv_editor_live_values.radio = 0;
             }
             break;
-        default:
-            if (rv_editor_radio("C++", live ? rv_editor_live_values.radio == 1 : true, t, s) && live) {
+        }
+        default: {
+            const char *cpp_text = rv_editor_text("catalog_buttons.radio_cpp");
+            if (rv_editor_radio(cpp_text, live ? rv_editor_live_values.radio == 1 : true, t, s) && live) {
                 rv_editor_live_values.radio = 1;
             }
             break;
+        }
         }
         ImGui::PopID();
     }
@@ -95,16 +109,20 @@ void rv_editor_catalog_buttons(const rv_editor_theme &theme)
     if (!ImGui::BeginTable("buttons", rv_editor_column_count + 1)) {
         return;
     }
-    const char *rows[] = {"Button", "Icon button", "Toggle off", "Toggle on", "Check off", "Check on",
-        "Radio off", "Radio on"};
-    ImGui::TableSetupColumn("widget", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize("Icon button").x);
+    const char *row_ids[] = { "catalog_buttons.row_button", "catalog_buttons.row_icon_button",
+        "catalog_buttons.row_toggle_off", "catalog_buttons.row_toggle_on",
+        "catalog_buttons.row_check_off", "catalog_buttons.row_check_on",
+        "catalog_buttons.row_radio_off", "catalog_buttons.row_radio_on" };
+    const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
+    ImGui::TableSetupColumn(rv_editor_text("catalog_buttons.column_widget"),
+        ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(longest_label).x);
     for (const rv_editor_column &c : rv_editor_columns) {
-        ImGui::TableSetupColumn(c.name, ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
     }
     ImGui::TableHeadersRow();
 
-    for (int row = 0; row < static_cast<int>(sizeof(rows) / sizeof(rows[0])); ++row) {
-        rv_editor_catalog_row(rows[row], theme, row);
+    for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
+        rv_editor_catalog_row(rv_editor_text(row_ids[row]), theme, row);
     }
     ImGui::EndTable();
 }
