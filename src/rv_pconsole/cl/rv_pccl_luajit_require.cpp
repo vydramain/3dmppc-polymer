@@ -78,7 +78,7 @@ int rv_pccl_luajit::require_(lua_State *L)
     rv_pccl_luajit *self = static_cast<rv_pccl_luajit *>(ud);
 
     const char *name = luaL_checkstring(L, 1);
-    char asset[256];
+    char asset[kAssetNameMaxLen];
     const int asset_code = self->module_asset_(name, asset, sizeof asset);
     if (asset_code == 1) {
         return luaL_error(L,

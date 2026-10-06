@@ -208,7 +208,7 @@ int64_t rv_pccl_luajit::module_find_(const char *name, char *asset, std::size_t 
 int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
     rv_pccl_reload_report &report)
 {
-    char asset[256];
+    char asset[kAssetNameMaxLen];
     int old_ref = LUA_NOREF;
     const int64_t found = module_find_(name, asset, sizeof asset, old_ref, report);
     if (found < 0) {
@@ -250,7 +250,7 @@ int64_t rv_pccl_luajit::script_reload_module(const char *name, const void *bytec
 // answers no_module whether or not the drive has a file by that name.
 int64_t rv_pccl_luajit::script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report)
 {
-    char asset[256];
+    char asset[kAssetNameMaxLen];
     int old_ref = LUA_NOREF;
     const int64_t found = module_find_(name, asset, sizeof asset, old_ref, report);
     if (found < 0) {

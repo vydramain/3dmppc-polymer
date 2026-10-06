@@ -26,6 +26,12 @@ struct lua_Debug;
 namespace rv_3dmppc
 {
 
+// Maximum length of a message to escape for safe logging (chunks, gate).
+constexpr int kLogMessageMaxLen = 256;
+
+// Buffer size for asset file names (reload_devtools, require).
+constexpr std::size_t kAssetNameMaxLen = 256;
+
 // The lua machine. Only ever built when the disc declared a lua machine
 // (rv_pccl_conf.hpp: script_memory_size > 0) - a factory upstream guarantees
 // that before this class exists at all, so every method below can assume a

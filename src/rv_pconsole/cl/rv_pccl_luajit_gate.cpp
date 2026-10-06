@@ -78,7 +78,7 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
         report.effects_possible = effects;
         report.message = msg != nullptr ? msg : "(no message)";
         RV_LOG_ERR("pccl", "raise('{}') failed at {}: {}", rv_pdklib::rv_log_escape(name),
-            report.phase, rv_pdklib::rv_log_escape(report.message.c_str(), 256));
+            report.phase, rv_pdklib::rv_log_escape(report.message.c_str(), kLogMessageMaxLen));
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top);
         return ceiling_hit_ || oom_ ? (oom_ ? RV_ERR_NOMEM : RV_ERR_IO) : code;

@@ -173,7 +173,7 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
         const int64_t captured = capture_state_shape_(/*initial=*/true, shape_report);
         if (captured < 0) {
             RV_LOG_ERR("pccl", "entry chunk's state was rejected right after disc_initialize ({}): {}",
-                shape_report.phase, rv_pdklib::rv_log_escape(shape_report.message.c_str(), 256));
+                shape_report.phase, rv_pdklib::rv_log_escape(shape_report.message.c_str(), kLogMessageMaxLen));
             ++error_seq_;
             error_text_ = std::string(fname) + ": " + shape_report.message;
             lua_pop(L_, static_cast<int>(retc)); // whatever disc_initialize returned; retc is 0 in practice
