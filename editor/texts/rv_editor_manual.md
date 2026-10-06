@@ -130,3 +130,45 @@ The Terminal tile runs a shell in your project directory. Type commands as you
 would in a terminal window. Ctrl+C stops a running command. The wheel scrolls
 back through 5000 lines of history. F5, F6, F7 and Ctrl+B stay available for
 the editor. When the shell ends, the tile offers to start a new one.
+
+## Where things go
+
+The editor stores files in standard directories. Set XDG_CONFIG_HOME, XDG_CACHE_HOME
+or XDG_STATE_HOME to use custom paths; otherwise ~/.config, ~/.cache and
+~/.local/state are used. Per-project folders below are named by a hash of the
+project path, shown as <hash>.
+- Layouts in ~/.config/3dmppc-editor/: layout-code, layout-scene, layout-debug, layout-burn.
+- Settings in ~/.config/3dmppc-editor/settings.toml.
+- Code text size, Game scale, last layout shown in ~/.config/3dmppc-editor/view.
+- Recent projects list in ~/.config/3dmppc-editor/recent.
+- Builds per project in ~/.cache/3dmppc-editor/<hash>/builds/<n> with logs <n>.log.
+- Baked textures staged for Reload in ~/.cache/3dmppc-editor/<hash>/staging/<build number>/<name>.
+- Release candidates in ~/.cache/3dmppc-editor/<hash>/candidates/.
+- Burner maps beside builds and images: <n>.map and <n>.mppcdisc.map.
+- Session logs in ~/.local/state/3dmppc-editor/<hash>/sessions/, named
+  <start time YYYYmmdd-HHMMSS>-<session number>-<pid>.log, the 20 newest kept.
+- Memory card in ~/.local/state/3dmppc-editor/<hash>/memcard.mppccard.
+- Findings, captured frames and test results in ~/.local/state/3dmppc-editor/<hash>/findings/.
+- Run profiles in the project folder: <project>/.3dmppc-editor/project.toml.
+- Scenes in the project folder: <project>/scenes/.
+- Burner output in the project folder: <project>/.mppcburn/.
+
+## Tools and Settings
+
+The console, burner and baker are looked for next to the editor's own
+executable. Settings (File > Settings, or Settings in the Project Toolchest
+without a project) shows each tool's override, the path in use and its status,
+with Browse and Check buttons. Apply saves the changes. A missing tool disables
+only the commands that need it, with a reason shown.
+
+## Fonts
+
+Code tiles and the terminal use a 9x16 monospace font. View > Code Text Size
+picks Normal (16 px, the default), Large (32 px), or Small (14 px), each times
+the UI scale; the choice is kept. The editor's interface draws in a small
+bitmap font that scales with the UI scale.
+
+## Help and this manual
+
+This manual is open from Help > Manual in the menu bar or by pressing F1. A
+link to it appears on the editor's start page, where you see recent projects.
