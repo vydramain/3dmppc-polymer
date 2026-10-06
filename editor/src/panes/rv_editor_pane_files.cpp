@@ -38,6 +38,9 @@ constexpr float dialog_field_width_em = 24.0f;
 // Divisor for vertical center calculation in file tree rows.
 constexpr float vertical_center_divisor = 2.0f;
 
+// Width of space character for indentation alignment in file tree.
+constexpr const char *indent_space_probe = " ";
+
 const char *rv_editor_files_dialog_title(rv_editor_files_view::rv_editor_files_dialog dialog)
 {
     switch (dialog) {
@@ -193,7 +196,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     }
     // Leading spaces reserve the widest code's measured width plus the usual item
     // spacing, so every row's name starts at the same place regardless of its code.
-    const float space_w = ImGui::CalcTextSize(" ").x;
+    const float space_w = ImGui::CalcTextSize(indent_space_probe).x;
     const float reserve = ImGui::CalcTextSize(rv_editor_glyph::disc_toml).x + ImGui::GetStyle().ItemSpacing.x;
     const int spaces = std::max(1, static_cast<int>(std::ceil(reserve / space_w)));
     const std::string label = std::string(static_cast<size_t>(spaces), ' ') + node.name +

@@ -24,6 +24,8 @@ constexpr int spinner_buttons = 2;
 constexpr unsigned char utf8_continuation_mask = 0xc0;
 // UTF-8 continuation byte value for multi-byte sequences.
 constexpr unsigned char utf8_continuation_byte = 0x80;
+// Error marker glyph for field invalid state indicator.
+constexpr const char *error_marker_glyph = "!";
 
 struct rv_editor_field_look
 {
@@ -62,11 +64,11 @@ void rv_editor_field_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edit
     }
 
     const float pad = static_cast<float>(t.pad_px * t.scale);
-    const float glyph = ImGui::CalcTextSize("!").x;
+    const float glyph = ImGui::CalcTextSize(error_marker_glyph).x;
     const float y = std::floor((min.y + max.y - ImGui::GetFontSize()) / half_divisor);
     float x = max.x - reserve - pad - glyph;
     if (f.invalid != nullptr) {
-        dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.error), "!");
+        dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.error), error_marker_glyph);
         x -= glyph;
     }
     if (f.dirty) {

@@ -15,6 +15,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Monospace glyph for measuring cell width in layout calculations.
+constexpr const char *grid_cell_width_probe = "M";
+
+} // namespace
+
 const char *rv_editor_pane_title(rv_editor_pane_kind kind)
 {
     switch (kind) {
@@ -331,7 +339,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
         static_cast<int>(frame_h) };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
-    const ImVec2 glyph = ImGui::CalcTextSize("M");
+    const ImVec2 glyph = ImGui::CalcTextSize(grid_cell_width_probe);
     for (size_t i = 0; i < pane_min.size(); ++i) {
         // What the owner measured: the Game's frame at 1x once the console has
         // sent one, a strip of controls as tall as its rows.
