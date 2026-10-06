@@ -40,17 +40,73 @@ struct rv_editor_add_error
 
 rv_editor_add_error rv_editor_add_last_error;
 
+// Code file extensions excluded from asset sections.
+constexpr std::string_view code_file_extensions[] = { ".cpp", ".hpp", ".h", ".c", ".lua" };
+
+// Disc manifest file name.
+constexpr std::string_view disc_manifest_file = "disc.toml";
+
+// Scene definition file extension.
+constexpr std::string_view scene_file_extension = ".scene.toml";
+
+// Picture asset file extension.
+constexpr std::string_view picture_extension = ".png";
+
+// Audio file extension: WAV format.
+constexpr std::string_view wav_extension = ".wav";
+
+// Audio file extension: raw PCM samples.
+constexpr std::string_view pcm_extension = ".pcm";
+
+// PCM sample rate in Hz.
+constexpr double pcm_sample_rate = 88200.0;
+
+// Position of "WAVE" format marker in WAV file header.
+constexpr std::streamoff wav_wave_marker_offset = 8;
+
+// Position where chunk list begins in WAV file.
+constexpr std::streamoff wav_chunks_start_offset = 12;
+
+// Minimum size of WAV "fmt " chunk in bytes.
+constexpr uint32_t wav_fmt_chunk_min_size = 16;
+
+// Size of byte rate and block align fields in WAV "fmt " chunk (bytes to skip).
+constexpr std::streamoff wav_byte_rate_block_align_size = 6;
+
+// Minimum bits per sample for valid WAV audio data.
+constexpr int wav_min_bits_per_sample = 8;
+
+// Size of chunk identifiers in RIFF/WAVE format: RIFF, WAVE, fmt, data tags.
+constexpr size_t wav_riff_chunk_id_bytes = 4;
+
+// Size of 16-bit fields in WAV fmt chunk: format tag, channels, bits per sample.
+constexpr size_t wav_u16_field_bytes = 2;
+
+// Size of 32-bit fields in RIFF/WAVE format: chunk size, sample rate.
+constexpr size_t wav_u32_field_bytes = 4;
+
+// Bits per byte for audio data conversion.
+constexpr int bits_per_byte = 8;
+
+// Layout decision threshold: content height (in text lines) below which to use side-by-side layout.
+constexpr float preview_side_by_side_threshold_lines = 7.0f;
+
+// Layout proportions: image width as fraction of available space in side-by-side layout.
+constexpr float preview_image_width_fraction = 0.5f;
+
+// Layout proportions: reserved height (in text lines) for header and footer in full-size layout.
+constexpr float preview_text_area_height_lines = 3.0f;
+
 // False for sources, scripts, disc.toml itself and scene files: none of these
 // belong in a disc's asset sections.
 bool rv_editor_asset_belongs_on_disc(std::string_view rel)
 {
-    static constexpr std::string_view excluded[] = { ".cpp", ".hpp", ".h", ".c", ".lua" };
-    for (std::string_view ext : excluded) {
+    for (std::string_view ext : code_file_extensions) {
         if (rel.ends_with(ext)) {
             return false;
         }
     }
-    return rel != "disc.toml" && !rel.ends_with(".scene.toml");
+    return rel != disc_manifest_file && !rel.ends_with(scene_file_extension);
 }
 
 // Seconds a WAV's header promises: its "fmt " chunk gives the rate and
@@ -60,50 +116,52 @@ bool rv_editor_asset_belongs_on_disc(std::string_view rel)
 double rv_editor_wav_seconds(const std::filesystem::path &path)
 {
     std::ifstream f(path, std::ios::binary);
-    char riff[4] = {};
-    char wave[4] = {};
-    f.read(riff, 4);
-    f.seekg(8, std::ios::beg);
-    f.read(wave, 4);
-    if (!f || std::string(riff, 4) != "RIFF" || std::string(wave, 4) != "WAVE") {
+    char riff[wav_riff_chunk_id_bytes] = {};
+    char wave[wav_riff_chunk_id_bytes] = {};
+    f.read(riff, wav_riff_chunk_id_bytes);
+    f.seekg(wav_wave_marker_offset, std::ios::beg);
+    f.read(wave, static_cast<std::streamsize>(wav_riff_chunk_id_bytes));
+    const bool is_riff = std::string(riff, wav_riff_chunk_id_bytes) == "RIFF";
+    const bool is_wave = std::string(wave, wav_riff_chunk_id_bytes) == "WAVE";
+    if (!f || !is_riff || !is_wave) {
         return 0.0;
     }
-    f.seekg(12, std::ios::beg);
+    f.seekg(wav_chunks_start_offset, std::ios::beg);
     uint16_t channels = 0;
     uint16_t bits = 0;
     uint32_t rate = 0;
     uint32_t data_size = 0;
     while (f) {
-        char id[4] = {};
+        char id[wav_riff_chunk_id_bytes] = {};
         uint32_t size = 0;
-        f.read(id, 4);
-        f.read(reinterpret_cast<char *>(&size), 4);
+        f.read(id, static_cast<std::streamsize>(wav_riff_chunk_id_bytes));
+        f.read(reinterpret_cast<char *>(&size), static_cast<std::streamsize>(wav_u32_field_bytes));
         if (!f) {
             break;
         }
         const auto pad = static_cast<std::streamoff>(size & 1u);
-        if (std::string(id, 4) == "fmt ") {
-            if (size < 16) {
+        if (std::string(id, wav_riff_chunk_id_bytes) == "fmt ") {
+            if (size < wav_fmt_chunk_min_size) {
                 f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
                 continue; // too short to trust: rate stays 0, duration unknown
             }
-            f.seekg(2, std::ios::cur); // format tag
-            f.read(reinterpret_cast<char *>(&channels), 2);
-            f.read(reinterpret_cast<char *>(&rate), 4);
-            f.seekg(6, std::ios::cur); // byte rate, block align
-            f.read(reinterpret_cast<char *>(&bits), 2);
-            f.seekg(static_cast<std::streamoff>(size) - 16 + pad, std::ios::cur);
-        } else if (std::string(id, 4) == "data") {
+            f.seekg(static_cast<std::streamoff>(wav_u16_field_bytes), std::ios::cur);
+            f.read(reinterpret_cast<char *>(&channels), static_cast<std::streamsize>(wav_u16_field_bytes));
+            f.read(reinterpret_cast<char *>(&rate), static_cast<std::streamsize>(wav_u32_field_bytes));
+            f.seekg(wav_byte_rate_block_align_size, std::ios::cur);
+            f.read(reinterpret_cast<char *>(&bits), static_cast<std::streamsize>(wav_u16_field_bytes));
+            f.seekg(static_cast<std::streamoff>(size) - wav_fmt_chunk_min_size + pad, std::ios::cur);
+        } else if (std::string(id, wav_riff_chunk_id_bytes) == "data") {
             data_size = size;
             break;
         } else {
             f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
         }
     }
-    if (rate == 0 || channels == 0 || bits < 8) {
+    if (rate == 0 || channels == 0 || bits < wav_min_bits_per_sample) {
         return 0.0;
     }
-    return static_cast<double>(data_size) / (rate * channels * (bits / 8));
+    return static_cast<double>(data_size) / (rate * channels * (bits / bits_per_byte));
 }
 
 } // namespace
@@ -122,11 +180,11 @@ ImVec2 rv_editor_fit_picture(rv_editor_icon picture, float box_w, float box_h)
 double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
 {
     const std::string ext = a.path.extension().string();
-    if (ext == ".wav") {
+    if (ext == wav_extension) {
         return rv_editor_wav_seconds(a.path);
     }
-    if (ext == ".pcm") {
-        return static_cast<double>(a.size) / 88200.0;
+    if (ext == pcm_extension) {
+        return static_cast<double>(a.size) / pcm_sample_rate;
     }
     return 0.0;
 }
@@ -139,7 +197,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
         return;
     }
     const std::string ext = a->path.extension().string();
-    const bool has_picture = ext == ".png" && picture.id != ImTextureID{};
+    const bool has_picture = ext == picture_extension && picture.id != ImTextureID{};
 
     // Name and path: wraps to whatever width it is given.
     const auto header = [&]() {
@@ -149,7 +207,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
     };
     // What the file is, and what the build map says it became on the disc.
     const auto footer = [&]() {
-        if (ext == ".png") {
+        if (ext == picture_extension) {
             if (has_picture) {
                 const auto size_args = std::make_format_args(picture.w, picture.h);
                 const auto size_text = rv_editor_text_format("asset_preview.picture_size", size_args);
@@ -157,7 +215,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
             } else {
                 ImGui::Text("%s", rv_editor_text("asset_preview.picture_load_failed"));
             }
-        } else if (ext == ".wav" || ext == ".pcm") {
+        } else if (ext == wav_extension || ext == pcm_extension) {
             const auto duration_args = std::make_format_args(sound_seconds);
             const auto duration_text =
                 rv_editor_text_format("asset_preview.sound_duration", duration_args);
@@ -239,9 +297,9 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
     }
     const ImVec2 room = ImGui::GetContentRegionAvail();
     const float line_h = ImGui::GetTextLineHeightWithSpacing();
-    if (room.y < line_h * 7.0f) {
+    if (room.y < line_h * preview_side_by_side_threshold_lines) {
         // A short tile: the picture on the left, all the text beside it, not under it.
-        const float img_w = room.x * 0.5f - ImGui::GetStyle().ItemSpacing.x;
+        const float img_w = room.x * preview_image_width_fraction - ImGui::GetStyle().ItemSpacing.x;
         ImGui::Image(picture.id, rv_editor_fit_picture(picture, img_w, room.y));
         ImGui::SameLine();
         ImGui::BeginGroup();
@@ -251,7 +309,8 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
         return;
     }
     header();
-    ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y - line_h * 3.0f));
+    ImGui::Image(picture.id,
+        rv_editor_fit_picture(picture, room.x, room.y - line_h * preview_text_area_height_lines));
     footer();
 }
 
