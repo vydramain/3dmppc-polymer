@@ -214,8 +214,8 @@ int rv_editor_fonts_build(ImGuiIO &io, float scale)
 int rv_editor_set_window_size_for_scale(SDL_Window *window, float scale, bool resize_up)
 {
     const float density = SDL_GetWindowPixelDensity(window);
-    const int w_points = static_cast<int>(std::ceil(1280 * scale / density));
-    const int h_points = static_cast<int>(std::ceil(720 * scale / density));
+    const int w_points = static_cast<int>(std::ceil(rv_editor::window_min_width * scale / density));
+    const int h_points = static_cast<int>(std::ceil(rv_editor::window_min_height * scale / density));
     if (!SDL_SetWindowMinimumSize(window, w_points, h_points)) {
         return RV_ERR_IO;
     }
@@ -255,7 +255,8 @@ int main(int argc, char **argv)
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
     constexpr SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if (!SDL_CreateWindowAndRenderer("3dmppc-editor", 1280, 720, window_flags, &window, &renderer)) {
+    if (!SDL_CreateWindowAndRenderer("3dmppc-editor", rv_editor::window_min_width,
+            rv_editor::window_min_height, window_flags, &window, &renderer)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_CreateWindowAndRenderer: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
@@ -280,7 +281,8 @@ int main(int argc, char **argv)
 
     // Check if display is large enough (needs 1280x720 at scale 1.0).
     const rv_editor::rv_editor_display_size display_size = rv_editor::rv_editor_get_display_size(window);
-    if (display_size.w_pixels < 1280 || display_size.h_pixels < 720) {
+    if (display_size.w_pixels < rv_editor::window_min_width ||
+        display_size.h_pixels < rv_editor::window_min_height) {
         rv_editor::rv_editor_show_too_small_error(window, renderer, display_size);
         SDL_Quit();
         return 1;
