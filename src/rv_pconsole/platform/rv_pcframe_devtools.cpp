@@ -229,14 +229,14 @@ std::unique_ptr<rv_pcplatform> rv_pcframe_wrap(std::unique_ptr<rv_pcplatform> in
     return std::make_unique<rv_pcframe_platform>(std::move(inner), fd);
 }
 
-bool rv_pcframe_set_pad(rv_pcplatform &platform, uint64_t buttons)
+int rv_pcframe_set_pad(rv_pcplatform &platform, uint64_t buttons)
 {
     auto *frame_platform = dynamic_cast<rv_pcframe_platform *>(&platform);
     if (frame_platform == nullptr) {
-        return false;
+        return RV_ERR_INVAL;
     }
     frame_platform->frame_window().set_pad(buttons);
-    return true;
+    return RV_OK;
 }
 
 bool rv_pcframe_latest(rv_pcplatform &platform, uint32_t &slot, uint64_t &frame)

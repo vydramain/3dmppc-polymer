@@ -208,7 +208,7 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
             cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "pad takes port 0 and hex buttons"));
             return;
         }
-        if (!rv_pcframe_set_pad(platform_, buttons)) {
+        if (rv_pcframe_set_pad(platform_, buttons) != RV_OK) {
             cmd_->reply(rv_pccmd_err(req.id, "no_frame", RV_ERR_INVAL, false, "pad needs --frame-fd"));
             return;
         }

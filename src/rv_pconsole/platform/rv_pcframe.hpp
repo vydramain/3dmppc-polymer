@@ -53,9 +53,9 @@ static_assert(sizeof(rv_pcframe_slot) == RV_PCFRAME_SLOT_HEADER_BYTES);
 // no --frame-fd and its version of this returns `inner` untouched.
 std::unique_ptr<rv_pcplatform> rv_pcframe_wrap(std::unique_ptr<rv_pcplatform> inner, int fd);
 
-// The dev channel's side, false for a platform rv_pcframe_wrap did not make.
+// The dev channel's side, RV_ERR_INVAL if not a wrapped frame platform.
 // Buttons (rv_isource bits) port 0 reads as its keyboard from now on.
-bool rv_pcframe_set_pad(rv_pcplatform &platform, uint64_t buttons);
+int rv_pcframe_set_pad(rv_pcplatform &platform, uint64_t buttons);
 // Slot and count of the last frame written; false before the first as well.
 bool rv_pcframe_latest(rv_pcplatform &platform, uint32_t &slot, uint64_t &frame);
 
