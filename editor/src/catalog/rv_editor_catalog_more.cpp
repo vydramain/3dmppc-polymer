@@ -101,7 +101,8 @@ void rv_editor_catalog_frame(ImDrawList *dl, ImVec2 p0, float scale, bool stale,
     const ImU32 alpha = stale ? game_frame_alpha_stale : game_frame_alpha_live;
     for (int y = 0; y < game_frame_grid_rows; ++y) {
         for (int x = 0; x < game_frame_grid_cols; ++x) {
-            const ImU32 c = ((x + y) % checker_tone_count == 0 ? game_frame_cell_color_light : game_frame_cell_color_dark) | alpha;
+            const bool light_cell = (x + y) % checker_tone_count == 0;
+            const ImU32 c = (light_cell ? game_frame_cell_color_light : game_frame_cell_color_dark) | alpha;
             dl->AddRectFilled(ImVec2(p0.x + x * game_frame_cell_size_px * scale,
                                   p0.y + y * game_frame_cell_size_px * scale),
                 ImVec2(p0.x + (x + 1) * game_frame_cell_size_px * scale,
