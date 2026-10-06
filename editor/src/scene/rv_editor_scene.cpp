@@ -96,18 +96,28 @@ constexpr std::string_view section_header_object = "[[object]]";
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
 
-// Room for fixed-point text of a scene number (coordinate, scale, angle); huge magnitudes or tiny
-// denormals do not fit (to_chars reports value_too_large but code does not check).
-constexpr size_t number_format_buffer_bytes = 64;
+// Room for fixed-point text of a scene number (coordinate, scale, angle).
+// Derived at compile time: denorm_min needs sign(1) + "0."(2) + (-min_exponent10 + max_digits10) digits;
+// large values need sign(1) + (max_exponent10 + 1) digits. The max of the two is used.
+// For double: 1 + 2 + (307 + 17) = 327 bytes exactly (verified for finite values).
+// NaN/Inf: to_chars with fixed succeeds (writes "nan"/"inf"), roundtrip via std::from_chars works
+// but scene file is read by pdklib's manifest parser, which accepts them via strtod.
+constexpr size_t number_format_buffer_bytes =
+    std::max(1 + 2 + (-std::numeric_limits<double>::min_exponent10 + std::numeric_limits<double>::max_digits10),
+        1 + (std::numeric_limits<double>::max_exponent10 + 1));
 // Buffer for formatting random scene object ID as hexadecimal via to_chars; size for uint32_t.
 constexpr size_t hex_id_buffer_bytes = 16;
 
 // Shortest text that reads back as the same double, never in exponent form (the
-// dialect has none): 1, -0.25, 1.5.
+// dialect has none): 1, -0.25, 1.5. NaN and Inf are written as "nan"/"inf" (accepted by
+// pdklib's manifest parser via strtod, roundtrip via std::from_chars).
 std::string rv_editor_scene_number(double v)
 {
     char buf[number_format_buffer_bytes];
     const auto r = std::to_chars(buf, buf + sizeof(buf), v, std::chars_format::fixed);
+    // For any finite double, and for NaN/Inf, to_chars succeeds with ec == std::errc{}.
+    // Buffer is sized to accommodate the longest shortest fixed form of any double.
+    // Error case is unreachable in practice.
     return std::string(buf, r.ptr);
 }
 
