@@ -8,18 +8,26 @@
 
 #include "release/rv_editor_sha256.hpp"
 
+#include "text/rv_editor_text.hpp"
+
 namespace rv_editor
 {
 
 const char *rv_editor_check_state_name(rv_editor_check_state state)
 {
     switch (state) {
-        case rv_editor_check_state::not_run: return "Not run";
-        case rv_editor_check_state::running: return "Running";
-        case rv_editor_check_state::passed: return "Passed";
-        case rv_editor_check_state::failed: return "Failed";
-        case rv_editor_check_state::blocked: return "Blocked";
-        case rv_editor_check_state::skipped: return "Skipped";
+    case rv_editor_check_state::not_run:
+        return rv_editor_text("candidate.check_state_not_run");
+    case rv_editor_check_state::running:
+        return rv_editor_text("candidate.check_state_running");
+    case rv_editor_check_state::passed:
+        return rv_editor_text("candidate.check_state_passed");
+    case rv_editor_check_state::failed:
+        return rv_editor_text("candidate.check_state_failed");
+    case rv_editor_check_state::blocked:
+        return rv_editor_text("candidate.check_state_blocked");
+    case rv_editor_check_state::skipped:
+        return rv_editor_text("candidate.check_state_skipped");
     }
     return "?";
 }
@@ -30,25 +38,24 @@ std::vector<rv_editor_check> rv_editor_checks_make()
     // the whole game works.
     constexpr struct
     {
-        const char *name;
-        const char *passes_when;
+        const char *name_key;
+        const char *passes_when_key;
         bool manual;
     } list[] = {
-        { "Build", "mppcburner exited 0 and wrote this image", false },
-        { "Disc loads", "the console mounted this image and answered its first status", false },
-        { "Player", "the player, 3dmppc built without devtools, ran this image and it ended by itself with exit code 0",
-            false },
-        { "Launch", "the game reaches its first screen", true },
-        { "Input", "the controls do what the game says they do", true },
-        { "Audio", "music and effects play, without gaps or noise", true },
-        { "Main scenario", "the game's main path plays through as the project defines it", true },
-        { "Exit", "the game leaves by its own way out, or by Stop (quit), without a crash", true },
+        { "candidate.build_name", "candidate.build_passes_when", false },
+        { "candidate.disc_loads_name", "candidate.disc_loads_passes_when", false },
+        { "candidate.player_name", "candidate.player_passes_when", false },
+        { "candidate.launch_name", "candidate.launch_passes_when", true },
+        { "candidate.input_name", "candidate.input_passes_when", true },
+        { "candidate.audio_name", "candidate.audio_passes_when", true },
+        { "candidate.scenario_name", "candidate.scenario_passes_when", true },
+        { "candidate.exit_name", "candidate.exit_passes_when", true },
     };
     std::vector<rv_editor_check> checks;
     for (const auto &c : list) {
         rv_editor_check check{};
-        check.name = c.name;
-        check.passes_when = c.passes_when;
+        check.name = rv_editor_text(c.name_key);
+        check.passes_when = rv_editor_text(c.passes_when_key);
         check.manual = c.manual;
         checks.push_back(check);
     }
@@ -79,20 +86,20 @@ void rv_editor_check_set(rv_editor_candidate &c, size_t id, rv_editor_check_stat
 const char *rv_editor_why_not_approve(const rv_editor_candidate &c)
 {
     if (c.sha256.empty()) {
-        return "The image is not hashed yet";
+        return rv_editor_text("candidate.why_not_approve_no_hash");
     }
     if (c.bytes_changed) {
-        return "The image's bytes changed after it was built: its results do not apply";
+        return rv_editor_text("candidate.why_not_approve_bytes_changed");
     }
     if (c.hashing.valid()) {
-        return "Verifying the image's bytes";
+        return rv_editor_text("candidate.why_not_approve_hashing");
     }
     if (c.verified_hash != c.sha256) {
-        return "Verify the image's bytes first";
+        return rv_editor_text("candidate.why_not_approve_verify_first");
     }
     for (const rv_editor_check &check : c.checks) {
         if (check.state != rv_editor_check_state::passed || !rv_editor_check_valid(c, check)) {
-            return "Every required check must pass on these bytes; Skipped does not count";
+            return rv_editor_text("candidate.why_not_approve_failed_checks");
         }
     }
     return nullptr;
@@ -104,7 +111,10 @@ std::string rv_editor_checks_summary(const rv_editor_candidate &c)
     for (const rv_editor_check &check : c.checks) {
         passed += check.state == rv_editor_check_state::passed && rv_editor_check_valid(c, check) ? 1 : 0;
     }
-    return std::to_string(passed) + " of " + std::to_string(c.checks.size()) + " required checks passed";
+    const std::string passed_str = std::to_string(passed);
+    const std::string total_str = std::to_string(c.checks.size());
+    return rv_editor_text_format("candidate.checks_summary_format",
+        std::make_format_args(passed_str, total_str));
 }
 
 void rv_editor_candidate_hash(rv_editor_candidate &c)
