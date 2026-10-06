@@ -1,6 +1,6 @@
 #pragma once
 
-// Little-endian field codec of the card image, shared by the card, its slots and its migration.
+// Layout and little-endian field codec of the card image.
 
 #include <cstdint>
 
@@ -14,6 +14,15 @@ constexpr uint8_t BYTE_MASK = 0xFFu;
 // Integer type sizes for put/get operations
 constexpr int BYTES_PER_U32 = sizeof(uint32_t);
 constexpr int BYTES_PER_I64 = sizeof(int64_t);
+
+// Card image layout: magic[8] version[4] reserved[4] slot_count[8] slot_size[8] then slot lengths[8..].
+constexpr int64_t HEADER_MAGIC_SIZE = 8;
+constexpr int64_t HEADER_OFFSET_VERSION = HEADER_MAGIC_SIZE;
+constexpr int64_t HEADER_OFFSET_RESERVED = HEADER_OFFSET_VERSION + BYTES_PER_U32;
+constexpr int64_t HEADER_OFFSET_SLOT_COUNT = HEADER_OFFSET_RESERVED + BYTES_PER_U32;
+constexpr int64_t HEADER_OFFSET_SLOT_SIZE = HEADER_OFFSET_SLOT_COUNT + BYTES_PER_I64;
+constexpr int64_t RV_PCCARD_HEADER_SIZE = HEADER_OFFSET_SLOT_SIZE + BYTES_PER_I64;
+constexpr int64_t RV_PCCARD_LENGTH_ENTRY = BYTES_PER_I64;
 
 // Explicit byte order - the image is written and read one byte at a
 // time so a card written on one machine stays readable on another, instead of

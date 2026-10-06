@@ -16,16 +16,21 @@ namespace
 
 constexpr const char *RV_PCCARD_TAG = "pccard";
 
-constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
-constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
 constexpr uint32_t RV_PCCARD_VERSION = rv_pdklib::rv_version_packed32;
 
-constexpr uint8_t RV_PCCARD_MAGIC[8] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
+constexpr uint8_t RV_PCCARD_MAGIC[rv_pccard_detail::HEADER_MAGIC_SIZE] = { 'M', 'P', 'P', 'C', 'C', 'A', 'R', 'D' };
 
 using rv_pccard_detail::get_i64;
 using rv_pccard_detail::get_u32;
+using rv_pccard_detail::HEADER_MAGIC_SIZE;
+using rv_pccard_detail::HEADER_OFFSET_RESERVED;
+using rv_pccard_detail::HEADER_OFFSET_SLOT_COUNT;
+using rv_pccard_detail::HEADER_OFFSET_SLOT_SIZE;
+using rv_pccard_detail::HEADER_OFFSET_VERSION;
 using rv_pccard_detail::put_i64;
 using rv_pccard_detail::put_u32;
+using rv_pccard_detail::RV_PCCARD_HEADER_SIZE;
+using rv_pccard_detail::RV_PCCARD_LENGTH_ENTRY;
 
 } // namespace
 
@@ -57,10 +62,10 @@ void rv_pccard::format_empty()
 {
     image_.assign(static_cast<size_t>(payload_offset_ + slot_count_ * slot_size_), 0);
     std::memcpy(image_.data(), RV_PCCARD_MAGIC, sizeof(RV_PCCARD_MAGIC));
-    put_u32(image_.data() + 8, RV_PCCARD_VERSION);
-    put_u32(image_.data() + 12, 0);
-    put_i64(image_.data() + 16, slot_count_);
-    put_i64(image_.data() + 24, slot_size_);
+    put_u32(image_.data() + HEADER_OFFSET_VERSION, RV_PCCARD_VERSION);
+    put_u32(image_.data() + HEADER_OFFSET_RESERVED, 0);
+    put_i64(image_.data() + HEADER_OFFSET_SLOT_COUNT, slot_count_);
+    put_i64(image_.data() + HEADER_OFFSET_SLOT_SIZE, slot_size_);
     for (int64_t i = 0; i < slot_count_; ++i) {
         set_length(i, -1);
     }
@@ -147,9 +152,9 @@ bool rv_pccard::load()
         RV_LOG_ERR(RV_PCCARD_TAG, "'{}' is not a card image (bad magic)", image_path_);
         return false;
     }
-    const uint32_t version = get_u32(header.data() + 8);
-    const int64_t file_slots = get_i64(header.data() + 16);
-    const int64_t file_slot_size = get_i64(header.data() + 24);
+    const uint32_t version = get_u32(header.data() + HEADER_OFFSET_VERSION);
+    const int64_t file_slots = get_i64(header.data() + HEADER_OFFSET_SLOT_COUNT);
+    const int64_t file_slot_size = get_i64(header.data() + HEADER_OFFSET_SLOT_SIZE);
 
     if (version != RV_PCCARD_VERSION && rv_pccard_classify_version(version, RV_PCCARD_VERSION) ==
         rv_pccard_version_case::compatible) {
@@ -177,7 +182,7 @@ bool rv_pccard::load()
                 return false;
             }
         }
-        put_u32(buffer.data() + 8, RV_PCCARD_VERSION);
+        put_u32(buffer.data() + HEADER_OFFSET_VERSION, RV_PCCARD_VERSION);
         image_ = std::move(buffer);
         RV_LOG_INFO(RV_PCCARD_TAG, "card image '{}' was version {}, restamped to {} ({} slot(s) of {} byte(s))",
             image_path_, rv_pccard_version_text(version), rv_pccard_version_text(RV_PCCARD_VERSION), slot_count_, slot_size_);

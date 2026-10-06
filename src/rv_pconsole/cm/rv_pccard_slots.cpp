@@ -18,11 +18,10 @@ namespace
 
 constexpr const char *RV_PCCARD_TAG = "pccard";
 
-constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
-constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
-
-using rv_pccard_detail::put_i64;
 using rv_pccard_detail::get_i64;
+using rv_pccard_detail::put_i64;
+using rv_pccard_detail::RV_PCCARD_HEADER_SIZE;
+using rv_pccard_detail::RV_PCCARD_LENGTH_ENTRY;
 
 std::string errno_text(int e)
 {

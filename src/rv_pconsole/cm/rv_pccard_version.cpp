@@ -11,31 +11,24 @@ namespace rv_3dmppc
 namespace
 {
 
-// Must match rv_pccard.cpp's on-disk layout: header[32] then one i64 length
-// per slot, ahead of the payload. Fixed here because a container layout
-// change only ever comes with a major bump, at which point this whole file
-// gets rewritten for the new predecessor anyway.
-constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
-constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
+// Version packing: major in bits[31:16], minor in bits[15:0]
+constexpr int VERSION_MAJOR_SHIFT = 16;
+constexpr uint32_t VERSION_MINOR_MASK = 0xFFFFu;
 
 using rv_pccard_detail::BITS_PER_BYTE;
 using rv_pccard_detail::BYTE_MASK;
 using rv_pccard_detail::BYTES_PER_I64;
 using rv_pccard_detail::BYTES_PER_U32;
 using rv_pccard_detail::get_i64;
+using rv_pccard_detail::HEADER_MAGIC_SIZE;
+using rv_pccard_detail::HEADER_OFFSET_RESERVED;
+using rv_pccard_detail::HEADER_OFFSET_SLOT_COUNT;
+using rv_pccard_detail::HEADER_OFFSET_SLOT_SIZE;
+using rv_pccard_detail::HEADER_OFFSET_VERSION;
 using rv_pccard_detail::put_i64;
 using rv_pccard_detail::put_u32;
-
-// Version packing: major in bits[31:16], minor in bits[15:0]
-constexpr int VERSION_MAJOR_SHIFT = 16;
-constexpr uint32_t VERSION_MINOR_MASK = 0xFFFFu;
-
-// Header layout: magic[8] version[4] reserved[4] slot_count[8] slot_size[8]
-constexpr int HEADER_MAGIC_SIZE = 8;
-constexpr int64_t HEADER_OFFSET_VERSION = HEADER_MAGIC_SIZE;
-constexpr int64_t HEADER_OFFSET_RESERVED = HEADER_OFFSET_VERSION + BYTES_PER_U32;
-constexpr int64_t HEADER_OFFSET_SLOT_COUNT = HEADER_OFFSET_RESERVED + BYTES_PER_U32;
-constexpr int64_t HEADER_OFFSET_SLOT_SIZE = HEADER_OFFSET_SLOT_COUNT + BYTES_PER_I64;
+using rv_pccard_detail::RV_PCCARD_HEADER_SIZE;
+using rv_pccard_detail::RV_PCCARD_LENGTH_ENTRY;
 
 } // namespace
 
