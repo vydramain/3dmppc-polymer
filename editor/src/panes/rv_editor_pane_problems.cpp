@@ -19,6 +19,16 @@ namespace rv_editor
 namespace
 {
 
+// nvim diagnostic severity shown: error and warn (info/hint are skipped).
+constexpr std::string_view diag_severity_error = "error";
+constexpr std::string_view diag_severity_warn = "warn";
+
+// Problem source: "build" vs language server (source name varies).
+constexpr std::string_view problem_source_build = "build";
+
+// Problems table columns: icon, source, file, line:col, message.
+constexpr int problems_table_column_count = 5;
+
 // app.problems plus the servers' error/warning diagnostics (info/hint are skipped:
 // Problems is for what blocks the build, not editor-only hints).
 std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &app)
@@ -26,11 +36,11 @@ std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &ap
     std::vector<rv_editor_problem> out = app.problems;
     for (const auto &[file, diags] : app.nvim.diagnostics()) {
         for (const rv_editor_nvim_diagnostic &d : diags) {
-            if (d.severity != "error" && d.severity != "warn") {
+            if (d.severity != diag_severity_error && d.severity != diag_severity_warn) {
                 continue;
             }
-            out.push_back({ std::filesystem::path(file), d.line, d.col, d.severity == "error", d.message,
-                d.source });
+            out.push_back({ std::filesystem::path(file), d.line, d.col, d.severity == diag_severity_error,
+                d.message, d.source });
         }
     }
     return out;
@@ -55,7 +65,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     size_t lsp_errors = 0;
     size_t lsp_total = 0;
     for (const rv_editor_problem &p : problems) {
-        if (p.source == "build") {
+        if (p.source == problem_source_build) {
             build_errors += p.error ? 1 : 0;
             ++build_total;
         } else {
@@ -101,7 +111,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::TextWrapped("%s", rv_editor_text(id));
             return;
         }
-        if (!ImGui::BeginTable("##problems", 5,
+        if (!ImGui::BeginTable("##problems", problems_table_column_count,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             return;
         }
@@ -143,7 +153,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::Text("%d:%d", p.line, p.column);
             ImGui::TableNextColumn();
             std::string message = p.message;
-            const bool from_build = p.source == "build";
+            const bool from_build = p.source == problem_source_build;
             if (from_build && !there) {
                 message = std::string(rv_editor_text("pane_problems.prefix_file_missing")) + message;
             } else if (from_build && app.build_ended != std::filesystem::file_time_type{} &&
