@@ -26,6 +26,14 @@ constexpr size_t RV_BAKER_PALETTE_SIZE_IDX8 = 256;
 // (width + 1) / 2.
 constexpr int RV_BAKER_IDX4_NIBBLE_BITS = 4;
 constexpr uint8_t RV_BAKER_IDX4_NIBBLE_MASK = 0x0F;
+constexpr int RV_BAKER_IDX4_TEXELS_PER_BYTE = 2; // two 4-bit texels pack into one byte
+
+// Little-endian encoding of multi-byte values
+constexpr uint8_t RV_BAKER_BYTE_MASK = 0xFF; // mask for extracting one byte
+constexpr int RV_BAKER_BITS_PER_BYTE = 8;    // bits per byte
+
+// DIRECT15 texture format
+constexpr int RV_BAKER_BYTES_PER_TEXEL_DIRECT15 = 2; // 16-bit colour = 2 bytes
 
 // Reserved slot - index 0 is the hole whenever the image has one.
 // Transparency in an indexed format lives in the PALETTE (rv_texture.h:
@@ -66,14 +74,14 @@ constexpr size_t RV_BAKER_COLOR5_CODES = 1u << 15;
 // Appends one little-endian uint16, the only multi-byte shape the format uses.
 void put_u16(std::vector<uint8_t> &out, uint16_t v)
 {
-    out.push_back(static_cast<uint8_t>(v & 0xFF));
-    out.push_back(static_cast<uint8_t>(v >> 8));
+    out.push_back(static_cast<uint8_t>(v & RV_BAKER_BYTE_MASK));
+    out.push_back(static_cast<uint8_t>(v >> RV_BAKER_BITS_PER_BYTE));
 }
 
 // DIRECT15 carries no palette: a texel is the colour itself.
 void encode_direct15(const source_image &src, std::vector<uint8_t> *out)
 {
-    out->reserve(out->size() + src.pixels.size() * 2);
+    out->reserve(out->size() + src.pixels.size() * RV_BAKER_BYTES_PER_TEXEL_DIRECT15);
     for (const src_pixel &s : src.pixels) {
         put_u16(*out,
             s.transparent ? RV_TEXEL_TRANSPARENT : rv_texel_opaque(rv_texel_pack(s.color)));
@@ -105,13 +113,15 @@ void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
 {
     const size_t width = static_cast<size_t>(src.width);
     // The +1 is what pads an odd width so every row still starts on a byte.
-    const size_t stride = (width + 1) / 2;
+    const size_t stride = (width + 1) / RV_BAKER_IDX4_TEXELS_PER_BYTE;
     out->reserve(out->size() + stride * static_cast<size_t>(src.height));
     for (int y = 0; y < src.height; ++y) {
         const size_t row = static_cast<size_t>(y) * width;
-        for (size_t x = 0; x < width; x += 2) {
+        for (size_t x = 0; x < width; x += RV_BAKER_IDX4_TEXELS_PER_BYTE) {
             const uint8_t low = static_cast<uint8_t>(indices[row + x] & RV_BAKER_IDX4_NIBBLE_MASK);
-            const uint8_t high = (x + 1 < width) ? static_cast<uint8_t>(indices[row + x + 1] & RV_BAKER_IDX4_NIBBLE_MASK) : uint8_t{ 0 };
+            const uint8_t high = (x + 1 < width) ?
+                static_cast<uint8_t>(indices[row + x + 1] & RV_BAKER_IDX4_NIBBLE_MASK) :
+                uint8_t{ 0 };
             out->push_back(static_cast<uint8_t>(low | (high << RV_BAKER_IDX4_NIBBLE_BITS)));
         }
     }
