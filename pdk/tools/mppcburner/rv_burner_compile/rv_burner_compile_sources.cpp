@@ -24,13 +24,16 @@ namespace rv_pdktools
 // cmake_project_text) and this phase checks it.
 static constexpr const char *k_disc_module_name = "disc.so";
 
+// Hex output: two characters per byte (e.g., "AB" for 0xAB).
+static constexpr int k_hex_chars_per_byte = 2;
+
 // Local hex formatting: pdklib ships the checksum as raw bytes, not text.
 static std::string to_hex(const unsigned char *bytes, std::size_t n)
 {
     std::ostringstream out;
     out << std::hex << std::setfill('0');
     for (std::size_t i = 0; i < n; ++i) {
-        out << std::setw(2) << static_cast<unsigned int>(bytes[i]);
+        out << std::setw(k_hex_chars_per_byte) << static_cast<unsigned int>(bytes[i]);
     }
     return out.str();
 }

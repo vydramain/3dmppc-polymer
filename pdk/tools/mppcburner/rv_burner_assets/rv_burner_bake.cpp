@@ -19,6 +19,9 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
+// S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
+static constexpr std::size_t k_pcm_sample_bytes = 2;
+
 // Read back the WHOLE file mppcbaker just wrote and hand it to
 // rv_pdklib::rv_mppctex_parse() - the one validator this burner shares with a
 // disc's own loader, so a texture accepted here is a texture the console can
@@ -71,7 +74,7 @@ static int check_pcm_size(const fs::path &path, std::string &error)
         error = "baked sound '" + path.string() + "' is empty";
         return RV_ERR_IO;
     }
-    if (size % 2 != 0) {
+    if (size % k_pcm_sample_bytes != 0) {
         error = "baked sound '" + path.string() + "' is not a whole number of S16 samples";
         return RV_ERR_INVAL;
     }
