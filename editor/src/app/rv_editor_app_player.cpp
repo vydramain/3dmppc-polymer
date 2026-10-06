@@ -19,6 +19,9 @@ namespace rv_editor
 namespace
 {
 
+// Bytes read from the player per poll.
+constexpr size_t read_chunk_bytes = 65536;
+
 // The candidate's number the player runs, or 0 outside a run.
 uint32_t rv_editor_player_run(const rv_editor_release &r)
 {
@@ -179,7 +182,7 @@ void rv_editor_app_player_update(rv_editor_app &app)
     // runs once, only when the player's output is complete (output_done()).
     std::string out;
     std::string err;
-    r.player->read(out, err, 65536);
+    r.player->read(out, err, read_chunk_bytes);
     rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
     if (r.player->poll() && r.player->output_done()) {

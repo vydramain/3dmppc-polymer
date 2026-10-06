@@ -13,6 +13,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Largest layout file read; anything bigger is not a layout.
+constexpr auto layout_file_max_bytes = 1 << 20;
+
+} // namespace
+
 std::filesystem::path rv_editor_layout_file_path()
 {
     const char *xdg = std::getenv("XDG_CONFIG_HOME");
@@ -42,7 +50,7 @@ int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_regi
     if (ec) {
         return RV_ERR_IO;
     }
-    if (sz > (1 << 20)) {
+    if (sz > layout_file_max_bytes) {
         return RV_ERR_INVAL;
     }
 
