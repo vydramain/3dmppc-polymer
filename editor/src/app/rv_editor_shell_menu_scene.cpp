@@ -24,10 +24,13 @@ namespace rv_editor
 namespace
 {
 
+// Scene name buffer: the name entered in the New Scene dialog, with room including NUL
+constexpr size_t new_scene_name_bytes = 64;
+
 struct rv_editor_new_scene_state
 {
     bool open = false;
-    char name[64] = {};
+    char name[new_scene_name_bytes] = {};
     bool write_cpp = false;
     std::string error;
     bool focus_name = false;

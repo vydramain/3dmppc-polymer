@@ -20,6 +20,9 @@ namespace
 // Most recent changed paths kept before the oldest are dropped.
 constexpr size_t changed_paths_max = 4096;
 
+// File head buffer for binary detection: reads up to this many bytes to scan for null bytes
+constexpr size_t file_head_read_bytes = 8192;
+
 } // namespace
 
 void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log)
@@ -334,7 +337,7 @@ bool rv_editor_file_binary(const std::filesystem::path &path, uintmax_t &size)
     if (f == nullptr) {
         return false;
     }
-    char head[8192];
+    char head[file_head_read_bytes];
     const size_t n = std::fread(head, 1, sizeof(head), f);
     std::fclose(f);
     return std::find(head, head + n, '\0') != head + n;

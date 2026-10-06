@@ -20,6 +20,9 @@ constexpr size_t max_sinks = 8;
 // Milliseconds part of the log timestamp.
 constexpr int ms_per_second = 1000;
 
+// Timestamp buffer: stores formatted time strings like "HH:MM:SS.mmm" (12 chars + NUL)
+constexpr size_t log_stamp_buf_bytes = 16;
+
 const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
 {
     switch (channel) {
@@ -71,7 +74,7 @@ std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
     const std::time_t t = std::chrono::system_clock::to_time_t(wall);
     std::tm tm{};
     localtime_r(&t, &tm);
-    char buf[16];
+    char buf[log_stamp_buf_bytes];
     const size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
     if (ms) {
         const auto ms_val = std::chrono::duration_cast<std::chrono::milliseconds>(wall.time_since_epoch()).count();
