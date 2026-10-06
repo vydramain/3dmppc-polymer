@@ -19,6 +19,15 @@ namespace rv_editor
 namespace
 {
 
+// Reserved lines for the message area: displays unanswered request, detail, build/restart note, or last run reason.
+constexpr int reserved_message_lines = 2;
+
+// Builds subdirectory in the project cache. Same value used in rv_editor_build.cpp, rv_editor_app_logs.cpp.
+constexpr std::string_view builds_dir_name = "builds";
+
+// Memory card file in the project's state directory. Same value used in rv_editor_app.cpp.
+constexpr std::string_view memcard_filename = "memcard.mppccard";
+
 rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 {
     switch (session.state()) {
@@ -211,7 +220,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         : !detail.empty()                 ? detail
         : !build_restart_message.empty()  ? build_restart_message
                                            : last_run_message;
-    rv_editor_reserved("##message", message, 2);
+    rv_editor_reserved("##message", message, reserved_message_lines);
 
     // Facts/target and the profile button share one row: facts clips rather
     // than wraps, so this row can never split in two.
@@ -292,14 +301,14 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_project_group("Editor", theme);
     if (p.open) {
         rv_editor_path_row("Root", p.root.string(), theme);
-        rv_editor_path_row("Builds", (p.cache_dir / "builds").string(), theme);
-        rv_editor_path_row("Memory card", (p.state_dir / "memcard.mppccard").string(), theme);
+        rv_editor_path_row("Builds", (p.cache_dir / builds_dir_name).string(), theme);
+        rv_editor_path_row("Memory card", (p.state_dir / memcard_filename).string(), theme);
     }
 
     ImGui::SeparatorText("Toolchain");
     const rv_editor_tool *tools[] = { &app.tools.console, &app.tools.burner, &app.tools.baker };
     const char *names[] = { "Runtime", "Burner", "Baker" };
-    for (int i = 0; i < 3; ++i) {
+    for (size_t i = 0; i < std::size(tools); ++i) {
         const rv_editor_tool &t = *tools[i];
         rv_editor_status(names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
         ImGui::SameLine();
