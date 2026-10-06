@@ -19,39 +19,57 @@ int64_t rv_editor_to_int(std::string_view s, int64_t fallback)
     return v;
 }
 
+// Dev-protocol state words.
+constexpr std::string_view devproto_mode_paused = "paused";
+constexpr std::string_view devproto_mode_running = "running";
+constexpr std::string_view devproto_mode_stopped = "stopped";
+
+// Dev-protocol message field names.
+constexpr std::string_view devproto_field_frame = "frame";
+constexpr std::string_view devproto_field_mode = "mode";
+constexpr std::string_view devproto_field_protocol = "protocol";
+constexpr std::string_view devproto_field_event = "event";
+constexpr std::string_view devproto_field_name = "name";
+
+// Dev-protocol event names.
+constexpr std::string_view devproto_event_pause = "pause";
+constexpr std::string_view devproto_event_scene = "scene";
+constexpr std::string_view devproto_event_script_error = "script_error";
+
 } // namespace
 
 void rv_editor_session::handle_mode(std::string_view mode)
 {
-    if (mode == "paused") {
+    if (mode == devproto_mode_paused) {
         state_ = rv_editor_run_state::paused;
-    } else if (mode == "running") {
+    } else if (mode == devproto_mode_running) {
         state_ = rv_editor_run_state::running;
-    } else if (mode == "stopped") {
+    } else if (mode == devproto_mode_stopped) {
         state_ = rv_editor_run_state::stopping;
     }
 }
 
 void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
 {
-    if (msg.has("frame")) {
-        frame_ = rv_editor_to_int(msg.get("frame"), frame_);
+    if (msg.has(devproto_field_frame)) {
+        frame_ = rv_editor_to_int(msg.get(devproto_field_frame), frame_);
     }
 
     if (msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::event) {
-        const std::string_view event = msg.get("event");
-        if (event == "pause") {
-            handle_mode(msg.get("mode"));
-        } else if (event == "scene") {
-            const std::string name = rv_editor_hex_decode(msg.get("name"));
+        const std::string_view event = msg.get(devproto_field_event);
+        if (event == devproto_event_pause) {
+            handle_mode(msg.get(devproto_field_mode));
+        } else if (event == devproto_event_scene) {
+            const std::string name = rv_editor_hex_decode(msg.get(devproto_field_name));
             if (!name.empty()) {
                 scenes_read_.insert(name);
             }
-        } else if (event == "script_error") {
+        } else if (event == devproto_event_script_error) {
             state_ = rv_editor_run_state::paused;
             log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,
-                "script error at frame " + std::string(msg.get("frame")) + ", machine paused: " +
-                    rv_editor_hex_decode(msg.get("msg")), rv_editor_log_channel::none, proc_.pid(), number_);
+                "script error at frame " + std::string(msg.get(devproto_field_frame)) + ", machine paused: " +
+                    rv_editor_hex_decode(msg.get(msg_key_message)),
+                rv_editor_log_channel::none, proc_.pid(), number_);
         }
         return;
     }
@@ -74,9 +92,10 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
     }
 
     if (msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::err) {
-        log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,
-            verb + " refused: " + std::string(msg.get("error")) + ": " + rv_editor_hex_decode(msg.get("msg")),
-            rv_editor_log_channel::none, proc_.pid(), number_);
+        const std::string err_msg = verb + " refused: " + std::string(msg.get(msg_key_error)) +
+            ": " + rv_editor_hex_decode(msg.get(msg_key_message));
+        log.add(rv_editor_log_source::runtime, rv_editor_log_level::error, err_msg, rv_editor_log_channel::none,
+            proc_.pid(), number_);
         // What the machine does now is whatever it says it does.
         if (state_ != rv_editor_run_state::stopping && proc_.running()) {
             send(std::string(cmd_status), log);
@@ -87,7 +106,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
     if (verb == cmd_status) {
         uncertain_ = false;
         if (!handshake_done_) {
-            const std::string_view protocol = msg.get("protocol");
+            const std::string_view protocol = msg.get(devproto_field_protocol);
             if (protocol != protocol_supported) {
                 state_ = rv_editor_run_state::refused;
                 refusal_ = "the console speaks protocol " + std::string(protocol) +
@@ -103,20 +122,21 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                 return;
             }
             handshake_done_ = true;
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-                "connected: protocol " + std::string(msg.get("protocol")) + ", disc " +
-                    rv_editor_hex_decode(msg.get("disc")) + ", pdk " + std::string(msg.get("pdk")) + ", medium " +
-                    std::string(msg.get("medium")), rv_editor_log_channel::none, proc_.pid(), number_);
+            const std::string handshake_msg = "connected: protocol " + std::string(msg.get(devproto_field_protocol)) +
+                ", disc " + rv_editor_hex_decode(msg.get(msg_key_disc)) + ", pdk " +
+                std::string(msg.get(msg_key_pdk)) + ", medium " + std::string(msg.get(msg_key_medium));
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::info, handshake_msg,
+                rv_editor_log_channel::none, proc_.pid(), number_);
         }
         note_facts(msg);
         if (state_ != rv_editor_run_state::stopping) {
-            handle_mode(msg.get("mode"));
+            handle_mode(msg.get(devproto_field_mode));
         }
         return;
     }
     if (verb == cmd_pause || verb == cmd_resume || verb == cmd_step) {
-        const std::string_view mode = msg.get("mode");
-        if (mode != "paused" && mode != "running") {
+        const std::string_view mode = msg.get(devproto_field_mode);
+        if (mode != devproto_mode_paused && mode != devproto_mode_running) {
             // An answer that does not say where the machine is: ask.
             if (proc_.running()) {
                 send(std::string(cmd_status), log);

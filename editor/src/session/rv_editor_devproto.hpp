@@ -62,4 +62,12 @@ inline constexpr std::string_view cmd_resume = "resume";
 inline constexpr std::string_view cmd_step = "step";
 inline constexpr std::string_view cmd_quit = "quit";
 
+// Message field names: fields of the console's replies and events, shared by the
+// session's handlers and queries (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
+inline constexpr std::string_view msg_key_disc = "disc";
+inline constexpr std::string_view msg_key_pdk = "pdk";
+inline constexpr std::string_view msg_key_medium = "medium";
+inline constexpr std::string_view msg_key_error = "error";
+inline constexpr std::string_view msg_key_message = "msg";
+
 } // namespace rv_editor

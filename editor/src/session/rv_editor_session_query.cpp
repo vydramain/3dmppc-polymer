@@ -41,10 +41,7 @@ constexpr std::string_view protocol_value_true = "1";
 constexpr std::string_view error_message_separator = ": ";
 
 // Status message field names (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
-constexpr std::string_view msg_key_disc = "disc";
 constexpr std::string_view msg_key_disc_hash = "disc_hash";
-constexpr std::string_view msg_key_pdk = "pdk";
-constexpr std::string_view msg_key_medium = "medium";
 constexpr std::string_view msg_key_entry_reloadable = "entry_reloadable";
 constexpr std::string_view msg_key_entry_revision = "entry_revision";
 constexpr std::string_view msg_key_entry_hash = "entry_hash";
@@ -52,8 +49,6 @@ constexpr std::string_view msg_key_lua_used = "lua_used";
 constexpr std::string_view msg_key_lua_budget = "lua_budget";
 
 // Reply field names for errors and reload results (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
-constexpr std::string_view msg_key_error = "error";
-constexpr std::string_view msg_key_message = "msg";
 constexpr std::string_view msg_key_effects = "effects";
 constexpr std::string_view msg_key_hash = "hash";
 constexpr std::string_view msg_key_resident = "resident";
