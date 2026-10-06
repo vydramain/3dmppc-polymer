@@ -31,6 +31,9 @@ namespace rv_editor
 namespace
 {
 
+// Columns of the assets table: file, kind, on disc, size.
+constexpr int assets_table_columns = 4;
+
 // What the catalog shows, read again at most once a second, and the map of the build it names.
 struct rv_editor_assets_cache
 {
@@ -349,7 +352,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         }
         ImGui::TextDisabled("%s", empty_msg);
     } else if (ui.details) {
-        if (ImGui::BeginTable("##assets", 4,
+        if (ImGui::BeginTable("##assets", assets_table_columns,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_file"));
             ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_kind"), ImGuiTableColumnFlags_WidthFixed);

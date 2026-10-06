@@ -21,12 +21,18 @@ namespace rv_editor
 namespace
 {
 
+// Field labels end this many font sizes in.
+constexpr float label_column_em = 6.0f;
+
+// Largest tint channel value.
+constexpr int tint_channel_max = 255;
+
 // A label column, then the field.
 void rv_editor_inspector_label(const char *label)
 {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label);
-    ImGui::SameLine(ImGui::GetFontSize() * 6.0f);
+    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
 }
 
@@ -269,7 +275,7 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
                 "%.1f", o.id, -1e6, 1e6, rv_editor_text("pane_scene_inspector.uv_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.uv_tooltip"));
             rv_editor_inspector_array<rv_editor_tint>(app, "Tint", &rv_editor_scene_object::tint, ImGuiDataType_S32,
-                1.0f, "%d", o.id, 0, 255, rv_editor_text("pane_scene_inspector.tint_label"));
+                1.0f, "%d", o.id, 0, tint_channel_max, rv_editor_text("pane_scene_inspector.tint_label"));
             rv_editor_inspector_tess(app, "Tess", &rv_editor_scene_object::tess, 0.05f, o.id,
                 rv_editor_text("pane_scene_inspector.tess_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.tess_tooltip"));

@@ -29,6 +29,9 @@ namespace rv_editor
 namespace
 {
 
+// Style colours pushed for the output well.
+constexpr int pushed_style_colors = 3;
+
 // Export format: level codes (Error, Warning, Info).
 constexpr std::string_view export_level_error = "ERR";
 constexpr std::string_view export_level_warning = "WRN";
@@ -461,7 +464,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             }
         }
     }
-    ImGui::PopStyleColor(3);
+    ImGui::PopStyleColor(pushed_style_colors);
     ImGui::PopStyleVar();
     if (ImGui::IsWindowFocused() && ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_C)) {
         copy_lines();
