@@ -14,6 +14,17 @@ namespace rv_editor
 namespace
 {
 
+// Divisor for vertical centering and half-height calculations.
+constexpr float half_divisor = 2.0f;
+// Number of ImGui style colors pushed by rv_editor_field_begin.
+constexpr int field_style_colors = 3;
+// Number of spinner arrow buttons (up and down).
+constexpr int spinner_buttons = 2;
+// UTF-8 byte mask for continuation byte detection.
+constexpr unsigned char utf8_continuation_mask = 0xc0;
+// UTF-8 continuation byte value for multi-byte sequences.
+constexpr unsigned char utf8_continuation_byte = 0x80;
+
 struct rv_editor_field_look
 {
     bool hovered;
@@ -52,7 +63,7 @@ void rv_editor_field_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edit
 
     const float pad = static_cast<float>(t.pad_px * t.scale);
     const float glyph = ImGui::CalcTextSize("!").x;
-    const float y = std::floor((min.y + max.y - ImGui::GetFontSize()) / 2.0f);
+    const float y = std::floor((min.y + max.y - ImGui::GetFontSize()) / half_divisor);
     float x = max.x - reserve - pad - glyph;
     if (f.invalid != nullptr) {
         dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.error), "!");
@@ -79,7 +90,7 @@ void rv_editor_field_begin(const rv_editor_theme &t, const rv_editor_field &f)
 // disabled, or else what is wrong with the value.
 void rv_editor_field_end(const rv_editor_field &f)
 {
-    ImGui::PopStyleColor(3);
+    ImGui::PopStyleColor(field_style_colors);
     if (f.state.disabled != nullptr) {
         ImGui::EndDisabled();
         ImGui::SetItemTooltip("%s", f.state.disabled);
@@ -133,10 +144,10 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
         arrows.disabled = rv_editor_text("widgets_fields.readonly_arrow");
     }
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    const float half = std::floor(h / 2.0f);
+    const float half = std::floor(h / half_divisor);
     const ImVec2 origin(max.x, min.y);
     const ImGuiDir dirs[] = {ImGuiDir_Up, ImGuiDir_Down};
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < spinner_buttons; ++i) {
         ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + half * static_cast<float>(i)));
         const rv_editor_item item = rv_editor_item_add(i == 0 ? "##up" : "##down", ImVec2(h, i == 0 ? half : h - half),
             arrows);
@@ -209,7 +220,11 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
         size_t start = 0;
         do {
             ++start;
-            while (start < path.size() && (static_cast<unsigned char>(path[start]) & 0xc0) == 0x80) {
+            while (start < path.size()) {
+                const auto byte = static_cast<unsigned char>(path[start]);
+                if ((byte & utf8_continuation_mask) != utf8_continuation_byte) {
+                    break;
+                }
                 ++start;
             }
             shown = std::string(path_ellipsis) + path.substr(start);
