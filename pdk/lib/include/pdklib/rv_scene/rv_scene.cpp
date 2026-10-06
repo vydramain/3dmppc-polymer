@@ -6,6 +6,7 @@
 #include <map>
 #include <utility>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
@@ -81,44 +82,44 @@ std::string rv_scene_at(const std::string &origin, int line)
     return origin + ":" + std::to_string(line) + ": ";
 }
 
-bool rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
+int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
 {
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 3) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = { static_cast<float>(e.value.nums[0]), static_cast<float>(e.value.nums[1]),
         static_cast<float>(e.value.nums[2]) };
-    return true;
+    return RV_OK;
 }
 
-bool rv_scene_uv(const rv_manifest_tree_entry &e, float out[4])
+int rv_scene_uv(const rv_manifest_tree_entry &e, float out[4])
 {
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 4) {
-        return false;
+        return RV_ERR_INVAL;
     }
     for (int i = 0; i < 4; ++i) {
         out[i] = static_cast<float>(e.value.nums[i]);
     }
-    return true;
+    return RV_OK;
 }
 
-bool rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
+int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
 {
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != 3) {
-        return false;
+        return RV_ERR_INVAL;
     }
     for (int i = 0; i < 3; ++i) {
         const double v = e.value.nums[static_cast<size_t>(i)];
         if (v < 0.0 || v > 255.0 || v != static_cast<double>(static_cast<int>(v))) {
-            return false;
+            return RV_ERR_INVAL;
         }
     }
     out = { static_cast<uint8_t>(e.value.nums[0]), static_cast<uint8_t>(e.value.nums[1]),
         static_cast<uint8_t>(e.value.nums[2]) };
-    return true;
+    return RV_OK;
 }
 
-bool rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
+int rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
 {
     double v;
     if (e.value.kind == rv_manifest_value_kind::integer) {
@@ -126,13 +127,13 @@ bool rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
     } else if (e.value.kind == rv_manifest_value_kind::real) {
         v = e.value.real;
     } else {
-        return false;
+        return RV_ERR_INVAL;
     }
     if (v <= 0.0) {
-        return false;
+        return RV_ERR_INVAL;
     }
     out = static_cast<float>(v);
-    return true;
+    return RV_OK;
 }
 
 } // namespace
@@ -181,13 +182,13 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
                 *field = e.value.str;
             } else if (field != nullptr) {
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be a string\n";
-            } else if (vec != nullptr && !rv_scene_vector(e, *vec)) {
+            } else if (vec != nullptr && rv_scene_vector(e, *vec) != RV_OK) {
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be three numbers\n";
-            } else if (e.key == "uv" && !rv_scene_uv(e, o.uv)) {
+            } else if (e.key == "uv" && rv_scene_uv(e, o.uv) != RV_OK) {
                 problems += rv_scene_at(origin, e.line) + "'uv' must be four numbers\n";
-            } else if (e.key == "tint" && !rv_scene_tint(e, o.tint)) {
+            } else if (e.key == "tint" && rv_scene_tint(e, o.tint) != RV_OK) {
                 problems += rv_scene_at(origin, e.line) + "'tint' must be three integers from 0 to 255\n";
-            } else if (e.key == "tess" && !rv_scene_tess(e, o.tess)) {
+            } else if (e.key == "tess" && rv_scene_tess(e, o.tess) != RV_OK) {
                 problems += rv_scene_at(origin, e.line) + "'tess' must be a number greater than zero\n";
             }
         }
