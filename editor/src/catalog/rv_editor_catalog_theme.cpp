@@ -4,6 +4,7 @@
 #include <initializer_list>
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_icons.hpp"
 
@@ -54,7 +55,10 @@ void rv_editor_catalog_palette(const rv_editor_theme &t)
         rv_editor_draw_panel(ImGui::GetWindowDrawList(), min, ImVec2(min.x + side, min.y + side), t, s.rgb,
             rv_editor_bevel::sunken);
         ImGui::SameLine();
-        ImGui::Text("%s #%06x", s.name, static_cast<unsigned>(s.rgb));
+        const unsigned color = static_cast<unsigned>(s.rgb);
+        const std::string swatch_text = rv_editor_text_format("catalog_theme.swatch_format",
+            std::make_format_args(s.name, color));
+        ImGui::TextUnformatted(swatch_text.c_str());
     }
     ImGui::EndTable();
 }
@@ -104,7 +108,7 @@ void rv_editor_catalog_icons(const rv_editor_theme &t)
     for (int i = 0; i < static_cast<int>(rv_editor_icon_name::count); ++i) {
         const rv_editor_icon icon = rv_editor_icon_get(static_cast<rv_editor_icon_name>(i));
         if (icon.id == 0) {
-            ImGui::TextUnformatted("(missing)");
+            ImGui::TextUnformatted(rv_editor_text("catalog_theme.missing"));
         } else {
             ImGui::Image(ImTextureRef(icon.id), ImVec2(static_cast<float>(icon.w) * k, static_cast<float>(icon.h) * k));
         }
@@ -119,7 +123,7 @@ void rv_editor_catalog_colours(const rv_editor_theme &theme)
 {
     rv_editor_catalog_palette(theme);
     rv_editor_catalog_primitives(theme);
-    ImGui::TextUnformatted("Cyrillic: \xd0\x9a\xd0\xb0\xd1\x82\xd0\xb0\xd0\xbb\xd0\xbe\xd0\xb3");
+    ImGui::TextUnformatted(rv_editor_text("catalog_theme.cyrillic_label"));
 }
 
 void rv_editor_catalog_icon_set(const rv_editor_theme &theme)

@@ -538,3 +538,17 @@ no_dir_tooltip = "No settings directory: set XDG_CONFIG_HOME or HOME"
 apply_button = "Apply"
 revert_button = "Revert"
 settings_desc = "Kept in {}. Applying does not stop a build or a game: they keep the tools they started with."
+
+[shell_status]
+no_project = "No project: File > Open Project..."
+tools_ready = "Tools: ready"
+tools_missing = "Tools: {} missing"
+build_no_number = "Build: {}"
+build_with_number = "Build: {} #{}"
+runtime_no_number = "Runtime: {}"
+runtime_with_number = "Runtime: {}, session {}"
+
+[catalog_theme]
+swatch_format = "{} #{:06x}"
+missing = "(missing)"
+cyrillic_label = "Cyrillic: Каталог"
