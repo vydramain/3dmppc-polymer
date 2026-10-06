@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -23,9 +24,9 @@ void rv_editor_search_list(rv_editor_app &app)
             ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         return;
     }
-    ImGui::TableSetupColumn("File", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableSetupColumn("Line", ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableSetupColumn("Text");
+    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_file"), ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_line"), ImGuiTableColumnFlags_WidthFixed);
+    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_text"));
     ImGui::TableSetupScrollFreeze(0, 1);
     ImGui::TableHeadersRow();
     ImGuiListClipper clipper;
@@ -73,17 +74,19 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         s.focus = false;
     }
     rv_editor_text_field("##query", s.query, sizeof(s.query), theme);
-    ImGui::SetItemTooltip("Text to find in the project's files (Ctrl+Shift+F); Enter searches");
+    ImGui::SetItemTooltip("%s", rv_editor_text("pane_search.query_tooltip"));
     // A single-line field lets go of the keyboard on Enter.
     bool run = ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
-    rv_editor_flow(rv_editor_button_width("Find"));
-    const char *why_not = s.query[0] == '\0' ? "Type the text to find first" : nullptr;
-    run |= rv_editor_button("Find", theme, { rv_editor_look::live, why_not });
-    rv_editor_flow(rv_editor_checkbox_width("Match Case"));
-    rv_editor_checkbox("Match Case", &s.match_case, theme);
-    rv_editor_flow(rv_editor_checkbox_width("Skipped Folders Too"));
-    rv_editor_checkbox("Skipped Folders Too", &s.all, theme);
-    ImGui::SetItemTooltip("Also search %s", rv_editor_search_skipped);
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_search.find_button")));
+    const char *why_not = s.query[0] == '\0' ? rv_editor_text("pane_search.type_first") : nullptr;
+    run |= rv_editor_button(rv_editor_text("pane_search.find_button"), theme, { rv_editor_look::live, why_not });
+    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_search.match_case")));
+    rv_editor_checkbox(rv_editor_text("pane_search.match_case"), &s.match_case, theme);
+    rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_search.skipped_folders")));
+    rv_editor_checkbox(rv_editor_text("pane_search.skipped_folders"), &s.all, theme);
+    const std::string also_search_tooltip = rv_editor_text_format("pane_search.also_search",
+        std::make_format_args(rv_editor_search_skipped));
+    ImGui::SetItemTooltip("%s", also_search_tooltip.c_str());
     rv_editor_shelf_end();
     if (run && s.query[0] != '\0') {
         // Runs on the UI thread; a worker thread when projects grow past a blink.
@@ -95,32 +98,43 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         if (s.searched.empty()) {
-            ImGui::TextWrapped("Nothing searched yet. Folders left out unless ticked: %s.", rv_editor_search_skipped);
+            const std::string nothing_searched_msg = rv_editor_text_format("pane_search.nothing_searched",
+                std::make_format_args(rv_editor_search_skipped));
+            ImGui::TextWrapped("%s", nothing_searched_msg.c_str());
             return;
         }
         const rv_editor_search_result &r = s.result;
         // The scope stated with the result, so an empty one says where it did not look.
-        std::string scope = "\"" + s.searched + "\" in " + std::to_string(r.files) + " files of " +
-            app.project.root.filename().string();
+        const std::string project_name = app.project.root.filename().string();
+        std::string scope = rv_editor_text_format("pane_search.scope_base",
+            std::make_format_args(s.searched, r.files, project_name));
         if (r.skipped_dirs != 0) {
-            scope += "; " + std::to_string(r.skipped_dirs) + " folders left out (" + rv_editor_search_skipped + ")";
+            const std::string skipped_msg = rv_editor_text_format("pane_search.scope_skipped_dirs",
+                std::make_format_args(r.skipped_dirs, rv_editor_search_skipped));
+            scope += skipped_msg;
         }
         if (r.skipped_files != 0) {
-            scope += "; " + std::to_string(r.skipped_files) + " binary or large files left out";
+            const std::string files_msg = rv_editor_text_format("pane_search.scope_skipped_files",
+                std::make_format_args(r.skipped_files));
+            scope += files_msg;
         }
-        const std::string count = r.hits.empty() ? "No match"
-                                                  : std::to_string(r.hits.size()) + (r.truncated ? "+" : "") + " matches";
+        const std::string matches_text = std::to_string(r.hits.size()) + (r.truncated ? "+" : "") + " " +
+            rv_editor_text("pane_search.matches");
+        const std::string count = r.hits.empty() ? rv_editor_text("pane_search.no_match") : matches_text;
         rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok,
             theme);
         ImGui::SameLine();
         ImGui::TextWrapped("%s", scope.c_str());
         if (r.truncated) {
-            ImGui::TextWrapped("Stopped at %zu matches: a longer query narrows it.", r.hits.size());
+            const size_t hits_count = r.hits.size();
+            const std::string stopped_msg = rv_editor_text_format("pane_search.stopped_at",
+                std::make_format_args(hits_count));
+            ImGui::TextWrapped("%s", stopped_msg.c_str());
         }
         if (r.hits.empty()) {
-            ImGui::TextWrapped(r.skipped_dirs != 0 && !s.searched_all
-                    ? "No match where it looked. Tick Skipped Folders Too to look in the folders left out."
-                    : "No match anywhere in the project.");
+            const bool show_limited = r.skipped_dirs != 0 && !s.searched_all;
+            const char *msg = rv_editor_text(show_limited ? "pane_search.no_match_limited" : "pane_search.no_match_full");
+            ImGui::TextWrapped("%s", msg);
             return;
         }
         rv_editor_search_list(app);
