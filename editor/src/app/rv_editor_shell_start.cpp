@@ -321,7 +321,10 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
         case rv_editor_start_page::open_project: rv_editor_page_open_project(shell, theme); break;
         case rv_editor_start_page::settings: rv_editor_page_settings(shell, theme); break;
         case rv_editor_start_page::help: rv_editor_page_help(shell, theme); break;
-    }
+        case rv_editor_start_page::manual:
+            rv_editor_page_manual(shell, theme);
+            break;
+        }
     ImGui::EndChild();
     ImGui::PopStyleVar();
 }

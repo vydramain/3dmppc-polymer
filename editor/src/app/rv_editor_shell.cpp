@@ -191,6 +191,9 @@ void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
         case rv_editor_start_page::open_project: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project, true); return;
         case rv_editor_start_page::settings: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::settings, true); return;
         case rv_editor_start_page::help: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::help, true); return;
+        case rv_editor_start_page::manual:
+            rv_editor_shell_show(shell.ws, rv_editor_pane_kind::manual, true);
+            return;
         case rv_editor_start_page::recent:
         case rv_editor_start_page::new_project: return;
     }

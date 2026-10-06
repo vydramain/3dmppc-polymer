@@ -24,6 +24,7 @@ enum class rv_editor_start_page
     open_project,
     settings,
     help,
+    manual,
 };
 
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
