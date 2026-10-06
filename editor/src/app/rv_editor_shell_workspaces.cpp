@@ -158,6 +158,9 @@ int32_t rv_editor_strip_like_min_along(const rv_editor_workspace &ws, uint32_t n
     return split.axis == axis ? first + second : std::max(first, second);
 }
 
+// Frames the Game view gets to settle its fit after a layout change.
+constexpr int game_fit_attempts = 8;
+
 // Sets every split with a strip child (a strip leaf, or a strip row) to that
 // strip's exact minimum, the rest going to its sibling: no empty band under a
 // strip's rows. Skipped once the tree no longer fits its minimums
@@ -205,7 +208,7 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
     // The Game's area and the rectangles are the other tree's until the next draw.
     shell.app.game_area = { 0, 0 };
     shell.ws.rects.clear();
-    shell.game_fit_tries = 8;
+    shell.game_fit_tries = game_fit_attempts;
 }
 
 void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_preset preset)
@@ -214,7 +217,7 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
     shell.ws.focused_leaf = rv_editor_tile_none;
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
-    shell.game_fit_tries = 8;
+    shell.game_fit_tries = game_fit_attempts;
     shell.app.game_area = { 0, 0 };
 }
 
@@ -278,7 +281,7 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
     const int32_t delta_w = static_cast<int32_t>(steps * step_w - area.w);
     const int32_t delta_h = static_cast<int32_t>(steps * step_h - area.h);
     if (delta_w == 0 && delta_h == 0) {
-        shell.game_fit_tries = 8;
+        shell.game_fit_tries = game_fit_attempts;
         return;
     }
     // Eight tries to settle, then the tree is left alone: minimums may allow no exact fit.

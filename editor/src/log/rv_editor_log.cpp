@@ -17,6 +17,9 @@ namespace
 
 constexpr size_t max_sinks = 8;
 
+// Milliseconds part of the log timestamp.
+constexpr int ms_per_second = 1000;
+
 const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
 {
     switch (channel) {
@@ -71,7 +74,8 @@ std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
     char buf[16];
     const size_t n = std::strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
     if (ms) {
-        const auto part = std::chrono::duration_cast<std::chrono::milliseconds>(wall.time_since_epoch()).count() % 1000;
+        const auto ms_val = std::chrono::duration_cast<std::chrono::milliseconds>(wall.time_since_epoch()).count();
+        const auto part = ms_val % ms_per_second;
         std::snprintf(buf + n, sizeof(buf) - n, ".%03lld", static_cast<long long>(part));
     }
     return buf;
