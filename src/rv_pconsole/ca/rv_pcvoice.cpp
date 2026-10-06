@@ -1,10 +1,19 @@
 #include "rv_pconsole/ca/rv_pcvoice.hpp"
 
+#include "rv_pconsole/ca/rv_pcca.hpp"
+
 namespace rv_3dmppc
 {
 
 namespace
 {
+
+// Milliseconds per second: used in envelope ramp time-to-frame calculation.
+constexpr float RV_PCA_MS_PER_SECOND = 1000.0f;
+
+// Bits to shift when assembling a 16-bit sample from two bytes (S16LE: low byte in [0],
+// high byte in [1]).
+constexpr int RV_PCA_BITS_PER_BYTE = 8;
 
 // Normalize one rv_voice_conf volume field into a linear gain. Negative volumes
 // would mean phase inversion, which the contract never promises, so they read as
@@ -31,7 +40,7 @@ float rv_pcvoice::ramp(float from, float to, int16_t ms)
         return 0.0f;
     }
 
-    const float frames = static_cast<float>(ms) * static_cast<float>(RV_PCA_SAMPLE_RATE) / 1000.0f;
+    const float frames = static_cast<float>(ms) * static_cast<float>(RV_PCA_SAMPLE_RATE) / RV_PCA_MS_PER_SECOND;
     if (frames < 1.0f) {
         return 0.0f;
     }
@@ -194,7 +203,7 @@ int32_t rv_pcvoice::frame_at(int64_t index) const
 {
     const uint8_t *frame = data_ + index * RV_PCA_FRAME_BYTES;
     const uint16_t raw = static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) |
-        static_cast<uint16_t>(frame[1] << 8));
+        static_cast<uint16_t>(frame[1] << RV_PCA_BITS_PER_BYTE));
     return static_cast<int16_t>(raw);
 }
 
@@ -229,8 +238,8 @@ void rv_pcvoice::mix(int32_t *out, int64_t frames)
         }
 
         const float value = static_cast<float>(frame_at(position_)) * envelope_;
-        out[2 * i] += static_cast<int32_t>(value * gain_l_);
-        out[2 * i + 1] += static_cast<int32_t>(value * gain_r_);
+        out[RV_PCCA_PCM_CHANNELS * i] += static_cast<int32_t>(value * gain_l_);
+        out[RV_PCCA_PCM_CHANNELS * i + 1] += static_cast<int32_t>(value * gain_r_);
 
         ++position_;
         advance();

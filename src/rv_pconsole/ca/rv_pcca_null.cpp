@@ -77,7 +77,7 @@ void rv_pcca_null::advance(int16_t *out, int64_t frames)
     if (!out || frames <= 0) {
         return;
     }
-    std::fill(out, out + 2 * frames, static_cast<int16_t>(0));
+    std::fill(out, out + RV_PCCA_PCM_CHANNELS * frames, static_cast<int16_t>(0));
 }
 
 } // namespace rv_3dmppc
