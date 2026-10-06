@@ -158,9 +158,6 @@ int32_t rv_editor_strip_like_min_along(const rv_editor_workspace &ws, uint32_t n
     return split.axis == axis ? first + second : std::max(first, second);
 }
 
-// Frames the Game view gets to settle its fit after a layout change.
-constexpr int game_fit_attempts = 8;
-
 // Sets every split with a strip child (a strip leaf, or a strip row) to that
 // strip's exact minimum, the rest going to its sibling: no empty band under a
 // strip's rows. Skipped once the tree no longer fits its minimums

@@ -33,6 +33,11 @@
 namespace rv_editor
 {
 
+// Output pane column widths in code-font cells: Time, Level, Source
+constexpr float output_column_time_width = 10.0f;
+constexpr float output_column_level_width = 5.0f;
+constexpr float output_column_source_width = 10.0f;
+
 // One Output pane's own view of the shared log: which sources it
 // shows and whether it follows new lines. The protocol trace is off by default.
 struct rv_editor_output_view
@@ -44,7 +49,8 @@ struct rv_editor_output_view
     char search[128] = {};
     uint64_t hide_before = 0;  // Clear View: lines older than this seq are not shown here
     std::string exported;      // where Export wrote, or why it could not
-    std::array<float, 3> columns = { 10.0f, 5.0f, 10.0f }; // Time, Level, Source, in code-font cells
+    std::array<float, 3> columns = { output_column_time_width, output_column_level_width,
+        output_column_source_width }; // in code-font cells
     uint64_t picked_from = 0;  // the selected lines, by seq; 0: none
     uint64_t picked_to = 0;
     float scroll_x = 0.0f;     // the lines' horizontal scroll, for the header over them
@@ -108,16 +114,22 @@ enum class rv_editor_scene_shading
     textured,
 };
 
+// Viewport initialization: snap step, azimuth and elevation angles, focal distance
+constexpr double camera_snap_step_default = 0.25;
+constexpr double camera_yaw_default = 30.0;
+constexpr double camera_pitch_default = 25.0;
+constexpr double camera_distance_default = 8.0;
+
 struct rv_editor_scene_camera
 {
     rv_editor_scene_tool tool = rv_editor_scene_tool::select;
     bool snap = false;
-    double snap_step = 0.25;
+    double snap_step = camera_snap_step_default;
     bool grid = true;
     rv_editor_scene_shading shading = rv_editor_scene_shading::wireframe;
-    double yaw = 30.0;
-    double pitch = 25.0;
-    double distance = 8.0;
+    double yaw = camera_yaw_default;
+    double pitch = camera_pitch_default;
+    double distance = camera_distance_default;
     rv_editor_vec3 target{ 0.0, 0.0, 0.0 };
     bool seeking = false; // Seek pressed: the next click picks the point to turn about
 };

@@ -40,6 +40,15 @@ struct rv_editor_start
     rv_editor_browser browser;
 };
 
+// Frames the Game view gets to settle its fit after a layout change.
+constexpr int game_fit_attempts = 8;
+
+// Settings: number of tool paths checked in the Toolchain (baker, burner, console, player)
+constexpr size_t settings_tools_count = 4;
+
+// Workspaces: number of layouts (Code, Scene, Debug, Burn) in rv_editor_workspaces.
+constexpr size_t editor_workspace_slots_count = 4;
+
 // One editor window: its tiles, its models, and the commands that reach them
 // from the menus and the keyboard.
 struct rv_editor_shell
@@ -49,14 +58,14 @@ struct rv_editor_shell
     // nvim window or process goes with it. `ws.layout` is the chosen one's tree;
     // `trees` keeps the others (the chosen one's slot is stale).
     rv_editor_workspace ws;
-    std::array<rv_editor_layout, 4> trees;
+    std::array<rv_editor_layout, editor_workspace_slots_count> trees;
     // By slot: a starting tree whose Game tile keeps the screen's proportions until
     // a splitter is dragged; the tries left to settle, and the area at the last one.
-    std::array<bool, 4> game_fit{};
+    std::array<bool, editor_workspace_slots_count> game_fit{};
     // By slot: true from a reset/fresh preset until the first splitter drag, whether
     // or not the preset also fits the Game (Debug does not, but its strips still do).
-    std::array<bool, 4> layout_untouched{};
-    int game_fit_tries = 8;
+    std::array<bool, editor_workspace_slots_count> layout_untouched{};
+    int game_fit_tries = game_fit_attempts;
     rv_editor_size game_fit_last{ 0, 0 };
     rv_editor_layout_preset active = rv_editor_layout_preset::code;
     rv_editor_app app;
@@ -114,10 +123,10 @@ struct rv_editor_shell
     // Settings' draft: read from the tools when the page first shows and after
     // Apply or Revert, kept while other pages or tabs are in front.
     bool settings_loaded = false;
-    char settings_paths[4][512] = {};
+    char settings_paths[settings_tools_count][512] = {};
     std::string settings_error;
     // What Check found for a field as it stood; dropped when the field changes.
-    std::array<std::optional<rv_editor_tool>, 4> settings_checks;
+    std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;
     int settings_browse = -1; // the field the browser is choosing for; -1: none
     rv_editor_browser settings_browser;
     // What each strip of controls drew last frame: its minimum in the tree.
