@@ -41,16 +41,14 @@ constexpr uint32_t luma_brightness_threshold = 128000;
 // Whole-pixel rectangle; every primitive below ends here.
 void rv_editor_fill(ImDrawList *dl, float x0, float y0, float x1, float y1, uint32_t color)
 {
-    dl->AddRectFilled(ImVec2(std::floor(x0), std::floor(y0)), ImVec2(std::floor(x1), std::floor(y1)),
-        rv_editor_col(color));
+    dl->AddRectFilled(ImVec2(std::floor(x0), std::floor(y0)), ImVec2(std::floor(x1), std::floor(y1)), rv_editor_col(color));
 }
 
 // Top-left corner of a `cells` x `cells` grid of scaled pixels centred in [min, max).
 ImVec2 rv_editor_grid_origin(ImVec2 min, ImVec2 max, int cells, float px)
 {
     const float side = static_cast<float>(cells) * px;
-    return ImVec2(std::floor((min.x + max.x - side) / center_divisor),
-        std::floor((min.y + max.y - side) / center_divisor));
+    return ImVec2(std::floor((min.x + max.x - side) / center_divisor), std::floor((min.y + max.y - side) / center_divisor));
 }
 
 } // namespace
@@ -76,7 +74,11 @@ void rv_editor_draw_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
     rv_editor_fill(dl, max.x - w, min.y + w, max.x, max.y - w, color);
 }
 
-void rv_editor_draw_panel(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, uint32_t fill,
+void rv_editor_draw_panel(ImDrawList *dl,
+    ImVec2 min,
+    ImVec2 max,
+    const rv_editor_theme &theme,
+    uint32_t fill,
     rv_editor_bevel kind)
 {
     rv_editor_fill(dl, min.x, min.y, max.x, max.y, fill);
@@ -120,8 +122,7 @@ void rv_editor_draw_diamond(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edi
     }
 }
 
-void rv_editor_draw_arrow(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, ImGuiDir dir,
-    uint32_t color)
+void rv_editor_draw_arrow(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, ImGuiDir dir, uint32_t color)
 {
     // A 7-wide, 4-deep triangle in a 7x7 grid: row i (tip = 0) spans cells
     // tip_col - i .. tip_col + i and sits at depth 1 + i, or 4 - i when it points the other way.
@@ -182,8 +183,7 @@ void rv_editor_draw_focus(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edito
     }
 }
 
-void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter,
-    uint32_t color)
+void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &theme, char letter, uint32_t color)
 {
     rv_editor_fill(dl, min.x, min.y, max.x, max.y, theme.dark);
     const float px = static_cast<float>(theme.scale);
@@ -198,7 +198,8 @@ void rv_editor_draw_chip(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor
     const ImVec2 size = ImGui::CalcTextSize(text);
     dl->AddText(ImVec2(std::floor((min.x + max.x - size.x) / center_divisor) + px,
                     std::floor((min.y + max.y - size.y) / center_divisor) + px),
-        rv_editor_col(ink), text);
+        rv_editor_col(ink),
+        text);
 }
 
 } // namespace rv_editor

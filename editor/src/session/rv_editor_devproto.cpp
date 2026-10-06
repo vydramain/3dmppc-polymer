@@ -131,11 +131,9 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
             error = rv_editor_text("devproto.field_without_key_value");
             return RV_ERR_INVAL;
         }
-        m.fields.emplace_back(std::string(words[i].substr(0, eq)),
-            std::string(words[i].substr(eq + 1)));
+        m.fields.emplace_back(std::string(words[i].substr(0, eq)), std::string(words[i].substr(eq + 1)));
     }
-    if (m.kind == rv_editor_devmsg::rv_editor_devmsg_kind::event &&
-        !m.has(devproto_event_field_name)) {
+    if (m.kind == rv_editor_devmsg::rv_editor_devmsg_kind::event && !m.has(devproto_event_field_name)) {
         error = rv_editor_text("devproto.event_without_name");
         return RV_ERR_INVAL;
     }
@@ -143,8 +141,7 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
     return RV_OK;
 }
 
-void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_devmsg> &out,
-    std::vector<std::string> &errors)
+void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_devmsg> &out, std::vector<std::string> &errors)
 {
     while (!bytes.empty()) {
         const size_t nl = bytes.find(devproto_line_terminator);
@@ -154,8 +151,7 @@ void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_dev
         if (!skipping_) {
             if (line_.size() + piece.size() > line_max) {
                 const auto max = std::to_string(line_max);
-                errors.push_back(rv_editor_text_format("devproto.line_over_bytes_dropped",
-                    std::make_format_args(max)));
+                errors.push_back(rv_editor_text_format("devproto.line_over_bytes_dropped", std::make_format_args(max)));
                 line_.clear();
                 skipping_ = true;
             } else {
@@ -176,8 +172,7 @@ void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_dev
             out.push_back(std::move(msg));
         } else {
             const std::string excerpt = line_.substr(0, devproto_error_context_max);
-            errors.push_back(rv_editor_text_format("devproto.error_at_line",
-                std::make_format_args(error, excerpt)));
+            errors.push_back(rv_editor_text_format("devproto.error_at_line", std::make_format_args(error, excerpt)));
         }
         line_.clear();
     }

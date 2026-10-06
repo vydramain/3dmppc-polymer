@@ -23,8 +23,7 @@ constexpr float wide_width_mult = 8.0f;
 // Palette columns: one per swatch name, value, and spacing.
 constexpr int palette_columns = 3;
 
-struct rv_editor_swatch
-{
+struct rv_editor_swatch {
     const char *name;
     uint32_t rgb;
 };
@@ -32,26 +31,26 @@ struct rv_editor_swatch
 void rv_editor_catalog_palette(const rv_editor_theme &t)
 {
     const rv_editor_swatch swatches[] = {
-        {"window", t.window},
-        {"inset", t.inset},
-        {"button", t.button},
-        {"selection", t.selection},
-        {"bevel_hi", t.bevel_hi},
-        {"bevel_lo", t.bevel_lo},
-        {"text", t.text},
-        {"text_bright", t.text_bright},
-        {"text_disabled", t.text_disabled},
-        {"dark", t.dark},
-        {"code_base", t.code_base},
-        {"code_text", t.code_text},
-        {"code_subtext", t.code_subtext},
-        {"code_yellow", t.code_yellow},
-        {"code_red", t.code_red},
-        {"code_green", t.code_green},
-        {"code_blue", t.code_blue},
-        {"error", t.error},
-        {"warning", t.warning},
-        {"ok", t.ok},
+        { "window", t.window },
+        { "inset", t.inset },
+        { "button", t.button },
+        { "selection", t.selection },
+        { "bevel_hi", t.bevel_hi },
+        { "bevel_lo", t.bevel_lo },
+        { "text", t.text },
+        { "text_bright", t.text_bright },
+        { "text_disabled", t.text_disabled },
+        { "dark", t.dark },
+        { "code_base", t.code_base },
+        { "code_text", t.code_text },
+        { "code_subtext", t.code_subtext },
+        { "code_yellow", t.code_yellow },
+        { "code_red", t.code_red },
+        { "code_green", t.code_green },
+        { "code_blue", t.code_blue },
+        { "error", t.error },
+        { "warning", t.warning },
+        { "ok", t.ok },
     };
 
     const float side = ImGui::GetFrameHeight();
@@ -61,12 +60,16 @@ void rv_editor_catalog_palette(const rv_editor_theme &t)
     for (const rv_editor_swatch &s : swatches) {
         ImGui::TableNextColumn();
         const ImVec2 min = rv_editor_catalog_reserve(ImVec2(side, side));
-        rv_editor_draw_panel(ImGui::GetWindowDrawList(), min, ImVec2(min.x + side, min.y + side), t, s.rgb,
+        rv_editor_draw_panel(ImGui::GetWindowDrawList(),
+            min,
+            ImVec2(min.x + side, min.y + side),
+            t,
+            s.rgb,
             rv_editor_bevel::sunken);
         ImGui::SameLine();
         const unsigned color = static_cast<unsigned>(s.rgb);
-        const std::string swatch_text = rv_editor_text_format("catalog_theme.swatch_format",
-            std::make_format_args(s.name, color));
+        const std::string swatch_text =
+            rv_editor_text_format("catalog_theme.swatch_format", std::make_format_args(s.name, color));
         ImGui::TextUnformatted(swatch_text.c_str());
     }
     ImGui::EndTable();
@@ -79,25 +82,33 @@ void rv_editor_catalog_primitives(const rv_editor_theme &t)
     const float gap = ImGui::GetStyle().ItemSpacing.x;
 
     ImVec2 min = rv_editor_catalog_reserve(ImVec2(cell * panel_width_mult, cell * panel_height_mult));
-    rv_editor_draw_panel(dl, min, ImVec2(min.x + cell * panel_width_mult, min.y + cell * panel_height_mult), t, t.window,
+    rv_editor_draw_panel(dl,
+        min,
+        ImVec2(min.x + cell * panel_width_mult, min.y + cell * panel_height_mult),
+        t,
+        t.window,
         rv_editor_bevel::raised);
     ImGui::SameLine(0.0f, gap);
     min = rv_editor_catalog_reserve(ImVec2(cell * panel_width_mult, cell * panel_height_mult));
-    rv_editor_draw_panel(dl, min, ImVec2(min.x + cell * panel_width_mult, min.y + cell * panel_height_mult), t, t.inset,
+    rv_editor_draw_panel(dl,
+        min,
+        ImVec2(min.x + cell * panel_width_mult, min.y + cell * panel_height_mult),
+        t,
+        t.inset,
         rv_editor_bevel::sunken);
     ImGui::SameLine(0.0f, gap);
     min = rv_editor_catalog_reserve(ImVec2(cell * wide_width_mult, cell));
     rv_editor_draw_panel(dl, min, ImVec2(min.x + cell * wide_width_mult, min.y + cell), t, t.dark, rv_editor_bevel::raised);
     rv_editor_draw_stipple(dl, min, ImVec2(min.x + cell * wide_width_mult, min.y + cell), t, t.window);
 
-    const ImGuiDir dirs[] = {ImGuiDir_Up, ImGuiDir_Down, ImGuiDir_Left, ImGuiDir_Right};
+    const ImGuiDir dirs[] = { ImGuiDir_Up, ImGuiDir_Down, ImGuiDir_Left, ImGuiDir_Right };
     for (ImGuiDir dir : dirs) {
         min = rv_editor_catalog_reserve(ImVec2(cell, cell));
         rv_editor_draw_panel(dl, min, ImVec2(min.x + cell, min.y + cell), t, t.button, rv_editor_bevel::raised);
         rv_editor_draw_arrow(dl, min, ImVec2(min.x + cell, min.y + cell), t, dir, t.text);
         ImGui::SameLine(0.0f, gap);
     }
-    for (bool selected : {false, true}) {
+    for (bool selected : { false, true }) {
         min = rv_editor_catalog_reserve(ImVec2(cell, cell));
         rv_editor_draw_diamond(dl, min, ImVec2(min.x + cell, min.y + cell), t, selected);
         ImGui::SameLine(0.0f, gap);

@@ -15,13 +15,12 @@ namespace rv_editor
 namespace
 {
 
-struct rv_editor_scroll_frame
-{
+struct rv_editor_scroll_frame {
     ImGuiID content_w; // storage keys: the content's size, and a scroll to apply
     ImGuiID content_h;
     ImGuiID want_x;
     ImGuiID want_y;
-    ImVec2 min;     // the whole area, bars included
+    ImVec2 min; // the whole area, bars included
     ImVec2 max;
     bool horizontal; // a horizontal bar was asked for
     bool show_v;
@@ -61,8 +60,14 @@ ImGuiStorage &rv_editor_scroll_store()
 
 // One scrollbar along `axis` in [min, max): arrow boxes at both ends, a sunken
 // trough, a raised thumb with a grip. Returns the new scroll value.
-float rv_editor_scrollbar(const char *id, bool vertical, ImVec2 min, ImVec2 max, float scroll, float scroll_max,
-    float view, const rv_editor_theme &theme)
+float rv_editor_scrollbar(const char *id,
+    bool vertical,
+    ImVec2 min,
+    ImVec2 max,
+    float scroll,
+    float scroll_max,
+    float view,
+    const rv_editor_theme &theme)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float bar = vertical ? max.x - min.x : max.y - min.y;
@@ -75,10 +80,18 @@ float rv_editor_scrollbar(const char *id, bool vertical, ImVec2 min, ImVec2 max,
         ImGui::SetCursorScreenPos(a);
         const rv_editor_item item = rv_editor_item_add(box, ImVec2(b.x - a.x, b.y - a.y), {});
         const bool down = item.held && item.hovered;
-        rv_editor_draw_panel(dl, a, b, theme, down ? theme.inset : theme.button,
+        rv_editor_draw_panel(dl,
+            a,
+            b,
+            theme,
+            down ? theme.inset : theme.button,
             down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
         const float inset = std::floor(bar / arrow_inset_divisor);
-        rv_editor_draw_arrow(dl, ImVec2(a.x + inset, a.y + inset), ImVec2(b.x - inset, b.y - inset), theme, dir,
+        rv_editor_draw_arrow(dl,
+            ImVec2(a.x + inset, a.y + inset),
+            ImVec2(b.x - inset, b.y - inset),
+            theme,
+            dir,
             item.hovered ? theme.text_bright : theme.text);
         // Held down, the arrow keeps scrolling, like a Motif arrow button.
         return item.clicked || (item.held && ImGui::GetIO().MouseDownDuration[0] > hold_duration_threshold_sec);
@@ -165,8 +178,8 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
     f.min = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     // As for BeginChild: 0 takes what is left, a negative size leaves that much.
-    f.max = ImVec2(f.min.x + (size.x > 0.0f ? size.x : avail.x + size.x),
-        f.min.y + (size.y > 0.0f ? size.y : avail.y + size.y));
+    f.max =
+        ImVec2(f.min.x + (size.x > 0.0f ? size.x : avail.x + size.x), f.min.y + (size.y > 0.0f ? size.y : avail.y + size.y));
     // Bars from the content's size against the whole area. ImGui's own ScrollMax
     // compares last frame's content with this frame's view, so deciding from it
     // makes one bar's width summon the other bar and the two blink in turn.
@@ -227,8 +240,12 @@ void rv_editor_scroll_end(const rv_editor_theme &theme)
         }
     }
     if (f.show_v && f.show_h) {
-        rv_editor_draw_panel(ImGui::GetWindowDrawList(), ImVec2(f.max.x - f.bar, f.max.y - f.bar), f.max, theme,
-            theme.window, rv_editor_bevel::raised);
+        rv_editor_draw_panel(ImGui::GetWindowDrawList(),
+            ImVec2(f.max.x - f.bar, f.max.y - f.bar),
+            f.max,
+            theme,
+            theme.window,
+            rv_editor_bevel::raised);
     }
     // The whole area as one item, bars included, so the window around it sees
     // exactly its size and what follows starts under it, as after a child.

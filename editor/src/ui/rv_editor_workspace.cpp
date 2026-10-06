@@ -131,8 +131,13 @@ void draw_tabs(rv_editor_workspace &ws, uint32_t node, const rv_editor_theme &th
     rv_editor_tile_drag_tabs(ws, node, pressed);
 }
 
-void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, const rv_editor_theme &theme,
-    rv_editor_pane_draw_fn draw_pane, void *context, rv_editor_tile_action &action)
+void draw_leaf(rv_editor_workspace &ws,
+    uint32_t node,
+    rv_editor_rect rect,
+    const rv_editor_theme &theme,
+    rv_editor_pane_draw_fn draw_pane,
+    void *context,
+    rv_editor_tile_action &action)
 {
     const auto &leaf = ws.layout.nodes[node].leaf;
     const float s = theme.scale;
@@ -144,14 +149,21 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     const ImVec2 outer_min(static_cast<float>(rect.x), static_cast<float>(rect.y));
     const ImVec2 outer_max(outer_min.x + rect.w, outer_min.y + rect.h);
     // The outline is brass around the tile that has the focus.
-    ImGui::GetWindowDrawList()->AddRectFilled(outer_min, outer_max,
+    ImGui::GetWindowDrawList()->AddRectFilled(outer_min,
+        outer_max,
         rv_editor_col(node == ws.focused_leaf ? theme.selection : theme.dark));
-    rv_editor_draw_panel(ImGui::GetWindowDrawList(), ImVec2(outer_min.x + s, outer_min.y + s),
-        ImVec2(outer_max.x - s, outer_max.y - s), theme, theme.window, rv_editor_bevel::raised);
+    rv_editor_draw_panel(ImGui::GetWindowDrawList(),
+        ImVec2(outer_min.x + s, outer_min.y + s),
+        ImVec2(outer_max.x - s, outer_max.y - s),
+        theme,
+        theme.window,
+        rv_editor_bevel::raised);
 
     ImGui::SetCursorScreenPos(ImVec2(outer_min.x + bevel, outer_min.y + bevel));
     ImGui::PushID(node);
-    ImGui::BeginChild("##leaf", ImVec2(rect.w - outline_mul * bevel, rect.h - outline_mul * bevel), ImGuiChildFlags_None,
+    ImGui::BeginChild("##leaf",
+        ImVec2(rect.w - outline_mul * bevel, rect.h - outline_mul * bevel),
+        ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
@@ -256,14 +268,18 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     ImGui::PopID();
 }
 
-void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &a, rv_editor_pane_close_fn close_pane,
+void rv_editor_tile_apply(rv_editor_workspace &ws,
+    const rv_editor_tile_action &a,
+    rv_editor_pane_close_fn close_pane,
     void *context)
 {
     if (a.what == rv_editor_tile_action::op::none) {
         return;
     }
     // Every pane the change takes away is asked first; one refusal keeps them all.
-    auto may_close = [&](rv_editor_pane_id pane) { return close_pane == nullptr || close_pane(context, pane); };
+    auto may_close = [&](rv_editor_pane_id pane) {
+        return close_pane == nullptr || close_pane(context, pane);
+    };
     if (a.what == rv_editor_tile_action::op::close && !may_close(a.pane)) {
         return;
     }
@@ -282,10 +298,8 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
         // A code tile splits into another code tile, a second nvim window on its
         // file; any other tile into an empty one to choose a kind for.
         const rv_editor_tile_leaf &from = ws.layout.nodes[a.leaf].leaf;
-        const bool code =
-            !from.tabs.empty() && ws.panes.panes[from.tabs[from.active]].kind == rv_editor_pane_kind::code;
-        rv_editor_pane_id id =
-            rv_editor_pane_add(ws.panes, code ? rv_editor_pane_kind::code : rv_editor_pane_kind::empty);
+        const bool code = !from.tabs.empty() && ws.panes.panes[from.tabs[from.active]].kind == rv_editor_pane_kind::code;
+        rv_editor_pane_id id = rv_editor_pane_add(ws.panes, code ? rv_editor_pane_kind::code : rv_editor_pane_kind::empty);
         rv_editor_tile_insert(ws.layout, a.leaf, id, a.dock);
     } else if (a.what == rv_editor_tile_action::op::set_kind) {
         (void)rv_editor_pane_set_kind(ws.panes, a.pane, a.kind);
@@ -303,13 +317,11 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 
     // Update focused_leaf if it is no longer valid.
     if (a.pane != rv_editor_tile_none) {
-        if (ws.focused_leaf >= ws.layout.nodes.size() ||
-            ws.layout.nodes[ws.focused_leaf].kind != rv_editor_tile_kind::leaf) {
+        if (ws.focused_leaf >= ws.layout.nodes.size() || ws.layout.nodes[ws.focused_leaf].kind != rv_editor_tile_kind::leaf) {
             ws.focused_leaf = rv_editor_tile_find(ws.layout, a.pane);
         }
     } else {
-        if (ws.focused_leaf >= ws.layout.nodes.size() ||
-            ws.layout.nodes[ws.focused_leaf].kind != rv_editor_tile_kind::leaf) {
+        if (ws.focused_leaf >= ws.layout.nodes.size() || ws.layout.nodes[ws.focused_leaf].kind != rv_editor_tile_kind::leaf) {
             ws.focused_leaf = rv_editor_tile_none;
         }
     }
@@ -317,8 +329,12 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
 
 } // namespace
 
-void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
-    rv_editor_pane_close_fn close_pane, void *context, rv_editor_rect area)
+void rv_editor_workspace_draw(rv_editor_workspace &ws,
+    const rv_editor_theme &theme,
+    rv_editor_pane_draw_fn draw_pane,
+    rv_editor_pane_close_fn close_pane,
+    void *context,
+    rv_editor_rect area)
 {
     // A child of the current window, so a workspace can sit inside any pane: the
     // Widget Catalog shows one.
@@ -360,8 +376,10 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     const rv_editor_size need = rv_editor_tile_min_size(ws.layout, shown, m, pane_min);
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const rv_editor_rect placed{ static_cast<int>(origin.x), static_cast<int>(origin.y),
-        std::max(static_cast<int>(avail.x), need.w), std::max(static_cast<int>(avail.y), need.h) };
+    const rv_editor_rect placed{ static_cast<int>(origin.x),
+        static_cast<int>(origin.y),
+        std::max(static_cast<int>(avail.x), need.w),
+        std::max(static_cast<int>(avail.y), need.h) };
     std::vector<rv_editor_tile_place> places = rv_editor_layout_place(ws.layout, placed, m, pane_min);
 
     std::vector<rv_editor_rect> rect_of(ws.layout.nodes.size());
@@ -417,8 +435,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     ImGui::Dummy(ImVec2(static_cast<float>(placed.w), static_cast<float>(placed.h)));
 
     // A pane's request waits for a frame the menu left empty.
-    if (action.what == rv_editor_tile_action::op::none &&
-        ws.pending.what != rv_editor_tile_action::op::none) {
+    if (action.what == rv_editor_tile_action::op::none && ws.pending.what != rv_editor_tile_action::op::none) {
         action = ws.pending;
     }
     ws.pending = rv_editor_tile_action();

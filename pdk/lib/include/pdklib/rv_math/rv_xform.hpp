@@ -62,9 +62,13 @@ struct rv_xform_conf {
     uint32_t cull;       // rv_cull_mode
 };
 
-inline rv_xform_conf rv_xform_conf_make(const rv_mat4 &mvp, const rv_camera &camera,
-    float screen_width, float screen_height, int32_t depth_min,
-    int32_t depth_max, uint32_t cull)
+inline rv_xform_conf rv_xform_conf_make(const rv_mat4 &mvp,
+    const rv_camera &camera,
+    float screen_width,
+    float screen_height,
+    int32_t depth_min,
+    int32_t depth_max,
+    uint32_t cull)
 {
     rv_xform_conf conf{};
     conf.mvp = mvp;
@@ -151,8 +155,7 @@ inline int16_t rv_xform_saturate(float value)
     return static_cast<int16_t>(std::floor(value + 0.5f));
 }
 
-inline rv_vertex rv_xform_vertex_make(rv_vec2 screen, rv_color color,
-    rv_uv uv)
+inline rv_vertex rv_xform_vertex_make(rv_vec2 screen, rv_color color, rv_uv uv)
 {
     rv_vertex vertex{};
     vertex.x = rv_xform_saturate(screen.x);
@@ -257,8 +260,7 @@ inline int32_t rv_xform_depth_key(const rv_vec4 *clip, int count, const rv_xform
 //
 // Returns false when the polygon was rejected (behind the near plane, culled, or
 // a bad vertex count); `out` is then untouched and nothing should be filed.
-inline bool rv_xform_polygon(const rv_xform_conf &conf, const rv_xform_vertex *vertexes, int count,
-    rv_primitive &out)
+inline bool rv_xform_polygon(const rv_xform_conf &conf, const rv_xform_vertex *vertexes, int count, rv_primitive &out)
 {
     if (count != 3 && count != 4) {
         return false;
@@ -275,8 +277,7 @@ inline bool rv_xform_polygon(const rv_xform_conf &conf, const rv_xform_vertex *v
     }
 
     for (int i = 0; i < count; ++i) {
-        screen[i] =
-            rv_xform_to_screen(rv_xform_divide(clip[i]), conf.screen_width, conf.screen_height);
+        screen[i] = rv_xform_to_screen(rv_xform_divide(clip[i]), conf.screen_width, conf.screen_height);
     }
 
     if (rv_xform_culled(screen[0], screen[1], screen[2], conf.cull)) {
@@ -304,14 +305,12 @@ inline bool rv_xform_polygon(const rv_xform_conf &conf, const rv_xform_vertex *v
     return true;
 }
 
-inline bool rv_xform_triangle(const rv_xform_conf &conf, const rv_xform_vertex *vertexes,
-    rv_primitive &out)
+inline bool rv_xform_triangle(const rv_xform_conf &conf, const rv_xform_vertex *vertexes, rv_primitive &out)
 {
     return rv_xform_polygon(conf, vertexes, 3, out);
 }
 
-inline bool rv_xform_quad(const rv_xform_conf &conf, const rv_xform_vertex *vertexes,
-    rv_primitive &out)
+inline bool rv_xform_quad(const rv_xform_conf &conf, const rv_xform_vertex *vertexes, rv_primitive &out)
 {
     return rv_xform_polygon(conf, vertexes, 4, out);
 }
@@ -319,8 +318,7 @@ inline bool rv_xform_quad(const rv_xform_conf &conf, const rv_xform_vertex *vert
 // One world point to one screen point, for the cases that are not polygons at all
 // — a billboard's corner, a HUD marker pinned to an object, a debug cross.
 // Returns false if the point is behind the near plane.
-inline bool rv_xform_point(const rv_xform_conf &conf, rv_vec3 world, rv_vec2 &out_screen,
-    int32_t &out_depth)
+inline bool rv_xform_point(const rv_xform_conf &conf, rv_vec3 world, rv_vec2 &out_screen, int32_t &out_depth)
 {
     const rv_vec4 clip = rv_world_to_clip(conf.mvp, world);
     if (rv_xform_near_reject(&clip, 1, conf.near_plane)) {

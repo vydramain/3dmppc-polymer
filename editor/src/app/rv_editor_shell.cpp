@@ -118,7 +118,9 @@ rv_editor_pane_id rv_editor_shell_show(rv_editor_workspace &ws, rv_editor_pane_k
         }
     }
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
-    rv_editor_tile_insert(ws.layout, roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws), pane,
+    rv_editor_tile_insert(ws.layout,
+        roomy ? rv_editor_roomy_leaf(ws) : rv_editor_target_leaf(ws),
+        pane,
         rv_editor_tile_dock::tab);
     (void)rv_editor_tile_activate(ws.layout, pane);
     return pane;
@@ -133,12 +135,12 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     // Debug's Session pane already spells out session/state; these titles stay plain there.
     const bool debug = shell.active == rv_editor_layout_preset::debug;
     const rv_editor_session &s = app.session;
-    const std::string session = s.number() == 0 || debug ? std::string()
-                                                          : "session " + std::to_string(s.number()) + " (" +
-            rv_editor_run_state_name(s.state()) + ")";
-    const std::string candidate = app.release.candidates.empty()
-        ? std::string()
-        : "#" + std::to_string(app.release.candidates[app.release.selected].number);
+    const std::string session = s.number() == 0 || debug ?
+        std::string() :
+        "session " + std::to_string(s.number()) + " (" + rv_editor_run_state_name(s.state()) + ")";
+    const std::string candidate = app.release.candidates.empty() ?
+        std::string() :
+        "#" + std::to_string(app.release.candidates[app.release.selected].number);
     std::string title;
     if (kind == rv_editor_pane_kind::game) {
         const auto text_id = burn ? "shell_titles.candidate_playtest" : "workspace.pane_game";
@@ -147,8 +149,7 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         if (suffix_value.empty()) {
             title = base;
         } else {
-            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix",
-                std::make_format_args(suffix_value));
+            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix", std::make_format_args(suffix_value));
             title = base + sfx;
         }
     } else if (kind == rv_editor_pane_kind::runtime_log) {
@@ -158,16 +159,13 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         if (suffix_value.empty()) {
             title = base;
         } else {
-            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix",
-                std::make_format_args(suffix_value));
+            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix", std::make_format_args(suffix_value));
             title = base + sfx;
         }
     } else if (kind == rv_editor_pane_kind::scene && app.scene != nullptr) {
         const std::string scene_name = rv_editor_app_scene_name(app);
-        const std::string modified =
-            app.scene->dirty ? rv_editor_text("shell_titles.modified_marker") : "";
-        const std::string readonly =
-            app.scene->scene.read_only.empty() ? "" : rv_editor_text("shell_titles.scene_readonly");
+        const std::string modified = app.scene->dirty ? rv_editor_text("shell_titles.modified_marker") : "";
+        const std::string readonly = app.scene->scene.read_only.empty() ? "" : rv_editor_text("shell_titles.scene_readonly");
         title = std::string(rv_editor_text("shell_titles.scene_prefix")) + scene_name + modified + readonly;
     } else if (kind == rv_editor_pane_kind::problems && !app.problems.empty()) {
         const auto count = app.problems.size();
@@ -183,45 +181,43 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
                 title = rv_editor_text("shell_titles.build_log_no_candidate");
             } else {
                 const auto num = app.release.candidates.back().number;
-                title = rv_editor_text_format("shell_titles.build_log_candidate",
-                    std::make_format_args(num));
+                title = rv_editor_text_format("shell_titles.build_log_candidate", std::make_format_args(num));
             }
         } else if (app.build.number() != 0) {
             const auto build_num = app.build.number();
-            title = rv_editor_text_format("shell_titles.build_log_build",
-                std::make_format_args(build_num));
+            title = rv_editor_text_format("shell_titles.build_log_build", std::make_format_args(build_num));
         }
     } else if (kind == rv_editor_pane_kind::terminal) {
         const auto it = app.terminals.find(pane);
         if (it != app.terminals.end() && it->second.term != nullptr) {
             if (it->second.term->running()) {
-                title = std::string(rv_editor_text("shell_titles.terminal_prefix")) +
-                    it->second.cwd.filename().string();
+                title = std::string(rv_editor_text("shell_titles.terminal_prefix")) + it->second.cwd.filename().string();
             } else {
                 const auto ended_msg = it->second.term->ended();
-                title = rv_editor_text_format("shell_titles.terminal_ended",
-                    std::make_format_args(ended_msg));
+                title = rv_editor_text_format("shell_titles.terminal_ended", std::make_format_args(ended_msg));
             }
         }
     } else if (kind == rv_editor_pane_kind::code && app.nvim.running()) {
         const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(pane));
         if (buf != nullptr) {
             const std::string label = rv_editor_shell_buffer_label(app, buf->name);
-            const std::string modified =
-                buf->modified ? rv_editor_text("shell_titles.modified_marker") : "";
+            const std::string modified = buf->modified ? rv_editor_text("shell_titles.modified_marker") : "";
             title = std::string(rv_editor_text("shell_titles.code_prefix")) + label + modified;
         }
     } else if (kind == rv_editor_pane_kind::toolchest) {
-        title = rv_editor_text(
-            app.preset == rv_editor_layout_preset::debug ? "shell_titles.session_toolchest" : "shell_titles.transform_toolchest");
+        title = rv_editor_text(app.preset == rv_editor_layout_preset::debug ? "shell_titles.session_toolchest" :
+                                                                              "shell_titles.transform_toolchest");
     }
     if (!title.empty()) {
         shell.ws.titles[pane] = title;
     }
 }
 
-constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::nullopt, std::nullopt,
-    rv_editor_pane_kind::open_project, rv_editor_pane_kind::settings, rv_editor_pane_kind::help,
+constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::nullopt,
+    std::nullopt,
+    rv_editor_pane_kind::open_project,
+    rv_editor_pane_kind::settings,
+    rv_editor_pane_kind::help,
     rv_editor_pane_kind::manual };
 static_assert(std::size(rv_editor_page_pane) == static_cast<size_t>(rv_editor_start_page::manual) + 1);
 } // namespace
@@ -310,10 +306,9 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     rv_editor_app_update(shell.app);
     // Build, Run or Build and Restart met unsaved files: the question opens, unless another is open.
     if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {
-        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build
-            ? rv_editor_shell::rv_editor_leave::build
-            : shell.app.unsaved_ask == rv_editor_unsaved_ask::run ? rv_editor_shell::rv_editor_leave::run
-                                                                   : rv_editor_shell::rv_editor_leave::build_restart;
+        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build ? rv_editor_shell::rv_editor_leave::build :
+            shell.app.unsaved_ask == rv_editor_unsaved_ask::run               ? rv_editor_shell::rv_editor_leave::run :
+                                                                                rv_editor_shell::rv_editor_leave::build_restart;
     }
     shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
@@ -372,8 +367,8 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     // ends its shell.
     std::erase_if(shell.app.terminals, [&shell](const auto &entry) {
         const rv_editor_pane_id pane = entry.first;
-        return pane >= shell.ws.panes.panes.size() ||
-            shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal || !rv_editor_shell_pane_kept(shell, pane);
+        return pane >= shell.ws.panes.panes.size() || shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal ||
+            !rv_editor_shell_pane_kept(shell, pane);
     });
 
     // Files the user opened go to a code tile once its window exists. A binary
@@ -384,13 +379,15 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         if (app.open_as_text.erase(request.path) != 0 || !rv_editor_file_binary(request.path, size)) {
             return false;
         }
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::info,
             rv_editor_shell_buffer_label(app, request.path.string()) + " is binary (" + std::to_string(size) +
                 " bytes), not opened as text: Files > Open as Text shows it anyway");
         return true;
     });
     if (!app.open_requests.empty() && !app.nvim.problem.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "cannot open " + app.open_requests.front().path.string() + ": " + app.nvim.problem);
         app.open_requests.clear();
     }

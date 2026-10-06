@@ -21,13 +21,10 @@ void format_bytes(char *out, std::size_t cap, int64_t bytes)
 {
     // The buffer must fit the widest int64 plus a unit; snprintf truncating a
     // diagnostic silently is the last thing a diagnostic screen should do.
-    if (bytes >= RV_DMAIN_POST_BYTES_PER_MB &&
-        bytes % RV_DMAIN_POST_BYTES_PER_MB == 0) {
-        std::snprintf(out, cap, "%lld MB",
-            static_cast<long long>(bytes / RV_DMAIN_POST_BYTES_PER_MB));
+    if (bytes >= RV_DMAIN_POST_BYTES_PER_MB && bytes % RV_DMAIN_POST_BYTES_PER_MB == 0) {
+        std::snprintf(out, cap, "%lld MB", static_cast<long long>(bytes / RV_DMAIN_POST_BYTES_PER_MB));
     } else if (bytes >= RV_DMAIN_POST_BYTES_PER_KB) {
-        std::snprintf(out, cap, "%lld KB",
-            static_cast<long long>(bytes / RV_DMAIN_POST_BYTES_PER_KB));
+        std::snprintf(out, cap, "%lld KB", static_cast<long long>(bytes / RV_DMAIN_POST_BYTES_PER_KB));
     } else {
         std::snprintf(out, cap, "%lld B", static_cast<long long>(bytes));
     }
@@ -85,23 +82,21 @@ void rv_dmain::draw_post()
     const int width = static_cast<int>(screen_width_);
     const int height = static_cast<int>(screen_height_);
     const rv_color slab{ 12, 14, 22 };
-    const rv_pdklib::rv_font_style ink =
-        rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
+    const rv_pdklib::rv_font_style ink = rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
     const rv_pdklib::rv_font_style bad =
         rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
 
     // Opaque slabs, not a dim overlay: the console has no blending, and light
     // ink over lit geometry is exactly what made the first version unreadable.
     const rv_primitive top_slab =
-        rv_dmain_detail::make_bar(0.0f, 0.0f, static_cast<float>(width),
-            RV_DMAIN_POST_BAR_HEIGHT, slab, RV_DMAIN_DEPTH_PANEL);
+        rv_dmain_detail::make_bar(0.0f, 0.0f, static_cast<float>(width), RV_DMAIN_POST_BAR_HEIGHT, slab, RV_DMAIN_DEPTH_PANEL);
     rv_cv_frame_put(cv, &top_slab);
-    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, RV_DMAIN_POST_MARGIN_TOP,
-        RV_DMAIN_TITLE, file);
+    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, RV_DMAIN_POST_MARGIN_TOP, RV_DMAIN_TITLE, file);
     rv_pdklib::rv_font_draw(ink,
-        width - RV_DMAIN_POST_MARGIN_H -
-            rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
-        RV_DMAIN_POST_MARGIN_TOP, RV_DMAIN_NO_DISC, file);
+        width - RV_DMAIN_POST_MARGIN_H - rv_pdklib::rv_font_measure_width(RV_DMAIN_NO_DISC, 1),
+        RV_DMAIN_POST_MARGIN_TOP,
+        RV_DMAIN_NO_DISC,
+        file);
 
     // The budget line. Saying VIRTUAL out loud matters: none of this is what the
     // host has, all of it is what the fantasy machine is defined to have, and
@@ -111,16 +106,23 @@ void rv_dmain::draw_post()
     char sram[RV_DMAIN_POST_MEMORY_LABEL_BUFFER_SIZE];
     format_bytes(vram, sizeof(vram), video_memory_size_);
     format_bytes(sram, sizeof(sram), sound_memory_size_);
-    std::snprintf(budget, sizeof(budget), "VIRTUAL %lldx%lld %s %lldv %s",
-        static_cast<long long>(screen_width_), static_cast<long long>(screen_height_),
-        vram, static_cast<long long>(voice_count_), sram);
-    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, RV_DMAIN_POST_BUDGET_LINE_Y,
-        budget, file);
+    std::snprintf(budget,
+        sizeof(budget),
+        "VIRTUAL %lldx%lld %s %lldv %s",
+        static_cast<long long>(screen_width_),
+        static_cast<long long>(screen_height_),
+        vram,
+        static_cast<long long>(voice_count_),
+        sram);
+    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, RV_DMAIN_POST_BUDGET_LINE_Y, budget, file);
 
     // The bottom slab: one word per subsystem, and the word is the whole report.
     const rv_primitive bottom_slab = rv_dmain_detail::make_bar(0.0f,
-        static_cast<float>(height) - RV_DMAIN_POST_BAR_HEIGHT, static_cast<float>(width),
-        RV_DMAIN_POST_BAR_HEIGHT, slab, RV_DMAIN_DEPTH_PANEL);
+        static_cast<float>(height) - RV_DMAIN_POST_BAR_HEIGHT,
+        static_cast<float>(width),
+        RV_DMAIN_POST_BAR_HEIGHT,
+        slab,
+        RV_DMAIN_DEPTH_PANEL);
     rv_cv_frame_put(cv, &bottom_slab);
 
     struct rv_dmain_probe {
@@ -137,31 +139,36 @@ void rv_dmain::draw_post()
 
     int pen = RV_DMAIN_POST_MARGIN_H;
     for (const rv_dmain_probe &probe : probes) {
-        rv_pdklib::rv_font_draw(ink, pen,
+        rv_pdklib::rv_font_draw(ink,
+            pen,
             static_cast<int>(height) - RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM,
-            probe.label, file);
-        pen += rv_pdklib::rv_font_measure_width(probe.label, 1) +
-            RV_DMAIN_POST_PROBE_LABEL_SPACING;
+            probe.label,
+            file);
+        pen += rv_pdklib::rv_font_measure_width(probe.label, 1) + RV_DMAIN_POST_PROBE_LABEL_SPACING;
 
         const char *mark = probe.absent ? "-" : (probe.ok ? "OK" : "FAIL");
-        rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad, pen,
-            static_cast<int>(height) - RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM, mark,
+        rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad,
+            pen,
+            static_cast<int>(height) - RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM,
+            mark,
             file);
-        pen +=
-            rv_pdklib::rv_font_measure_width(mark, 1) + RV_DMAIN_POST_PROBE_VERDICT_SPACING;
+        pen += rv_pdklib::rv_font_measure_width(mark, 1) + RV_DMAIN_POST_PROBE_VERDICT_SPACING;
     }
 
     // The probe row owns its whole line: four labels and four verdicts already
     // fill 40 columns, and anything sharing the row lands on top of them.
     char pads[RV_DMAIN_POST_PADS_BUFFER_SIZE];
-    std::snprintf(pads, sizeof(pads), "%lld pad(s) boot %lu",
-        static_cast<long long>(pads_connected_), static_cast<unsigned long>(boot_count_));
-    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H,
-        height - RV_DMAIN_POST_PADS_ROW_OFFSET_FROM_BOTTOM, pads, file);
+    std::snprintf(pads,
+        sizeof(pads),
+        "%lld pad(s) boot %lu",
+        static_cast<long long>(pads_connected_),
+        static_cast<unsigned long>(boot_count_));
+    rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, height - RV_DMAIN_POST_PADS_ROW_OFFSET_FROM_BOTTOM, pads, file);
     rv_pdklib::rv_font_draw(ink,
-        width - RV_DMAIN_POST_MARGIN_H -
-            rv_pdklib::rv_font_measure_width(RV_DMAIN_HINTS, 1),
-        height - RV_DMAIN_POST_PADS_ROW_OFFSET_FROM_BOTTOM, RV_DMAIN_HINTS, file);
+        width - RV_DMAIN_POST_MARGIN_H - rv_pdklib::rv_font_measure_width(RV_DMAIN_HINTS, 1),
+        height - RV_DMAIN_POST_PADS_ROW_OFFSET_FROM_BOTTOM,
+        RV_DMAIN_HINTS,
+        file);
 }
 
 } // namespace rv_service

@@ -29,10 +29,7 @@ static constexpr std::size_t k_pcm_sample_bytes = 2;
 // four fields, which is how a zero-dimension or truncated .mppctex used to
 // pass here and only fail once a disc tried to load it; that gap is closed by
 // asking the same question the console asks, not a looser one of our own.
-static int read_mppctex_header(
-    const fs::path &path,
-    rv_pdklib::rv_mppctex_header &out,
-    std::string &error)
+static int read_mppctex_header(const fs::path &path, rv_pdklib::rv_mppctex_header &out, std::string &error)
 {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
@@ -83,8 +80,7 @@ static int check_pcm_size(const fs::path &path, std::string &error)
 
 } // namespace rv_pdktools
 
-int rv_pdktools::bake_textures(
-    const std::string &baker_hint,
+int rv_pdktools::bake_textures(const std::string &baker_hint,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const archive_plan &plan,
@@ -102,8 +98,7 @@ int rv_pdktools::bake_textures(
     // One format for the whole manifest, so the spelling mppcbaker is given is
     // looked up once rather than per texture. The accepted spellings are the
     // rows of rv_texfmt_names and are not restated in this tool.
-    const rv_pdklib::rv_texfmt_name *texfmt =
-        rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
+    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
     const std::string texfmt_text = texfmt != nullptr ? texfmt->text : "";
 
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
@@ -111,16 +106,14 @@ int rv_pdktools::bake_textures(
 
         // --- run mppcbaker ---
 
-        const std::string command = shell_quote(baker) + " " +
-            shell_quote((disc_dir / item.source).string()) + " " +
+        const std::string command = shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
             shell_quote(item.payload) + " --format " + texfmt_text;
 
         std::string child_output;
         const int status = run_capture(command, child_output);
         if (status != 0) {
             dump_child_output(child_output);
-            error = "mppcbaker failed on '" + item.source + "' (exit " +
-                std::to_string(status) + ")";
+            error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
             return 1;
         }
 
@@ -133,11 +126,9 @@ int rv_pdktools::bake_textures(
 
         // --- one texture against the machine's limits ---
 
-        if (header.width > manifest.budget.pccv.texture_max_width ||
-            header.height > manifest.budget.pccv.texture_max_height) {
-            error = "texture '" + item.source + "' is " + std::to_string(header.width) + "x" +
-                std::to_string(header.height) + ", over the budget of " +
-                std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
+        if (header.width > manifest.budget.pccv.texture_max_width || header.height > manifest.budget.pccv.texture_max_height) {
+            error = "texture '" + item.source + "' is " + std::to_string(header.width) + "x" + std::to_string(header.height) +
+                ", over the budget of " + std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
                 std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
             return 1;
         }
@@ -146,8 +137,7 @@ int rv_pdktools::bake_textures(
     return 0;
 }
 
-int rv_pdktools::bake_sounds(
-    const std::string &baker_hint,
+int rv_pdktools::bake_sounds(const std::string &baker_hint,
     const fs::path &disc_dir,
     const archive_plan &plan,
     std::string &error)
@@ -164,16 +154,14 @@ int rv_pdktools::bake_sounds(
     for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
         const archive_item &item = plan.items[i];
 
-        const std::string command = shell_quote(baker) + " " +
-            shell_quote((disc_dir / item.source).string()) + " " +
-            shell_quote(item.payload);
+        const std::string command =
+            shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " + shell_quote(item.payload);
 
         std::string child_output;
         const int status = run_capture(command, child_output);
         if (status != 0) {
             dump_child_output(child_output);
-            error = "mppcbaker failed on '" + item.source + "' (exit " +
-                std::to_string(status) + ")";
+            error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
             return 1;
         }
 

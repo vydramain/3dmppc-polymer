@@ -220,16 +220,16 @@ int rv_pccl_luajit::patch_trampoline_(lua_State *L)
         args->outcome = RV_ERR_INVAL;
         args->report->phase = "patch";
         args->report->effects_possible = true;
-        args->report->message = ctx.refuse_message != nullptr ? ctx.refuse_message
-                                                                : "the candidate could not be patched in place";
+        args->report->message =
+            ctx.refuse_message != nullptr ? ctx.refuse_message : "the candidate could not be patched in place";
         return 0;
     }
     if (patch_reach(ctx, new_idx, 1) != RV_OK || ctx.refused) {
         args->outcome = RV_ERR_INVAL;
         args->report->phase = "patch";
         args->report->effects_possible = true;
-        args->report->message = ctx.refuse_message != nullptr ? ctx.refuse_message
-                                                                : "the candidate could not be patched in place";
+        args->report->message =
+            ctx.refuse_message != nullptr ? ctx.refuse_message : "the candidate could not be patched in place";
         return 0;
     }
 

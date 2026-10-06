@@ -28,7 +28,10 @@ public:
 
     int64_t ohaptic(int64_t, rv_oheffect) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 
 private:
     rv_pccio_conf conf_;

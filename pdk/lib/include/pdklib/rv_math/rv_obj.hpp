@@ -8,7 +8,8 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_math/rv_math.hpp"
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
 // A Wavefront .obj reader that takes BYTES, never a path.
 //
@@ -48,12 +49,19 @@ struct rv_obj_mesh {
     std::vector<rv_obj_triangle> triangles;
 };
 
-namespace rv_obj_detail {
+namespace rv_obj_detail
+{
 
-inline bool is_blank(char c) { return c == ' ' || c == '\t' || c == '\r'; }
+inline bool is_blank(char c)
+{
+    return c == ' ' || c == '\t' || c == '\r';
+}
 
-inline void skip_blanks(const char*& p, const char* end) {
-    while (p < end && is_blank(*p)) ++p;
+inline void skip_blanks(const char *&p, const char *end)
+{
+    while (p < end && is_blank(*p)) {
+        ++p;
+    }
 }
 
 // std::from_chars accepts neither leading blanks nor a leading '+', both of which
@@ -117,10 +125,9 @@ inline int resolve_index(int raw, std::size_t count, int32_t &out)
 
 // One "i", "i/j", "i//k" or "i/j/k" reference. Missing channels stay -1.
 // Returns RV_OK on success, RV_ERR_INVAL if any index is invalid.
-inline int parse_corner(const char *&p, const char *end, const rv_obj_mesh &mesh,
-    rv_obj_index &out)
+inline int parse_corner(const char *&p, const char *end, const rv_obj_mesh &mesh, rv_obj_index &out)
 {
-    out = rv_obj_index{-1, -1, -1};
+    out = rv_obj_index{ -1, -1, -1 };
 
     int raw = 0;
     if (parse_int(p, end, raw) != RV_OK) {
@@ -156,7 +163,7 @@ inline int parse_corner(const char *&p, const char *end, const rv_obj_mesh &mesh
     return RV_OK;
 }
 
-}  // namespace rv_obj_detail
+} // namespace rv_obj_detail
 
 // Parse `size` bytes of .obj text into `out`. The buffer need not be
 // NUL-terminated and is only read.
@@ -209,7 +216,7 @@ inline int rv_obj_parse(const void *data, std::size_t size, rv_obj_mesh &out)
             if (rv_obj_detail::parse_float(cursor, stop, position.z) != RV_OK) {
                 return RV_ERR_INVAL;
             }
-            out.positions.push_back(position);  // a trailing w is ignored
+            out.positions.push_back(position); // a trailing w is ignored
         } else if (keyword_size == 2 && keyword[0] == 'v' && keyword[1] == 't') {
             rv_vec2 uv{};
             if (rv_obj_detail::parse_float(cursor, stop, uv.x) != RV_OK) {
@@ -218,7 +225,7 @@ inline int rv_obj_parse(const void *data, std::size_t size, rv_obj_mesh &out)
             if (rv_obj_detail::parse_float(cursor, stop, uv.y) != RV_OK) {
                 return RV_ERR_INVAL;
             }
-            out.uvs.push_back(uv);  // a trailing w is ignored
+            out.uvs.push_back(uv); // a trailing w is ignored
         } else if (keyword_size == 2 && keyword[0] == 'v' && keyword[1] == 'n') {
             rv_vec3 normal{};
             if (rv_obj_detail::parse_float(cursor, stop, normal.x) != RV_OK) {
@@ -270,19 +277,24 @@ inline int rv_obj_parse(const void *data, std::size_t size, rv_obj_mesh &out)
 
 // Accessors that turn a corner into values, answering the "channel absent" case
 // with a caller-supplied default instead of an out-of-range read.
-inline rv_vec3 rv_obj_position(const rv_obj_mesh& mesh, rv_obj_index corner) {
+inline rv_vec3 rv_obj_position(const rv_obj_mesh &mesh, rv_obj_index corner)
+{
     if (corner.position < 0 || static_cast<std::size_t>(corner.position) >= mesh.positions.size()) {
-        return rv_vec3{0.0f, 0.0f, 0.0f};
+        return rv_vec3{ 0.0f, 0.0f, 0.0f };
     }
     return mesh.positions[static_cast<std::size_t>(corner.position)];
 }
 
-inline rv_vec2 rv_obj_uv(const rv_obj_mesh& mesh, rv_obj_index corner, rv_vec2 fallback) {
-    if (corner.uv < 0 || static_cast<std::size_t>(corner.uv) >= mesh.uvs.size()) return fallback;
+inline rv_vec2 rv_obj_uv(const rv_obj_mesh &mesh, rv_obj_index corner, rv_vec2 fallback)
+{
+    if (corner.uv < 0 || static_cast<std::size_t>(corner.uv) >= mesh.uvs.size()) {
+        return fallback;
+    }
     return mesh.uvs[static_cast<std::size_t>(corner.uv)];
 }
 
-inline rv_vec3 rv_obj_normal(const rv_obj_mesh& mesh, rv_obj_index corner, rv_vec3 fallback) {
+inline rv_vec3 rv_obj_normal(const rv_obj_mesh &mesh, rv_obj_index corner, rv_vec3 fallback)
+{
     if (corner.normal < 0 || static_cast<std::size_t>(corner.normal) >= mesh.normals.size()) {
         return fallback;
     }
@@ -292,11 +304,12 @@ inline rv_vec3 rv_obj_normal(const rv_obj_mesh& mesh, rv_obj_index corner, rv_ve
 // The geometric normal of a triangle, for files that carry no vn. Left-handed
 // cross of two edges, so it points the way a face wound counter-clockwise when
 // seen from outside faces.
-inline rv_vec3 rv_obj_face_normal(const rv_obj_mesh& mesh, const rv_obj_triangle& triangle) {
+inline rv_vec3 rv_obj_face_normal(const rv_obj_mesh &mesh, const rv_obj_triangle &triangle)
+{
     const rv_vec3 a = rv_obj_position(mesh, triangle.corner[0]);
     const rv_vec3 b = rv_obj_position(mesh, triangle.corner[1]);
     const rv_vec3 c = rv_obj_position(mesh, triangle.corner[2]);
     return rv_normalize(rv_cross(b - a, c - a));
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

@@ -10,35 +10,34 @@ namespace rv_editor
 // The editor's design tokens: plain data, no ImGui. Colours are 0xRRGGBB.
 // The palette is the token table of the requirements (section 11) plus the
 // state colours of vgui2-deck; rv_editor_theme_imgui.hpp maps it onto ImGui.
-struct rv_editor_theme
-{
-    uint32_t window;        // main surface
-    uint32_t inset;         // fields and sunken areas
+struct rv_editor_theme {
+    uint32_t window; // main surface
+    uint32_t inset;  // fields and sunken areas
     uint32_t button;
-    uint32_t selection;     // brass: selection, focus, hover outline
-    uint32_t bevel_hi;      // top and left edge of a raised frame
-    uint32_t bevel_lo;      // bottom and right edge of a raised frame
+    uint32_t selection; // brass: selection, focus, hover outline
+    uint32_t bevel_hi;  // top and left edge of a raised frame
+    uint32_t bevel_lo;  // bottom and right edge of a raised frame
     uint32_t text;
     uint32_t text_bright;
     uint32_t text_disabled;
-    uint32_t dark;          // title bars, the deepest surface
-    uint32_t code_base;     // code area, Catppuccin Mocha base
+    uint32_t dark;      // title bars, the deepest surface
+    uint32_t code_base; // code area, Catppuccin Mocha base
     // Text in a code area (Code, Output), Catppuccin Mocha as nvim's colorscheme.
-    uint32_t code_text;     // text
-    uint32_t code_subtext;  // subtext0: times, sources
-    uint32_t code_yellow;   // warnings
-    uint32_t code_red;      // errors
+    uint32_t code_text;    // text
+    uint32_t code_subtext; // subtext0: times, sources
+    uint32_t code_yellow;  // warnings
+    uint32_t code_red;     // errors
     uint32_t code_green;
-    uint32_t code_blue;     // information
-    uint32_t code_magenta;  // pink, cyan (teal) and surface2: the rest of a terminal's ANSI colours
+    uint32_t code_blue;    // information
+    uint32_t code_magenta; // pink, cyan (teal) and surface2: the rest of a terminal's ANSI colours
     uint32_t code_cyan;
     uint32_t code_surface;
     uint32_t error;
     uint32_t warning;
     uint32_t ok;
-    int32_t bevel_px;       // bevel edge width, before scale
-    int32_t pad_px;         // inner padding, before scale
-    float scale;            // whole UI scale, from --scale and View > UI Scale: the font is a pixel font
+    int32_t bevel_px; // bevel edge width, before scale
+    int32_t pad_px;   // inner padding, before scale
+    float scale;      // whole UI scale, from --scale and View > UI Scale: the font is a pixel font
 };
 
 inline constexpr rv_editor_theme rv_editor_theme_olive = {

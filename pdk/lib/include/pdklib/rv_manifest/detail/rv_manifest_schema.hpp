@@ -122,38 +122,32 @@ constexpr rv_manifest_key_spec rv_manifest_sounds_keys[] = {
     { rv_manifest_key_sounds_files, rv_manifest_value_kind::array },
 };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pcca_keys[] = {
-    { rv_manifest_key_budget_pcca_voice_count, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_pcca_sound_memory_size, rv_manifest_value_kind::integer }
-};
+constexpr rv_manifest_key_spec rv_manifest_budget_pcca_keys[] = { { rv_manifest_key_budget_pcca_voice_count,
+                                                                      rv_manifest_value_kind::integer },
+    { rv_manifest_key_budget_pcca_sound_memory_size, rv_manifest_value_kind::integer } };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pccv_keys[] = {
-    { rv_manifest_key_budget_pccv_screen_width, rv_manifest_value_kind::integer },
+constexpr rv_manifest_key_spec rv_manifest_budget_pccv_keys[] = { { rv_manifest_key_budget_pccv_screen_width,
+                                                                      rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pccv_screen_height, rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pccv_texture_max_width, rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pccv_texture_max_height, rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pccv_video_memory_size, rv_manifest_value_kind::integer },
     { rv_manifest_key_budget_pccv_frame_capacity, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_pccv_ot_bucket_count, rv_manifest_value_kind::integer }
-};
+    { rv_manifest_key_budget_pccv_ot_bucket_count, rv_manifest_value_kind::integer } };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pccio_keys[] = {
-    { rv_manifest_key_budget_pccio_iport_count, rv_manifest_value_kind::integer }
-};
+constexpr rv_manifest_key_spec rv_manifest_budget_pccio_keys[] = { { rv_manifest_key_budget_pccio_iport_count,
+    rv_manifest_value_kind::integer } };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pccm_keys[] = {
-    { rv_manifest_key_budget_pccm_card_slots, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_pccm_card_slot_size, rv_manifest_value_kind::integer }
-};
+constexpr rv_manifest_key_spec rv_manifest_budget_pccm_keys[] = { { rv_manifest_key_budget_pccm_card_slots,
+                                                                      rv_manifest_value_kind::integer },
+    { rv_manifest_key_budget_pccm_card_slot_size, rv_manifest_value_kind::integer } };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pccd_keys[] = {
-    { rv_manifest_key_budget_pccd_code_entry, rv_manifest_value_kind::string }
-};
+constexpr rv_manifest_key_spec rv_manifest_budget_pccd_keys[] = { { rv_manifest_key_budget_pccd_code_entry,
+    rv_manifest_value_kind::string } };
 
-constexpr rv_manifest_key_spec rv_manifest_budget_pccl_keys[] = {
-    { rv_manifest_key_budget_pccl_script_memory_size, rv_manifest_value_kind::integer },
-    { rv_manifest_key_budget_pccl_script_entry, rv_manifest_value_kind::string }
-};
+constexpr rv_manifest_key_spec rv_manifest_budget_pccl_keys[] = { { rv_manifest_key_budget_pccl_script_memory_size,
+                                                                      rv_manifest_value_kind::integer },
+    { rv_manifest_key_budget_pccl_script_entry, rv_manifest_value_kind::string } };
 
 constexpr rv_manifest_section_spec rv_manifest_sections[] = {
     { rv_manifest_section_disc, rv_manifest_disc_keys, std::size(rv_manifest_disc_keys) },
@@ -180,8 +174,7 @@ inline const rv_manifest_section_spec *rv_manifest_sections_get(std::string_view
     return nullptr;
 }
 
-inline const rv_manifest_key_spec *rv_manifest_keys_get(const rv_manifest_section_spec &section,
-    std::string_view name)
+inline const rv_manifest_key_spec *rv_manifest_keys_get(const rv_manifest_section_spec &section, std::string_view name)
 {
     for (std::size_t i = 0; i < section.key_count; ++i) {
         if (section.keys[i].name == name) {

@@ -60,12 +60,10 @@ constexpr int RV_DMAIN_IDX4_INDEX_BITS = 4;
 constexpr int64_t RV_DMAIN_IDX4_PALETTE_SIZE = 1 << RV_DMAIN_IDX4_INDEX_BITS;
 
 // Mask for low nibble (lower 4 bits) in IDX4 byte packing: the bits of an index.
-constexpr uint8_t RV_DMAIN_IDX4_MASK_LOW =
-    static_cast<uint8_t>(RV_DMAIN_IDX4_PALETTE_SIZE - 1);
+constexpr uint8_t RV_DMAIN_IDX4_MASK_LOW = static_cast<uint8_t>(RV_DMAIN_IDX4_PALETTE_SIZE - 1);
 
 // Mask for high nibble (upper 4 bits) in IDX4 byte packing: index shifted left.
-constexpr uint8_t RV_DMAIN_IDX4_MASK_HIGH =
-    static_cast<uint8_t>(RV_DMAIN_IDX4_MASK_LOW << RV_DMAIN_IDX4_INDEX_BITS);
+constexpr uint8_t RV_DMAIN_IDX4_MASK_HIGH = static_cast<uint8_t>(RV_DMAIN_IDX4_MASK_LOW << RV_DMAIN_IDX4_INDEX_BITS);
 
 // Frame border uses colours in a repeating cycle of 3 across diagonals.
 constexpr int RV_DMAIN_FRAME_COLOR_CYCLE = 3;
@@ -92,8 +90,7 @@ void rv_dmain::build_font()
         return;
     }
 
-    const int64_t atlas_addr =
-        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
+    const int64_t atlas_addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_atlas_size));
     if (atlas_addr < 0) {
         return;
     }
@@ -108,11 +105,9 @@ void rv_dmain::build_font()
     // pointing addr_palette at it - which is exactly how the machine this
     // imitates recoloured its fonts.
     std::vector<uint16_t> palette(rv_pdklib::rv_font_palette_entries, 0);
-    (void)rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(),
-        palette.size());
+    (void)rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(), palette.size());
 
-    const int64_t palette_addr =
-        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+    const int64_t palette_addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     if (palette_addr < 0) {
         rv_cv_video_asset_free(cv, atlas_addr);
         return;
@@ -128,11 +123,9 @@ void rv_dmain::build_font()
     std::vector<uint16_t> bad(rv_pdklib::rv_font_palette_entries, 0);
     (void)rv_pdklib::rv_font_build_palette(rv_color{ 240, 90, 80 }, bad.data(), bad.size());
 
-    const int64_t bad_addr =
-        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
+    const int64_t bad_addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
     const rv_texture bad_texture = rv_pdklib::rv_font_palette_texture(bad.data());
-    if (bad_addr >= 0 &&
-        rv_cv_video_asset_write(cv, bad_addr, &bad_texture) < 0) {
+    if (bad_addr >= 0 && rv_cv_video_asset_write(cv, bad_addr, &bad_texture) < 0) {
         rv_cv_video_asset_free(cv, bad_addr);
         addr_font_palette_bad_ = 0;
     } else if (bad_addr >= 0) {
@@ -147,13 +140,11 @@ void rv_dmain::build_texture()
 {
     rv_cv *cv = rv_pdko_cv(pdk_);
 
-    if (RV_DMAIN_TEX_SIZE > rv_cv_texture_max_width(cv) ||
-        RV_DMAIN_TEX_SIZE > rv_cv_texture_max_height(cv)) {
+    if (RV_DMAIN_TEX_SIZE > rv_cv_texture_max_width(cv) || RV_DMAIN_TEX_SIZE > rv_cv_texture_max_height(cv)) {
         return; // the machine is smaller than this disc assumed; skip, do not lie
     }
 
-    texels_.assign(static_cast<std::size_t>(RV_DMAIN_TEX_SIZE * RV_DMAIN_TEX_SIZE),
-        RV_TEXEL_TRANSPARENT);
+    texels_.assign(static_cast<std::size_t>(RV_DMAIN_TEX_SIZE * RV_DMAIN_TEX_SIZE), RV_TEXEL_TRANSPARENT);
 
     for (int64_t y = 0; y < RV_DMAIN_TEX_SIZE; ++y) {
         for (int64_t x = 0; x < RV_DMAIN_TEX_SIZE; ++x) {
@@ -168,8 +159,7 @@ void rv_dmain::build_texture()
                 texel = RV_TEXEL_TRANSPARENT; // the cut-out quadrant
             }
 
-            const bool border =
-                x == 0 || y == 0 || x == RV_DMAIN_TEX_SIZE - 1 || y == RV_DMAIN_TEX_SIZE - 1;
+            const bool border = x == 0 || y == 0 || x == RV_DMAIN_TEX_SIZE - 1 || y == RV_DMAIN_TEX_SIZE - 1;
             if (border) {
                 texel = RV_DMAIN_TEXEL_WHITE;
             }
@@ -247,8 +237,7 @@ void rv_dmain::build_idx4_texture()
         return;
     }
 
-    const int64_t palette_addr =
-        rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_idx4_.size() * sizeof(uint16_t)));
+    const int64_t palette_addr = rv_cv_video_asset_malloc(cv, static_cast<int64_t>(palette_idx4_.size() * sizeof(uint16_t)));
     if (palette_addr < 0) {
         rv_cv_video_asset_free(cv, texel_addr);
         return;
@@ -283,8 +272,8 @@ void rv_dmain::probe_drive()
     // A name carrying path separators must be refused before anything touches
     // the medium - it is an attempt to leave the disc, not a spelling mistake.
     // This probe asserts the drive answers INVAL rather than merely NOENT.
-    drive_rejects_paths_ = rv_cd_asset_open(cd, "../../etc/passwd") == RV_ERR_INVAL &&
-        rv_cd_asset_open(cd, "assets/thing.obj") == RV_ERR_INVAL;
+    drive_rejects_paths_ =
+        rv_cd_asset_open(cd, "../../etc/passwd") == RV_ERR_INVAL && rv_cd_asset_open(cd, "assets/thing.obj") == RV_ERR_INVAL;
 
     const int64_t handle = rv_cd_asset_open(cd, "protagonist.obj");
     if (handle < 0) {
@@ -329,8 +318,7 @@ void rv_dmain::load_save()
     const int64_t size = rv_cm_card_size(cm, 0);
     if (size >= 0) {
         rv_dmain_save stored{};
-        if (rv_cm_card_read(cm, 0, &stored, static_cast<int64_t>(sizeof(stored))) >= 0 &&
-            stored.magic == RV_DMAIN_SAVE_MAGIC) {
+        if (rv_cm_card_read(cm, 0, &stored, static_cast<int64_t>(sizeof(stored))) >= 0 && stored.magic == RV_DMAIN_SAVE_MAGIC) {
             blob.boot_count = stored.boot_count;
         }
     } else if (size != RV_ERR_NOENT) {
@@ -363,8 +351,7 @@ void rv_dmain::build_beep()
         const float t = static_cast<float>(i) / static_cast<float>(RV_DMAIN_BEEP_RATE);
         const float envelope = std::exp(RV_DMAIN_BEEP_DECAY * t);
         const float wave = std::sin(RV_DMAIN_BEEP_FULL_ROTATION * RV_DMAIN_BEEP_HZ * t);
-        pcm[static_cast<std::size_t>(i)] =
-            static_cast<int16_t>(wave * envelope * static_cast<float>(RV_DMAIN_BEEP_PEAK));
+        pcm[static_cast<std::size_t>(i)] = static_cast<int16_t>(wave * envelope * static_cast<float>(RV_DMAIN_BEEP_PEAK));
     }
 
     const int64_t bytes = static_cast<int64_t>(pcm.size() * sizeof(int16_t));

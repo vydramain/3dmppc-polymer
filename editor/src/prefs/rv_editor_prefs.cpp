@@ -55,8 +55,11 @@ constexpr size_t prefs_max_file_size = 4096;
 
 const std::string rv_editor_prefs_magic = std::string(prefs_header_prefix) + rv_pdklib::rv_version_str;
 
-constexpr rv_editor_game_scale rv_editor_game_scales[] = { rv_editor_game_scale::fit, rv_editor_game_scale::integer,
-    rv_editor_game_scale::x1, rv_editor_game_scale::x2, rv_editor_game_scale::x3 };
+constexpr rv_editor_game_scale rv_editor_game_scales[] = { rv_editor_game_scale::fit,
+    rv_editor_game_scale::integer,
+    rv_editor_game_scale::x1,
+    rv_editor_game_scale::x2,
+    rv_editor_game_scale::x3 };
 
 } // namespace
 

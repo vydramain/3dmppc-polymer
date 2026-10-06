@@ -19,9 +19,6 @@ namespace rv_pdktools
 /// @param binary_dir  cmake binary directory to build in
 /// @param error       set with this tool's one-line summary on failure
 /// @return 0 on success, 1 on refusal
-int compile_sources(
-    const rv_burner_options &options,
-    const std::filesystem::path &binary_dir,
-    std::string &error);
+int compile_sources(const rv_burner_options &options, const std::filesystem::path &binary_dir, std::string &error);
 
 } // namespace rv_pdktools

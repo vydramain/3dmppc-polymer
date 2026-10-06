@@ -28,38 +28,49 @@
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
 #include "rv_pconsole/cd/rv_zipreader.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // Entries the console owns. They live in the same archive as the assets but not
 // in the same namespace: a disc does not read itself as data.
-inline constexpr const char* RV_PCZIPMEDIUM_DISC_MANIFEST_ENTRY = "disc.toml";
-inline constexpr const char* RV_PCZIPMEDIUM_DISC_CODE_ENTRY = "disc.so";
+inline constexpr const char *RV_PCZIPMEDIUM_DISC_MANIFEST_ENTRY = "disc.toml";
+inline constexpr const char *RV_PCZIPMEDIUM_DISC_CODE_ENTRY = "disc.so";
 
-class rv_pczipmedium : public rv_pcmedium {  // Strategy
-   public:
+class rv_pczipmedium : public rv_pcmedium
+{ // Strategy
+public:
     // An empty `archive_path` means "no disc inserted" and is not a failure. A
     // path that is not a readable store-only zip IS reported (loudly) but still
     // leaves the drive merely empty rather than broken - a bad disc must not take
     // the console down with it.
-    explicit rv_pczipmedium(const std::string& archive_path);
+    explicit rv_pczipmedium(const std::string &archive_path);
 
-    bool mounted() const override { return mounted_; }
+    bool mounted() const override
+    {
+        return mounted_;
+    }
 
-    int64_t entry_size(const char* resname) const override;
-    int64_t entry_read(const char* resname, void* baddr, int64_t cap) const override;
+    int64_t entry_size(const char *resname) const override;
+    int64_t entry_read(const char *resname, void *baddr, int64_t cap) const override;
 
     // The asset names the game can see, in archive order. Not part of the medium
     // contract (rv_cd has no enumeration): this is for the loader and for the
     // answer to "why does my disc say RV_ERR_NOENT".
-    const std::vector<std::string>& asset_names() const { return asset_names_; }
+    const std::vector<std::string> &asset_names() const
+    {
+        return asset_names_;
+    }
 
     // The underlying archive, for the loader that must fetch disc.toml/disc.so -
     // the entries this medium deliberately hides.
-    const rv_zipreader& archive() const { return zip_; }
+    const rv_zipreader &archive() const
+    {
+        return zip_;
+    }
 
-   private:
+private:
     // True when `resname` is a legal resource name AND names a visible asset.
-    bool visible(const char* resname) const;
+    bool visible(const char *resname) const;
 
     rv_zipreader zip_;
     std::vector<std::string> asset_names_;
@@ -67,4 +78,4 @@ class rv_pczipmedium : public rv_pcmedium {  // Strategy
     bool mounted_ = false;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

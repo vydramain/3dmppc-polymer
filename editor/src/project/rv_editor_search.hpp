@@ -13,16 +13,14 @@ namespace rv_editor
 {
 
 // One line of a project file holding the query.
-struct rv_editor_search_hit
-{
+struct rv_editor_search_hit {
     std::filesystem::path file; // absolute
     int32_t line = 0;
-    int32_t column = 0;         // 1-based byte column of the first match
-    std::string excerpt;        // the line, leading blanks cut, at most 200 bytes
+    int32_t column = 0;  // 1-based byte column of the first match
+    std::string excerpt; // the line, leading blanks cut, at most 200 bytes
 };
 
-struct rv_editor_search_result
-{
+struct rv_editor_search_result {
     std::vector<rv_editor_search_hit> hits;
     size_t files = 0;         // text files read
     size_t skipped_files = 0; // binary or over 4 MiB
@@ -35,12 +33,11 @@ inline constexpr const char *rv_editor_search_skipped = "dot folders (.git, ...)
 
 // Reads the files under `root` one line at a time, never a whole file. `all` also
 // enters the folders rv_editor_search_skipped names.
-rv_editor_search_result rv_editor_search_run(const std::filesystem::path &root, std::string_view query, bool match_case,
-    bool all);
+rv_editor_search_result
+rv_editor_search_run(const std::filesystem::path &root, std::string_view query, bool match_case, bool all);
 
 // The Search Results pane's state: the field and the result of the query last run.
-struct rv_editor_search_view
-{
+struct rv_editor_search_view {
     char query[project_search_query_field_size] = {};
     bool match_case = false;
     bool all = false;

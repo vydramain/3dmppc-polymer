@@ -174,8 +174,7 @@ int64_t rv_pcdirmedium::entry_read(const char *resname, void *baddr, int64_t cap
         // - staging the entry in a shadow allocation - would make the drive
         // allocate per read, which rv_cd.hpp explicitly forbids.
         std::memset(baddr, 0, static_cast<size_t>(size));
-        RV_LOG_ERR("pcmedium", "short read on entry '{}': {} of {} bytes", resname,
-            static_cast<int64_t>(got), size);
+        RV_LOG_ERR("pcmedium", "short read on entry '{}': {} of {} bytes", resname, static_cast<int64_t>(got), size);
         return RV_ERR_IO;
     }
 

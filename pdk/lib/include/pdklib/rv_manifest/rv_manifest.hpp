@@ -151,20 +151,13 @@ struct rv_manifest {
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
 // between a fixed typo and an afternoon.
-int rv_manifest_parse(const std::string &text,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error);
 
 // Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
-int rv_manifest_parse(const std::string &text,
-    const std::string &origin,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, const std::string &origin, rv_manifest &manifest, std::string &error);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-int rv_manifest_load(const std::string &path,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.

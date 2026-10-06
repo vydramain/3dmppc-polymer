@@ -62,7 +62,7 @@ inline constexpr uint32_t rv_font_block_cyrillic = 1U << 0; // rv_font_cyrillic.
 //        y=0   y=1   y=2   y=3   y=4   y=5   y=6   y=7
 //        +------------ ink, 7 rows ------------+   +-+ blank
 //
-// clang-format off - the table is a PICTURE. One byte per line, which is what
+// clang-format off: the table is a PICTURE. One byte per line, which is what
 // the formatter does to it, hides the shape of every letter in the font.
 inline constexpr uint8_t rv_font_bits[rv_font_glyph_count * rv_font_cell_height] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //   0  32     ' ' (space)

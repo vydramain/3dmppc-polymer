@@ -195,10 +195,26 @@ void rv_editor_camera_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fu
     const double lw = camera_marker_lens_width;
     const double lh = camera_marker_lens_height;
     const double ld = camera_marker_lens_depth;
-    const vec3 b[cube_corner_count] = { p(-bhs, -bhs, -bd), p(bhs, -bhs, -bd), p(bhs, bhs, -bd),
-        p(-bhs, bhs, -bd), p(-bhs, -bhs, 0), p(bhs, -bhs, 0), p(bhs, bhs, 0), p(-bhs, bhs, 0) };
-    const int pairs[cube_edge_count][edge_ends] = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, { 4, 5 }, { 5, 6 },
-        { 6, 7 }, { 7, 4 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+    const vec3 b[cube_corner_count] = { p(-bhs, -bhs, -bd),
+        p(bhs, -bhs, -bd),
+        p(bhs, bhs, -bd),
+        p(-bhs, bhs, -bd),
+        p(-bhs, -bhs, 0),
+        p(bhs, -bhs, 0),
+        p(bhs, bhs, 0),
+        p(-bhs, bhs, 0) };
+    const int pairs[cube_edge_count][edge_ends] = { { 0, 1 },
+        { 1, 2 },
+        { 2, 3 },
+        { 3, 0 },
+        { 4, 5 },
+        { 5, 6 },
+        { 6, 7 },
+        { 7, 4 },
+        { 0, 4 },
+        { 1, 5 },
+        { 2, 6 },
+        { 3, 7 } };
     for (const auto &pr : pairs) {
         e.emplace_back(b[pr[0]], b[pr[1]]);
     }
@@ -218,24 +234,24 @@ void rv_editor_camera_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fu
 // The local XY unit square (-0.5..0.5): a quad's outline and a billboard's card.
 void rv_editor_quad_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
-    const vec3 c[quad_vertex_count] = { p(-unit_half_extent, -unit_half_extent, 0), p(unit_half_extent, -unit_half_extent, 0),
-        p(unit_half_extent, unit_half_extent, 0), p(-unit_half_extent, unit_half_extent, 0) };
+    const vec3 c[quad_vertex_count] = { p(-unit_half_extent, -unit_half_extent, 0),
+        p(unit_half_extent, -unit_half_extent, 0),
+        p(unit_half_extent, unit_half_extent, 0),
+        p(-unit_half_extent, unit_half_extent, 0) };
     for (int i = 0; i < quad_vertex_count; ++i) {
         e.emplace_back(c[i], c[(i + 1) % quad_vertex_count]);
     }
 }
 
 // A billboard: the same card, plus a short tick off its face so the card does not read as flat.
-void rv_editor_billboard_edges(
-    std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+void rv_editor_billboard_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
     rv_editor_quad_edges(e, p);
     e.emplace_back(p(0, 0, 0), p(0, 0, billboard_marker_tick_length));
 }
 
 // A volume: the unit cube's 12 edges, never filled.
-void rv_editor_volume_edges(
-    std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
+void rv_editor_volume_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
     const vec3 b[cube_corner_count] = { p(-unit_half_extent, -unit_half_extent, -unit_half_extent),
         p(unit_half_extent, -unit_half_extent, -unit_half_extent),
@@ -245,8 +261,18 @@ void rv_editor_volume_edges(
         p(unit_half_extent, -unit_half_extent, unit_half_extent),
         p(unit_half_extent, unit_half_extent, unit_half_extent),
         p(-unit_half_extent, unit_half_extent, unit_half_extent) };
-    const int pairs[cube_edge_count][edge_ends] = { { 0, 1 }, { 1, 2 }, { 2, 3 }, { 3, 0 }, { 4, 5 }, { 5, 6 },
-        { 6, 7 }, { 7, 4 }, { 0, 4 }, { 1, 5 }, { 2, 6 }, { 3, 7 } };
+    const int pairs[cube_edge_count][edge_ends] = { { 0, 1 },
+        { 1, 2 },
+        { 2, 3 },
+        { 3, 0 },
+        { 4, 5 },
+        { 5, 6 },
+        { 6, 7 },
+        { 7, 4 },
+        { 0, 4 },
+        { 1, 5 },
+        { 2, 6 },
+        { 3, 7 } };
     for (const auto &pr : pairs) {
         e.emplace_back(b[pr[0]], b[pr[1]]);
     }
@@ -256,8 +282,10 @@ void rv_editor_volume_edges(
 void rv_editor_other_edges(std::vector<std::pair<vec3, vec3>> &e, const std::function<vec3(double, double, double)> &p)
 {
     const vec3 v[octahedron_vertex_count] = { p(octahedron_marker_half_size, 0, 0),
-        p(-octahedron_marker_half_size, 0, 0), p(0, octahedron_marker_half_size, 0),
-        p(0, -octahedron_marker_half_size, 0), p(0, 0, octahedron_marker_half_size),
+        p(-octahedron_marker_half_size, 0, 0),
+        p(0, octahedron_marker_half_size, 0),
+        p(0, -octahedron_marker_half_size, 0),
+        p(0, 0, octahedron_marker_half_size),
         p(0, 0, -octahedron_marker_half_size) };
     // Top/bottom apexes (4, 5) to each of the four equatorial points (0..3).
     for (int apex = quad_vertex_count; apex < octahedron_vertex_count; ++apex) {
@@ -271,12 +299,14 @@ void rv_editor_other_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fun
     e.emplace_back(v[3], v[0]);
 }
 
-std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
-    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
+std::vector<std::pair<vec3, vec3>>
+rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
     const std::string &kind = scene.objects[static_cast<size_t>(index)].kind;
-    auto p = [&m](double x, double y, double z) { return rv_editor_affine_point(m, { x, y, z }); };
+    auto p = [&m](double x, double y, double z) {
+        return rv_editor_affine_point(m, { x, y, z });
+    };
     std::vector<std::pair<vec3, vec3>> e;
     if (kind == kind_mesh) {
         for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
@@ -300,8 +330,7 @@ std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
     return e;
 }
 
-std::string rv_editor_pick(
-    const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at)
+std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at)
 {
     std::string best;
     float best_d = pointer_proximity_threshold_px;
@@ -322,8 +351,11 @@ std::string rv_editor_pick(
 }
 
 // The Move gizmo's axis under the mouse, or -1.
-int rv_editor_gizmo_axis(const rv_editor_scene &scene, const std::string &selected, const rv_editor_view &v,
-    ImVec2 mouse, double length)
+int rv_editor_gizmo_axis(const rv_editor_scene &scene,
+    const std::string &selected,
+    const rv_editor_view &v,
+    ImVec2 mouse,
+    double length)
 {
     const int at = rv_editor_scene_find(scene, selected);
     if (at < 0) {

@@ -71,8 +71,7 @@ static int stamp_checksum(const fs::path &disc_module, std::string &error)
 
     std::size_t magic_offset = 0;
     std::string locate_error;
-    const int locate_err = rv_pdklib::rv_disc_hash_magic_offset(bytes.data(), bytes.size(),
-        magic_offset, locate_error);
+    const int locate_err = rv_pdklib::rv_disc_hash_magic_offset(bytes.data(), bytes.size(), magic_offset, locate_error);
     if (locate_err != RV_OK) {
         error = "'" + disc_module.string() +
             "' was built without RV_MPPC_DISC_VERSION_DEF, so there is no checksum "
@@ -94,17 +93,13 @@ static int stamp_checksum(const fs::path &disc_module, std::string &error)
     }
     out.close();
 
-    rv_pdklib::rv_fprintf(stderr, "disc code checksum: %s\n",
-        to_hex(checksum, sizeof(checksum)).c_str());
+    rv_pdklib::rv_fprintf(stderr, "disc code checksum: %s\n", to_hex(checksum, sizeof(checksum)).c_str());
     return RV_OK;
 }
 
 } // namespace rv_pdktools
 
-int rv_pdktools::compile_sources(
-    const rv_burner_options &options,
-    const fs::path &binary_dir,
-    std::string &error)
+int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::path &binary_dir, std::string &error)
 {
     // --- build ---
     //

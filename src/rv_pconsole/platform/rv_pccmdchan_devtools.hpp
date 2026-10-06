@@ -36,7 +36,10 @@ public:
     }
 
 private:
-    enum class phase { header, payload };
+    enum class phase {
+        header,
+        payload
+    };
 
     void pump_in();
     void pump_out();
@@ -54,12 +57,12 @@ private:
     }
 
     std::vector<char> in_;
-    std::size_t consumed_ = 0;   // bytes of in_ already framed away
-    std::size_t scanned_ = 0;    // how far the newline search got last time
+    std::size_t consumed_ = 0; // bytes of in_ already framed away
+    std::size_t scanned_ = 0;  // how far the newline search got last time
     std::string out_;
 
     phase phase_ = phase::header;
-    rv_pccmdreq pending_;        // header parsed, payload still arriving
+    rv_pccmdreq pending_; // header parsed, payload still arriving
     std::size_t need_ = 0;
     // A header that claimed a payload AND was refused. The bytes still have to
     // be eaten - they carry no marker, so anything left in the stream would be

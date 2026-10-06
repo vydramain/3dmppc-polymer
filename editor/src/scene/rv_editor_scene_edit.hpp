@@ -11,8 +11,7 @@ namespace rv_editor
 
 // A scene being edited: the document, its undo and redo, and the selection,
 // which Hierarchy, the viewport and Inspector share by id.
-struct rv_editor_scene_doc
-{
+struct rv_editor_scene_doc {
     rv_editor_scene scene;
     std::vector<std::vector<rv_editor_scene_object>> undo;
     std::vector<std::vector<rv_editor_scene_object>> redo;
@@ -35,8 +34,11 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
 // Under `parent` (empty: the root). keep_world keeps where it is in the scene and is
 // refused when that needs a shear the file cannot hold; otherwise its local values stay.
 // Returns RV_OK or RV_ERR_INVAL (bad parent, cycle, shear, or decompose failure).
-int rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, const std::string &parent,
-    bool keep_world, std::string &why);
+int rv_editor_scene_reparent(rv_editor_scene_doc &doc,
+    const std::string &id,
+    const std::string &parent,
+    bool keep_world,
+    std::string &why);
 
 // An object's transform in its parent's space and in the scene's, as a 3x4 matrix.
 using rv_editor_affine = std::array<std::array<double, 4>, 3>;

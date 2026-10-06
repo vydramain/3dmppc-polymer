@@ -64,8 +64,13 @@ uint32_t rv_editor_blend_color(uint32_t color1, uint32_t color2)
 }
 
 // Label centred in [min, max), nudged one scaled pixel down-right when pressed.
-void rv_editor_label_centred(ImDrawList *dl, const char *label, ImVec2 min, ImVec2 max, const rv_editor_theme &t,
-    const rv_editor_item &item, bool pressed)
+void rv_editor_label_centred(ImDrawList *dl,
+    const char *label,
+    ImVec2 min,
+    ImVec2 max,
+    const rv_editor_theme &t,
+    const rv_editor_item &item,
+    bool pressed)
 {
     const char *end = rv_editor_label_end(label);
     const ImVec2 size = ImGui::CalcTextSize(label, end);
@@ -82,8 +87,7 @@ void rv_editor_button_face(ImDrawList *dl, const rv_editor_item &item, const rv_
     const ImVec2 min(item.min.x + px, item.min.y + px);
     const ImVec2 max(item.max.x - px, item.max.y - px);
     dl->AddRectFilled(item.min, item.max, rv_editor_col(t.dark));
-    rv_editor_draw_panel(dl, min, max, t, down ? t.inset : t.button,
-        down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
+    rv_editor_draw_panel(dl, min, max, t, down ? t.inset : t.button, down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
     if (item.hovered && !item.disabled) {
         rv_editor_draw_frame(dl, min, max, t, t.selection);
     }
@@ -138,8 +142,13 @@ float rv_editor_tool_button_width(const char *)
     return std::floor(std::max(ref_width, line_height));
 }
 
-bool rv_editor_tool_button(const char *label, const char *code, uint32_t color, const char *name,
-    const char *shortcut, const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_tool_button(const char *label,
+    const char *code,
+    uint32_t color,
+    const char *name,
+    const char *shortcut,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     const float side = rv_editor_tool_button_width(label);
     const rv_editor_item item = rv_editor_item_add(label, ImVec2(side, side), state);
@@ -173,19 +182,28 @@ bool rv_editor_tool_button(const char *label, const char *code, uint32_t color, 
     const float y = std::floor((item.min.y + item.max.y - big - ImGui::GetTextLineHeight() - pad) / center_div + nudge);
     // Dimmed: halfway to the window colour.
     const uint32_t dim = item.disabled ? rv_editor_blend_color(color, theme.window) : color;
-    dl->AddText(ImGui::GetFont(), big, ImVec2(std::floor((item.min.x + item.max.x - code_w) / center_div + nudge), y),
-        rv_editor_col(dim), code);
+    dl->AddText(ImGui::GetFont(),
+        big,
+        ImVec2(std::floor((item.min.x + item.max.x - code_w) / center_div + nudge), y),
+        rv_editor_col(dim),
+        code);
     const ImVec2 size = ImGui::CalcTextSize(label, end);
     dl->AddText(ImVec2(std::floor((item.min.x + item.max.x - size.x) / center_div + nudge), y + big + pad),
-        rv_editor_col(rv_editor_item_text(theme, item)), label, end);
+        rv_editor_col(rv_editor_item_text(theme, item)),
+        label,
+        end);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);
     }
     return item.clicked;
 }
 
-bool rv_editor_letter_button(const char *id, const char *code, uint32_t color, const char *tooltip,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_letter_button(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *tooltip,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     const float side = ImGui::GetFrameHeight();
     const rv_editor_item item = rv_editor_item_add(id, ImVec2(side, side), state);
@@ -209,18 +227,19 @@ bool rv_editor_letter_button(const char *id, const char *code, uint32_t color, c
         size = ImGui::GetFont()->CalcTextSizeA(font_size, FLT_MAX, 0.0f, code);
     }
     const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    dl->AddText(ImGui::GetFont(), font_size,
+    dl->AddText(ImGui::GetFont(),
+        font_size,
         ImVec2(std::floor((item.min.x + item.max.x - size.x) / center_div + nudge),
             std::floor((item.min.y + item.max.y - size.y) / center_div + nudge)),
-        rv_editor_col(ink), code);
+        rv_editor_col(ink),
+        code);
     if (item.focused) {
         rv_editor_draw_focus(dl, item.min, item.max, theme);
     }
     return item.clicked;
 }
 
-bool rv_editor_icon_button(const char *id, rv_editor_icon_name name, const rv_editor_theme &theme,
-    const rv_editor_state &state)
+bool rv_editor_icon_button(const char *id, rv_editor_icon_name name, const rv_editor_theme &theme, const rv_editor_state &state)
 {
     const rv_editor_icon icon = rv_editor_icon_get(name);
     const float k = static_cast<float>(rv_editor_icon_scale(theme.scale));
@@ -304,8 +323,13 @@ float rv_editor_checkbox_width(const char *label)
     return rv_editor_marked_size(label).x;
 }
 
-bool rv_editor_command_button(const char *id, const char *code, uint32_t color, const char *label,
-    const char *tooltip, const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_command_button(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *label,
+    const char *tooltip,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     const ImVec2 pad = ImGui::GetStyle().FramePadding;
     const float cell = ImGui::CalcTextSize(code).x;

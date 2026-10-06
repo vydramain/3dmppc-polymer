@@ -53,7 +53,8 @@ bool rv_editor_menu_begin(const char *label)
     const char first[] = { label[0], '\0' };
     // Below the baseline; the bar's own clip would cut it, so it goes on top.
     const float y = std::floor(min.y + (max.y - min.y + ImGui::GetFontSize()) / menu_centering_divisor) - 1.0f;
-    ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(x, y), ImVec2(x + ImGui::CalcTextSize(first).x, y + 1.0f),
+    ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(x, y),
+        ImVec2(x + ImGui::CalcTextSize(first).x, y + 1.0f),
         ImGui::GetColorU32(ImGuiCol_Text));
     return open;
 }
@@ -174,8 +175,8 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             if (!fits && s.scale != 1.0f) {
                 const int needed_w = static_cast<int>(std::ceil(static_cast<float>(window_min_width) * s.scale));
                 const int needed_h = static_cast<int>(std::ceil(static_cast<float>(window_min_height) * s.scale));
-                why_not_str = rv_editor_text_format("shell_menu.scale_needs_display",
-                    std::make_format_args(needed_w, needed_h));
+                why_not_str =
+                    rv_editor_text_format("shell_menu.scale_needs_display", std::make_format_args(needed_w, needed_h));
                 why_not = why_not_str.c_str();
             }
             const bool clicked =
@@ -203,7 +204,8 @@ void rv_editor_menu_project(rv_editor_shell &shell)
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::project);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_build"), rv_editor_text("widgets_status.shortcut_build"),
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_build"),
+            rv_editor_text("widgets_status.shortcut_build"),
             rv_editor_app_why_not_build(app))) {
         rv_editor_app_build(app);
     }
@@ -228,15 +230,18 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu.run_last"), nullptr, rv_editor_app_why_not_run_last(app))) {
         rv_editor_app_run_last(app);
     }
-    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_pause"), rv_editor_text("widgets_status.shortcut_pause"),
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_pause"),
+            rv_editor_text("widgets_status.shortcut_pause"),
             rv_editor_app_why_not_pause(app))) {
         rv_editor_app_pause(app);
     }
-    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_step_frame"), rv_editor_text("widgets_status.shortcut_step"),
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_step_frame"),
+            rv_editor_text("widgets_status.shortcut_step"),
             rv_editor_app_why_not_step(app))) {
         rv_editor_app_step(app);
     }
-    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_stop"), rv_editor_text("widgets_status.shortcut_stop"),
+    if (rv_editor_menu_item(rv_editor_text("widgets_status.button_stop"),
+            rv_editor_text("widgets_status.shortcut_stop"),
             rv_editor_app_why_not_stop(app))) {
         rv_editor_app_stop(app);
     }
@@ -246,11 +251,9 @@ void rv_editor_menu_run(rv_editor_shell &shell)
         can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
     std::string reload_label;
     if (reload_plan.action == rv_editor_change_action::reload_module) {
-        reload_label = rv_editor_text_format("shell_menu.reload_module",
-            std::make_format_args(reload_plan.name));
+        reload_label = rv_editor_text_format("shell_menu.reload_module", std::make_format_args(reload_plan.name));
     } else if (reload_plan.action == rv_editor_change_action::refresh_texture) {
-        reload_label = rv_editor_text_format("shell_menu.refresh_texture",
-            std::make_format_args(reload_plan.name));
+        reload_label = rv_editor_text_format("shell_menu.refresh_texture", std::make_format_args(reload_plan.name));
     } else {
         reload_label = rv_editor_text("widgets_status.tooltip_reload");
     }
@@ -263,12 +266,14 @@ void rv_editor_menu_run(rv_editor_shell &shell)
         rv_editor_app_build_restart(app);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.force_stop"), nullptr,
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.force_stop"),
+            nullptr,
             app.session.live() ? nullptr : rv_editor_text("shell_menu.why_no_runtime"))) {
         app.session.force_stop(app.log);
     }
     ImGui::Separator();
-    if (rv_editor_menu_item(rv_editor_text("shell_menu.run_config"), nullptr,
+    if (rv_editor_menu_item(rv_editor_text("shell_menu.run_config"),
+            nullptr,
             app.project.open ? nullptr : rv_editor_text("shell_menu.why_no_project"))) {
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::run_config, true);
     }
@@ -361,7 +366,8 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
     // The layout switch at the bar's right end, as in the references: one place, once a project is open.
     float names = 0.0f;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + item_spacings_per_name * ImGui::GetStyle().ItemSpacing.x;
+        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x +
+            item_spacings_per_name * ImGui::GetStyle().ItemSpacing.x;
     }
     const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
     if (shell.app.project.open && at > ImGui::GetCursorPosX()) {

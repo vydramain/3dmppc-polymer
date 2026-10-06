@@ -15,8 +15,7 @@ namespace rv_editor
 // colours, and one grid per window plus grid 1 with the command line.
 
 // The cursor's shape in one mode, as nvim's mode_info_set gives it (guicursor).
-enum class rv_editor_nvim_cursor_kind
-{
+enum class rv_editor_nvim_cursor_kind {
     block,
     vertical,   // a bar at the cell's left
     horizontal, // a bar at the cell's bottom
@@ -25,14 +24,12 @@ enum class rv_editor_nvim_cursor_kind
 // Cursor fill percentage of the cell's width (vertical) or height (horizontal)
 constexpr int32_t nvim_cursor_default_fill_percent = 100;
 
-struct rv_editor_nvim_cursor
-{
+struct rv_editor_nvim_cursor {
     rv_editor_nvim_cursor_kind kind = rv_editor_nvim_cursor_kind::block;
     int32_t percent = nvim_cursor_default_fill_percent;
 };
 
-struct rv_editor_nvim_attr
-{
+struct rv_editor_nvim_attr {
     uint32_t fg = 0;
     uint32_t bg = 0;
     bool has_fg = false;
@@ -43,8 +40,7 @@ struct rv_editor_nvim_attr
     bool underline = false;
 };
 
-struct rv_editor_nvim_cell
-{
+struct rv_editor_nvim_cell {
     std::string text; // one screen cell: a UTF-8 character, empty after a double-width one
     int32_t hl = 0;
 };
@@ -54,25 +50,27 @@ constexpr int32_t nvim_float_default_zindex = 50;
 // Nvim's default anchor for a floating window
 constexpr std::string_view float_anchor_nw = "NW";
 
-struct rv_editor_nvim_grid
-{
+struct rv_editor_nvim_grid {
     int32_t width = 0;
     int32_t height = 0;
     std::vector<rv_editor_nvim_cell> cells; // row-major
     int32_t cursor_row = -1;
     int32_t cursor_col = -1;
-    int64_t win = 0;      // the window it shows, 0 for grid 1 and message grids
+    int64_t win = 0; // the window it shows, 0 for grid 1 and message grids
     bool hidden = false;
-    bool is_float = false;     // floating window overlay
+    bool is_float = false;                             // floating window overlay
     std::string anchor = std::string(float_anchor_nw); // NW, NE, SW, SE
-    int32_t anchor_grid = 1;   // grid id this float is anchored to
-    double anchor_row = 0.0;   // row on anchor_grid, stored as-is (may be fractional)
-    double anchor_col = 0.0;   // col on anchor_grid
+    int32_t anchor_grid = 1;                           // grid id this float is anchored to
+    double anchor_row = 0.0;                           // row on anchor_grid, stored as-is (may be fractional)
+    double anchor_col = 0.0;                           // col on anchor_grid
     int32_t zindex = nvim_float_default_zindex;
-    double window_row = 0.0;   // row in grid 1 for non-floating windows (from win_pos)
-    double window_col = 0.0;   // col in grid 1 for non-floating windows
+    double window_row = 0.0; // row in grid 1 for non-floating windows (from win_pos)
+    double window_col = 0.0; // col in grid 1 for non-floating windows
 
-    rv_editor_nvim_cell &at(int32_t row, int32_t col) { return cells[static_cast<size_t>(row * width + col)]; }
+    rv_editor_nvim_cell &at(int32_t row, int32_t col)
+    {
+        return cells[static_cast<size_t>(row * width + col)];
+    }
 };
 
 class rv_editor_nvim_screen
@@ -96,15 +94,30 @@ public:
     void colors(int32_t hl, uint32_t &fg, uint32_t &bg) const;
     const rv_editor_nvim_attr &attr(int32_t hl) const;
 
-    int32_t cursor_grid() const { return cursor_grid_; }
-    const std::string &mode() const { return mode_; }
+    int32_t cursor_grid() const
+    {
+        return cursor_grid_;
+    }
+    const std::string &mode() const
+    {
+        return mode_;
+    }
     // The cursor's shape in the current mode; a block before nvim has said.
     rv_editor_nvim_cursor cursor_shape() const;
     // Grid of the message area (msg_set_pos), 0 when none is shown.
-    int32_t message_grid() const { return msg_grid_; }
-    int32_t message_row() const { return msg_row_; }
+    int32_t message_grid() const
+    {
+        return msg_grid_;
+    }
+    int32_t message_row() const
+    {
+        return msg_row_;
+    }
     // True after a flush: what was applied is complete and can be drawn.
-    bool flushed() const { return flushed_; }
+    bool flushed() const
+    {
+        return flushed_;
+    }
 
 private:
     void event(const std::string &name, const rv_editor_mpack &args);

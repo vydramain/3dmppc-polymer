@@ -113,14 +113,12 @@ int rv_editor_ttf_edge(int i, double scale)
     return static_cast<int>(std::floor(i * scale + rounding_offset)) * rv_editor_ttf_unit;
 }
 
-struct rv_editor_ttf_glyph
-{
+struct rv_editor_ttf_glyph {
     const uint8_t *rows = nullptr; // cell height bytes, top row first, high bit leftmost; nullptr for an empty glyph
 };
 
 // Big-endian writer.
-struct rv_editor_ttf_out
-{
+struct rv_editor_ttf_out {
     std::string b;
     void u8(uint32_t v)
     {
@@ -147,8 +145,7 @@ struct rv_editor_ttf_out
 // One glyph's glyf record: a rectangle contour per horizontal run of lit pixels.
 std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double scale, int16_t bounds[4])
 {
-    struct run
-    {
+    struct run {
         int x0, x1, y0, y1;
     };
     std::vector<run> runs;
@@ -164,8 +161,10 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
                 ++x;
             }
             // Row 0 is the top of the cell; font y grows upward from the cell's bottom.
-            runs.push_back({ rv_editor_ttf_edge(start, scale), rv_editor_ttf_edge(x, scale),
-                rv_editor_ttf_edge(cell_h - row - 1, scale), rv_editor_ttf_edge(cell_h - row, scale) });
+            runs.push_back({ rv_editor_ttf_edge(start, scale),
+                rv_editor_ttf_edge(x, scale),
+                rv_editor_ttf_edge(cell_h - row - 1, scale),
+                rv_editor_ttf_edge(cell_h - row, scale) });
         }
     }
     bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0;
@@ -223,7 +222,10 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
 // A TrueType file of `glyphs` in a source cell_w x cell_h cell drawn at `scale` target pixels per source
 // pixel; glyph 0 is notdef. The em is the scaled cell height, so size = em pixels draws 1 unit grid : 1 px.
 std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
-    const std::vector<std::pair<uint32_t, uint16_t>> &map, int src_cell_w, int src_cell_h, double scale)
+    const std::vector<std::pair<uint32_t, uint16_t>> &map,
+    int src_cell_w,
+    int src_cell_h,
+    double scale)
 {
     const int cell_h = static_cast<int>(std::floor(src_cell_h * scale + rounding_offset));
     const int cell_w = static_cast<int>(std::floor(src_cell_w * scale + rounding_offset));
@@ -240,8 +242,7 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
         lsb.push_back(b[0]);
         for (int k = 0; k < bounds_coord_pairs; ++k) {
             font_bounds[k] = std::min(font_bounds[k], b[k]);
-            font_bounds[k + bounds_coord_pairs] =
-                std::max(font_bounds[k + bounds_coord_pairs], b[k + bounds_coord_pairs]);
+            font_bounds[k + bounds_coord_pairs] = std::max(font_bounds[k + bounds_coord_pairs], b[k + bounds_coord_pairs]);
         }
     }
     loca.push_back(static_cast<uint32_t>(glyf.size()));
@@ -341,14 +342,17 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
         cmap.u16(0); // idRangeOffset: none, idDelta says it all
     }
     const size_t len = cmap.b.size() - sub;
-    cmap.b[sub + cmap_length_field_offset] =
-        static_cast<char>((len >> shift_halfword_to_byte) & byte_value_mask);
-    cmap.b[sub + cmap_length_field_offset + 1] =
-        static_cast<char>(len & byte_value_mask);
+    cmap.b[sub + cmap_length_field_offset] = static_cast<char>((len >> shift_halfword_to_byte) & byte_value_mask);
+    cmap.b[sub + cmap_length_field_offset + 1] = static_cast<char>(len & byte_value_mask);
 
     // The file: offset table, directory sorted by tag, tables 4-byte aligned.
-    const std::pair<const char *, const std::string *> tables[] = { { "cmap", &cmap.b }, { "glyf", &glyf },
-        { "head", &head.b }, { "hhea", &hhea.b }, { "hmtx", &hmtx.b }, { "loca", &locat.b }, { "maxp", &maxp.b } };
+    const std::pair<const char *, const std::string *> tables[] = { { "cmap", &cmap.b },
+        { "glyf", &glyf },
+        { "head", &head.b },
+        { "hhea", &hhea.b },
+        { "hmtx", &hmtx.b },
+        { "loca", &locat.b },
+        { "maxp", &maxp.b } };
     const uint16_t n = static_cast<uint16_t>(std::size(tables));
     rv_editor_ttf_out file;
     file.u32(ttf_sfnt_version);

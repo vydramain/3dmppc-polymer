@@ -130,8 +130,7 @@ inline uint32_t rotr(uint32_t x, uint32_t n)
 // - buf[64]          - buffer for the next block.
 //                      Not initialised: the needed bytes are filled in before processing.
 struct sha256_ctx {
-    uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+    uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
     unsigned char buf[64];
     size_t buf_len = 0;
     uint64_t total_len = 0;
@@ -151,10 +150,10 @@ void sha256_block(sha256_ctx &ctx, const unsigned char *p)
     // The result is 64 words - one for each round.
     // All of them depend on the original block.
     for (int i = message_schedule_initial; i < message_schedule_full; ++i) {
-        uint32_t s0 = rotr(w[i - w_schedule_lag_15], sigma0_rot_a) ^
-            rotr(w[i - w_schedule_lag_15], sigma0_rot_b) ^ (w[i - w_schedule_lag_15] >> sigma0_rot_c);
-        uint32_t s1 = rotr(w[i - w_schedule_lag_2], sigma1_rot_a) ^
-            rotr(w[i - w_schedule_lag_2], sigma1_rot_b) ^ (w[i - w_schedule_lag_2] >> sigma1_rot_c);
+        uint32_t s0 = rotr(w[i - w_schedule_lag_15], sigma0_rot_a) ^ rotr(w[i - w_schedule_lag_15], sigma0_rot_b) ^
+            (w[i - w_schedule_lag_15] >> sigma0_rot_c);
+        uint32_t s1 = rotr(w[i - w_schedule_lag_2], sigma1_rot_a) ^ rotr(w[i - w_schedule_lag_2], sigma1_rot_b) ^
+            (w[i - w_schedule_lag_2] >> sigma1_rot_c);
         w[i] = w[i - w_schedule_lag_16] + s0 + w[i - w_schedule_lag_7] + s1;
     }
 
@@ -276,8 +275,7 @@ bool in_bounds(std::size_t elf_size, uint64_t off, uint64_t len)
 
 // Finds a section by name. Returns RV_OK and fills `sh` on success (including
 // "not found", which reports offset=0/size=0 via `found=false`).
-int find_section(
-    const unsigned char *elf,
+int find_section(const unsigned char *elf,
     std::size_t elf_size,
     const char *name,
     bool &found,
@@ -317,8 +315,7 @@ int find_section(
         error = "ELF image has no section headers.";
         return RV_ERR_INVAL;
     }
-    if (!in_bounds(elf_size, ehdr.e_shoff,
-            uint64_t(ehdr.e_shnum) * sizeof(Elf64_Shdr))) {
+    if (!in_bounds(elf_size, ehdr.e_shoff, uint64_t(ehdr.e_shnum) * sizeof(Elf64_Shdr))) {
         error = "Section header table is out of bounds.";
         return RV_ERR_INVAL;
     }
@@ -330,8 +327,7 @@ int find_section(
     const unsigned char *shtab = elf + ehdr.e_shoff;
 
     Elf64_Shdr strtab_shdr;
-    std::memcpy(&strtab_shdr, shtab + uint64_t(ehdr.e_shstrndx) * sizeof(Elf64_Shdr),
-        sizeof(strtab_shdr));
+    std::memcpy(&strtab_shdr, shtab + uint64_t(ehdr.e_shstrndx) * sizeof(Elf64_Shdr), sizeof(strtab_shdr));
     if (!in_bounds(elf_size, strtab_shdr.sh_offset, strtab_shdr.sh_size)) {
         error = "Section header string table is out of bounds.";
         return RV_ERR_INVAL;
@@ -380,12 +376,7 @@ int find_section(
     return RV_OK; // not found is not an error: contributes size 0.
 }
 
-int feed_section(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    const char *name,
-    sha256_ctx &ctx,
-    std::string &error)
+int feed_section(const unsigned char *elf, std::size_t elf_size, const char *name, sha256_ctx &ctx, std::string &error)
 {
     bool found = false;
     uint64_t sh_offset = 0;
@@ -412,19 +403,14 @@ int feed_section(
 
 } // namespace
 
-int rv_disc_hash_magic_offset(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    std::size_t &magic_offset,
-    std::string &error)
+int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, std::size_t &magic_offset, std::string &error)
 {
     bool found = false;
     uint64_t sh_offset = 0;
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset,
-            sh_size, sh_type, error) != RV_OK) {
+    if (find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
     if (!found) {
@@ -470,8 +456,7 @@ int rv_disc_hash_magic_offset(
     const uint64_t aligned_desc_size = align4(nhdr.n_descsz);
     const uint64_t note_end = desc_offset + aligned_desc_size;
 
-    if (!in_bounds(elf_size, owner_offset, aligned_owner_size) ||
-        !in_bounds(elf_size, desc_offset, aligned_desc_size) ||
+    if (!in_bounds(elf_size, owner_offset, aligned_owner_size) || !in_bounds(elf_size, desc_offset, aligned_desc_size) ||
         note_end > sh_offset + sh_size) {
         error = "Version note extends outside its section.";
         return RV_ERR_INVAL;
@@ -487,8 +472,7 @@ int rv_disc_hash_magic_offset(
     return RV_OK;
 }
 
-int rv_disc_hash_compute(
-    const unsigned char *elf,
+int rv_disc_hash_compute(const unsigned char *elf,
     std::size_t elf_size,
     unsigned char out[RV_DISC_HASH_BYTES],
     std::string &error)

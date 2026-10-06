@@ -118,8 +118,7 @@ std::vector<pid_t> rv_editor_session_members(pid_t sid)
         long pgrp = 0;
         long session = 0;
         if (close != std::string::npos &&
-            std::sscanf(line.c_str() + close + 1, " %c %ld %ld %ld", &state, &ppid, &pgrp, &session) ==
-                proc_stat_field_count &&
+            std::sscanf(line.c_str() + close + 1, " %c %ld %ld %ld", &state, &ppid, &pgrp, &session) == proc_stat_field_count &&
             session == sid) {
             out.push_back(static_cast<pid_t>(std::strtol(name.c_str(), nullptr, decimal_radix)));
         }
@@ -141,8 +140,11 @@ rv_editor_pty::~rv_editor_pty()
     stop();
 }
 
-int rv_editor_pty::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols,
-    int rows, std::string &error)
+int rv_editor_pty::start(const std::vector<std::string> &argv,
+    const std::filesystem::path &cwd,
+    int cols,
+    int rows,
+    std::string &error)
 {
     if (argv.empty() || running()) {
         error = argv.empty() ? "nothing to run" : "already running";
@@ -155,8 +157,7 @@ int rv_editor_pty::start(const std::vector<std::string> &argv, const std::filesy
 
     const int master = ::posix_openpt(O_RDWR | O_NOCTTY | O_CLOEXEC);
     char name[pty_name_buffer_size] = {};
-    if (master < 0 || ::grantpt(master) != 0 || ::unlockpt(master) != 0 ||
-        ::ptsname_r(master, name, sizeof(name)) != 0) {
+    if (master < 0 || ::grantpt(master) != 0 || ::unlockpt(master) != 0 || ::ptsname_r(master, name, sizeof(name)) != 0) {
         error = std::string("pseudo-terminal: ") + std::strerror(errno);
         if (master >= 0) {
             ::close(master);

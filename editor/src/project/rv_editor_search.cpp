@@ -35,13 +35,16 @@ size_t rv_editor_search_find(std::string_view line, std::string_view query, bool
     if (match_case) {
         return line.find(query);
     }
-    const auto it = std::search(line.begin(), line.end(), query.begin(), query.end(),
-        [](char a, char b) { return rv_editor_search_lower(a) == rv_editor_search_lower(b); });
+    const auto it = std::search(line.begin(), line.end(), query.begin(), query.end(), [](char a, char b) {
+        return rv_editor_search_lower(a) == rv_editor_search_lower(b);
+    });
     return it == line.end() ? std::string_view::npos : static_cast<size_t>(it - line.begin());
 }
 
 // False when the file turned out binary: its hits are dropped again.
-bool rv_editor_search_file(const std::filesystem::path &file, std::string_view query, bool match_case,
+bool rv_editor_search_file(const std::filesystem::path &file,
+    std::string_view query,
+    bool match_case,
     std::vector<rv_editor_search_hit> &hits)
 {
     std::ifstream in(file, std::ios::binary);
@@ -70,8 +73,8 @@ bool rv_editor_search_file(const std::filesystem::path &file, std::string_view q
 
 } // namespace
 
-rv_editor_search_result rv_editor_search_run(const std::filesystem::path &root, std::string_view query, bool match_case,
-    bool all)
+rv_editor_search_result
+rv_editor_search_run(const std::filesystem::path &root, std::string_view query, bool match_case, bool all)
 {
     rv_editor_search_result result;
     if (query.empty()) {
@@ -79,8 +82,8 @@ rv_editor_search_result rv_editor_search_run(const std::filesystem::path &root, 
     }
     std::vector<std::filesystem::path> files;
     std::error_code ec;
-    auto it = std::filesystem::recursive_directory_iterator(root,
-        std::filesystem::directory_options::skip_permission_denied, ec);
+    auto it =
+        std::filesystem::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied, ec);
     for (const auto end = std::filesystem::recursive_directory_iterator(); !ec && it != end; it.increment(ec)) {
         std::error_code type_ec;
         if (it->is_directory(type_ec)) {

@@ -266,8 +266,7 @@ int64_t rv_pccl_luajit::state_get(const std::vector<std::string> &path, rv_pccl_
     return RV_OK;
 }
 
-int64_t rv_pccl_luajit::state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
-    std::vector<rv_pccl_key> &out)
+int64_t rv_pccl_luajit::state_keys(const std::vector<std::string> &path, rv_pccl_value &target, std::vector<rv_pccl_key> &out)
 {
     target = rv_pccl_value{};
     out.clear();

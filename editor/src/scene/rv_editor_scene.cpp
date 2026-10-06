@@ -80,15 +80,18 @@ constexpr std::string_view section_header_object = "[[object]]";
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
 
+// Fixed-point prefix length: "0." for decimal notation.
+constexpr int fixed_point_prefix_length = 2;
+
 // Room for fixed-point text of a scene number (coordinate, scale, angle).
 // Derived at compile time: denorm_min needs sign(1) + "0."(2) + (-min_exponent10 + max_digits10) digits;
 // large values need sign(1) + (max_exponent10 + 1) digits. The max of the two is used.
 // For double: 1 + 2 + (307 + 17) = 327 bytes exactly (verified for finite values).
 // NaN/Inf: to_chars with fixed succeeds (writes "nan"/"inf"), roundtrip via std::from_chars works
 // but scene file is read by pdklib's manifest parser, which accepts them via strtod.
-constexpr size_t number_format_buffer_bytes =
-    std::max(1 + 2 + (-std::numeric_limits<double>::min_exponent10 + std::numeric_limits<double>::max_digits10),
-        1 + (std::numeric_limits<double>::max_exponent10 + 1));
+constexpr size_t number_format_buffer_bytes = std::max(1 + fixed_point_prefix_length +
+        (-std::numeric_limits<double>::min_exponent10 + std::numeric_limits<double>::max_digits10),
+    1 + (std::numeric_limits<double>::max_exponent10 + 1));
 // Buffer for formatting random scene object ID as hexadecimal via to_chars; size for uint32_t.
 constexpr size_t hex_id_buffer_bytes = 16;
 
@@ -107,31 +110,33 @@ std::string rv_editor_scene_number(double v)
 
 std::string rv_editor_scene_vec(const rv_editor_vec3 &v)
 {
-    return std::string(array_start) + rv_editor_scene_number(v[0]) + std::string(array_sep) +
-        rv_editor_scene_number(v[1]) + std::string(array_sep) + rv_editor_scene_number(v[2]) +
-        std::string(array_end);
+    return std::string(array_start) + rv_editor_scene_number(v[0]) + std::string(array_sep) + rv_editor_scene_number(v[1]) +
+        std::string(array_sep) + rv_editor_scene_number(v[2]) + std::string(array_end);
 }
 
 std::string rv_editor_scene_value(const rv_pdklib::rv_manifest_mvalue &v)
 {
     switch (v.kind) {
-        case kind::string: return rv_editor_toml_quote(v.str);
-        case kind::integer: return std::to_string(v.num);
-        case kind::real: return rv_editor_scene_number(v.real);
-        case kind::array: {
-            std::string out(array_start);
-            for (size_t i = 0; i < v.arr.size(); ++i) {
-                out += (i == 0 ? "" : std::string(array_sep)) + rv_editor_toml_quote(v.arr[i]);
-            }
-            return out + std::string(array_end);
+    case kind::string:
+        return rv_editor_toml_quote(v.str);
+    case kind::integer:
+        return std::to_string(v.num);
+    case kind::real:
+        return rv_editor_scene_number(v.real);
+    case kind::array: {
+        std::string out(array_start);
+        for (size_t i = 0; i < v.arr.size(); ++i) {
+            out += (i == 0 ? "" : std::string(array_sep)) + rv_editor_toml_quote(v.arr[i]);
         }
-        case kind::numbers: {
-            std::string out(array_start);
-            for (size_t i = 0; i < v.nums.size(); ++i) {
-                out += (i == 0 ? "" : std::string(array_sep)) + rv_editor_scene_number(v.nums[i]);
-            }
-            return out + std::string(array_end);
+        return out + std::string(array_end);
+    }
+    case kind::numbers: {
+        std::string out(array_start);
+        for (size_t i = 0; i < v.nums.size(); ++i) {
+            out += (i == 0 ? "" : std::string(array_sep)) + rv_editor_scene_number(v.nums[i]);
         }
+        return out + std::string(array_end);
+    }
     }
     return "\"\"";
 }
@@ -246,15 +251,17 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
         }
         rv_editor_scene_object o;
         for (const auto &e : section.entries) {
-            std::string *field = e.key == object_id_key ? &o.id : e.key == object_name_key ? &o.name :
-                e.key == object_parent_key                                                 ? &o.parent :
-                e.key == object_kind_key                                                   ? &o.kind :
-                e.key == object_mesh_key                                                   ? &o.mesh :
-                e.key == object_texture_key                                                ? &o.texture :
-                                                                                             nullptr;
-            rv_editor_vec3 *vec = e.key == object_position_key ? &o.position : e.key == object_rotation_key ? &o.rotation :
-                e.key == object_scale_key                                                                   ? &o.scale :
-                                                                                                              nullptr;
+            std::string *field = e.key == object_id_key ? &o.id :
+                e.key == object_name_key                ? &o.name :
+                e.key == object_parent_key              ? &o.parent :
+                e.key == object_kind_key                ? &o.kind :
+                e.key == object_mesh_key                ? &o.mesh :
+                e.key == object_texture_key             ? &o.texture :
+                                                          nullptr;
+            rv_editor_vec3 *vec = e.key == object_position_key ? &o.position :
+                e.key == object_rotation_key                   ? &o.rotation :
+                e.key == object_scale_key                      ? &o.scale :
+                                                                 nullptr;
             // A known key of an unexpected shape is kept as it was, not overwritten.
             if (field != nullptr && e.value.kind == kind::string) {
                 *field = e.value.str;
@@ -349,8 +356,8 @@ std::string rv_editor_scene_render(const rv_editor_scene &scene)
             }
             if (!rv_editor_scene_extra_has(o.extra, std::string(object_tint_key))) {
                 t += std::string(object_tint_key) + std::string(entry_sep) + std::string(array_start) +
-                    std::to_string(o.tint[0]) + std::string(array_sep) + std::to_string(o.tint[1]) +
-                    std::string(array_sep) + std::to_string(o.tint[2]) + std::string(array_end) + "\n";
+                    std::to_string(o.tint[0]) + std::string(array_sep) + std::to_string(o.tint[1]) + std::string(array_sep) +
+                    std::to_string(o.tint[2]) + std::string(array_end) + "\n";
             }
             if (!rv_editor_scene_extra_has(o.extra, std::string(object_tess_key))) {
                 t += std::string(object_tess_key) + std::string(entry_sep) + rv_editor_scene_number(o.tess) + "\n";

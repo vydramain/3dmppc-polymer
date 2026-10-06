@@ -145,8 +145,7 @@ int rv_pccard::flush()
         dir = std::filesystem::path(".");
     }
 
-    const std::string tmp_path =
-        image_path_ + ".tmp" + std::to_string(static_cast<long long>(::getpid()));
+    const std::string tmp_path = image_path_ + ".tmp" + std::to_string(static_cast<long long>(::getpid()));
 
     const int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (fd < 0) {
@@ -179,8 +178,7 @@ int rv_pccard::flush()
     }
 
     if (ok && ::rename(tmp_path.c_str(), image_path_.c_str()) != 0) {
-        RV_LOG_ERR(RV_PCCARD_TAG, "rename '{}' -> '{}' failed: {}", tmp_path, image_path_,
-            errno_text(errno));
+        RV_LOG_ERR(RV_PCCARD_TAG, "rename '{}' -> '{}' failed: {}", tmp_path, image_path_, errno_text(errno));
         ok = false;
     }
 

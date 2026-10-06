@@ -40,6 +40,13 @@ constexpr int layout_pane_field_count = 2;
 constexpr int layout_leaf_field_min = 4;
 constexpr int layout_node_field_min = 2;
 constexpr int layout_split_field_count = 7;
+// Split node line field indices: type, parent, axis, ratio, first child, second child.
+constexpr size_t layout_split_field_type = 1;
+constexpr size_t layout_split_field_parent = 2;
+constexpr size_t layout_split_field_axis = 3;
+constexpr size_t layout_split_field_ratio = 4;
+constexpr size_t layout_split_field_first = 5;
+constexpr size_t layout_split_field_second = 6;
 // Buffer size for formatting split ratio with %.4f
 constexpr int layout_ratio_format_buf_size = 16;
 // Ratio range bounds: valid split division is from 0% to 100%
@@ -48,12 +55,38 @@ constexpr float layout_ratio_max = 1.0f;
 
 const std::string rv_editor_layout_header = std::string(layout_header_prefix) + rv_pdklib::rv_version_str;
 
-constexpr std::string_view kind_names[] = {
-    "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
-    "game", "code", "controls", "run_config", "output", "terminal", "problems", "search",
-    "toolchest", "runtime_log", "build_log", "observe", "findings", "candidate", "release_controls", "build_result",
-    "checks", "session", "test_case", "open_project", "settings", "help", "review_changes", "manual"
-};
+constexpr std::string_view kind_names[] = { "empty",
+    "catalog",
+    "project",
+    "files",
+    "assets",
+    "scene",
+    "hierarchy",
+    "inspector",
+    "game",
+    "code",
+    "controls",
+    "run_config",
+    "output",
+    "terminal",
+    "problems",
+    "search",
+    "toolchest",
+    "runtime_log",
+    "build_log",
+    "observe",
+    "findings",
+    "candidate",
+    "release_controls",
+    "build_result",
+    "checks",
+    "session",
+    "test_case",
+    "open_project",
+    "settings",
+    "help",
+    "review_changes",
+    "manual" };
 
 std::string_view kind_name(rv_editor_pane_kind k)
 {
@@ -189,8 +222,8 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
     std::string r = rv_editor_layout_header + std::string(layout_line_end) + pane_lines;
     for (const auto &n : layout.nodes) {
         if (n.kind == rv_editor_tile_kind::free) {
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
-                std::string(layout_node_type_free) + std::string(layout_line_end);
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_free) +
+                std::string(layout_line_end);
         } else if (n.kind == rv_editor_tile_kind::leaf) {
             std::string parent_str;
             if (n.parent == rv_editor_tile_none) {
@@ -198,8 +231,8 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
             } else {
                 parent_str = std::to_string(n.parent);
             }
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
-                std::string(layout_node_type_leaf) + std::string(layout_field_sep) + parent_str;
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_leaf) +
+                std::string(layout_field_sep) + parent_str;
             r += std::string(layout_field_sep) + std::to_string(n.leaf.active);
             for (auto x : n.leaf.tabs) {
                 r += std::string(layout_field_sep) + std::to_string(renumber[x]);
@@ -218,27 +251,25 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
             } else {
                 axis_str = std::string(layout_axis_y);
             }
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
-                std::string(layout_node_type_split) + std::string(layout_field_sep) + parent_str;
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_split) +
+                std::string(layout_field_sep) + parent_str;
             r += std::string(layout_field_sep) + axis_str;
             char buf[layout_ratio_format_buf_size];
             std::snprintf(buf, sizeof(buf), "%.4f", n.split.ratio);
-            r += std::string(layout_field_sep) + std::string(buf) +
-                std::string(layout_field_sep) + std::to_string(n.split.first) +
-                std::string(layout_field_sep) + std::to_string(n.split.second) +
+            r += std::string(layout_field_sep) + std::string(buf) + std::string(layout_field_sep) +
+                std::to_string(n.split.first) + std::string(layout_field_sep) + std::to_string(n.split.second) +
                 std::string(layout_line_end);
         }
     }
-    r += std::string(layout_keyword_root) + std::string(layout_field_sep) +
-        std::to_string(layout.root) + std::string(layout_line_end);
+    r += std::string(layout_keyword_root) + std::string(layout_field_sep) + std::to_string(layout.root) +
+        std::string(layout_line_end);
     std::string max_leaf_str;
     if (layout.maximized_leaf == rv_editor_tile_none) {
         max_leaf_str = layout_index_marker;
     } else {
         max_leaf_str = std::to_string(layout.maximized_leaf);
     }
-    r += std::string(layout_keyword_maximized) + std::string(layout_field_sep) + max_leaf_str +
-        std::string(layout_line_end);
+    r += std::string(layout_keyword_maximized) + std::string(layout_field_sep) + max_leaf_str + std::string(layout_line_end);
     return r;
 }
 
@@ -263,7 +294,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
         if (kind_from_name(p[1], k) != RV_OK) {
             return RV_ERR_INVAL;
         }
-        np.panes.push_back({k});
+        np.panes.push_back({ k });
         ++idx;
     }
     rv_editor_layout nl;
@@ -300,26 +331,26 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
                 }
                 n.leaf.tabs.push_back(tab_id);
             }
-        } else if (p[1] == layout_node_type_split) {
+        } else if (p[layout_split_field_type] == layout_node_type_split) {
             if (p.size() != layout_split_field_count) {
                 return RV_ERR_INVAL;
             }
             n.kind = rv_editor_tile_kind::split;
-            if (parse_index(p[2], n.parent) != RV_OK) {
+            if (parse_index(p[layout_split_field_parent], n.parent) != RV_OK) {
                 return RV_ERR_INVAL;
             }
             rv_editor_axis a;
-            if (axis_from_name(p[3], a) != RV_OK) {
+            if (axis_from_name(p[layout_split_field_axis], a) != RV_OK) {
                 return RV_ERR_INVAL;
             }
             n.split.axis = a;
-            if (parse_f32(p[4], n.split.ratio) != RV_OK) {
+            if (parse_f32(p[layout_split_field_ratio], n.split.ratio) != RV_OK) {
                 return RV_ERR_INVAL;
             }
-            if (parse_u32(p[5], n.split.first) != RV_OK) {
+            if (parse_u32(p[layout_split_field_first], n.split.first) != RV_OK) {
                 return RV_ERR_INVAL;
             }
-            if (parse_u32(p[6], n.split.second) != RV_OK) {
+            if (parse_u32(p[layout_split_field_second], n.split.second) != RV_OK) {
                 return RV_ERR_INVAL;
             }
         } else {
@@ -356,8 +387,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
     if (nl.nodes.empty() || nl.root >= nl.nodes.size()) {
         return RV_ERR_INVAL;
     }
-    if (nl.nodes[nl.root].kind == rv_editor_tile_kind::free ||
-        nl.nodes[nl.root].parent != rv_editor_tile_none) {
+    if (nl.nodes[nl.root].kind == rv_editor_tile_kind::free || nl.nodes[nl.root].parent != rv_editor_tile_none) {
         return RV_ERR_INVAL;
     }
     uint32_t pc = static_cast<uint32_t>(np.panes.size());
@@ -365,8 +395,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
     for (uint32_t i = 0; i < nl.nodes.size(); ++i) {
         const auto &n = nl.nodes[i];
         if (n.kind == rv_editor_tile_kind::leaf) {
-            if ((n.leaf.tabs.empty() && n.leaf.active != 0) ||
-                (!n.leaf.tabs.empty() && n.leaf.active >= n.leaf.tabs.size())) {
+            if ((n.leaf.tabs.empty() && n.leaf.active != 0) || (!n.leaf.tabs.empty() && n.leaf.active >= n.leaf.tabs.size())) {
                 return RV_ERR_INVAL;
             }
             for (auto x : n.leaf.tabs) {
@@ -377,21 +406,17 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
             }
         } else if (n.kind == rv_editor_tile_kind::split) {
             // The axis was read by name, so only the ratio can still be out of range.
-            if (!std::isfinite(n.split.ratio) || n.split.ratio < layout_ratio_min ||
-                n.split.ratio > layout_ratio_max) {
+            if (!std::isfinite(n.split.ratio) || n.split.ratio < layout_ratio_min || n.split.ratio > layout_ratio_max) {
                 return RV_ERR_INVAL;
             }
-            if (n.split.first == n.split.second ||
-                n.split.first >= nl.nodes.size() ||
-                n.split.second >= nl.nodes.size()) {
+            if (n.split.first == n.split.second || n.split.first >= nl.nodes.size() || n.split.second >= nl.nodes.size()) {
                 return RV_ERR_INVAL;
             }
             if (nl.nodes[n.split.first].kind == rv_editor_tile_kind::free ||
                 nl.nodes[n.split.second].kind == rv_editor_tile_kind::free) {
                 return RV_ERR_INVAL;
             }
-            if (nl.nodes[n.split.first].parent != i ||
-                nl.nodes[n.split.second].parent != i) {
+            if (nl.nodes[n.split.first].parent != i || nl.nodes[n.split.second].parent != i) {
                 return RV_ERR_INVAL;
             }
         }
@@ -405,8 +430,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
             return RV_ERR_INVAL;
         }
         const auto &pn = nl.nodes[n.parent];
-        if (pn.kind != rv_editor_tile_kind::split ||
-            (pn.split.first != i && pn.split.second != i)) {
+        if (pn.kind != rv_editor_tile_kind::split || (pn.split.first != i && pn.split.second != i)) {
             return RV_ERR_INVAL;
         }
     }
@@ -432,8 +456,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
         }
     }
     if (nl.maximized_leaf != rv_editor_tile_none) {
-        if (nl.maximized_leaf >= nl.nodes.size() ||
-            nl.nodes[nl.maximized_leaf].kind != rv_editor_tile_kind::leaf) {
+        if (nl.maximized_leaf >= nl.nodes.size() || nl.nodes[nl.maximized_leaf].kind != rv_editor_tile_kind::leaf) {
             return RV_ERR_INVAL;
         }
     }

@@ -37,8 +37,7 @@ constexpr std::string_view pcm_extension = ".pcm";
 constexpr std::string_view path_escape_indicator = "..";
 
 // The last failed play, kept until the front tab moves to a different file.
-struct rv_editor_scene_sound_error
-{
+struct rv_editor_scene_sound_error {
     std::filesystem::path path;
     std::string text;
 };
@@ -63,13 +62,12 @@ void rv_editor_scene_tab_picture(rv_editor_app &app, SDL_Renderer *renderer, con
     a.rel = rv_editor_scene_tab_rel(app, tab.path);
     const rv_editor_icon picture = rv_editor_asset_picture(renderer, a);
     if (picture.id == ImTextureID{}) {
-        const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load",
-            std::make_format_args(a.rel));
+        const std::string error_msg = rv_editor_text_format("pane_scene_tabs.error_picture_load", std::make_format_args(a.rel));
         ImGui::TextWrapped("%s", error_msg.c_str());
         return;
     }
-    const std::string picture_info = rv_editor_text_format("pane_scene_tabs.picture_info",
-        std::make_format_args(picture.w, picture.h, a.rel));
+    const std::string picture_info =
+        rv_editor_text_format("pane_scene_tabs.picture_info", std::make_format_args(picture.w, picture.h, a.rel));
     ImGui::Text("%s", picture_info.c_str());
     const ImVec2 room = ImGui::GetContentRegionAvail();
     ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y));

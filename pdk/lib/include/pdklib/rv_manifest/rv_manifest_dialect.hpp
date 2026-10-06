@@ -15,7 +15,6 @@ namespace rv_pdklib
 //
 // 0 with the tree, or 1 with every syntax error in `error`, each stamped with
 // `origin` the way rv_manifest_parse stamps them.
-int rv_manifest_read_tree(const std::string &text, const std::string &origin, rv_manifest_tree &tree,
-    std::string &error);
+int rv_manifest_read_tree(const std::string &text, const std::string &origin, rv_manifest_tree &tree, std::string &error);
 
 } // namespace rv_pdklib

@@ -172,8 +172,7 @@ rv_manifest_token rv_manifest_lexer::lex_string()
             break;
         default:
             return invalid(escape_line,
-                std::string("unknown escape '\\") + e +
-                    "' in string — only \\\" \\\\ \\n \\t \\r are recognised");
+                std::string("unknown escape '\\") + e + "' in string — only \\\" \\\\ \\n \\t \\r are recognised");
         }
     }
 }

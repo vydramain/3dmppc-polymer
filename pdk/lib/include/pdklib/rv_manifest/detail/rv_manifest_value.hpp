@@ -26,7 +26,7 @@ struct rv_manifest_mvalue {
     double real = 0.0;
     std::vector<std::string> arr;
     std::vector<double> nums; // an array of numbers; integers in it are exact up to 2^53
-    int line = 0; // where the value STARTED, which is where the author must look
+    int line = 0;             // where the value STARTED, which is where the author must look
 };
 
 inline std::string_view rv_manifest_kind_name(rv_manifest_value_kind k)

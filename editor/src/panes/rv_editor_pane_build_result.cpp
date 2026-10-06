@@ -30,12 +30,17 @@ constexpr const char *log_source_build = "build";
 rv_editor_status_kind rv_editor_build_lamp(rv_editor_build_state state)
 {
     switch (state) {
-        case rv_editor_build_state::succeeded: return rv_editor_status_kind::ok;
-        case rv_editor_build_state::failed: return rv_editor_status_kind::error;
-        case rv_editor_build_state::building:
-        case rv_editor_build_state::cancelling: return rv_editor_status_kind::busy;
-        case rv_editor_build_state::cancelled: return rv_editor_status_kind::warning;
-        default: return rv_editor_status_kind::idle;
+    case rv_editor_build_state::succeeded:
+        return rv_editor_status_kind::ok;
+    case rv_editor_build_state::failed:
+        return rv_editor_status_kind::error;
+    case rv_editor_build_state::building:
+    case rv_editor_build_state::cancelling:
+        return rv_editor_status_kind::busy;
+    case rv_editor_build_state::cancelled:
+        return rv_editor_status_kind::warning;
+    default:
+        return rv_editor_status_kind::idle;
     }
 }
 
@@ -96,12 +101,12 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         }
 
         const char *why_not = rv_editor_app_why_not_build(app);
-        if (rv_editor_button(rv_editor_text("pane_build_result.build_button"), theme,
-                { rv_editor_look::live, why_not })) {
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_button"), theme, { rv_editor_look::live, why_not })) {
             rv_editor_app_build(app);
         }
         ImGui::SameLine();
-        if (rv_editor_button(rv_editor_text("pane_build_result.build_candidate_button"), theme,
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_candidate_button"),
+                theme,
                 { rv_editor_look::live, why_not })) {
             rv_editor_app_build_candidate(app);
         }
@@ -133,8 +138,8 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
             return;
         }
         ImGui::SeparatorText(rv_editor_text("pane_build_result.diagnostics"));
-        const auto diag_text = rv_editor_text_format("pane_build_result.errors_warnings",
-            std::make_format_args(errors, warnings));
+        const auto diag_text =
+            rv_editor_text_format("pane_build_result.errors_warnings", std::make_format_args(errors, warnings));
         ImGui::Text("%s", diag_text.c_str());
         if (found.empty()) {
             const char *status = rv_editor_text(b.busy() ? "pane_build_result.none_so_far" : "pane_build_result.none_full_log");
@@ -143,9 +148,11 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         }
         rv_editor_log_begin("##diag", ImVec2(0, 0), theme);
         for (const rv_editor_log_line *l : found) {
-            rv_editor_log_row("", log_source_build,
+            rv_editor_log_row("",
+                log_source_build,
                 l->level == rv_editor_log_level::error ? rv_editor_severity::error : rv_editor_severity::warning,
-                l->text.c_str(), theme);
+                l->text.c_str(),
+                theme);
         }
         rv_editor_log_end(theme);
     };

@@ -19,8 +19,7 @@ namespace rv_pdklib
 /// @return true when the component contains `*` or `?`
 inline bool has_wildcard(std::string_view component)
 {
-    return component.find('*') != std::string_view::npos ||
-        component.find('?') != std::string_view::npos;
+    return component.find('*') != std::string_view::npos || component.find('?') != std::string_view::npos;
 }
 
 /// Match one path component against one wildcard pattern.
@@ -89,9 +88,10 @@ namespace detail
 // Walks pattern components against path components exactly as the burner's
 // glob_descend walks the filesystem, but over an already-known path instead of
 // a directory tree.
-inline bool manifest_pattern_matches_from(
-    const std::vector<std::string> &pattern_parts, std::size_t pi,
-    const std::vector<std::string> &path_parts, std::size_t ti)
+inline bool manifest_pattern_matches_from(const std::vector<std::string> &pattern_parts,
+    std::size_t pi,
+    const std::vector<std::string> &path_parts,
+    std::size_t ti)
 {
     if (pi == pattern_parts.size()) {
         return ti == path_parts.size();

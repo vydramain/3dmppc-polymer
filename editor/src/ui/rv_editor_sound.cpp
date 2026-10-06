@@ -22,8 +22,7 @@ constexpr std::string_view wav_file_extension = ".wav";
 constexpr std::string_view pcm_file_extension = ".pcm";
 
 // One sound at a time: the open audio subsystem, its stream, and the file it plays.
-struct rv_editor_sound_state
-{
+struct rv_editor_sound_state {
     bool audio_ready = false;
     SDL_AudioStream *stream = nullptr;
     std::filesystem::path path;
@@ -118,8 +117,7 @@ bool rv_editor_sound_playing()
     if (rv_editor_sound.stream == nullptr) {
         return false;
     }
-    if (SDL_GetAudioStreamAvailable(rv_editor_sound.stream) > 0 ||
-        SDL_GetAudioStreamQueued(rv_editor_sound.stream) > 0) {
+    if (SDL_GetAudioStreamAvailable(rv_editor_sound.stream) > 0 || SDL_GetAudioStreamQueued(rv_editor_sound.stream) > 0) {
         return true;
     }
     rv_editor_sound_stop();

@@ -39,8 +39,8 @@ std::vector<rv_editor_problem> rv_editor_gather_problems(const rv_editor_app &ap
             if (d.severity != diag_severity_error && d.severity != diag_severity_warn) {
                 continue;
             }
-            out.push_back({ std::filesystem::path(file), d.line, d.col, d.severity == diag_severity_error,
-                d.message, d.source });
+            out.push_back(
+                { std::filesystem::path(file), d.line, d.col, d.severity == diag_severity_error, d.message, d.source });
         }
     }
     return out;
@@ -77,8 +77,7 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     if (b.state() == rv_editor_build_state::idle) {
         // Idle with diagnostics: show only language server info without pretending it's a build result.
         const size_t lsp_warnings = lsp_total - lsp_errors;
-        what = rv_editor_text_format("pane_problems.idle_servers",
-            std::make_format_args(lsp_errors, lsp_warnings));
+        what = rv_editor_text_format("pane_problems.idle_servers", std::make_format_args(lsp_errors, lsp_warnings));
     } else {
         const char *build_word = b.busy() ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
         std::string build_ref;
@@ -94,24 +93,25 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             std::make_format_args(build_word, build_ref, build_errors, build_warnings));
         if (lsp_total != 0) {
             const size_t lsp_warnings = lsp_total - lsp_errors;
-            what += rv_editor_text_format("pane_problems.servers_suffix",
-                std::make_format_args(lsp_errors, lsp_warnings));
+            what += rv_editor_text_format("pane_problems.servers_suffix", std::make_format_args(lsp_errors, lsp_warnings));
         }
     }
     const size_t errors = build_errors + lsp_errors;
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
-        rv_editor_status(what.c_str(), errors != 0 ? rv_editor_status_kind::error
-                : problems.empty()               ? rv_editor_status_kind::ok
-                                                 : rv_editor_status_kind::warning,
+        rv_editor_status(what.c_str(),
+            errors != 0          ? rv_editor_status_kind::error :
+                problems.empty() ? rv_editor_status_kind::ok :
+                                   rv_editor_status_kind::warning,
             theme);
         if (problems.empty()) {
             const char *id = b.busy() ? "pane_problems.none_building" : "pane_problems.none_idle";
             ImGui::TextWrapped("%s", rv_editor_text(id));
             return;
         }
-        if (!ImGui::BeginTable("##problems", problems_table_column_count,
+        if (!ImGui::BeginTable("##problems",
+                problems_table_column_count,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             return;
         }
@@ -139,7 +139,8 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
             const bool there = std::filesystem::exists(p.file, ec);
             // The whole row answers a click; double click or Enter opens the place.
-            const bool pressed = ImGui::Selectable((ec || shown.empty() ? p.file : shown).c_str(), false,
+            const bool pressed = ImGui::Selectable((ec || shown.empty() ? p.file : shown).c_str(),
+                false,
                 ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick);
             if (ImGui::IsItemHovered()) {
                 ImGui::SetTooltip("%s", p.file.c_str());

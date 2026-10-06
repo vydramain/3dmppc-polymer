@@ -30,11 +30,17 @@ constexpr std::string_view float_anchor_se = "SE";
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
     return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask,
-        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask, rv_editor::alpha_opaque);
+        (rgb >> channel_shift_green) & rgb_channel_mask,
+        rgb & rgb_channel_mask,
+        rv_editor::alpha_opaque);
 }
 
-void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_editor_nvim_grid &grid, ImVec2 at,
-    ImVec2 cell, int32_t rows, bool cursor)
+void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen,
+    const rv_editor_nvim_grid &grid,
+    ImVec2 at,
+    ImVec2 cell,
+    int32_t rows,
+    bool cursor)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     std::string run;
@@ -56,8 +62,7 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_edit
             dl->AddRectFilled(p0, ImVec2(at.x + c * cell.x, p0.y + cell.y), rv_editor_rgb(bg));
             dl->AddText(p0, rv_editor_rgb(fg), run.c_str());
             if (screen.attr(hl).underline) {
-                dl->AddLine(ImVec2(p0.x, p0.y + cell.y - 1), ImVec2(at.x + c * cell.x, p0.y + cell.y - 1),
-                    rv_editor_rgb(fg));
+                dl->AddLine(ImVec2(p0.x, p0.y + cell.y - 1), ImVec2(at.x + c * cell.x, p0.y + cell.y - 1), rv_editor_rgb(fg));
             }
         }
     }
@@ -89,8 +94,13 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_edit
 }
 
 // Floating grids sorted by zindex, shifted and clipped to tile bounds.
-void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen, int32_t grid_id, ImVec2 tile_at, ImVec2 cell,
-    int32_t tile_cols, int32_t tile_rows, bool tile_focused)
+void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen,
+    int32_t grid_id,
+    ImVec2 tile_at,
+    ImVec2 cell,
+    int32_t tile_cols,
+    int32_t tile_rows,
+    bool tile_focused)
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const ImVec2 tile_bounds(tile_at.x + tile_cols * cell.x, tile_at.y + tile_rows * cell.y);

@@ -28,8 +28,7 @@ int rv_pdktools::check_asset_name(const std::string &name, std::string &error)
     }
 
     if (name[0] == '.') {
-        error = "asset name '" + name +
-            "' starts with a dot; dotfiles are editor and VCS bookkeeping, not disc content";
+        error = "asset name '" + name + "' starts with a dot; dotfiles are editor and VCS bookkeeping, not disc content";
         return RV_ERR_INVAL;
     }
 
@@ -48,16 +47,14 @@ int rv_pdktools::check_collisions(const std::vector<archive_item> &items, std::s
     // Sorted on a copy, so equal names land next to each other and one pass
     // finds them. The caller's order is the archive's order and is left alone.
     std::vector<archive_item> sorted = items;
-    std::sort(sorted.begin(), sorted.end(),
-        [](const archive_item &a, const archive_item &b) {
-            return a.name < b.name;
-        });
+    std::sort(sorted.begin(), sorted.end(), [](const archive_item &a, const archive_item &b) {
+        return a.name < b.name;
+    });
 
     for (std::size_t i = 1; i < sorted.size(); ++i) {
         if (sorted[i].name == sorted[i - 1].name) {
-            error = "two files collapse onto the archive name '" + sorted[i].name + "': '" +
-                sorted[i - 1].source + "' and '" + sorted[i].source +
-                "'. The disc namespace is flat — rename one of them.";
+            error = "two files collapse onto the archive name '" + sorted[i].name + "': '" + sorted[i - 1].source + "' and '" +
+                sorted[i].source + "'. The disc namespace is flat — rename one of them.";
             return RV_ERR_INVAL;
         }
     }

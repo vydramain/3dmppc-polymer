@@ -12,30 +12,29 @@
 
 namespace rv_pdklib
 {
-static void check_entry(const rv_manifest_section_spec &spec, const std::string &section,
-    const rv_manifest_tree_entry &entry, rv_manifest_symbols &symbols,
+static void check_entry(const rv_manifest_section_spec &spec,
+    const std::string &section,
+    const rv_manifest_tree_entry &entry,
+    rv_manifest_symbols &symbols,
     rv_manifest_failer &failer)
 {
     const rv_manifest_key_spec *key = symbols.lookup_key(spec, entry.key);
     if (key == nullptr) {
         failer.fail(entry.line,
-            "unknown key '" + entry.key + "' in [" + section + "]" +
-                suggest_key(entry.key, spec.keys, spec.key_count));
+            "unknown key '" + entry.key + "' in [" + section + "]" + suggest_key(entry.key, spec.keys, spec.key_count));
         return;
     }
 
     int first_line = 0;
     if (symbols.define_key(section, entry.key, entry.line, first_line) != RV_OK) {
         failer.fail(entry.line,
-            "key '" + entry.key + "' in [" + section + "] is set twice — first at line " +
-                std::to_string(first_line));
+            "key '" + entry.key + "' in [" + section + "] is set twice — first at line " + std::to_string(first_line));
         return;
     }
 
     if (entry.value.kind != key->kind) {
         failer.fail(entry.value.line,
-            "key '" + entry.key + "' in [" + section + "] takes " +
-                std::string(rv_manifest_kind_name(key->kind)) + ", not " +
+            "key '" + entry.key + "' in [" + section + "] takes " + std::string(rv_manifest_kind_name(key->kind)) + ", not " +
                 std::string(rv_manifest_kind_name(entry.value.kind)));
     }
 }
@@ -62,16 +61,14 @@ void rv_manifest_check(const rv_manifest_tree &tree, rv_manifest_failer &failer)
             // exist, and naming each of them says nothing new.
             failer.fail(section.line,
                 "unknown section '[" + section.name + "]'" +
-                    suggest_section(section.name, rv_manifest_sections,
-                        std::size(rv_manifest_sections)));
+                    suggest_section(section.name, rv_manifest_sections, std::size(rv_manifest_sections)));
             continue;
         }
 
         int first_line = 0;
         if (symbols.define_section(section.name, section.line, first_line) != RV_OK) {
             failer.fail(section.line,
-                "section '[" + section.name + "]' appears twice — first at line " +
-                    std::to_string(first_line));
+                "section '[" + section.name + "]' appears twice — first at line " + std::to_string(first_line));
             continue;
         }
 

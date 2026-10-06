@@ -25,8 +25,7 @@ constexpr int row_radio_on = 7;
 constexpr int radio_lua = 0;
 constexpr int radio_cpp = 1;
 
-struct rv_editor_column
-{
+struct rv_editor_column {
     const char *name;
     rv_editor_state state;
 };
@@ -43,8 +42,7 @@ constexpr rv_editor_column rv_editor_columns[] = {
 constexpr int rv_editor_column_count = static_cast<int>(sizeof(rv_editor_columns) / sizeof(rv_editor_columns[0]));
 
 // Values the live column edits; the frozen columns show fixed ones.
-struct rv_editor_live
-{
+struct rv_editor_live {
     bool toggle_off = false;
     bool toggle_on = true;
     bool check_off = false;
@@ -123,13 +121,18 @@ void rv_editor_catalog_buttons(const rv_editor_theme &theme)
     if (!ImGui::BeginTable("buttons", rv_editor_column_count + 1)) {
         return;
     }
-    const char *row_ids[] = { "catalog_buttons.row_button", "catalog_buttons.row_icon_button",
-        "catalog_buttons.row_toggle_off", "catalog_buttons.row_toggle_on",
-        "catalog_buttons.row_check_off", "catalog_buttons.row_check_on",
-        "catalog_buttons.row_radio_off", "catalog_buttons.row_radio_on" };
+    const char *row_ids[] = { "catalog_buttons.row_button",
+        "catalog_buttons.row_icon_button",
+        "catalog_buttons.row_toggle_off",
+        "catalog_buttons.row_toggle_on",
+        "catalog_buttons.row_check_off",
+        "catalog_buttons.row_check_on",
+        "catalog_buttons.row_radio_off",
+        "catalog_buttons.row_radio_on" };
     const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
     ImGui::TableSetupColumn(rv_editor_text("catalog_buttons.column_widget"),
-        ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(longest_label).x);
+        ImGuiTableColumnFlags_WidthFixed,
+        ImGui::CalcTextSize(longest_label).x);
     for (const rv_editor_column &c : rv_editor_columns) {
         ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
     }

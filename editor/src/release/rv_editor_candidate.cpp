@@ -50,8 +50,7 @@ std::vector<rv_editor_check> rv_editor_checks_make()
 {
     // Each claims only what its name says; together they are not a proof that
     // the whole game works.
-    constexpr struct
-    {
+    constexpr struct {
         const char *name_key;
         const char *passes_when_key;
         bool manual;
@@ -81,7 +80,10 @@ bool rv_editor_check_valid(const rv_editor_candidate &c, const rv_editor_check &
     return !c.bytes_changed && !c.sha256.empty() && check.hash == c.sha256;
 }
 
-void rv_editor_check_set(rv_editor_candidate &c, size_t id, rv_editor_check_state state, const std::string &note,
+void rv_editor_check_set(rv_editor_candidate &c,
+    size_t id,
+    rv_editor_check_state state,
+    const std::string &note,
     const std::string &env)
 {
     rv_editor_check &check = c.checks[id];
@@ -127,8 +129,7 @@ std::string rv_editor_checks_summary(const rv_editor_candidate &c)
     }
     const std::string passed_str = std::to_string(passed);
     const std::string total_str = std::to_string(c.checks.size());
-    return rv_editor_text_format("candidate.checks_summary_format",
-        std::make_format_args(passed_str, total_str));
+    return rv_editor_text_format("candidate.checks_summary_format", std::make_format_args(passed_str, total_str));
 }
 
 void rv_editor_candidate_hash(rv_editor_candidate &c)

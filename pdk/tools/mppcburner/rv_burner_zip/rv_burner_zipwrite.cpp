@@ -31,7 +31,6 @@ namespace rv_pdktools
 {
 // --- constants ----------------------------------------------------------------
 
-
 // 2.0 - the version that introduced the deflate method and the folder entry.
 // Nothing here needs more, and claiming more would refuse readers that could
 // have coped perfectly well.
@@ -59,7 +58,6 @@ constexpr uint16_t RV_BURNER_ZIP_VERSION_MADE_BY = (3 << 8) | RV_BURNER_ZIP_VERS
 // zero attributes would extract as a file with no permission bits at all, which
 // is the trap this constant exists to avoid.)
 constexpr uint32_t RV_BURNER_ZIP_EXTERNAL_ATTRS = 0100644u << 16;
-
 
 // Deterministic timestamp. The MS-DOS date/time in every header is a
 // fixed constant instead of the current clock, so burning the same directory
@@ -206,8 +204,7 @@ bool rv_zipwriter::ok() const
     return impl_->opened && !impl_->broken && !impl_->finished;
 }
 
-int rv_zipwriter::add(const std::string &name, const void *data, std::size_t size,
-    std::string &error)
+int rv_zipwriter::add(const std::string &name, const void *data, std::size_t size, std::string &error)
 {
     error.clear();
     if (!impl_->opened) {
@@ -267,8 +264,8 @@ int rv_zipwriter::add(const std::string &name, const void *data, std::size_t siz
     std::vector<uint8_t> header;
     header.reserve(rv_pdklib::rv_zip_local_header_size + name.size());
     put_le_u32(header, rv_pdklib::rv_zip_sig_local);
-    put_le_u16(header, RV_BURNER_ZIP_VERSION);     // version needed to extract
-    put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);    // general purpose flags
+    put_le_u16(header, RV_BURNER_ZIP_VERSION);          // version needed to extract
+    put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);        // general purpose flags
     put_le_u16(header, rv_pdklib::rv_zip_method_store); // compression method
     put_le_u16(header, RV_BURNER_ZIP_DOS_TIME);
     put_le_u16(header, RV_BURNER_ZIP_DOS_DATE);
@@ -295,8 +292,7 @@ int rv_zipwriter::add(const std::string &name, const void *data, std::size_t siz
     return RV_OK;
 }
 
-int rv_zipwriter::add_file(const std::string &name, const std::string &source_path,
-    std::string &error)
+int rv_zipwriter::add_file(const std::string &name, const std::string &source_path, std::string &error)
 {
     error.clear();
     std::ifstream in(source_path, std::ios::binary);
@@ -346,10 +342,10 @@ int rv_zipwriter::finish(std::string &error)
         put_le_u32(directory, e.size); // compressed size
         put_le_u32(directory, e.size); // uncompressed size
         put_le_u16(directory, static_cast<uint16_t>(e.name.size()));
-        put_le_u16(directory, 0);              // extra field length
-        put_le_u16(directory, 0);              // file comment length
-        put_le_u16(directory, 0);              // disk number start
-        put_le_u16(directory, 0);              // internal file attributes
+        put_le_u16(directory, 0);                            // extra field length
+        put_le_u16(directory, 0);                            // file comment length
+        put_le_u16(directory, 0);                            // disk number start
+        put_le_u16(directory, 0);                            // internal file attributes
         put_le_u32(directory, RV_BURNER_ZIP_EXTERNAL_ATTRS); // external file attributes
         put_le_u32(directory, e.local_offset);
         put_bytes(directory, e.name);

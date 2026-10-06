@@ -60,8 +60,7 @@ public:
 
     // Load `conf` into every voice named by `mask`. `data` / `frames` describe
     // the sound-RAM region conf.sample_address resolves to.
-    void setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-        int64_t addr);
+    void setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr);
 
     // Start / stop every voice in `mask`. Returns RV_OK on success or RV_ERR_INVAL
     // when some voice in the mask was never armed - in which case NOTHING is started

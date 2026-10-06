@@ -38,10 +38,8 @@ constexpr std::string_view entry_kind_sound = "sound";
 
 bool rv_editor_change_is_cpp(const std::filesystem::path &path)
 {
-    static const std::array exts = std::array{
-        std::string(ext_c), std::string(ext_cc), std::string(ext_cpp),
-        std::string(ext_h), std::string(ext_hpp)
-    };
+    static const std::array exts =
+        std::array{ std::string(ext_c), std::string(ext_cc), std::string(ext_cpp), std::string(ext_h), std::string(ext_hpp) };
     const std::string ext = path.extension().string();
     return std::find(exts.begin(), exts.end(), ext) != exts.end();
 }
@@ -52,12 +50,11 @@ bool rv_editor_change_is_scene(const std::filesystem::path &path)
     if (name.size() < scene_config_suffix.size()) {
         return false;
     }
-    return name.compare(name.size() - scene_config_suffix.size(), scene_config_suffix.size(),
-               scene_config_suffix) == 0;
+    return name.compare(name.size() - scene_config_suffix.size(), scene_config_suffix.size(), scene_config_suffix) == 0;
 }
 
-rv_editor_change_plan rv_editor_change_plan_of(rv_editor_change_action action, std::string name,
-    std::string parameter, std::string reason)
+rv_editor_change_plan
+rv_editor_change_plan_of(rv_editor_change_action action, std::string name, std::string parameter, std::string reason)
 {
     return { action, std::move(name), std::move(parameter), std::move(reason) };
 }
@@ -70,18 +67,21 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
     const std::filesystem::path &changed)
 {
     if (map.empty()) {
-        return rv_editor_change_plan_of(rv_editor_change_action::none, "", "",
-            rv_editor_text("change.nothing_running"));
+        return rv_editor_change_plan_of(rv_editor_change_action::none, "", "", rv_editor_text("change.nothing_running"));
     }
 
     const std::filesystem::path changed_norm = changed.lexically_normal();
 
     if (changed_norm == manifest.lexically_normal()) {
-        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
+            "",
+            "",
             rv_editor_text("change.save_and_rebuild"));
     }
     if (rv_editor_change_is_scene(changed_norm)) {
-        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
+            "",
+            "",
             rv_editor_text("change.scenes_reload_required"));
     }
 
@@ -90,15 +90,16 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
     const std::filesystem::path rel = changed_norm.lexically_relative(root.lexically_normal());
     const bool outside_root = rel.empty() || rel.begin()->string() == parent_dir_marker;
     if (outside_root) {
-        return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "",
-            rv_editor_text("change.not_in_project"));
+        return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "", rv_editor_text("change.not_in_project"));
     }
 
     const auto found = map.find(rel.generic_string());
     if (found != map.end()) {
         const rv_editor_map_entry &entry = found->second;
         if (entry.kind == entry_kind_code) {
-            return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+            return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
+                "",
+                "",
                 rv_editor_text("change.save_and_rebuild"));
         }
         if (entry.kind == entry_kind_entry) {
@@ -114,8 +115,7 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
         if (entry.kind == entry_kind_texture) {
             const auto args = std::make_format_args(entry.name);
             const auto reason = rv_editor_text_format("change.refresh_texture", args);
-            return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name,
-                entry.parameter, reason);
+            return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name, entry.parameter, reason);
         }
         if (entry.kind == entry_kind_sound) {
             const auto args = std::make_format_args(entry.name);
@@ -123,16 +123,19 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
             return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "", reason);
         }
         // kind == "file"
-        return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "",
+        return rv_editor_change_plan_of(rv_editor_change_action::restart_required,
+            entry.name,
+            "",
             rv_editor_text("change.file_reload_not_supported"));
     }
 
     if (rv_editor_change_is_cpp(changed_norm)) {
-        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
+            "",
+            "",
             rv_editor_text("change.save_and_rebuild"));
     }
-    return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "",
-        rv_editor_text("change.not_on_disc"));
+    return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "", rv_editor_text("change.not_on_disc"));
 }
 
 } // namespace rv_editor

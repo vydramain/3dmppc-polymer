@@ -53,21 +53,17 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     const char *const build_state = rv_editor_build_state_name(app.build.state());
     if (app.build.number() != 0) {
         const auto b = app.build.number();
-        result.build = rv_editor_text_format("shell_status.build_with_number",
-            std::make_format_args(build_state, b));
+        result.build = rv_editor_text_format("shell_status.build_with_number", std::make_format_args(build_state, b));
     } else {
-        result.build = rv_editor_text_format("shell_status.build_no_number",
-            std::make_format_args(build_state));
+        result.build = rv_editor_text_format("shell_status.build_no_number", std::make_format_args(build_state));
     }
 
     const char *const runtime_state = rv_editor_run_state_name(app.session.state());
     if (app.session.number() != 0) {
         const auto s = app.session.number();
-        result.runtime = rv_editor_text_format("shell_status.runtime_with_number",
-            std::make_format_args(runtime_state, s));
+        result.runtime = rv_editor_text_format("shell_status.runtime_with_number", std::make_format_args(runtime_state, s));
     } else {
-        result.runtime = rv_editor_text_format("shell_status.runtime_no_number",
-            std::make_format_args(runtime_state));
+        result.runtime = rv_editor_text_format("shell_status.runtime_no_number", std::make_format_args(runtime_state));
     }
 
     // No project: no build or session to speak of, only the way in and the tools.
@@ -78,8 +74,7 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
 void rv_editor_shell_status(const rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     const rv_editor_status_text text = rv_editor_status_text_make(shell.app);
-    const char *const fields[] = { text.where.c_str(), text.tools.c_str(), text.build.c_str(),
-        text.runtime.c_str() };
+    const char *const fields[] = { text.where.c_str(), text.tools.c_str(), text.build.c_str(), text.runtime.c_str() };
     rv_editor_status_bar(fields, text.shown, theme);
 }
 

@@ -54,9 +54,16 @@ rv_pccard_version_case rv_pccard_classify_version(uint32_t file_version, uint32_
     return rv_pccard_version_case::incompatible;
 }
 
-std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer, int64_t file_slots,
-    int64_t file_slot_size, int64_t old_payload_offset, int64_t slot_count, int64_t slot_size,
-    int64_t payload_offset, uint32_t console_version, std::string &error, std::vector<std::string> &warnings)
+std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer,
+    int64_t file_slots,
+    int64_t file_slot_size,
+    int64_t old_payload_offset,
+    int64_t slot_count,
+    int64_t slot_size,
+    int64_t payload_offset,
+    uint32_t console_version,
+    std::string &error,
+    std::vector<std::string> &warnings)
 {
     error.clear();
     for (int64_t i = 0; i < file_slots; ++i) {
@@ -94,9 +101,8 @@ std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer, i
         put_i64(image.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY, length);
     }
     if (file_slots > slot_count) {
-        warnings.push_back("held " + std::to_string(file_slots) + " slot(s), this console has " +
-            std::to_string(slot_count) + " - " + std::to_string(file_slots - slot_count) +
-            " slot(s) beyond that dropped");
+        warnings.push_back("held " + std::to_string(file_slots) + " slot(s), this console has " + std::to_string(slot_count) +
+            " - " + std::to_string(file_slots - slot_count) + " slot(s) beyond that dropped");
     }
 
     return image;

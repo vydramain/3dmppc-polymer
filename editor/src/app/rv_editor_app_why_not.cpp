@@ -129,8 +129,7 @@ const char *rv_editor_app_why_not_reload(const rv_editor_app &app)
     std::string baking;
     if (rv_editor_app_texture_bake_busy(app, &baking)) {
         static std::string reason;
-        reason = rv_editor_text_format("app_why_not.baking_texture",
-            std::make_format_args(baking));
+        reason = rv_editor_text_format("app_why_not.baking_texture", std::make_format_args(baking));
         return reason.c_str();
     }
     if (app.session.reloading()) {

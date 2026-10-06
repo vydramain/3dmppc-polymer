@@ -71,11 +71,9 @@ static void print_usage(std::FILE *stream)
         "                           being compiled/copied, so the console sees a live\n"
         "                           edit without a rebuild. Exclusive with -o.\n"
         "  -p, --pdk PATH           PDK include directory the disc compiles\n"
-        "                           against. Default: " RV_BURNER_DEFAULT_PDK
-        "\n"
+        "                           against. Default: " RV_BURNER_DEFAULT_PDK "\n"
         "  -l, --pdklib PATH        Disc-side SDK include directory.\n"
-        "                           Default: " RV_BURNER_DEFAULT_PDKLIB
-        "\n"
+        "                           Default: " RV_BURNER_DEFAULT_PDKLIB "\n"
         "  -b, --baker PATH         mppcbaker used to bake textures. Default: the\n"
         "                           copy next to mppcburner, then $PATH.\n"
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
@@ -103,26 +101,19 @@ constexpr uint32_t RV_BURNER_MASK_BAKE = 1u << 2;
 // Every option the tool has, declared once. Letters are unique tool-wide, which
 // is what lets a single switch store the options of every subcommand.
 constexpr rv_burner_option_spec OPTIONS[] = {
-    { 'h', "help", no_argument, "print this text",
-        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE },
-    { 'o', "output", required_argument, "image to write (required unless --unpacked)",
+    { 'h', "help", no_argument, "print this text", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE },
+    { 'o',
+        "output",
+        required_argument,
+        "image to write (required unless --unpacked)",
         RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
-    { 'u', "unpacked", required_argument, "write an unpacked disc directory instead",
-        RV_BURNER_MASK_BUILD },
-    { 'p', "pdk", required_argument,
-        "PDK include directory the disc compiles against",
-        RV_BURNER_MASK_BUILD },
-    { 'l', "pdklib", required_argument, "disc-side SDK include directory",
-        RV_BURNER_MASK_BUILD },
-    { 'b', "baker", required_argument, "mppcbaker used to bake textures",
-        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
-    { 'j', "jobs", required_argument, "parallel compile jobs",
-        RV_BURNER_MASK_BUILD },
-    { 'k', "keep-build", optional_argument,
-        "keep the generated CMake project, optionally at PATH",
-        RV_BURNER_MASK_BUILD },
-    { 'm', "map", required_argument, "write the source-to-entry map to PATH",
-        RV_BURNER_MASK_BUILD },
+    { 'u', "unpacked", required_argument, "write an unpacked disc directory instead", RV_BURNER_MASK_BUILD },
+    { 'p', "pdk", required_argument, "PDK include directory the disc compiles against", RV_BURNER_MASK_BUILD },
+    { 'l', "pdklib", required_argument, "disc-side SDK include directory", RV_BURNER_MASK_BUILD },
+    { 'b', "baker", required_argument, "mppcbaker used to bake textures", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
+    { 'j', "jobs", required_argument, "parallel compile jobs", RV_BURNER_MASK_BUILD },
+    { 'k', "keep-build", optional_argument, "keep the generated CMake project, optionally at PATH", RV_BURNER_MASK_BUILD },
+    { 'm', "map", required_argument, "write the source-to-entry map to PATH", RV_BURNER_MASK_BUILD },
 };
 
 static int nullable_handler(const rv_burner_options &)
@@ -267,7 +258,8 @@ int main(int argc, char **argv)
 
     // Exactly the declared number of operands: getopt left them from optind on.
     if (cmd->operands != local_argc - optind) {
-        rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) + " operand(s), got " + std::to_string(local_argc - optind));
+        rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) +
+            " operand(s), got " + std::to_string(local_argc - optind));
         rv_pdktools::print_usage(stderr);
         return 1;
     }

@@ -56,11 +56,12 @@ std::string rv_editor_app_timestamp(std::chrono::system_clock::time_point t)
 bool rv_editor_app_is_session_log(const std::string &name)
 {
     const auto digits = [](std::string_view s) {
-        return !s.empty() && std::all_of(s.begin(), s.end(), [](char c) { return c >= '0' && c <= '9'; });
+        return !s.empty() && std::all_of(s.begin(), s.end(), [](char c) {
+            return c >= '0' && c <= '9';
+        });
     };
     if (name.size() < session_log_name_min_length ||
-        name.compare(name.size() - log_file_extension.size(), log_file_extension.size(),
-            log_file_extension) != 0) {
+        name.compare(name.size() - log_file_extension.size(), log_file_extension.size(), log_file_extension) != 0) {
         return false;
     }
     const std::string stem = name.substr(0, name.size() - log_file_extension.size());
@@ -75,10 +76,9 @@ bool rv_editor_app_is_session_log(const std::string &name)
     }
     return parts.size() == session_log_name_parts &&
         parts[session_log_part_date_index].size() == session_log_timestamp_digits &&
-        digits(parts[session_log_part_date_index]) &&
-        parts[session_log_part_time_index].size() == session_log_time_digits &&
-        digits(parts[session_log_part_time_index]) &&
-        digits(parts[session_log_part_number_index]) && digits(parts[session_log_part_pid_index]);
+        digits(parts[session_log_part_date_index]) && parts[session_log_part_time_index].size() == session_log_time_digits &&
+        digits(parts[session_log_part_time_index]) && digits(parts[session_log_part_number_index]) &&
+        digits(parts[session_log_part_pid_index]);
 }
 
 // Keeps only the session_logs_kept newest session logs in `dir`; only files matching the
@@ -93,7 +93,9 @@ void rv_editor_app_prune_session_logs(const std::filesystem::path &dir)
         }
         logs.emplace_back(std::filesystem::last_write_time(it->path(), ec), it->path());
     }
-    std::sort(logs.begin(), logs.end(), [](const auto &a, const auto &b) { return a.first > b.first; });
+    std::sort(logs.begin(), logs.end(), [](const auto &a, const auto &b) {
+        return a.first > b.first;
+    });
     for (size_t i = session_logs_kept; i < logs.size(); ++i) {
         std::filesystem::remove(logs[i].second, ec);
     }
@@ -107,9 +109,8 @@ void rv_editor_app_attach_session_log(rv_editor_app &app)
         return;
     }
     const std::filesystem::path sessions = app.project.state_dir / sessions_dir_name;
-    const std::string name = rv_editor_app_timestamp(app.session.started_at()) +
-        std::string(session_log_part_separator) + std::to_string(app.session.number()) +
-        std::string(session_log_part_separator) + std::to_string(app.session.pid()) +
+    const std::string name = rv_editor_app_timestamp(app.session.started_at()) + std::string(session_log_part_separator) +
+        std::to_string(app.session.number()) + std::string(session_log_part_separator) + std::to_string(app.session.pid()) +
         std::string(log_file_extension);
     app.log.attach_file(app.session.pid(), (sessions / name).string());
     rv_editor_app_prune_session_logs(sessions);

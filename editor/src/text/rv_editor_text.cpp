@@ -27,8 +27,7 @@ std::unordered_map<std::string, std::string> g_texts;
 // Parse TOML content and add entries to g_texts. Returns RV_OK, or RV_ERR_INVAL with
 // the reason in `error`. Strings only, other kinds ignored; any string key becomes an
 // entry ID as "section.key".
-int rv_editor_text_parse(const std::string &content, const std::string &origin,
-    std::string &error)
+int rv_editor_text_parse(const std::string &content, const std::string &origin, std::string &error)
 {
     rv_pdklib::rv_manifest_tree tree;
     if (rv_pdklib::rv_manifest_read_tree(content, origin, tree, error) != 0) {
@@ -55,8 +54,7 @@ int rv_editor_text_load(const std::filesystem::path &user_file, std::string &err
 
     // Load embedded default.
     std::string default_content(rv_editor_texts_default);
-    int result = rv_editor_text_parse(default_content, "rv_editor_texts.toml (built in)",
-        error);
+    int result = rv_editor_text_parse(default_content, "rv_editor_texts.toml (built in)", error);
     if (result != RV_OK) {
         return result;
     }

@@ -25,7 +25,10 @@ public:
     // RV_OK on success, RV_ERR_IO if memfd_create or fcntl failed.
     int create(std::string &error);
     void close();
-    int fd() const { return fd_; }
+    int fd() const
+    {
+        return fd_;
+    }
 
     // Copies the newest finished frame when its count is above `frame`: true then,
     // with `frame`, `width`, `height` and `pixels` (0xAARRGGBB, width * height)

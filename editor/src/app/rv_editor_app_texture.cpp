@@ -73,8 +73,7 @@ void rv_editor_texture_bake_finish(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, bake.message);
     } else {
         const std::string last = rv_editor_texture_last_line(bake.err_all);
-        const std::string why =
-            exit.code == 0 && exit.signal == 0 ? "the output was not written" : rv_editor_exit_text(exit);
+        const std::string why = exit.code == 0 && exit.signal == 0 ? "the output was not written" : rv_editor_exit_text(exit);
         bake.message = "texture " + bake.name + " not baked from " + bake.png.string() + ": " + why +
             (last.empty() ? "" : " (" + last + ")");
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
@@ -86,14 +85,16 @@ void rv_editor_texture_bake_finish(rv_editor_app &app)
         return;
     }
     if (!app.session.live() || app.session.reloading()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-            "texture " + name + " baked but not sent: " +
-                (app.session.live() ? "a reload is already in flight" : "the session has ended"));
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "texture " + name +
+                " baked but not sent: " + (app.session.live() ? "a reload is already in flight" : "the session has ended"));
         return;
     }
     std::vector<unsigned char> bytes;
     if (rv_editor_texture_read(out, bytes) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "texture " + name + " baked but not sent: " + out.string() + " could not be read");
         return;
     }
@@ -117,7 +118,8 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
 {
     rv_editor_texture_bake &bake = app.texture_bake;
     if (bake.proc != nullptr) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "texture " + name + " not baked: another bake is already running");
         return;
     }
@@ -134,9 +136,14 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
         return;
     }
-    const std::vector<std::string> argv = { app.tools.burner.path.string(), std::string(burner_cmd_bake),
-        app.project.root.string(), png.string(), std::string(burner_arg_output), bake.out.string(),
-        std::string(burner_arg_baker), app.tools.baker.path.string() };
+    const std::vector<std::string> argv = { app.tools.burner.path.string(),
+        std::string(burner_cmd_bake),
+        app.project.root.string(),
+        png.string(),
+        std::string(burner_arg_output),
+        bake.out.string(),
+        std::string(burner_arg_baker),
+        app.tools.baker.path.string() };
     bake.proc = std::make_unique<rv_editor_process>();
     bake.out_partial.clear();
     bake.err_partial.clear();
@@ -149,8 +156,11 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
         return;
     }
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-        "baking texture " + name + " from " + png.string(), rv_editor_log_channel::none, bake.proc->pid(),
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        "baking texture " + name + " from " + png.string(),
+        rv_editor_log_channel::none,
+        bake.proc->pid(),
         bake.build_number);
 }
 
@@ -163,10 +173,18 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     std::string out;
     std::string err;
     bake.proc->read(out, err, read_chunk_bytes);
-    app.log.add_stream(rv_editor_log_source::build, bake.out_partial, out, rv_editor_log_channel::out,
-        bake.proc->pid(), bake.build_number);
-    app.log.add_stream(rv_editor_log_source::build, bake.err_partial, err, rv_editor_log_channel::err,
-        bake.proc->pid(), bake.build_number);
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.out_partial,
+        out,
+        rv_editor_log_channel::out,
+        bake.proc->pid(),
+        bake.build_number);
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.err_partial,
+        err,
+        rv_editor_log_channel::err,
+        bake.proc->pid(),
+        bake.build_number);
     bake.err_all += err;
     if (!bake.proc->poll() || !bake.proc->output_done()) {
         return;
@@ -174,14 +192,28 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     out.clear();
     err.clear();
     bake.proc->read(out, err, read_chunk_bytes);
-    app.log.add_stream(rv_editor_log_source::build, bake.out_partial, out, rv_editor_log_channel::out,
-        bake.proc->pid(), bake.build_number);
-    app.log.add_stream(rv_editor_log_source::build, bake.err_partial, err, rv_editor_log_channel::err,
-        bake.proc->pid(), bake.build_number);
-    bake.err_all += err;
-    app.log.flush_stream(rv_editor_log_source::build, bake.out_partial, rv_editor_log_channel::out, bake.proc->pid(),
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.out_partial,
+        out,
+        rv_editor_log_channel::out,
+        bake.proc->pid(),
         bake.build_number);
-    app.log.flush_stream(rv_editor_log_source::build, bake.err_partial, rv_editor_log_channel::err, bake.proc->pid(),
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.err_partial,
+        err,
+        rv_editor_log_channel::err,
+        bake.proc->pid(),
+        bake.build_number);
+    bake.err_all += err;
+    app.log.flush_stream(rv_editor_log_source::build,
+        bake.out_partial,
+        rv_editor_log_channel::out,
+        bake.proc->pid(),
+        bake.build_number);
+    app.log.flush_stream(rv_editor_log_source::build,
+        bake.err_partial,
+        rv_editor_log_channel::err,
+        bake.proc->pid(),
         bake.build_number);
     rv_editor_texture_bake_finish(app);
 }

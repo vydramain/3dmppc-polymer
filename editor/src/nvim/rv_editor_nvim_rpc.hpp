@@ -35,7 +35,10 @@ public:
     int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error);
     // Ends nvim: closes its input, waits a moment, then kills it.
     void stop();
-    bool running() const { return proc_.running(); }
+    bool running() const
+    {
+        return proc_.running();
+    }
 
     // Sends `method(args...)`; `args` must be one encoded msgpack array.
     // `reply` runs on the UI thread in poll(); it may be empty.

@@ -38,7 +38,9 @@ inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
 // came from a directory - false, always, when there is no disc path. Returns
 // RV_OK with `out` (and `medium_live`) set, or a negative rv_err after
 // logging the refusal.
-int64_t rv_pboot_budget_select(const rv_pboot_args &args, rv_pcloader &loader,
-    const rv_pdklib::rv_manifest_budget *&out, bool &medium_live);
+int64_t rv_pboot_budget_select(const rv_pboot_args &args,
+    rv_pcloader &loader,
+    const rv_pdklib::rv_manifest_budget *&out,
+    bool &medium_live);
 
 } // namespace rv_3dmppc

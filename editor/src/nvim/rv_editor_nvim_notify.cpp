@@ -65,7 +65,8 @@ void rv_editor_nvim::notified(const std::string &method, const rv_editor_mpack &
         }
         entry.state = state->s;
         entry.reason = new_reason;
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::info,
             server->s + ": " + entry.state + (entry.reason.empty() ? "" : (": " + entry.reason)));
         return;
     }

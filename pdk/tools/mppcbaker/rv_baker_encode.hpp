@@ -44,5 +44,4 @@ struct source_image {
     size_t transparent_count = 0;
 };
 
-rv_err encode_texture(const options &opt, const source_image &src, std::vector<uint8_t> *out,
-    baker_error *error);
+rv_err encode_texture(const options &opt, const source_image &src, std::vector<uint8_t> *out, baker_error *error);

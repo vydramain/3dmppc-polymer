@@ -36,9 +36,8 @@ constexpr std::string_view recent_file_name = "recent";
 constexpr std::string_view temp_file_suffix = ".tmp";
 
 // Files a new project's template text is rewritten in.
-constexpr std::array<std::string_view, 8> template_text_extensions = {
-    ".toml", ".md", ".lua", ".cpp", ".hpp", ".h", ".c", ".txt"
-};
+constexpr std::array<std::string_view, 8>
+    template_text_extensions = { ".toml", ".md", ".lua", ".cpp", ".hpp", ".h", ".c", ".txt" };
 
 std::filesystem::path rv_editor_recent_path()
 {
@@ -83,8 +82,7 @@ std::string rv_editor_template_rename(std::string s, const std::string &from, co
 bool rv_editor_is_text(const std::filesystem::path &p)
 {
     const std::string ext = p.extension().string();
-    return std::find(template_text_extensions.begin(), template_text_extensions.end(), ext) !=
-        template_text_extensions.end();
+    return std::find(template_text_extensions.begin(), template_text_extensions.end(), ext) != template_text_extensions.end();
 }
 
 } // namespace
@@ -93,10 +91,14 @@ std::vector<rv_editor_template> rv_editor_templates()
 {
     const std::filesystem::path root = RV_EDITOR_TEMPLATE_DIR;
     return {
-        { "example-cpp", rv_editor_text("templates.minimal_cpp_name"),
-            rv_editor_text("templates.minimal_cpp_desc"), root / "example-cpp" },
-        { "example-lua", rv_editor_text("templates.minimal_lua_name"),
-            rv_editor_text("templates.minimal_lua_desc"), root / "example-lua" },
+        { "example-cpp",
+            rv_editor_text("templates.minimal_cpp_name"),
+            rv_editor_text("templates.minimal_cpp_desc"),
+            root / "example-cpp" },
+        { "example-lua",
+            rv_editor_text("templates.minimal_lua_name"),
+            rv_editor_text("templates.minimal_lua_desc"),
+            root / "example-lua" },
     };
 }
 
@@ -117,7 +119,8 @@ std::string rv_editor_disc_id_from(const std::string &name)
     return id;
 }
 
-std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+std::string rv_editor_new_project_problem(const rv_editor_new_project &p,
+    const std::vector<rv_editor_template> &templates,
     rv_editor_new_project_field *field)
 {
     rv_editor_new_project_field unused = rv_editor_new_project_field::none;
@@ -148,8 +151,7 @@ std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const 
     }
     if (!std::filesystem::is_directory(templates[p.template_index].dir, ec)) {
         const std::string dir = templates[p.template_index].dir.string();
-        return rv_editor_text_format("templates.problem_template_missing",
-            std::make_format_args(dir));
+        return rv_editor_text_format("templates.problem_template_missing", std::make_format_args(dir));
     }
     at = rv_editor_new_project_field::root;
     if (std::filesystem::exists(p.parent / p.disc_id, ec)) {

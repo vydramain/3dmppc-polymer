@@ -38,8 +38,11 @@ int bad_field(const char *field, int64_t value, bool active)
 // report a refusal with the slot and implementation, and fold the cost into
 // `total`. Returns RV_OK or RV_ERR_INVAL.
 template <typename Table, typename Impl>
-int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
-    const rv_pdklib::rv_manifest_budget &budget, rv_pcbudget_cost &total)
+int64_t evaluate_slot(const Table &table,
+    Impl impl,
+    const char *slot,
+    const rv_pdklib::rv_manifest_budget &budget,
+    rv_pcbudget_cost &total)
 {
     for (const auto &row : table) {
         if (row.impl != impl) {
@@ -71,10 +74,8 @@ int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
 // backend); what those units cost in host bytes is entirely up to the
 // concrete slot classes `slots` names, evaluated below before any of them
 // exists.
-int64_t rv_pboot_check_budget(
-    const rv_pdklib::rv_manifest_budget &budget,
-    const rv_pcslots &slots,
-    const rv_pboot_mode_info &machine)
+int64_t
+rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
 {
     // Sanity of the declared numbers, identical for every mode and backend:
     // the rasterizer's own memory (cv.*) is required whether cv=null or not
@@ -104,7 +105,8 @@ int64_t rv_pboot_check_budget(
         RV_LOG_ERR("pccheck",
             "'budget.pcca.voice_count' asks for {}, over the {} this console can name "
             "(a voice mask carries bits 0..62)",
-            budget.pcca.voice_count, RV_PCCA_MAX_VOICES);
+            budget.pcca.voice_count,
+            RV_PCCA_MAX_VOICES);
         return RV_ERR_INVAL;
     }
 
@@ -123,14 +125,12 @@ int64_t rv_pboot_check_budget(
 
     // Compare against what the machine actually has.
     if (machine.ram_available < 0) {
-        RV_LOG_ERR("pccheck",
-            "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
+        RV_LOG_ERR("pccheck", "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
         return RV_ERR_INVAL;
     }
 
     if (total.bytes > machine.ram_available) {
-        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes,
-            machine.ram_available);
+        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes, machine.ram_available);
         return RV_ERR_INVAL;
     }
 

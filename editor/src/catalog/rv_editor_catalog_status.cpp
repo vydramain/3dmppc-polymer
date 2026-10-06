@@ -17,8 +17,7 @@ constexpr float log_display_rows = 4.0f;
 // Multiplier for vertical padding in log display (applied to WindowPadding.y)
 constexpr float log_padding_y_multiplier = 2.0f;
 
-struct rv_editor_status_values
-{
+struct rv_editor_status_values {
     bool snap = true;
 };
 
@@ -27,7 +26,9 @@ rv_editor_status_values rv_editor_status_data;
 void rv_editor_catalog_menus()
 {
     rv_editor_menu_style_push();
-    ImGui::BeginChild("##menus", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
+    ImGui::BeginChild("##menus",
+        ImVec2(0.0f, 0.0f),
+        ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
         ImGuiWindowFlags_MenuBar);
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu(rv_editor_text("catalog_status.menu_file"))) {
@@ -37,7 +38,9 @@ void rv_editor_catalog_menus()
                 rv_editor_text("catalog_status.shortcut_open_project"));
             ImGui::Separator();
             ImGui::MenuItem(rv_editor_text("catalog_status.menu_save_all"),
-                rv_editor_text("catalog_status.shortcut_save_all"), false, false);
+                rv_editor_text("catalog_status.shortcut_save_all"),
+                false,
+                false);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu(rv_editor_text("catalog_status.menu_scene"))) {
@@ -90,17 +93,29 @@ void rv_editor_catalog_indicators(const rv_editor_theme &t)
 
 void rv_editor_catalog_log(const rv_editor_theme &t)
 {
-    const float rows = log_display_rows * ImGui::GetTextLineHeightWithSpacing() +
-        log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
+    const float rows =
+        log_display_rows * ImGui::GetTextLineHeightWithSpacing() + log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
     rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_1"), rv_editor_text("catalog_status.log_source_burn"),
-        rv_editor_severity::info, rv_editor_text("catalog_status.log_msg_build"), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_2"), rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::info, rv_editor_text("catalog_status.log_msg_runtime"), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_3"), rv_editor_text("catalog_status.log_source_disc"),
-        rv_editor_severity::warning, rv_editor_text("catalog_status.log_msg_missing_texture"), t);
-    rv_editor_log_row(rv_editor_text("catalog_status.log_time_4"), rv_editor_text("catalog_status.log_source_mppc"),
-        rv_editor_severity::error, rv_editor_text("catalog_status.log_msg_error"), t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_1"),
+        rv_editor_text("catalog_status.log_source_burn"),
+        rv_editor_severity::info,
+        rv_editor_text("catalog_status.log_msg_build"),
+        t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_2"),
+        rv_editor_text("catalog_status.log_source_mppc"),
+        rv_editor_severity::info,
+        rv_editor_text("catalog_status.log_msg_runtime"),
+        t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_3"),
+        rv_editor_text("catalog_status.log_source_disc"),
+        rv_editor_severity::warning,
+        rv_editor_text("catalog_status.log_msg_missing_texture"),
+        t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_4"),
+        rv_editor_text("catalog_status.log_source_mppc"),
+        rv_editor_severity::error,
+        rv_editor_text("catalog_status.log_msg_error"),
+        t);
     rv_editor_log_end(t);
 }
 
@@ -110,15 +125,14 @@ void rv_editor_catalog_transport(const rv_editor_theme &t)
     ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_stopped"));
     ImGui::SameLine();
     const char *transport_nothing = rv_editor_text("catalog_status.transport_nothing_running");
-    rv_editor_transport_bar({ nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing,
-                                transport_nothing },
+    rv_editor_transport_bar({ nullptr, nullptr, transport_nothing, transport_nothing, transport_nothing, transport_nothing },
         t);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(rv_editor_text("catalog_status.transport_paused"));
     ImGui::SameLine();
     // Run is also Resume, so a paused session can run again.
-    rv_editor_transport_bar({ nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"),
-                                nullptr, nullptr, nullptr },
+    rv_editor_transport_bar(
+        { nullptr, nullptr, rv_editor_text("catalog_status.transport_already_paused"), nullptr, nullptr, nullptr },
         t);
     const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
         rv_editor_text("catalog_status.status_bar_runtime"),

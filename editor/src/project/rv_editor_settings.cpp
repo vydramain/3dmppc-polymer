@@ -6,7 +6,6 @@
 #include "pdk/rv_err.h"
 #include "project/rv_editor_toml.hpp"
 
-
 namespace rv_editor
 {
 
@@ -79,11 +78,11 @@ std::string rv_editor_settings_with_tools(std::string_view text, const std::vect
     return out;
 }
 
-int rv_editor_settings_save_tools(const std::filesystem::path &path, const std::vector<rv_editor_settings_tool> &tools,
+int rv_editor_settings_save_tools(const std::filesystem::path &path,
+    const std::vector<rv_editor_settings_tool> &tools,
     std::string &error)
 {
-    const int code = rv_editor_file_replace(
-        path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
+    const int code = rv_editor_file_replace(path, rv_editor_settings_with_tools(rv_editor_file_text(path), tools), error);
     if (code != RV_OK) {
         return code;
     }

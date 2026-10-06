@@ -29,11 +29,16 @@ public:
     // argv[0] is run as is (no PATH search) in `cwd`, on a terminal of cols x rows,
     // with TERM naming the emulator. RV_OK on success; RV_ERR_INVAL for invalid call,
     // RV_ERR_NOENT if program not found, RV_ERR_IO for OS failures. Reason in `error`.
-    int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols, int rows,
-        std::string &error);
+    int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, int cols, int rows, std::string &error);
 
-    bool running() const { return pid_ > 0 && !exit_.exited; }
-    const rv_editor_process::rv_editor_exit &exit_status() const { return exit_; }
+    bool running() const
+    {
+        return pid_ > 0 && !exit_.exited;
+    }
+    const rv_editor_process::rv_editor_exit &exit_status() const
+    {
+        return exit_;
+    }
 
     // Appends what the child wrote, at most `limit` bytes. False once the terminal
     // is closed: nothing in the session holds it any more.

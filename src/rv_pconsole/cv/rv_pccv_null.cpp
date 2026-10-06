@@ -14,8 +14,7 @@ rv_pcbudget_cost rv_pccv_null::evaluate(const rv_pdklib::rv_manifest_budget & /*
 rv_pccv_null::rv_pccv_null(const rv_pccv_conf &conf)
     : conf_(conf)
 {
-    RV_LOG_INFO("pccv", "video off ({}x{} declared, no rasterizer, no-op)", conf_.screen_width,
-        conf_.screen_height);
+    RV_LOG_INFO("pccv", "video off ({}x{} declared, no rasterizer, no-op)", conf_.screen_width, conf_.screen_height);
 }
 
 // --- hardware geometry -------------------------------------------------------

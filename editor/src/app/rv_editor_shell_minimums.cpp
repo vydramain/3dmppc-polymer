@@ -28,17 +28,20 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     const float fs = ImGui::GetFontSize();
     const float fh = ImGui::GetFrameHeight();
     switch (kind) {
-        case rv_editor_pane_kind::output:
-        case rv_editor_pane_kind::runtime_log:
-        case rv_editor_pane_kind::build_log:
-            return { static_cast<int32_t>(fs * log_pane_min_width_em), static_cast<int32_t>(fh * log_pane_min_height_frames) };
-        default: return { 0, 0 };
+    case rv_editor_pane_kind::output:
+    case rv_editor_pane_kind::runtime_log:
+    case rv_editor_pane_kind::build_log:
+        return { static_cast<int32_t>(fs * log_pane_min_width_em), static_cast<int32_t>(fh * log_pane_min_height_frames) };
+    default:
+        return { 0, 0 };
     }
 }
 
 } // namespace
 
-void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind,
+void rv_editor_shell_set_minimum(rv_editor_shell &shell,
+    rv_editor_pane_id pane,
+    rv_editor_pane_kind kind,
     rv_editor_size game_need)
 {
     rv_editor_size need = rv_editor_shell_pane_minimum(kind);

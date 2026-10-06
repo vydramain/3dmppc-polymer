@@ -55,14 +55,12 @@ static constexpr const char *k_disc_module_name = "disc.so";
 
 // What -o/--unpacked resolved to, decided once and asked by every later
 // stage instead of each one re-testing which flag was given.
-enum class rv_burner_destination_kind
-{
+enum class rv_burner_destination_kind {
     archive,
     directory,
 };
 
-struct rv_burner_destination
-{
+struct rv_burner_destination {
     rv_burner_destination_kind kind;
     fs::path path;
 };
@@ -70,7 +68,9 @@ struct rv_burner_destination
 // Runs the burn phase for whichever medium the destination names, and prints
 // its [4/4] step.
 static int rv_burner_destination_burn(const rv_burner_destination &destination,
-    const rv_pdklib::rv_manifest &manifest, const fs::path &disc_module, const archive_plan &plan,
+    const rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_module,
+    const archive_plan &plan,
     std::string &error)
 {
     if (destination.kind == rv_burner_destination_kind::directory) {
@@ -85,7 +85,8 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
     if (burn_archive(destination.path, manifest, disc_module, plan, burned_size, error) != 0) {
         return 1;
     }
-    rv_burner_print_step(k_step_burn, "burn",
+    rv_burner_print_step(k_step_burn,
+        "burn",
         std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
     return 0;
 }
@@ -115,9 +116,14 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
 // --- [2/4] compile ---
 //
 // Generates the CMake project, configures and compiles it, and prints step 2.
-static int rv_burner_build_compile(const rv_burner_options &options, const rv_pdklib::rv_manifest &manifest,
-    const fs::path &project_dir, const fs::path &binary_dir, const std::vector<std::string> &absolute_includes,
-    const std::vector<std::string> &absolute_sources, std::size_t source_count, std::string &error)
+static int rv_burner_build_compile(const rv_burner_options &options,
+    const rv_pdklib::rv_manifest &manifest,
+    const fs::path &project_dir,
+    const fs::path &binary_dir,
+    const std::vector<std::string> &absolute_includes,
+    const std::vector<std::string> &absolute_sources,
+    std::size_t source_count,
+    std::string &error)
 {
     if (create_cmakelists(options, manifest, project_dir, absolute_includes, absolute_sources, error) != 0) {
         rv_burner_print_error(error);
@@ -141,9 +147,15 @@ static int rv_burner_build_compile(const rv_burner_options &options, const rv_pd
 // --- [3/4] assets ---
 //
 // Plans, checks, compiles or copies scripts, bakes textures, and prints step 3.
-static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::rv_manifest &manifest,
-    const fs::path &disc_dir, const fs::path &texture_dir, const fs::path &scripts_dir,
-    const fs::path &sound_dir, const rv_burner_destination &destination, archive_plan &plan, std::string &error)
+static int rv_burner_build_assets(const rv_burner_options &options,
+    rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_dir,
+    const fs::path &texture_dir,
+    const fs::path &scripts_dir,
+    const fs::path &sound_dir,
+    const rv_burner_destination &destination,
+    archive_plan &plan,
+    std::string &error)
 {
     if (plan_archive(manifest, disc_dir, texture_dir, scripts_dir, sound_dir, plan, error) != 0) {
         rv_burner_print_error(error);
@@ -173,9 +185,8 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
     // already refused by plan_archive above, by name, so an empty plan past
     // that point means there was no [scripts] section to glob with at all.
     if (plan.script_count == 0 && manifest.budget.pccl.script_memory_size > 0) {
-        rv_burner_print_error(
-            "[budget.pccl] declares a lua machine, but there is no [scripts] section to "
-            "put a script in it. State [scripts] sources, or drop [budget.pccl].");
+        rv_burner_print_error("[budget.pccl] declares a lua machine, but there is no [scripts] section to "
+                              "put a script in it. State [scripts] sources, or drop [budget.pccl].");
         return 1;
     }
 
@@ -197,7 +208,8 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
         }
         if (!entry_planned) {
             rv_burner_print_error(std::format("[budget.pccl] script_entry '{}' is not among the compiled scripts ({})",
-                manifest.budget.pccl.script_entry, planned));
+                manifest.budget.pccl.script_entry,
+                planned));
             return 1;
         }
     }
@@ -239,9 +251,14 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
 
     const char *scripts_wording =
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
-    rv_burner_print_step(k_step_assets, "assets",
-        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied", plan.texture_count,
-            plan.sound_count, plan.script_count, scripts_wording, plan.asset_count));
+    rv_burner_print_step(k_step_assets,
+        "assets",
+        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied",
+            plan.texture_count,
+            plan.sound_count,
+            plan.script_count,
+            scripts_wording,
+            plan.asset_count));
     return 0;
 }
 
@@ -283,8 +300,7 @@ static void rv_burner_write_compile_database(const fs::path &disc_dir, const std
     }
     if (!ok) {
         fs::remove(temp, ec);
-        rv_burner_print_warning(
-            std::format("could not export the compile database to '{}'", dest.string()));
+        rv_burner_print_warning(std::format("could not export the compile database to '{}'", dest.string()));
     }
 }
 
@@ -331,10 +347,9 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     // Resolved once: every later stage asks `destination` what to do, instead
     // of re-testing which flag was given.
     const std::string &destination_operand = options.unpacked.empty() ? options.output : options.unpacked;
-    const rv_burner_destination destination{
-        options.unpacked.empty() ? rv_burner_destination_kind::archive : rv_burner_destination_kind::directory,
-        fs::absolute(fs::path(destination_operand), ec)
-    };
+    const rv_burner_destination destination{ options.unpacked.empty() ? rv_burner_destination_kind::archive :
+                                                                        rv_burner_destination_kind::directory,
+        fs::absolute(fs::path(destination_operand), ec) };
     if (ec) {
         rv_burner_print_error(std::format("cannot resolve output path '{}'", destination_operand));
         return 1;
@@ -356,22 +371,21 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     }
 
     if (sources.empty()) {
-        rv_burner_print_error(
-            "[build] sources is empty: a disc with no code cannot export an entry point");
+        rv_burner_print_error("[build] sources is empty: a disc with no code cannot export an entry point");
         return 1;
     }
 
     std::vector<std::string> absolute_includes;
     std::vector<std::string> absolute_sources;
-    if (check_sources_outside_disc(manifest, disc_dir, sources, absolute_includes,
-            absolute_sources, error) != 0) {
+    if (check_sources_outside_disc(manifest, disc_dir, sources, absolute_includes, absolute_sources, error) != 0) {
         rv_burner_print_error("[build] include_dirs: " + error);
         return 1;
     }
 
     // --- the build tree ---
 
-    const fs::path project_dir = options.build_dir.empty() ? disc_dir / k_default_build_dir_name : fs::absolute(options.build_dir, ec);
+    const fs::path project_dir =
+        options.build_dir.empty() ? disc_dir / k_default_build_dir_name : fs::absolute(options.build_dir, ec);
     const fs::path binary_dir = project_dir / k_binary_subdir;
     const fs::path scripts_dir = project_dir / k_scripts_subdir;
     const fs::path texture_dir = project_dir / k_textures_subdir;
@@ -386,8 +400,14 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return 1;
     }
 
-    if (rv_burner_build_compile(options, manifest, project_dir, binary_dir, absolute_includes,
-            absolute_sources, sources.size(), error) != 0) {
+    if (rv_burner_build_compile(options,
+            manifest,
+            project_dir,
+            binary_dir,
+            absolute_includes,
+            absolute_sources,
+            sources.size(),
+            error) != 0) {
         return 1;
     }
 
@@ -399,8 +419,8 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     const fs::path disc_module = binary_dir / k_disc_module_name;
 
     archive_plan plan;
-    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, sound_dir,
-            destination, plan, error) != 0) {
+    if (rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, sound_dir, destination, plan, error) !=
+        0) {
         return 1;
     }
 

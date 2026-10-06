@@ -57,10 +57,6 @@ const zip_read_entry *zip_find(const zip_archive &archive, const std::string &na
 /// @param out      receives the entry's contents
 /// @param error    set when the entry is compressed or its extent is wrong
 /// @return RV_OK when @p out holds the entry's bytes; RV_ERR_INVAL on failure
-int zip_entry_bytes(
-    const zip_archive &archive,
-    const zip_read_entry &entry,
-    std::string &out,
-    std::string &error);
+int zip_entry_bytes(const zip_archive &archive, const zip_read_entry &entry, std::string &out, std::string &error);
 
 } // namespace rv_pdktools

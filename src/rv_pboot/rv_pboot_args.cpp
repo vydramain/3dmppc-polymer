@@ -39,7 +39,8 @@ int parse_u64(const char *text, uint64_t &out)
 // (three or more): the same shape --mode_<slot> error messages use, just
 // without the ", available: " prefix.
 template <typename Table>
-std::string join_names_or(const Table &table) {
+std::string join_names_or(const Table &table)
+{
     std::string result;
     const std::size_t n = std::size(table);
     std::size_t i = 0;
@@ -73,13 +74,12 @@ int refuse(const std::string &what, int &exit_code)
 int option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code)
 {
     if (parse_u64(text, out) != RV_OK || out < floor) {
-        return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)),
-            exit_code);
+        return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)), exit_code);
     }
     return RV_OK;
 }
 
-}  // namespace
+} // namespace
 
 void rv_console_print_usage(std::FILE *stream)
 {
@@ -150,11 +150,19 @@ void rv_console_print_usage(std::FILE *stream)
         "                       %s.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
         "                       %s.\n",
-        RV_PBOOT_ARGS_CMD_USAGE, presets.c_str(), platform_list.c_str(), ca_list.c_str(),
-        cv_list.c_str(), cio_list.c_str(), cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
+        RV_PBOOT_ARGS_CMD_USAGE,
+        presets.c_str(),
+        platform_list.c_str(),
+        ca_list.c_str(),
+        cv_list.c_str(),
+        cio_list.c_str(),
+        cl_list.c_str(),
+        cd_list.c_str(),
+        cm_list.c_str());
 }
 
-namespace {
+namespace
+{
 
 // Which medium this run mounts, decided after getopt has taken every flag it
 // recognises. Its own function because it is its own question - the loop above
@@ -181,108 +189,108 @@ int rv_pboot_args_disc(int argc, char **argv, rv_pboot_args &args, int &exit_cod
     return RV_OK;
 }
 
-}  // namespace
+} // namespace
 
 int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_code)
 {
     // There is no game's name here. The console mounts whatever medium it is
     // pointed at and boots the disc it is handed on the command line; with
     // nothing at all it runs the built-in skeleton against an empty drive.
-    static struct option long_opts[] = {{"fixed-step", no_argument, 0, 'F'},
-                                        {"scale", required_argument, 0, 's'},
-                                        {"frames", required_argument, 0, 'n'},
-                                        {"disc", required_argument, 0, 'd'},
-                                        {"memcard", required_argument, 0, 'm'},
-                                        {"mute", no_argument, 0, 'M'},
-                                        {"dump-frame", required_argument, 0, 'D'},
-                                        {"mode", required_argument, 0, 'o'},
-                                        {"mode_platform", required_argument, 0, 'p'},
-                                        {"mode_ca", required_argument, 0, 'a'},
-                                        {"mode_cv", required_argument, 0, 'v'},
-                                        {"mode_cio", required_argument, 0, 'i'},
-                                        {"mode_cl", required_argument, 0, 'l'},
-                                        {"mode_cd", required_argument, 0, 'c'},
-                                        {"mode_cm", required_argument, 0, 'k'},
-                                        {"paused", no_argument, 0, 'Y'},
-                                        // Last, because a player build fills them with
-                                        // terminators and getopt_long stops reading there.
-                                        RV_PBOOT_ARGS_CMD_OPTS[0],
-                                        RV_PBOOT_ARGS_CMD_OPTS[1],
-                                        {0, 0, 0, 0}};
+    static struct option long_opts[] = { { "fixed-step", no_argument, 0, 'F' },
+        { "scale", required_argument, 0, 's' },
+        { "frames", required_argument, 0, 'n' },
+        { "disc", required_argument, 0, 'd' },
+        { "memcard", required_argument, 0, 'm' },
+        { "mute", no_argument, 0, 'M' },
+        { "dump-frame", required_argument, 0, 'D' },
+        { "mode", required_argument, 0, 'o' },
+        { "mode_platform", required_argument, 0, 'p' },
+        { "mode_ca", required_argument, 0, 'a' },
+        { "mode_cv", required_argument, 0, 'v' },
+        { "mode_cio", required_argument, 0, 'i' },
+        { "mode_cl", required_argument, 0, 'l' },
+        { "mode_cd", required_argument, 0, 'c' },
+        { "mode_cm", required_argument, 0, 'k' },
+        { "paused", no_argument, 0, 'Y' },
+        // Last, because a player build fills them with
+        // terminators and getopt_long stops reading there.
+        RV_PBOOT_ARGS_CMD_OPTS[0],
+        RV_PBOOT_ARGS_CMD_OPTS[1],
+        { 0, 0, 0, 0 } };
 
     int c;
     while ((c = getopt_long(argc, argv, "FMs:n:d:m:D:", long_opts, NULL)) != -1) {
         switch (c) {
-            case 'F':
-                args.fixed_step = true;
-                break;
-            case 'M':
-                args.mute = true;
-                break;
-            case 'E':
-                args.dev = true;
-                break;
-            case 'G': {
-                uint64_t fd = 0;
-                if (option_u64("frame-fd", optarg, 0, fd, exit_code) != RV_OK) {
-                    return RV_ERR_INVAL;
-                }
-                args.frame_fd = static_cast<int64_t>(fd);
-                break;
-            }
-            case 'Y':
-                args.loop_paused = true;
-                break;
-            case 'p':
-                args.mode_platform = optarg;
-                break;
-            case 'a':
-                args.mode_ca = optarg;
-                break;
-            case 'v':
-                args.mode_cv = optarg;
-                break;
-            case 'i':
-                args.mode_cio = optarg;
-                break;
-            case 'l':
-                args.mode_cl = optarg;
-                break;
-            case 'c':
-                args.mode_cd = optarg;
-                break;
-            case 'k':
-                args.mode_cm = optarg;
-                break;
-            case 's':
-                if (option_u64("scale", optarg, 1, args.scale, exit_code) != RV_OK) {
-                    return RV_ERR_INVAL;
-                }
-                break;
-            case 'n':
-                if (option_u64("frames", optarg, 0, args.max_frames, exit_code) != RV_OK) {
-                    return RV_ERR_INVAL;
-                }
-                break;
-            case 'd':
-                args.medium_path = optarg;
-                break;
-            case 'm':
-                args.memcard_path = optarg;
-                break;
-            case 'D':
-                args.dump_frame_path = optarg;
-                break;
-            case 'o':
-                args.mode = optarg;
-                break;
-            case '?':
-                // getopt has already named the offending option on stderr.
-                rv_3dmppc::rv_console_print_usage(stderr);
-                exit_code = EXIT_CODE_INVALID_ARGS;
+        case 'F':
+            args.fixed_step = true;
+            break;
+        case 'M':
+            args.mute = true;
+            break;
+        case 'E':
+            args.dev = true;
+            break;
+        case 'G': {
+            uint64_t fd = 0;
+            if (option_u64("frame-fd", optarg, 0, fd, exit_code) != RV_OK) {
                 return RV_ERR_INVAL;
-            default:
-                break;
+            }
+            args.frame_fd = static_cast<int64_t>(fd);
+            break;
+        }
+        case 'Y':
+            args.loop_paused = true;
+            break;
+        case 'p':
+            args.mode_platform = optarg;
+            break;
+        case 'a':
+            args.mode_ca = optarg;
+            break;
+        case 'v':
+            args.mode_cv = optarg;
+            break;
+        case 'i':
+            args.mode_cio = optarg;
+            break;
+        case 'l':
+            args.mode_cl = optarg;
+            break;
+        case 'c':
+            args.mode_cd = optarg;
+            break;
+        case 'k':
+            args.mode_cm = optarg;
+            break;
+        case 's':
+            if (option_u64("scale", optarg, 1, args.scale, exit_code) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            break;
+        case 'n':
+            if (option_u64("frames", optarg, 0, args.max_frames, exit_code) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            break;
+        case 'd':
+            args.medium_path = optarg;
+            break;
+        case 'm':
+            args.memcard_path = optarg;
+            break;
+        case 'D':
+            args.dump_frame_path = optarg;
+            break;
+        case 'o':
+            args.mode = optarg;
+            break;
+        case '?':
+            // getopt has already named the offending option on stderr.
+            rv_3dmppc::rv_console_print_usage(stderr);
+            exit_code = EXIT_CODE_INVALID_ARGS;
+            return RV_ERR_INVAL;
+        default:
+            break;
         }
     }
 
@@ -298,4 +306,4 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
     return rv_pboot_args_disc(argc, argv, args, exit_code);
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

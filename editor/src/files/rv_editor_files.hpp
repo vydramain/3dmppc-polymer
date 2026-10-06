@@ -12,14 +12,13 @@ namespace rv_editor
 {
 
 // One entry of the project tree as the disk has it.
-struct rv_editor_file_node
-{
+struct rv_editor_file_node {
     std::string name;
     std::filesystem::path path;
     bool dir = false;
-    bool symlink = false;  // shown, never followed.
-    bool listed = false;   // children read from disk
-    bool expanded = false; // open in the Files tree
+    bool symlink = false;                      // shown, never followed.
+    bool listed = false;                       // children read from disk
+    bool expanded = false;                     // open in the Files tree
     std::vector<rv_editor_file_node> children; // directories first, then by name
 };
 
@@ -32,13 +31,19 @@ class rv_editor_files
 public:
     void open(const std::filesystem::path &root, rv_editor_log &log);
     void close();
-    bool is_open() const { return !root_.path.empty(); }
+    bool is_open() const
+    {
+        return !root_.path.empty();
+    }
 
     // Once a frame: applies what the watcher saw. Changed files are added to
     // `changed` for whoever needs them (disc.toml, open documents).
     void update(rv_editor_log &log);
 
-    rv_editor_file_node &root() { return root_; }
+    rv_editor_file_node &root()
+    {
+        return root_;
+    }
     // Reads a directory's entries now, keeping what was expanded under it.
     void list(rv_editor_file_node &dir);
     void refresh();

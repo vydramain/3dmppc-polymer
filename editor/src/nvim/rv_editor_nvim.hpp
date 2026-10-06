@@ -17,19 +17,17 @@ namespace rv_editor
 {
 
 // One buffer nvim holds, as the editor's config reports it after every change.
-struct rv_editor_nvim_buffer
-{
+struct rv_editor_nvim_buffer {
     int64_t id = 0;
-    std::string name;             // full path, empty for a new unnamed buffer
+    std::string name; // full path, empty for a new unnamed buffer
     bool modified = false;
     std::vector<int64_t> windows; // windows showing it
 };
 
 // What one buffer's save came to, as nvim reports it after the write.
-struct rv_editor_nvim_saved
-{
-    int64_t id = 0;    // 0: nvim itself did not answer
-    std::string name;  // full path; empty for an Untitled buffer
+struct rv_editor_nvim_saved {
+    int64_t id = 0;   // 0: nvim itself did not answer
+    std::string name; // full path; empty for an Untitled buffer
     bool ok = false;
     std::string error; // nvim's message when not ok
 };
@@ -41,8 +39,7 @@ using rv_editor_nvim_save_done =
 
 // The latest state one language server reported, on the same "rv_lsp" channel
 // as rv_mode/rv_buffers.
-struct rv_editor_nvim_lsp
-{
+struct rv_editor_nvim_lsp {
     std::string state;  // "missing", "running" or "stopped"
     std::string reason; // why, when not "running"
 };
@@ -55,12 +52,11 @@ struct rv_editor_nvim_swap {
 };
 
 // One LSP diagnostic, as "rv_diagnostics" reports it for one file.
-struct rv_editor_nvim_diagnostic
-{
-    int32_t line = 0;          // 1-based
-    int32_t col = 0;           // 1-based
-    std::string severity;      // "error", "warn", "info" or "hint"
-    std::string source;        // server name, "lsp" when nvim gave none
+struct rv_editor_nvim_diagnostic {
+    int32_t line = 0;     // 1-based
+    int32_t col = 0;      // 1-based
+    std::string severity; // "error", "warn", "info" or "hint"
+    std::string source;   // server name, "lsp" when nvim gave none
     std::string message;
 };
 
@@ -78,7 +74,10 @@ public:
     // already running. RV_ERR_NOENT if nvim not found, RV_ERR_IO if startup failed;
     // reason in `problem` (only the code tiles lose, nothing else).
     int ensure_started(const std::filesystem::path &cwd, rv_editor_log &log);
-    bool running() const { return started_ && rpc_.running(); }
+    bool running() const
+    {
+        return started_ && rpc_.running();
+    }
 
     // Once a frame: applies redraws and answers. Returns false the frame nvim ends.
     void update(rv_editor_log &log);
@@ -133,13 +132,19 @@ public:
 
     // Full Vim (normal mode, Vim keys) instead of the ordinary editor: the same
     // switch as F2 in a code tile, which it follows.
-    bool vim_mode() const { return vim_mode_; }
+    bool vim_mode() const
+    {
+        return vim_mode_;
+    }
     void toggle_vim_mode();
 
     // The buffer `win` shows, or nullptr before nvim has reported it.
     const rv_editor_nvim_buffer *buffer_in(int64_t win) const;
     // Every buffer nvim holds, loaded and backed by a file or Untitled.
-    const std::vector<rv_editor_nvim_buffer> &buffers() const { return buffers_; }
+    const std::vector<rv_editor_nvim_buffer> &buffers() const
+    {
+        return buffers_;
+    }
 
     // Code panes that hold a window now.
     std::vector<uint32_t> panes() const;
@@ -158,9 +163,15 @@ public:
     // nvim reported none (or cleared them).
     const std::vector<rv_editor_nvim_diagnostic> &diagnostics_for(const std::string &path) const;
     // Every file with diagnostics now, keyed by its path.
-    const std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> &diagnostics() const { return diagnostics_; }
+    const std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> &diagnostics() const
+    {
+        return diagnostics_;
+    }
 
-    const rv_editor_nvim_screen &screen() const { return screen_; }
+    const rv_editor_nvim_screen &screen() const
+    {
+        return screen_;
+    }
     // Ends nvim after the user answered for its modified buffers: what was
     // saved is saved, the rest is dropped with its swap files (`:qa!`). A crash
     // of the editor instead leaves the swap files for `:recover`.
@@ -170,7 +181,9 @@ private:
     void attach();
     void notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
     bool swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log);
-    void exec_lua(const std::string &code, const std::vector<std::string> &args, rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {});
+    void exec_lua(const std::string &code,
+        const std::vector<std::string> &args,
+        rv_editor_nvim_rpc::rv_editor_nvim_reply reply = {});
 
     rv_editor_nvim_rpc rpc_;
     rv_editor_nvim_screen screen_;
@@ -181,12 +194,12 @@ private:
     std::map<uint32_t, bool> asked_;      // a window was requested for this pane
     std::vector<int64_t> spare_;          // windows no pane shows, the first is nvim's own
     std::vector<rv_editor_nvim_buffer> buffers_;
-    std::map<std::string, rv_editor_nvim_lsp> lsp_; // server name -> latest state
+    std::map<std::string, rv_editor_nvim_lsp> lsp_;                             // server name -> latest state
     std::map<std::string, rv_editor_nvim_swap> swaps_;                          // file -> swap waiting for Recover/Discard
     std::map<std::string, std::vector<rv_editor_nvim_diagnostic>> diagnostics_; // file -> its diagnostics
     bool vim_mode_ = false;
     std::map<int64_t, std::pair<int32_t, int32_t>> sizes_;
-    std::set<int64_t> shown_;             // windows whose grid has been seen
+    std::set<int64_t> shown_; // windows whose grid has been seen
     // Keys typed right after a window switch wait until nvim has made it, since
     // nvim_input overtakes nvim_set_current_win (a "fast" call).
     int64_t switching_ = 0;

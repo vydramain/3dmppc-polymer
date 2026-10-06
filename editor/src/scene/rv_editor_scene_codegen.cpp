@@ -65,20 +65,20 @@ std::string rv_editor_scene_codegen_text(std::string_view scene_name)
     return text;
 }
 
-int rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string_view scene_name,
-    std::filesystem::path &written, std::string &error)
+int rv_editor_scene_codegen_write(const std::filesystem::path &root,
+    std::string_view scene_name,
+    std::filesystem::path &written,
+    std::string &error)
 {
     const std::filesystem::path src_dir = root / std::string(codegen_src_dir);
-    const std::filesystem::path path =
-        src_dir / (rv_editor_scene_codegen_id(scene_name) + std::string(codegen_header_suffix));
+    const std::filesystem::path path = src_dir / (rv_editor_scene_codegen_id(scene_name) + std::string(codegen_header_suffix));
 
     std::error_code ec;
     std::filesystem::create_directories(src_dir, ec);
     if (ec) {
         const std::string src_dir_str = src_dir.string();
         const std::string msg = ec.message();
-        error = rv_editor_text_format("scene_codegen.could_not_create",
-            std::make_format_args(src_dir_str, msg));
+        error = rv_editor_text_format("scene_codegen.could_not_create", std::make_format_args(src_dir_str, msg));
         return RV_ERR_IO;
     }
     if (std::filesystem::exists(path, ec)) {
@@ -89,15 +89,13 @@ int rv_editor_scene_codegen_write(const std::filesystem::path &root, std::string
     std::ofstream out(path, std::ios::binary);
     if (!out) {
         const std::string path_str = path.string();
-        error = rv_editor_text_format("scene_codegen.could_not_open",
-            std::make_format_args(path_str));
+        error = rv_editor_text_format("scene_codegen.could_not_open", std::make_format_args(path_str));
         return RV_ERR_IO;
     }
     out << rv_editor_scene_codegen_text(scene_name);
     if (!out) {
         const std::string path_str = path.string();
-        error = rv_editor_text_format("scene_codegen.could_not_write",
-            std::make_format_args(path_str));
+        error = rv_editor_text_format("scene_codegen.could_not_write", std::make_format_args(path_str));
         return RV_ERR_IO;
     }
     written = path;

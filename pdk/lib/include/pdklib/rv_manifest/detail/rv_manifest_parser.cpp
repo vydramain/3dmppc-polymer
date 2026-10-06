@@ -41,8 +41,7 @@ rv_manifest_tree rv_manifest_parser::run()
             }
             continue;
         }
-        failer_.fail(peek().line,
-            "expected a section header or 'key = value', found " + rv_manifest_token_spelling(peek()));
+        failer_.fail(peek().line, "expected a section header or 'key = value', found " + rv_manifest_token_spelling(peek()));
         recover();
     }
     return std::move(tree_);
@@ -92,8 +91,7 @@ int rv_manifest_parser::parse_section()
     const bool closed = at(tk::RBRACKET) && (!array || tokens_[pos_ + 1].kind == tk::RBRACKET);
     if (!closed) {
         open_section(name, line, true);
-        return failer_.fail(line, "section header '" + open + name + "' is missing its closing " +
-            (array ? "']]'" : "']'"));
+        return failer_.fail(line, "section header '" + open + name + "' is missing its closing " + (array ? "']]'" : "']'"));
     }
     get(); // ']'
     if (array) {
@@ -165,8 +163,7 @@ int rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
         break;
     }
     return failer_.fail(token.line,
-        "unsupported value " + rv_manifest_token_spelling(token) +
-            " — expected a quoted string, a number or an array");
+        "unsupported value " + rv_manifest_token_spelling(token) + " — expected a quoted string, a number or an array");
 }
 
 // Newlines inside the brackets are skipped, which is the whole of the
@@ -224,8 +221,7 @@ int rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
         if (at(tk::END_OF_FILE)) {
             return failer_.fail(start, "unterminated array — no closing ']' before end of file");
         }
-        return failer_.fail(peek().line,
-            "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
+        return failer_.fail(peek().line, "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
     }
 }
 
@@ -238,8 +234,7 @@ int rv_manifest_parser::expect_line_end(const char *what)
         get();
         return RV_OK;
     }
-    return failer_.fail(peek().line,
-        std::string("unexpected text after ") + what + " — one " + what + " per line");
+    return failer_.fail(peek().line, std::string("unexpected text after ") + what + " — one " + what + " per line");
 }
 
 // --- recovery -----------------------------------------------------------------

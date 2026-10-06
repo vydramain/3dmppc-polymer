@@ -44,7 +44,10 @@ uint32_t rv_editor_tile_leaf_at(const rv_editor_layout &layout, const std::vecto
 // Which zone `pos` falls in over `leaf`'s rectangle `rect`: an edge band near
 // a side, or the whole tile for the tab strip / centre. Bands measure the
 // whole leaf rect, not its content sub-rect (header/tabs chrome excluded).
-bool rv_editor_tile_drop_zone(const rv_editor_layout &layout, uint32_t leaf, const rv_editor_rect &rect, ImVec2 pos,
+bool rv_editor_tile_drop_zone(const rv_editor_layout &layout,
+    uint32_t leaf,
+    const rv_editor_rect &rect,
+    ImVec2 pos,
     rv_editor_tile_dock &dock)
 {
     const float x = pos.x - static_cast<float>(rect.x);
@@ -111,7 +114,8 @@ void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int presse
     ws.drag.press = ImGui::GetMousePos();
 }
 
-void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of,
+void rv_editor_tile_drag_update(rv_editor_workspace &ws,
+    const std::vector<rv_editor_rect> &rect_of,
     const rv_editor_theme &theme)
 {
     rv_editor_tile_drag &drag = ws.drag;

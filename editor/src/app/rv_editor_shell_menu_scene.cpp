@@ -37,8 +37,7 @@ constexpr std::string_view scene_file_suffix = ".scene.toml";
 // Kinds the Add menu offers, in menu order
 constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
 
-struct rv_editor_new_scene_state
-{
+struct rv_editor_new_scene_state {
     bool open = false;
     char name[new_scene_name_bytes] = {};
     bool write_cpp = false;
@@ -236,7 +235,9 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     }
     if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.add_menu"), read_only == nullptr)) {
         const int sel = rv_editor_scene_find(app.scene->scene, app.scene->selected);
-        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ? app.scene->selected : std::string();
+        const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ?
+            app.scene->selected :
+            std::string();
         for (std::string_view kind : scene_kinds) {
             const char *label;
             if (kind == kind_mesh) {

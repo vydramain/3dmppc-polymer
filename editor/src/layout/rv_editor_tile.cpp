@@ -63,8 +63,11 @@ int32_t rv_editor_size_along(rv_editor_size size, rv_editor_axis axis)
     return axis == rv_editor_axis::x ? size.w : size.h;
 }
 
-void rv_editor_tile_place_node(const rv_editor_layout &layout, uint32_t node, rv_editor_rect rect,
-    const rv_editor_tile_metrics &metrics, const std::vector<rv_editor_size> &pane_min,
+void rv_editor_tile_place_node(const rv_editor_layout &layout,
+    uint32_t node,
+    rv_editor_rect rect,
+    const rv_editor_tile_metrics &metrics,
+    const std::vector<rv_editor_size> &pane_min,
     std::vector<rv_editor_tile_place> &out)
 {
     const rv_editor_tile_node &n = layout.nodes[node];
@@ -77,10 +80,8 @@ void rv_editor_tile_place_node(const rv_editor_layout &layout, uint32_t node, rv
     const bool along_x = split.axis == rv_editor_axis::x;
     const int32_t length = along_x ? rect.w : rect.h;
     const int64_t avail = std::max<int64_t>(0, length - metrics.bar);
-    const int64_t min_a =
-        rv_editor_size_along(rv_editor_tile_min_size(layout, split.first, metrics, pane_min), split.axis);
-    const int64_t min_b =
-        rv_editor_size_along(rv_editor_tile_min_size(layout, split.second, metrics, pane_min), split.axis);
+    const int64_t min_a = rv_editor_size_along(rv_editor_tile_min_size(layout, split.first, metrics, pane_min), split.axis);
+    const int64_t min_b = rv_editor_size_along(rv_editor_tile_min_size(layout, split.second, metrics, pane_min), split.axis);
 
     const bool overflow = min_a + min_b > avail;
     int64_t first = 0;
@@ -129,8 +130,7 @@ int rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_id
     return RV_OK;
 }
 
-void rv_editor_pane_adopt(rv_editor_pane_registry &into, const rv_editor_pane_registry &from,
-    rv_editor_layout &layout)
+void rv_editor_pane_adopt(rv_editor_pane_registry &into, const rv_editor_pane_registry &from, rv_editor_layout &layout)
 {
     for (rv_editor_tile_node &node : layout.nodes) {
         if (node.kind != rv_editor_tile_kind::leaf) {
@@ -169,8 +169,7 @@ uint32_t rv_editor_tile_find(const rv_editor_layout &layout, rv_editor_pane_id p
     return rv_editor_tile_none;
 }
 
-uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_editor_pane_id pane,
-    rv_editor_tile_dock dock)
+uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_editor_pane_id pane, rv_editor_tile_dock dock)
 {
     if (!rv_editor_tile_is(layout, leaf, rv_editor_tile_kind::leaf)) {
         return rv_editor_tile_none;
@@ -296,7 +295,9 @@ int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf)
 
 // --- placement ----------------------------------------------------------------
 
-rv_editor_size rv_editor_tile_min_size(const rv_editor_layout &layout, uint32_t node, const rv_editor_tile_metrics &metrics,
+rv_editor_size rv_editor_tile_min_size(const rv_editor_layout &layout,
+    uint32_t node,
+    const rv_editor_tile_metrics &metrics,
     const std::vector<rv_editor_size> &pane_min)
 {
     const rv_editor_tile_node &n = layout.nodes[node];
@@ -321,8 +322,10 @@ rv_editor_size rv_editor_tile_min_size(const rv_editor_layout &layout, uint32_t 
     return { std::max(a.w, b.w), a.h + metrics.bar + b.h };
 }
 
-std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout &layout, rv_editor_rect area,
-    const rv_editor_tile_metrics &metrics, const std::vector<rv_editor_size> &pane_min)
+std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout &layout,
+    rv_editor_rect area,
+    const rv_editor_tile_metrics &metrics,
+    const std::vector<rv_editor_size> &pane_min)
 {
     std::vector<rv_editor_tile_place> out;
     if (rv_editor_tile_is(layout, layout.maximized_leaf, rv_editor_tile_kind::leaf)) {

@@ -20,7 +20,7 @@ namespace
 // the cube and the status bars sit in front of it.
 constexpr int32_t RV_DMAIN_DEPTH_ART_LO = -400;
 constexpr int32_t RV_DMAIN_DEPTH_ART_HI = 400;
-constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900;  // over everything, it explains it
+constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900; // over everything, it explains it
 
 // Polygon vertex counts
 constexpr int RV_DMAIN_TRI_VERTICES = 3;
@@ -127,19 +127,24 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
     const float vw = static_cast<float>(w);
     const float vh = static_cast<float>(h);
 
-    const rv_pdklib::rv_camera camera =
-        rv_pdklib::rv_camera_make(rv_pdklib::rv_vec3{ 0.0f, 1.1f, -4.4f }, // eye
-            rv_pdklib::rv_vec3{ 0.0f, 0.0f, 0.0f },                        // target
-            rv_pdklib::rv_vec3{ 0.0f, 1.0f, 0.0f },                        // up
-            1.0472f,                                                       // 60 deg vertical fov
-            vw / vh, 0.1f, 100.0f);
+    const rv_pdklib::rv_camera camera = rv_pdklib::rv_camera_make(rv_pdklib::rv_vec3{ 0.0f, 1.1f, -4.4f }, // eye
+        rv_pdklib::rv_vec3{ 0.0f, 0.0f, 0.0f },                                                            // target
+        rv_pdklib::rv_vec3{ 0.0f, 1.0f, 0.0f },                                                            // up
+        1.0472f, // 60 deg vertical fov
+        vw / vh,
+        0.1f,
+        100.0f);
 
-    const rv_pdklib::rv_mat4 model = rv_pdklib::rv_mat4_mul(
-        rv_pdklib::rv_mat4_rotate_y(spin_), rv_pdklib::rv_mat4_rotate_x(spin_ * 0.6f));
+    const rv_pdklib::rv_mat4 model =
+        rv_pdklib::rv_mat4_mul(rv_pdklib::rv_mat4_rotate_y(spin_), rv_pdklib::rv_mat4_rotate_x(spin_ * 0.6f));
 
-    const rv_pdklib::rv_xform_conf conf = rv_pdklib::rv_xform_conf_make(
-        rv_pdklib::rv_camera_mvp(camera, model), camera, vw, vh, RV_DMAIN_DEPTH_ART_LO,
-        RV_DMAIN_DEPTH_ART_HI, rv_pdklib::RV_CULL_SCREEN_CW);
+    const rv_pdklib::rv_xform_conf conf = rv_pdklib::rv_xform_conf_make(rv_pdklib::rv_camera_mvp(camera, model),
+        camera,
+        vw,
+        vh,
+        RV_DMAIN_DEPTH_ART_LO,
+        RV_DMAIN_DEPTH_ART_HI,
+        rv_pdklib::RV_CULL_SCREEN_CW);
 
     const rv_pdklib::rv_vec3 to_light{ -0.4f, 0.8f, -0.5f };
 
@@ -147,9 +152,10 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
         // Lighting is in WORLD space, so the normal takes the model matrix. The
         // positions do NOT: rv_camera_mvp already carries it, and transforming
         // them here as well would spin the cube twice.
-        const rv_color shade = rv_pdklib::rv_shade_lambert(
-            rv_pdklib::rv_hsv_to_rgb(hue_ + 0.5f, 0.45f, 1.0f),
-            rv_pdklib::rv_mat4_mul_direction(model, face.normal), to_light, 0.25f);
+        const rv_color shade = rv_pdklib::rv_shade_lambert(rv_pdklib::rv_hsv_to_rgb(hue_ + 0.5f, 0.45f, 1.0f),
+            rv_pdklib::rv_mat4_mul_direction(model, face.normal),
+            to_light,
+            0.25f);
 
         rv_pdklib::rv_xform_vertex vertexes[RV_DMAIN_QUAD_VERTICES];
         for (int i = 0; i < RV_DMAIN_QUAD_VERTICES; ++i) {
@@ -165,10 +171,8 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
         primitive.data.polygon.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
 
         for (uint32_t i = 0; i < primitive.data.polygon.vertex_count; ++i) {
-            primitive.data.polygon.vertexes[i].x =
-                to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].x + x));
-            primitive.data.polygon.vertexes[i].y =
-                to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].y + y));
+            primitive.data.polygon.vertexes[i].x = to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].x + x));
+            primitive.data.polygon.vertexes[i].y = to_screen(static_cast<float>(primitive.data.polygon.vertexes[i].y + y));
         }
         rv_cv_frame_put(cv, &primitive);
     }
@@ -202,15 +206,17 @@ void rv_dmain::draw_cell_label(int index, int cx, int cy)
         rv_cv *cv = rv_pdko_cv(pdk_);
         const rv_pdklib::rv_font_style ink =
             rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
-        rv_pdklib::rv_font_draw(ink, cx + RV_DMAIN_CELL_LABEL_OFFSET_X, cy + 1,
-            RV_DMAIN_CELL_LABEL[index], [cv](const rv_primitive &p) {
+        rv_pdklib::rv_font_draw(ink,
+            cx + RV_DMAIN_CELL_LABEL_OFFSET_X,
+            cy + 1,
+            RV_DMAIN_CELL_LABEL[index],
+            [cv](const rv_primitive &p) {
                 rv_cv_frame_put(cv, &p);
             });
     }
 }
 
-void rv_dmain::draw_cell_art(
-    int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid)
+void rv_dmain::draw_cell_art(int index, int ax, int ay, int aw, int ah, rv_color hot, rv_color cold, rv_color mid)
 {
     rv_cv *cv = rv_pdko_cv(pdk_);
 
@@ -278,8 +284,11 @@ void rv_dmain::draw_cell_art(
         break;
     }
     case 4: { // SPRITE - the axis-aligned fast path, one flat colour
-        const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
-            static_cast<float>(aw), static_cast<float>(ah), hot,
+        const rv_primitive primitive = make_bar(static_cast<float>(ax),
+            static_cast<float>(ay),
+            static_cast<float>(aw),
+            static_cast<float>(ah),
+            hot,
             RV_DMAIN_DEPTH_ART_HI);
         rv_cv_frame_put(cv, &primitive);
         break;
@@ -301,9 +310,12 @@ void rv_dmain::draw_cell_art(
         // The backdrop is filed FIRST and NEARER-behind: what shows through
         // the holes is this magenta, and if the hole wrote depth it would
         // not.
-        const rv_primitive primitive = make_bar(static_cast<float>(ax), static_cast<float>(ay),
-            static_cast<float>(aw), static_cast<float>(ah),
-            rv_color{ 220, 60, 200 }, RV_DMAIN_DEPTH_ART_LO);
+        const rv_primitive primitive = make_bar(static_cast<float>(ax),
+            static_cast<float>(ay),
+            static_cast<float>(aw),
+            static_cast<float>(ah),
+            rv_color{ 220, 60, 200 },
+            RV_DMAIN_DEPTH_ART_LO);
         rv_cv_frame_put(cv, &primitive);
         draw_textured(ax, ay, aw, ah, addr_texture_, 0, RV_TEXWRAP_STRETCH);
         break;
@@ -313,13 +325,15 @@ void rv_dmain::draw_cell_art(
         // instead of the depth key, the stack would come out inverted.
         const rv_color tint[] = { hot, cold, mid };
         const int32_t depth[] = { RV_DMAIN_DEPTH_ART_HI,
-            RV_DMAIN_DEPTH_ART_HI - RV_DMAIN_DEPTH_STEP_OFFSET, RV_DMAIN_DEPTH_ART_LO };
+            RV_DMAIN_DEPTH_ART_HI - RV_DMAIN_DEPTH_STEP_OFFSET,
+            RV_DMAIN_DEPTH_ART_LO };
         for (int i = 0; i < std::ssize(depth); ++i) {
-            const rv_primitive primitive = make_bar(
-                static_cast<float>(ax + i * RV_DMAIN_DEPTH_LADDER_STEP_X),
+            const rv_primitive primitive = make_bar(static_cast<float>(ax + i * RV_DMAIN_DEPTH_LADDER_STEP_X),
                 static_cast<float>(ay + i * RV_DMAIN_DEPTH_LADDER_STEP_Y),
                 static_cast<float>(aw - RV_DMAIN_DEPTH_LADDER_SHRINK_WIDTH),
-                static_cast<float>(ah - RV_DMAIN_DEPTH_LADDER_SHRINK_HEIGHT), tint[i], depth[i]);
+                static_cast<float>(ah - RV_DMAIN_DEPTH_LADDER_SHRINK_HEIGHT),
+                tint[i],
+                depth[i]);
             rv_cv_frame_put(cv, &primitive);
         }
         break;
@@ -333,7 +347,12 @@ void rv_dmain::draw_cell_art(
         break;
     }
 }
-void rv_dmain::draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
+void rv_dmain::draw_textured(int x,
+    int y,
+    int w,
+    int h,
+    int64_t addr_texture,
+    int64_t addr_palette,
     rv_texture_mapping_type mapping)
 {
     if (addr_texture == 0) {

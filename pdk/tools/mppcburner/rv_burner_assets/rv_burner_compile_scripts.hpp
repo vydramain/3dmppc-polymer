@@ -28,10 +28,7 @@ namespace rv_pdktools
 /// @param disc_dir  absolute disc directory the sources are relative to
 /// @param error     set naming the script and what luajit said about it
 /// @return 0 on success, 1 on refusal
-int compile_scripts(
-    const archive_plan &plan,
-    const std::filesystem::path &disc_dir,
-    std::string &error);
+int compile_scripts(const archive_plan &plan, const std::filesystem::path &disc_dir, std::string &error);
 
 // --- lua left as lua ---
 //
@@ -51,8 +48,7 @@ int compile_scripts(
 /// @param error     unused today - this cannot fail - but kept so the caller
 ///                  can dispatch to either function without knowing which
 /// @return always 0
-int prepare_scripts(
-    archive_plan &plan,
+int prepare_scripts(archive_plan &plan,
     rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     std::string &error);
@@ -63,9 +59,6 @@ int prepare_scripts(
 /// @param out_path  the bytecode file to create, truncating any existing one
 /// @param error     set with luajit's own message, or with the I/O failure
 /// @return 0 on success, 1 on refusal
-int compile_simple_script(
-    const std::string &lua_path,
-    const std::string &out_path,
-    std::string &error);
+int compile_simple_script(const std::string &lua_path, const std::string &out_path, std::string &error);
 
 } // namespace rv_pdktools

@@ -31,7 +31,8 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // One entry, as described by the central directory. `size` is both the stored
 // and the uncompressed size, because the two are equal by construction for
@@ -48,24 +49,25 @@ struct rv_zipentry {
 // what makes a corrupt disc diagnosable from a log line.
 enum class rv_zipread : int {
     ok = 0,
-    not_found,     // no entry by that name
-    short_buffer,  // the caller's buffer is smaller than the entry
-    corrupt,       // the archive's own bookkeeping does not hold up
-    crc_mismatch,  // the bytes are there but are not the bytes that were written
-    io_error,      // the host file failed a well-formed request
+    not_found,    // no entry by that name
+    short_buffer, // the caller's buffer is smaller than the entry
+    corrupt,      // the archive's own bookkeeping does not hold up
+    crc_mismatch, // the bytes are there but are not the bytes that were written
+    io_error,     // the host file failed a well-formed request
 };
 
 // A mounted archive. The file stays OPEN for the object's whole life and is read
 // on demand: a disc is mounted for the length of a game, and slurping it into
 // RAM up front would mean holding every model and texture resident at once for
 // the sake of the few that are in use.
-class rv_zipreader {
-   public:
+class rv_zipreader
+{
+public:
     rv_zipreader() = default;
     ~rv_zipreader() = default;
 
-    rv_zipreader(const rv_zipreader&) = delete;
-    rv_zipreader& operator=(const rv_zipreader&) = delete;
+    rv_zipreader(const rv_zipreader &) = delete;
+    rv_zipreader &operator=(const rv_zipreader &) = delete;
 
     // Open `path` and parse its central directory. Returns RV_OK on success or
     // RV_ERR_IO (file cannot be opened or measured), RV_ERR_INVAL (bad data), or
@@ -76,27 +78,39 @@ class rv_zipreader {
     int open(const std::string &path, std::string &error);
 
     // True once open() has succeeded.
-    bool ok() const { return ok_; }
+    bool ok() const
+    {
+        return ok_;
+    }
 
     // Path the archive was opened from (empty when never opened).
-    const std::string& path() const { return path_; }
+    const std::string &path() const
+    {
+        return path_;
+    }
 
-    bool has(const char* name) const { return find(name) != nullptr; }
+    bool has(const char *name) const
+    {
+        return find(name) != nullptr;
+    }
 
     // Size in bytes of `name`, or -1 when there is no such entry.
-    int64_t size(const char* name) const;
+    int64_t size(const char *name) const;
 
     // Copy the WHOLE entry into `baddr` (capacity `cap` bytes) and verify its
     // CRC32. `nread` receives the byte count on success and 0 otherwise. The
     // reader never allocates the destination and never writes past `cap`; on any
     // failure the region it may have touched is zeroed, so a caller cannot
     // mistake half an entry for a whole one.
-    rv_zipread read(const char* name, void* baddr, int64_t cap, int64_t& nread) const;
+    rv_zipread read(const char *name, void *baddr, int64_t cap, int64_t &nread) const;
 
     // Every entry, in central-directory order. The loader enumerates to find the
     // service entries, the medium enumerates to build the asset namespace, and a
     // human enumerates to find out why a disc is empty.
-    const std::vector<rv_zipentry>& entries() const { return entries_; }
+    const std::vector<rv_zipentry> &entries() const
+    {
+        return entries_;
+    }
 
 private:
     // Parse the central directory into `entries_`/`by_name_`.
@@ -115,7 +129,7 @@ private:
     // Returns RV_OK on success, RV_ERR_INVAL on corrupt data.
     int parse_entries(const std::vector<unsigned char> &cdir, uint16_t entries_total, std::string &error);
 
-    const rv_zipentry* find(const char* name) const;
+    const rv_zipentry *find(const char *name) const;
 
     // Seek + read exactly `count` bytes at `offset`. Returns RV_OK on success,
     // RV_ERR_IO on any short read; the caller has already bounds-checked `offset`/`count` against file_size_.
@@ -133,4 +147,4 @@ private:
     bool ok_ = false;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

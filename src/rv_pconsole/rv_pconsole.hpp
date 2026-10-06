@@ -129,7 +129,11 @@ private:
     // How the next frame's START TIME is decided. The frame's DURATION is
     // always 1/target_fps and never varies with the wall clock or the audio
     // device; pacing only decides when that frame runs.
-    enum class pacing { none, audio, clock };
+    enum class pacing {
+        none,
+        audio,
+        clock
+    };
 
     // One run's bookkeeping. A struct handed between the steps below rather
     // than a row of members: none of it outlives disc_run, and as members a

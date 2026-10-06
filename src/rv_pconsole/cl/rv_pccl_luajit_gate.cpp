@@ -34,8 +34,7 @@ void rv_pccl_luajit::insn_hook(lua_State *L, struct lua_Debug *)
     if (ud != nullptr) {
         static_cast<rv_pccl_luajit *>(ud)->ceiling_hit_ = true;
     }
-    luaL_error(L, "instruction ceiling of %d reached; the chunk did not finish",
-        RV_PCCL_INSN_CEILING);
+    luaL_error(L, "instruction ceiling of %d reached; the chunk did not finish", RV_PCCL_INSN_CEILING);
 }
 
 // Which phase name a failure deserves. The ceiling and the budget both surface
@@ -52,8 +51,12 @@ const char *rv_pccl_luajit::phase_of(const char *phase) const
     return phase;
 }
 
-int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
-    rv_pccl_reload_report &report, bool is_entry)
+int64_t rv_pccl_luajit::raise_(const void *bytecode,
+    int64_t size,
+    const char *name,
+    int &ref_out,
+    rv_pccl_reload_report &report,
+    bool is_entry)
 {
     if (bytecode == nullptr || size <= 0 || name == nullptr) {
         report.phase = "bad_request";
@@ -77,15 +80,17 @@ int64_t rv_pccl_luajit::raise_(const void *bytecode, int64_t size, const char *n
         report.phase = phase_of(phase);
         report.effects_possible = effects;
         report.message = msg != nullptr ? msg : "(no message)";
-        RV_LOG_ERR("pccl", "raise('{}') failed at {}: {}", rv_pdklib::rv_log_escape(name),
-            report.phase, rv_pdklib::rv_log_escape(report.message.c_str(), kLogMessageMaxLen));
+        RV_LOG_ERR("pccl",
+            "raise('{}') failed at {}: {}",
+            rv_pdklib::rv_log_escape(name),
+            report.phase,
+            rv_pdklib::rv_log_escape(report.message.c_str(), kLogMessageMaxLen));
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top);
         return ceiling_hit_ || oom_ ? (oom_ ? RV_ERR_NOMEM : RV_ERR_IO) : code;
     };
 
-    if (luaL_loadbuffer(L_, static_cast<const char *>(bytecode), static_cast<std::size_t>(size),
-            name) != 0) {
+    if (luaL_loadbuffer(L_, static_cast<const char *>(bytecode), static_cast<std::size_t>(size), name) != 0) {
         // Nothing of the candidate has run yet, so nothing of it can have left
         // a mark: this is the one failure that is provably clean.
         return fail("compile", false, RV_ERR_IO);

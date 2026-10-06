@@ -279,8 +279,7 @@ int rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
             }
             const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
             const size_t open = text.find('[', starts[static_cast<size_t>(files->value.line)]);
-            const size_t close = open == std::string::npos ? std::string::npos
-                                                             : rv_manifest_edit_array_close(text, open);
+            const size_t close = open == std::string::npos ? std::string::npos : rv_manifest_edit_array_close(text, open);
             if (open == std::string::npos || close == std::string::npos) {
                 error = manifest.string() + ": could not locate '" + std::string(section) + ".files' in the text";
                 return RV_ERR_INVAL;

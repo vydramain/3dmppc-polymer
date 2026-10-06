@@ -60,7 +60,8 @@ void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::pat
     rv_editor_log *log = &app.log;
     app.nvim.switch_root(app.project.root, [log](const std::string &failure) {
         if (!failure.empty()) {
-            log->add(rv_editor_log_source::editor, rv_editor_log_level::error,
+            log->add(rv_editor_log_source::editor,
+                rv_editor_log_level::error,
                 "the code editor keeps the old project's files: " + failure);
         }
     });
@@ -89,8 +90,7 @@ void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &id
                 continue;
             }
             s->save_failed.push_back(f);
-            s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-                "not saved: " + label + ": " + f.error);
+            s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not saved: " + label + ": " + f.error);
         }
         if (!failure.empty()) {
             s->save_failed.push_back({ 0, {}, false, failure });
@@ -106,7 +106,10 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
     rv_editor_app &app = shell.app;
     ImGui::TextWrapped("%s", rv_editor_text("shell_save.save_as_intro"));
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * save_as_field_width_em);
-    rv_editor_text_field("##save_as", shell.save_as_path, sizeof(shell.save_as_path), theme,
+    rv_editor_text_field("##save_as",
+        shell.save_as_path,
+        sizeof(shell.save_as_path),
+        theme,
         { {}, false, false, shell.save_as_error.empty() ? nullptr : shell.save_as_error.c_str() });
     if (!shell.save_as_error.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
@@ -146,7 +149,9 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
         s->saving = false;
         if (failure.empty() && !saved.empty() && saved.front().ok) {
             s->app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "saved " + saved.front().name);
-            std::erase_if(s->save_failed, [id](const rv_editor_nvim_saved &f) { return f.id == id; });
+            std::erase_if(s->save_failed, [id](const rv_editor_nvim_saved &f) {
+                return f.id == id;
+            });
             s->save_as_buffer = 0;
             return;
         }
@@ -181,8 +186,7 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
             label = f.name;
         }
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        const auto error_line = rv_editor_text_format("shell_save.not_saved_error",
-            std::make_format_args(label, f.error));
+        const auto error_line = rv_editor_text_format("shell_save.not_saved_error", std::make_format_args(label, f.error));
         ImGui::TextWrapped("%s", error_line.c_str());
         ImGui::PopStyleColor();
         if (f.id != 0 && f.name.empty() && shell.save_as_buffer == 0) {
@@ -409,8 +413,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     }
     if (rv_editor_app_scene_dirty(app)) {
         const auto scene_name = rv_editor_app_scene_name(app);
-        const auto scene_label = rv_editor_text_format("shell_save.scene_label",
-            std::make_format_args(scene_name));
+        const auto scene_label = rv_editor_text_format("shell_save.scene_label", std::make_format_args(scene_name));
         ImGui::BulletText("%s", scene_label.c_str());
     }
     rv_editor_shell_failures(shell, theme);

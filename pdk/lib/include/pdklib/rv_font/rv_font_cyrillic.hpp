@@ -28,7 +28,7 @@ inline constexpr int rv_font_cyrillic_slot(char32_t code)
     return -1;
 }
 
-// clang-format off - one glyph per line, top row first, as in rv_font_data.hpp.
+// clang-format off: one glyph per line, top row first, as in rv_font_data.hpp.
 inline constexpr uint8_t rv_font_cyrillic_bits[rv_font_cyrillic_glyph_count * 8] = {
     0x20, 0x50, 0x88, 0x88, 0xF8, 0x88, 0x88, 0x00, //   0  U+0410 А
     0xF8, 0x80, 0x80, 0xF0, 0x88, 0x88, 0xF0, 0x00, //   1  U+0411 Б

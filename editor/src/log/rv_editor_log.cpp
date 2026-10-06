@@ -31,16 +31,18 @@ constexpr const char *log_level_info_code = "INF";
 const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
 {
     switch (channel) {
-        case rv_editor_log_channel::out: return "out";
-        case rv_editor_log_channel::err: return "err";
-        case rv_editor_log_channel::none: break;
+    case rv_editor_log_channel::out:
+        return "out";
+    case rv_editor_log_channel::err:
+        return "err";
+    case rv_editor_log_channel::none:
+        break;
     }
     return "-";
 }
 
 // The steady clock the lines count from, and the wall clock at that moment.
-struct rv_editor_log_clock
-{
+struct rv_editor_log_clock {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     std::chrono::system_clock::time_point wall = std::chrono::system_clock::now();
 };
@@ -53,8 +55,8 @@ const rv_editor_log_clock &rv_editor_log_start()
 
 int64_t rv_editor_log_now()
 {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() -
-        rv_editor_log_start().start).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - rv_editor_log_start().start)
+        .count();
 }
 
 // Severity from what the line itself says: the console's level column
@@ -89,8 +91,12 @@ std::string rv_editor_log_stamp(const rv_editor_log_line &line, bool ms)
     return buf;
 }
 
-void rv_editor_log::add(rv_editor_log_source source, rv_editor_log_level level, std::string_view text,
-    rv_editor_log_channel channel, int64_t pid, uint32_t run)
+void rv_editor_log::add(rv_editor_log_source source,
+    rv_editor_log_level level,
+    std::string_view text,
+    rv_editor_log_channel channel,
+    int64_t pid,
+    uint32_t run)
 {
     std::string kept(text.substr(0, line_max));
     if (text.size() > line_max) {
@@ -126,8 +132,7 @@ void rv_editor_log::write_to_sink(rv_editor_log_sink &sink, const rv_editor_log_
             break;
         }
     }
-    add(rv_editor_log_source::editor, rv_editor_log_level::error,
-        "log file write failed: " + path + ": " + std::strerror(err));
+    add(rv_editor_log_source::editor, rv_editor_log_level::error, "log file write failed: " + path + ": " + std::strerror(err));
 }
 
 void rv_editor_log::drop_sink(size_t index)
@@ -151,8 +156,7 @@ void rv_editor_log::attach_file(int64_t pid, const std::string &path)
         std::filesystem::create_directories(parent, ec);
     }
     if (ec) {
-        add(rv_editor_log_source::editor, rv_editor_log_level::error,
-            "log file " + path + ": " + ec.message());
+        add(rv_editor_log_source::editor, rv_editor_log_level::error, "log file " + path + ": " + ec.message());
         return;
     }
 
@@ -160,7 +164,8 @@ void rv_editor_log::attach_file(int64_t pid, const std::string &path)
     FILE *file = std::fopen(path.c_str(), "w");
     if (file == nullptr) {
         const int err = errno;
-        add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "log file open failed: " + path + ": " + std::strerror(err));
         return;
     }
@@ -200,8 +205,12 @@ rv_editor_log::~rv_editor_log()
     }
 }
 
-void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial, std::string_view bytes,
-    rv_editor_log_channel channel, int64_t pid, uint32_t run)
+void rv_editor_log::add_stream(rv_editor_log_source source,
+    std::string &partial,
+    std::string_view bytes,
+    rv_editor_log_channel channel,
+    int64_t pid,
+    uint32_t run)
 {
     while (!bytes.empty()) {
         const size_t nl = bytes.find('\n');
@@ -224,8 +233,11 @@ void rv_editor_log::add_stream(rv_editor_log_source source, std::string &partial
     }
 }
 
-void rv_editor_log::flush_stream(rv_editor_log_source source, std::string &partial, rv_editor_log_channel channel,
-    int64_t pid, uint32_t run)
+void rv_editor_log::flush_stream(rv_editor_log_source source,
+    std::string &partial,
+    rv_editor_log_channel channel,
+    int64_t pid,
+    uint32_t run)
 {
     if (!partial.empty()) {
         add(source, rv_editor_log_level_of(partial), partial, channel, pid, run);
@@ -243,12 +255,18 @@ void rv_editor_log::clear()
 const char *rv_editor_log_source_name(rv_editor_log_source source)
 {
     switch (source) {
-        case rv_editor_log_source::editor: return "editor";
-        case rv_editor_log_source::build: return "build";
-        case rv_editor_log_source::candidate: return "candidate";
-        case rv_editor_log_source::runtime: return "runtime";
-        case rv_editor_log_source::protocol: return "protocol";
-        case rv_editor_log_source::count: break;
+    case rv_editor_log_source::editor:
+        return "editor";
+    case rv_editor_log_source::build:
+        return "build";
+    case rv_editor_log_source::candidate:
+        return "candidate";
+    case rv_editor_log_source::runtime:
+        return "runtime";
+    case rv_editor_log_source::protocol:
+        return "protocol";
+    case rv_editor_log_source::count:
+        break;
     }
     return "?";
 }

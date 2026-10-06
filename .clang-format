@@ -1,6 +1,6 @@
 # Linux-Kernel-Inspired Readable C++ Style.
-# Philosophy: clang-format owns indentation, braces and spacing; line breaks
-# (one operand or condition per line) are the author's call.
+# Philosophy: clang-format owns indentation, braces and spacing. It also breaks argument
+# and parameter lists one per line when they do not fit in 128 columns.
 ---
 Language: Cpp
 Standard: Latest
@@ -13,10 +13,9 @@ IndentWidth: 4
 TabWidth: 4
 ContinuationIndentWidth: 4
 
-# 0 = clang-format neither joins nor re-splits lines: the author's breaks survive
-# as written, while indentation is still normalised. The 128-column limit is a
-# convention, highlighted by colorcolumn in nvim.
-ColumnLimit: 0
+# Lines are limited to 128 columns (the project convention). When a call or
+# declaration does not fit, every argument/parameter goes on its own line.
+ColumnLimit: 128
 
 # --- Braces: Linux style (a break for functions only); {} always required ---
 BreakBeforeBraces: Linux
@@ -27,6 +26,13 @@ AlignAfterOpenBracket: DontAlign
 AlignOperands: DontAlign
 BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: false
+# Break argument and parameter lists one per line.
+BinPackArguments: false
+BinPackParameters: OnePerLine
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+# Long braced data lists, 20+ items, stay packed.
+BinPackLongBracedList: true
 
 # --- No one-line "squeezing" ---
 AllowShortFunctionsOnASingleLine: None

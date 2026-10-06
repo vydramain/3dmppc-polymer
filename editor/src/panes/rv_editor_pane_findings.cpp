@@ -71,7 +71,8 @@ constexpr std::string_view findings_label_steps = "\nsteps:\n";
 constexpr std::string_view findings_label_expected = "\n\nexpected:\n";
 constexpr std::string_view findings_label_actual = "\n\nactual:\n";
 constexpr std::string_view findings_none = "none";
-constexpr const char *exploratory_case_title = "Exploratory"; // Default test case title, written into result files - not translated.
+constexpr const char *exploratory_case_title =
+    "Exploratory"; // Default test case title, written into result files - not translated.
 
 // Result file format labels.
 constexpr std::string_view result_label_test_case = "test case: ";
@@ -115,8 +116,8 @@ std::string rv_editor_session_text(const rv_editor_app &app)
     out += "disc: " + f.disc + ", code hash " + f.code_hash + ", medium " + f.medium + "\n";
     if (f.lua_budget > 0) {
         out += "entry revision: " + std::to_string(f.revision) +
-            (f.revision != f.first_revision ? " (reloaded; the build had " + std::to_string(f.first_revision) + ")"
-                                            : " (as built)") +
+            (f.revision != f.first_revision ? " (reloaded; the build had " + std::to_string(f.first_revision) + ")" :
+                                              " (as built)") +
             "\n";
     }
     if (!s.live()) {
@@ -167,8 +168,8 @@ void rv_editor_record(rv_editor_app &app, const std::filesystem::path &dir)
     std::string text = std::string(findings_label_title) + std::string(f.title) + "\n";
     text += std::string(findings_label_recorded) + rv_editor_now_text("%Y-%m-%d %H:%M:%S") + "\n";
     text += rv_editor_session_text(app);
-    text += std::string(findings_label_screenshot) + (f.capture.empty() ? std::string(findings_none) : f.capture.string()) +
-        "\n";
+    text +=
+        std::string(findings_label_screenshot) + (f.capture.empty() ? std::string(findings_none) : f.capture.string()) + "\n";
     text += std::string(findings_label_log) + log_path.string() + "\n";
     text += std::string(findings_label_steps) + std::string(f.steps) + std::string(findings_label_expected) +
         std::string(f.expected) + std::string(findings_label_actual) + std::string(f.actual) + "\n";
@@ -189,15 +190,16 @@ void rv_editor_multiline(const char *label, char *buf, size_t size)
 {
     ImGui::TextUnformatted(label);
     ImGui::PushID(label);
-    ImGui::InputTextMultiline("##text", buf, size,
+    ImGui::InputTextMultiline("##text",
+        buf,
+        size,
         ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * multiline_input_height_lines));
     ImGui::PopID();
 }
 
 // A test case file: "title: ..." on its first line, then "steps:" and "expected:"
 // each on a line of its own over their text, as a finding writes them.
-struct rv_editor_case
-{
+struct rv_editor_case {
     std::string title;
     std::string steps;
     std::string expected;
@@ -276,19 +278,19 @@ void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const ch
     const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
-    const std::string filename = rv_editor_now_text("%Y%m%d-%H%M%S") + std::string(filename_timestamp_result_sep) +
-        result + std::string(file_ext_text);
+    const std::string filename =
+        rv_editor_now_text("%Y%m%d-%H%M%S") + std::string(filename_timestamp_result_sep) + result + std::string(file_ext_text);
     const std::filesystem::path path = dir / filename;
     std::string text = std::string(result_label_test_case) + c.title + std::string(result_label_result) + result +
-        std::string(result_label_note) + f.note + std::string(result_label_recorded) +
-        rv_editor_now_text("%Y-%m-%d %H:%M:%S") + "\n" + rv_editor_session_text(app);
+        std::string(result_label_note) + f.note + std::string(result_label_recorded) + rv_editor_now_text("%Y-%m-%d %H:%M:%S") +
+        "\n" + rv_editor_session_text(app);
     if (rv_editor_write_file(path, text, f.error) != RV_OK) {
         return;
     }
     f.error.clear();
     f.saved.push_back(path);
-    f.results.push_back(std::string(result) + ": " + c.title + ", session #" + std::to_string(app.session.number()) +
-        ", " + rv_editor_now_text("%H:%M"));
+    f.results.push_back(std::string(result) + ": " + c.title + ", session #" + std::to_string(app.session.number()) + ", " +
+        rv_editor_now_text("%H:%M"));
     app.log.add(rv_editor_log_source::editor,
         std::string_view(result) == result_type_failed ? rv_editor_log_level::warning : rv_editor_log_level::info,
         "test case " + c.title + ": " + result + ", session #" + std::to_string(app.session.number()));
@@ -347,9 +349,9 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
     const char *why_not = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
-    constexpr const char *results[] = { result_type_passed.data(), result_type_failed.data(),
-        result_type_blocked.data() };
-    const char *labels[] = { rv_editor_text("findings.passed"), rv_editor_text("findings.failed"),
+    constexpr const char *results[] = { result_type_passed.data(), result_type_failed.data(), result_type_blocked.data() };
+    const char *labels[] = { rv_editor_text("findings.passed"),
+        rv_editor_text("findings.failed"),
         rv_editor_text("findings.blocked") };
     for (size_t i = 0; i < std::size(results); ++i) {
         if (i > 0) {
@@ -410,7 +412,8 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_multiline(rv_editor_text("findings.expected"), f.expected, sizeof(f.expected));
     rv_editor_multiline(rv_editor_text("findings.actual"), f.actual, sizeof(f.actual));
     rv_editor_path_row(rv_editor_text("findings.screenshot"),
-        f.capture.empty() ? std::string(rv_editor_text("findings.none_screenshot")) : f.capture.string(), theme);
+        f.capture.empty() ? std::string(rv_editor_text("findings.none_screenshot")) : f.capture.string(),
+        theme);
     ImGui::TextWrapped("%s", rv_editor_text("findings.session_added"));
 
     ImGui::SeparatorText(rv_editor_text("findings.saved_in_this_window"));

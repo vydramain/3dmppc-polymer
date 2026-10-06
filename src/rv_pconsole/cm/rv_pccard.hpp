@@ -43,9 +43,8 @@ public:
     // i64 + slot_size i64) and one length entry (i64) per slot, ahead of the
     // slot payloads. Public so the boot budget check
     // (rv_pccm_posix::evaluate) can cost a card image before one is built.
-    static constexpr int64_t RV_PCCARD_HEADER_BYTES =
-        8 /* magic */ + sizeof(uint32_t) /* version */ + sizeof(uint32_t) /* reserved */ +
-        sizeof(int64_t) /* slot_count */ + sizeof(int64_t) /* slot_size */;
+    static constexpr int64_t RV_PCCARD_HEADER_BYTES = 8 /* magic */ + sizeof(uint32_t) /* version */ +
+        sizeof(uint32_t) /* reserved */ + sizeof(int64_t) /* slot_count */ + sizeof(int64_t) /* slot_size */;
     static constexpr int64_t RV_PCCARD_LENGTH_ENTRY_BYTES = sizeof(int64_t);
 
     // Loads `image_path`; boot always passes one (rv_pboot_conf.cpp).

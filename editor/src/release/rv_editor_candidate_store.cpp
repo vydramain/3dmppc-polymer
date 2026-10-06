@@ -51,13 +51,13 @@ constexpr std::string_view key_env = "env";
 constexpr std::string_view key_at = "at";
 constexpr std::string_view key_hash = "hash";
 
-constexpr std::array<const char *, rv_editor_check_count> rv_editor_check_keys = { "build", "loads", "player",
-    "launch", "input", "audio", "scenario", "exit" };
-constexpr std::array<const char *, 6> rv_editor_state_keys = { "not_run", "running", "passed", "failed", "blocked",
-    "skipped" };
+constexpr std::array<const char *, rv_editor_check_count>
+    rv_editor_check_keys = { "build", "loads", "player", "launch", "input", "audio", "scenario", "exit" };
+constexpr std::array<const char *, 6> rv_editor_state_keys = { "not_run", "running", "passed", "failed", "blocked", "skipped" };
 constexpr std::array<const char *, 3> rv_editor_decision_keys = { "none", "approved", "rejected" };
 
-template <size_t N> size_t rv_editor_key_index(const std::array<const char *, N> &keys, std::string_view key)
+template <size_t N>
+size_t rv_editor_key_index(const std::array<const char *, N> &keys, std::string_view key)
 {
     for (size_t i = 0; i < N; ++i) {
         if (key == keys[i]) {
@@ -87,17 +87,18 @@ void rv_editor_candidate_field(rv_editor_candidate &c, const rv_pdklib::rv_manif
         }
         return;
     }
-    std::string *field = e.key == key_command ? &c.command : e.key == key_built_at ? &c.built_at :
-        e.key == key_burner                                                        ? &c.burner :
-        e.key == key_baker                                                         ? &c.baker :
-        e.key == key_sha256                                                        ? &c.sha256 :
-        e.key == key_verified_hash                                                 ? &c.verified_hash :
-        e.key == key_verified_at                                                   ? &c.verified_at :
-        e.key == key_source_revision                                               ? &c.source_revision :
-        e.key == key_decided_at                                                    ? &c.decided_at :
-        e.key == key_operator                                                      ? &c.operator_name :
-        e.key == key_last_run_end                                                  ? &c.last_run_end :
-                                                                                     nullptr;
+    std::string *field = e.key == key_command ? &c.command :
+        e.key == key_built_at                 ? &c.built_at :
+        e.key == key_burner                   ? &c.burner :
+        e.key == key_baker                    ? &c.baker :
+        e.key == key_sha256                   ? &c.sha256 :
+        e.key == key_verified_hash            ? &c.verified_hash :
+        e.key == key_verified_at              ? &c.verified_at :
+        e.key == key_source_revision          ? &c.source_revision :
+        e.key == key_decided_at               ? &c.decided_at :
+        e.key == key_operator                 ? &c.operator_name :
+        e.key == key_last_run_end             ? &c.last_run_end :
+                                                nullptr;
     if (field != nullptr) {
         *field = s;
     } else if (e.key == key_image) {
@@ -113,8 +114,8 @@ void rv_editor_check_field(rv_editor_check &check, const rv_pdklib::rv_manifest_
     const std::string &s = e.value.str;
     if (e.key == key_state) {
         const size_t st = rv_editor_key_index(rv_editor_state_keys, s);
-        check.state = st < rv_editor_state_keys.size() ? static_cast<rv_editor_check_state>(st)
-                                                        : rv_editor_check_state::not_run;
+        check.state =
+            st < rv_editor_state_keys.size() ? static_cast<rv_editor_check_state>(st) : rv_editor_check_state::not_run;
     } else if (e.key == key_note) {
         check.note = s;
     } else if (e.key == key_env) {
@@ -135,7 +136,9 @@ std::filesystem::path rv_editor_candidate_log(const std::filesystem::path &dir, 
 
 int rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_candidate &c, std::string &error)
 {
-    const auto q = [](std::string_view s) { return rv_editor_toml_quote(s); };
+    const auto q = [](std::string_view s) {
+        return rv_editor_toml_quote(s);
+    };
     std::string t = "# A release candidate of 3dmppc-editor; the editor rewrites this file.\n\n[candidate]\n";
     t += std::string(key_number) + " = " + std::to_string(c.number) + "\n";
     t += std::string(key_image) + " = " + q(c.image.string()) + "\n";
@@ -172,8 +175,7 @@ int rv_editor_candidate_save(const std::filesystem::path &dir, const rv_editor_c
     return RV_OK;
 }
 
-std::vector<rv_editor_candidate> rv_editor_candidates_load(const std::filesystem::path &dir,
-    std::vector<std::string> &errors)
+std::vector<rv_editor_candidate> rv_editor_candidates_load(const std::filesystem::path &dir, std::vector<std::string> &errors)
 {
     std::vector<std::filesystem::path> records;
     std::error_code ec;

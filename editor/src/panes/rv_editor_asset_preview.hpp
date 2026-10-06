@@ -15,8 +15,7 @@ namespace rv_editor
 {
 
 // One resource file as Assets lists it.
-struct rv_editor_asset
-{
+struct rv_editor_asset {
     std::filesystem::path path;
     std::string rel;    // relative to the project root, as the map names it
     std::string folder; // its top-level folder
@@ -38,8 +37,12 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a);
 // rv_editor_asset_sound_seconds. `project` is the open project: when `a` is
 // not covered by disc.toml and belongs in a disc section, an "Add to disc"
 // button offers to put it there.
-void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds, const rv_editor_theme &theme, rv_editor_project &project);
+void rv_editor_asset_preview(const rv_editor_asset *a,
+    const rv_editor_map_entry *entry,
+    rv_editor_icon picture,
+    double sound_seconds,
+    const rv_editor_theme &theme,
+    rv_editor_project &project);
 
 // The asset's picture: a PNG's texture, loaded once and cached, or an empty icon otherwise.
 rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a);

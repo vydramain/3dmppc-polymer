@@ -113,8 +113,7 @@ std::string rv_editor_output_origin(const rv_editor_log_line &line)
         return rv_editor_text("pane_output.origin_editor");
     }
     const char *kind = rv_editor_output_kind(line.source);
-    std::string out = rv_editor_text_format("pane_output.origin_pid",
-        std::make_format_args(line.pid, kind, line.run));
+    std::string out = rv_editor_text_format("pane_output.origin_pid", std::make_format_args(line.pid, kind, line.run));
     if (line.channel == rv_editor_log_channel::out) {
         out += rv_editor_text("pane_output.origin_stdout");
     } else if (line.channel == rv_editor_log_channel::err) {
@@ -125,7 +124,9 @@ std::string rv_editor_output_origin(const rv_editor_log_line &line)
 
 std::string rv_editor_output_lower(std::string s)
 {
-    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
     return s;
 }
 
@@ -162,8 +163,7 @@ std::string rv_editor_output_text(const rv_editor_log_line &line)
     return head + pid_str + channel + export_field_separator.data() + line.text + export_line_end.data();
 }
 
-int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
-    std::string &where)
+int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown, std::string &where)
 {
     const std::filesystem::path dir = app.project.cache_dir / log_dir_name.data();
     std::error_code ec;
@@ -195,8 +195,10 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h), rv_editor_col(theme.code_base));
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
     dl->PushClipRect(p0, ImVec2(p0.x + w, p0.y + h), true);
-    const char *names[] = { rv_editor_text("pane_output.col_time"), rv_editor_text("pane_output.col_level"),
-        rv_editor_text("pane_output.col_source"), rv_editor_text("pane_output.col_message") };
+    const char *names[] = { rv_editor_text("pane_output.col_time"),
+        rv_editor_text("pane_output.col_level"),
+        rv_editor_text("pane_output.col_source"),
+        rv_editor_text("pane_output.col_message") };
     ImFont *ui_font = rv_editor_font_ui();
     const float ty = p0.y + (h - ui_font->LegacySize) * center_factor;
     float x = p0.x + cell * half_cell - view.scroll_x;
@@ -310,21 +312,20 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         }
     }
     if (view.run_pid != 0 && run_lines == 0) {
-        const std::string msg = rv_editor_text_format("pane_output.status_no_lines",
-            std::make_format_args(view.run_label));
+        const std::string msg = rv_editor_text_format("pane_output.status_no_lines", std::make_format_args(view.run_label));
         rv_editor_status(msg.c_str(), rv_editor_status_kind::idle, theme);
     }
     if (hidden_errors + hidden_warnings != 0) {
-        const std::string hidden = rv_editor_text_format("pane_output.status_hidden",
-            std::make_format_args(hidden_errors, hidden_warnings));
-        rv_editor_status(hidden.c_str(), hidden_errors != 0 ? rv_editor_status_kind::error : rv_editor_status_kind::warning,
+        const std::string hidden =
+            rv_editor_text_format("pane_output.status_hidden", std::make_format_args(hidden_errors, hidden_warnings));
+        rv_editor_status(hidden.c_str(),
+            hidden_errors != 0 ? rv_editor_status_kind::error : rv_editor_status_kind::warning,
             theme);
     }
     if (log.dropped() != 0) {
         rv_editor_flow(ImGui::GetFontSize() * dropped_lines_flow_width_em);
         const unsigned long long dropped = log.dropped();
-        const std::string msg = rv_editor_text_format("pane_output.info_dropped",
-            std::make_format_args(dropped));
+        const std::string msg = rv_editor_text_format("pane_output.info_dropped", std::make_format_args(dropped));
         ImGui::TextUnformatted(msg.c_str());
     }
     const auto picked = [&view](const rv_editor_log_line &line) {
@@ -332,7 +333,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             line.seq <= std::max(view.picked_from, view.picked_to);
     };
     const auto copy_lines = [&]() {
-        const bool any = std::any_of(shown.begin(), shown.end(), [&](const rv_editor_log_line *l) { return picked(*l); });
+        const bool any = std::any_of(shown.begin(), shown.end(), [&](const rv_editor_log_line *l) {
+            return picked(*l);
+        });
         std::string text;
         for (const rv_editor_log_line *line : shown) {
             if (!any || picked(*line)) {
@@ -366,10 +369,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     // A monospace line's rows: its characters over the width, give or take a word
     // carried whole. An estimate for lines out of sight, exact for the rest.
     const auto rows_of = [&](const rv_editor_log_line &line) {
-        const size_t chars = static_cast<size_t>(std::count_if(line.text.begin(), line.text.end(),
-            [](char c) {
-                return (static_cast<unsigned char>(c) & utf8_byte_type_mask) != utf8_continuation_marker;
-            }));
+        const size_t chars = static_cast<size_t>(std::count_if(line.text.begin(), line.text.end(), [](char c) {
+            return (static_cast<unsigned char>(c) & utf8_byte_type_mask) != utf8_continuation_marker;
+        }));
         const float per_row = std::max(1.0f, std::floor(wrap_w / cell));
         return std::max(1.0f, std::ceil(static_cast<float>(chars) / per_row));
     };
@@ -381,9 +383,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hovered_color);
     ImGui::PushStyleColor(ImGuiCol_HeaderActive, code_surface_col);
     const auto row = [&](const rv_editor_log_line &line) {
-        const float h = view.wrap
-            ? std::max(line_h, ImGui::CalcTextSize(line.text.c_str(), nullptr, false, wrap_w).y)
-            : line_h;
+        const float h = view.wrap ? std::max(line_h, ImGui::CalcTextSize(line.text.c_str(), nullptr, false, wrap_w).y) : line_h;
         const ImVec2 start = ImGui::GetCursorPos();
         const float x = start.x + cell * half_cell;
         ImGui::PushID(static_cast<int>(line.seq));
@@ -404,9 +404,9 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         ImGui::TextUnformatted(rv_editor_log_stamp(line, false).c_str());
         ImGui::PopStyleColor();
         ImGui::SameLine(x + at_level);
-        const uint32_t level_ink = line.level == rv_editor_log_level::error ? theme.code_red
-            : line.level == rv_editor_log_level::warning                  ? theme.code_yellow
-                                                                          : theme.code_blue;
+        const uint32_t level_ink = line.level == rv_editor_log_level::error ? theme.code_red :
+            line.level == rv_editor_log_level::warning                      ? theme.code_yellow :
+                                                                              theme.code_blue;
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(level_ink));
         ImGui::TextUnformatted(rv_editor_output_level_text(line.level));
         ImGui::PopStyleColor();

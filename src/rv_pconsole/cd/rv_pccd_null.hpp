@@ -38,13 +38,22 @@ public:
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
     // No drive to put it in: the medium is dropped.
-    void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override {}
+    void medium_insert(std::unique_ptr<rv_pcmedium> /*medium*/) override
+    {
+    }
 
     // No drive, so nothing is ever made resident: ignored.
-    void video_attach(rv_pccv & /*cv*/) override {}
-    void audio_attach(rv_pcca & /*ca*/) override {}
+    void video_attach(rv_pccv & /*cv*/) override
+    {
+    }
+    void audio_attach(rv_pcca & /*ca*/) override
+    {
+    }
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 };
 
 } // namespace rv_3dmppc

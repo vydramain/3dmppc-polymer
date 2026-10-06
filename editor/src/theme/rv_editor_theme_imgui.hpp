@@ -19,7 +19,9 @@ constexpr uint32_t alpha_opaque = 0xff;      // fully opaque alpha value
 constexpr ImU32 rv_editor_col(uint32_t rgb)
 {
     return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask,
-        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask, alpha_opaque);
+        (rgb >> channel_shift_green) & rgb_channel_mask,
+        rgb & rgb_channel_mask,
+        alpha_opaque);
 }
 
 // Writes the tokens into an ImGui style: colours, square corners, no

@@ -38,12 +38,11 @@ constexpr float splitter_half_divisor = 2.0f;
 // Halves the free space to centre the bar.
 constexpr float half_divisor = 2.0f;
 
-struct rv_editor_pane_values
-{
+struct rv_editor_pane_values {
     int selected = 1;
     int tab = 0;
     float left_share = splitter_demo_initial_left_share;
-    float top = 0.0f;        // splitter demo heights, set on first use
+    float top = 0.0f; // splitter demo heights, set on first use
     float bottom = 0.0f;
 };
 
@@ -71,7 +70,8 @@ void rv_editor_catalog_tree()
 void rv_editor_catalog_list(float height)
 {
     const char *items[] = { rv_editor_text("catalog_panes.list_solid_maid"),
-        rv_editor_text("catalog_panes.list_example_lua"), rv_editor_text("catalog_panes.list_example_cpp"),
+        rv_editor_text("catalog_panes.list_example_lua"),
+        rv_editor_text("catalog_panes.list_example_cpp"),
         rv_editor_text("catalog_panes.list_missing_disc") };
     if (!ImGui::BeginListBox("##list", ImVec2(-1.0f, height))) {
         return;
@@ -98,8 +98,7 @@ void rv_editor_catalog_table()
     const char *rows[][catalog_table_columns] = { { rv_editor_text("catalog_panes.table_solid_maid"),
                                                       rv_editor_text("catalog_panes.table_path_projects") },
         { rv_editor_text("catalog_panes.table_example_lua"), rv_editor_text("catalog_panes.table_path_mppcdiscs") },
-        { rv_editor_text("catalog_panes.table_example_cpp"),
-            rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
+        { rv_editor_text("catalog_panes.table_example_cpp"), rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
     for (const auto &row : rows) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
@@ -113,7 +112,8 @@ void rv_editor_catalog_table()
 void rv_editor_catalog_tabs(const rv_editor_theme &t)
 {
     const char *const labels[] = { rv_editor_text("catalog_panes.tab_project"),
-        rv_editor_text("catalog_panes.tab_scene"), rv_editor_text("catalog_panes.tab_assets"),
+        rv_editor_text("catalog_panes.tab_scene"),
+        rv_editor_text("catalog_panes.tab_assets"),
         rv_editor_text("catalog_panes.tab_console_output") };
     rv_editor_tab_strip("##tabs", labels, static_cast<int>(std::size(labels)), &rv_editor_pane_data.tab, t);
 }
@@ -148,8 +148,14 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     ImGui::BeginChild("##top", ImVec2(right, v.top), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_top"));
     ImGui::EndChild();
-    rv_editor_splitter("##split_y", rv_editor_axis::y, right, &v.top, &v.bottom, min / splitter_half_divisor,
-        min / splitter_half_divisor, t);
+    rv_editor_splitter("##split_y",
+        rv_editor_axis::y,
+        right,
+        &v.top,
+        &v.bottom,
+        min / splitter_half_divisor,
+        min / splitter_half_divisor,
+        t);
     ImGui::BeginChild("##bottom", ImVec2(right, v.bottom), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_bottom"));
     ImGui::EndChild();
@@ -178,12 +184,10 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
     }();
     ImGui::SeparatorText(rv_editor_text("catalog_panes.section_tile_windows"));
     const ImVec2 at = ImGui::GetCursorScreenPos();
-    const rv_editor_rect area{
-        static_cast<int>(at.x),
+    const rv_editor_rect area{ static_cast<int>(at.x),
         static_cast<int>(at.y),
         static_cast<int>(ImGui::GetContentRegionAvail().x),
-        static_cast<int>(ImGui::GetFrameHeight() * catalog_tile_height_frames)
-    };
+        static_cast<int>(ImGui::GetFrameHeight() * catalog_tile_height_frames) };
     rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area);
 }
 
@@ -194,12 +198,18 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
     ImGui::SeparatorText(rv_editor_text("catalog_panes.section_shelf_well"));
     rv_editor_pane_header(rv_editor_text("catalog_panes.header_files"), true, t, true);
     rv_editor_shelf_begin("##shelf", t);
-    if (rv_editor_letter_button(
-            "##new", rv_editor_glyph::new_, t.code_green, rv_editor_text("catalog_panes.button_new_file"), t)) {
+    if (rv_editor_letter_button("##new",
+            rv_editor_glyph::new_,
+            t.code_green,
+            rv_editor_text("catalog_panes.button_new_file"),
+            t)) {
     }
     rv_editor_flow(ImGui::GetFrameHeight());
-    if (rv_editor_letter_button("##del", rv_editor_glyph::delete_, t.code_red,
-            rv_editor_text("catalog_panes.button_delete"), t)) {
+    if (rv_editor_letter_button("##del",
+            rv_editor_glyph::delete_,
+            t.code_red,
+            rv_editor_text("catalog_panes.button_delete"),
+            t)) {
     }
     rv_editor_shelf_end();
     if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_view_height_frames), t)) {
@@ -214,12 +224,9 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
 {
     rv_editor_pane_header(rv_editor_text("catalog_panes.header_hierarchy"), true, theme, true);
     rv_editor_pane_header(rv_editor_text("catalog_panes.header_inspector"), false, theme, true);
-    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_hovered"), true, theme, true,
-        { rv_editor_look::hovered });
-    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_pressed"), true, theme, true,
-        { rv_editor_look::pressed });
-    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_focused"), true, theme, true,
-        { rv_editor_look::focused });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_hovered"), true, theme, true, { rv_editor_look::hovered });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_pressed"), true, theme, true, { rv_editor_look::pressed });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_focused"), true, theme, true, { rv_editor_look::focused });
     rv_editor_catalog_splitters(theme);
     rv_editor_catalog_tiles(theme);
     rv_editor_catalog_layers(theme);

@@ -43,8 +43,12 @@ namespace
 // combination, and learns the machine - all of it before any disc code, any
 // archive and any allocation. Returns RV_OK to continue booting; on error,
 // `exit_code` is what rv_pboot_run must return immediately.
-int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &slots,
-    rv_pboot_mode_info &machine, int &exit_code)
+int rv_pboot_preflight(int argc,
+    char **argv,
+    rv_pboot_args &args,
+    rv_pcslots &slots,
+    rv_pboot_mode_info &machine,
+    int &exit_code)
 {
     // Parse the command line and validate the mode name. Nothing is
     // brought up here: a bad argument must cost a diagnostic, not a machine.
@@ -81,13 +85,10 @@ int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &s
     // through. A run with neither would stop and stay stopped with no way out
     // but a signal - refused here rather than delivered as a hang, and checked
     // only now because it depends on the resolved platform and cv slot.
-    const bool pause_can_be_lifted =
-        args.dev ||
-        (slots.platform == rv_pcplatform_impl::sdl3 && slots.cv != rv_pccv_impl::null);
+    const bool pause_can_be_lifted = args.dev || (slots.platform == rv_pcplatform_impl::sdl3 && slots.cv != rv_pccv_impl::null);
     if (args.loop_paused && !pause_can_be_lifted) {
-        rv_console_print_error(
-            std::string("--paused would never be lifted: this mode has no window for the "
-                        "pause key") +
+        rv_console_print_error(std::string("--paused would never be lifted: this mode has no window for the "
+                                           "pause key") +
             RV_PBOOT_ARGS_CMD_PAUSE_HINT);
         exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_INVAL;
@@ -109,9 +110,13 @@ int rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &s
 // Resolves cl, checks the budget against the machine, and builds the run's
 // conf - all of it before any of the disc's code is loaded. Returns RV_OK to
 // continue booting; on error, `exit_code` is what rv_pboot_run must return.
-int rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
-    const rv_pboot_mode_info &machine, const rv_pdklib::rv_manifest_budget *budget,
-    bool medium_live, rv_pconsole_conf &conf, int &exit_code)
+int rv_pboot_prepare_conf(const rv_pboot_args &args,
+    rv_pcslots &slots,
+    const rv_pboot_mode_info &machine,
+    const rv_pdklib::rv_manifest_budget *budget,
+    bool medium_live,
+    rv_pconsole_conf &conf,
+    int &exit_code)
 {
     // Resolve cl before evaluation so the row checked below is the row
     // rv_pccl_make later builds.
@@ -121,8 +126,7 @@ int rv_pboot_prepare_conf(const rv_pboot_args &args, rv_pcslots &slots,
     // loaded. rv_pboot_check_budget() has already logged the specific reason;
     // this only names what is being refused.
     if (rv_pboot_check_budget(*budget, slots, machine) < 0) {
-        rv_console_print_error(std::format(
-            "refusing to boot '{}'",
+        rv_console_print_error(std::format("refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
         exit_code = 1;
         return RV_ERR_INVAL;
@@ -237,8 +241,7 @@ int rv_pboot_run(int argc, char **argv)
 
     if (args.disc_path != nullptr) {
         if (loader.bring_up() < 0) {
-            rv_console_print_error(std::format(
-                "refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
+            rv_console_print_error(std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
             return 1;
         }
 

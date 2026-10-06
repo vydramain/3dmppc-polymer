@@ -13,8 +13,7 @@
 namespace rv_editor
 {
 
-enum class rv_editor_build_state
-{
+enum class rv_editor_build_state {
     idle,
     building,
     cancelling,
@@ -29,8 +28,7 @@ const char *rv_editor_build_state_name(rv_editor_build_state state);
 // A disc the burner finished, never rewritten once published: an unpacked
 // directory under the project's cache, or a release candidate's image; the
 // console takes either as its disc argument.
-struct rv_editor_artifact
-{
+struct rv_editor_artifact {
     std::filesystem::path dir;
     uint32_t number = 0;
 };
@@ -46,27 +44,57 @@ public:
     // RV_OK if the build starts, or an rv_err code with the reason. With `image` the
     // burner writes that disc image (-o) instead of a numbered directory: a
     // release candidate, which Run never picks up.
-    int start(const rv_editor_project &project, const rv_editor_toolchain &tools, rv_editor_log &log,
-        std::string &error, const std::filesystem::path &image = {});
+    int start(const rv_editor_project &project,
+        const rv_editor_toolchain &tools,
+        rv_editor_log &log,
+        std::string &error,
+        const std::filesystem::path &image = {});
     // Stops the burner and everything it started.
     void cancel();
     // Once a frame: moves output into the log and notices the end.
     void update(rv_editor_log &log);
 
-    rv_editor_build_state state() const { return state_; }
+    rv_editor_build_state state() const
+    {
+        return state_;
+    }
     // How the last development build (not an image) went: what Run goes by.
-    rv_editor_build_state dev_state() const { return dev_state_; }
+    rv_editor_build_state dev_state() const
+    {
+        return dev_state_;
+    }
     // The image the current or last job writes; empty for a development build.
-    const std::filesystem::path &image() const { return image_; }
-    bool busy() const { return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling; }
-    uint32_t number() const { return number_; }
-    const std::optional<rv_editor_artifact> &last_success() const { return last_success_; }
+    const std::filesystem::path &image() const
+    {
+        return image_;
+    }
+    bool busy() const
+    {
+        return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling;
+    }
+    uint32_t number() const
+    {
+        return number_;
+    }
+    const std::optional<rv_editor_artifact> &last_success() const
+    {
+        return last_success_;
+    }
     // The burner's pid while a build runs; stale once it has ended.
-    pid_t pid() const { return proc_.pid(); }
+    pid_t pid() const
+    {
+        return proc_.pid();
+    }
     // How the burner ended; only meaningful once the job is no longer building.
-    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
+    const rv_editor_process::rv_editor_exit &exit_status() const
+    {
+        return proc_.exit_status();
+    }
     // True once the burner's output was cut short of end of file.
-    bool output_cut() const { return proc_.output_cut(); }
+    bool output_cut() const
+    {
+        return proc_.output_cut();
+    }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
     // directories under this project's own builds directory are ever removed.

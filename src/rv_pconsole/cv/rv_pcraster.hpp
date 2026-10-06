@@ -48,17 +48,15 @@ public:
     //
     // draw_line takes no view on purpose: the contract (rv_primitives.hpp) says
     // a line is never textured and ignores its vertices' uv.
-    static void draw_line(rv_pcfbuf &fbuf, const rv_line &line, int32_t depth,
-        bool z_enabled);
-    static void draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite,
-        const rv_pctexview &texture, int32_t depth, bool z_enabled);
-    static void draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
-        const rv_pctexview &texture, int32_t depth, bool z_enabled);
+    static void draw_line(rv_pcfbuf &fbuf, const rv_line &line, int32_t depth, bool z_enabled);
+    static void
+    draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv_pctexview &texture, int32_t depth, bool z_enabled);
+    static void
+    draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon, const rv_pctexview &texture, int32_t depth, bool z_enabled);
 
     // Draw whichever variant `primitive.type` selects. Unknown types are
     // ignored - frame_put already rejected them, this is only belt and braces.
-    static void draw(rv_pcfbuf &fbuf, const rv_primitive &primitive,
-        const rv_pctexview &texture, bool z_enabled);
+    static void draw(rv_pcfbuf &fbuf, const rv_primitive &primitive, const rv_pctexview &texture, bool z_enabled);
 
     // 8-bit-per-channel colour -> RGB555. `pack_rgb555` rounds; the dithered
     // form spreads the rounding error over a 4x4 pixel neighbourhood and is what

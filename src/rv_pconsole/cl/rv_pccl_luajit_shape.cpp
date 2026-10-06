@@ -98,8 +98,7 @@ int64_t rv_pccl_luajit::capture_state_shape_(bool initial, rv_pccl_reload_report
     if (args.refused) {
         report.phase = "state_shape";
         report.effects_possible = true;
-        report.message =
-            args.refuse_path.empty() ? args.refuse_message : args.refuse_path + ": " + args.refuse_message;
+        report.message = args.refuse_path.empty() ? args.refuse_message : args.refuse_path + ": " + args.refuse_message;
         return RV_ERR_INVAL;
     }
 
@@ -142,10 +141,10 @@ int mirror_table_(lua_State *L, int dst_idx, int src_idx, int &nodes, int depth)
                 lua_pop(L, 3); // child, value, key
                 return rc;
             }
-            lua_pushvalue(L, -3); // [key, value, child, key]
-            lua_insert(L, -2);    // [key, value, key, child]
+            lua_pushvalue(L, -3);   // [key, value, child, key]
+            lua_insert(L, -2);      // [key, value, key, child]
             lua_rawset(L, dst_idx); // dst[key] = child; [key, value]
-            lua_pop(L, 1);           // drop value; key stays for lua_next
+            lua_pop(L, 1);          // drop value; key stays for lua_next
             continue;
         }
         // A scalar - the only other shape a legal state value can have.
@@ -170,9 +169,9 @@ void table_clear_(lua_State *L, int idx)
     lua_Integer n = 0;
     lua_pushnil(L);
     while (lua_next(L, idx) != 0) {
-        lua_pop(L, 1);                  // value
-        lua_pushvalue(L, -1);           // dup the key
-        lua_rawseti(L, keys_idx, ++n);  // keys[n] = key; key itself stays for lua_next
+        lua_pop(L, 1);                 // value
+        lua_pushvalue(L, -1);          // dup the key
+        lua_rawseti(L, keys_idx, ++n); // keys[n] = key; key itself stays for lua_next
     }
     for (lua_Integer i = 1; i <= n; ++i) {
         lua_rawgeti(L, keys_idx, i);

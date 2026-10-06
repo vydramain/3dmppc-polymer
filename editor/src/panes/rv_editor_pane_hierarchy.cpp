@@ -54,8 +54,8 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
             children.push_back(i);
         }
     }
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth |
-        ImGuiTreeNodeFlags_DefaultOpen;
+    ImGuiTreeNodeFlags flags =
+        ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
     if (children.empty()) {
         flags |= ImGuiTreeNodeFlags_Leaf;
     }
@@ -123,8 +123,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
 
 void rv_editor_scene_keys(rv_editor_app &app)
 {
-    if (app.scene == nullptr || !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) ||
-        ImGui::GetIO().WantTextInput) {
+    if (app.scene == nullptr || !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) || ImGui::GetIO().WantTextInput) {
         return;
     }
     rv_editor_scene_doc &doc = *app.scene;
@@ -163,7 +162,8 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_shelf_begin("##shelf", theme);
     ImGui::BeginDisabled(read_only);
     for (std::string_view kind : scene_kinds) {
-        const std::string label = std::string(rv_editor_text("pane_hierarchy.add_prefix")) + rv_editor_scene_kind_label(std::string(kind));
+        const std::string label =
+            std::string(rv_editor_text("pane_hierarchy.add_prefix")) + rv_editor_scene_kind_label(std::string(kind));
         rv_editor_flow(rv_editor_button_width(label.c_str()));
         if (rv_editor_button(label.c_str(), theme)) {
             // Under the selected group, else at the root.

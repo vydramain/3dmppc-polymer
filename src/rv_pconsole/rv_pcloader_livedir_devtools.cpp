@@ -47,8 +47,7 @@ namespace rv_pcloader_detail
 // Same contract as read_whole_entry() above, off a plain file instead of a
 // zip entry - the directory route's counterpart, so mount_dir() can share
 // every check downstream of "here are the bytes" with mount().
-std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
-    std::vector<unsigned char> &out)
+std::string read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out)
 {
     std::error_code ec;
     if (!std::filesystem::is_regular_file(path, ec)) {
@@ -61,8 +60,7 @@ std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
     }
     const int64_t size = static_cast<int64_t>(raw_size);
     if (size > max_size) {
-        return std::format("file is {} bytes, over the {} byte ceiling", size,
-            max_size);
+        return std::format("file is {} bytes, over the {} byte ceiling", size, max_size);
     }
 
     try {
@@ -92,22 +90,24 @@ std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
 int64_t rv_pcloader::read_dir_manifest_(const std::filesystem::path &root, const char *dir_path)
 {
     std::vector<unsigned char> manifest_bytes;
-    const std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY,
-        RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
+    const std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
     if (!why.empty()) {
-        RV_LOG_ERR("pcloader", "'{}' carries no usable '{}': {}",
-            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY, why);
+        RV_LOG_ERR("pcloader",
+            "'{}' carries no usable '{}': {}",
+            rv_pdklib::rv_log_escape(dir_path),
+            RV_PCLOADER_MANIFEST_ENTRY,
+            why);
         return RV_ERR_NOENT;
     }
 
-    const std::string manifest_text(
-        reinterpret_cast<const char *>(manifest_bytes.data()), manifest_bytes.size());
+    const std::string manifest_text(reinterpret_cast<const char *>(manifest_bytes.data()), manifest_bytes.size());
 
     std::string merror;
-    if (rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror)
-        != 0) {
-        RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
-            rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY,
+    if (rv_pdklib::rv_manifest_parse(manifest_text, RV_PCLOADER_MANIFEST_ENTRY, manifest_, merror) != 0) {
+        RV_LOG_ERR("pcloader",
+            "'{}' carries a '{}' that does not parse: {}",
+            rv_pdklib::rv_log_escape(dir_path),
+            RV_PCLOADER_MANIFEST_ENTRY,
             rv_pdklib::rv_log_escape(merror.c_str(), RV_PCLOADER_MANIFEST_ERROR_MAX_LEN));
         return RV_ERR_INVAL;
     }
@@ -129,7 +129,8 @@ int64_t rv_pcloader::check_dir_lua_triple_(const std::filesystem::path &root)
             "disc '{}' is neither a lua disc nor a C++ disc: [scripts] sources {}, "
             "script_memory_size={}, script_entry='{}'. All three or none",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            lua_scripts ? "stated" : "absent", pccl.script_memory_size,
+            lua_scripts ? "stated" : "absent",
+            pccl.script_memory_size,
             rv_pdklib::rv_log_escape(pccl.script_entry.c_str()));
         return RV_ERR_INVAL;
     }
@@ -186,7 +187,8 @@ int64_t rv_pcloader::mount_dir(const char *dir_path)
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            rv_pdklib::rv_log_escape(code_entry.c_str()), why);
+            rv_pdklib::rv_log_escape(code_entry.c_str()),
+            why);
         return RV_ERR_NOENT;
     }
 

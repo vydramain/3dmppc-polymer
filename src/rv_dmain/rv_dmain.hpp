@@ -83,13 +83,11 @@ private:
 
     // A textured sprite filling the given rect. `addr_palette` is 0 for the
     // direct format, which carries its colour in the texel.
-    void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
-        rv_texture_mapping_type mapping);
+    void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette, rv_texture_mapping_type mapping);
 
     // One line of the POST list: a label, what was found, and whether it
     // answered. Drawn by draw_post().
-    void draw_post_row(int row, const char *label, const char *detail, const char *status,
-        bool good);
+    void draw_post_row(int row, const char *label, const char *detail, const char *status, bool good);
 
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.

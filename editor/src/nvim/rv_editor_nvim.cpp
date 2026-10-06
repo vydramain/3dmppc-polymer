@@ -120,10 +120,13 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
         last_error_ = RV_ERR_NOENT;
         return RV_ERR_NOENT;
     }
-    const std::vector<std::string> argv = { nvim.string(), std::string(nvim_opt_embed),
+    const std::vector<std::string> argv = { nvim.string(),
+        std::string(nvim_opt_embed),
         std::string(nvim_opt_cmd),
         std::string(vim_cmd_palette_prefix) + std::string(RV_EDITOR_NVIM_PALETTE) + "'",
-        std::string(nvim_opt_init_file), RV_EDITOR_NVIM_CONFIG, std::string(nvim_opt_shada_file),
+        std::string(nvim_opt_init_file),
+        RV_EDITOR_NVIM_CONFIG,
+        std::string(nvim_opt_shada_file),
         std::string(nvim_init_none) };
     std::string error;
     const int err = rpc_.start(argv, cwd, error);
@@ -150,18 +153,19 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
 
 void rv_editor_nvim::attach()
 {
-    rpc_.request(rpc_ui_attach.data(), rv_editor_args([](rv_editor_mpack_writer &w) {
-        w.array(ui_attach_args_count);
-        w.integer(ui_default_width_cols);
-        w.integer(ui_default_height_rows);
-        w.map(ui_attach_options_count);
-        w.string(ui_opt_rgb.data());
-        w.boolean(true);
-        w.string(ui_opt_ext_linegrid.data());
-        w.boolean(true);
-        w.string(ui_opt_ext_multigrid.data());
-        w.boolean(true);
-    }),
+    rpc_.request(rpc_ui_attach.data(),
+        rv_editor_args([](rv_editor_mpack_writer &w) {
+            w.array(ui_attach_args_count);
+            w.integer(ui_default_width_cols);
+            w.integer(ui_default_height_rows);
+            w.map(ui_attach_options_count);
+            w.string(ui_opt_rgb.data());
+            w.boolean(true);
+            w.string(ui_opt_ext_linegrid.data());
+            w.boolean(true);
+            w.string(ui_opt_ext_multigrid.data());
+            w.boolean(true);
+        }),
         // Replies run later, in update(): only `this` is captured, and the code
         // tiles show `problem`.
         [this](const rv_editor_mpack &error, const rv_editor_mpack &) {
@@ -173,9 +177,10 @@ void rv_editor_nvim::attach()
             attached_ = true;
         });
     // nvim's first window waits for the first code tile.
-    rpc_.request(rpc_get_current_win.data(), rv_editor_args([](rv_editor_mpack_writer &w) {
-        w.array(0);
-    }),
+    rpc_.request(rpc_get_current_win.data(),
+        rv_editor_args([](rv_editor_mpack_writer &w) {
+            w.array(0);
+        }),
         [this](const rv_editor_mpack &error, const rv_editor_mpack &result) {
             if (error.is(mtype::nil)) {
                 spare_.push_back(result.i);
@@ -183,17 +188,19 @@ void rv_editor_nvim::attach()
         });
 }
 
-void rv_editor_nvim::exec_lua(const std::string &code, const std::vector<std::string> &args,
+void rv_editor_nvim::exec_lua(const std::string &code,
+    const std::vector<std::string> &args,
     rv_editor_nvim_rpc::rv_editor_nvim_reply reply)
 {
-    rpc_.request(rpc_exec_lua.data(), rv_editor_args([&](rv_editor_mpack_writer &w) {
-        w.array(exec_lua_args_count);
-        w.string(code);
-        w.array(static_cast<uint32_t>(args.size()));
-        for (const std::string &a : args) {
-            w.string(a);
-        }
-    }),
+    rpc_.request(rpc_exec_lua.data(),
+        rv_editor_args([&](rv_editor_mpack_writer &w) {
+            w.array(exec_lua_args_count);
+            w.string(code);
+            w.array(static_cast<uint32_t>(args.size()));
+            for (const std::string &a : args) {
+                w.string(a);
+            }
+        }),
         std::move(reply));
 }
 
@@ -258,16 +265,17 @@ int64_t rv_editor_nvim::window_for(uint32_t pane)
     asked_[pane] = true;
     // A new window of its own; where nvim puts it does not matter, the tile
     // draws its grid (0005).
-    rpc_.request(rpc_open_win.data(), rv_editor_args([](rv_editor_mpack_writer &w) {
-        w.array(open_win_args_count);
-        w.integer(0);
-        w.boolean(false);
-        w.map(open_win_options_count);
-        w.string(open_win_opt_split.data());
-        w.string(open_win_split_below.data());
-        w.string(open_win_opt_win.data());
-        w.integer(-1);
-    }),
+    rpc_.request(rpc_open_win.data(),
+        rv_editor_args([](rv_editor_mpack_writer &w) {
+            w.array(open_win_args_count);
+            w.integer(0);
+            w.boolean(false);
+            w.map(open_win_options_count);
+            w.string(open_win_opt_split.data());
+            w.string(open_win_split_below.data());
+            w.string(open_win_opt_win.data());
+            w.integer(-1);
+        }),
         [this, pane](const rv_editor_mpack &error, const rv_editor_mpack &result) {
             asked_.erase(pane);
             if (error.is(mtype::nil)) {
@@ -366,8 +374,7 @@ void rv_editor_nvim::input(const std::string &keys)
     held_ += keys;
     if (switching_ != 0) {
         const bool arrived = screen_.cursor_grid() == screen_.grid_of_window(switching_);
-        const bool late =
-            std::chrono::steady_clock::now() - switch_at_ > std::chrono::milliseconds(window_switch_timeout_ms);
+        const bool late = std::chrono::steady_clock::now() - switch_at_ > std::chrono::milliseconds(window_switch_timeout_ms);
         if (!arrived && !late) {
             return;
         }
@@ -454,8 +461,8 @@ std::vector<uint32_t> rv_editor_nvim::panes() const
 std::string rv_editor_nvim::lsp_server_for(const std::string &path)
 {
     const std::string ext = std::filesystem::path(path).extension().string();
-    if (ext == ext_c || ext == ext_h || ext == ext_cc || ext == ext_hh || ext == ext_cpp || ext == ext_hpp ||
-        ext == ext_cxx || ext == ext_hxx) {
+    if (ext == ext_c || ext == ext_h || ext == ext_cc || ext == ext_hh || ext == ext_cpp || ext == ext_hpp || ext == ext_cxx ||
+        ext == ext_hxx) {
         return std::string(lsp_clangd);
     }
     if (ext == ext_lua) {

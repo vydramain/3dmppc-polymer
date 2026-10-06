@@ -32,14 +32,19 @@ constexpr std::string_view memcard_filename = "memcard.mppccard";
 rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 {
     switch (session.state()) {
-        case rv_editor_run_state::running: return rv_editor_status_kind::active;
-        case rv_editor_run_state::paused: return rv_editor_status_kind::warning;
-        case rv_editor_run_state::crashed:
-        case rv_editor_run_state::disconnected:
-        case rv_editor_run_state::refused: return rv_editor_status_kind::error;
-        case rv_editor_run_state::stopped:
-        case rv_editor_run_state::exited: return rv_editor_status_kind::idle;
-        default: return rv_editor_status_kind::busy;
+    case rv_editor_run_state::running:
+        return rv_editor_status_kind::active;
+    case rv_editor_run_state::paused:
+        return rv_editor_status_kind::warning;
+    case rv_editor_run_state::crashed:
+    case rv_editor_run_state::disconnected:
+    case rv_editor_run_state::refused:
+        return rv_editor_status_kind::error;
+    case rv_editor_run_state::stopped:
+    case rv_editor_run_state::exited:
+        return rv_editor_status_kind::idle;
+    default:
+        return rv_editor_status_kind::busy;
     }
 }
 
@@ -136,10 +141,16 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         reload_name = rv_editor_text("panes.reload_entry_script");
     }
     // Reload is always shown; it is disabled with a reason when the disc cannot take one.
-    const rv_editor_transport_state state{ rv_editor_app_why_not_build(app), rv_editor_app_why_not_run(app),
-        rv_editor_app_why_not_pause(app), rv_editor_app_why_not_step(app), rv_editor_app_why_not_stop(app),
-        rv_editor_why_not_reload_shown(app), s.state() == rv_editor_run_state::paused, offer_build_restart,
-        offer_build_restart ? rv_editor_app_why_not_build(app) : nullptr, reload_name.c_str() };
+    const rv_editor_transport_state state{ rv_editor_app_why_not_build(app),
+        rv_editor_app_why_not_run(app),
+        rv_editor_app_why_not_pause(app),
+        rv_editor_app_why_not_step(app),
+        rv_editor_app_why_not_stop(app),
+        rv_editor_why_not_reload_shown(app),
+        s.state() == rv_editor_run_state::paused,
+        offer_build_restart,
+        offer_build_restart ? rv_editor_app_why_not_build(app) : nullptr,
+        reload_name.c_str() };
     // The state name follows on the same row; the bar hides its own buttons first
     // rather than let that status get clipped.
     const char *name = rv_editor_run_state_name(s.state());
@@ -241,14 +252,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         const int frame_num = s.frame();
         const int session_num = s.number();
         const int build_num = s.build_number();
-        facts = rv_editor_text_format("panes.facts_live",
-            std::make_format_args(frame_num, session_num, build_num));
+        facts = rv_editor_text_format("panes.facts_live", std::make_format_args(frame_num, session_num, build_num));
         if (s.facts().lua_budget > 0) {
             const int revision = s.facts().revision;
             const int first_revision = s.facts().first_revision;
             if (revision != first_revision) {
-                facts += rv_editor_text_format("panes.script_revision_reloaded",
-                    std::make_format_args(revision));
+                facts += rv_editor_text_format("panes.script_revision_reloaded", std::make_format_args(revision));
             } else {
                 facts += rv_editor_text_format("panes.script_revision", std::make_format_args(revision));
             }
@@ -278,8 +287,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             app.session.force_stop(app.log);
         }
         ImGui::SameLine();
-        const char *msg =
-            s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
+        const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
         ImGui::TextUnformatted(msg);
     } else if (app.build.busy()) {
         rv_editor_state cancel;
@@ -321,8 +329,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         if (p.disc_title.empty()) {
             disc_info = rv_editor_text_format("panes.disc_info", std::make_format_args(disc_id));
         } else {
-            disc_info = rv_editor_text_format("panes.disc_info_with_title",
-                std::make_format_args(disc_id, disc_title));
+            disc_info = rv_editor_text_format("panes.disc_info_with_title", std::make_format_args(disc_id, disc_title));
         }
         rv_editor_wrapped(disc_info);
         if (!p.manifest_error.empty()) {
@@ -340,20 +347,19 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
 
     ImGui::SeparatorText(rv_editor_text("panes.toolchain_header"));
     const rv_editor_tool *tools[] = { &app.tools.console, &app.tools.burner, &app.tools.baker };
-    const char *tool_names[] = { rv_editor_text("panes.tool_runtime"), rv_editor_text("panes.tool_burner"),
+    const char *tool_names[] = { rv_editor_text("panes.tool_runtime"),
+        rv_editor_text("panes.tool_burner"),
         rv_editor_text("panes.tool_baker") };
     for (size_t i = 0; i < std::size(tools); ++i) {
         const rv_editor_tool &t = *tools[i];
-        rv_editor_status(
-            tool_names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
+        rv_editor_status(tool_names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
         ImGui::SameLine();
         if (!t.problem.empty()) {
             rv_editor_wrapped(t.problem);
             continue;
         }
         const std::string origin = t.origin;
-        const std::string origin_text =
-            rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
+        const std::string origin_text = rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
         rv_editor_wrapped(t.version.empty() ? origin_text : t.version + ", " + origin_text);
         ImGui::PushID(i);
         rv_editor_path_row(rv_editor_text("panes.path_label"), t.path.string(), theme);

@@ -72,14 +72,15 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
         return nullptr;
     };
     rv_editor_code_tabs &tabs = app.code_tabs[pane];
-    std::erase_if(tabs.names, [&held](const std::string &name) { return held(name) == nullptr; });
+    std::erase_if(tabs.names, [&held](const std::string &name) {
+        return held(name) == nullptr;
+    });
     const rv_editor_nvim_buffer *front = nvim.buffer_in(win);
     const std::string shown = front != nullptr ? front->name : std::string();
     if (shown != tabs.dropped) {
         tabs.dropped.clear();
     }
-    if (!shown.empty() && tabs.dropped.empty() &&
-        std::find(tabs.names.begin(), tabs.names.end(), shown) == tabs.names.end()) {
+    if (!shown.empty() && tabs.dropped.empty() && std::find(tabs.names.begin(), tabs.names.end(), shown) == tabs.names.end()) {
         tabs.names.push_back(shown);
     }
 
@@ -205,8 +206,8 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             } else if (swap->state == nvim_swap_state_in_use) {
                 ImGui::AlignTextToFramePadding();
                 const long long pid = static_cast<long long>(swap->pid);
-                const std::string readonly_msg = rv_editor_text_format("pane_code.readonly_process_editing",
-                    std::make_format_args(pid));
+                const std::string readonly_msg =
+                    rv_editor_text_format("pane_code.readonly_process_editing", std::make_format_args(pid));
                 ImGui::Text("%s", readonly_msg.c_str());
             }
             rv_editor_shelf_end();
@@ -281,9 +282,9 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     std::string label = rv_editor_text("pane_code.untitled_document");
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win)) {
         std::error_code ec;
-        const std::filesystem::path rel = app.project.open && !buf->name.empty()
-            ? std::filesystem::relative(buf->name, app.project.root, ec)
-            : std::filesystem::path(buf->name);
+        const std::filesystem::path rel = app.project.open && !buf->name.empty() ?
+            std::filesystem::relative(buf->name, app.project.root, ec) :
+            std::filesystem::path(buf->name);
         if (buf->name.empty()) {
             label = rv_editor_text("pane_code.untitled_document");
         } else if (ec || rel.empty()) {
@@ -324,8 +325,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
 
     // What saving this file does to the running game, from the change classifier.
-    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win);
-        app.session.live() && buf != nullptr && !buf->name.empty()) {
+    if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); app.session.live() && buf != nullptr && !buf->name.empty()) {
         const rv_editor_change_plan plan = rv_editor_app_change_for(app, buf->name);
         const char *text = nullptr;
         std::string owned;
@@ -379,7 +379,11 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     const int32_t msg_rows = global != nullptr ? global->height - nvim.screen().message_row() : 0;
     if (msg != nullptr && !msg->hidden && msg_rows > 0) {
         const int32_t shown = std::min(msg_rows, rows + 1);
-        rv_editor_nvim_draw_grid(nvim.screen(), *msg, ImVec2(at.x, bottom.y - (shown - 1) * cell.y), cell, shown,
+        rv_editor_nvim_draw_grid(nvim.screen(),
+            *msg,
+            ImVec2(at.x, bottom.y - (shown - 1) * cell.y),
+            cell,
+            shown,
             nvim.screen().cursor_grid() == nvim.screen().message_grid());
     } else if (global != nullptr && global->height > 0) {
         rv_editor_nvim_grid line;

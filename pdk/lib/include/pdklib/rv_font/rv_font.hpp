@@ -228,8 +228,8 @@ struct rv_font_style {
     uint32_t blocks;      // the blocks the atlas was built with; 0 = ASCII only
 };
 
-inline rv_font_style rv_font_style_make(int64_t addr_texture, int64_t addr_palette, int32_t depth,
-    int32_t scale, uint32_t blocks = 0)
+inline rv_font_style
+rv_font_style_make(int64_t addr_texture, int64_t addr_palette, int32_t depth, int32_t scale, uint32_t blocks = 0)
 {
     rv_font_style style{};
     style.addr_texture = addr_texture;
@@ -286,8 +286,7 @@ inline rv_vertex corner(int x, int y, int u, int v)
 // CLAMP is the mapping because it can never be reached: nothing here generates a
 // coordinate outside the atlas. It is the honest choice anyway - TILE would hide a
 // future arithmetic mistake by wrapping it into a plausible-looking glyph.
-inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int x, int y,
-    rv_primitive &out)
+inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int x, int y, rv_primitive &out)
 {
     const int scale = rv_font_scale_clamp(style.scale);
     const int size_x = rv_font_cell_width * scale;
@@ -331,8 +330,7 @@ inline void rv_font_glyph_quad(const rv_font_style &style, int glyph_index, int 
 // for anything the style's blocks do not hold - a stray '\r' from CRLF text prints
 // a solid slab, which is the file telling you about its line endings.
 template <typename Sink>
-inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
-    Sink &&sink)
+inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text, Sink &&sink)
 {
     const int scale = rv_font_scale_clamp(style.scale);
     const int advance = rv_font_cell_width * scale;
@@ -368,8 +366,8 @@ inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::s
 // returns how many it wrote; ask rv_font_primitive_count first if you need to know
 // whether the whole string fits. Truncation is silent by design - a HUD that runs
 // out of buffer should lose its tail, not stop the frame.
-inline std::size_t rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text,
-    rv_primitive *out, std::size_t capacity)
+inline std::size_t
+rv_font_draw(const rv_font_style &style, int x, int y, std::string_view text, rv_primitive *out, std::size_t capacity)
 {
     if (out == nullptr) {
         return 0;

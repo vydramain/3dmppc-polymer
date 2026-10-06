@@ -53,9 +53,11 @@ bool rv_editor_problem_parse(std::string_view text, const std::filesystem::path 
             std::string_view head = rest.substr(0, colon);
             int32_t line = 0;
             const size_t digits_at = head.find_last_not_of("0123456789");
-            if (digits_at != std::string_view::npos && head[digits_at] == ':' &&
-                rv_editor_take_number(head, line) == RV_OK) {
-                out = { rv_editor_resolve(text.substr(name, quote - name), root), line, 0, true,
+            if (digits_at != std::string_view::npos && head[digits_at] == ':' && rv_editor_take_number(head, line) == RV_OK) {
+                out = { rv_editor_resolve(text.substr(name, quote - name), root),
+                    line,
+                    0,
+                    true,
                     std::string(rest.substr(colon + 1)) };
                 while (!out.message.empty() && out.message.front() == ' ') {
                     out.message.erase(0, 1);
@@ -83,8 +85,11 @@ bool rv_editor_problem_parse(std::string_view text, const std::filesystem::path 
         if (place.empty()) {
             return false;
         }
-        out = { rv_editor_resolve(place, root), has_column ? second : first, has_column ? first : 0,
-            kind != ": warning: ", std::string(text.substr(at + kind.size())) };
+        out = { rv_editor_resolve(place, root),
+            has_column ? second : first,
+            has_column ? first : 0,
+            kind != ": warning: ",
+            std::string(text.substr(at + kind.size())) };
         return true;
     }
     return false;

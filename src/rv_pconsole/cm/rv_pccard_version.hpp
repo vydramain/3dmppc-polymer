@@ -14,8 +14,7 @@ namespace rv_3dmppc
 // "M.m" from a packed major<<16|minor version, for log/refusal messages.
 std::string rv_pccard_version_text(uint32_t v);
 
-enum class rv_pccard_version_case
-{
+enum class rv_pccard_version_case {
     compatible,   // same major, older minor - this console's layout reads it
     migrate,      // older major - copy what fits into a fresh current card
     incompatible, // newer major, or same major newer minor - unreadable
@@ -36,8 +35,15 @@ rv_pccard_version_case rv_pccard_classify_version(uint32_t file_version, uint32_
 // in, `error` left empty, and one line per dropped slot/range appended to
 // `warnings`. On a corrupt old image returns an empty vector and fills
 // `error`.
-std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer, int64_t file_slots,
-    int64_t file_slot_size, int64_t old_payload_offset, int64_t slot_count, int64_t slot_size,
-    int64_t payload_offset, uint32_t console_version, std::string &error, std::vector<std::string> &warnings);
+std::vector<uint8_t> rv_pccard_migrate(const std::vector<uint8_t> &old_buffer,
+    int64_t file_slots,
+    int64_t file_slot_size,
+    int64_t old_payload_offset,
+    int64_t slot_count,
+    int64_t slot_size,
+    int64_t payload_offset,
+    uint32_t console_version,
+    std::string &error,
+    std::vector<std::string> &warnings);
 
 } // namespace rv_3dmppc

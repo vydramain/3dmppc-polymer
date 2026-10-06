@@ -14,8 +14,7 @@ namespace rv_pdktools
 // [1/4] manifest is the first step of `build` and the whole of what
 // `bake-texture` needs before it can pick a texture, so both call this one
 // definition (rv_burner_build_runner.cpp) instead of loading disc.toml twice.
-int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::rv_manifest &manifest,
-    std::string &error);
+int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::rv_manifest &manifest, std::string &error);
 
 // --- the burn pipeline ---
 //

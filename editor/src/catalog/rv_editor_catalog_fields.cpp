@@ -27,8 +27,7 @@ constexpr int row_text_field = 0;
 constexpr int row_spinner = 1;
 constexpr int row_dropdown = 2;
 
-struct rv_editor_field_column
-{
+struct rv_editor_field_column {
     const char *name;
     rv_editor_field field;
 };
@@ -48,8 +47,7 @@ constexpr int rv_editor_field_column_count =
     static_cast<int>(sizeof(rv_editor_field_columns) / sizeof(rv_editor_field_columns[0]));
 
 // One value per cell, so typing into one field does not change its neighbours.
-struct rv_editor_field_values
-{
+struct rv_editor_field_values {
     char text[rv_editor_field_column_count][text_field_buffer_size];
     int number[rv_editor_field_column_count];
     int choice[rv_editor_field_column_count];
@@ -74,14 +72,14 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
     }
     const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
     ImGui::TableSetupColumn(rv_editor_text("catalog_fields.column_widget"),
-        ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(longest_label).x);
+        ImGuiTableColumnFlags_WidthFixed,
+        ImGui::CalcTextSize(longest_label).x);
     for (const rv_editor_field_column &c : rv_editor_field_columns) {
         ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
     }
     ImGui::TableHeadersRow();
 
-    const char *row_ids[] = { "catalog_fields.row_text_field", "catalog_fields.row_spinner",
-        "catalog_fields.row_dropdown" };
+    const char *row_ids[] = { "catalog_fields.row_text_field", "catalog_fields.row_spinner", "catalog_fields.row_dropdown" };
     for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
@@ -100,8 +98,7 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
             }
             switch (row) {
             case row_text_field:
-                rv_editor_text_field("##text", rv_editor_field_data.text[c], sizeof(rv_editor_field_data.text[c]),
-                    theme, f);
+                rv_editor_text_field("##text", rv_editor_field_data.text[c], sizeof(rv_editor_field_data.text[c]), theme, f);
                 break;
             case row_spinner:
                 rv_editor_spinner("##number", &rv_editor_field_data.number[c], spinner_step, theme, f);
@@ -109,8 +106,12 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
             case row_dropdown: {
                 const char *templates[] = { rv_editor_text("catalog_fields.template_lua"),
                     rv_editor_text("catalog_fields.template_cpp") };
-                rv_editor_dropdown("##choice", &rv_editor_field_data.choice[c], templates,
-                    static_cast<int>(std::size(templates)), theme, f);
+                rv_editor_dropdown("##choice",
+                    &rv_editor_field_data.choice[c],
+                    templates,
+                    static_cast<int>(std::size(templates)),
+                    theme,
+                    f);
                 break;
             }
             }

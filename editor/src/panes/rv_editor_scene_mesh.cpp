@@ -80,8 +80,7 @@ void set_error(std::string *error, const std::string &text)
 }
 
 // One .obj, parsed once and kept until the file's mtime moves on.
-struct rv_editor_mesh_cache_entry
-{
+struct rv_editor_mesh_cache_entry {
     std::filesystem::file_time_type mtime;
     bool ok = false;
     std::string error;
@@ -130,7 +129,9 @@ const rv_pdklib::rv_obj_mesh *rv_editor_mesh_load(const std::filesystem::path &p
 // The placeholder unit cube, twelve triangles, transformed by `m`.
 std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 {
-    auto p = [&m](double x, double y, double z) { return rv_editor_affine_point(m, { x, y, z }); };
+    auto p = [&m](double x, double y, double z) {
+        return rv_editor_affine_point(m, { x, y, z });
+    };
     const vec3 c[cube_corner_count] = { p(-unit_half_extent, -unit_half_extent, -unit_half_extent),
         p(unit_half_extent, -unit_half_extent, -unit_half_extent),
         p(unit_half_extent, unit_half_extent, -unit_half_extent),
@@ -151,8 +152,7 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 // mppcburner names every [assets] entry by filename alone). So a mesh or texture name is
 // a bare filename, resolved by walking the tree for it under a manifest pattern, not
 // joined onto the root.
-struct rv_editor_name_cache
-{
+struct rv_editor_name_cache {
     std::vector<std::string> patterns; // last-seen manifest patterns, to notice a change
     std::unordered_map<std::string, std::filesystem::path> found;
     // known-absent since this steady_clock time; re-walked once stale, so a typo does not
@@ -171,8 +171,10 @@ bool rv_editor_mesh_skip_dir(const std::string &name)
 
 // The project file under `patterns` for which `match` holds, cached in `cache` under `key`.
 // Shared by the mesh (match: exact filename) and texture (match: same stem) resolvers below.
-std::filesystem::path rv_editor_walk_project(const rv_editor_project &project, rv_editor_name_cache &cache,
-    const std::vector<std::string> &patterns, const std::string &key,
+std::filesystem::path rv_editor_walk_project(const rv_editor_project &project,
+    rv_editor_name_cache &cache,
+    const std::vector<std::string> &patterns,
+    const std::string &key,
     const std::function<bool(const std::filesystem::path &)> &match)
 {
     if (cache.patterns != patterns) {
@@ -190,8 +192,7 @@ std::filesystem::path rv_editor_walk_project(const rv_editor_project &project, r
     }
     std::error_code ec;
     constexpr auto opts = std::filesystem::directory_options::skip_permission_denied;
-    for (std::filesystem::recursive_directory_iterator it(project.root, opts, ec), end; it != end && !ec;
-        it.increment(ec)) {
+    for (std::filesystem::recursive_directory_iterator it(project.root, opts, ec), end; it != end && !ec; it.increment(ec)) {
         std::error_code entry_ec;
         const bool is_dir = it->is_directory(entry_ec);
         if (entry_ec) {
@@ -224,15 +225,19 @@ std::filesystem::path rv_editor_walk_project(const rv_editor_project &project, r
 
 // The project file matching an [assets] pattern whose filename is `name`. Empty with
 // *error set when the name has a folder in it or no such file is found.
-std::filesystem::path rv_editor_resolve_mesh_name(
-    const rv_editor_project &project, const std::string &name, std::string *error)
+std::filesystem::path rv_editor_resolve_mesh_name(const rv_editor_project &project, const std::string &name, std::string *error)
 {
     if (name.find('/') != std::string::npos || name.find('\\') != std::string::npos) {
         set_error(error, name + ": a disc asset name has no folders");
         return {};
     }
-    const std::filesystem::path found = rv_editor_walk_project(project, rv_editor_mesh_names,
-        project.assets_patterns, name, [&](const std::filesystem::path &p) { return p.filename() == name; });
+    const std::filesystem::path found = rv_editor_walk_project(project,
+        rv_editor_mesh_names,
+        project.assets_patterns,
+        name,
+        [&](const std::filesystem::path &p) {
+            return p.filename() == name;
+        });
     if (found.empty()) {
         set_error(error, name + ": no [assets] file by that name");
     }
@@ -244,14 +249,19 @@ std::filesystem::path rv_editor_resolve_mesh_name(
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
 {
     const std::string stem = std::filesystem::path(name).stem().string();
-    return rv_editor_walk_project(project, rv_editor_texture_names, project.textures_patterns, stem,
-        [&](const std::filesystem::path &p) { return p.stem().string() == stem; });
+    return rv_editor_walk_project(project,
+        rv_editor_texture_names,
+        project.textures_patterns,
+        stem,
+        [&](const std::filesystem::path &p) {
+            return p.stem().string() == stem;
+        });
 }
 
 // A mesh object's texture, loaded on `renderer`; an empty icon when it has none, does not
 // resolve under [textures], or fails to load as a picture.
-rv_editor_icon rv_editor_object_texture(
-    SDL_Renderer *renderer, const rv_editor_project &project, const rv_editor_scene_object &o)
+rv_editor_icon
+rv_editor_object_texture(SDL_Renderer *renderer, const rv_editor_project &project, const rv_editor_scene_object &o)
 {
     if (renderer == nullptr || o.texture.empty()) {
         return {};
@@ -303,13 +313,15 @@ double rv_editor_affine_column_length(const rv_editor_affine &m, int col)
 // A billboard's two triangles: a card of world size scale.xy (a scaled parent included)
 // centred on the object's world position, built from the view's right/up (not the object's
 // own rotation) so it always faces the camera.
-std::vector<rv_editor_tri> rv_editor_billboard_triangles(
-    const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
+std::vector<rv_editor_tri>
+rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
 {
     const vec3 center = rv_editor_affine_point(m, { 0.0, 0.0, 0.0 });
     const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * unit_half_extent);
     const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * unit_half_extent);
-    const vec3 c[4] = { add(center, sub(up, right)), add(center, add(up, right)), sub(center, add(up, right)),
+    const vec3 c[4] = { add(center, sub(up, right)),
+        add(center, add(up, right)),
+        sub(center, add(up, right)),
         add(center, sub(right, up)) };
     const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(o.uv);
     return {
@@ -320,8 +332,8 @@ std::vector<rv_editor_tri> rv_editor_billboard_triangles(
 
 } // namespace
 
-std::vector<rv_editor_tri> rv_editor_object_triangles(
-    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
+std::vector<rv_editor_tri>
+rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
     if (o.kind == kind_quad) {
@@ -364,18 +376,22 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
     return tris;
 }
 
-void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,
-    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color,
+void rv_editor_draw_filled(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    const std::string &selected,
+    ImU32 base,
+    ImU32 selected_color,
     SDL_Renderer *renderer)
 {
-    struct rv_editor_shaded_tri
-    {
+    struct rv_editor_shaded_tri {
         ImVec2 s[3];
         ImVec2 uv[3];
         double depth;
         float shade;
         bool selected;
-        ImVec4 tint; // the object's tint/255, 0..1; identity (1,1,1) for a mesh's default
+        ImVec4 tint;     // the object's tint/255, 0..1; identity (1,1,1) for a mesh's default
         ImTextureID tex; // 0: flat AddTriangleFilled; else textured via Prim*
     };
     std::vector<rv_editor_shaded_tri> shaded;
@@ -408,27 +424,27 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
                 }
                 st.depth += view_p[2];
                 st.s[k] = v.to_screen(view_p);
-                st.uv[k] = pixel_uv ? ImVec2(tri.uv[k].x / static_cast<float>(tex.w), tri.uv[k].y / static_cast<float>(tex.h))
-                                     : tri.uv[k];
+                st.uv[k] = pixel_uv ? ImVec2(tri.uv[k].x / static_cast<float>(tex.w), tri.uv[k].y / static_cast<float>(tex.h)) :
+                                      tri.uv[k];
             }
             if (!visible) {
                 continue;
             }
             st.depth /= triangle_vertex_count;
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            st.shade = static_cast<float>(
-                std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
+            st.shade =
+                static_cast<float>(std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
-            st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max,
-                1.0f };
+            st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max, 1.0f };
             st.tex = tex.id;
             shaded.push_back(st);
         }
     }
     // Painter's algorithm, no depth buffer. Intersecting triangles can sort wrong;
     // the upgrade is a real depth test if that ever shows on screen.
-    std::sort(shaded.begin(), shaded.end(),
-        [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) { return a.depth > b.depth; });
+    std::sort(shaded.begin(), shaded.end(), [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) {
+        return a.depth > b.depth;
+    });
     for (const rv_editor_shaded_tri &st : shaded) {
         if (st.tex == ImTextureID{}) {
             // Flat: the base or selection colour times shade; the object's tint is a texture
@@ -447,7 +463,9 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
         const ImVec4 sel_tint = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) : ImVec4(1, 1, 1, 1);
         const ImVec4 obj_tint = st.selected ? ImVec4(1, 1, 1, 1) : st.tint;
         const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(sel_tint.x * obj_tint.x * st.shade,
-            sel_tint.y * obj_tint.y * st.shade, sel_tint.z * obj_tint.z * st.shade, 1.0f));
+            sel_tint.y * obj_tint.y * st.shade,
+            sel_tint.z * obj_tint.z * st.shade,
+            1.0f));
         dl->PushTexture(st.tex);
         dl->PrimReserve(tri_vertices, tri_vertices);
         dl->PrimVtx(st.s[0], st.uv[0], col);

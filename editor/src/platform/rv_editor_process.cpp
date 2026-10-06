@@ -56,7 +56,9 @@ constexpr const char *env_var_path = "PATH";
 void rv_editor_ignore_sigpipe()
 {
     static std::once_flag once;
-    std::call_once(once, [] { std::signal(SIGPIPE, SIG_IGN); });
+    std::call_once(once, [] {
+        std::signal(SIGPIPE, SIG_IGN);
+    });
 }
 
 void rv_editor_close(int &fd)
@@ -115,8 +117,11 @@ void rv_editor_process::close_fds()
     rv_editor_close(err_);
 }
 
-int rv_editor_process::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &error, int inherit_fd, const std::vector<std::string> &env)
+int rv_editor_process::start(const std::vector<std::string> &argv,
+    const std::filesystem::path &cwd,
+    std::string &error,
+    int inherit_fd,
+    const std::vector<std::string> &env)
 {
     rv_editor_ignore_sigpipe();
     if (argv.empty() || running()) {
@@ -132,8 +137,7 @@ int rv_editor_process::start(const std::vector<std::string> &argv, const std::fi
     int in[2] = { -1, -1 };
     int out[2] = { -1, -1 };
     int err[2] = { -1, -1 };
-    if (rv_editor_pipe(in) != RV_OK || rv_editor_pipe(out) != RV_OK ||
-        rv_editor_pipe(err) != RV_OK) {
+    if (rv_editor_pipe(in) != RV_OK || rv_editor_pipe(out) != RV_OK || rv_editor_pipe(err) != RV_OK) {
         error = std::string("pipe: ") + std::strerror(errno);
         for (int fd : { in[0], in[1], out[0], out[1], err[0], err[1] }) {
             if (fd >= 0) {
@@ -361,8 +365,10 @@ std::filesystem::path rv_editor_process_find(const char *name)
     return {};
 }
 
-bool rv_editor_process_output(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &out, int seconds)
+bool rv_editor_process_output(const std::vector<std::string> &argv,
+    const std::filesystem::path &cwd,
+    std::string &out,
+    int seconds)
 {
     rv_editor_process proc;
     std::string error;

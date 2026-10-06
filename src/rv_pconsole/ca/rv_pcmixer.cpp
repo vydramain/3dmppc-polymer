@@ -43,8 +43,7 @@ void rv_pcmixer::set_muted(bool muted)
     muted_ = muted;
 }
 
-void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-    int64_t addr)
+void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr)
 {
     std::lock_guard<std::mutex> guard(lock_);
     for (std::size_t i = 0; i < voices_.size(); ++i) {
@@ -163,8 +162,7 @@ void rv_pcmixer::render(int16_t *out, int64_t frames)
         const int64_t block = std::min(RV_PCMIXER_BLOCK_FRAMES, frames - done);
         const std::size_t values = static_cast<std::size_t>(block * RV_PCMIXER_CHANNELS);
 
-        std::fill(accumulator_.begin(), accumulator_.begin() + static_cast<std::ptrdiff_t>(values),
-            0);
+        std::fill(accumulator_.begin(), accumulator_.begin() + static_cast<std::ptrdiff_t>(values), 0);
         for (rv_pcvoice &voice : voices_) {
             voice.mix(accumulator_.data(), block);
         }

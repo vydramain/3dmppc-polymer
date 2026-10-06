@@ -19,8 +19,7 @@ public:
     // --- static: the schema ---------------------------------------------------
 
     const rv_manifest_section_spec *lookup_section(std::string_view name) const;
-    const rv_manifest_key_spec *lookup_key(const rv_manifest_section_spec &section,
-        std::string_view name) const;
+    const rv_manifest_key_spec *lookup_key(const rv_manifest_section_spec &section, std::string_view name) const;
 
     // --- dynamic: what the file has said so far -------------------------------
 

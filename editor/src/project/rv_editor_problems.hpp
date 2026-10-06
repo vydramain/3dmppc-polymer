@@ -9,12 +9,11 @@ namespace rv_editor
 {
 
 // One diagnostic that names a place: from the latest build, or from a language server.
-struct rv_editor_problem
-{
+struct rv_editor_problem {
     std::filesystem::path file; // absolute; resolved against the project root when relative
     int32_t line = 0;
-    int32_t column = 0;         // 0 when the message gives none
-    bool error = true;          // else a warning
+    int32_t column = 0; // 0 when the message gives none
+    bool error = true;  // else a warning
     std::string message;
     std::string source = "build"; // "build", or the language server's name
 };

@@ -49,8 +49,7 @@ std::filesystem::path rv_editor_layout_file_path()
     return {};
 }
 
-int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes,
-    rv_editor_layout &layout)
+int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes, rv_editor_layout &layout)
 {
     std::error_code ec;
     const auto sz = std::filesystem::file_size(path, ec);
@@ -70,8 +69,10 @@ int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_regi
     return rv_editor_layout_read(text, panes, layout);
 }
 
-int rv_editor_layout_save(const std::filesystem::path &path, const rv_editor_pane_registry &panes,
-    const rv_editor_layout &layout, std::string &error)
+int rv_editor_layout_save(const std::filesystem::path &path,
+    const rv_editor_pane_registry &panes,
+    const rv_editor_layout &layout,
+    std::string &error)
 {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);

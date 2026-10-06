@@ -20,9 +20,7 @@ namespace rv_3dmppc
 //
 // Returns RV_OK, or RV_ERR_INVAL after logging the resource, the amount
 // required, the amount available, and why it was refused.
-int64_t rv_pboot_check_budget(
-    const rv_pdklib::rv_manifest_budget &budget,
-    const rv_pcslots &slots,
-    const rv_pboot_mode_info &machine);
+int64_t
+rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget, const rv_pcslots &slots, const rv_pboot_mode_info &machine);
 
-}
+} // namespace rv_3dmppc

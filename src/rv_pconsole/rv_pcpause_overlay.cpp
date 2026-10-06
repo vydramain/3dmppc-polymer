@@ -43,8 +43,7 @@ constexpr int CENTER_DIVISOR = 2;                      // Divisor for centering 
 // One set texel of a glyph, magnified: `scale` by `scale` pixels of one colour.
 // Clipped rather than assumed to fit - the label is sized for 320x240 and a
 // disc may declare a smaller screen.
-void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0, int scale,
-    uint32_t argb)
+void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0, int scale, uint32_t argb)
 {
     for (int sy = 0; sy < scale; ++sy) {
         for (int sx = 0; sx < scale; ++sx) {
@@ -57,8 +56,14 @@ void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_
     }
 }
 
-void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0,
-    std::string_view text, int scale, uint32_t argb)
+void rv_pcpause_blit_text(uint32_t *dst,
+    int64_t width,
+    int64_t height,
+    int64_t x0,
+    int64_t y0,
+    std::string_view text,
+    int scale,
+    uint32_t argb)
 {
     int64_t pen = x0;
     for (const char c : text) {
@@ -69,8 +74,7 @@ void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t 
         for (int row = 0; row < rv_pdklib::rv_font_cell_height; ++row) {
             for (int column = 0; column < rv_pdklib::rv_font_ink_width; ++column) {
                 if ((rows[row] & (GLYPH_ROW_BIT_MSB >> column)) != 0) {
-                    blit_texel(dst, width, height, pen + column * scale, y0 + row * scale, scale,
-                        argb);
+                    blit_texel(dst, width, height, pen + column * scale, y0 + row * scale, scale, argb);
                 }
             }
         }
@@ -87,8 +91,7 @@ void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t 
 // pause destructive - the text would end up in --dump-frame, and a second pause
 // would print over the first - and the disc's last frame has to stay exactly
 // what the disc drew.
-void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame,
-    int64_t width, int64_t height)
+void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame, int64_t width, int64_t height)
 {
     const std::size_t pixels = static_cast<std::size_t>(width * height);
     out.assign(pixels, OPAQUE_BLACK);
@@ -105,12 +108,17 @@ void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame,
     // carries blank width that must come off before centring - otherwise the
     // line sits a few pixels left of centre.
     const int scale = RV_PCONSOLE_PAUSE_LABEL_SCALE;
-    const int64_t text_width =
-        static_cast<int64_t>(RV_PCONSOLE_PAUSE_LABEL.size()) * rv_pdklib::rv_font_cell_width * scale -
+    const int64_t text_width = static_cast<int64_t>(RV_PCONSOLE_PAUSE_LABEL.size()) * rv_pdklib::rv_font_cell_width * scale -
         (rv_pdklib::rv_font_cell_width - rv_pdklib::rv_font_ink_width) * scale;
     const int64_t text_height = rv_pdklib::rv_font_ink_height * scale;
-    rv_pcpause_blit_text(out.data(), width, height, (width - text_width) / CENTER_DIVISOR,
-        (height - text_height) / CENTER_DIVISOR, RV_PCONSOLE_PAUSE_LABEL, scale, OPAQUE_WHITE);
+    rv_pcpause_blit_text(out.data(),
+        width,
+        height,
+        (width - text_width) / CENTER_DIVISOR,
+        (height - text_height) / CENTER_DIVISOR,
+        RV_PCONSOLE_PAUSE_LABEL,
+        scale,
+        OPAQUE_WHITE);
 }
 
 } // namespace rv_3dmppc

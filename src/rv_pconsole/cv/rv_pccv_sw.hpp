@@ -131,8 +131,7 @@ private:
     // The texture / palette pair a primitive samples, or (0, 0) when it does not
     // sample at all. Shared by polygons and sprites, which name their assets
     // identically.
-    static void texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
-        int64_t &addr_palette);
+    static void texture_addresses(const rv_primitive &primitive, int64_t &addr_texture, int64_t &addr_palette);
 
     // Drop the frame's commands and their ordering. Does NOT touch the clear
     // colour or the Z flag - frame_configure sets those and then calls this.

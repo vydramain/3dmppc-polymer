@@ -97,8 +97,7 @@ void log_display_bounds()
     SDL_Rect display_bounds{};
     const SDL_DisplayID display = SDL_GetPrimaryDisplay();
     if (display != 0 && SDL_GetDisplayBounds(display, &display_bounds)) {
-        RV_LOG_INFO("pcplatform", "display bounds measured at {}x{}", display_bounds.w,
-            display_bounds.h);
+        RV_LOG_INFO("pcplatform", "display bounds measured at {}x{}", display_bounds.w, display_bounds.h);
         return;
     }
     RV_LOG_WARN("pcplatform", "SDL_GetDisplayBounds failed: {}", SDL_GetError());
@@ -131,8 +130,7 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
         platform->gamepad_up_ = SDL_InitSubSystem(SDL_INIT_GAMEPAD);
         platform->quit_guard_.armed = platform->quit_guard_.armed || platform->gamepad_up_;
         if (!platform->gamepad_up_) {
-            RV_LOG_WARN("pcplatform", "SDL_INIT_GAMEPAD failed: {}, pads will read as empty",
-                SDL_GetError());
+            RV_LOG_WARN("pcplatform", "SDL_INIT_GAMEPAD failed: {}, pads will read as empty", SDL_GetError());
         } else {
             int pad_count = 0;
             SDL_JoystickID *pads = SDL_GetGamepads(&pad_count);
@@ -157,7 +155,8 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
         }
     }
 
-    RV_LOG_INFO("pcplatform", "sdl3: window={} gamepads={} audio={}",
+    RV_LOG_INFO("pcplatform",
+        "sdl3: window={} gamepads={} audio={}",
         wants.window ? (platform->video_up_ ? "on" : "off") : "not wanted",
         wants.gamepads ? (platform->gamepad_up_ ? "on" : "off") : "not wanted",
         wants.audio ? (platform->audio_up_ ? "on" : "off") : "not wanted");

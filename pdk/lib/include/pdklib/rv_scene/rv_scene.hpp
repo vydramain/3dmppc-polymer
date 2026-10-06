@@ -23,15 +23,15 @@ namespace rv_pdklib
 // the PDK major is 0.
 
 struct rv_scene_object {
-    std::string id;           // stable: the editor gives it and never changes it
+    std::string id; // stable: the editor gives it and never changes it
     std::string name;
-    int32_t parent = -1;      // index into rv_scene::objects; -1 at the root
-    std::string kind;         // "group", "camera", "mesh", "quad", "billboard" or "volume"
+    int32_t parent = -1; // index into rv_scene::objects; -1 at the root
+    std::string kind;    // "group", "camera", "mesh", "quad", "billboard" or "volume"
     rv_vec3 position{ 0.0f, 0.0f, 0.0f };
     rv_vec3 rotation{ 0.0f, 0.0f, 0.0f }; // degrees; R = Ry * Rx * Rz (yaw, pitch, roll)
     rv_vec3 scale{ 1.0f, 1.0f, 1.0f };
-    std::string mesh;         // a disc asset for kind "mesh"; empty: a unit cube
-    std::string texture;      // a disc texture, or empty
+    std::string mesh;                      // a disc asset for kind "mesh"; empty: a unit cube
+    std::string texture;                   // a disc texture, or empty
     float uv[4]{ 0.0f, 0.0f, 0.0f, 0.0f }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
     rv_color tint{ 255, 255, 255 };        // quad/billboard modulation
     float tess = 2.0f;                     // quad/billboard subdivision density

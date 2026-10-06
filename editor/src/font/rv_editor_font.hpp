@@ -11,8 +11,7 @@ inline constexpr int rv_editor_font_ui_height = 8;
 
 // small: PxPlus IBM EGA 8x14 at 14 px; normal and large: PxPlus IBM VGA 9x16 at
 // 16 and 32 px. Each is multiplied by --scale.
-enum class rv_editor_code_size
-{
+enum class rv_editor_code_size {
     small,
     normal,
     large,

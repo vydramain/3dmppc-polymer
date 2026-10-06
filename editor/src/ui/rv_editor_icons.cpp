@@ -55,7 +55,7 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
     stbi_image_free(rgba);
-    return {static_cast<ImTextureID>(reinterpret_cast<intptr_t>(texture)), w, h};
+    return { static_cast<ImTextureID>(reinterpret_cast<intptr_t>(texture)), w, h };
 }
 
 } // namespace

@@ -24,12 +24,24 @@ std::string rv_editor_toml_quote(std::string_view s)
     std::string out = "\"";
     for (const char c : s) {
         switch (c) {
-            case '"': out += "\\\""; break;
-            case '\\': out += "\\\\"; break;
-            case '\n': out += "\\n"; break;
-            case '\t': out += "\\t"; break;
-            case '\r': out += "\\r"; break;
-            default: out += c; break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\\':
+            out += "\\\\";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\t':
+            out += "\\t";
+            break;
+        case '\r':
+            out += "\\r";
+            break;
+        default:
+            out += c;
+            break;
         }
     }
     return out + "\"";

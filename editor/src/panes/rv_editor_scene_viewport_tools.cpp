@@ -141,16 +141,13 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
 void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_scene_camera &cam = app.scene_ui.camera;
-    const struct
-    {
+    const struct {
         const char *label_id;
         double yaw, pitch;
-    } views[] = {
-        { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
+    } views[] = { { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
         { "scene_tools.view_top", 0.0, top_view_pitch },
         { "scene_tools.view_front", 0.0, 0.0 },
-        { "scene_tools.view_right", right_view_yaw, 0.0 }
-    };
+        { "scene_tools.view_right", right_view_yaw, 0.0 } };
     for (const auto &view : views) {
         const char *label = rv_editor_text(view.label_id);
         rv_editor_flow(rv_editor_button_width(label));
@@ -184,8 +181,7 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
         cam.seeking = seek_val;
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_seek_tooltip"));
-    const struct
-    {
+    const struct {
         const char *label_id;
         const char *tip_id;
         rv_editor_scene_shading shading;
@@ -207,9 +203,10 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_scene_camera &cam = app.scene_ui.camera;
-    const char *const tool_ids[] = {
-        "scene_tools.tool_select", "scene_tools.tool_move", "scene_tools.tool_rotate", "scene_tools.tool_scale"
-    };
+    const char *const tool_ids[] = { "scene_tools.tool_select",
+        "scene_tools.tool_move",
+        "scene_tools.tool_rotate",
+        "scene_tools.tool_scale" };
     for (int t = 0; t < std::ssize(tool_ids); ++t) {
         const char *tool_name = rv_editor_text(tool_ids[t]);
         if (rv_editor_radio(tool_name, cam.tool == static_cast<rv_editor_scene_tool>(t), theme)) {

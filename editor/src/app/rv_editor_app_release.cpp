@@ -60,8 +60,8 @@ uint32_t rv_editor_candidate_next(const std::filesystem::path &dir)
 
 std::string rv_editor_line_text(const rv_editor_log_line &line)
 {
-    return std::string("[") + rv_editor_log_source_name(line.source) + "] " + rv_editor_log_level_code(line.level) +
-        " " + line.text + "\n";
+    return std::string("[") + rv_editor_log_source_name(line.source) + "] " + rv_editor_log_level_code(line.level) + " " +
+        line.text + "\n";
 }
 
 // The log lines seq `from`..`to` (0: to the end), and a note when older ones were dropped.
@@ -104,8 +104,8 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.source_revision = r.building_revision;
     c.checks = rv_editor_checks_make();
     std::string error;
-    const auto log_path = rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number,
-        std::string(candidate_log_name_build));
+    const auto log_path =
+        rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, std::string(candidate_log_name_build));
     if (rv_editor_file_replace(log_path, rv_editor_lines(app.log, r.build_first_seq, app.log.revision()), error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "build log not kept: " + error);
     }
@@ -130,8 +130,8 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     std::string error;
     r.build_first_seq = app.log.revision() + 1;
     app.build_first_seq = r.build_first_seq;
-    if (app.build.start(app.project, app.tools, app.log, error,
-            dir / (std::to_string(number) + std::string(disc_image_ext))) != RV_OK) {
+    if (app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext))) !=
+        RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
         return;
     }
@@ -181,8 +181,11 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
         return;
     }
     r.playing = static_cast<int>(r.selected);
-    rv_editor_check_set(c, rv_editor_check_loads, rv_editor_check_state::running, "session #" +
-        std::to_string(app.session.number()), app.tools.console.path.string());
+    rv_editor_check_set(c,
+        rv_editor_check_loads,
+        rv_editor_check_state::running,
+        "session #" + std::to_string(app.session.number()),
+        app.tools.console.path.string());
 }
 
 void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
@@ -207,7 +210,8 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
             c.save_failed = false;
         } else if (!c.save_failed) {
             c.save_failed = true;
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::error,
                 "candidate record not kept, trying again: " + error);
         }
     }
@@ -221,13 +225,16 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     // image; a build number can coincide with a later development build's, the disc cannot.
     const bool still_playing = s.live() && s.disc_dir() == c.image;
     // A takeover's PDK is the other session's, not this candidate's: leave it out.
-    const std::string env = still_playing || !s.live() ? app.tools.console.path.string() + ", PDK " + s.facts().pdk
-                                                        : app.tools.console.path.string();
+    const std::string env = still_playing || !s.live() ? app.tools.console.path.string() + ", PDK " + s.facts().pdk :
+                                                         app.tools.console.path.string();
     if (loads.state == rv_editor_check_state::running && still_playing && s.connected()) {
         // Mounted as an image (medium fixed) and answering: the claim of this check, no more.
         const bool image = s.facts().medium == medium_fixed;
-        rv_editor_check_set(c, rv_editor_check_loads, image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
-            image ? "mounted as an image, disc " + s.facts().disc : "the console did not mount it as an image", env);
+        rv_editor_check_set(c,
+            rv_editor_check_loads,
+            image ? rv_editor_check_state::passed : rv_editor_check_state::failed,
+            image ? "mounted as an image, disc " + s.facts().disc : "the console did not mount it as an image",
+            env);
     }
     if (still_playing) {
         return;
@@ -242,13 +249,14 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
     std::string error;
     if (rv_editor_file_replace(
             rv_editor_candidate_log(rv_editor_candidates_dir(app), c.number, "playtest-" + std::to_string(c.playtests)),
-            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()), error) != RV_OK) {
+            rv_editor_lines(app.log, r.playtest_first_seq, app.log.revision()),
+            error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "playtest log not kept: " + error);
     }
     c.dirty = true;
     c.last_run_end = end_reason;
-    c.last_run_clean = !s.live() && s.state() == rv_editor_run_state::exited &&
-        s.end_reason().rfind(end_reason_force_stopped, 0) != 0;
+    c.last_run_clean =
+        !s.live() && s.state() == rv_editor_run_state::exited && s.end_reason().rfind(end_reason_force_stopped, 0) != 0;
     r.playing = -1;
 }
 
@@ -289,22 +297,21 @@ void rv_editor_app_export_report(rv_editor_app &app)
     t += "\n" + rv_editor_checks_summary(c) + "\n";
     const bool void_decision = c.bytes_changed && c.decision != rv_editor_decision::none;
     t += std::string("decision: ") + (void_decision ? "void (other bytes); was " : "");
-    t += c.decision == rv_editor_decision::approved ? "approved by " + c.operator_name + " at " + c.decided_at
-        : c.decision == rv_editor_decision::rejected ? "rejected by " + c.operator_name + " at " + c.decided_at
-        : rv_editor_why_not_approve(c) == nullptr    ? std::string("awaiting approval")
-                                                     : std::string("not ready");
+    t += c.decision == rv_editor_decision::approved ? "approved by " + c.operator_name + " at " + c.decided_at :
+        c.decision == rv_editor_decision::rejected  ? "rejected by " + c.operator_name + " at " + c.decided_at :
+        rv_editor_why_not_approve(c) == nullptr     ? std::string("awaiting approval") :
+                                                      std::string("not ready");
     t += "\n";
     // The logs kept beside the record, so a report written days later still has them.
     const std::filesystem::path dir = rv_editor_candidates_dir(app);
-    const std::filesystem::path build_log =
-        rv_editor_candidate_log(dir, c.number, std::string(candidate_log_name_build));
+    const std::filesystem::path build_log = rv_editor_candidate_log(dir, c.number, std::string(candidate_log_name_build));
     t += "\n--- build log (" + build_log.string() + ") ---\n" + rv_editor_file_text(build_log);
     for (uint32_t i = 1; i <= c.playtests; ++i) {
         const std::filesystem::path log = rv_editor_candidate_log(dir, c.number, "playtest-" + std::to_string(i));
         t += "\n--- playtest " + std::to_string(i) + " log (" + log.string() + ") ---\n" + rv_editor_file_text(log);
     }
-    const std::filesystem::path path = rv_editor_candidates_dir(app) /
-        (std::to_string(c.number) + "-report-" + std::to_string(std::time(nullptr)) + ".txt");
+    const std::filesystem::path path =
+        rv_editor_candidates_dir(app) / (std::to_string(c.number) + "-report-" + std::to_string(std::time(nullptr)) + ".txt");
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     out << t;
     out.close();

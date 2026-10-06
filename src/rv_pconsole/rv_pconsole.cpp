@@ -17,7 +17,8 @@ static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CH
     "the mixer's channel count and the platform's PCM sink must agree");
 
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
-    rv_3dmppc::rv_pcplatform &platform, rv_3dmppc::rv_pcloader *loader)
+    rv_3dmppc::rv_pcplatform &platform,
+    rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , platform_(platform)
     , ca_(rv_pcca_make(conf.slots.ca, conf.ca))

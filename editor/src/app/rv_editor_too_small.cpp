@@ -57,7 +57,10 @@ static void rv_editor_print_too_small_error(const rv_editor_display_size &displa
 {
     std::fprintf(stderr,
         "3dmppc-editor: the display is %dx%d, the editor needs at least %dx%d\n",
-        display_size.w_pixels, display_size.h_pixels, window_min_width, window_min_height);
+        display_size.w_pixels,
+        display_size.h_pixels,
+        window_min_width,
+        window_min_height);
 }
 
 // Draw message: "too_small.title", "too_small.required" and "too_small.current" (both formatted with width x height).
@@ -78,8 +81,7 @@ static void rv_editor_draw_too_small_message(const rv_editor_display_size &displ
 // Forward declaration.
 static int rv_editor_fonts_build_for_too_small(ImGuiIO &io, float scale);
 
-void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer,
-    const rv_editor_display_size &display_size)
+void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer, const rv_editor_display_size &display_size)
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -102,9 +104,8 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     io.DisplaySize = ImVec2(measure_window_width, measure_window_height);
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
-    ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize |
-        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoSavedSettings;
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
 
     ImVec2 measured_size{};
     int window_w = 0;
@@ -174,8 +175,8 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings;
+        window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+            ImGuiWindowFlags_NoSavedSettings;
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(w), static_cast<float>(h)));
@@ -186,8 +187,10 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
 
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, (theme.window >> channel_shift_red) & rgb_channel_mask,
-            (theme.window >> channel_shift_green) & rgb_channel_mask, theme.window & rgb_channel_mask,
+        SDL_SetRenderDrawColor(renderer,
+            (theme.window >> channel_shift_red) & rgb_channel_mask,
+            (theme.window >> channel_shift_green) & rgb_channel_mask,
+            theme.window & rgb_channel_mask,
             alpha_opaque);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);

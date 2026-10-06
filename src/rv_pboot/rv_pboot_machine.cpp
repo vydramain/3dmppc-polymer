@@ -59,8 +59,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
     // lacks MADV_POPULATE_WRITE: it is a hard requirement of the vmem the
     // memory stages below reserve.
     if (rv_pcvmem_probe_populate_write() < 0) {
-        rv_console_print_error(
-            "this console requires a Linux kernel that implements MADV_POPULATE_WRITE");
+        rv_console_print_error("this console requires a Linux kernel that implements MADV_POPULATE_WRITE");
         return RV_ERR_INVAL;
     }
 
@@ -82,13 +81,18 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
     return RV_OK;
 }
 
-void rv_pboot_mode_report(
-    const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
+void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
 {
-    RV_LOG_INFO("main", "mode '{}' requested: platform={} ca={} cv={} cio={} cl={} cd={} cm={}",
-        args.mode, rv_pcslots_name(slots.platform), rv_pcslots_name(slots.ca),
-        rv_pcslots_name(slots.cv), rv_pcslots_name(slots.cio), rv_pcslots_name(slots.cl),
-        rv_pcslots_name(slots.cd), rv_pcslots_name(slots.cm));
+    RV_LOG_INFO("main",
+        "mode '{}' requested: platform={} ca={} cv={} cio={} cl={} cd={} cm={}",
+        args.mode,
+        rv_pcslots_name(slots.platform),
+        rv_pcslots_name(slots.ca),
+        rv_pcslots_name(slots.cv),
+        rv_pcslots_name(slots.cio),
+        rv_pcslots_name(slots.cl),
+        rv_pcslots_name(slots.cd),
+        rv_pcslots_name(slots.cm));
     RV_LOG_INFO("main", "ram available: {}", machine.ram_available);
 }
 

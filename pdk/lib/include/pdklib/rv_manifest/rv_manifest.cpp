@@ -64,8 +64,7 @@ static std::string quote(const std::string &s)
 // manifest with thirty globs stays readable in a diff.
 constexpr std::size_t RV_MANIFEST_ARRAY_WRAP_COLUMN = 80;
 
-static void render_array(std::ostringstream &out, const std::string &key,
-    const std::vector<std::string> &values)
+static void render_array(std::ostringstream &out, const std::string &key, const std::vector<std::string> &values)
 {
     std::string one_line = key + " = [";
     for (std::size_t i = 0; i < values.size(); ++i) {
@@ -88,10 +87,7 @@ static void render_array(std::ostringstream &out, const std::string &key,
 // The front of the pipeline, in the order of the stages. Each one hands the next
 // a whole product and its complaints to one failer; only the binder is allowed
 // to know what rv_manifest looks like.
-int rv_manifest_parse(const std::string &text,
-    const std::string &origin,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_parse(const std::string &text, const std::string &origin, rv_manifest &manifest, std::string &error)
 {
     rv_manifest_failer failer;
 
@@ -116,16 +112,12 @@ int rv_manifest_parse(const std::string &text,
     return 0;
 }
 
-int rv_manifest_parse(const std::string &text,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error)
 {
     return rv_manifest_parse(text, std::string(), manifest, error) != 0;
 }
 
-int rv_manifest_load(const std::string &path,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error)
 {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
@@ -173,8 +165,7 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     // A manifest that reached rendering has been through the binder, so the
     // format is one of the enumerators; the empty string is what a corrupted
     // one would render as, and it fails to parse back rather than lying.
-    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(
-        manifest.textures_files.format);
+    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
 
     out << "\n[textures]\n";
     render_array(out, "files", manifest.textures_files.files);
@@ -226,17 +217,16 @@ static int safe_entry_name(const std::string &entry, const char *what, std::stri
     if (entry.empty()) {
         return RV_OK;
     }
-    if (entry.front() == '/' || entry.find("..") != std::string::npos ||
-        entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
-        error = std::string(what) + " '" + entry +
-            "' is not a safe entry name - it must not be a path";
+    if (entry.front() == '/' || entry.find("..") != std::string::npos || entry.find('/') != std::string::npos ||
+        entry.find('\\') != std::string::npos) {
+        error = std::string(what) + " '" + entry + "' is not a safe entry name - it must not be a path";
         return RV_ERR_INVAL;
     }
     for (char c : entry) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
-            error = std::string(what) + " '" + entry +
-                "' is not a safe entry name - use letters, digits, '-', '_' and '.' only";
+            error =
+                std::string(what) + " '" + entry + "' is not a safe entry name - use letters, digits, '-', '_' and '.' only";
             return RV_ERR_INVAL;
         }
     }
@@ -256,8 +246,7 @@ static int validate_disc_id(const rv_manifest &manifest, std::string &error)
     for (char c : manifest.disc_id) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_') {
-            error = "[disc] id '" + manifest.disc_id +
-                "' is not a safe filename - use letters, digits, '-' and '_' only";
+            error = "[disc] id '" + manifest.disc_id + "' is not a safe filename - use letters, digits, '-' and '_' only";
             return RV_ERR_INVAL;
         }
     }
@@ -413,11 +402,11 @@ static int validate_lua_disc_consistency(const rv_manifest &manifest, std::strin
     note(has_memory, "[budget.pccl] script_memory_size");
     note(has_entry, "[budget.pccl] script_entry");
 
-    error = std::format(
-        "a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
-        "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
-        "State the rest, or drop them all and burn a C++ disc",
-        stated, missing);
+    error = std::format("a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
+                        "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
+                        "State the rest, or drop them all and burn a C++ disc",
+        stated,
+        missing);
     return RV_ERR_INVAL;
 }
 

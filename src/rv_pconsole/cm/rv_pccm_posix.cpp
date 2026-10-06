@@ -17,10 +17,16 @@ rv_pcbudget_cost rv_pccm_posix::evaluate(const rv_pdklib::rv_manifest_budget &bu
     // slot payloads themselves.
     int64_t card_payload_bytes = 0;
     int64_t card_table_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccm.card_slots * card_slot_size", budget.pccm.card_slots,
-            budget.pccm.card_slot_size, card_payload_bytes) != RV_OK ||
-        rv_pcbudget_mul(cost, "budget.pccm.card_slots", budget.pccm.card_slots,
-            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES, card_table_bytes) != RV_OK) {
+    if (rv_pcbudget_mul(cost,
+            "budget.pccm.card_slots * card_slot_size",
+            budget.pccm.card_slots,
+            budget.pccm.card_slot_size,
+            card_payload_bytes) != RV_OK ||
+        rv_pcbudget_mul(cost,
+            "budget.pccm.card_slots",
+            budget.pccm.card_slots,
+            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES,
+            card_table_bytes) != RV_OK) {
         return cost;
     }
 
@@ -32,10 +38,11 @@ rv_pcbudget_cost rv_pccm_posix::evaluate(const rv_pdklib::rv_manifest_budget &bu
     // rv_pccard refuses at construction to hold an image above its own
     // ceiling; refuse it here by name instead, before any disc code loads.
     if (cost.bytes > rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES) {
-        cost.reason = std::format(
-            "'budget.pccm.card_slots' ({}) * 'budget.pccm.card_slot_size' ({}) needs a {} "
-            "byte(s) card image, over the {} byte(s) this console's memory card can hold",
-            budget.pccm.card_slots, budget.pccm.card_slot_size, cost.bytes,
+        cost.reason = std::format("'budget.pccm.card_slots' ({}) * 'budget.pccm.card_slot_size' ({}) needs a {} "
+                                  "byte(s) card image, over the {} byte(s) this console's memory card can hold",
+            budget.pccm.card_slots,
+            budget.pccm.card_slot_size,
+            cost.bytes,
             rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES);
         return cost;
     }

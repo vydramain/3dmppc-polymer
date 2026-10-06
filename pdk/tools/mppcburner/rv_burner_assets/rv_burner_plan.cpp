@@ -30,8 +30,7 @@ namespace rv_pdktools
 // @param count        set to how many entries were appended
 // @param error        set with the section name already prefixed
 // @return 0 on success, 1 on refusal
-static int plan_section(
-    const std::vector<std::string> &patterns,
+static int plan_section(const std::vector<std::string> &patterns,
     const char *section,
     const fs::path &disc_dir,
     const fs::path &payload_dir,
@@ -60,13 +59,9 @@ static int plan_section(
         // A produced file keeps the author's file name and changes only its
         // suffix, so `ui/menu.lua` and `menu.luac` are recognisably the same
         // thing in a diagnostic. A copied file keeps its name entirely.
-        item.name = extension != nullptr
-            ? fs::path(relative).stem().string() + extension
-            : flat_name(relative);
+        item.name = extension != nullptr ? fs::path(relative).stem().string() + extension : flat_name(relative);
         item.source = relative;
-        item.payload = payload_dir.empty()
-            ? (disc_dir / relative).string()
-            : (payload_dir / item.name).string();
+        item.payload = payload_dir.empty() ? (disc_dir / relative).string() : (payload_dir / item.name).string();
 
         if (check_asset_name(item.name, error) != RV_OK) {
             error = std::string(section) + ": " + error + " (from '" + relative + "')";
@@ -82,8 +77,7 @@ static int plan_section(
 
 } // namespace rv_pdktools
 
-int rv_pdktools::plan_archive(
-    const rv_pdklib::rv_manifest &manifest,
+int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const fs::path &texture_dir,
     const fs::path &scripts_dir,
@@ -96,29 +90,57 @@ int rv_pdktools::plan_archive(
 
     // --- copied assets ---
 
-    if (plan_section(manifest.assets_files, "[assets] files", disc_dir, fs::path(), nullptr,
-            plan, first_asset, plan.asset_count, error) != 0) {
+    if (plan_section(manifest.assets_files,
+            "[assets] files",
+            disc_dir,
+            fs::path(),
+            nullptr,
+            plan,
+            first_asset,
+            plan.asset_count,
+            error) != 0) {
         return 1;
     }
 
     // --- textures ---
 
-    if (plan_section(manifest.textures_files.files, "[textures] files", disc_dir, texture_dir,
-            ".mppctex", plan, plan.first_texture, plan.texture_count, error) != 0) {
+    if (plan_section(manifest.textures_files.files,
+            "[textures] files",
+            disc_dir,
+            texture_dir,
+            ".mppctex",
+            plan,
+            plan.first_texture,
+            plan.texture_count,
+            error) != 0) {
         return 1;
     }
 
     // --- scripts ---
 
-    if (plan_section(manifest.scripts_sources, "[scripts] sources", disc_dir, scripts_dir,
-            ".luac", plan, plan.first_script, plan.script_count, error) != 0) {
+    if (plan_section(manifest.scripts_sources,
+            "[scripts] sources",
+            disc_dir,
+            scripts_dir,
+            ".luac",
+            plan,
+            plan.first_script,
+            plan.script_count,
+            error) != 0) {
         return 1;
     }
 
     // --- sounds ---
 
-    if (plan_section(manifest.sounds_files, "[sounds] files", disc_dir, sound_dir,
-            ".pcm", plan, plan.first_sound, plan.sound_count, error) != 0) {
+    if (plan_section(manifest.sounds_files,
+            "[sounds] files",
+            disc_dir,
+            sound_dir,
+            ".pcm",
+            plan,
+            plan.first_sound,
+            plan.sound_count,
+            error) != 0) {
         return 1;
     }
 

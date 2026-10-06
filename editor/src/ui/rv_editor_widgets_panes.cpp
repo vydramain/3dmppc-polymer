@@ -10,8 +10,15 @@
 namespace rv_editor
 {
 
-bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
-    const rv_editor_theme &theme, const rv_editor_state &state)
+bool rv_editor_splitter(const char *id,
+    rv_editor_axis axis,
+    float length,
+    float *a,
+    float *b,
+    float min_a,
+    float min_b,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
 {
     const float thickness = static_cast<float>(theme.pad_px * theme.scale);
     const bool across_x = axis == rv_editor_axis::x;
@@ -36,8 +43,7 @@ bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float
     }
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_draw_panel(dl, item.min, item.max, theme, item.held ? theme.selection : theme.window,
-        rv_editor_bevel::raised);
+    rv_editor_draw_panel(dl, item.min, item.max, theme, item.held ? theme.selection : theme.window, rv_editor_bevel::raised);
     if (item.hovered && !item.held && !item.disabled) {
         rv_editor_draw_frame(dl, item.min, item.max, theme, theme.selection);
     }
@@ -63,8 +69,13 @@ constexpr const char *ellipsis_marker = "...";
 // One folder tab: a parallelogram leaning right, drawn a scaled pixel row at a
 // time so its sides stay stepped and unsmoothed. Raised: light left edge, dark
 // right edge; sunken swaps them.
-void rv_editor_draw_tab(ImDrawList *dl, ImVec2 min, ImVec2 max, float slant, const rv_editor_theme &theme,
-    uint32_t fill, bool raised)
+void rv_editor_draw_tab(ImDrawList *dl,
+    ImVec2 min,
+    ImVec2 max,
+    float slant,
+    const rv_editor_theme &theme,
+    uint32_t fill,
+    bool raised)
 {
     const float px = static_cast<float>(theme.scale);
     const float h = max.y - min.y;
@@ -82,7 +93,11 @@ void rv_editor_draw_tab(ImDrawList *dl, ImVec2 min, ImVec2 max, float slant, con
 }
 
 // One letter box of a pane header: a small button face with hover, press and focus.
-bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float size, const rv_editor_theme &theme,
+bool rv_editor_header_box(const char *id,
+    const char *letter,
+    ImVec2 pos,
+    float size,
+    const rv_editor_theme &theme,
     const rv_editor_state &state)
 {
     ImGui::SetCursorScreenPos(pos);
@@ -95,7 +110,11 @@ bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float 
     const ImVec2 min(item.min.x + px, item.min.y + px);
     const ImVec2 max(item.max.x - px, item.max.y - px);
     dl->AddRectFilled(item.min, item.max, rv_editor_col(theme.dark));
-    rv_editor_draw_panel(dl, min, max, theme, down ? theme.inset : theme.button,
+    rv_editor_draw_panel(dl,
+        min,
+        max,
+        theme,
+        down ? theme.inset : theme.button,
         down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
     if (item.hovered && !item.disabled) {
         rv_editor_draw_frame(dl, min, max, theme, theme.selection);
@@ -113,8 +132,13 @@ bool rv_editor_header_box(const char *id, const char *letter, ImVec2 pos, float 
 
 } // namespace
 
-bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
-    const rv_editor_theme &theme, const rv_editor_state &state, int *pressed)
+bool rv_editor_tab_strip(const char *id,
+    const char *const labels[],
+    int count,
+    int *active,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state,
+    int *pressed)
 {
     const float h = ImGui::GetFrameHeight();
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
@@ -162,8 +186,12 @@ bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, 
     return changed;
 }
 
-rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls, const rv_editor_state &state, bool *title_pressed)
+rv_editor_header_action rv_editor_pane_header(const char *title,
+    bool active,
+    const rv_editor_theme &theme,
+    bool controls,
+    const rv_editor_state &state,
+    bool *title_pressed)
 {
     const float h = ImGui::GetFrameHeight();
     const ImVec2 min = ImGui::GetCursorScreenPos();

@@ -46,8 +46,10 @@ constexpr int utf8_shift_3bits = 3 * utf8_cont_bits;
 VTermColor rv_editor_vterm_rgb(uint32_t rgb)
 {
     VTermColor c;
-    vterm_color_rgb(&c, (rgb >> channel_shift_red) & rgb_channel_mask,
-        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask);
+    vterm_color_rgb(&c,
+        (rgb >> channel_shift_red) & rgb_channel_mask,
+        (rgb >> channel_shift_green) & rgb_channel_mask,
+        rgb & rgb_channel_mask);
     return c;
 }
 
@@ -72,8 +74,7 @@ void rv_editor_utf8(std::string &out, uint32_t cp)
 
 } // namespace
 
-struct rv_editor_terminal::hooks
-{
+struct rv_editor_terminal::hooks {
     // What the emulator answers the shell (cursor reports, key sequences).
     static void output(const char *s, size_t len, void *user)
     {
@@ -127,7 +128,10 @@ rv_editor_terminal::~rv_editor_terminal()
     }
 }
 
-int rv_editor_terminal::start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme,
+int rv_editor_terminal::start(const std::filesystem::path &cwd,
+    int cols,
+    int rows,
+    const rv_editor_theme &theme,
     std::string &error)
 {
     cols_ = std::max(cols, min_terminal_size);
@@ -244,10 +248,10 @@ rv_editor_term_cell rv_editor_terminal::convert(const void *raw) const
     }
     vterm_screen_convert_color_to_rgb(screen_, &cell.fg);
     vterm_screen_convert_color_to_rgb(screen_, &cell.bg);
-    out.fg = (uint32_t(cell.fg.rgb.red) << channel_shift_red) |
-        (uint32_t(cell.fg.rgb.green) << channel_shift_green) | cell.fg.rgb.blue;
-    out.bg = (uint32_t(cell.bg.rgb.red) << channel_shift_red) |
-        (uint32_t(cell.bg.rgb.green) << channel_shift_green) | cell.bg.rgb.blue;
+    out.fg = (uint32_t(cell.fg.rgb.red) << channel_shift_red) | (uint32_t(cell.fg.rgb.green) << channel_shift_green) |
+        cell.fg.rgb.blue;
+    out.bg = (uint32_t(cell.bg.rgb.red) << channel_shift_red) | (uint32_t(cell.bg.rgb.green) << channel_shift_green) |
+        cell.bg.rgb.blue;
     if (cell.attrs.reverse) {
         std::swap(out.fg, out.bg);
     }

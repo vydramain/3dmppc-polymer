@@ -75,49 +75,48 @@ _Static_assert(sizeof(struct rv_mppc_note_desc) == 16, "rv_mppc_note_desc must b
 
 #ifdef __cplusplus
 
-#define RV_MPPC_DISC_ENTRY_DEF(disc_class)                                                   \
-    static int64_t rv_mppc_disc_entry_thunk_disc_initialize_(void *self_, rv_pdko *pdk)      \
-    {                                                                                        \
-        return static_cast<disc_class *>(self_)->disc_initialize(pdk);                       \
-    }                                                                                        \
-    static void rv_mppc_disc_entry_thunk_frame_update_(void *self_, float dt)                \
-    {                                                                                        \
-        static_cast<disc_class *>(self_)->frame_update(dt);                                  \
-    }                                                                                        \
-    static void rv_mppc_disc_entry_thunk_frame_render_(void *self_)                          \
-    {                                                                                        \
-        static_cast<disc_class *>(self_)->frame_render();                                    \
-    }                                                                                        \
-    static int rv_mppc_disc_entry_thunk_disc_release_(void *self_)                           \
-    {                                                                                        \
-        return static_cast<disc_class *>(self_)->disc_release() ? 1 : 0;                     \
-    }                                                                                        \
-    static void rv_mppc_disc_entry_thunk_disc_shutdown_(void *self_)                         \
-    {                                                                                        \
-        static_cast<disc_class *>(self_)->disc_shutdown();                                   \
-    }                                                                                        \
-    static const char *rv_mppc_disc_entry_thunk_disc_title_(void *self_)                     \
-    {                                                                                        \
-        return static_cast<disc_class *>(self_)->disc_title();                               \
-    }                                                                                        \
-    extern "C" __attribute__((visibility("default"))) rv_de *RV_MPPC_DISC_ENTRY_CREATE_DEF() \
-    {                                                                                        \
-        rv_de *de_ = new rv_de{                                                              \
-            new disc_class(),                                                                \
-            rv_mppc_disc_entry_thunk_disc_initialize_,                                       \
-            rv_mppc_disc_entry_thunk_frame_update_,                                          \
-            rv_mppc_disc_entry_thunk_frame_render_,                                          \
-            rv_mppc_disc_entry_thunk_disc_release_,                                          \
-            rv_mppc_disc_entry_thunk_disc_shutdown_,                                         \
-            rv_mppc_disc_entry_thunk_disc_title_,                                            \
-        };                                                                                   \
-        return de_;                                                                          \
-    }                                                                                        \
-    extern "C" __attribute__((visibility("default"))) void RV_MPPC_DISC_ENTRY_DESTROY_DEF(   \
-        rv_de *disc)                                                                         \
-    {                                                                                        \
-        delete static_cast<disc_class *>(disc->self);                                        \
-        delete disc;                                                                         \
+#define RV_MPPC_DISC_ENTRY_DEF(disc_class)                                                             \
+    static int64_t rv_mppc_disc_entry_thunk_disc_initialize_(void *self_, rv_pdko *pdk)                \
+    {                                                                                                  \
+        return static_cast<disc_class *>(self_)->disc_initialize(pdk);                                 \
+    }                                                                                                  \
+    static void rv_mppc_disc_entry_thunk_frame_update_(void *self_, float dt)                          \
+    {                                                                                                  \
+        static_cast<disc_class *>(self_)->frame_update(dt);                                            \
+    }                                                                                                  \
+    static void rv_mppc_disc_entry_thunk_frame_render_(void *self_)                                    \
+    {                                                                                                  \
+        static_cast<disc_class *>(self_)->frame_render();                                              \
+    }                                                                                                  \
+    static int rv_mppc_disc_entry_thunk_disc_release_(void *self_)                                     \
+    {                                                                                                  \
+        return static_cast<disc_class *>(self_)->disc_release() ? 1 : 0;                               \
+    }                                                                                                  \
+    static void rv_mppc_disc_entry_thunk_disc_shutdown_(void *self_)                                   \
+    {                                                                                                  \
+        static_cast<disc_class *>(self_)->disc_shutdown();                                             \
+    }                                                                                                  \
+    static const char *rv_mppc_disc_entry_thunk_disc_title_(void *self_)                               \
+    {                                                                                                  \
+        return static_cast<disc_class *>(self_)->disc_title();                                         \
+    }                                                                                                  \
+    extern "C" __attribute__((visibility("default"))) rv_de *RV_MPPC_DISC_ENTRY_CREATE_DEF()           \
+    {                                                                                                  \
+        rv_de *de_ = new rv_de{                                                                        \
+            new disc_class(),                                                                          \
+            rv_mppc_disc_entry_thunk_disc_initialize_,                                                 \
+            rv_mppc_disc_entry_thunk_frame_update_,                                                    \
+            rv_mppc_disc_entry_thunk_frame_render_,                                                    \
+            rv_mppc_disc_entry_thunk_disc_release_,                                                    \
+            rv_mppc_disc_entry_thunk_disc_shutdown_,                                                   \
+            rv_mppc_disc_entry_thunk_disc_title_,                                                      \
+        };                                                                                             \
+        return de_;                                                                                    \
+    }                                                                                                  \
+    extern "C" __attribute__((visibility("default"))) void RV_MPPC_DISC_ENTRY_DESTROY_DEF(rv_de *disc) \
+    {                                                                                                  \
+        delete static_cast<disc_class *>(disc->self);                                                  \
+        delete disc;                                                                                   \
     }
 
 // The built-in disc (src/rv_dmain) is linked into the console statically: it has

@@ -20,11 +20,10 @@ namespace
 {
 
 // The buttons the SDL window's keyboard gives, so a disc sees the same pad.
-constexpr uint64_t RV_PCFRAME_KEYBOARD_ABILITIES = RV_ISOURCE_FRONT_BTTN_SOUTH | RV_ISOURCE_FRONT_BTTN_EAST
-    | RV_ISOURCE_FRONT_BTTN_WEST | RV_ISOURCE_FRONT_BTTN_NORTH | RV_ISOURCE_BUMPER_LEFT
-    | RV_ISOURCE_BUMPER_RIGHT | RV_ISOURCE_MENU_BTTN_MENU | RV_ISOURCE_MENU_BTTN_VIEW
-    | RV_ISOURCE_DPAD_MOVE | RV_ISOURCE_DPAD_NORTH | RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_WEST
-    | RV_ISOURCE_DPAD_EAST;
+constexpr uint64_t RV_PCFRAME_KEYBOARD_ABILITIES = RV_ISOURCE_FRONT_BTTN_SOUTH | RV_ISOURCE_FRONT_BTTN_EAST |
+    RV_ISOURCE_FRONT_BTTN_WEST | RV_ISOURCE_FRONT_BTTN_NORTH | RV_ISOURCE_BUMPER_LEFT | RV_ISOURCE_BUMPER_RIGHT |
+    RV_ISOURCE_MENU_BTTN_MENU | RV_ISOURCE_MENU_BTTN_VIEW | RV_ISOURCE_DPAD_MOVE | RV_ISOURCE_DPAD_NORTH |
+    RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_EAST;
 
 class rv_pcframe_window final : public rv_pcwindow
 {
@@ -51,8 +50,7 @@ public:
         }
 
         uint64_t stride = w * RV_PCFRAME_BYTES_PER_PIXEL;
-        uint64_t unaligned_size =
-            RV_PCFRAME_SLOT_HEADER_BYTES + stride * h + RV_PCFRAME_SLOT_ALIGN - 1;
+        uint64_t unaligned_size = RV_PCFRAME_SLOT_HEADER_BYTES + stride * h + RV_PCFRAME_SLOT_ALIGN - 1;
         uint64_t slot_bytes = (unaligned_size / RV_PCFRAME_SLOT_ALIGN) * RV_PCFRAME_SLOT_ALIGN;
         uint64_t size = RV_PCFRAME_HEADER_BYTES + RV_PCFRAME_SLOTS * slot_bytes;
 
@@ -66,8 +64,7 @@ public:
             return RV_ERR_IO;
         }
 
-        map_ = reinterpret_cast<uint8_t *>(
-            mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
+        map_ = reinterpret_cast<uint8_t *>(mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, 0));
         if (map_ == MAP_FAILED) {
             RV_LOG_ERR("pcframe", "mmap failed: {}", strerror(errno));
             map_ = nullptr;
@@ -123,7 +120,8 @@ public:
         slot->width = w_;
         slot->height = h_;
         slot->stride = w_ * RV_PCFRAME_BYTES_PER_PIXEL;
-        std::memcpy(reinterpret_cast<uint8_t *>(slot) + RV_PCFRAME_SLOT_HEADER_BYTES, argb,
+        std::memcpy(reinterpret_cast<uint8_t *>(slot) + RV_PCFRAME_SLOT_HEADER_BYTES,
+            argb,
             w_ * RV_PCFRAME_BYTES_PER_PIXEL * h_);
 
         seq.store(s + RV_PCFRAME_SEQLOCK_STEP, std::memory_order_release);
@@ -190,7 +188,8 @@ class rv_pcframe_platform final : public rv_pcplatform
 {
 public:
     rv_pcframe_platform(std::unique_ptr<rv_pcplatform> inner, int fd)
-        : inner_(std::move(inner)), window_(fd)
+        : inner_(std::move(inner))
+        , window_(fd)
     {
     }
 

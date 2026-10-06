@@ -36,8 +36,7 @@ constexpr float label_column_min_width_em = 50.0f;
 // Label column width in font size units.
 constexpr float label_column_em = 15.0f;
 
-struct rv_editor_settings_row
-{
+struct rv_editor_settings_row {
     const char *key;
     const char *label_text_id;
     const char *automatic_text_id; // what an empty field means
@@ -59,7 +58,9 @@ void rv_editor_settings_load(rv_editor_shell &shell)
 {
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
         const rv_editor_tool &tool = shell.app.tools.*rv_editor_settings_rows[i].tool;
-        std::snprintf(shell.settings_paths[i], sizeof(shell.settings_paths[i]), "%s",
+        std::snprintf(shell.settings_paths[i],
+            sizeof(shell.settings_paths[i]),
+            "%s",
             tool.origin == "settings.toml" ? tool.path.c_str() : "");
         shell.settings_checks[i].reset();
     }
@@ -113,18 +114,20 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     ImGui::SameLine();
     const bool browsing = shell.settings_browse == static_cast<int>(i);
     const char *browse_tooltip = browsing ? rv_editor_text("shell_settings.browser_open_tooltip") : nullptr;
-    if (rv_editor_button(rv_editor_text("shell_settings.browse_button"), theme,
-            { rv_editor_look::live, browse_tooltip })) {
+    if (rv_editor_button(rv_editor_text("shell_settings.browse_button"), theme, { rv_editor_look::live, browse_tooltip })) {
         const char *label_text = rv_editor_text(row.label_text_id);
         const std::string label_str = label_text;
-        std::string browser_title = rv_editor_text_format("shell_settings.select_executable_for",
-            std::make_format_args(label_str));
+        std::string browser_title =
+            rv_editor_text_format("shell_settings.select_executable_for", std::make_format_args(label_str));
         std::filesystem::path start_path = tool.path;
         if (shell.settings_paths[i][0] != '\0') {
             start_path = shell.settings_paths[i];
         }
-        rv_editor_browser_start(shell.settings_browser, browser_title,
-            rv_editor_text("shell_settings.select_executable_button"), rv_editor_browse_pick::executable, start_path);
+        rv_editor_browser_start(shell.settings_browser,
+            browser_title,
+            rv_editor_text("shell_settings.select_executable_button"),
+            rv_editor_browse_pick::executable,
+            start_path);
         shell.settings_browse = static_cast<int>(i);
     }
     if (shell.settings_paths[i][0] == '\0') {
@@ -153,8 +156,7 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     } else {
         const std::string path_str = tool.path.string();
         const std::string &origin = tool.origin;
-        resolved = rv_editor_text_format("shell_settings.resolved_with_origin",
-            std::make_format_args(path_str, origin));
+        resolved = rv_editor_text_format("shell_settings.resolved_with_origin", std::make_format_args(path_str, origin));
     }
     ImGui::TextWrapped("%s", resolved.c_str());
 
@@ -184,8 +186,7 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     }
     rv_editor_pane_header(rv_editor_text("shell_settings.pane_header"), true, theme);
     const bool nowhere = app.tools.settings_path.empty();
-    const char *file_info =
-        nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
+    const char *file_info = nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
     auto msg = rv_editor_text_format("shell_settings.settings_desc", std::make_format_args(file_info));
     ImGui::TextWrapped("%s", msg.c_str());
     ImGui::Separator();
@@ -199,8 +200,8 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
         rv_editor_status(shell.settings_error.c_str(), rv_editor_status_kind::error, theme);
     }
     const char *no_dir_tooltip = nowhere ? rv_editor_text("shell_settings.no_dir_tooltip") : nullptr;
-    const bool apply = rv_editor_button(rv_editor_text("shell_settings.apply_button"), theme,
-        { rv_editor_look::live, no_dir_tooltip });
+    const bool apply =
+        rv_editor_button(rv_editor_text("shell_settings.apply_button"), theme, { rv_editor_look::live, no_dir_tooltip });
     ImGui::SameLine();
     if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme)) {
         shell.settings_loaded = false;

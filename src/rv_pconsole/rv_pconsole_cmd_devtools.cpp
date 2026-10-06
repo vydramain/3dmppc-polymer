@@ -106,8 +106,7 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
     // happened", so answering when the request arrived would be answering for
     // work not yet done.
     if (step_reply_id_ >= 0) {
-        cmd_->reply(
-            std::format("{} ok completed=1 frame={} mode=paused", step_reply_id_, frames_ + 1));
+        cmd_->reply(std::format("{} ok completed=1 frame={} mode=paused", step_reply_id_, frames_ + 1));
         step_reply_id_ = -1;
     }
 
@@ -148,8 +147,7 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
     if (script.error_seq != cmd_error_seq) {
         cmd_error_seq = script.error_seq;
         paused_ = true;
-        cmd_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1,
-            rv_pccmd_hex_msg(script.error)));
+        cmd_->reply(std::format("0 event=script_error frame={} msg={}", frames_ + 1, rv_pccmd_hex_msg(script.error)));
     }
 }
 
@@ -160,8 +158,7 @@ void rv_3dmppc::rv_pconsole::cmd_note_pause()
     }
     // The client did not ask for this, so it arrives as an event: something
     // else moved the machine it is driving.
-    cmd_->reply(std::format("0 event=pause mode={} frame={}", paused_ ? "paused" : "running",
-        frames_));
+    cmd_->reply(std::format("0 event=pause mode={} frame={}", paused_ ? "paused" : "running", frames_));
 }
 
 void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
@@ -227,8 +224,7 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
         }
         rv_pccl_status script;
         cl_->script_status(script);
-        cmd_->reply(std::format("{} ok lua_used={} lua_budget={} chunks={}", req.id, used,
-            script.budget, script.slots));
+        cmd_->reply(std::format("{} ok lua_used={} lua_budget={} chunks={}", req.id, used, script.budget, script.slots));
         return;
     }
     if (verb == "reload") {
@@ -248,7 +244,10 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
         return;
     }
 
-    cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
+    cmd_->reply(rv_pccmd_err(req.id,
+        "protocol",
+        RV_ERR_INVAL,
+        false,
         "unknown request; this console speaks status pause resume step pad reload asset get keys gc quit"));
 }
 
@@ -271,13 +270,25 @@ void rv_3dmppc::rv_pconsole::cmd_status(int64_t id)
     const std::string code_hash =
         loader_ != nullptr && !loader_->code_hash().empty() ? loader_->code_hash() : std::string("none");
 
-    cmd_->reply(std::format(
-        "{} ok protocol={} frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
-        "entry_reloadable={} entry_revision={} entry_hash={:016x} lua_used={} lua_budget={} "
-        "chunks={} error_seq={} script_error={}",
-        id, rv_pdklib::rv_version_str, frames_, paused_ ? "paused" : "running", params_.medium_live ? "live" : "fixed",
-        rv_pccmd_hex(disc_id), code_hash, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR, script.reloadable ? 1 : 0,
-        script.revision, script.hash, script.used, script.budget, script.slots, script.error_seq,
+    cmd_->reply(std::format("{} ok protocol={} frame={} mode={} medium={} disc={} disc_hash={} pdk={}.{} "
+                            "entry_reloadable={} entry_revision={} entry_hash={:016x} lua_used={} lua_budget={} "
+                            "chunks={} error_seq={} script_error={}",
+        id,
+        rv_pdklib::rv_version_str,
+        frames_,
+        paused_ ? "paused" : "running",
+        params_.medium_live ? "live" : "fixed",
+        rv_pccmd_hex(disc_id),
+        code_hash,
+        RV_MPPC_VER_MAJOR,
+        RV_MPPC_VER_MINOR,
+        script.reloadable ? 1 : 0,
+        script.revision,
+        script.hash,
+        script.used,
+        script.budget,
+        script.slots,
+        script.error_seq,
         rv_pccmd_hex_msg(script.error)));
 }
 
@@ -290,8 +301,7 @@ void rv_3dmppc::rv_pconsole::cmd_reload(const rv_pccmdreq &req)
         return;
     }
     if (req.arg(0) != "entry") {
-        cmd_->reply(rv_pccmd_err(req.id, "unsupported_target", RV_ERR_INVAL, false,
-            "reload takes `entry` or `module <name>`"));
+        cmd_->reply(rv_pccmd_err(req.id, "unsupported_target", RV_ERR_INVAL, false, "reload takes `entry` or `module <name>`"));
         return;
     }
 
@@ -300,14 +310,19 @@ void rv_3dmppc::rv_pconsole::cmd_reload(const rv_pccmdreq &req)
     if (req.has_payload) {
         // Compiled under the entry's own asset name, because that name is what
         // lua puts in front of every error message the chunk produces.
-        rc = cl_->script_reload_entry(req.payload.data(), static_cast<int64_t>(req.payload.size()),
-            script_entry_.empty() ? "reload" : script_entry_.c_str(), report);
+        rc = cl_->script_reload_entry(req.payload.data(),
+            static_cast<int64_t>(req.payload.size()),
+            script_entry_.empty() ? "reload" : script_entry_.c_str(),
+            report);
     } else {
         if (!params_.medium_live) {
             // Re-reading an archive entry would answer ok and change nothing:
             // the bytes in a zip cannot have moved. Refusing says so instead of
             // costing a frame to prove it.
-            cmd_->reply(rv_pccmd_err(req.id, "unsupported_medium", RV_ERR_INVAL, false,
+            cmd_->reply(rv_pccmd_err(req.id,
+                "unsupported_medium",
+                RV_ERR_INVAL,
+                false,
                 "the mounted medium cannot change; send the bytes, or boot an unpacked directory"));
             return;
         }
@@ -321,8 +336,11 @@ void rv_3dmppc::rv_pconsole::cmd_reload(const rv_pccmdreq &req)
 
     rv_pccl_status script;
     cl_->script_status(script);
-    cmd_->reply(std::format("{} ok entry_revision={} entry_hash={:016x} lua_used={}", req.id,
-        script.revision, script.hash, script.used));
+    cmd_->reply(std::format("{} ok entry_revision={} entry_hash={:016x} lua_used={}",
+        req.id,
+        script.revision,
+        script.hash,
+        script.used));
 }
 
 void rv_3dmppc::rv_pconsole::cmd_reload_module(const rv_pccmdreq &req)
@@ -336,12 +354,14 @@ void rv_3dmppc::rv_pconsole::cmd_reload_module(const rv_pccmdreq &req)
     rv_pccl_reload_report report;
     int64_t rc = 0;
     if (req.has_payload) {
-        rc = cl_->script_reload_module(name.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()),
-            report);
+        rc = cl_->script_reload_module(name.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()), report);
     } else {
         // Same rule as the entry: an archive cannot have changed under the console.
         if (!params_.medium_live) {
-            cmd_->reply(rv_pccmd_err(req.id, "unsupported_medium", RV_ERR_INVAL, false,
+            cmd_->reply(rv_pccmd_err(req.id,
+                "unsupported_medium",
+                RV_ERR_INVAL,
+                false,
                 "the mounted medium cannot change; send the bytes, or boot an unpacked directory"));
             return;
         }
@@ -355,16 +375,15 @@ void rv_3dmppc::rv_pconsole::cmd_reload_module(const rv_pccmdreq &req)
 
     rv_pccl_status script;
     cl_->script_status(script);
-    cmd_->reply(std::format("{} ok module={} hash={:016x} lua_used={}", req.id, rv_pccmd_hex(name), report.hash,
-        script.used));
+    cmd_->reply(std::format("{} ok module={} hash={:016x} lua_used={}", req.id, rv_pccmd_hex(name), report.hash, script.used));
 }
 
 void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
 {
     const std::string_view name = req.arg(0);
     if (name.empty()) {
-        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
-            "asset needs the name of an entry on the mounted medium"));
+        cmd_->reply(
+            rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "asset needs the name of an entry on the mounted medium"));
         return;
     }
     const std::string key(name);
@@ -373,22 +392,22 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
         // never read for them; the name still has to be a real entry, as
         // the no-payload path checks below.
         if (cd_->asset_open(key.c_str()) < 0) {
-            cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
-                "the mounted medium has no entry by that name"));
+            cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false, "the mounted medium has no entry by that name"));
             return;
         }
         rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
-        const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(),
-            static_cast<int64_t>(req.payload.size()), kind);
+        const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()), kind);
         if (rc == RV_PCCD_REFRESH_UNSUPPORTED) {
             // Same token a refused reload uses; the contract has no separate
             // one for "this drive never learned to refresh from bytes".
-            cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false,
-                "this drive cannot refresh an asset from bytes"));
+            cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false, "this drive cannot refresh an asset from bytes"));
             return;
         }
         if (rc == RV_PCCD_UNSUPPORTED_KIND) {
-            cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
+            cmd_->reply(rv_pccmd_err(req.id,
+                "unsupported_kind",
+                RV_ERR_INVAL,
+                false,
                 "a sound is resident under that name; its bytes change only across a restart"));
             return;
         }
@@ -402,8 +421,11 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
         }
         const int64_t width = cd_->resource_width(kind, key.c_str());
         const int64_t height = cd_->resource_height(kind, key.c_str());
-        cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key),
-            width < 0 ? 0 : width, height < 0 ? 0 : height));
+        cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
+            req.id,
+            rv_pccmd_hex(key),
+            width < 0 ? 0 : width,
+            height < 0 ? 0 : height));
         return;
     }
 
@@ -411,7 +433,10 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
         // An archive entry cannot have changed, so there is nothing to refresh
         // and telling the game otherwise would have it re-upload the same bytes
         // and report success.
-        cmd_->reply(rv_pccmd_err(req.id, "unsupported_medium", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id,
+            "unsupported_medium",
+            RV_ERR_INVAL,
+            false,
             "the mounted medium cannot change; boot an unpacked directory"));
         return;
     }
@@ -421,8 +446,7 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // live directory after boot is found, and a texture nobody holds
     // resident has nothing to refresh.
     if (cd_->asset_open(key.c_str()) < 0) {
-        cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false,
-            "the mounted medium has no entry by that name"));
+        cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false, "the mounted medium has no entry by that name"));
         return;
     }
 
@@ -432,7 +456,10 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
     const int64_t rc = cd_->asset_reload(key.c_str(), kind);
     if (rc == RV_PCCD_UNSUPPORTED_KIND) {
-        cmd_->reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id,
+            "unsupported_kind",
+            RV_ERR_INVAL,
+            false,
             "a sound is resident under that name; its bytes change only across a restart"));
         return;
     }
@@ -451,6 +478,9 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // layout has to follow, and nothing else in the protocol carries them.
     const int64_t width = cd_->resource_width(kind, key.c_str());
     const int64_t height = cd_->resource_height(kind, key.c_str());
-    cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key),
-        width < 0 ? 0 : width, height < 0 ? 0 : height));
+    cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
+        req.id,
+        rv_pccmd_hex(key),
+        width < 0 ? 0 : width,
+        height < 0 ? 0 : height));
 }

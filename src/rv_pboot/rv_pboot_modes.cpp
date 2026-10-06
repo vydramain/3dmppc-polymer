@@ -70,8 +70,7 @@ int find_preset(const std::vector<rv_pboot_runtime_preset> &table, const std::st
 // Applies a non-empty `--mode_<slot>=value` override. Returns RV_OK on success or
 // RV_ERR_INVAL (with a diagnostic already printed) when `value` names nothing in `table`.
 template <typename Table, typename Impl>
-int apply_override(const Table &table, const std::string &slot_flag, const std::string &value,
-    Impl &out, int &exit_code)
+int apply_override(const Table &table, const std::string &slot_flag, const std::string &value, Impl &out, int &exit_code)
 {
     if (value.empty()) {
         return RV_OK;
@@ -87,8 +86,8 @@ int apply_override(const Table &table, const std::string &slot_flag, const std::
         }
         available += row.name;
     }
-    rv_console_print_error(std::format("unknown --mode_{} '{}', available: {}", slot_flag,
-        rv_pdklib::rv_log_escape(value.c_str()), available));
+    rv_console_print_error(
+        std::format("unknown --mode_{} '{}', available: {}", slot_flag, rv_pdklib::rv_log_escape(value.c_str()), available));
     rv_console_print_usage(stderr);
     exit_code = EXIT_CODE_INVALID_ARGS;
     return RV_ERR_INVAL;
@@ -97,13 +96,16 @@ int apply_override(const Table &table, const std::string &slot_flag, const std::
 // Reads a `[mode.<NAME>]` value for one slot: must be a string naming a row
 // of `table`. Returns RV_OK on success or RV_ERR_INVAL with a diagnostic on `failer`.
 template <typename Table, typename Impl>
-int lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entry &entry, Impl &out,
+int lookup_slot_value(const Table &table,
+    const rv_pdklib::rv_manifest_tree_entry &entry,
+    Impl &out,
     rv_pdklib::rv_manifest_failer &failer)
 {
     if (entry.value.kind != rv_pdklib::rv_manifest_value_kind::string) {
         failer.fail(entry.value.line,
-            std::format("'{}' must be {}, got {}", entry.key, rv_pdklib::rv_manifest_kind_name(
-                                                                    rv_pdklib::rv_manifest_value_kind::string),
+            std::format("'{}' must be {}, got {}",
+                entry.key,
+                rv_pdklib::rv_manifest_kind_name(rv_pdklib::rv_manifest_value_kind::string),
                 rv_pdklib::rv_manifest_kind_name(entry.value.kind)));
         return RV_ERR_INVAL;
     }
@@ -118,8 +120,7 @@ int lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entr
         }
         available += row.name;
     }
-    failer.fail(entry.value.line,
-        std::format("unknown {} '{}', available: {}", entry.key, entry.value.str, available));
+    failer.fail(entry.value.line, std::format("unknown {} '{}', available: {}", entry.key, entry.value.str, available));
     return RV_ERR_INVAL;
 }
 
@@ -127,7 +128,8 @@ int lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entr
 // file has no error, merges its presets into `table`. Returns how many
 // presets were loaded; the count is meaningless when `failer` is non-empty,
 // because nothing was merged.
-int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pboot_runtime_preset> &table,
+int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree,
+    std::vector<rv_pboot_runtime_preset> &table,
     rv_pdklib::rv_manifest_failer &failer)
 {
     struct pending_preset {
@@ -142,8 +144,7 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
             continue;
         }
         if (!section.name.starts_with(MODES_SECTION_PREFIX) || section.name.size() == MODES_SECTION_PREFIX.size()) {
-            failer.fail(section.line,
-                std::format("section '[{}]' is not a preset - expected '[mode.<NAME>]'", section.name));
+            failer.fail(section.line, std::format("section '[{}]' is not a preset - expected '[mode.<NAME>]'", section.name));
             continue;
         }
         const std::string name = section.name.substr(MODES_SECTION_PREFIX.size());
@@ -151,8 +152,7 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
         bool duplicate = false;
         for (const pending_preset &p : pendings) {
             if (p.name == name) {
-                failer.fail(section.line,
-                    std::format("preset '{}' redefines the one at line {}", name, p.line));
+                failer.fail(section.line, std::format("preset '{}' redefines the one at line {}", name, p.line));
                 duplicate = true;
                 break;
             }
@@ -282,7 +282,8 @@ std::string rv_pboot_builtin_presets_summary()
         if (i > 0) {
             result += (i + 1 == n) ? " and " : ", ";
         }
-        result += std::format("{} (platform {})", RV_PBOOT_BUILTIN_PRESETS[i].name,
+        result += std::format("{} (platform {})",
+            RV_PBOOT_BUILTIN_PRESETS[i].name,
             rv_pcslots_name(RV_PBOOT_BUILTIN_PRESETS[i].slots.platform));
     }
     return result;
@@ -311,15 +312,13 @@ int rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit
             available += preset.name;
         }
         rv_console_print_error(
-            std::format("unknown --mode '{}', available: {}", rv_pdklib::rv_log_escape(args.mode.c_str()),
-                available));
+            std::format("unknown --mode '{}', available: {}", rv_pdklib::rv_log_escape(args.mode.c_str()), available));
         rv_console_print_usage(stderr);
         exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_NOENT;
     }
 
-    if ((err = apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform,
-             slots.platform, exit_code)) != RV_OK) {
+    if ((err = apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform, slots.platform, exit_code)) != RV_OK) {
         return err;
     }
     if ((err = apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code)) != RV_OK) {

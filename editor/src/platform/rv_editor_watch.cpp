@@ -16,8 +16,8 @@ namespace rv_editor
 namespace
 {
 
-constexpr uint32_t rv_editor_watch_mask = IN_CREATE | IN_DELETE | IN_MODIFY | IN_CLOSE_WRITE | IN_MOVED_FROM |
-    IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_DONT_FOLLOW | IN_ONLYDIR;
+constexpr uint32_t rv_editor_watch_mask = IN_CREATE | IN_DELETE | IN_MODIFY | IN_CLOSE_WRITE | IN_MOVED_FROM | IN_MOVED_TO |
+    IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_DONT_FOLLOW | IN_ONLYDIR;
 
 // Room for several inotify_event records, each name up to NAME_MAX (255) bytes plus NUL.
 constexpr size_t inotify_buffer_bytes = 16384;

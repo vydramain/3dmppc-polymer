@@ -39,8 +39,7 @@ bool legal_state_type(int t)
 // duplicate. Only string and number keys have a text form at all - anything
 // else is refused rather than guessed at. Stack-neutral on both paths.
 // Returns RV_OK on success, RV_ERR_INVAL if the key has an invalid type.
-int key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std::string &parent_path,
-    std::string &out)
+int key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std::string &parent_path, std::string &out)
 {
     const int t = lua_type(L, key_idx);
     if (t != LUA_TSTRING && t != LUA_TNUMBER) {
@@ -125,8 +124,7 @@ int capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path,
             if (it != ctx.old_shape->end() && it->second != t) {
                 ctx.refused = true;
                 ctx.refuse_path = child_path;
-                ctx.refuse_message =
-                    std::string("expected ") + lua_typename(L, it->second) + ", found " + lua_typename(L, t);
+                ctx.refuse_message = std::string("expected ") + lua_typename(L, it->second) + ", found " + lua_typename(L, t);
                 lua_pop(L, 2);
                 return RV_ERR_INVAL;
             }

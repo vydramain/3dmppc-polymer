@@ -62,8 +62,7 @@ public:
     // Fetch the texel at (u, v). Coordinates outside the texture are resolved by
     // `mapping`; STRETCH arrives here already rescaled by the rasterizer and is
     // therefore treated as CLAMP.
-    static rv_pctexel_sample sample(const rv_pctexview &view, int64_t u, int64_t v,
-        rv_texture_mapping_type mapping);
+    static rv_pctexel_sample sample(const rv_pctexview &view, int64_t u, int64_t v, rv_texture_mapping_type mapping);
 
     // Bring one axis coordinate into [0, size). `size` must be positive (a valid
     // view guarantees it). Exposed because the rasterizer's STRETCH path wants

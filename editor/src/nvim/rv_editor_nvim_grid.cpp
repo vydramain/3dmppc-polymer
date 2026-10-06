@@ -194,8 +194,7 @@ rv_editor_nvim_cursor rv_editor_nvim_screen::cursor_shape() const
 void rv_editor_nvim_screen::grid_resize(int32_t id, int32_t w, int32_t h)
 {
     rv_editor_nvim_grid &g = grids_[id];
-    std::vector<rv_editor_nvim_cell> cells(static_cast<size_t>(std::max(0, w) * std::max(0, h)),
-        { empty_cell_text, 0 });
+    std::vector<rv_editor_nvim_cell> cells(static_cast<size_t>(std::max(0, w) * std::max(0, h)), { empty_cell_text, 0 });
     for (int32_t r = 0; r < std::min(h, g.height); ++r) {
         for (int32_t c = 0; c < std::min(w, g.width); ++c) {
             cells[static_cast<size_t>(r * w + c)] = g.at(r, c);
@@ -275,13 +274,13 @@ void rv_editor_nvim_screen::event(const std::string &name, const rv_editor_mpack
     if (name == event_grid_line) {
         grid_line(args);
     } else if (name == event_grid_resize && a.size() >= grid_resize_args) {
-        grid_resize(rv_editor_int(a[grid_resize_grid]), rv_editor_int(a[grid_resize_width]),
+        grid_resize(rv_editor_int(a[grid_resize_grid]),
+            rv_editor_int(a[grid_resize_width]),
             rv_editor_int(a[grid_resize_height]));
     } else if (name == event_grid_clear && !a.empty()) {
         const auto it = grids_.find(rv_editor_int(a[grid_line_grid]));
         if (it != grids_.end()) {
-            std::fill(it->second.cells.begin(), it->second.cells.end(),
-                rv_editor_nvim_cell{ empty_cell_text, 0 });
+            std::fill(it->second.cells.begin(), it->second.cells.end(), rv_editor_nvim_cell{ empty_cell_text, 0 });
         }
     } else if (name == event_grid_scroll) {
         grid_scroll(args);
@@ -301,8 +300,7 @@ void rv_editor_nvim_screen::event(const std::string &name, const rv_editor_mpack
         // nvim sends row/col as floats; store as-is for rendering precision.
         g.anchor_row = rv_editor_real_or_int(a[win_float_pos_anchor_row]);
         g.anchor_col = rv_editor_real_or_int(a[win_float_pos_anchor_col]);
-        g.zindex = a.size() >= win_float_zindex_args ? rv_editor_int(a[win_float_pos_zindex]) :
-                                                       default_float_zindex;
+        g.zindex = a.size() >= win_float_zindex_args ? rv_editor_int(a[win_float_pos_zindex]) : default_float_zindex;
         g.hidden = false;
     } else if (name == event_win_pos && a.size() >= win_pos_args) {
         rv_editor_nvim_grid &g = grids_[rv_editor_int(a[win_pos_grid])];

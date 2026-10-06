@@ -45,10 +45,13 @@ std::string rv_pccmd_hex_msg(std::string_view message)
     return rv_pccmd_hex(cut_down);
 }
 
-std::string rv_pccmd_err(int64_t id, const char *token, int64_t rc, bool effects,
-    std::string_view message)
+std::string rv_pccmd_err(int64_t id, const char *token, int64_t rc, bool effects, std::string_view message)
 {
-    return std::format("{} err error={} rv_err={} effects={} msg={}", id, token, rc, effects ? 1 : 0,
+    return std::format("{} err error={} rv_err={} effects={} msg={}",
+        id,
+        token,
+        rc,
+        effects ? 1 : 0,
         rv_pccmd_hex_msg(message));
 }
 

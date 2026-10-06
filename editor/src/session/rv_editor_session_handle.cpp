@@ -66,19 +66,25 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             }
         } else if (event == devproto_event_script_error) {
             state_ = rv_editor_run_state::paused;
-            log.add(rv_editor_log_source::runtime, rv_editor_log_level::error,
-                "script error at frame " + std::string(msg.get(devproto_field_frame)) + ", machine paused: " +
-                    rv_editor_hex_decode(msg.get(msg_key_message)),
-                rv_editor_log_channel::none, proc_.pid(), number_);
+            log.add(rv_editor_log_source::runtime,
+                rv_editor_log_level::error,
+                "script error at frame " + std::string(msg.get(devproto_field_frame)) +
+                    ", machine paused: " + rv_editor_hex_decode(msg.get(msg_key_message)),
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         }
         return;
     }
 
     const auto it = pending_.find(msg.id);
     if (it == pending_.end()) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-            "answer to request " + std::to_string(msg.id) + ", which was never sent", rv_editor_log_channel::none,
-            proc_.pid(), number_);
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "answer to request " + std::to_string(msg.id) + ", which was never sent",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
         return;
     }
     const rv_editor_request req = it->second;
@@ -92,10 +98,14 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
     }
 
     if (msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::err) {
-        const std::string err_msg = verb + " refused: " + std::string(msg.get(msg_key_error)) +
-            ": " + rv_editor_hex_decode(msg.get(msg_key_message));
-        log.add(rv_editor_log_source::runtime, rv_editor_log_level::error, err_msg, rv_editor_log_channel::none,
-            proc_.pid(), number_);
+        const std::string err_msg =
+            verb + " refused: " + std::string(msg.get(msg_key_error)) + ": " + rv_editor_hex_decode(msg.get(msg_key_message));
+        log.add(rv_editor_log_source::runtime,
+            rv_editor_log_level::error,
+            err_msg,
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
         // What the machine does now is whatever it says it does.
         if (state_ != rv_editor_run_state::stopping && proc_.running()) {
             send(std::string(cmd_status), log);
@@ -109,11 +119,15 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             const std::string_view protocol = msg.get(devproto_field_protocol);
             if (protocol != protocol_supported) {
                 state_ = rv_editor_run_state::refused;
-                refusal_ = "the console speaks protocol " + std::string(protocol) +
-                    "; this editor speaks " + protocol_supported;
+                refusal_ =
+                    "the console speaks protocol " + std::string(protocol) + "; this editor speaks " + protocol_supported;
                 end_reason_ = refusal_;
-                log.add(rv_editor_log_source::editor, rv_editor_log_level::error, refusal_,
-                    rv_editor_log_channel::none, proc_.pid(), number_);
+                log.add(rv_editor_log_source::editor,
+                    rv_editor_log_level::error,
+                    refusal_,
+                    rv_editor_log_channel::none,
+                    proc_.pid(),
+                    number_);
                 quit_sent_ = true;
                 stop_sent_ = std::chrono::steady_clock::now();
                 if (proc_.running()) {
@@ -123,10 +137,14 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             }
             handshake_done_ = true;
             const std::string handshake_msg = "connected: protocol " + std::string(msg.get(devproto_field_protocol)) +
-                ", disc " + rv_editor_hex_decode(msg.get(msg_key_disc)) + ", pdk " +
-                std::string(msg.get(msg_key_pdk)) + ", medium " + std::string(msg.get(msg_key_medium));
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::info, handshake_msg,
-                rv_editor_log_channel::none, proc_.pid(), number_);
+                ", disc " + rv_editor_hex_decode(msg.get(msg_key_disc)) + ", pdk " + std::string(msg.get(msg_key_pdk)) +
+                ", medium " + std::string(msg.get(msg_key_medium));
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::info,
+                handshake_msg,
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         }
         note_facts(msg);
         if (state_ != rv_editor_run_state::stopping) {

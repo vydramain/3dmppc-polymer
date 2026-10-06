@@ -17,7 +17,8 @@
 #include <filesystem>
 #include <string>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // True when `resname` is a legal entry name per rv_cd::asset_open.
 //
@@ -30,12 +31,13 @@ namespace rv_3dmppc {
 // check therefore runs BEFORE anything reaches the filesystem, so such a name
 // never becomes an open() at all. `:` is refused for the same reason on hosts
 // where it introduces a drive or an alternate data stream.
-bool rv_pcresname_valid(const char* resname);
+bool rv_pcresname_valid(const char *resname);
 
 // The inserted medium. Read-only, by contract (rv_cd.hpp): persistent state is
 // the memory card's job, never the disc's.
-class rv_pcmedium {  // PATTERN: strategy
-   public:
+class rv_pcmedium
+{ // PATTERN: strategy
+public:
     virtual ~rv_pcmedium() = default;
 
     // False when the drive is empty. NOT an error: a console booted with no disc
@@ -46,7 +48,7 @@ class rv_pcmedium {  // PATTERN: strategy
     // Size in bytes of the entry named `resname`, or a negative rv_err
     // (RV_ERR_NOENT when there is no such entry, RV_ERR_IO when it exists but
     // cannot be measured). Doubles as the existence probe.
-    virtual int64_t entry_size(const char* resname) const = 0;
+    virtual int64_t entry_size(const char *resname) const = 0;
 
     // Copy the WHOLE entry into `baddr`, which has capacity `cap` bytes.
     // Returns the byte count written (>= 0), or a negative rv_err:
@@ -54,23 +56,27 @@ class rv_pcmedium {  // PATTERN: strategy
     //   RV_ERR_NOENT  no such entry
     //   RV_ERR_IO     the transfer failed
     // The medium never allocates the destination and never writes past `cap`.
-    virtual int64_t entry_read(const char* resname, void* baddr, int64_t cap) const = 0;
+    virtual int64_t entry_read(const char *resname, void *baddr, int64_t cap) const = 0;
 };
 
 // A medium that is just a directory on the host filesystem: every regular file
 // directly inside it is one entry, named by its filename. This is what an
 // unpacked disc under mppcdiscs/<name>/assets looks like during development.
-class rv_pcdirmedium : public rv_pcmedium {
-   public:
+class rv_pcdirmedium : public rv_pcmedium
+{
+public:
     // An empty `dir_path` means "no disc inserted" and is not a failure. A
     // non-empty path that is not a directory IS reported (loudly) but still
     // leaves the drive merely empty rather than broken.
-    explicit rv_pcdirmedium(const std::string& dir_path);
+    explicit rv_pcdirmedium(const std::string &dir_path);
 
-    bool mounted() const override { return mounted_; }
+    bool mounted() const override
+    {
+        return mounted_;
+    }
 
-    int64_t entry_size(const char* resname) const override;
-    int64_t entry_read(const char* resname, void* baddr, int64_t cap) const override;
+    int64_t entry_size(const char *resname) const override;
+    int64_t entry_read(const char *resname, void *baddr, int64_t cap) const override;
 
 private:
     // Maps an already-validated name onto a path inside `root_`, and re-checks
@@ -85,4 +91,4 @@ private:
     bool mounted_ = false;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

@@ -28,7 +28,6 @@ namespace rv_3dmppc
 // A COPY of the frame and never the frame itself: the disc's last picture has to
 // stay exactly what the disc drew, or --dump-frame would start reporting what
 // the operator was looking at, and a second pause would print over the first.
-void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame, int64_t width,
-    int64_t height);
+void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame, int64_t width, int64_t height);
 
 } // namespace rv_3dmppc

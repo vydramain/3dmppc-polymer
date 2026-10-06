@@ -27,9 +27,9 @@ namespace rv_pdklib
 
 // --- record signatures, as the 32-bit little-endian values they decode to ---
 
-inline constexpr uint32_t rv_zip_sig_local = 0x04034b50u;    // PK\x03\x04
-inline constexpr uint32_t rv_zip_sig_central = 0x02014b50u;  // PK\x01\x02
-inline constexpr uint32_t rv_zip_sig_eocd = 0x06054b50u;     // PK\x05\x06
+inline constexpr uint32_t rv_zip_sig_local = 0x04034b50u;   // PK\x03\x04
+inline constexpr uint32_t rv_zip_sig_central = 0x02014b50u; // PK\x01\x02
+inline constexpr uint32_t rv_zip_sig_eocd = 0x06054b50u;    // PK\x05\x06
 
 // --- fixed parts of the three records, signature included, any
 // variable-length tail (name, extra field, comment) excluded ---
@@ -179,8 +179,8 @@ inline uint16_t rv_zip_read_le16(const unsigned char *p)
 
 inline uint32_t rv_zip_read_le32(const unsigned char *p)
 {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16) |
+        (static_cast<uint32_t>(p[3]) << 24);
 }
 
 // --- decoding ---
@@ -264,10 +264,10 @@ inline rv_zip_eocd rv_zip_decode_eocd(std::span<const unsigned char> bytes)
 /// for it without re-deriving what went wrong.
 enum class rv_zip_eocd_status {
     ok,
-    split_archive,           ///< the record does not describe a single-disk archive
-    zip64,                   ///< a field holds the zip64 "see the real value elsewhere" sentinel
-    directory_outside_file,  ///< the central directory the record points to does not fit in the file
-    directory_too_large,     ///< the central directory is inside the file but bigger than the caller allows
+    split_archive,          ///< the record does not describe a single-disk archive
+    zip64,                  ///< a field holds the zip64 "see the real value elsewhere" sentinel
+    directory_outside_file, ///< the central directory the record points to does not fit in the file
+    directory_too_large,    ///< the central directory is inside the file but bigger than the caller allows
 };
 
 /// The three EOCD fields a reader actually needs, once validated.
@@ -292,8 +292,8 @@ struct rv_zip_eocd_result {
 ///                            fits, independent of anything the record claims
 /// @param max_directory_bytes the caller's own ceiling on a believable
 ///                            central directory size; not a zip format limit
-inline rv_zip_eocd_result rv_zip_validate_eocd(std::span<const unsigned char> eocd, int64_t file_size,
-                                                int64_t max_directory_bytes)
+inline rv_zip_eocd_result
+rv_zip_validate_eocd(std::span<const unsigned char> eocd, int64_t file_size, int64_t max_directory_bytes)
 {
     const rv_zip_eocd rec = rv_zip_decode_eocd(eocd);
     const uint16_t disk = rec.disk_number;
@@ -335,4 +335,4 @@ inline rv_zip_eocd_result rv_zip_validate_eocd(std::span<const unsigned char> eo
     return result;
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

@@ -64,8 +64,8 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
         rv_editor_dim(rv_editor_text("pane_session.in_flight_empty"));
     }
     for (const rv_editor_in_flight &req : s.in_flight()) {
-        rv_editor_dim(req.overdue ? req.verb + ": no answer came, so whether it ran is unknown."
-                                   : req.verb + ": still waiting when it ended.");
+        rv_editor_dim(req.overdue ? req.verb + ": no answer came, so whether it ran is unknown." :
+                                    req.verb + ": still waiting when it ended.");
     }
 
     ImGui::SeparatorText(rv_editor_text("pane_session.last_confirmed"));
@@ -86,7 +86,8 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
     }
 
     const std::string file = app.log.file_for(s.pid());
-    if (rv_editor_button(rv_editor_text("pane_session.open_full_log"), theme,
+    if (rv_editor_button(rv_editor_text("pane_session.open_full_log"),
+            theme,
             { rv_editor_look::live, file.empty() ? rv_editor_text("pane_session.open_full_log_no_file") : nullptr })) {
         app.open_requests.push_back({ file, 0 });
     }
@@ -114,10 +115,9 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
             const bool bad = s.state() == rv_editor_run_state::crashed || s.state() == rv_editor_run_state::refused;
             const auto session_number = s.number();
             const auto end_reason = s.end_reason();
-            const auto status_text = rv_editor_text_format("pane_session.session_ended_format",
-                std::make_format_args(session_number, end_reason));
-            rv_editor_status(status_text.c_str(),
-                bad ? rv_editor_status_kind::error : rv_editor_status_kind::ok, theme);
+            const auto status_text =
+                rv_editor_text_format("pane_session.session_ended_format", std::make_format_args(session_number, end_reason));
+            rv_editor_status(status_text.c_str(), bad ? rv_editor_status_kind::error : rv_editor_status_kind::ok, theme);
         }
         if (!s.live() && s.number() > 0) {
             rv_editor_session_summary(app, s, theme);
@@ -137,23 +137,20 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         const long long minutes = seconds / seconds_per_minute;
         const long long rest_seconds = seconds % seconds_per_minute;
         const auto clock_str = rv_editor_clock(s.started_at());
-        std::string time_text = s.live() ? rv_editor_text_format("pane_session.time_running",
-                                               std::make_format_args(clock_str, minutes, rest_seconds)) :
-                                           rv_editor_text_format("pane_session.time_finished",
-                                               std::make_format_args(clock_str, minutes, rest_seconds));
+        std::string time_text = s.live() ?
+            rv_editor_text_format("pane_session.time_running", std::make_format_args(clock_str, minutes, rest_seconds)) :
+            rv_editor_text_format("pane_session.time_finished", std::make_format_args(clock_str, minutes, rest_seconds));
         rv_editor_fact(rv_editor_text("pane_session.time"), time_text);
         const auto frame_num = std::to_string(s.frame());
         std::string frame_value;
         if (s.live()) {
             frame_value = frame_num;
         } else {
-            frame_value = rv_editor_text_format("pane_session.frame_last_reported_fmt",
-                std::make_format_args(frame_num));
+            frame_value = rv_editor_text_format("pane_session.frame_last_reported_fmt", std::make_format_args(frame_num));
         }
         rv_editor_fact(rv_editor_text("pane_session.frame"), frame_value);
         if (!f.disc.empty()) {
-            const auto disc_text = rv_editor_text_format("pane_session.disc_pdk_format",
-                std::make_format_args(f.disc, f.pdk));
+            const auto disc_text = rv_editor_text_format("pane_session.disc_pdk_format", std::make_format_args(f.disc, f.pdk));
             rv_editor_fact(rv_editor_text("pane_session.disc"), disc_text);
         }
         if (f.lua_budget > 0) {
@@ -162,30 +159,27 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
                 entry_text = rv_editor_text_format("pane_session.entry_script_reloaded",
                     std::make_format_args(f.revision, f.first_revision));
             } else if (is_latest_build) {
-                entry_text = rv_editor_text_format("pane_session.entry_script_as_built",
-                    std::make_format_args(f.revision));
+                entry_text = rv_editor_text_format("pane_session.entry_script_as_built", std::make_format_args(f.revision));
             } else {
-                entry_text = rv_editor_text_format("pane_session.entry_script_revision_only",
-                    std::make_format_args(f.revision));
+                entry_text =
+                    rv_editor_text_format("pane_session.entry_script_revision_only", std::make_format_args(f.revision));
             }
             rv_editor_fact(rv_editor_text("pane_session.entry_script"), entry_text);
         }
         if (!is_latest_build) {
             const auto build_num = s.build_number();
-            const auto note_text = rv_editor_text_format("pane_session.note_native_code_format",
-                std::make_format_args(build_num));
+            const auto note_text =
+                rv_editor_text_format("pane_session.note_native_code_format", std::make_format_args(build_num));
             rv_editor_fact(rv_editor_text("pane_session.note"), note_text);
         }
         if (!s.reload_result().empty()) {
-            const auto reload_text = s.reload_ok() ? rv_editor_text_format("pane_session.last_reload_applied",
-                                                         std::make_format_args(s.reload_result())) :
-                                                     rv_editor_text_format("pane_session.last_reload_refused",
-                                                         std::make_format_args(s.reload_result()));
+            const auto reload_text = s.reload_ok() ?
+                rv_editor_text_format("pane_session.last_reload_applied", std::make_format_args(s.reload_result())) :
+                rv_editor_text_format("pane_session.last_reload_refused", std::make_format_args(s.reload_result()));
             rv_editor_fact(rv_editor_text("pane_session.last_reload"), reload_text);
         }
         const auto saved_count = app.findings.saved.size();
-        const auto saved_text = rv_editor_text_format("pane_session.saved_format",
-            std::make_format_args(saved_count));
+        const auto saved_text = rv_editor_text_format("pane_session.saved_format", std::make_format_args(saved_count));
         rv_editor_fact(rv_editor_text("pane_session.saved"), saved_text);
         ImGui::EndTable();
 

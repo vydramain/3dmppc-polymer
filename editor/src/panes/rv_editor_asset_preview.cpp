@@ -23,8 +23,7 @@ namespace
 {
 
 // The last failed play, kept until the selection moves to a different file.
-struct rv_editor_sound_error
-{
+struct rv_editor_sound_error {
     std::filesystem::path path;
     std::string text;
 };
@@ -32,8 +31,7 @@ struct rv_editor_sound_error
 rv_editor_sound_error rv_editor_sound_last_error;
 
 // The last failed "Add to disc", kept until the selection moves to a different file.
-struct rv_editor_add_error
-{
+struct rv_editor_add_error {
     std::string rel;
     std::string text;
 };
@@ -195,8 +193,12 @@ double rv_editor_asset_sound_seconds(const rv_editor_asset &a)
     return 0.0;
 }
 
-void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry *entry, rv_editor_icon picture,
-    double sound_seconds, const rv_editor_theme &theme, rv_editor_project &project)
+void rv_editor_asset_preview(const rv_editor_asset *a,
+    const rv_editor_map_entry *entry,
+    rv_editor_icon picture,
+    double sound_seconds,
+    const rv_editor_theme &theme,
+    rv_editor_project &project)
 {
     if (a == nullptr) {
         ImGui::TextWrapped("%s", rv_editor_text("asset_preview.no_asset_selected"));
@@ -223,8 +225,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
             }
         } else if (ext == wav_extension || ext == pcm_extension) {
             const auto duration_args = std::make_format_args(sound_seconds);
-            const auto duration_text =
-                rv_editor_text_format("asset_preview.sound_duration", duration_args);
+            const auto duration_text = rv_editor_text_format("asset_preview.sound_duration", duration_args);
             ImGui::Text("%s", duration_text.c_str());
             const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == a->path;
             if (rv_editor_button(rv_editor_text("asset_preview.button_play"), theme)) {
@@ -236,9 +237,8 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
                 }
             }
             ImGui::SameLine();
-            const rv_editor_state stop_state{
-                rv_editor_look::live, playing_this ? nullptr : rv_editor_text("asset_preview.tooltip_nothing_playing")
-            };
+            const rv_editor_state stop_state{ rv_editor_look::live,
+                playing_this ? nullptr : rv_editor_text("asset_preview.tooltip_nothing_playing") };
             if (rv_editor_button(rv_editor_text("asset_preview.button_stop"), theme, stop_state)) {
                 rv_editor_sound_stop();
             }
@@ -315,8 +315,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a, const rv_editor_map_entry
         return;
     }
     header();
-    ImGui::Image(picture.id,
-        rv_editor_fit_picture(picture, room.x, room.y - line_h * preview_text_area_height_lines));
+    ImGui::Image(picture.id, rv_editor_fit_picture(picture, room.x, room.y - line_h * preview_text_area_height_lines));
     footer();
 }
 

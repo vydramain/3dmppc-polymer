@@ -91,13 +91,34 @@ struct rv_pccl_conf {
 // the built-in preset "default" (one copy of it, the same idiom as
 // rv_manifest_budget's defaults being the reference machine). Chosen at boot
 // (rv_pboot_modes.hpp) and branched on nowhere but rv_pcslots.cpp.
-enum class rv_pcplatform_impl { null, sdl3 };
-enum class rv_pcca_impl { null, sw };
-enum class rv_pccv_impl { null, sw };
-enum class rv_pccio_impl { null, standard };
-enum class rv_pccl_impl { null, luajit };
-enum class rv_pccd_impl { null, fs };
-enum class rv_pccm_impl { null, posix };
+enum class rv_pcplatform_impl {
+    null,
+    sdl3
+};
+enum class rv_pcca_impl {
+    null,
+    sw
+};
+enum class rv_pccv_impl {
+    null,
+    sw
+};
+enum class rv_pccio_impl {
+    null,
+    standard
+};
+enum class rv_pccl_impl {
+    null,
+    luajit
+};
+enum class rv_pccd_impl {
+    null,
+    fs
+};
+enum class rv_pccm_impl {
+    null,
+    posix
+};
 
 struct rv_pcslots {
     // Not a slot itself (see rv_pcslots.hpp), but the first field: it decides

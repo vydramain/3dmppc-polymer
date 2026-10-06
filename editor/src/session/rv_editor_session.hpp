@@ -25,10 +25,9 @@ inline constexpr std::string_view end_reason_force_stopped = "force-stopped";
 
 // What the runtime is doing, as far as the console has confirmed it (section 12
 // of the requirements). Pending states last until the console answers.
-enum class rv_editor_run_state
-{
-    stopped,      // never started in this window
-    starting,     // process up, waiting for the first status
+enum class rv_editor_run_state {
+    stopped,  // never started in this window
+    starting, // process up, waiting for the first status
     running,
     pausing,
     paused,
@@ -45,26 +44,24 @@ const char *rv_editor_run_state_name(rv_editor_run_state state);
 
 // What the console said about itself in its last status (README.md, "The
 // channel"): the disc it loaded, which code, and the Lua half's revision.
-struct rv_editor_session_facts
-{
+struct rv_editor_session_facts {
     std::string disc;
-    std::string code_hash;  // of the disc.so it mapped
+    std::string code_hash; // of the disc.so it mapped
     std::string pdk;
-    std::string medium;     // "live": a directory; "fixed": an image that cannot change
-    bool reloadable = false; // the entry script can be reloaded
-    int64_t revision = -1;   // the entry's; -1 before the first status
+    std::string medium;          // "live": a directory; "fixed": an image that cannot change
+    bool reloadable = false;     // the entry script can be reloaded
+    int64_t revision = -1;       // the entry's; -1 before the first status
     int64_t first_revision = -1; // at connect: a later one came by reload
     std::string entry_hash;
     int64_t lua_used = 0;
-    int64_t lua_budget = 0;  // 0: the disc declares no Lua machine
+    int64_t lua_budget = 0; // 0: the disc declares no Lua machine
     std::chrono::system_clock::time_point at{};
 };
 
 // One `get` or `keys` answer. Answers are separate reads: `frame_exact` says the
 // machine was paused when it was asked, so it describes `frame`; otherwise it is
 // a sample of a running machine taken at `at`.
-struct rv_editor_answer
-{
+struct rv_editor_answer {
     bool ok = false;
     std::vector<std::pair<std::string, std::string>> fields;
     std::string error;
@@ -75,24 +72,21 @@ struct rv_editor_answer
 
 // The last `ok` reply this session handled, for an end-of-session summary: what
 // it answered, the frame after it was applied, when. Empty verb before any.
-struct rv_editor_last_confirmed
-{
+struct rv_editor_last_confirmed {
     std::string verb;
     int64_t frame = 0;
     std::chrono::system_clock::time_point at{};
 };
 
 // One request still pending when finish() ran, before it clears them.
-struct rv_editor_in_flight
-{
+struct rv_editor_in_flight {
     std::string verb;
     bool overdue = false;
 };
 
 // What the last reload-slot result is about: the entry, a required module, or
 // a texture sent by reload_asset().
-enum class rv_editor_reload_kind
-{
+enum class rv_editor_reload_kind {
     entry,
     module,
     texture,
@@ -113,9 +107,14 @@ public:
 
     // RV_OK on success; RV_ERR_* on failure with the reason in error.
     // `options` go before the disc, `env` over the editor's environment (a run profile).
-    int start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
-        const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
-        const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
+    int start(const std::filesystem::path &console,
+        const std::filesystem::path &disc_dir,
+        const std::filesystem::path &memcard,
+        const std::filesystem::path &cwd,
+        uint32_t build_number,
+        const std::vector<std::string> &options,
+        const std::vector<std::string> &env,
+        rv_editor_log &log,
         std::string &error);
 
     void pause(rv_editor_log &log);
@@ -143,7 +142,10 @@ public:
     void pad(uint64_t buttons, rv_editor_log &log);
 
     // The frames the console writes (--frame-fd); the Game tile reads them.
-    rv_editor_frame_memory &frame_memory() { return frame_mem_; }
+    rv_editor_frame_memory &frame_memory()
+    {
+        return frame_mem_;
+    }
 
     // Once a frame: reads the channel and the log, notices timeouts and the end.
     void update(rv_editor_log &log);
@@ -152,46 +154,117 @@ public:
     // then kill. Leaves no orphan.
     void shutdown(rv_editor_log &log);
 
-    rv_editor_run_state state() const { return state_; }
+    rv_editor_run_state state() const
+    {
+        return state_;
+    }
     // True from a successful start() until finish() has run once: stays true while
     // an exited console's output is still being read (see finish()).
     bool live() const;
-    bool hung() const;               // stopping for longer than it should
-    bool uncertain() const { return uncertain_; } // a request timed out: its effect is unknown
-    int64_t frame() const { return frame_; }
-    pid_t pid() const { return proc_.pid(); }
-    uint32_t build_number() const { return build_number_; }
-    const std::string &end_reason() const { return end_reason_; }
-    const std::filesystem::path &disc_dir() const { return disc_dir_; }
-    bool connected() const { return handshake_done_ && proc_.running(); }
-    bool reloading() const { return reloading_; }
+    bool hung() const; // stopping for longer than it should
+    bool uncertain() const
+    {
+        return uncertain_;
+    } // a request timed out: its effect is unknown
+    int64_t frame() const
+    {
+        return frame_;
+    }
+    pid_t pid() const
+    {
+        return proc_.pid();
+    }
+    uint32_t build_number() const
+    {
+        return build_number_;
+    }
+    const std::string &end_reason() const
+    {
+        return end_reason_;
+    }
+    const std::filesystem::path &disc_dir() const
+    {
+        return disc_dir_;
+    }
+    bool connected() const
+    {
+        return handshake_done_ && proc_.running();
+    }
+    bool reloading() const
+    {
+        return reloading_;
+    }
     // The last reload's answer in this session, as the runtime gave it; empty before one.
-    const std::string &reload_result() const { return reload_result_; }
-    bool reload_ok() const { return reload_ok_; }
+    const std::string &reload_result() const
+    {
+        return reload_result_;
+    }
+    bool reload_ok() const
+    {
+        return reload_ok_;
+    }
     // What that last result is about: empty for the entry, else a module or texture name.
-    const std::string &reload_target() const { return reload_target_; }
+    const std::string &reload_target() const
+    {
+        return reload_target_;
+    }
     // entry/module/texture: which kind reload_target() names.
-    rv_editor_reload_kind reload_kind() const { return reload_kind_; }
+    rv_editor_reload_kind reload_kind() const
+    {
+        return reload_kind_;
+    }
     // Counts the sessions this window started, from 1; 0 before the first.
-    uint32_t number() const { return number_; }
-    std::chrono::system_clock::time_point started_at() const { return started_wall_; }
+    uint32_t number() const
+    {
+        return number_;
+    }
+    std::chrono::system_clock::time_point started_at() const
+    {
+        return started_wall_;
+    }
     // When the process ended; the epoch while it runs.
-    std::chrono::system_clock::time_point ended_at() const { return ended_wall_; }
-    const rv_editor_session_facts &facts() const { return facts_; }
-    const std::map<std::string, rv_editor_answer> &answers() const { return answers_; }
+    std::chrono::system_clock::time_point ended_at() const
+    {
+        return ended_wall_;
+    }
+    const rv_editor_session_facts &facts() const
+    {
+        return facts_;
+    }
+    const std::map<std::string, rv_editor_answer> &answers() const
+    {
+        return answers_;
+    }
     // Resource names of every ".scene.toml" the running disc has opened this session.
-    const std::set<std::string> &scenes_read() const { return scenes_read_; }
+    const std::set<std::string> &scenes_read() const
+    {
+        return scenes_read_;
+    }
     // For an end-of-session summary: the last confirmed reply, and every request
     // still pending when finish() ran.
-    const rv_editor_last_confirmed &last_confirmed() const { return last_confirmed_; }
-    const std::vector<rv_editor_in_flight> &in_flight() const { return in_flight_; }
-    const rv_editor_process::rv_editor_exit &exit_status() const { return proc_.exit_status(); }
-    bool output_cut() const { return proc_.output_cut(); }
-    const std::filesystem::path &console() const { return console_; }
+    const rv_editor_last_confirmed &last_confirmed() const
+    {
+        return last_confirmed_;
+    }
+    const std::vector<rv_editor_in_flight> &in_flight() const
+    {
+        return in_flight_;
+    }
+    const rv_editor_process::rv_editor_exit &exit_status() const
+    {
+        return proc_.exit_status();
+    }
+    bool output_cut() const
+    {
+        return proc_.output_cut();
+    }
+    const std::filesystem::path &console() const
+    {
+        return console_;
+    }
 
 private:
-    struct rv_editor_request
-    {
+    struct rv_editor_request {
         std::string verb;
         std::chrono::steady_clock::time_point sent;
         bool overdue = false; // timed out and reported; a late answer still counts

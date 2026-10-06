@@ -24,8 +24,7 @@ class rv_manifest_parser
     rv_manifest_tree tree_;
 
 public:
-    rv_manifest_parser(const std::vector<rv_manifest_token> &tokens,
-        rv_manifest_failer &failer)
+    rv_manifest_parser(const std::vector<rv_manifest_token> &tokens, rv_manifest_failer &failer)
         : tokens_(tokens)
         , failer_(failer)
     {

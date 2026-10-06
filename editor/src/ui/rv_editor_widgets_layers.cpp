@@ -58,8 +58,7 @@ uint32_t rv_editor_well_fill(const rv_editor_theme &theme)
     return (lerp8(ir, dr) << channel_shift_red) | (lerp8(ig, dg) << channel_shift_green) | lerp8(ib, db);
 }
 
-struct rv_editor_shelf_frame
-{
+struct rv_editor_shelf_frame {
     ImVec2 origin; // screen pos before padding
     float width;   // full strip width
     float pad;
@@ -68,8 +67,7 @@ struct rv_editor_shelf_frame
 
 std::vector<rv_editor_shelf_frame> rv_editor_shelf_stack;
 
-struct rv_editor_well_frame
-{
+struct rv_editor_well_frame {
     ImVec2 min; // outer rect, bevel and padding included
     ImVec2 max;
 };
@@ -119,16 +117,14 @@ bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &th
     const ImVec2 min = ImGui::GetCursorScreenPos();
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     // As for BeginChild: 0 takes what is left, a negative size leaves that much.
-    const ImVec2 max(min.x + (size.x > 0.0f ? size.x : avail.x + size.x),
-        min.y + (size.y > 0.0f ? size.y : avail.y + size.y));
+    const ImVec2 max(min.x + (size.x > 0.0f ? size.x : avail.x + size.x), min.y + (size.y > 0.0f ? size.y : avail.y + size.y));
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_draw_panel(dl, min, max, theme, rv_editor_well_fill(theme), rv_editor_bevel::sunken);
     rv_editor_well_stack.push_back({ min, max });
 
     const float bevel_width = padded_sides * pad;
-    const ImVec2 inner(std::max(1.0f, max.x - min.x - bevel_width),
-        std::max(1.0f, max.y - min.y - bevel_width));
+    const ImVec2 inner(std::max(1.0f, max.x - min.x - bevel_width), std::max(1.0f, max.y - min.y - bevel_width));
     ImGui::SetCursorScreenPos(ImVec2(min.x + pad, min.y + pad));
     // Transparent, so the well's fill shows through this child and any child
     // nested in it (e.g. a scroll area), instead of ImGui's own ChildBg.

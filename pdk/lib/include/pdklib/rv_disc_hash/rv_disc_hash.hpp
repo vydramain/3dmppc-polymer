@@ -13,8 +13,7 @@ inline constexpr std::size_t RV_DISC_HASH_BYTES = 8;
 // bytes) and write RV_DISC_HASH_BYTES bytes into `out`. Returns RV_OK on
 // success; on failure returns RV_ERR_INVAL and fills `error` with one sentence.
 // Never reads outside [elf, elf + elf_size).
-int rv_disc_hash_compute(
-    const unsigned char *elf,
+int rv_disc_hash_compute(const unsigned char *elf,
     std::size_t elf_size,
     unsigned char out[RV_DISC_HASH_BYTES],
     std::string &error);
@@ -24,10 +23,6 @@ int rv_disc_hash_compute(
 // section named RV_MPPC_SECTION_NAME_DEF (".note.rv_mppc_ver"), parses the
 // Elf64_Nhdr inside it, and checks the note's owner and descriptor size.
 // Returns RV_OK and sets `magic_offset`, or RV_ERR_INVAL with a one-sentence `error`.
-int rv_disc_hash_magic_offset(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    std::size_t &magic_offset,
-    std::string &error);
+int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, std::size_t &magic_offset, std::string &error);
 
 } // namespace rv_pdklib

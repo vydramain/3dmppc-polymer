@@ -107,7 +107,7 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
     // process from underneath the frame loop - no disc_shutdown, no loader
     // teardown, no log line. With it, the same event is an EPIPE that close()
     // below turns into an ordinary disconnect.
-    struct sigaction ignore {};
+    struct sigaction ignore{};
     ignore.sa_handler = SIG_IGN;
     sigemptyset(&ignore.sa_mask);
     ignore.sa_flags = 0;
@@ -115,8 +115,7 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
 
     in_flags_ = ::fcntl(STDIN_FILENO, F_GETFL);
     out_flags_ = ::fcntl(STDOUT_FILENO, F_GETFL);
-    if (in_flags_ < 0 || out_flags_ < 0 ||
-        ::fcntl(STDIN_FILENO, F_SETFL, in_flags_ | O_NONBLOCK) < 0 ||
+    if (in_flags_ < 0 || out_flags_ < 0 || ::fcntl(STDIN_FILENO, F_SETFL, in_flags_ | O_NONBLOCK) < 0 ||
         ::fcntl(STDOUT_FILENO, F_SETFL, out_flags_ | O_NONBLOCK) < 0) {
         RV_LOG_ERR("pccmd", "cannot put stdin/stdout into non-blocking mode; dev channel is down");
         connected_ = false;
@@ -307,8 +306,7 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
     // console down.
     std::string id_error;
     if (!parse_u63(req.args.front(), req.id)) {
-        id_error = "0 err error=protocol effects=0 msg=" +
-            rv_pccmd_hex("first token must be a numeric request id");
+        id_error = "0 err error=protocol effects=0 msg=" + rv_pccmd_hex("first token must be a numeric request id");
     } else if (req.id == 0) {
         // 0 is reserved for unsolicited events (see rv_pconsole_run.cpp), so a
         // reply tagged 0 would be indistinguishable from one of those.
@@ -326,8 +324,8 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
         if (!parse_u63(req.args.back(), size) || size > RV_PCCMDCHAN_PAYLOAD_MAX) {
             // Fatal to the framing: the sender is about to write a number of
             // bytes we do not know, and guessing would turn them into commands.
-            reply(std::to_string(req.id) + " err error=payload_size effects=0 msg=" +
-                rv_pccmd_hex("payload size is not a number within the ceiling"));
+            reply(std::to_string(req.id) +
+                " err error=payload_size effects=0 msg=" + rv_pccmd_hex("payload size is not a number within the ceiling"));
             close("payload size could not be framed");
             return false;
         }
@@ -375,12 +373,11 @@ bool rv_pccmdchan_stdio::take_payload(rv_pccmdreq &out)
     }
 
     const auto now = std::chrono::steady_clock::now();
-    if (now - payload_progress_ > RV_PCCMDCHAN_PAYLOAD_IDLE ||
-        now - payload_started_ > RV_PCCMDCHAN_PAYLOAD_TOTAL) {
+    if (now - payload_progress_ > RV_PCCMDCHAN_PAYLOAD_IDLE || now - payload_started_ > RV_PCCMDCHAN_PAYLOAD_TOTAL) {
         // Nothing can be salvaged: the bytes still to come have no marker, so
         // reading on would feed a half script's tail to the command parser.
-        reply(std::to_string(pending_.id) + " err error=payload_timeout effects=0 msg=" +
-            rv_pccmd_hex("payload did not arrive in time"));
+        reply(std::to_string(pending_.id) +
+            " err error=payload_timeout effects=0 msg=" + rv_pccmd_hex("payload did not arrive in time"));
         pending_error_.clear(); // the channel is going down; the id refusal is moot
         close("payload transfer timed out");
     }
@@ -419,8 +416,8 @@ bool rv_pccmdchan_stdio::next_request(rv_pccmdreq &out)
             // A payload the sender will never finish. Nothing can be salvaged:
             // the missing bytes have no marker, so reading on would feed a half
             // script's tail to the command parser.
-            reply(std::to_string(pending_.id) + " err error=payload_timeout effects=0 msg=" +
-                rv_pccmd_hex("the client closed the channel mid-payload"));
+            reply(std::to_string(pending_.id) +
+                " err error=payload_timeout effects=0 msg=" + rv_pccmd_hex("the client closed the channel mid-payload"));
             close("the client closed the channel mid-payload");
         } else if (available() == 0) {
             close("end of input (the client closed the channel)");

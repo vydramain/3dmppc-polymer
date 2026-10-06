@@ -61,8 +61,7 @@ rv_editor_nvim_rpc::~rv_editor_nvim_rpc()
     stop();
 }
 
-int rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &error)
+int rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error)
 {
     stop();
     const int err = proc_.start(argv, cwd, error);
@@ -74,7 +73,9 @@ int rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::f
     broken_.clear();
     queue_.clear();
     pending_.clear();
-    thread_ = std::thread([this] { reader(); });
+    thread_ = std::thread([this] {
+        reader();
+    });
     return RV_OK;
 }
 
@@ -154,7 +155,9 @@ void rv_editor_nvim_rpc::reader()
             }
             used += static_cast<size_t>(r);
             // Full: wait for the UI thread to take some, and nvim waits with us.
-            space_.wait(lock, [this] { return quit_ || queue_.size() < queue_max; });
+            space_.wait(lock, [this] {
+                return quit_ || queue_.size() < queue_max;
+            });
             if (quit_) {
                 return;
             }
@@ -252,8 +255,7 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
         if (why.empty()) {
             if (proc_.exit_status().exited) {
                 const std::string exit_info = rv_editor_exit_text(proc_.exit_status());
-                why = rv_editor_text_format("nvim_rpc.ended",
-                    std::make_format_args(exit_info));
+                why = rv_editor_text_format("nvim_rpc.ended", std::make_format_args(exit_info));
             } else {
                 why = rv_editor_text("nvim_rpc.closed_channel");
             }

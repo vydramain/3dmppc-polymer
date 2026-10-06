@@ -24,8 +24,7 @@ void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
     for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {
         ImGui::SameLine();
         const std::string filename = path.filename().string();
-        const auto open_label = rv_editor_text_format("pane_scene.open_file",
-            std::make_format_args(filename));
+        const auto open_label = rv_editor_text_format("pane_scene.open_file", std::make_format_args(filename));
         if (rv_editor_button(open_label.c_str(), theme)) {
             rv_editor_app_scene_open(app, path);
         }
@@ -56,8 +55,8 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         return;
     }
     if (!app.scene->scene.read_only.empty()) {
-        const auto read_only_msg = rv_editor_text_format("pane_scene.read_only_format",
-            std::make_format_args(app.scene->scene.read_only));
+        const auto read_only_msg =
+            rv_editor_text_format("pane_scene.read_only_format", std::make_format_args(app.scene->scene.read_only));
         ImGui::TextWrapped("%s", read_only_msg.c_str());
     }
     if (!app.scene_error.empty()) {

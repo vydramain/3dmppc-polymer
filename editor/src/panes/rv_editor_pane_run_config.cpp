@@ -78,8 +78,16 @@ void rv_editor_run_form_fill(rv_editor_run_form &f, const rv_editor_run_profile 
 
 rv_editor_run_profile rv_editor_run_form_profile(const rv_editor_run_form &f)
 {
-    return { f.name, f.runtime, f.memcard, f.cwd, f.mute, f.paused, f.fixed_step, rv_editor_run_split(f.args),
-        rv_editor_run_split(f.env), f.reload_on_save };
+    return { f.name,
+        f.runtime,
+        f.memcard,
+        f.cwd,
+        f.mute,
+        f.paused,
+        f.fixed_step,
+        rv_editor_run_split(f.args),
+        rv_editor_run_split(f.env),
+        f.reload_on_save };
 }
 
 // A group heading, in the console's own slot order: session-level fields first,
@@ -93,8 +101,12 @@ void rv_editor_run_group(const char *display_label, const rv_editor_theme &theme
 }
 
 // A label column, then the field with what an empty one means as its tooltip.
-void rv_editor_run_path(const char *label, char *buf, size_t size, const char *empty_means_key,
-    const rv_editor_theme &theme, const char *display_label)
+void rv_editor_run_path(const char *label,
+    char *buf,
+    size_t size,
+    const char *empty_means_key,
+    const rv_editor_theme &theme,
+    const char *display_label)
 {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(display_label);
@@ -102,8 +114,7 @@ void rv_editor_run_path(const char *label, char *buf, size_t size, const char *e
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const auto empty_means = rv_editor_text(empty_means_key);
-    const auto tip = rv_editor_text_format("pane_run_config.empty_means",
-        std::make_format_args(empty_means));
+    const auto tip = rv_editor_text_format("pane_run_config.empty_means", std::make_format_args(empty_means));
     ImGui::SetItemTooltip("%s", tip.c_str());
 }
 
@@ -124,8 +135,11 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
         ImGui::PopID();
     }
     rv_editor_scroll_end(theme);
-    if (rv_editor_letter_button("##new", rv_editor_glyph::new_, theme.code_green,
-            rv_editor_text("pane_run_config.new_profile_tooltip"), theme)) {
+    if (rv_editor_letter_button("##new",
+            rv_editor_glyph::new_,
+            theme.code_green,
+            rv_editor_text("pane_run_config.new_profile_tooltip"),
+            theme)) {
         rv_editor_run_profile copy = config.profiles[config.active];
         copy.name = "Profile" + std::to_string(config.profiles.size() + 1);
         config.profiles.push_back(std::move(copy));
@@ -134,8 +148,11 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
     }
     ImGui::SameLine();
     const char *delete_disabled = config.profiles.size() == 1 ? rv_editor_text("pane_run_config.delete_last_profile") : nullptr;
-    if (rv_editor_letter_button("##delete", rv_editor_glyph::delete_, theme.code_red,
-            rv_editor_text("pane_run_config.delete_profile_tooltip"), theme,
+    if (rv_editor_letter_button("##delete",
+            rv_editor_glyph::delete_,
+            theme.code_red,
+            rv_editor_text("pane_run_config.delete_profile_tooltip"),
+            theme,
             { rv_editor_look::live, delete_disabled })) {
         config.profiles.erase(config.profiles.begin() + static_cast<std::ptrdiff_t>(config.active));
         config.active = 0;
@@ -151,15 +168,13 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     rv_editor_scroll_begin("##fields", size);
     if (!app.run_config.error.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        const auto err = rv_editor_text_format("pane_run_config.profile_error",
-            std::make_format_args(app.run_config.error));
+        const auto err = rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
         ImGui::TextWrapped("%s", err.c_str());
         ImGui::PopStyleColor();
     }
     if (app.session.live()) {
         const auto session_num = app.session.number();
-        const auto msg = rv_editor_text_format("pane_run_config.session_active",
-            std::make_format_args(session_num));
+        const auto msg = rv_editor_text_format("pane_run_config.session_active", std::make_format_args(session_num));
         ImGui::TextWrapped("%s", msg.c_str());
     }
     rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
@@ -168,10 +183,18 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
-    rv_editor_run_path("Runtime", form.runtime, sizeof(form.runtime), "pane_run_config.runtime_empty_tooltip",
-        theme, rv_editor_text("pane_run_config.runtime_label"));
-    rv_editor_run_path("Working dir", form.cwd, sizeof(form.cwd), "pane_run_config.working_dir_empty_tooltip",
-        theme, rv_editor_text("pane_run_config.working_dir_label"));
+    rv_editor_run_path("Runtime",
+        form.runtime,
+        sizeof(form.runtime),
+        "pane_run_config.runtime_empty_tooltip",
+        theme,
+        rv_editor_text("pane_run_config.runtime_label"));
+    rv_editor_run_path("Working dir",
+        form.cwd,
+        sizeof(form.cwd),
+        "pane_run_config.working_dir_empty_tooltip",
+        theme,
+        rv_editor_text("pane_run_config.working_dir_label"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.start_paused_label"), &form.paused, theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.start_paused_tooltip"));
     ImGui::SameLine(ImGui::GetFontSize() * checkbox_spacing_em);
@@ -191,8 +214,12 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
 
     ImGui::Spacing();
     rv_editor_run_group(rv_editor_text("pane_run_config.memory_card_group"), theme);
-    rv_editor_run_path("Memory card", form.memcard, sizeof(form.memcard), "pane_run_config.memory_card_empty_tooltip",
-        theme, rv_editor_text("pane_run_config.memory_card_label"));
+    rv_editor_run_path("Memory card",
+        form.memcard,
+        sizeof(form.memcard),
+        "pane_run_config.memory_card_empty_tooltip",
+        theme,
+        rv_editor_text("pane_run_config.memory_card_label"));
     rv_editor_scroll_end(theme);
 }
 
@@ -207,8 +234,7 @@ bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     for (size_t i = 0; i < config.profiles.size() && problem.empty(); ++i) {
         if (i != config.active && config.profiles[i].name == edited.name) {
             const auto name = edited.name;
-            problem = rv_editor_text_format("pane_run_config.profile_name_conflict",
-                std::make_format_args(name));
+            problem = rv_editor_text_format("pane_run_config.profile_name_conflict", std::make_format_args(name));
         }
     }
     if (!problem.empty()) {
@@ -217,8 +243,8 @@ bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::PopStyleColor();
     }
     const char *why_not = problem.empty() ? nullptr : rv_editor_text("pane_run_config.apply_disabled");
-    const bool apply = rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme,
-        { rv_editor_look::live, why_not });
+    const bool apply =
+        rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, why_not });
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.apply_button_tooltip"));
     ImGui::SameLine();
     const char *restart_disabled = nullptr;
@@ -227,7 +253,8 @@ bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     } else if (!app.session.live()) {
         restart_disabled = rv_editor_text("pane_run_config.restart_disabled");
     }
-    const bool restart = rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"), theme,
+    const bool restart = rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"),
+        theme,
         { rv_editor_look::live, restart_disabled });
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.apply_restart_tooltip"));
     ImGui::SameLine();
@@ -271,8 +298,7 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     const float actions = ImGui::GetFrameHeightWithSpacing() * actions_height_frames;
     // The two-column body in one well; its size still comes from the region left
     // once the well's own padding is taken out.
-    const float well_height =
-        std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
+    const float well_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
     rv_editor_well_begin("##well", ImVec2(0, well_height), theme);
     rv_editor_run_editor(app, ImGui::GetContentRegionAvail(), theme);
     rv_editor_well_end();

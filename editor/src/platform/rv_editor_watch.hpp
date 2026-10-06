@@ -20,11 +20,10 @@ class rv_editor_watch
 public:
     static constexpr size_t watch_max = 4096;
 
-    struct rv_editor_watch_event
-    {
+    struct rv_editor_watch_event {
         std::filesystem::path path; // the file or directory that changed
         bool directory = false;
-        bool removed = false;       // gone (deleted or moved away)
+        bool removed = false; // gone (deleted or moved away)
     };
 
     rv_editor_watch() = default;

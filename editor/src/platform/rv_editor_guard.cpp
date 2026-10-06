@@ -161,8 +161,8 @@ void rv_editor_guard_add(pid_t group)
 
     char buf[guard_snprintf_buf_size];
     // Format: %010ld gives 10 digits (guard_record_newline_pos - guard_record_pid_offset)
-    const int len = std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_add,
-        static_cast<long>(group), guard_record_end);
+    const int len =
+        std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_add, static_cast<long>(group), guard_record_end);
     if (len != guard_record_size) {
         return;
     }
@@ -184,8 +184,8 @@ void rv_editor_guard_remove(pid_t group)
 
     char buf[guard_snprintf_buf_size];
     // Format: %010ld gives 10 digits (guard_record_newline_pos - guard_record_pid_offset)
-    const int len = std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_remove,
-        static_cast<long>(group), guard_record_end);
+    const int len =
+        std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_remove, static_cast<long>(group), guard_record_end);
     if (len != guard_record_size) {
         return;
     }

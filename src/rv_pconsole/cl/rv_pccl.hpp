@@ -21,14 +21,14 @@ constexpr std::size_t RV_PCCL_STATE_PATH_MAX = 32;
 // same command, and a `status` that had to make eight virtual calls would be
 // eight chances for the picture to be inconsistent.
 struct rv_pccl_status {
-    int64_t revision = 0;   // successful entry reloads since boot
-    uint64_t hash = 0;      // FNV-1a of the bytes the entry chunk is running now
-    int64_t used = 0;       // bytes the script heap holds
-    int64_t budget = 0;     // the ceiling it holds them under
-    int64_t slots = 0;      // handle-table size; must not grow with reloads
-    int64_t error_seq = 0;  // bumped on every failed hook call, never reset
-    bool reloadable = false;// the entry chunk was raised
-    std::string error;      // the last hook failure, empty when there was none
+    int64_t revision = 0;    // successful entry reloads since boot
+    uint64_t hash = 0;       // FNV-1a of the bytes the entry chunk is running now
+    int64_t used = 0;        // bytes the script heap holds
+    int64_t budget = 0;      // the ceiling it holds them under
+    int64_t slots = 0;       // handle-table size; must not grow with reloads
+    int64_t error_seq = 0;   // bumped on every failed hook call, never reset
+    bool reloadable = false; // the entry chunk was raised
+    std::string error;       // the last hook failure, empty when there was none
 };
 
 // One value read out of the persistent state table. `type` carries an
@@ -39,7 +39,7 @@ struct rv_pccl_value {
     bool boolean = false;
     double number = 0.0;
     std::string bytes; // a string value, raw: it may hold NUL and invalid UTF-8
-    int64_t count = 0;  // entries, when type is RV_CL_TYPE_TABLE
+    int64_t count = 0; // entries, when type is RV_CL_TYPE_TABLE
 };
 
 // One child key of a table, as state_keys reports it: enough to name it back
@@ -116,8 +116,8 @@ public:
     // code untouched, and the state table itself as it was before the
     // candidate's body ran. On success the handle the disc holds now names
     // the new chunk and the disc never learns anything changed.
-    virtual int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
-        rv_pccl_reload_report &report) = 0;
+    virtual int64_t
+    script_reload_entry(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report) = 0;
 
     // The same, with the bytes taken from the drive: the entry asset is read
     // again through rv_cd. Only ever useful when the mounted medium can change
@@ -128,8 +128,8 @@ public:
     // Replace the code of the module require() loaded under `name`, in place:
     // the same compile/body/table checks as the entry, no state of its own.
     // Refuses a name nothing has required yet (no_module).
-    virtual int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
-        rv_pccl_reload_report &report) = 0;
+    virtual int64_t
+    script_reload_module(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report) = 0;
 
     // The same, with the bytes read from the drive: the file require() would read.
     virtual int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) = 0;
@@ -147,8 +147,7 @@ public:
     // many to show. An empty `path` lists the state table itself. Same RV_OK
     // / RV_ERR_NOMEM / RV_ERR_INVAL split as state_get, except an empty path is
     // legal here.
-    virtual int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
-        std::vector<rv_pccl_key> &out) = 0;
+    virtual int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target, std::vector<rv_pccl_key> &out) = 0;
 
     // Full collection, then the resulting heap size. Exists for one reason: a
     // leak check needs a number that is not mostly garbage.

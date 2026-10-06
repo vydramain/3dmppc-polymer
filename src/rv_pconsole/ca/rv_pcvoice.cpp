@@ -48,8 +48,7 @@ float rv_pcvoice::ramp(float from, float to, int16_t ms)
     return (to - from) / frames;
 }
 
-void rv_pcvoice::setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-    int64_t addr)
+void rv_pcvoice::setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr)
 {
     armed_ = true;
     region_ = addr;
@@ -202,8 +201,8 @@ void rv_pcvoice::advance()
 int32_t rv_pcvoice::frame_at(int64_t index) const
 {
     const uint8_t *frame = data_ + index * RV_PCA_FRAME_BYTES;
-    const uint16_t raw = static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) |
-        static_cast<uint16_t>(frame[1] << RV_PCA_BITS_PER_BYTE));
+    const uint16_t raw =
+        static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) | static_cast<uint16_t>(frame[1] << RV_PCA_BITS_PER_BYTE));
     return static_cast<int16_t>(raw);
 }
 

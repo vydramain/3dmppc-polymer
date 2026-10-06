@@ -6,7 +6,8 @@
 
 #include "pdk/rv_err.h"
 
-namespace {
+namespace
+{
 
 // --- quantization constants --------------------------------------------------
 
@@ -319,11 +320,9 @@ void refine(const std::vector<color_bin> &bins, std::vector<rv_color5> &palette,
                 continue; // an orphaned entry is left where it is, not moved
             }
             // + weight/2 rounds to nearest; plain integer division truncates down.
-            palette[i] = rv_color5{
-                static_cast<uint8_t>((sr[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]),
+            palette[i] = rv_color5{ static_cast<uint8_t>((sr[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]),
                 static_cast<uint8_t>((sg[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]),
-                static_cast<uint8_t>((sb[i] + weight[i] / ROUNDING_DIVISOR) / weight[i])
-            };
+                static_cast<uint8_t>((sb[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]) };
         }
     }
 }

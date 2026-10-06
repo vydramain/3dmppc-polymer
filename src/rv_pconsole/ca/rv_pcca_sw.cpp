@@ -5,8 +5,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 static_assert(rv_3dmppc::RV_PCA_SAMPLE_RATE == rv_3dmppc::RV_PCCA_PCM_RATE, "sw SPU mixes at the ca contract rate");
-static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCCA_PCM_CHANNELS,
-    "sw SPU mixes the ca contract channel count");
+static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCCA_PCM_CHANNELS, "sw SPU mixes the ca contract channel count");
 
 namespace rv_3dmppc
 {
@@ -64,9 +63,11 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
 
     // sram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
     int64_t sram_blocks_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pcca.sound_memory_size",
+    if (rv_pcbudget_mul(cost,
+            "budget.pcca.sound_memory_size",
             rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
-            rv_pcpool<rv_pcca_meta>::block_bytes(), sram_blocks_bytes) != RV_OK ||
+            rv_pcpool<rv_pcca_meta>::block_bytes(),
+            sram_blocks_bytes) != RV_OK ||
         rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes) != RV_OK) {
         return cost;
     }
@@ -74,10 +75,12 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     // mixer_ (rv_pcmixer): one rv_pcvoice per voice, plus its fixed render
     // accumulator (RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS int32_t).
     int64_t voices_bytes = 0;
-    const int64_t accumulator_bytes =
-        RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
-    if (rv_pcbudget_mul(cost, "budget.pcca.voice_count", budget.pcca.voice_count,
-            static_cast<int64_t>(sizeof(rv_pcvoice)), voices_bytes) != RV_OK ||
+    const int64_t accumulator_bytes = RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
+    if (rv_pcbudget_mul(cost,
+            "budget.pcca.voice_count",
+            budget.pcca.voice_count,
+            static_cast<int64_t>(sizeof(rv_pcvoice)),
+            voices_bytes) != RV_OK ||
         rv_pcbudget_add(cost, "budget.pcca.voice_count", voices_bytes) != RV_OK ||
         rv_pcbudget_add(cost, "budget.pcca.voice_count", accumulator_bytes) != RV_OK) {
         return cost;
@@ -96,7 +99,9 @@ rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
     }
 
     if (clamp_voice_count(conf_.voice_count) != conf_.voice_count) {
-        RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count,
+        RV_LOG_WARN("pcca",
+            "conf asks for {} voices, the mask fits {}",
+            conf_.voice_count,
             clamp_voice_count(conf_.voice_count));
     }
 
@@ -105,8 +110,11 @@ rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
     // "virtual" is worth the four extra characters here: the byte count sits
     // next to a real audio device in the log, and a reader must not take it for
     // one of the host's numbers. It is this machine's self-imposed budget.
-    RV_LOG_INFO("pcca", "{} voice(s), {} byte(s) of virtual sound RAM{}", mixer_.voice_count(),
-        sram_.capacity(), conf_.mute ? ", muted" : "");
+    RV_LOG_INFO("pcca",
+        "{} voice(s), {} byte(s) of virtual sound RAM{}",
+        mixer_.voice_count(),
+        sram_.capacity(),
+        conf_.mute ? ", muted" : "");
 }
 
 int64_t rv_pcca_sw::voice_count()
@@ -229,8 +237,7 @@ int64_t rv_pcca_sw::voice_setup(const rv_voice_conf *conf)
         RV_LOG_WARN("pcca", "voice setup on empty region {}", conf->sample_address);
     }
 
-    mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames,
-        conf->sample_address);
+    mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames, conf->sample_address);
     return RV_OK;
 }
 

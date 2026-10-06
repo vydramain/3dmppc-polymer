@@ -81,7 +81,11 @@ int64_t rv_pccl_luajit::script_entry()
     // its body ever runs (see raise_).
     int ref = 0;
     rv_pccl_reload_report raise_report;
-    const int64_t raised = raise_(bytes.data(), read, conf_.script_entry.c_str(), ref, raise_report,
+    const int64_t raised = raise_(bytes.data(),
+        read,
+        conf_.script_entry.c_str(),
+        ref,
+        raise_report,
         /*is_entry=*/true);
     if (raised < 0) {
         return raised;
@@ -172,8 +176,10 @@ int64_t rv_pccl_luajit::script_call(int64_t handle, const char *fname, int64_t a
         rv_pccl_reload_report shape_report;
         const int64_t captured = capture_state_shape_(/*initial=*/true, shape_report);
         if (captured < 0) {
-            RV_LOG_ERR("pccl", "entry chunk's state was rejected right after disc_initialize ({}): {}",
-                shape_report.phase, rv_pdklib::rv_log_escape(shape_report.message.c_str(), kLogMessageMaxLen));
+            RV_LOG_ERR("pccl",
+                "entry chunk's state was rejected right after disc_initialize ({}): {}",
+                shape_report.phase,
+                rv_pdklib::rv_log_escape(shape_report.message.c_str(), kLogMessageMaxLen));
             ++error_seq_;
             error_text_ = std::string(fname) + ": " + shape_report.message;
             lua_pop(L_, static_cast<int>(retc)); // whatever disc_initialize returned; retc is 0 in practice

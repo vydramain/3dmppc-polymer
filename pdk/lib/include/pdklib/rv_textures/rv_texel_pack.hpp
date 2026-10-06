@@ -52,8 +52,7 @@ inline constexpr uint8_t rv_texel_channel5(uint8_t value)
 /// A whole colour, rounded to the nearest representable one.
 inline constexpr rv_color5 rv_texel_quantize(rv_color c)
 {
-    return rv_color5{ rv_texel_channel5(c.r), rv_texel_channel5(c.g),
-        rv_texel_channel5(c.b) };
+    return rv_color5{ rv_texel_channel5(c.r), rv_texel_channel5(c.g), rv_texel_channel5(c.b) };
 }
 
 /// A whole colour, by dropping the low three bits of each channel.
@@ -63,8 +62,7 @@ inline constexpr rv_color5 rv_texel_quantize(rv_color c)
 /// rounding on top of it would cancel half the dither.
 inline constexpr rv_color5 rv_texel_truncate(rv_color c)
 {
-    return rv_color5{ static_cast<uint8_t>(c.r >> 3), static_cast<uint8_t>(c.g >> 3),
-        static_cast<uint8_t>(c.b >> 3) };
+    return rv_color5{ static_cast<uint8_t>(c.r >> 3), static_cast<uint8_t>(c.g >> 3), static_cast<uint8_t>(c.b >> 3) };
 }
 
 /// The darkest representable red — where an opaque black has to go.

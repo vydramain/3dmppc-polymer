@@ -99,10 +99,19 @@ constexpr uint32_t mpack_uint32_max = 0xffffffffu;
 class rv_editor_mpack_cursor
 {
 public:
-    explicit rv_editor_mpack_cursor(std::string_view data) : data_(data) {}
+    explicit rv_editor_mpack_cursor(std::string_view data)
+        : data_(data)
+    {
+    }
 
-    bool need(size_t n) const { return n <= data_.size() - pos_; }
-    size_t pos() const { return pos_; }
+    bool need(size_t n) const
+    {
+        return n <= data_.size() - pos_;
+    }
+    size_t pos() const
+    {
+        return pos_;
+    }
 
     uint64_t be(int bytes)
     {
@@ -112,7 +121,10 @@ public:
         }
         return v;
     }
-    uint8_t byte() { return static_cast<uint8_t>(data_[pos_++]); }
+    uint8_t byte()
+    {
+        return static_cast<uint8_t>(data_[pos_++]);
+    }
     std::string_view take(size_t n)
     {
         const std::string_view s = data_.substr(pos_, n);
@@ -186,8 +198,7 @@ int rv_editor_mpack_ext(rv_editor_mpack_cursor &c, rv_editor_mpack &v, size_t n)
     // nvim's handles are a msgpack integer inside the ext payload.
     rv_editor_mpack_cursor inner(c.take(n));
     rv_editor_mpack id;
-    if (n > 0 && rv_editor_mpack_value(inner, id, mpack_ext_inner_start_depth) == 1 &&
-        id.is(mtype::integer)) {
+    if (n > 0 && rv_editor_mpack_value(inner, id, mpack_ext_inner_start_depth) == 1 && id.is(mtype::integer)) {
         v.i = id.i;
     }
     return 1;

@@ -67,8 +67,7 @@ std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app
 {
     std::vector<std::filesystem::path> out;
     std::error_code ec;
-    for (std::filesystem::directory_iterator it(app.project.root / scenes_dir, ec), end; !ec && it != end;
-        it.increment(ec)) {
+    for (std::filesystem::directory_iterator it(app.project.root / scenes_dir, ec), end; !ec && it != end; it.increment(ec)) {
         const std::string name = it->path().filename().string();
         if (name.size() > scene_suffix.size() && name.ends_with(scene_suffix)) {
             out.push_back(it->path());
@@ -104,8 +103,10 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
         }
         const std::string current_label = rv_editor_app_scene_name(app);
         const std::string other_label = rv_editor_scene_label(app, path);
-        app.scene_error = current_label + " has unsaved changes: save it (Scene > Save Scene) or undo them "
-                                           "before opening " + other_label;
+        app.scene_error = current_label +
+            " has unsaved changes: save it (Scene > Save Scene) or undo them "
+            "before opening " +
+            other_label;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.scene_error);
         return;
     }
@@ -120,7 +121,8 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
     doc->scene = std::move(scene);
     app.scene = std::move(doc);
     app.scene_error.clear();
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
         "scene opened: " + rv_editor_app_scene_name(app) +
             (app.scene->scene.read_only.empty() ? "" : " (read-only: " + app.scene->scene.read_only + ")"));
 }
@@ -131,8 +133,7 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
     std::string name = std::string(main_scene_name);
     std::error_code ec;
     std::string suffix_str(scene_suffix);
-    for (int n = first_copy_number;
-        std::filesystem::exists(app.project.root / scenes_dir / (name + suffix_str), ec); ++n) {
+    for (int n = first_copy_number; std::filesystem::exists(app.project.root / scenes_dir / (name + suffix_str), ec); ++n) {
         name = std::string(scene_num_prefix) + std::to_string(n);
     }
     return name;
@@ -141,8 +142,9 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
 int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error)
 {
     if (rv_editor_app_scene_dirty(app)) {
-        error = rv_editor_app_scene_name(app) + " has unsaved changes: save it (Scene > Save Scene) or undo "
-                                                 "them before creating a new scene";
+        error = rv_editor_app_scene_name(app) +
+            " has unsaved changes: save it (Scene > Save Scene) or undo "
+            "them before creating a new scene";
         return RV_ERR_INVAL;
     }
     if (!rv_editor_scene_name_valid(name)) {
@@ -171,11 +173,12 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
     std::string reason;
     if (!rv_editor_project_on_disc(app.project, rel)) {
         std::string add_error;
-        const int add_code = rv_editor_manifest_add_pattern(app.project.manifest, assets_section,
-            scenes_glob_pattern, add_error);
+        const int add_code =
+            rv_editor_manifest_add_pattern(app.project.manifest, assets_section, scenes_glob_pattern, add_error);
         if (add_code == RV_OK) {
             rv_editor_project_reload_manifest(app.project);
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::info,
                 "disc.toml: added scenes/*.scene.toml to [assets]");
         } else {
             result = add_code;
@@ -188,7 +191,8 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
         std::string cpp_error;
         const int codegen_code = rv_editor_scene_codegen_write(app.project.root, name, written, cpp_error);
         if (codegen_code == RV_OK) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::info,
                 "wrote " + rv_editor_scene_label(app, written));
         } else {
             result = codegen_code;

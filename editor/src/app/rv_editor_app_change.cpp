@@ -14,8 +14,7 @@ namespace rv_editor
 rv_editor_change_plan rv_editor_app_change_for(const rv_editor_app &app, const std::filesystem::path &file)
 {
     static const std::map<std::string, rv_editor_map_entry> empty;
-    return rv_editor_change_plan_for(app.project.root, app.project.manifest,
-        app.session.live() ? app.build_map : empty, file);
+    return rv_editor_change_plan_for(app.project.root, app.project.manifest, app.session.live() ? app.build_map : empty, file);
 }
 
 namespace
@@ -133,9 +132,9 @@ void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended)
                 (void)rv_editor_app_start(app, *app.build.last_success());
             }
         } else {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-                std::string("the game was not restarted: the build ") +
-                    rv_editor_build_state_name(app.build.dev_state()));
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                std::string("the game was not restarted: the build ") + rv_editor_build_state_name(app.build.dev_state()));
         }
     }
     if (app.restart_after_stop && !app.session.live()) {

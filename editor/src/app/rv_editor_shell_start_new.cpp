@@ -65,8 +65,10 @@ void rv_editor_new_copy(char *to, size_t size, const std::string &from)
 }
 
 // The template's description, the path it makes and the files it will hold: quieter than the form.
-void rv_editor_new_preview(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
-    size_t index, const rv_editor_theme &theme)
+void rv_editor_new_preview(const rv_editor_new_project &p,
+    const std::vector<rv_editor_template> &templates,
+    size_t index,
+    const rv_editor_theme &theme)
 {
     if (index >= templates.size()) {
         return;
@@ -103,7 +105,9 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     const std::string problem = rv_editor_new_project_problem(p, templates, &at);
     const bool blank = (at == rv_editor_new_project_field::name && p.name.empty()) ||
         (at == rv_editor_new_project_field::disc_id && p.disc_id.empty());
-    const auto beside = [&](rv_editor_new_project_field field) { return !blank && at == field; };
+    const auto beside = [&](rv_editor_new_project_field field) {
+        return !blank && at == field;
+    };
 
     rv_editor_pane_header(rv_editor_text("shell_start_new.title"), true, theme);
     const float font = ImGui::GetFontSize();
@@ -142,16 +146,20 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     rv_editor_new_problem_row(beside(rv_editor_new_project_field::disc_id), problem, label_w, theme);
 
     rv_editor_new_label(rv_editor_text("shell_start_new.directory"), label_w);
-    ImGui::SetNextItemWidth(field_w - rv_editor_button_width(rv_editor_text("shell_start_new.browse")) -
-        ImGui::GetStyle().ItemSpacing.x);
+    ImGui::SetNextItemWidth(
+        field_w - rv_editor_button_width(rv_editor_text("shell_start_new.browse")) - ImGui::GetStyle().ItemSpacing.x);
     rv_editor_field dir_field;
     dir_field.invalid = beside(rv_editor_new_project_field::parent) ? problem.c_str() : nullptr;
     rv_editor_text_field("##dir", f.dir, sizeof(f.dir), theme, dir_field);
     ImGui::SameLine();
-    if (rv_editor_button(rv_editor_text("shell_start_new.browse"), theme,
+    if (rv_editor_button(rv_editor_text("shell_start_new.browse"),
+            theme,
             { rv_editor_look::live, f.browsing ? rv_editor_text("shell_start_new.browser_open") : nullptr })) {
-        rv_editor_browser_start(f.browser, rv_editor_text("shell_start_new.select_dir_for_new"),
-            rv_editor_text("shell_start_new.select_dir_title"), rv_editor_browse_pick::directory, f.dir);
+        rv_editor_browser_start(f.browser,
+            rv_editor_text("shell_start_new.select_dir_for_new"),
+            rv_editor_text("shell_start_new.select_dir_title"),
+            rv_editor_browse_pick::directory,
+            f.dir);
         f.browsing = true;
     }
     rv_editor_new_problem_row(beside(rv_editor_new_project_field::parent), problem, label_w, theme);
@@ -161,7 +169,8 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
         rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
     }
     ImGui::Spacing();
-    if (rv_editor_button(rv_editor_text("shell_start_new.create_project"), theme,
+    if (rv_editor_button(rv_editor_text("shell_start_new.create_project"),
+            theme,
             { rv_editor_look::live, problem.empty() ? nullptr : problem.c_str() })) {
         if (rv_editor_new_project_create(p, templates[f.template_index], f.error) == RV_OK) {
             const std::filesystem::path created = std::filesystem::path(f.dir) / p.disc_id;

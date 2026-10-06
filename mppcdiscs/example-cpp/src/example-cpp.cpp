@@ -131,14 +131,19 @@ void rv_dmain::draw_scene()
     }
     const float w = static_cast<float>(screen_width_);
     const float hgt = static_cast<float>(screen_height_);
-    const rv_camera camera = rv_camera_make(eye, eye + forward, rv_vec3{ 0.0f, 1.0f, 0.0f }, 60.0f * 3.14159265f / 180.0f,
-        w / hgt, 0.1f, 30.0f);
+    const rv_camera camera =
+        rv_camera_make(eye, eye + forward, rv_vec3{ 0.0f, 1.0f, 0.0f }, 60.0f * 3.14159265f / 180.0f, w / hgt, 0.1f, 30.0f);
     for (std::size_t i = 0; i < scene_.objects.size(); ++i) {
         if (scene_.objects[i].kind != "mesh") {
             continue;
         }
-        const rv_xform_conf conf = rv_xform_conf_make(rv_camera_mvp(camera, rv_scene_world(scene_, i)), camera, w, hgt,
-            RV_EXAMPLE_CPP_DEPTH_SCENE_FAR, RV_EXAMPLE_CPP_DEPTH_SCENE_NEAR, RV_CULL_SCREEN_CCW);
+        const rv_xform_conf conf = rv_xform_conf_make(rv_camera_mvp(camera, rv_scene_world(scene_, i)),
+            camera,
+            w,
+            hgt,
+            RV_EXAMPLE_CPP_DEPTH_SCENE_FAR,
+            RV_EXAMPLE_CPP_DEPTH_SCENE_NEAR,
+            RV_CULL_SCREEN_CCW);
         for (const rv_example_cpp_face &face : RV_EXAMPLE_CPP_BOX) {
             rv_xform_vertex v[4];
             for (int k = 0; k < 4; ++k) {
@@ -160,9 +165,7 @@ void rv_dmain::frame_render()
     int64_t addr_texture = 0;
     int64_t addr_palette = 0;
     if (texture_resident(RV_EXAMPLE_CPP_TEXTURE_NAME, addr_texture, addr_palette)) {
-        const rv_texture_mapping_type modes[3] = {
-            RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
-        };
+        const rv_texture_mapping_type modes[3] = { RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH };
         const float size = 48.0f;
         const float gap = 12.0f;
         const float total = 3.0f * size + 2.0f * gap;

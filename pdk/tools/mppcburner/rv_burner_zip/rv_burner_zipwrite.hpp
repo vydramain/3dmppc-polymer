@@ -17,15 +17,17 @@
 #include <string>
 #include <vector>
 
-namespace rv_pdktools {
+namespace rv_pdktools
+{
 
-class rv_zipwriter {
-   public:
-    explicit rv_zipwriter(const std::string& path);
+class rv_zipwriter
+{
+public:
+    explicit rv_zipwriter(const std::string &path);
     ~rv_zipwriter();
 
-    rv_zipwriter(const rv_zipwriter&) = delete;
-    rv_zipwriter& operator=(const rv_zipwriter&) = delete;
+    rv_zipwriter(const rv_zipwriter &) = delete;
+    rv_zipwriter &operator=(const rv_zipwriter &) = delete;
 
     // True when the output file opened. Check before adding anything.
     bool ok() const;
@@ -51,11 +53,11 @@ class rv_zipwriter {
 
     // Names added so far, in order — the burner prints them and checks for the
     // flat-name collisions the console could not diagnose.
-    const std::vector<std::string>& entries() const;
+    const std::vector<std::string> &entries() const;
 
-   private:
+private:
     struct rv_zipwriter_impl;
-    rv_zipwriter_impl* impl_;
+    rv_zipwriter_impl *impl_;
 };
 
-}  // namespace rv_pdktools
+} // namespace rv_pdktools

@@ -23,8 +23,11 @@ namespace rv_pdktools
 // texture entry whose source resolves to `source`, so a texture's selection
 // and its flat archive name can never drift from build's own rule
 // (rv_burner_plan.cpp) - this does not restate either rule.
-static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest, const fs::path &disc_dir,
-    const std::string &source, archive_item &out, std::string &error)
+static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_dir,
+    const std::string &source,
+    archive_item &out,
+    std::string &error)
 {
     std::error_code ec;
     const fs::path source_arg(source);

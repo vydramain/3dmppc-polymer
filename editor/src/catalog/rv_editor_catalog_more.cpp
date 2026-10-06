@@ -37,8 +37,7 @@ constexpr int code_sample_pieces_per_line = 4; // text segments per code line ro
 // Payload type tag shared by drag source and drop target in catalog.
 constexpr const char *asset_payload_type = "RV_ASSET";
 
-struct rv_editor_catalog_more_data
-{
+struct rv_editor_catalog_more_data {
     bool checks[demo_checkbox_count] = { false, true, false };
     int radio = 1;
     char pocket[demo_pocket_field_size] = {};
@@ -119,14 +118,13 @@ void rv_editor_catalog_frame(ImDrawList *dl, ImVec2 p0, float scale, bool stale,
         for (int x = 0; x < game_frame_grid_cols; ++x) {
             const bool light_cell = (x + y) % checker_tone_count == 0;
             const ImU32 c = (light_cell ? game_frame_cell_color_light : game_frame_cell_color_dark) | alpha;
-            dl->AddRectFilled(ImVec2(p0.x + x * game_frame_cell_size_px * scale,
-                                  p0.y + y * game_frame_cell_size_px * scale),
-                ImVec2(p0.x + (x + 1) * game_frame_cell_size_px * scale,
-                    p0.y + (y + 1) * game_frame_cell_size_px * scale),
+            dl->AddRectFilled(ImVec2(p0.x + x * game_frame_cell_size_px * scale, p0.y + y * game_frame_cell_size_px * scale),
+                ImVec2(p0.x + (x + 1) * game_frame_cell_size_px * scale, p0.y + (y + 1) * game_frame_cell_size_px * scale),
                 c);
         }
     }
-    dl->AddRect(p0, ImVec2(p0.x + game_frame_width_px * scale, p0.y + game_frame_height_px * scale),
+    dl->AddRect(p0,
+        ImVec2(p0.x + game_frame_width_px * scale, p0.y + game_frame_height_px * scale),
         game_frame_line_rgb | alpha);
     dl->AddLine(ImVec2(p0.x + game_frame_center_x_px * scale, p0.y),
         ImVec2(p0.x + game_frame_center_x_px * scale, p0.y + game_frame_height_px * scale),
@@ -151,11 +149,11 @@ void rv_editor_catalog_keys(const rv_editor_theme &theme)
             ImGui::SameLine();
         }
         const char *reason = i == checkbox_snap_disabled_index ? rv_editor_text("catalog_more.disabled_shows_reason") : nullptr;
-        rv_editor_checkbox(labels[i], &d.checks[i], theme,
-            { rv_editor_look::live, reason });
+        rv_editor_checkbox(labels[i], &d.checks[i], theme, { rv_editor_look::live, reason });
     }
     const char *radios[] = { rv_editor_text("catalog_more.radio_select"),
-        rv_editor_text("catalog_more.radio_move"), rv_editor_text("catalog_more.radio_rotate"),
+        rv_editor_text("catalog_more.radio_move"),
+        rv_editor_text("catalog_more.radio_rotate"),
         rv_editor_text("catalog_more.radio_scale") };
     for (int i = 0; i < static_cast<int>(std::size(radios)); ++i) {
         if (i > 0) {
@@ -171,7 +169,8 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
 {
     // A scrolled region with the editor's own bars, both ways.
     rv_editor_scroll_begin("##cat_scroll",
-        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * scroll_height_frames), true,
+        ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() * scroll_height_frames),
+        true,
         ImGuiChildFlags_Borders);
     for (int i = 1; i <= overflow_sample_rows; ++i) {
         const auto args = std::make_format_args(i, i, i, i, i);
@@ -185,8 +184,12 @@ void rv_editor_catalog_overflow(const rv_editor_theme &theme)
         ImVec2(transport_strip_width_px, ImGui::GetFrameHeight() * transport_bar_height_frames),
         ImGuiChildFlags_Borders);
     const rv_editor_transport_state state{ nullptr,
-        rv_editor_text("catalog_more.transport_already_running"), nullptr,
-        rv_editor_text("catalog_more.transport_pause_first"), nullptr, nullptr, false };
+        rv_editor_text("catalog_more.transport_already_running"),
+        nullptr,
+        rv_editor_text("catalog_more.transport_pause_first"),
+        nullptr,
+        nullptr,
+        false };
     rv_editor_transport_bar(state, theme);
     ImGui::EndChild();
 }
@@ -202,8 +205,7 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + line * code_tile_height_lines), rv_editor_col(theme.code_base));
     rv_editor_font_code_push();
     const float cl = ImGui::GetTextLineHeight() + code_line_gap_px;
-    struct piece
-    {
+    struct piece {
         const char *text;
         uint32_t color;
     };
@@ -241,8 +243,7 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
         dl->AddText(ImVec2(p0.x + code_line_number_left_offset_px, y), rv_editor_col(theme.code_subtext), number);
         if (r == code_sample_cursor_row) {
             // The selection and the cursor.
-            dl->AddRectFilled(ImVec2(x, y), ImVec2(x + code_selection_width_px, y + cl),
-                rv_editor_col(theme.code_surface));
+            dl->AddRectFilled(ImVec2(x, y), ImVec2(x + code_selection_width_px, y + cl), rv_editor_col(theme.code_surface));
         }
         for (const piece &p : rows[r]) {
             if (p.text[0] == '\0') {
@@ -253,14 +254,16 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
         }
         if (r == code_sample_error_row) {
             // A build diagnostic under its place.
-            dl->AddLine(ImVec2(p0.x + code_lines_left_margin_px, y + cl - 1.0f), ImVec2(x, y + cl - 1.0f),
-                rv_editor_col(theme.code_red), 1.0f);
-            dl->AddText(ImVec2(x + code_error_indicator_offset_px, y), rv_editor_col(theme.code_red),
+            dl->AddLine(ImVec2(p0.x + code_lines_left_margin_px, y + cl - 1.0f),
+                ImVec2(x, y + cl - 1.0f),
+                rv_editor_col(theme.code_red),
+                1.0f);
+            dl->AddText(ImVec2(x + code_error_indicator_offset_px, y),
+                rv_editor_col(theme.code_red),
                 rv_editor_text("catalog_more.code_error_example"));
         }
         if (r == code_sample_cursor_row) {
-            dl->AddRectFilled(ImVec2(x, y), ImVec2(x + code_cursor_width_px, y + cl),
-                rv_editor_col(theme.code_text));
+            dl->AddRectFilled(ImVec2(x, y), ImVec2(x + code_cursor_width_px, y + cl), rv_editor_col(theme.code_text));
         }
     }
     rv_editor_font_code_pop();
@@ -270,25 +273,22 @@ void rv_editor_catalog_game(const rv_editor_theme &theme)
 {
     // The Game tile's own placement on a 320x240 test frame, in two areas and two modes, and a stale frame.
     const float h = ImGui::GetFrameHeight() * game_sample_base_height_frames;
-    const struct
-    {
+    const struct {
         const char *label;
         rv_editor_game_scale mode;
         float w;
         bool stale;
-    } cases[] = { { "catalog_more.game_fit", rv_editor_game_scale::fit, h * game_sample_fit_height_frames,
-                      false },
+    } cases[] = { { "catalog_more.game_fit", rv_editor_game_scale::fit, h * game_sample_fit_height_frames, false },
         { "catalog_more.game_integer", rv_editor_game_scale::integer, h * game_sample_fit_height_frames, false },
         { "catalog_more.game_fit_stale", rv_editor_game_scale::fit, h * game_sample_stale_height_frames, true } };
     ImDrawList *dl = ImGui::GetWindowDrawList();
     for (const auto &c : cases) {
         ImGui::BeginGroup();
-        const rv_editor_game_view view = rv_editor_game_place(game_frame_width_px, game_frame_height_px,
-            c.w, h, c.mode);
+        const rv_editor_game_view view = rv_editor_game_place(game_frame_width_px, game_frame_height_px, c.w, h, c.mode);
         const char *label = rv_editor_text(c.label);
         const auto view_args = std::make_format_args(label, view.scale);
-        const auto view_text = rv_editor_text_format(
-            c.stale ? "catalog_more.game_view_stale" : "catalog_more.game_view", view_args);
+        const auto view_text =
+            rv_editor_text_format(c.stale ? "catalog_more.game_view_stale" : "catalog_more.game_view", view_args);
         ImGui::Text("%s", view_text.c_str());
         const ImVec2 p0 = rv_editor_catalog_reserve(ImVec2(c.w, h));
         dl->AddRectFilled(p0, ImVec2(p0.x + c.w, p0.y + h), rv_editor_col(theme.code_base));
@@ -304,7 +304,8 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
     // Catalog cells of each kind, one whose picture failed, and a drop pocket to drop them on.
     const char *files[] = { rv_editor_text("catalog_more.asset_sprite_png"),
-        rv_editor_text("catalog_more.asset_tone_pcm"), rv_editor_text("catalog_more.asset_main_lua"),
+        rv_editor_text("catalog_more.asset_tone_pcm"),
+        rv_editor_text("catalog_more.asset_main_lua"),
         rv_editor_text("catalog_more.asset_main_scene_toml"),
         rv_editor_text("catalog_more.asset_broken_png_text") };
     ImDrawList *dl = ImGui::GetWindowDrawList();
@@ -325,9 +326,11 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
         uint32_t color = 0;
         rv_editor_file_chip(files[i], code, color);
         dl->AddText(ImVec2(p0.x + cell * asset_icon_x_offset_ratio, p0.y + asset_icon_y_offset_px),
-            rv_editor_col(i == broken_cell_index ? theme.text_disabled : color), code);
+            rv_editor_col(i == broken_cell_index ? theme.text_disabled : color),
+            code);
         dl->AddText(ImVec2(p0.x + asset_name_x_offset_px, p0.y + cell * asset_name_y_offset_ratio),
-            rv_editor_col(i == broken_cell_index ? theme.warning : theme.text), files[i]);
+            rv_editor_col(i == broken_cell_index ? theme.warning : theme.text),
+            files[i]);
         ImGui::PopID();
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * asset_pocket_width_em);
@@ -367,8 +370,12 @@ void rv_editor_catalog_type(const rv_editor_theme &theme)
     rv_editor_text_field("##locked", d.locked, sizeof(d.locked), theme, { {}, true });
     // The viewer's thumbwheel.
     bool reset = false;
-    d.wheel += rv_editor_thumbwheel("##cat_wheel", rv_editor_text("catalog_more.type_thumbwheel_label"), false,
-        ImGui::GetFontSize() * thumbwheel_width_em, theme, reset);
+    d.wheel += rv_editor_thumbwheel("##cat_wheel",
+        rv_editor_text("catalog_more.type_thumbwheel_label"),
+        false,
+        ImGui::GetFontSize() * thumbwheel_width_em,
+        theme,
+        reset);
     if (reset) {
         d.wheel = 0.0f;
     }

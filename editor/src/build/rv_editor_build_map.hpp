@@ -10,8 +10,7 @@ namespace rv_editor
 // One line of the burner's map: what a
 // source file became on the disc. The editor reads names here and never works
 // them out itself.
-struct rv_editor_map_entry
-{
+struct rv_editor_map_entry {
     std::string kind;      // code, file, texture, entry, module
     std::string name;      // the disc entry's name
     std::string parameter; // a texture's format, a module's require name

@@ -12,12 +12,16 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_textures/rv_mppctex.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // One branch per kind a name can be resident as; a new kind adds its branch
 // here, next to its own residency table.
-int64_t rv_pccd_fs::asset_reload(const char* resname, rv_cd_resource_kind& kind_out) {
-    if (resname == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_out)
+{
+    if (resname == nullptr) {
+        return RV_ERR_INVAL;
+    }
 
     const std::string key(resname);
     if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
@@ -35,10 +39,13 @@ int64_t rv_pccd_fs::asset_reload(const char* resname, rv_cd_resource_kind& kind_
 }
 
 // Re-reads `resname` off the medium and hands the bytes to texture_refresh_.
-int64_t rv_pccd_fs::texture_reload_(const char* resname, texture_record& record) {
+int64_t rv_pccd_fs::texture_reload_(const char *resname, texture_record &record)
+{
     std::vector<std::byte> bytes;
     const int64_t read_rc = asset_read_bytes_(resname, bytes);
-    if (read_rc < 0) return read_rc;
+    if (read_rc < 0) {
+        return read_rc;
+    }
 
     return texture_refresh_(record, bytes);
 }
@@ -48,19 +55,26 @@ int64_t rv_pccd_fs::texture_reload_(const char* resname, texture_record& record)
 // new ones are fully written, so a failed refresh leaves the old texture
 // exactly as it was rather than a torn or freed-then-hoped-for one. Shared by
 // texture_reload_ (medium bytes) and asset_refresh (request bytes).
-int64_t rv_pccd_fs::texture_refresh_(texture_record& record, const std::vector<std::byte>& bytes) {
-    if (cv_ == nullptr) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::texture_refresh_(texture_record &record, const std::vector<std::byte> &bytes)
+{
+    if (cv_ == nullptr) {
+        return RV_ERR_INVAL;
+    }
 
     rv_pdklib::rv_mppctex_header header;
-    const std::byte* palette = nullptr;
-    const std::byte* texels = nullptr;
+    const std::byte *palette = nullptr;
+    const std::byte *texels = nullptr;
     const int64_t decode_rc = texture_decode_(bytes, header, palette, texels);
-    if (decode_rc < 0) return decode_rc;
+    if (decode_rc < 0) {
+        return decode_rc;
+    }
 
     int64_t tex_addr = 0;
     int64_t pal_addr = 0;
     const int64_t upload_rc = texture_upload_(header, palette, texels, tex_addr, pal_addr);
-    if (upload_rc < 0) return upload_rc;
+    if (upload_rc < 0) {
+        return upload_rc;
+    }
 
     // Everything new is up and written; only now is it safe to drop the old.
     const int64_t old_tex_addr = record.tex_addr;
@@ -70,21 +84,25 @@ int64_t rv_pccd_fs::texture_refresh_(texture_record& record, const std::vector<s
     record.width = header.width;
     record.height = header.height;
     cv_->video_asset_free(old_tex_addr);
-    if (old_pal_addr != 0) cv_->video_asset_free(old_pal_addr);
+    if (old_pal_addr != 0) {
+        cv_->video_asset_free(old_pal_addr);
+    }
 
     return RV_OK;
 }
 
 // asset_reload's twin for bytes the request carried: same per-kind dispatch,
 // refreshing from `bytes` instead of re-reading the medium.
-int64_t rv_pccd_fs::asset_refresh(const char* resname, const void* bytes, int64_t nbytes,
-                                   rv_cd_resource_kind& kind_out) {
-    if (resname == nullptr || bytes == nullptr || nbytes < 0) return RV_ERR_INVAL;
+int64_t rv_pccd_fs::asset_refresh(const char *resname, const void *bytes, int64_t nbytes, rv_cd_resource_kind &kind_out)
+{
+    if (resname == nullptr || bytes == nullptr || nbytes < 0) {
+        return RV_ERR_INVAL;
+    }
 
     const std::string key(resname);
     if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
         kind_out = RV_CD_RESOURCE_TEXTURE;
-        const auto* first = static_cast<const std::byte*>(bytes);
+        const auto *first = static_cast<const std::byte *>(bytes);
         const std::vector<std::byte> payload(first, first + nbytes);
         return texture_refresh_(textures_[static_cast<size_t>(it->second)], payload);
     }
@@ -95,4 +113,4 @@ int64_t rv_pccd_fs::asset_refresh(const char* resname, const void* bytes, int64_
     return RV_PCCD_NOT_RESIDENT;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

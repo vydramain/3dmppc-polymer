@@ -47,7 +47,8 @@ void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log
     std::string error;
     watching_ = watch_.start(root_.path, error) == RV_OK;
     if (!watching_) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
             "files are not watched, Refresh shows changes: " + error);
     }
     list(root_);
@@ -174,7 +175,8 @@ void rv_editor_files::update(rv_editor_log &log)
         }
     }
     if (overflowed) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
             "the file watcher lost track of changes; the whole tree is re-read");
         stale_.clear();
         list(root_);
@@ -227,8 +229,7 @@ bool rv_editor_files::inside(const std::filesystem::path &path) const
     return p.native() == r || p.native().starts_with(r + path_separator);
 }
 
-int rv_editor_files::create_file(const std::filesystem::path &dir, const std::string &name,
-    std::string &error)
+int rv_editor_files::create_file(const std::filesystem::path &dir, const std::string &name, std::string &error)
 {
     if (!valid_name(name, error)) {
         return RV_ERR_INVAL;
@@ -256,8 +257,7 @@ int rv_editor_files::create_file(const std::filesystem::path &dir, const std::st
     return RV_OK;
 }
 
-int rv_editor_files::create_dir(const std::filesystem::path &dir, const std::string &name,
-    std::string &error)
+int rv_editor_files::create_dir(const std::filesystem::path &dir, const std::string &name, std::string &error)
 {
     if (!valid_name(name, error)) {
         return RV_ERR_INVAL;

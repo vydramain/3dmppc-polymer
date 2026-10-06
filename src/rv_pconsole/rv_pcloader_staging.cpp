@@ -26,8 +26,7 @@ namespace
 std::string staging_dir()
 {
     const char *tmpdir = std::getenv("TMPDIR");
-    std::string dir =
-        (tmpdir != nullptr && *tmpdir != '\0') ? std::string(tmpdir) : "/tmp";
+    std::string dir = (tmpdir != nullptr && *tmpdir != '\0') ? std::string(tmpdir) : "/tmp";
     while (dir.size() > 1 && dir.back() == '/') {
         dir.pop_back();
     }
@@ -48,8 +47,7 @@ namespace rv_pcloader_detail
 // 0700 total, this user and nobody else. A group- or world-writable staging
 // file would be a way to swap the disc's code out between this write and the
 // dlopen a few lines later.
-std::string extract_code(const std::vector<unsigned char> &code,
-    std::string &out_path)
+std::string extract_code(const std::vector<unsigned char> &code, std::string &out_path)
 {
     const std::string dir = staging_dir();
 
@@ -59,8 +57,7 @@ std::string extract_code(const std::vector<unsigned char> &code,
 
     const int fd = ::mkstemp(name.data());
     if (fd < 0) {
-        return std::format("cannot create a staging file in '{}': {}", dir,
-            std::strerror(errno));
+        return std::format("cannot create a staging file in '{}': {}", dir, std::strerror(errno));
     }
 
     // From here on the file exists, so every failure path must remove it.
@@ -68,20 +65,17 @@ std::string extract_code(const std::vector<unsigned char> &code,
 
     std::string error;
     if (::fchmod(fd, S_IRWXU) != 0) {
-        error = std::format("cannot make the staging file executable: {}",
-            std::strerror(errno));
+        error = std::format("cannot make the staging file executable: {}", std::strerror(errno));
     }
 
     std::size_t written = 0;
     while (error.empty() && written < code.size()) {
-        const ssize_t rc =
-            ::write(fd, code.data() + written, code.size() - written);
+        const ssize_t rc = ::write(fd, code.data() + written, code.size() - written);
         if (rc < 0) {
             if (errno == EINTR) {
                 continue;
             }
-            error = std::format("cannot write the staging file: {}",
-                std::strerror(errno));
+            error = std::format("cannot write the staging file: {}", std::strerror(errno));
             break;
         }
         if (rc == 0) {
@@ -94,8 +88,7 @@ std::string extract_code(const std::vector<unsigned char> &code,
     if (::close(fd) != 0 && error.empty()) {
         // A close() that fails is a write that did not land - the mapping the
         // loader is about to make would be of a truncated object file.
-        error =
-            std::format("cannot close the staging file: {}", std::strerror(errno));
+        error = std::format("cannot close the staging file: {}", std::strerror(errno));
     }
 
     if (!error.empty()) {
@@ -123,9 +116,7 @@ int64_t rv_pcloader_probe_staging()
 
     const int fd = ::mkstemp(name.data());
     if (fd < 0) {
-        RV_LOG_ERR("pcloader",
-            "staging directory '{}' cannot be used to extract a disc's code: {}",
-            dir, std::strerror(errno));
+        RV_LOG_ERR("pcloader", "staging directory '{}' cannot be used to extract a disc's code: {}", dir, std::strerror(errno));
         return RV_ERR_IO;
     }
     ::close(fd);
@@ -133,7 +124,8 @@ int64_t rv_pcloader_probe_staging()
     if (::unlink(name.data()) != 0 && errno != ENOENT) {
         RV_LOG_ERR("pcloader",
             "staging directory '{}' accepted a probe file but would not remove it: {}",
-            dir, std::strerror(errno));
+            dir,
+            std::strerror(errno));
         return RV_ERR_IO;
     }
     return RV_OK;

@@ -24,15 +24,16 @@ static std::vector<fs::directory_entry> sorted_children(const fs::path &director
     for (fs::directory_iterator it(directory, ec), end; !ec && it != end; it.increment(ec)) {
         children.push_back(*it);
     }
-    std::sort(children.begin(), children.end(),
-        [](const fs::directory_entry &a, const fs::directory_entry &b) {
-            return a.path().filename().string() < b.path().filename().string();
-        });
+    std::sort(children.begin(), children.end(), [](const fs::directory_entry &a, const fs::directory_entry &b) {
+        return a.path().filename().string() < b.path().filename().string();
+    });
     return children;
 }
 
-static void glob_descend(const fs::path &root, const fs::path &relative,
-    const std::vector<std::string> &components, std::size_t index,
+static void glob_descend(const fs::path &root,
+    const fs::path &relative,
+    const std::vector<std::string> &components,
+    std::size_t index,
     std::vector<std::string> &out)
 {
     const fs::path here = relative.empty() ? root : root / relative;
@@ -81,8 +82,10 @@ static void glob_descend(const fs::path &root, const fs::path &relative,
 
 } // namespace rv_pdktools
 
-int rv_pdktools::glob_expand(const fs::path &root, const std::vector<std::string> &patterns,
-    std::vector<std::string> &out, std::string &error)
+int rv_pdktools::glob_expand(const fs::path &root,
+    const std::vector<std::string> &patterns,
+    std::vector<std::string> &out,
+    std::string &error)
 {
     out.clear();
     for (const std::string &pattern : patterns) {
@@ -91,13 +94,11 @@ int rv_pdktools::glob_expand(const fs::path &root, const std::vector<std::string
             return RV_ERR_INVAL;
         }
         if (pattern.front() == '/') {
-            error = "pattern '" + pattern +
-                "' is absolute; manifest patterns are relative to the disc directory";
+            error = "pattern '" + pattern + "' is absolute; manifest patterns are relative to the disc directory";
             return RV_ERR_INVAL;
         }
         if (pattern.find("..") != std::string::npos) {
-            error = "pattern '" + pattern +
-                "' contains '..'; a disc may only reach files inside its own directory";
+            error = "pattern '" + pattern + "' contains '..'; a disc may only reach files inside its own directory";
             return RV_ERR_INVAL;
         }
 

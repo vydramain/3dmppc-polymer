@@ -35,8 +35,7 @@ namespace
 constexpr int assets_table_columns = 4;
 
 // What the catalog shows, read again at most once a second, and the map of the build it names.
-struct rv_editor_assets_cache
-{
+struct rv_editor_assets_cache {
     std::filesystem::path root;
     std::chrono::steady_clock::time_point read{};
     std::vector<rv_editor_asset> files;
@@ -131,14 +130,13 @@ void rv_editor_assets_scan(const std::filesystem::path &root)
 {
     rv_editor_assets.files.clear();
     std::error_code ec;
-    auto it = std::filesystem::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied,
-        ec);
+    auto it =
+        std::filesystem::recursive_directory_iterator(root, std::filesystem::directory_options::skip_permission_denied, ec);
     for (const auto end = std::filesystem::recursive_directory_iterator(); !ec && it != end; it.increment(ec)) {
         const std::string name = it->path().filename().string();
         std::error_code type_ec;
         if (it->is_directory(type_ec)) {
-            if (name.starts_with('.') || name.starts_with(build_folder) ||
-                (it.depth() == 0 && name == src_folder)) {
+            if (name.starts_with('.') || name.starts_with(build_folder) || (it.depth() == 0 && name == src_folder)) {
                 it.disable_recursion_pending();
             }
             continue;
@@ -153,8 +151,11 @@ void rv_editor_assets_scan(const std::filesystem::path &root)
         a.size = it->file_size(type_ec);
         rv_editor_assets.files.push_back(std::move(a));
     }
-    std::sort(rv_editor_assets.files.begin(), rv_editor_assets.files.end(),
-        [](const rv_editor_asset &x, const rv_editor_asset &y) { return x.rel < y.rel; });
+    std::sort(rv_editor_assets.files.begin(),
+        rv_editor_assets.files.end(),
+        [](const rv_editor_asset &x, const rv_editor_asset &y) {
+            return x.rel < y.rel;
+        });
 }
 
 void rv_editor_assets_refresh(const rv_editor_app &app)
@@ -166,8 +167,8 @@ void rv_editor_assets_refresh(const rv_editor_app &app)
         rv_editor_assets.read = now;
         rv_editor_assets_scan(app.project.root);
     }
-    const std::filesystem::path map = app.build.last_success() ? rv_editor_build_map_path(app.build.last_success()->dir)
-                                                               : std::filesystem::path();
+    const std::filesystem::path map =
+        app.build.last_success() ? rv_editor_build_map_path(app.build.last_success()->dir) : std::filesystem::path();
     std::error_code ec;
     const auto time = map.empty() ? std::filesystem::file_time_type{} : std::filesystem::last_write_time(map, ec);
     if (map != rv_editor_assets.map_path || time != rv_editor_assets.map_time) {
@@ -192,8 +193,7 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
         } else {
             status = rv_editor_text("pane_assets.tooltip_manifest");
         }
-        const std::string tooltip1 = rv_editor_text_format("pane_assets.tooltip_not_on_disc",
-            std::make_format_args(status));
+        const std::string tooltip1 = rv_editor_text_format("pane_assets.tooltip_not_on_disc", std::make_format_args(status));
         ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip1.c_str());
     } else {
         const char *sep;
@@ -312,8 +312,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         std::clamp(avail.x / preview_width_divisor, font * preview_width_min_em, font * preview_width_max_em);
     const float preview_w = std::max(1.0f, side_by_side ? preview_w_wide : avail.x);
     const float preview_h_narrow =
-        std::clamp(avail.y * preview_narrow_height_ratio, font * preview_height_min_em,
-            font * preview_height_max_em);
+        std::clamp(avail.y * preview_narrow_height_ratio, font * preview_height_min_em, font * preview_height_max_em);
     const float preview_h = std::max(1.0f, side_by_side ? avail.y : preview_h_narrow);
     const float list_w = std::max(1.0f, side_by_side ? avail.x - preview_w - ImGui::GetStyle().ItemSpacing.x : avail.x);
     const float list_h = std::max(1.0f, side_by_side ? avail.y : avail.y - preview_h - ImGui::GetStyle().ItemSpacing.y);
@@ -352,7 +351,8 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         }
         ImGui::TextDisabled("%s", empty_msg);
     } else if (ui.details) {
-        if (ImGui::BeginTable("##assets", assets_table_columns,
+        if (ImGui::BeginTable("##assets",
+                assets_table_columns,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
             ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_file"));
             ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_kind"), ImGuiTableColumnFlags_WidthFixed);
@@ -371,9 +371,8 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
                     entry == rv_editor_assets.map.end() ? entry_not_on_disc.data() : entry->second.kind.c_str();
                 ImGui::TextUnformatted(kind_text);
                 ImGui::TableNextColumn();
-                const char *disc_name = entry == rv_editor_assets.map.end() ?
-                    rv_editor_text("pane_assets.not_on_disc") :
-                    entry->second.name.c_str();
+                const char *disc_name = entry == rv_editor_assets.map.end() ? rv_editor_text("pane_assets.not_on_disc") :
+                                                                              entry->second.name.c_str();
                 ImGui::TextUnformatted(disc_name);
                 ImGui::TableNextColumn();
                 ImGui::Text("%ju", a->size);
@@ -394,12 +393,10 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             }
             ImGui::PushID(a.rel.c_str());
             const ImVec2 p0 = ImGui::GetCursorScreenPos();
-            ImGui::InvisibleButton(
-                "##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + icon_cell_padding_px));
+            ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + icon_cell_padding_px));
             rv_editor_asset_item(app, a);
             if (a.rel == rv_editor_assets.selected) {
-                dl->AddRectFilled(p0, ImGui::GetItemRectMax(),
-                    ImGui::GetColorU32(ImGuiCol_Header, selection_highlight_alpha));
+                dl->AddRectFilled(p0, ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Header, selection_highlight_alpha));
             }
             if (ImGui::IsItemHovered()) {
                 dl->AddRect(p0, ImGui::GetItemRectMax(), rv_editor_col(theme.selection));
@@ -409,8 +406,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             if (picture.id != ImTextureID{}) {
                 const float k = std::min(art / static_cast<float>(picture.w), art / static_cast<float>(picture.h));
                 const ImVec2 size(picture.w * k, picture.h * k);
-                const ImVec2 q0(at.x + (art - size.x) * center_offset_ratio,
-                    at.y + (art - size.y) * center_offset_ratio);
+                const ImVec2 q0(at.x + (art - size.x) * center_offset_ratio, at.y + (art - size.y) * center_offset_ratio);
                 dl->AddImage(picture.id, q0, ImVec2(q0.x + size.x, q0.y + size.y));
             } else {
                 // The file's code, sized down from twice the font until it fits the tile's width.
@@ -429,14 +425,15 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             }
             // The label cut to the cell with an ellipsis; the whole name is in the tooltip.
             std::string label = a.path.filename().string();
-            while (label.size() > label_ellipsis_min_chars &&
-                ImGui::CalcTextSize(label.c_str()).x > cell - icon_label_margin_px) {
+            while (
+                label.size() > label_ellipsis_min_chars && ImGui::CalcTextSize(label.c_str()).x > cell - icon_label_margin_px) {
                 label.erase(label.size() - label_ellipsis_erase_count);
                 label += label_ellipsis;
             }
             const float lw = ImGui::CalcTextSize(label.c_str()).x;
             dl->AddText(ImVec2(p0.x + (cell - lw) * center_offset_ratio, at.y + art + icon_label_y_offset_px),
-                rv_editor_col(theme.text), label.c_str());
+                rv_editor_col(theme.text),
+                label.c_str());
             ImGui::PopID();
         }
     }

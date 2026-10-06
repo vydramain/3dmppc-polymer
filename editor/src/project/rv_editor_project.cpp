@@ -112,16 +112,14 @@ std::string rv_editor_path_hash(const std::filesystem::path &path)
         h *= fnv_prime;
     }
     char buf[hash_buf_size];
-    std::snprintf(buf, sizeof(buf), std::string(hash_format_spec).c_str(),
-        static_cast<unsigned long long>(h));
+    std::snprintf(buf, sizeof(buf), std::string(hash_format_spec).c_str(), static_cast<unsigned long long>(h));
     return buf;
 }
 
 std::filesystem::path rv_editor_self_dir()
 {
     std::error_code ec;
-    const std::filesystem::path self =
-        std::filesystem::read_symlink(std::string(proc_self_exe), ec);
+    const std::filesystem::path self = std::filesystem::read_symlink(std::string(proc_self_exe), ec);
     return ec ? std::filesystem::path() : self.parent_path();
 }
 
@@ -133,19 +131,16 @@ void rv_editor_tool_check(rv_editor_tool &tool, const char *name)
         const std::string tool_name = name;
         const std::string tool_path = tool.path.string();
         if (tool.path.empty()) {
-            tool.problem = rv_editor_text_format("project.tool_not_found",
-                std::make_format_args(tool_name));
+            tool.problem = rv_editor_text_format("project.tool_not_found", std::make_format_args(tool_name));
         } else {
-            tool.problem = rv_editor_text_format("project.tool_not_found_at",
-                std::make_format_args(tool_name, tool_path));
+            tool.problem = rv_editor_text_format("project.tool_not_found_at", std::make_format_args(tool_name, tool_path));
         }
         return;
     }
     if (!std::filesystem::is_regular_file(st) ||
         (st.permissions() & std::filesystem::perms::owner_exec) == std::filesystem::perms::none) {
         const std::string tool_path = tool.path.string();
-        tool.problem = rv_editor_text_format("project.tool_not_executable",
-            std::make_format_args(tool_path));
+        tool.problem = rv_editor_text_format("project.tool_not_executable", std::make_format_args(tool_path));
     }
 }
 
@@ -157,15 +152,13 @@ void rv_editor_tool_version(rv_editor_tool &tool)
     }
     rv_editor_process proc;
     std::string error;
-    if (proc.start({ tool.path.string(), std::string(tool_version_arg) }, {}, error) !=
-        RV_OK) {
+    if (proc.start({ tool.path.string(), std::string(tool_version_arg) }, {}, error) != RV_OK) {
         tool.version = error;
         return;
     }
     std::string out;
     std::string err;
-    const auto until =
-        std::chrono::steady_clock::now() + std::chrono::seconds(process_version_timeout_sec);
+    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(process_version_timeout_sec);
     while (!proc.poll() && std::chrono::steady_clock::now() < until) {
         proc.read(out, err, process_read_buf_size);
         std::this_thread::sleep_for(std::chrono::milliseconds(process_version_poll_ms));
@@ -218,8 +211,8 @@ void rv_editor_revision_job::start(const std::filesystem::path &root)
         return;
     }
     text_.clear();
-    if (launch({ git_.string(), std::string(git_rev_parse_cmd), std::string(git_verify_arg),
-            std::string(git_head_ref) }) != RV_OK) {
+    if (launch({ git_.string(), std::string(git_rev_parse_cmd), std::string(git_verify_arg), std::string(git_head_ref) }) !=
+        RV_OK) {
         text_ = "unknown: not in a git work tree with a commit";
     }
 }
@@ -247,8 +240,11 @@ bool rv_editor_revision_job::poll()
         head_ = out_.substr(0, out_.find('\n'));
         status_step_ = true;
         // Only this project's files: a project may sit in a larger repository.
-        if (launch({ git_.string(), std::string(git_status_cmd), std::string(git_porcelain_arg),
-                std::string(git_path_sep), std::string(git_current_dir) }) == RV_OK) {
+        if (launch({ git_.string(),
+                std::string(git_status_cmd),
+                std::string(git_porcelain_arg),
+                std::string(git_path_sep),
+                std::string(git_current_dir) }) == RV_OK) {
             return false;
         }
         text_ = "git " + head_ + ", whether the files differ from it is unknown";
@@ -266,12 +262,9 @@ rv_editor_toolchain rv_editor_toolchain_find()
 {
     rv_editor_toolchain tc;
     const std::filesystem::path self = rv_editor_self_dir();
-    tc.console = { self.empty() ? "" : self / std::string(tool_console_name),
-        std::string(tool_origin_next_to_editor), "", "" };
-    tc.burner = { self.empty() ? "" : self / std::string(tool_burner_name),
-        std::string(tool_origin_next_to_editor), "", "" };
-    tc.baker = { self.empty() ? "" : self / std::string(tool_baker_name),
-        std::string(tool_origin_next_to_editor), "", "" };
+    tc.console = { self.empty() ? "" : self / std::string(tool_console_name), std::string(tool_origin_next_to_editor), "", "" };
+    tc.burner = { self.empty() ? "" : self / std::string(tool_burner_name), std::string(tool_origin_next_to_editor), "", "" };
+    tc.baker = { self.empty() ? "" : self / std::string(tool_baker_name), std::string(tool_origin_next_to_editor), "", "" };
 
     const std::filesystem::path config = rv_editor_xdg_dir(xdg_config_var.data(), xdg_config_fallback.data());
     if (!config.empty()) {
@@ -281,20 +274,18 @@ rv_editor_toolchain rv_editor_toolchain_find()
             std::ostringstream text;
             text << in.rdbuf();
             rv_pdklib::rv_manifest_tree tree;
-            if (rv_pdklib::rv_manifest_read_tree(text.str(), tc.settings_path.string(), tree,
-                    tc.settings_error) == 0) {
+            if (rv_pdklib::rv_manifest_read_tree(text.str(), tc.settings_path.string(), tree, tc.settings_error) == 0) {
                 for (const auto &section : tree.sections) {
                     if (section.name != settings_tools_section) {
                         continue;
                     }
                     for (const auto &entry : section.entries) {
-                        rv_editor_tool *tool =
-                            entry.key == tool_console_key ? &tc.console : entry.key == tool_burner_key ? &tc.burner :
-                            entry.key == tool_baker_key                                                ? &tc.baker :
-                            entry.key == tool_player_key                                               ? &tc.player :
-                                                                                                         nullptr;
-                        if (tool != nullptr &&
-                            entry.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
+                        rv_editor_tool *tool = entry.key == tool_console_key ? &tc.console :
+                            entry.key == tool_burner_key                     ? &tc.burner :
+                            entry.key == tool_baker_key                      ? &tc.baker :
+                            entry.key == tool_player_key                     ? &tc.player :
+                                                                               nullptr;
+                        if (tool != nullptr && entry.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
                             *tool = { entry.value.str, std::string(tool_origin_settings), "", "" };
                         }
                     }
@@ -344,8 +335,7 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
     return tool;
 }
 
-bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project,
-    std::string &error)
+bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error)
 {
     std::error_code ec;
     std::filesystem::path root = target;
@@ -371,10 +361,8 @@ bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_proje
     p.root = root;
     p.manifest = root / std::string(manifest_file);
     const std::string hash = rv_editor_path_hash(root);
-    const std::filesystem::path cache =
-        rv_editor_xdg_dir(xdg_cache_var.data(), xdg_cache_fallback.data());
-    const std::filesystem::path state =
-        rv_editor_xdg_dir(xdg_state_var.data(), xdg_state_fallback.data());
+    const std::filesystem::path cache = rv_editor_xdg_dir(xdg_cache_var.data(), xdg_cache_fallback.data());
+    const std::filesystem::path state = rv_editor_xdg_dir(xdg_state_var.data(), xdg_state_fallback.data());
     p.cache_dir = cache.empty() ? cache : cache / hash;
     p.state_dir = state.empty() ? state : state / hash;
     rv_editor_project_reload_manifest(p);

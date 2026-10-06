@@ -15,11 +15,9 @@ struct rv_texfmt_name {
     static const rv_texfmt_name *by_text(const char *text);
 };
 
-inline constexpr rv_texfmt_name rv_texfmt_names[]{
-    { rv_texfmt::RV_TEXFMT_IDX4, "idx4" },
+inline constexpr rv_texfmt_name rv_texfmt_names[]{ { rv_texfmt::RV_TEXFMT_IDX4, "idx4" },
     { rv_texfmt::RV_TEXFMT_IDX8, "idx8" },
-    { rv_texfmt::RV_TEXFMT_DIRECT15, "direct15" }
-};
+    { rv_texfmt::RV_TEXFMT_DIRECT15, "direct15" } };
 
 inline const rv_texfmt_name *rv_texfmt_name::by_format(rv_texfmt format)
 {

@@ -104,35 +104,48 @@ bool rv_editor_parse_reload_verb(const std::string &verb, rv_editor_reload_kind 
 int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log, std::string_view payload)
 {
     const int64_t id = next_id_++;
-    const std::string line = std::to_string(id) + std::string(1, protocol_space_separator) + verb +
-        std::string(1, protocol_newline_terminator);
+    const std::string line =
+        std::to_string(id) + std::string(1, protocol_space_separator) + verb + std::string(1, protocol_newline_terminator);
     std::string wire = line;
     wire.append(payload);
     if (proc_.write(wire) != RV_OK) {
         if (!proc_.stdin_open()) {
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
-                "cannot send '" + verb + "': the runtime's input is closed", rv_editor_log_channel::none,
-                proc_.pid(), number_);
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::error,
+                "cannot send '" + verb + "': the runtime's input is closed",
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         } else if (!input_full_) {
             // Said once; pad keeps the newest state and tries again every frame.
             input_full_ = true;
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::error,
                 "cannot send '" + verb + "': the runtime is not reading its input (" +
                     std::to_string(rv_editor_process::input_max / bytes_per_kib) + " KiB waiting)",
-                rv_editor_log_channel::none, proc_.pid(), number_);
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         }
         return 0;
     }
     if (input_full_) {
         input_full_ = false;
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "the runtime reads its input again",
-            rv_editor_log_channel::none, proc_.pid(), number_);
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::info,
+            "the runtime reads its input again",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
     }
     pending_[id] = { verb, std::chrono::steady_clock::now(), false, state_ == rv_editor_run_state::paused, frame_ };
     // The protocol trace shows the header only: a payload never belongs in the log.
-    log.add(rv_editor_log_source::protocol, rv_editor_log_level::info,
-        std::string(protocol_sent_marker) + line.substr(0, line.size() - 1), rv_editor_log_channel::none,
-        proc_.pid(), number_);
+    log.add(rv_editor_log_source::protocol,
+        rv_editor_log_level::info,
+        std::string(protocol_sent_marker) + line.substr(0, line.size() - 1),
+        rv_editor_log_channel::none,
+        proc_.pid(),
+        number_);
     return id;
 }
 
@@ -149,8 +162,7 @@ void rv_editor_session::reload(rv_editor_log &log, const std::string &module)
     if (!handshake_done_ || !proc_.running() || quit_sent_ || reloading_) {
         return;
     }
-    const std::string verb = module.empty() ? std::string(reload_entry_verb) :
-                                              std::string(reload_module_prefix) + module;
+    const std::string verb = module.empty() ? std::string(reload_entry_verb) : std::string(reload_module_prefix) + module;
     const int64_t id = send(verb, log);
     if (id != 0) {
         reloading_ = true;
@@ -164,24 +176,29 @@ void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name
         return;
     }
     if (bytes.size() > asset_payload_max) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "cannot send asset '" + name + "': " + std::to_string(bytes.size()) +
                 " bytes over the console's payload ceiling of " + std::to_string(asset_payload_max),
-            rv_editor_log_channel::none, proc_.pid(), number_);
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
         return;
     }
-    const std::string verb = std::string(asset_verb_prefix) + name + std::string(asset_bytes_token) +
-        std::to_string(bytes.size());
+    const std::string verb =
+        std::string(asset_verb_prefix) + name + std::string(asset_bytes_token) + std::to_string(bytes.size());
     const size_t header_size = std::to_string(next_id_).size() + 1 + verb.size() + 1;
     if (header_size + bytes.size() > rv_editor_process::input_max) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             "cannot send asset '" + name + "': " + std::to_string(header_size + bytes.size()) +
                 " bytes over the runtime's input limit of " + std::to_string(rv_editor_process::input_max),
-            rv_editor_log_channel::none, proc_.pid(), number_);
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
         return;
     }
-    const int64_t id =
-        send(verb, log, std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()));
+    const int64_t id = send(verb, log, std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()));
     if (id != 0) {
         reloading_ = true;
         reload_id_ = id;
@@ -242,9 +259,9 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
         reload_target_ = target;
         reload_kind_ = kind;
     }
-    const std::string named = kind == rv_editor_reload_kind::entry ? std::string()
-        : kind == rv_editor_reload_kind::module ? "module " + target + ": "
-                                                 : "asset " + target + ": ";
+    const std::string named = kind == rv_editor_reload_kind::entry ? std::string() :
+        kind == rv_editor_reload_kind::module                      ? "module " + target + ": " :
+                                                                     "asset " + target + ": ";
     if (err) {
         // The previous code stays; whether its effects ran is the runtime's word.
         const std::string result = std::string(msg.get(msg_key_error)) + std::string(error_message_separator) +

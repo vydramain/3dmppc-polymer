@@ -20,8 +20,7 @@ class rv_editor_process
 {
 public:
     // How the child ended.
-    struct rv_editor_exit
-    {
+    struct rv_editor_exit {
         bool exited = false; // false while it runs
         int code = 0;        // exit status, when it exited normally
         int signal = 0;      // non-zero when a signal ended it
@@ -36,21 +35,45 @@ public:
     // argv[0] is the executable path, run as is (no PATH search). `inherit_fd`,
     // when not -1, reaches the child as its descriptor 3; `env` (KEY=VALUE) goes over
     // the editor's environment. RV_OK on success, RV_ERR_* with the reason in `error`.
-    int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error,
-        int inherit_fd = -1, const std::vector<std::string> &env = {});
+    int start(const std::vector<std::string> &argv,
+        const std::filesystem::path &cwd,
+        std::string &error,
+        int inherit_fd = -1,
+        const std::vector<std::string> &env = {});
 
-    bool running() const { return pid_ > 0 && !exit_.exited; }
-    pid_t pid() const { return pid_; }
+    bool running() const
+    {
+        return pid_ > 0 && !exit_.exited;
+    }
+    pid_t pid() const
+    {
+        return pid_;
+    }
     // False once the child's stdout reached end of file.
-    bool stdout_open() const { return out_ >= 0; }
+    bool stdout_open() const
+    {
+        return out_ >= 0;
+    }
     // For a caller that reads on a thread of its own instead of read().
-    int stdout_fd() const { return out_; }
-    int stderr_fd() const { return err_; }
+    int stdout_fd() const
+    {
+        return out_;
+    }
+    int stderr_fd() const
+    {
+        return err_;
+    }
     // End of input for the child.
     void close_stdin();
     // False once stdin is closed: the child is gone or stopped reading for good.
-    bool stdin_open() const { return in_ >= 0; }
-    const rv_editor_exit &exit_status() const { return exit_; }
+    bool stdin_open() const
+    {
+        return in_ >= 0;
+    }
+    const rv_editor_exit &exit_status() const
+    {
+        return exit_;
+    }
 
     // Appends whatever the pipes hold now, at most `limit` bytes each. Returns
     // false once both pipes reached end of file.
@@ -75,7 +98,10 @@ public:
     // Only meaningful after poll() returned true.
     bool output_done();
     // True once output_done() cut the pipes short of end of file.
-    bool output_cut() const { return cut_; }
+    bool output_cut() const
+    {
+        return cut_;
+    }
 
     // SIGTERM, or SIGKILL with `force`, to the child's process group.
     void stop(bool force);
@@ -101,8 +127,10 @@ std::filesystem::path rv_editor_process_find(const char *name);
 
 // Runs argv to its end, at most `seconds`, and gives its stdout. False when it could
 // not start, did not end in time (it is killed then) or ended other than with exit 0.
-bool rv_editor_process_output(const std::vector<std::string> &argv, const std::filesystem::path &cwd,
-    std::string &out, int seconds);
+bool rv_editor_process_output(const std::vector<std::string> &argv,
+    const std::filesystem::path &cwd,
+    std::string &out,
+    int seconds);
 
 // Guard process that kills all children on editor exit. Call once from main() before SDL_Init.
 void rv_editor_guard_start();

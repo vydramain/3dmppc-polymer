@@ -34,9 +34,8 @@ constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
 // Default tess, same as pdklib when a scene object lacks a `tess` key.
 constexpr double default_object_tess = 2.0;
 
-struct rv_editor_scene_object
-{
-    std::string id;     // stable; never changes once given
+struct rv_editor_scene_object {
+    std::string id; // stable; never changes once given
     std::string name;
     std::string parent; // the parent's id, empty at the root
     std::string kind;   // "group", "camera", "mesh", "quad", "billboard" or "volume"
@@ -45,15 +44,14 @@ struct rv_editor_scene_object
     rv_editor_vec3 scale{ 1.0, 1.0, 1.0 };
     std::string mesh;
     std::string texture;
-    rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 };     // quad/billboard texture rect, pixels: u0,v0,u1,v1
     rv_editor_tint tint = default_object_tint; // quad/billboard modulation
     double tess = default_object_tess;         // quad/billboard subdivision density
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
 };
 
-struct rv_editor_scene
-{
+struct rv_editor_scene {
     std::filesystem::path path;
     // The PDK version the file was written for (rv_pdklib::rv_version_str for a fresh one);
     // a legacy `format = 1` header reads as 0.0, same as pdklib's scene reader.
@@ -61,7 +59,7 @@ struct rv_editor_scene
     uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
     std::vector<rv_editor_scene_object> objects;
-    std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;       // unknown [scene] keys
+    std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
     // Opened but not to be written: a non-compatible version, or content it cannot keep.
     std::string read_only;

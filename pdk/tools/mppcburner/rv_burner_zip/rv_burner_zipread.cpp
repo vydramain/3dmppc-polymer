@@ -13,7 +13,8 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-namespace {
+namespace
+{
 
 // A .mppcdisc this tool writes never has a central directory bigger than a
 // few hundred entries' worth of names, so this ceiling is generous by a wide
@@ -32,10 +33,7 @@ constexpr int64_t RV_ZIP_MAX_DIRECTORY_BYTES = 32 * 1024 * 1024;
 // Read a whole file into memory. Opened at the end (`ate`) so tellg gives the
 // size before a single byte is read, which is what lets the buffer be sized once
 // instead of grown.
-static int read_whole_file(
-    const fs::path &path,
-    std::vector<unsigned char> &out,
-    std::string &error)
+static int read_whole_file(const fs::path &path, std::vector<unsigned char> &out, std::string &error)
 {
     std::ifstream file(path, std::ios::binary | std::ios::ate);
     if (!file) {
@@ -63,10 +61,7 @@ static int read_whole_file(
 }
 
 // Parse the central directory of an archive already in memory.
-static int zip_list(
-    const std::vector<unsigned char> &bytes,
-    std::vector<zip_read_entry> &out,
-    std::string &error)
+static int zip_list(const std::vector<unsigned char> &bytes, std::vector<zip_read_entry> &out, std::string &error)
 {
     if (bytes.size() < rv_pdklib::rv_zip_eocd_size) {
         error = "file is too small to be a zip archive";
@@ -86,8 +81,7 @@ static int zip_list(
     const std::size_t limit = std::min(bytes.size(), rv_pdklib::rv_zip_eocd_size + rv_pdklib::rv_zip_max_comment_size);
     for (std::size_t back = rv_pdklib::rv_zip_eocd_size; back <= limit; ++back) {
         const std::size_t at = bytes.size() - back;
-        const rv_pdklib::rv_zip_eocd rec =
-            rv_pdklib::rv_zip_decode_eocd({bytes.data() + at, rv_pdklib::rv_zip_eocd_size});
+        const rv_pdklib::rv_zip_eocd rec = rv_pdklib::rv_zip_decode_eocd({ bytes.data() + at, rv_pdklib::rv_zip_eocd_size });
         if (rec.signature == rv_pdklib::rv_zip_sig_eocd) {
             eocd = at;
             found = true;
@@ -108,24 +102,25 @@ static int zip_list(
     // the console refuses would otherwise be something this tool happily
     // reports on, which is exactly the kind of file the two readers must
     // agree is not a .mppcdisc.
-    const rv_pdklib::rv_zip_eocd_result validated = rv_pdklib::rv_zip_validate_eocd(
-        {bytes.data() + eocd, rv_pdklib::rv_zip_eocd_size}, static_cast<int64_t>(bytes.size()),
-        RV_ZIP_MAX_DIRECTORY_BYTES);
+    const rv_pdklib::rv_zip_eocd_result validated =
+        rv_pdklib::rv_zip_validate_eocd({ bytes.data() + eocd, rv_pdklib::rv_zip_eocd_size },
+            static_cast<int64_t>(bytes.size()),
+            RV_ZIP_MAX_DIRECTORY_BYTES);
     switch (validated.status) {
-        case rv_pdklib::rv_zip_eocd_status::ok:
-            break;
-        case rv_pdklib::rv_zip_eocd_status::split_archive:
-            error = "split archives are not supported";
-            return RV_ERR_INVAL;
-        case rv_pdklib::rv_zip_eocd_status::zip64:
-            error = "zip64 archives are not supported";
-            return RV_ERR_INVAL;
-        case rv_pdklib::rv_zip_eocd_status::directory_outside_file:
-            error = "central directory runs past the end of the file";
-            return RV_ERR_INVAL;
-        case rv_pdklib::rv_zip_eocd_status::directory_too_large:
-            error = "central directory is implausibly large";
-            return RV_ERR_INVAL;
+    case rv_pdklib::rv_zip_eocd_status::ok:
+        break;
+    case rv_pdklib::rv_zip_eocd_status::split_archive:
+        error = "split archives are not supported";
+        return RV_ERR_INVAL;
+    case rv_pdklib::rv_zip_eocd_status::zip64:
+        error = "zip64 archives are not supported";
+        return RV_ERR_INVAL;
+    case rv_pdklib::rv_zip_eocd_status::directory_outside_file:
+        error = "central directory runs past the end of the file";
+        return RV_ERR_INVAL;
+    case rv_pdklib::rv_zip_eocd_status::directory_too_large:
+        error = "central directory is implausibly large";
+        return RV_ERR_INVAL;
     }
 
     const uint16_t count = validated.fields.entries_total;
@@ -141,7 +136,7 @@ static int zip_list(
             return RV_ERR_INVAL;
         }
         const rv_pdklib::rv_zip_central_header ch =
-            rv_pdklib::rv_zip_decode_central_header({bytes.data() + at, rv_pdklib::rv_zip_central_header_size});
+            rv_pdklib::rv_zip_decode_central_header({ bytes.data() + at, rv_pdklib::rv_zip_central_header_size });
         if (ch.signature != rv_pdklib::rv_zip_sig_central) {
             error = "central directory entry " + std::to_string(i) + " is malformed";
             return RV_ERR_INVAL;
@@ -160,8 +155,7 @@ static int zip_list(
             error = "central directory entry " + std::to_string(i) + " has a runaway name";
             return RV_ERR_INVAL;
         }
-        entry.name.assign(
-            reinterpret_cast<const char *>(bytes.data()) + at + rv_pdklib::rv_zip_central_header_size,
+        entry.name.assign(reinterpret_cast<const char *>(bytes.data()) + at + rv_pdklib::rv_zip_central_header_size,
             name_length);
 
         out.push_back(entry);
@@ -189,9 +183,7 @@ int rv_pdktools::zip_open(const fs::path &path, zip_archive &out, std::string &e
     return RV_OK;
 }
 
-const rv_pdktools::zip_read_entry *rv_pdktools::zip_find(
-    const zip_archive &archive,
-    const std::string &name)
+const rv_pdktools::zip_read_entry *rv_pdktools::zip_find(const zip_archive &archive, const std::string &name)
 {
     for (const zip_read_entry &entry : archive.entries) {
         if (entry.name == name) {
@@ -201,11 +193,7 @@ const rv_pdktools::zip_read_entry *rv_pdktools::zip_find(
     return nullptr;
 }
 
-int rv_pdktools::zip_entry_bytes(
-    const zip_archive &archive,
-    const zip_read_entry &entry,
-    std::string &out,
-    std::string &error)
+int rv_pdktools::zip_entry_bytes(const zip_archive &archive, const zip_read_entry &entry, std::string &out, std::string &error)
 {
     const std::vector<unsigned char> &bytes = archive.bytes;
     const std::size_t at = static_cast<std::size_t>(entry.local_offset);
@@ -218,7 +206,7 @@ int rv_pdktools::zip_entry_bytes(
         return RV_ERR_INVAL;
     }
     const rv_pdklib::rv_zip_local_header lh =
-        rv_pdklib::rv_zip_decode_local_header({bytes.data() + at, rv_pdklib::rv_zip_local_header_size});
+        rv_pdklib::rv_zip_decode_local_header({ bytes.data() + at, rv_pdklib::rv_zip_local_header_size });
     if (lh.signature != rv_pdklib::rv_zip_sig_local) {
         error = "entry '" + entry.name + "' has no local header where the directory says";
         return RV_ERR_INVAL;
@@ -238,7 +226,6 @@ int rv_pdktools::zip_entry_bytes(
         return RV_ERR_INVAL;
     }
 
-    out.assign(reinterpret_cast<const char *>(bytes.data()) + data,
-        static_cast<std::size_t>(entry.size));
+    out.assign(reinterpret_cast<const char *>(bytes.data()) + data, static_cast<std::size_t>(entry.size));
     return RV_OK;
 }

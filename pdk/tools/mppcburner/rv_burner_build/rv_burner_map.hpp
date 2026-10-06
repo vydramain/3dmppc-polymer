@@ -26,7 +26,10 @@ namespace rv_pdktools
 /// through a temporary file and a rename.
 ///
 /// @return 0 on success, 1 with the reason in @p error
-int write_map(const std::filesystem::path &path, const rv_pdklib::rv_manifest &manifest,
-    const std::vector<std::string> &sources, const archive_plan &plan, std::string &error);
+int write_map(const std::filesystem::path &path,
+    const rv_pdklib::rv_manifest &manifest,
+    const std::vector<std::string> &sources,
+    const archive_plan &plan,
+    std::string &error);
 
 } // namespace rv_pdktools

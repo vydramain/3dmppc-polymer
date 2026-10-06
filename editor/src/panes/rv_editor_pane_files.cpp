@@ -69,8 +69,10 @@ std::filesystem::path rv_editor_files_target_dir(rv_editor_app &app)
     return std::filesystem::is_directory(std::filesystem::symlink_status(sel, ec)) ? sel : sel.parent_path();
 }
 
-void rv_editor_files_ask(rv_editor_files_view &view, rv_editor_files_view::rv_editor_files_dialog dialog,
-    const std::filesystem::path &target, const std::string &name)
+void rv_editor_files_ask(rv_editor_files_view &view,
+    rv_editor_files_view::rv_editor_files_dialog dialog,
+    const std::filesystem::path &target,
+    const std::string &name)
 {
     view.dialog = dialog;
     view.target = target;
@@ -108,13 +110,11 @@ void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const 
 {
     if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_file"))) {
         app.files.selected = node.path;
-        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file,
-            rv_editor_files_target_dir(app), "");
+        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file, rv_editor_files_target_dir(app), "");
     }
     if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_folder"))) {
         app.files.selected = node.path;
-        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir,
-            rv_editor_files_target_dir(app), "");
+        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir, rv_editor_files_target_dir(app), "");
     }
     if (!node.dir && ImGui::MenuItem(rv_editor_text("pane_files.menu_open_as_text"))) {
         app.open_as_text.insert(node.path);
@@ -150,19 +150,23 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
 void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color)
 {
     const std::string ext = path.extension().string();
-    struct kind
-    {
+    struct kind {
         const char *ext;
         const char *code;
         uint32_t color;
     };
     // File extension -> list glyph and colour.
     static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve },
-        { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
-        { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
-        { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire }, { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach },
-        { ".png", rv_editor_glyph::image, rv_editor_mocha_green }, { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal },
-        { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal }, { ".md", rv_editor_glyph::text, rv_editor_mocha_text },
+        { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue },
+        { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
+        { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue },
+        { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
+        { ".h", rv_editor_glyph::header, rv_editor_mocha_sapphire },
+        { ".toml", rv_editor_glyph::toml, rv_editor_mocha_peach },
+        { ".png", rv_editor_glyph::image, rv_editor_mocha_green },
+        { ".pcm", rv_editor_glyph::sound, rv_editor_mocha_teal },
+        { ".wav", rv_editor_glyph::sound, rv_editor_mocha_teal },
+        { ".md", rv_editor_glyph::text, rv_editor_mocha_text },
         { ".txt", rv_editor_glyph::text, rv_editor_mocha_text } };
     code = rv_editor_glyph::other_file;
     color = rv_editor_mocha_subtext0;
@@ -185,8 +189,8 @@ namespace
 
 void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node)
 {
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow |
-        ImGuiTreeNodeFlags_OpenOnDoubleClick;
+    ImGuiTreeNodeFlags flags =
+        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
     const bool branch = node.dir && !node.symlink;
     if (!branch) {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
@@ -199,8 +203,8 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     const float space_w = ImGui::CalcTextSize(indent_space_probe).x;
     const float reserve = ImGui::CalcTextSize(rv_editor_glyph::disc_toml).x + ImGui::GetStyle().ItemSpacing.x;
     const int spaces = std::max(1, static_cast<int>(std::ceil(reserve / space_w)));
-    const std::string label = std::string(static_cast<size_t>(spaces), ' ') + node.name +
-        (node.symlink ? symlink_indicator : "");
+    const std::string label =
+        std::string(static_cast<size_t>(spaces), ' ') + node.name + (node.symlink ? symlink_indicator : "");
     ImGui::PushID(node.path.c_str());
     if (branch) {
         ImGui::SetNextItemOpen(node.expanded);
@@ -272,8 +276,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
         }
         if (view.doomed_total > view.doomed.size()) {
             const size_t more_count = view.doomed_total - view.doomed.size();
-            const std::string more_text =
-                rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
+            const std::string more_text = rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
             ImGui::TextWrapped("%s", more_text.c_str());
         }
     } else {
@@ -351,28 +354,45 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     // Square buttons, a coloured code each until the icons are drawn.
     const float side = ImGui::GetFrameHeight();
     rv_editor_shelf_begin("##shelf", theme);
-    if (rv_editor_letter_button("##new_file", rv_editor_glyph::new_, theme.code_green,
-            rv_editor_text("pane_files.button_new_file"), theme)) {
+    if (rv_editor_letter_button("##new_file",
+            rv_editor_glyph::new_,
+            theme.code_green,
+            rv_editor_text("pane_files.button_new_file"),
+            theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##new_dir", rv_editor_glyph::new_folder, theme.code_yellow,
-            rv_editor_text("pane_files.button_new_folder"), theme)) {
+    if (rv_editor_letter_button("##new_dir",
+            rv_editor_glyph::new_folder,
+            theme.code_yellow,
+            rv_editor_text("pane_files.button_new_folder"),
+            theme)) {
         rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##rename", rv_editor_glyph::rename, theme.code_blue,
-            rv_editor_text("pane_files.button_rename"), theme, need_sel)) {
+    if (rv_editor_letter_button("##rename",
+            rv_editor_glyph::rename,
+            theme.code_blue,
+            rv_editor_text("pane_files.button_rename"),
+            theme,
+            need_sel)) {
         rv_editor_files_ask(view, dialog_kind::rename, app.files.selected, app.files.selected.filename().string());
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##delete", rv_editor_glyph::delete_, theme.code_red,
-            rv_editor_text("pane_files.button_delete"), theme, need_sel)) {
+    if (rv_editor_letter_button("##delete",
+            rv_editor_glyph::delete_,
+            theme.code_red,
+            rv_editor_text("pane_files.button_delete"),
+            theme,
+            need_sel)) {
         rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, rv_editor_mocha_teal,
-            rv_editor_text("pane_files.button_refresh"), theme)) {
+    if (rv_editor_letter_button("##refresh",
+            rv_editor_glyph::refresh,
+            rv_editor_mocha_teal,
+            rv_editor_text("pane_files.button_refresh"),
+            theme)) {
         app.files.refresh();
     }
     rv_editor_shelf_end();

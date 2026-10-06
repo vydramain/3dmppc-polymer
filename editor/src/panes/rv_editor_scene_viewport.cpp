@@ -86,9 +86,10 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
-    cam.pitch = std::clamp(
-        cam.pitch - rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset) * rotation_sensitivity,
-        pitch_min, pitch_max);
+    cam.pitch =
+        std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset) * rotation_sensitivity,
+            pitch_min,
+            pitch_max);
     if (reset) {
         cam.pitch = rv_editor_scene_camera{}.pitch;
     }
@@ -97,16 +98,18 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     ImGui::TextUnformatted(rot_x_label);
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    ImGui::InvisibleButton("##viewport", size,
+    ImGui::InvisibleButton("##viewport",
+        size,
         ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
     const bool hovered = ImGui::IsItemHovered();
     const bool active = ImGui::IsItemActive();
     const bool focused = ImGui::IsItemFocused() || ImGui::IsWindowFocused();
     ImGui::SameLine();
     const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
-    cam.distance = std::clamp(
-        cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset) * dolly_sensitivity),
-        camera_distance_min, camera_distance_max);
+    cam.distance = std::clamp(cam.distance *
+            std::exp(-rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset) * dolly_sensitivity),
+        camera_distance_min,
+        camera_distance_max);
     if (reset) {
         cam.distance = rv_editor_scene_camera{}.distance;
     }
@@ -114,9 +117,8 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
     ImGui::TextUnformatted(dolly_label);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw += rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme,
-                   reset) *
-        rotation_sensitivity;
+    cam.yaw +=
+        rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
     if (reset) {
         cam.yaw = rv_editor_scene_camera{}.yaw;
     }
@@ -148,7 +150,8 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
                                                           0.0;
         cam.pitch = std::clamp(cam.pitch + (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
                 (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0),
-            pitch_min, pitch_max);
+            pitch_min,
+            pitch_max);
         if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
             cam.distance = std::max(camera_distance_min, cam.distance * zoom_base);
         }
@@ -235,24 +238,39 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         const ImU32 grid = rv_editor_col(theme.dark);
         for (int i = -grid_half_extent; i <= grid_half_extent; ++i) {
             const double f = static_cast<double>(i);
-            rv_editor_line(dl, v, { f, 0, -grid_half_extent }, { f, 0, grid_half_extent },
-                i == 0 ? rv_editor_col(theme.code_blue) : grid, 1.0f);
-            rv_editor_line(dl, v, { -grid_half_extent, 0, f }, { grid_half_extent, 0, f },
-                i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
+            rv_editor_line(dl,
+                v,
+                { f, 0, -grid_half_extent },
+                { f, 0, grid_half_extent },
+                i == 0 ? rv_editor_col(theme.code_blue) : grid,
+                1.0f);
+            rv_editor_line(dl,
+                v,
+                { -grid_half_extent, 0, f },
+                { grid_half_extent, 0, f },
+                i == 0 ? rv_editor_col(theme.code_red) : grid,
+                1.0f);
         }
     }
     const bool filled = cam.shading != rv_editor_scene_shading::wireframe;
     std::string mesh_error; // the first mesh resolve/parse error this frame, if any
     if (filled) {
-        rv_editor_draw_filled(dl, v, doc.scene, app.project, doc.selected, rv_editor_col(theme.code_subtext),
-            rv_editor_col(theme.selection), cam.shading == rv_editor_scene_shading::textured ? renderer : nullptr);
+        rv_editor_draw_filled(dl,
+            v,
+            doc.scene,
+            app.project,
+            doc.selected,
+            rv_editor_col(theme.code_subtext),
+            rv_editor_col(theme.selection),
+            cam.shading == rv_editor_scene_shading::textured ? renderer : nullptr);
     }
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const std::string &kind = doc.scene.objects[i].kind;
         const bool sel = doc.scene.objects[i].id == doc.selected;
-        const ImU32 color = rv_editor_col(sel ? theme.selection : kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
-                kind == kind_camera                                                                                                ? theme.code_yellow :
-                                                                                                                                     theme.code_subtext);
+        const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
+                kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
+                kind == kind_camera                                              ? theme.code_yellow :
+                                                                                   theme.code_subtext);
         std::string error;
         // Filled/Textured mode already paints non-selected mesh/quad/billboard geometry; the
         // selected one keeps its outline, and a volume (never filled) always keeps its edges.
@@ -284,8 +302,11 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     } else if (at >= 0 && cam.tool != rv_editor_scene_tool::select) {
         ImVec2 so;
         if (v.point(rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 }), so)) {
-            dl->AddCircle(so, gizmo_circle_radius, rv_editor_col(theme.selection),
-                gizmo_circle_segments, gizmo_circle_line_width);
+            dl->AddCircle(so,
+                gizmo_circle_radius,
+                rv_editor_col(theme.selection),
+                gizmo_circle_segments,
+                gizmo_circle_line_width);
         }
     }
     dl->PopClipRect();
@@ -308,19 +329,18 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             read_tip = rv_editor_text("scene_viewport.game_restart_needed");
         } else {
             read_line = rv_editor_text("scene_viewport.game_not_read_scene");
-            read_tip = rv_editor_text_format("scene_viewport.game_disc_not_opened",
-                std::make_format_args(scene_name));
+            read_tip = rv_editor_text_format("scene_viewport.game_disc_not_opened", std::make_format_args(scene_name));
         }
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
     if (mesh_error.empty()) {
-        const std::string status_line = rv_editor_text_format("scene_viewport.status_line_format",
-            std::make_format_args(buf, read_line));
+        const std::string status_line =
+            rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line));
         ImGui::TextDisabled("%s", status_line.c_str());
     } else {
         const char *error_str = mesh_error.c_str();
-        const std::string status_line = rv_editor_text_format("scene_viewport.mesh_placeholder_format",
-            std::make_format_args(buf, read_line, error_str));
+        const std::string status_line =
+            rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
         ImGui::TextDisabled("%s", status_line.c_str());
     }
     if (!read_tip.empty()) {

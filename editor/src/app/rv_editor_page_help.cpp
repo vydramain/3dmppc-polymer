@@ -40,8 +40,7 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
     };
     // Grouped by the menu that holds each command, in menu-bar order; then by
     // where a shortcut with no menu works. Within a group, the menu's own order.
-    struct rv_editor_help_row
-    {
+    struct rv_editor_help_row {
         const char *group_id;
         const char *label_id;
         const char *keys_id;

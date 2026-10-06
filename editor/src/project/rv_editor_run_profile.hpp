@@ -13,8 +13,7 @@ constexpr std::string_view default_run_profile_name = "Default";
 
 // How Run starts the development console. Tool paths are Settings'; a
 // profile only says what differs for this project. Relative paths are the root's.
-struct rv_editor_run_profile
-{
+struct rv_editor_run_profile {
     std::string name = std::string(default_run_profile_name);
     std::string runtime;           // empty: Settings' runtime
     std::string memcard;           // empty: the project's card in the state directory
@@ -29,8 +28,7 @@ struct rv_editor_run_profile
 
 // The profiles of <root>/.3dmppc-editor/project.toml; one Default when
 // the file is missing or unreadable.
-struct rv_editor_run_config
-{
+struct rv_editor_run_config {
     std::vector<rv_editor_run_profile> profiles{ rv_editor_run_profile{} }; // never empty
     size_t active = 0;
     std::string error; // the file exists and does not read: the profiles are defaults
@@ -38,8 +36,7 @@ struct rv_editor_run_config
 
 rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root);
 // Written through a temporary file and a rename. RV_OK or RV_ERR_IO with the reason.
-int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
-    std::string &error);
+int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config, std::string &error);
 
 // Why the profile cannot start a console, known before it runs; empty
 // when nothing stops it.

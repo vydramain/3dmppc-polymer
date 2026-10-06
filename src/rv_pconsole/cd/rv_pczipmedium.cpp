@@ -36,8 +36,7 @@ rv_pczipmedium::rv_pczipmedium(const std::string &archive_path)
         // but the machine stays usable, just empty. `error` is the reader's own
         // wording and may quote an entry name from the archive, which is why the
         // reader escapes those before they get here.
-        RV_LOG_ERR("pczipmedium", "cannot mount archive '{}': {}; drive stays empty", archive_path,
-            error);
+        RV_LOG_ERR("pczipmedium", "cannot mount archive '{}': {}; drive stays empty", archive_path, error);
         return;
     }
 
@@ -56,7 +55,8 @@ rv_pczipmedium::rv_pczipmedium(const std::string &archive_path)
             continue;
         }
         if (!rv_pcresname_valid(entry.name.c_str())) {
-            RV_LOG_WARN("pczipmedium", "archive entry '{}' is not a legal resource name; ignored",
+            RV_LOG_WARN("pczipmedium",
+                "archive entry '{}' is not a legal resource name; ignored",
                 rv_pdklib::rv_log_escape(entry.name.c_str()));
             continue;
         }
@@ -74,12 +74,13 @@ rv_pczipmedium::rv_pczipmedium(const std::string &archive_path)
         RV_LOG_WARN("pczipmedium",
             "archive '{}' holds {} entr{} with path separators; a disc's asset names are "
             "flat, so they are not visible to the game",
-            archive_path, nested, nested == 1 ? "y" : "ies");
+            archive_path,
+            nested,
+            nested == 1 ? "y" : "ies");
     }
 
     mounted_ = true;
-    RV_LOG_INFO("pczipmedium", "mounted archive medium '{}' ({} asset(s))", archive_path,
-        asset_names_.size());
+    RV_LOG_INFO("pczipmedium", "mounted archive medium '{}' ({} asset(s))", archive_path, asset_names_.size());
 }
 
 bool rv_pczipmedium::visible(const char *resname) const
@@ -129,8 +130,11 @@ int64_t rv_pczipmedium::entry_read(const char *resname, void *baddr, int64_t cap
         // archive, so answer the honest RV_ERR_NOENT.
         return RV_ERR_NOENT;
     case rv_zipread::short_buffer:
-        RV_LOG_WARN("pczipmedium", "entry '{}' needs {} bytes, buffer holds {}",
-            rv_pdklib::rv_log_escape(resname), zip_.size(resname), cap);
+        RV_LOG_WARN("pczipmedium",
+            "entry '{}' needs {} bytes, buffer holds {}",
+            rv_pdklib::rv_log_escape(resname),
+            zip_.size(resname),
+            cap);
         return RV_ERR_INVAL;
     case rv_zipread::corrupt:
     case rv_zipread::crc_mismatch:

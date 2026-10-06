@@ -77,7 +77,10 @@ bool rv_editor_is_executable(const std::filesystem::path &p)
 
 } // namespace
 
-void rv_editor_browser_start(rv_editor_browser &b, std::string purpose, std::string action, rv_editor_browse_pick pick,
+void rv_editor_browser_start(rv_editor_browser &b,
+    std::string purpose,
+    std::string action,
+    rv_editor_browse_pick pick,
     const std::filesystem::path &start)
 {
     b = {};
@@ -104,8 +107,11 @@ std::filesystem::path rv_editor_browser_target(const rv_editor_browser &b)
     return b.pick == rv_editor_browse_pick::directory ? b.dir : std::filesystem::path();
 }
 
-rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float height, const char *why_not,
-    std::filesystem::path &out, const rv_editor_theme &theme)
+rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
+    float height,
+    const char *why_not,
+    std::filesystem::path &out,
+    const rv_editor_theme &theme)
 {
     rv_editor_browser_list(b);
     rv_editor_browse_result result = rv_editor_browse_result::none;
@@ -115,7 +121,8 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
     ImGui::PopStyleColor();
 
     const std::filesystem::path parent = b.dir.parent_path();
-    if (rv_editor_button(rv_editor_text("browser.up"), theme,
+    if (rv_editor_button(rv_editor_text("browser.up"),
+            theme,
             { rv_editor_look::live, parent == b.dir ? rv_editor_text("browser.up_tooltip") : nullptr })) {
         rv_editor_browser_go(b, parent);
     }
@@ -165,9 +172,10 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b, float heigh
 
     const std::filesystem::path target = rv_editor_browser_target(b);
     const bool usable = b.pick == rv_editor_browse_pick::directory ? !target.empty() : rv_editor_is_executable(target);
-    const char *why = why_not != nullptr ? why_not : usable ? nullptr :
-        b.pick == rv_editor_browse_pick::executable         ? rv_editor_text("browser.select_executable") :
-                                                              rv_editor_text("browser.select_directory");
+    const char *why = why_not != nullptr            ? why_not :
+        usable                                      ? nullptr :
+        b.pick == rv_editor_browse_pick::executable ? rv_editor_text("browser.select_executable") :
+                                                      rv_editor_text("browser.select_directory");
     ImGui::TextUnformatted(target.empty() ? rv_editor_text("browser.nothing_selected") : target.c_str());
     if (rv_editor_button(b.action.c_str(), theme, { rv_editor_look::live, why })) {
         out = target;

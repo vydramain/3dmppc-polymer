@@ -12,8 +12,7 @@
 namespace rv_pdklib
 {
 
-int rv_manifest_read_tree(const std::string &text, const std::string &origin, rv_manifest_tree &tree,
-    std::string &error)
+int rv_manifest_read_tree(const std::string &text, const std::string &origin, rv_manifest_tree &tree, std::string &error)
 {
     rv_manifest_failer failer;
     const std::vector<rv_manifest_token> tokens = rv_manifest_lex(text);

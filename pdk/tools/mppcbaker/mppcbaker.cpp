@@ -288,8 +288,7 @@ rv_err load_source(const options &opt, source_image *out, baker_error *error)
     int width = 0;
     int height = 0;
     int source_channels = 0;
-    const stbi_pixels pixels(
-        stbi_load(opt.input.c_str(), &width, &height, &source_channels, RV_BAKER_SOURCE_CHANNELS));
+    const stbi_pixels pixels(stbi_load(opt.input.c_str(), &width, &height, &source_channels, RV_BAKER_SOURCE_CHANNELS));
     if (pixels == nullptr) {
         const char *reason = stbi_failure_reason();
         error->message = "cannot read '" + opt.input + "': " + (reason != nullptr ? reason : "unknown");

@@ -32,8 +32,7 @@ int rv_pcaudio_sdl3::open()
     spec.channels = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS);
     spec.freq = static_cast<int>(RV_PCPLATFORM_PCM_RATE);
 
-    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr,
-        nullptr);
+    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
     if (!stream_) {
         return RV_ERR_IO;
     }
@@ -44,8 +43,7 @@ int rv_pcaudio_sdl3::open()
         return RV_ERR_IO;
     }
 
-    RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE,
-        RV_PCPLATFORM_PCM_CHANNELS);
+    RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE, RV_PCPLATFORM_PCM_CHANNELS);
     return RV_OK;
 }
 
@@ -61,8 +59,7 @@ int64_t rv_pcaudio_sdl3::queued_frames() const
     }
 
     const int queued_bytes = SDL_GetAudioStreamQueued(stream_);
-    const int frame_bytes =
-        static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
+    const int frame_bytes = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
     return queued_bytes / frame_bytes;
 }
 
@@ -73,8 +70,7 @@ void rv_pcaudio_sdl3::write(const int16_t *interleaved, int64_t frames)
     }
 
     const int bytes =
-        static_cast<int>(frames) * static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) *
-        static_cast<int>(sizeof(int16_t));
+        static_cast<int>(frames) * static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
     if (!SDL_PutAudioStreamData(stream_, interleaved, bytes) && !warned_once_) {
         // Losing one write is not worth spinning over; the caller writes
         // again next frame. Warned once rather than every frame: a failing

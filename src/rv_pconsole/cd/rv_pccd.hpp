@@ -77,8 +77,7 @@ public:
     // asset_reload's twin for bytes the request carried, not the medium: same
     // result codes plus RV_PCCD_REFRESH_UNSUPPORTED, and works on a fixed
     // medium too. The base body refuses unconditionally.
-    virtual int64_t asset_refresh(const char *resname, const void *bytes, int64_t nbytes,
-        rv_cd_resource_kind &kind_out)
+    virtual int64_t asset_refresh(const char *resname, const void *bytes, int64_t nbytes, rv_cd_resource_kind &kind_out)
     {
         (void)resname;
         (void)bytes;

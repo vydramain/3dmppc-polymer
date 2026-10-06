@@ -97,9 +97,9 @@ bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
 {
     ImGui::SetNextWindowPos(pos);
     ImGui::SetNextWindowSize(size);
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus;
+    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoBringToFrontOnFocus;
     return ImGui::Begin(id, nullptr, flags);
 }
 
@@ -130,8 +130,12 @@ void rv_editor_screen_draw_workspace(rv_editor::rv_editor_shell &shell,
     const rv_editor::rv_editor_theme &theme,
     const rv_editor::rv_editor_rect &area)
 {
-    rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane,
-        rv_editor::rv_editor_shell_close_pane, &shell, area);
+    rv_editor::rv_editor_workspace_draw(shell.ws,
+        theme,
+        rv_editor::rv_editor_shell_pane,
+        rv_editor::rv_editor_shell_close_pane,
+        &shell,
+        area);
 }
 
 // Dispatch table for screen drawing functions.
@@ -164,8 +168,10 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     }
     ImGui::End();
 
-    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x), static_cast<int>(top.y),
-        static_cast<int>(size.x), static_cast<int>(size.y - bar) };
+    const rv_editor::rv_editor_rect area{ static_cast<int>(top.x),
+        static_cast<int>(top.y),
+        static_cast<int>(size.x),
+        static_cast<int>(size.y - bar) };
     // The tiles get a host strip of their own, like the bars around them.
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
@@ -272,8 +278,12 @@ int main(int argc, char **argv)
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
     constexpr SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if (!SDL_CreateWindowAndRenderer(program_name, rv_editor::window_min_width,
-            rv_editor::window_min_height, window_flags, &window, &renderer)) {
+    if (!SDL_CreateWindowAndRenderer(program_name,
+            rv_editor::window_min_width,
+            rv_editor::window_min_height,
+            window_flags,
+            &window,
+            &renderer)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_CreateWindowAndRenderer: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
@@ -290,14 +300,16 @@ int main(int argc, char **argv)
     }
     std::string text_error;
     if (rv_editor::rv_editor_text_load(user_texts_file, text_error) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: %.*s: %s\n", static_cast<int>(ui_texts_filename.size()),
-            ui_texts_filename.data(), text_error.c_str());
+        std::fprintf(stderr,
+            "3dmppc-editor: %.*s: %s\n",
+            static_cast<int>(ui_texts_filename.size()),
+            ui_texts_filename.data(),
+            text_error.c_str());
     }
 
     // Check if display is large enough (needs 1280x720 at scale 1.0).
     const rv_editor::rv_editor_display_size display_size = rv_editor::rv_editor_get_display_size(window);
-    if (display_size.w_pixels < rv_editor::window_min_width ||
-        display_size.h_pixels < rv_editor::window_min_height) {
+    if (display_size.w_pixels < rv_editor::window_min_width || display_size.h_pixels < rv_editor::window_min_height) {
         rv_editor::rv_editor_show_too_small_error(window, renderer, display_size);
         SDL_Quit();
         return 1;
@@ -378,14 +390,17 @@ int main(int argc, char **argv)
             // Rebuilt, not resized: the same pixels as a start at this scale.
             if (rv_editor_fonts_build(io, theme.scale) != RV_OK) {
                 std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for scale %g; keeping %g\n", theme.scale, previous);
-                shell->app.log.add(rv_editor::rv_editor_log_source::editor, rv_editor::rv_editor_log_level::error,
+                shell->app.log.add(rv_editor::rv_editor_log_source::editor,
+                    rv_editor::rv_editor_log_level::error,
                     "cannot build the fonts for the new UI scale; the previous scale stays");
                 theme.scale = previous;
             }
             shell->ui_scale = theme.scale;
             if (rv_editor_set_window_size_for_scale(window, theme.scale, true) != RV_OK) {
-                std::fprintf(stderr, "3dmppc-editor: SetWindowMinimumSize/SetWindowSize at scale %g: %s\n",
-                    theme.scale, SDL_GetError());
+                std::fprintf(stderr,
+                    "3dmppc-editor: SetWindowMinimumSize/SetWindowSize at scale %g: %s\n",
+                    theme.scale,
+                    SDL_GetError());
             }
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
         }
@@ -415,8 +430,10 @@ int main(int argc, char **argv)
     if (!layout_path.empty() && rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
-    const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(), shell->app.game_scale,
-        rv_editor::rv_editor_shell_workspace_key(*shell), shell->ui_scale };
+    const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(),
+        shell->app.game_scale,
+        rv_editor::rv_editor_shell_workspace_key(*shell),
+        shell->ui_scale };
     if (!prefs_path.empty() && rv_editor::rv_editor_prefs_save(prefs_path, chosen, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }

@@ -13,8 +13,7 @@ namespace rv_editor
 // textures. They are read from the repository at run time, the way mppcburner
 // finds pdk/: RV_EDITOR_ICON_DIR is baked in by editor/CMakeLists.txt.
 
-enum class rv_editor_icon_name
-{
+enum class rv_editor_icon_name {
     broken_image,
     calendar,
     folder,
@@ -24,8 +23,7 @@ enum class rv_editor_icon_name
     count,
 };
 
-struct rv_editor_icon
-{
+struct rv_editor_icon {
     ImTextureID id; // 0 when the file could not be loaded
     int w;
     int h;

@@ -91,8 +91,7 @@ int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type ma
     return coord;
 }
 
-rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_t v,
-    rv_texture_mapping_type mapping)
+rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_t v, rv_texture_mapping_type mapping)
 {
     rv_pctexel_sample out;
     if (!view.valid()) {
@@ -116,9 +115,8 @@ rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_
         // code rather than derived from anything.
         const int64_t stride = (view.width + 1) / RV_PCTEXEL_IDX4_TEXELS_PER_BYTE;
         const uint8_t packed = view.texels[tv * stride + (tu >> 1)];
-        const uint8_t index = (tu & 1) != 0 ?
-            static_cast<uint8_t>(packed >> IDX4_HIGH_NIBBLE_SHIFT) :
-            static_cast<uint8_t>(packed & IDX4_LOW_NIBBLE_MASK);
+        const uint8_t index = (tu & 1) != 0 ? static_cast<uint8_t>(packed >> IDX4_HIGH_NIBBLE_SHIFT) :
+                                              static_cast<uint8_t>(packed & IDX4_LOW_NIBBLE_MASK);
         if (static_cast<int64_t>(index) >= view.palette_count) {
             return out; // short palette: nothing sane to draw
         }

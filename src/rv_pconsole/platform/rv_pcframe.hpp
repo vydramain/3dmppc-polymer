@@ -31,22 +31,22 @@ inline constexpr uint64_t RV_PCFRAME_SLOT_ALIGN = 64;  // slot_bytes is rounded 
 inline constexpr uint32_t RV_PCFRAME_SEQLOCK_STEP = 2; // one write moves seq from even to the next even; odd while writing
 
 struct rv_pcframe_header {
-    uint32_t magic;       // RV_PCFRAME_MAGIC
-    uint32_t version;     // RV_PCFRAME_VERSION, the PDK version packed M.m
-    uint32_t slot_count;  // RV_PCFRAME_SLOTS
-    uint32_t slot_bytes;  // slot header + pixels, a multiple of 64
-    uint32_t latest;      // slot of the last finished frame, RV_PCFRAME_NONE before one
+    uint32_t magic;      // RV_PCFRAME_MAGIC
+    uint32_t version;    // RV_PCFRAME_VERSION, the PDK version packed M.m
+    uint32_t slot_count; // RV_PCFRAME_SLOTS
+    uint32_t slot_bytes; // slot header + pixels, a multiple of 64
+    uint32_t latest;     // slot of the last finished frame, RV_PCFRAME_NONE before one
     uint32_t reserved[11];
 };
 static_assert(sizeof(rv_pcframe_header) == RV_PCFRAME_HEADER_BYTES);
 
 struct rv_pcframe_slot {
-    uint32_t seq;         // odd while the console writes this slot
-    uint32_t format;      // RV_PCFRAME_FORMAT_ARGB8888: 0xAARRGGBB words
-    uint64_t frame;       // pictures written so far, pause pictures included: not the machine's frame
+    uint32_t seq;    // odd while the console writes this slot
+    uint32_t format; // RV_PCFRAME_FORMAT_ARGB8888: 0xAARRGGBB words
+    uint64_t frame;  // pictures written so far, pause pictures included: not the machine's frame
     uint32_t width;
     uint32_t height;
-    uint32_t stride;      // bytes per row
+    uint32_t stride; // bytes per row
     uint32_t reserved;
 };
 static_assert(sizeof(rv_pcframe_slot) == RV_PCFRAME_SLOT_HEADER_BYTES);

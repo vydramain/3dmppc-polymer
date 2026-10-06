@@ -75,12 +75,17 @@ rv_editor_status_kind rv_editor_check_lamp(const rv_editor_candidate &c, const r
         return rv_editor_status_kind::error;
     }
     switch (check.state) {
-        case rv_editor_check_state::passed: return rv_editor_status_kind::ok;
-        case rv_editor_check_state::running: return rv_editor_status_kind::busy;
-        case rv_editor_check_state::failed:
-        case rv_editor_check_state::blocked: return rv_editor_status_kind::error;
-        case rv_editor_check_state::skipped: return rv_editor_status_kind::warning;
-        default: return rv_editor_status_kind::idle;
+    case rv_editor_check_state::passed:
+        return rv_editor_status_kind::ok;
+    case rv_editor_check_state::running:
+        return rv_editor_status_kind::busy;
+    case rv_editor_check_state::failed:
+    case rv_editor_check_state::blocked:
+        return rv_editor_status_kind::error;
+    case rv_editor_check_state::skipped:
+        return rv_editor_status_kind::warning;
+    default:
+        return rv_editor_status_kind::idle;
     }
 }
 
@@ -95,14 +100,12 @@ std::string rv_editor_decision_text(const rv_editor_candidate &c)
         const auto &op = c.operator_name;
         const auto &dt = c.decided_at;
         const auto &sha = c.sha256.substr(0, sha256_approved_len);
-        return rv_editor_text_format("pane_candidate.approved_for_release",
-            std::make_format_args(op, dt, sha));
+        return rv_editor_text_format("pane_candidate.approved_for_release", std::make_format_args(op, dt, sha));
     }
     case rv_editor_decision::rejected: {
         const auto &op = c.operator_name;
         const auto &dt = c.decided_at;
-        return rv_editor_text_format("pane_candidate.rejected_by",
-            std::make_format_args(op, dt));
+        return rv_editor_text_format("pane_candidate.rejected_by", std::make_format_args(op, dt));
     }
     default:
         break;
@@ -148,8 +151,8 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
     const char *passed_means = rv_editor_text("pane_candidate.passed_means");
     ImGui::SetItemTooltip("%s %s", passed_means, check.passes_when);
     ImGui::TableNextColumn();
-    const std::string state = valid ? rv_editor_check_state_name(check.state)
-                                    : std::string(rv_editor_check_state_name(check.state)) + ", void: other bytes";
+    const std::string state = valid ? rv_editor_check_state_name(check.state) :
+                                      std::string(rv_editor_check_state_name(check.state)) + ", void: other bytes";
     rv_editor_status(state.c_str(), rv_editor_check_lamp(c, check), theme);
     if (!check.at.empty()) {
         ImGui::SetItemTooltip("%s\nset %s, on %s", check.note.c_str(), check.at.c_str(), check.env.c_str());
@@ -160,8 +163,8 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
         ImGui::PopID();
         return;
     }
-    const std::string env = app.tools.console.path.string() +
-        (app.session.facts().pdk.empty() ? "" : ", PDK " + app.session.facts().pdk);
+    const std::string env =
+        app.tools.console.path.string() + (app.session.facts().pdk.empty() ? "" : ", PDK " + app.session.facts().pdk);
     const char *why_not_pass = rv_editor_why_not_pass(app, c, id);
     const char *why_not_any = c.bytes_changed ? rv_editor_text("pane_candidate.bytes_not_ones_built") : nullptr;
     if (rv_editor_button(rv_editor_text("pane_candidate.pass_button"), theme, { rv_editor_look::live, why_not_pass })) {
@@ -190,8 +193,7 @@ void rv_editor_check_row(rv_editor_app &app, rv_editor_candidate &c, size_t id, 
 void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, const rv_editor_theme &theme)
 {
     const int check_count = static_cast<int>(c.checks.size());
-    std::string help_text = rv_editor_text_format("pane_candidate.checks_help",
-        std::make_format_args(check_count));
+    std::string help_text = rv_editor_text_format("pane_candidate.checks_help", std::make_format_args(check_count));
     rv_editor_dim_text(help_text);
     if (ImGui::BeginTable("##checks", checks_table_columns, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn(rv_editor_text("pane_candidate.check_column"), ImGuiTableColumnFlags_WidthFixed);
@@ -224,8 +226,8 @@ void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_candidate &c = r.candidates[r.selected];
         const int candidate_number = c.number;
         const auto summary = rv_editor_checks_summary(c);
-        std::string what = rv_editor_text_format("pane_candidate.candidate_header",
-            std::make_format_args(candidate_number, summary));
+        std::string what =
+            rv_editor_text_format("pane_candidate.candidate_header", std::make_format_args(candidate_number, summary));
         ImGui::TextUnformatted(what.c_str());
         rv_editor_candidate_checks(app, c, theme);
     };
@@ -241,20 +243,32 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     }
     // Only controls, no separate content: the whole pane is a shelf.
     rv_editor_shelf_begin("##shelf", theme);
-    if (rv_editor_tool_button(rv_editor_text("pane_candidate.build_button"), rv_editor_glyph::build,
-            rv_editor_mocha_peach, rv_editor_text("pane_candidate.build_candidate_tooltip"), nullptr, theme,
+    if (rv_editor_tool_button(rv_editor_text("pane_candidate.build_button"),
+            rv_editor_glyph::build,
+            rv_editor_mocha_peach,
+            rv_editor_text("pane_candidate.build_candidate_tooltip"),
+            nullptr,
+            theme,
             { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
         rv_editor_app_build_candidate(app);
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_candidate.run_button")));
-    if (rv_editor_tool_button(rv_editor_text("pane_candidate.run_button"), rv_editor_glyph::run,
-            theme.code_green, rv_editor_text("pane_candidate.run_candidate_tooltip"), nullptr, theme,
+    if (rv_editor_tool_button(rv_editor_text("pane_candidate.run_button"),
+            rv_editor_glyph::run,
+            theme.code_green,
+            rv_editor_text("pane_candidate.run_candidate_tooltip"),
+            nullptr,
+            theme,
             { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
         rv_editor_app_run_candidate(app);
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_candidate.player_button")));
-    if (rv_editor_tool_button(rv_editor_text("pane_candidate.player_button"), rv_editor_glyph::run_in_player,
-            rv_editor_mocha_mauve, rv_editor_text("pane_candidate.run_in_player_tooltip"), nullptr, theme,
+    if (rv_editor_tool_button(rv_editor_text("pane_candidate.player_button"),
+            rv_editor_glyph::run_in_player,
+            rv_editor_mocha_mauve,
+            rv_editor_text("pane_candidate.run_in_player_tooltip"),
+            nullptr,
+            theme,
             { rv_editor_look::live, rv_editor_app_why_not_play(app) })) {
         rv_editor_app_play_candidate(app);
     }
@@ -262,8 +276,12 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     const bool session_live = app.session.live();
     const bool player_running = rv_editor_app_player_running(app);
     const char *why_not_stop_release = player_running ? nullptr : rv_editor_app_why_not_stop(app);
-    if (rv_editor_tool_button(rv_editor_text("pane_candidate.stop_button"), rv_editor_glyph::stop,
-            theme.code_red, rv_editor_text("pane_candidate.stop_tooltip"), nullptr, theme,
+    if (rv_editor_tool_button(rv_editor_text("pane_candidate.stop_button"),
+            rv_editor_glyph::stop,
+            theme.code_red,
+            rv_editor_text("pane_candidate.stop_tooltip"),
+            nullptr,
+            theme,
             { rv_editor_look::live, why_not_stop_release })) {
         if (session_live) {
             app.session.stop(app.log);
@@ -275,8 +293,12 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     if (app.release.candidates.empty()) {
         why_not_export = rv_editor_text("pane_candidate.no_candidate_to_report");
     }
-    if (rv_editor_tool_button(rv_editor_text("pane_candidate.report_button"), rv_editor_glyph::export_,
-            theme.code_blue, rv_editor_text("pane_candidate.export_report_tooltip"), nullptr, theme,
+    if (rv_editor_tool_button(rv_editor_text("pane_candidate.report_button"),
+            rv_editor_glyph::export_,
+            theme.code_blue,
+            rv_editor_text("pane_candidate.export_report_tooltip"),
+            nullptr,
+            theme,
             { rv_editor_look::live, why_not_export })) {
         rv_editor_app_export_report(app);
     }
@@ -339,8 +361,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         if (r.candidates.empty()) {
             ImGui::TextWrapped("%s", rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"));
             const auto dir = (app.project.cache_dir / std::string(candidates_dir_name)).string();
-            std::string note = rv_editor_text_format("pane_candidate.candidates_dir_note",
-                std::make_format_args(dir));
+            std::string note = rv_editor_text_format("pane_candidate.candidates_dir_note", std::make_format_args(dir));
             rv_editor_dim_text(note);
             return;
         }
@@ -350,8 +371,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             std::vector<std::string> names;
             for (const rv_editor_candidate &c : r.candidates) {
                 const auto num = std::to_string(c.number);
-                names.push_back(rv_editor_text_format("pane_candidate.candidate_number",
-                    std::make_format_args(num)));
+                names.push_back(rv_editor_text_format("pane_candidate.candidate_number", std::make_format_args(num)));
             }
             std::vector<const char *> items;
             for (const std::string &n : names) {
@@ -359,8 +379,11 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             }
             int selected = static_cast<int>(r.selected);
             ImGui::SetNextItemWidth(ImGui::GetFontSize() * candidate_dropdown_width_em);
-            if (rv_editor_dropdown(rv_editor_text("pane_candidate.shown_label"), &selected, items.data(),
-                    static_cast<int>(items.size()), theme)) {
+            if (rv_editor_dropdown(rv_editor_text("pane_candidate.shown_label"),
+                    &selected,
+                    items.data(),
+                    static_cast<int>(items.size()),
+                    theme)) {
                 r.selected = static_cast<size_t>(selected);
             }
         }
@@ -374,8 +397,8 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
 
         if (ImGui::BeginTable("##identity", identity_table_columns, ImGuiTableFlags_SizingStretchProp)) {
             const auto num = std::to_string(c.number);
-            std::string candidate_info = rv_editor_text_format("pane_candidate.candidate_with_date",
-                std::make_format_args(num, c.built_at));
+            std::string candidate_info =
+                rv_editor_text_format("pane_candidate.candidate_with_date", std::make_format_args(num, c.built_at));
             rv_editor_row(rv_editor_text("pane_candidate.candidate_row"), candidate_info);
             const char *hash_verifying = rv_editor_text("pane_candidate.verifying_hash");
             const char *default_hash = c.hash_error.empty() ? hash_verifying : c.hash_error.c_str();
@@ -386,15 +409,13 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             if (c.hashing.valid()) {
                 verified_value = rv_editor_text("pane_candidate.verified_reading");
             } else if (c.verified_hash == c.sha256) {
-                verified_value = rv_editor_text_format("pane_candidate.verified_same",
-                    std::make_format_args(c.verified_at));
+                verified_value = rv_editor_text_format("pane_candidate.verified_same", std::make_format_args(c.verified_at));
             } else {
-                verified_value = rv_editor_text_format("pane_candidate.verified_different",
-                    std::make_format_args(c.verified_at));
+                verified_value =
+                    rv_editor_text_format("pane_candidate.verified_different", std::make_format_args(c.verified_at));
             }
             rv_editor_row(rv_editor_text("pane_candidate.verified_row"), verified_value);
-            rv_editor_row(rv_editor_text("pane_candidate.built_by_row"),
-                rv_editor_text("pane_candidate.built_by_note"));
+            rv_editor_row(rv_editor_text("pane_candidate.built_by_row"), rv_editor_text("pane_candidate.built_by_note"));
             ImGui::SetItemTooltip("%s", c.command.c_str());
             rv_editor_row(rv_editor_text("pane_candidate.tools_row"), c.burner + "; " + c.baker);
             const char *default_revision = rv_editor_text("pane_candidate.revision_not_recorded");
@@ -409,21 +430,21 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             if (playing) {
                 const auto num = std::to_string(app.session.number());
                 const auto state = rv_editor_run_state_name(app.session.state());
-                playtest_value = rv_editor_text_format("pane_candidate.playtest_live",
-                    std::make_format_args(num, state));
+                playtest_value = rv_editor_text_format("pane_candidate.playtest_live", std::make_format_args(num, state));
             } else if (c.playtests == 0) {
                 playtest_value = rv_editor_text("pane_candidate.playtest_not_run");
             } else {
                 const auto num = std::to_string(c.playtests);
-                playtest_value = rv_editor_text_format("pane_candidate.playtest_ended",
-                    std::make_format_args(num, c.last_run_end));
+                playtest_value =
+                    rv_editor_text_format("pane_candidate.playtest_ended", std::make_format_args(num, c.last_run_end));
             }
             rv_editor_row(rv_editor_text("pane_candidate.playtest_row"), playtest_value);
             ImGui::EndTable();
         }
         rv_editor_path_row(rv_editor_text("pane_candidate.image_row"), c.image.string(), theme);
         const char *verify_disabled = c.hashing.valid() ? rv_editor_text("pane_candidate.already_verifying") : nullptr;
-        if (rv_editor_button(rv_editor_text("pane_candidate.verify_bytes_button"), theme,
+        if (rv_editor_button(rv_editor_text("pane_candidate.verify_bytes_button"),
+                theme,
                 { rv_editor_look::live, verify_disabled })) {
             rv_editor_candidate_hash(c);
         }
@@ -434,15 +455,17 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::SeparatorText(rv_editor_text("pane_candidate.decision_separator"));
         rv_editor_status(rv_editor_text("pane_candidate.build_succeeded"), rv_editor_status_kind::ok, theme);
         const bool all = rv_editor_why_not_approve(c) == nullptr || c.decision == rv_editor_decision::approved;
-        rv_editor_status(rv_editor_checks_summary(c).c_str(), all ? rv_editor_status_kind::ok : rv_editor_status_kind::warning,
+        rv_editor_status(rv_editor_checks_summary(c).c_str(),
+            all ? rv_editor_status_kind::ok : rv_editor_status_kind::warning,
             theme);
         const std::string decision = rv_editor_decision_text(c);
         rv_editor_status(decision.c_str(),
-            c.decision == rv_editor_decision::approved       ? rv_editor_status_kind::ok
-                : c.decision == rv_editor_decision::rejected ? rv_editor_status_kind::error
-                                                             : rv_editor_status_kind::idle,
+            c.decision == rv_editor_decision::approved     ? rv_editor_status_kind::ok :
+                c.decision == rv_editor_decision::rejected ? rv_editor_status_kind::error :
+                                                             rv_editor_status_kind::idle,
             theme);
-        if (rv_editor_button(rv_editor_text("pane_candidate.approve_button"), theme,
+        if (rv_editor_button(rv_editor_text("pane_candidate.approve_button"),
+                theme,
                 { rv_editor_look::live, rv_editor_why_not_approve(c) })) {
             c.approve_pending = true;
             rv_editor_candidate_hash(c);

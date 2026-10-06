@@ -60,8 +60,7 @@ std::string suggest(std::string_view word, const std::string_view *candidates, s
     return " (did you mean '" + std::string(best) + "'?)";
 }
 
-std::string suggest_section(std::string_view word, const rv_manifest_section_spec *sections,
-    std::size_t section_count)
+std::string suggest_section(std::string_view word, const rv_manifest_section_spec *sections, std::size_t section_count)
 {
     std::vector<std::string_view> names;
     names.reserve(section_count);
@@ -71,8 +70,7 @@ std::string suggest_section(std::string_view word, const rv_manifest_section_spe
     return suggest(word, names.data(), names.size());
 }
 
-std::string suggest_key(std::string_view word, const rv_manifest_key_spec *keys,
-    std::size_t key_count)
+std::string suggest_key(std::string_view word, const rv_manifest_key_spec *keys, std::size_t key_count)
 {
     std::vector<std::string_view> names;
     names.reserve(key_count);

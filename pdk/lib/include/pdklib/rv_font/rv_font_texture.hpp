@@ -27,8 +27,7 @@ inline constexpr int rv_font_atlas_width = rv_font_atlas_columns * rv_font_cell_
 inline constexpr int rv_font_atlas_height = rv_font_atlas_rows * rv_font_cell_height;  // 48
 
 // IDX4 stores two texels per byte, so a row of 128 texels is 64 bytes.
-inline constexpr std::size_t rv_font_atlas_stride =
-    static_cast<std::size_t>(rv_font_atlas_width) / 2;
+inline constexpr std::size_t rv_font_atlas_stride = static_cast<std::size_t>(rv_font_atlas_width) / 2;
 inline constexpr std::size_t rv_font_atlas_size =
     rv_font_atlas_stride * static_cast<std::size_t>(rv_font_atlas_height); // 3072 bytes
 
@@ -69,8 +68,7 @@ inline constexpr std::size_t rv_font_palette_size = rv_font_palette_entries * 2;
 inline int rv_font_glyph_index(char c)
 {
     const unsigned int code = static_cast<unsigned char>(c);
-    if (code < static_cast<unsigned int>(rv_font_first_code) ||
-        code > static_cast<unsigned int>(rv_font_last_code)) {
+    if (code < static_cast<unsigned int>(rv_font_first_code) || code > static_cast<unsigned int>(rv_font_last_code)) {
         return rv_font_notdef_index;
     }
     return static_cast<int>(code) - rv_font_first_code;
@@ -156,7 +154,8 @@ inline void rv_font_atlas_put_glyph(uint8_t *out, int glyph, const uint8_t *rows
 
             const int u = cell_u + col;
             uint8_t &packed = out[base + static_cast<std::size_t>(u / 2)];
-            const unsigned int nibble = (u & 1) != 0 ? static_cast<unsigned int>(rv_font_index_ink) << 4 : static_cast<unsigned int>(rv_font_index_ink);
+            const unsigned int nibble =
+                (u & 1) != 0 ? static_cast<unsigned int>(rv_font_index_ink) << 4 : static_cast<unsigned int>(rv_font_index_ink);
             packed = static_cast<uint8_t>(packed | nibble);
         }
     }
@@ -194,7 +193,8 @@ inline int rv_font_build_atlas(uint8_t *out, std::size_t size, uint32_t blocks)
 
     if ((blocks & rv_font_block_cyrillic) != 0) {
         for (int slot = 0; slot < rv_font_cyrillic_glyph_count; ++slot) {
-            rv_font_atlas_put_glyph(out, rv_font_cyrillic_first_index + slot,
+            rv_font_atlas_put_glyph(out,
+                rv_font_cyrillic_first_index + slot,
                 &rv_font_cyrillic_bits[slot * rv_font_cell_height]);
         }
     }

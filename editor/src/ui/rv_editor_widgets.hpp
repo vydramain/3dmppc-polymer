@@ -20,25 +20,41 @@ namespace rv_editor
 // --- buttons and toggles ------------------------------------------------------
 
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state = {});
-bool rv_editor_icon_button(const char *id, rv_editor_icon_name icon, const rv_editor_theme &theme,
+bool rv_editor_icon_button(const char *id,
+    rv_editor_icon_name icon,
+    const rv_editor_theme &theme,
     const rv_editor_state &state = {});
 // A square transport button as wide as rv_editor_tool_button_width says: a large
 // `code` (1-2 letters, rv_editor_glyph) in `color` over a short label. The tooltip
 // is `name` (nullptr: the label) and `shortcut` (nullptr: none); a disabled button
 // dims the code and says why.
-bool rv_editor_tool_button(const char *label, const char *code, uint32_t color, const char *name,
-    const char *shortcut, const rv_editor_theme &theme, const rv_editor_state &state = {});
+bool rv_editor_tool_button(const char *label,
+    const char *code,
+    uint32_t color,
+    const char *name,
+    const char *shortcut,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 float rv_editor_tool_button_width(const char *label);
 
 // A square button of frame height with one coloured code (rv_editor_glyph)
 // standing in for an icon; `tooltip` names what it does.
-bool rv_editor_letter_button(const char *id, const char *code, uint32_t color, const char *tooltip,
-    const rv_editor_theme &theme, const rv_editor_state &state = {});
+bool rv_editor_letter_button(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *tooltip,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 
 // One row of a Toolchest across the pane's width: a coloured code (rv_editor_glyph)
 // and the label, `tooltip` saying what it does (a disabled row says why instead).
-bool rv_editor_command_button(const char *id, const char *code, uint32_t color, const char *label,
-    const char *tooltip, const rv_editor_theme &theme, const rv_editor_state &state = {});
+bool rv_editor_command_button(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *label,
+    const char *tooltip,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 
 // A button that stays pressed while *on.
 bool rv_editor_toggle(const char *label, bool *on, const rv_editor_theme &theme, const rv_editor_state &state = {});
@@ -59,20 +75,29 @@ bool rv_editor_radio(const char *label, bool active, const rv_editor_theme &them
 // Width comes from ImGui::SetNextItemWidth / PushItemWidth like any ImGui field.
 
 // The states a field has beyond a button's.
-struct rv_editor_field
-{
+struct rv_editor_field {
     rv_editor_state state;
     bool read_only = false;
-    bool dirty = false;             // edited and not saved: a "*" marker
-    const char *invalid = nullptr;  // what is wrong: error frame, "!" marker, tooltip
+    bool dirty = false;            // edited and not saved: a "*" marker
+    const char *invalid = nullptr; // what is wrong: error frame, "!" marker, tooltip
 };
 
-bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme,
+bool rv_editor_text_field(const char *label,
+    char *buf,
+    size_t size,
+    const rv_editor_theme &theme,
     const rv_editor_field &field = {});
-bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme,
+bool rv_editor_spinner(const char *label,
+    int *value,
+    int step,
+    const rv_editor_theme &theme,
     const rv_editor_field &field = {});
-bool rv_editor_dropdown(const char *label, int *current, const char *const items[], int count,
-    const rv_editor_theme &theme, const rv_editor_field &field = {});
+bool rv_editor_dropdown(const char *label,
+    int *current,
+    const char *const items[],
+    int count,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {});
 
 // A read-only path: its label, then the path itself, cut at the front with
 // "..." when it does not fit (the tail names the file), the whole of it in a
@@ -103,26 +128,39 @@ void rv_editor_well_end();
 // behind it. Returns true when a click moved *active. Non-null `pressed` gets
 // the index of the tab the left button went down on this frame, for a caller
 // that tells a drag from a click without repeating this layout.
-bool rv_editor_tab_strip(const char *id, const char *const labels[], int count, int *active,
-    const rv_editor_theme &theme, const rv_editor_state &state = {}, int *pressed = nullptr);
+bool rv_editor_tab_strip(const char *id,
+    const char *const labels[],
+    int count,
+    int *active,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {},
+    int *pressed = nullptr);
 
 // A scrolling area with Motif scrollbars instead of ImGui's: arrow boxes
 // at both ends, a sunken trough, a raised thumb with a grip. A bar appears once
 // the content does not fit. `size` works as for BeginChild; `horizontal` also
 // allows the horizontal bar. Always pair with rv_editor_scroll_end, whatever
 // begin returned, as with BeginChild/EndChild.
-bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal = false,
+bool rv_editor_scroll_begin(const char *id,
+    ImVec2 size,
+    bool horizontal = false,
     ImGuiChildFlags child_flags = ImGuiChildFlags_None);
 void rv_editor_scroll_end(const rv_editor_theme &theme);
 
 // Draggable bar between two panes. rv_editor_axis::x: a vertical bar `length`
 // tall that moves along X. Keeps *a >= min_a and *b >= min_b; returns true on change.
-bool rv_editor_splitter(const char *id, rv_editor_axis axis, float length, float *a, float *b, float min_a, float min_b,
-    const rv_editor_theme &theme, const rv_editor_state &state = {});
+bool rv_editor_splitter(const char *id,
+    rv_editor_axis axis,
+    float length,
+    float *a,
+    float *b,
+    float min_a,
+    float min_b,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 
 // What a click on a pane header's boxes asked for.
-enum class rv_editor_header_action
-{
+enum class rv_editor_header_action {
     none,
     close,
     maximize,
@@ -134,16 +172,19 @@ enum class rv_editor_header_action
 // Non-null `title_pressed` gets whether the left button went down this frame
 // over the title area itself (not the boxes), for a caller that tells a drag
 // from a click without repeating this layout.
-rv_editor_header_action rv_editor_pane_header(const char *title, bool active, const rv_editor_theme &theme,
-    bool controls = false, const rv_editor_state &state = {}, bool *title_pressed = nullptr);
+rv_editor_header_action rv_editor_pane_header(const char *title,
+    bool active,
+    const rv_editor_theme &theme,
+    bool controls = false,
+    const rv_editor_state &state = {},
+    bool *title_pressed = nullptr);
 
 // --- the tiled workspace ------------------------------------------------------
 
 // A tile drag in progress: press-and-hold on a header or a tab, then
 // move past a few pixels to show a drop-zone preview; released over a valid
 // zone, it moves the same pane instance with rv_editor_tile_move.
-struct rv_editor_tile_drag
-{
+struct rv_editor_tile_drag {
     bool armed = false;    // pressed on a header/tab, threshold not yet crossed
     bool dragging = false; // threshold crossed: previewing, moves on release
     rv_editor_pane_id pane = rv_editor_tile_none;
@@ -169,8 +210,7 @@ struct rv_editor_tile_action {
 
 // What the window shows: the pane registry and the tile tree over it.
 // Views only; no model lives here.
-struct rv_editor_workspace
-{
+struct rv_editor_workspace {
     rv_editor_pane_registry panes;
     rv_editor_layout layout;
     uint32_t focused_leaf = rv_editor_tile_none;
@@ -202,12 +242,15 @@ void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int presse
 // release over a valid zone, moves the pane. Escape or a release outside
 // every leaf cancels with no change. Call once per frame, after every leaf has
 // been placed, with each node's rectangle from that placement.
-void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of,
+void rv_editor_tile_drag_update(rv_editor_workspace &ws,
+    const std::vector<rv_editor_rect> &rect_of,
     const rv_editor_theme &theme);
 
 // Draws one pane's content into the current ImGui window. `context` is what the
 // caller handed rv_editor_workspace_draw: the models the panes are views of.
-using rv_editor_pane_draw_fn = void (*)(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind,
+using rv_editor_pane_draw_fn = void (*)(void *context,
+    rv_editor_pane_id pane,
+    rv_editor_pane_kind kind,
     const rv_editor_theme &theme);
 
 // Asked before a pane leaves the tree (closed, or turned into another kind).
@@ -221,8 +264,12 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 // Fills `area` (screen pixels) of the current window with the workspace, a child
 // window of its own. A splitter drag changes its
 // split's ratio.
-void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &theme, rv_editor_pane_draw_fn draw_pane,
-    rv_editor_pane_close_fn close_pane, void *context, rv_editor_rect area);
+void rv_editor_workspace_draw(rv_editor_workspace &ws,
+    const rv_editor_theme &theme,
+    rv_editor_pane_draw_fn draw_pane,
+    rv_editor_pane_close_fn close_pane,
+    void *context,
+    rv_editor_rect area);
 
 // --- status, log, transport, dialogs --------------------------------------------
 // Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
@@ -233,8 +280,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
 void rv_editor_menu_style_push();
 void rv_editor_menu_style_pop();
 
-enum class rv_editor_status_kind
-{
+enum class rv_editor_status_kind {
     idle,
     busy,
     ok,
@@ -243,8 +289,7 @@ enum class rv_editor_status_kind
     error,
 };
 
-enum class rv_editor_severity
-{
+enum class rv_editor_severity {
     info,
     warning,
     error,
@@ -268,12 +313,14 @@ void rv_editor_log_end(const rv_editor_theme &theme);
 
 // One line of process output inside a log area: time and source dimmed, the
 // severity as a coloured tag (INF, WRN, ERR), the text in the log's colour.
-void rv_editor_log_row(const char *time, const char *source, rv_editor_severity severity, const char *text,
+void rv_editor_log_row(const char *time,
+    const char *source,
+    rv_editor_severity severity,
+    const char *text,
     const rv_editor_theme &theme);
 
 // Why each transport action is unavailable; nullptr means available.
-struct rv_editor_transport_state
-{
+struct rv_editor_transport_state {
     const char *build;
     const char *run;
     const char *pause;
@@ -290,8 +337,7 @@ struct rv_editor_transport_state
 };
 
 // Which transport action was clicked this frame.
-struct rv_editor_transport_actions
-{
+struct rv_editor_transport_actions {
     bool build;
     bool run;
     bool pause;
@@ -303,8 +349,8 @@ struct rv_editor_transport_actions
 
 // `reserve`: width of what is drawn right after the bar on the same row (e.g. a status);
 // the bar hides more of its own buttons behind More rather than let that overflow.
-rv_editor_transport_actions rv_editor_transport_bar(const rv_editor_transport_state &state,
-    const rv_editor_theme &theme, float reserve = 0.0f);
+rv_editor_transport_actions
+rv_editor_transport_bar(const rv_editor_transport_state &state, const rv_editor_theme &theme, float reserve = 0.0f);
 
 // An area inside a pane that asks something without blocking anything else: a
 // bordered block under its own header; the caller draws the text and the buttons

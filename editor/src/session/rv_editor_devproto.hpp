@@ -15,10 +15,8 @@ namespace rv_editor
 // the console raises on its own, `0 event=<name> k=v ...`. No I/O here: bytes go
 // in as they arrive, whole messages come out.
 
-struct rv_editor_devmsg
-{
-    enum class rv_editor_devmsg_kind
-    {
+struct rv_editor_devmsg {
+    enum class rv_editor_devmsg_kind {
         ok,
         err,
         event,

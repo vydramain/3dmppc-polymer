@@ -29,8 +29,7 @@ constexpr const char *error_marker_glyph = "!";
 // Dirty marker glyph for field unsaved state indicator.
 constexpr const char *dirty_marker_glyph = "*";
 
-struct rv_editor_field_look
-{
+struct rv_editor_field_look {
     bool hovered;
     bool focused;
 };
@@ -39,23 +38,28 @@ rv_editor_field_look rv_editor_field_resolve(const rv_editor_field &f, bool hove
 {
     switch (f.state.look) {
     case rv_editor_look::live:
-        return {hovered, focused};
+        return { hovered, focused };
     case rv_editor_look::normal:
-        return {false, false};
+        return { false, false };
     case rv_editor_look::hovered:
-        return {true, false};
+        return { true, false };
     case rv_editor_look::pressed:
     case rv_editor_look::focused:
-        return {false, true};
+        return { false, true };
     }
-    return {hovered, focused};
+    return { hovered, focused };
 }
 
 // Well edge, then the one frame that says the most: invalid, focus, hover.
 // An invalid field also gets a "!" so the error is not colour alone.
 // The markers stay clear of `reserve` pixels at the right end (a dropdown's button).
-void rv_editor_field_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_editor_theme &t, const rv_editor_field &f,
-    rv_editor_field_look look, float reserve)
+void rv_editor_field_frame(ImDrawList *dl,
+    ImVec2 min,
+    ImVec2 max,
+    const rv_editor_theme &t,
+    const rv_editor_field &f,
+    rv_editor_field_look look,
+    float reserve)
 {
     rv_editor_draw_bevel(dl, min, max, t, rv_editor_bevel::sunken);
     const bool disabled = f.state.disabled != nullptr;
@@ -107,8 +111,7 @@ void rv_editor_field_end(const rv_editor_field &f)
 
 } // namespace
 
-bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme,
-    const rv_editor_field &field)
+bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme, const rv_editor_field &field)
 {
     // Before the call: SetNextItemWidth applies to the next item only.
     const float width = ImGui::CalcItemWidth();
@@ -124,8 +127,7 @@ bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_ed
     return changed;
 }
 
-bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme,
-    const rv_editor_field &field)
+bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme, const rv_editor_field &field)
 {
     const float h = ImGui::GetFrameHeight();
     const float width = ImGui::CalcItemWidth();
@@ -150,13 +152,16 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float half = std::floor(h / half_divisor);
     const ImVec2 origin(max.x, min.y);
-    const ImGuiDir dirs[] = {ImGuiDir_Up, ImGuiDir_Down};
+    const ImGuiDir dirs[] = { ImGuiDir_Up, ImGuiDir_Down };
     for (int i = 0; i < spinner_buttons; ++i) {
         ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + half * static_cast<float>(i)));
-        const rv_editor_item item = rv_editor_item_add(i == 0 ? "##up" : "##down", ImVec2(h, i == 0 ? half : h - half),
-            arrows);
+        const rv_editor_item item = rv_editor_item_add(i == 0 ? "##up" : "##down", ImVec2(h, i == 0 ? half : h - half), arrows);
         const bool down = item.held && item.hovered;
-        rv_editor_draw_panel(dl, item.min, item.max, theme, theme.button,
+        rv_editor_draw_panel(dl,
+            item.min,
+            item.max,
+            theme,
+            theme.button,
             down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
         rv_editor_draw_arrow(dl, item.min, item.max, theme, dirs[i], rv_editor_item_text(theme, item));
         if (item.clicked) {
@@ -172,8 +177,12 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
     return changed;
 }
 
-bool rv_editor_dropdown(const char *label, int *current, const char *const items[], int count,
-    const rv_editor_theme &theme, const rv_editor_field &field)
+bool rv_editor_dropdown(const char *label,
+    int *current,
+    const char *const items[],
+    int count,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field)
 {
     const float width = ImGui::CalcItemWidth();
     rv_editor_field_begin(theme, field);
@@ -203,7 +212,11 @@ bool rv_editor_dropdown(const char *label, int *current, const char *const items
     const ImVec2 button_min(max.x - h + bevel, min.y + bevel);
     const ImVec2 button_max(max.x - bevel, max.y - bevel);
     rv_editor_draw_panel(dl, button_min, button_max, theme, theme.button, rv_editor_bevel::raised);
-    rv_editor_draw_arrow(dl, button_min, button_max, theme, ImGuiDir_Down,
+    rv_editor_draw_arrow(dl,
+        button_min,
+        button_max,
+        theme,
+        ImGuiDir_Down,
         field.state.disabled != nullptr ? theme.text_disabled : theme.text);
     return changed;
 }
@@ -215,8 +228,7 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
     ImGui::TextUnformatted(label, rv_editor_label_end(label));
     ImGui::SameLine();
     const char *copy_label = rv_editor_text("widgets_fields.button_copy");
-    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) -
-        ImGui::GetStyle().ItemSpacing.x;
+    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) - ImGui::GetStyle().ItemSpacing.x;
     std::string shown = path;
     if (ImGui::CalcTextSize(path.c_str()).x > room) {
         const char *path_ellipsis = rv_editor_text("widgets_fields.path_ellipsis");

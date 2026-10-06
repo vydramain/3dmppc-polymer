@@ -26,8 +26,7 @@ int rv_pccl_luajit::hook_insn_ceiling_()
     return RV_PCCL_INSN_CEILING;
 }
 
-int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
-    rv_pccl_reload_report &report)
+int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report)
 {
     if (entry_ < 0) {
         report.phase = "no_entry";
@@ -95,13 +94,16 @@ int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, 
     report.phase = "ok";
     report.effects_possible = false;
     report.message.clear();
-    RV_LOG_INFO("pccl", "entry chunk updated in place from '{}' (revision {}, {} byte(s), hash {:016x})",
-        rv_pdklib::rv_log_escape(slot.name.c_str()), revision_, size, entry_hash_);
+    RV_LOG_INFO("pccl",
+        "entry chunk updated in place from '{}' (revision {}, {} byte(s), hash {:016x})",
+        rv_pdklib::rv_log_escape(slot.name.c_str()),
+        revision_,
+        size,
+        entry_hash_);
     return RV_OK;
 }
 
-int64_t rv_pccl_luajit::script_reload_entry(const void *bytecode, int64_t size, const char *name,
-    rv_pccl_reload_report &report)
+int64_t rv_pccl_luajit::script_reload_entry(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report)
 {
     return reload_entry_bytes_(bytecode, size, name, report);
 }
@@ -142,7 +144,6 @@ int64_t rv_pccl_luajit::script_reload_entry_from_drive(rv_pccl_reload_report &re
     return reload_entry_bytes_(bytes.data(), read, conf_.script_entry.c_str(), report);
 }
 
-
 // Carries the module lookup across the protected call: interning `name` and
 // taking a registry ref can both allocate.
 struct module_lookup_args {
@@ -169,8 +170,8 @@ static const char *module_asset_refusal(int code)
     return code == 1 ? "not a module name" : "the entry script is neither .lua nor .luac";
 }
 
-int64_t rv_pccl_luajit::module_find_(const char *name, char *asset, std::size_t cap, int &ref_out,
-    rv_pccl_reload_report &report)
+int64_t
+rv_pccl_luajit::module_find_(const char *name, char *asset, std::size_t cap, int &ref_out, rv_pccl_reload_report &report)
 {
     if (call_depth_ > 0) {
         report.phase = "in_call";
@@ -205,8 +206,8 @@ int64_t rv_pccl_luajit::module_find_(const char *name, char *asset, std::size_t 
     return RV_OK;
 }
 
-int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
-    rv_pccl_reload_report &report)
+int64_t
+rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report)
 {
     char asset[kAssetNameMaxLen];
     int old_ref = LUA_NOREF;
@@ -234,13 +235,16 @@ int64_t rv_pccl_luajit::reload_module_bytes_(const char *name, const void *bytec
     report.phase = "ok";
     report.effects_possible = false;
     report.message.clear();
-    RV_LOG_INFO("pccl", "module '{}' updated in place ({} byte(s), hash {:016x})", rv_pdklib::rv_log_escape(name),
-        size, report.hash);
+    RV_LOG_INFO("pccl",
+        "module '{}' updated in place ({} byte(s), hash {:016x})",
+        rv_pdklib::rv_log_escape(name),
+        size,
+        report.hash);
     return RV_OK;
 }
 
-int64_t rv_pccl_luajit::script_reload_module(const char *name, const void *bytecode, int64_t size,
-    rv_pccl_reload_report &report)
+int64_t
+rv_pccl_luajit::script_reload_module(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report)
 {
     return reload_module_bytes_(name, bytecode, size, report);
 }

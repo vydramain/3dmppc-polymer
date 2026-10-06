@@ -277,8 +277,7 @@ int rv_pccl_luajit::bootstrap_pdk()
     }
     const int pdk_idx = lua_gettop(L_); // this table becomes `pdk` itself
 
-    if (luaL_loadbuffer(L_, RV_PCCL_PDK_BOOTSTRAP_SRC, std::strlen(RV_PCCL_PDK_BOOTSTRAP_SRC),
-            "pdk_bootstrap") != 0) {
+    if (luaL_loadbuffer(L_, RV_PCCL_PDK_BOOTSTRAP_SRC, std::strlen(RV_PCCL_PDK_BOOTSTRAP_SRC), "pdk_bootstrap") != 0) {
         return fail_err("pdk bootstrap chunk (compile)");
     }
     lua_pushvalue(L_, ffi_idx);
@@ -293,8 +292,10 @@ int rv_pccl_luajit::bootstrap_pdk()
     // this method only RAISES them, the same loadbuffer-then-pcall shape the
     // chunk above used, into the same `pdk` table right after that chunk
     // finished building it.
-    if (luaL_loadbuffer(L_, rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC,
-            std::strlen(rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC), "pdk_lua_helpers") != 0) {
+    if (luaL_loadbuffer(L_,
+            rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC,
+            std::strlen(rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC),
+            "pdk_lua_helpers") != 0) {
         return fail_err("pdk lua helpers chunk (compile)");
     }
     lua_pushvalue(L_, pdk_idx);

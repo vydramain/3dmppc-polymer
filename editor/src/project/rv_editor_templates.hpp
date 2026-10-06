@@ -9,8 +9,7 @@ namespace rv_editor
 
 // The starting discs New Project copies: mppcdiscs/example-cpp and
 // example-lua of this repository, found at run time the way the icons are.
-struct rv_editor_template
-{
+struct rv_editor_template {
     std::string id;          // "example-lua": its directory and disc id
     std::string name;        // "Minimal Lua"
     std::string description; // what it holds and what it shows
@@ -20,8 +19,7 @@ struct rv_editor_template
 std::vector<rv_editor_template> rv_editor_templates();
 
 // What New Project asks.
-struct rv_editor_new_project
-{
+struct rv_editor_new_project {
     std::string name;             // the disc's title
     std::string disc_id;          // its id: the directory's name too
     std::filesystem::path parent; // where the directory goes
@@ -32,8 +30,7 @@ struct rv_editor_new_project
 std::string rv_editor_disc_id_from(const std::string &name);
 
 // The New Project field a problem is about; root is <parent>/<disc id> itself.
-enum class rv_editor_new_project_field
-{
+enum class rv_editor_new_project_field {
     none,
     name,
     disc_id,
@@ -44,7 +41,8 @@ enum class rv_editor_new_project_field
 
 // Why `p` cannot be created as it stands, and in *field which field that is about;
 // empty when it can. The disc id itself is judged by pdklib's manifest rules once written.
-std::string rv_editor_new_project_problem(const rv_editor_new_project &p, const std::vector<rv_editor_template> &templates,
+std::string rv_editor_new_project_problem(const rv_editor_new_project &p,
+    const std::vector<rv_editor_template> &templates,
     rv_editor_new_project_field *field = nullptr);
 
 // The files the new project will have, relative to its root, sorted: the preview.

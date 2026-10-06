@@ -42,8 +42,7 @@ struct rv_editor_scene_camera;
 inline constexpr double rv_editor_near = 0.05;
 
 // The editor camera as it is this frame: its frame and how a point lands on screen.
-struct rv_editor_view
-{
+struct rv_editor_view {
     vec3 eye, right, up, forward;
     ImVec2 center;
     double focal = 1.0;
@@ -61,11 +60,10 @@ float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
 // Each object's edges in scene space: a mesh's real .obj triangles (or the unit cube while
 // it does not resolve, with the reason in *error), a camera's body and lens, a group's corner
 // brackets and axis cross, a third marker for any other kind.
-std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
-    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
+std::vector<std::pair<vec3, vec3>>
+rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
 
-struct rv_editor_tri
-{
+struct rv_editor_tri {
     vec3 p[3];
     ImVec2 uv[3];
 };
@@ -77,20 +75,29 @@ struct rv_editor_tri
 // Each mesh triangle carries its .obj vt (or 0,0 for a corner without one; the whole unit
 // square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
 // rv_editor_draw_filled once a texture's pixel size is known.
-std::vector<rv_editor_tri> rv_editor_object_triangles(
-    const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
+std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    int index,
+    std::string *error = nullptr);
 // Every mesh, quad and billboard filled, far to near, flat-shaded by face normal (a billboard's
 // normal faces the camera by construction); the selected one tinted. Volumes are never filled.
 // `renderer` null: today's flat shading. Non-null: an object whose texture resolves and loads
 // draws textured (shade-multiplied, selected tinted instead of grey); others draw flat.
-void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_editor_scene &scene,
-    const rv_editor_project &project, const std::string &selected, ImU32 base, ImU32 selected_color,
+void rv_editor_draw_filled(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    const std::string &selected,
+    ImU32 base,
+    ImU32 selected_color,
     SDL_Renderer *renderer);
 // The object whose drawing passes nearest the click, within a few pixels; empty for none.
-std::string rv_editor_pick(
-    const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
+std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
 // The Move gizmo's axis under the mouse, or -1.
-int rv_editor_gizmo_axis(const rv_editor_scene &scene, const std::string &selected, const rv_editor_view &v,
-    ImVec2 mouse, double length);
+int rv_editor_gizmo_axis(const rv_editor_scene &scene,
+    const std::string &selected,
+    const rv_editor_view &v,
+    ImVec2 mouse,
+    double length);
 
 } // namespace rv_editor

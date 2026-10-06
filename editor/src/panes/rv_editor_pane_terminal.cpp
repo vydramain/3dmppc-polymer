@@ -62,8 +62,10 @@ constexpr int scroll_lines_per_notch = 3;
 
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
-    return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask, (rgb >> channel_shift_green) & rgb_channel_mask,
-        rgb & rgb_channel_mask, rv_editor::alpha_opaque);
+    return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask,
+        (rgb >> channel_shift_green) & rgb_channel_mask,
+        rgb & rgb_channel_mask,
+        rv_editor::alpha_opaque);
 }
 
 // One line of cells: backgrounds other than the area's own in runs, then each
@@ -78,8 +80,7 @@ void rv_editor_term_draw_line(ImDrawList *dl, const rv_editor_term_line &line, I
             ++c;
         }
         if (bg != base) {
-            dl->AddRectFilled(ImVec2(at.x + start * cell.x, at.y), ImVec2(at.x + c * cell.x, at.y + cell.y),
-                rv_editor_rgb(bg));
+            dl->AddRectFilled(ImVec2(at.x + start * cell.x, at.y), ImVec2(at.x + c * cell.x, at.y + cell.y), rv_editor_rgb(bg));
         }
     }
     for (c = 0; c < line.size(); ++c) {
@@ -98,31 +99,53 @@ void rv_editor_term_draw_line(ImDrawList *dl, const rv_editor_term_line &line, I
 VTermKey rv_editor_term_key(ImGuiKey key)
 {
     switch (key) {
-        case ImGuiKey_Enter:
-        case ImGuiKey_KeypadEnter: return VTERM_KEY_ENTER;
-        case ImGuiKey_Tab: return VTERM_KEY_TAB;
-        case ImGuiKey_Backspace: return VTERM_KEY_BACKSPACE;
-        case ImGuiKey_Escape: return VTERM_KEY_ESCAPE;
-        case ImGuiKey_UpArrow: return VTERM_KEY_UP;
-        case ImGuiKey_DownArrow: return VTERM_KEY_DOWN;
-        case ImGuiKey_LeftArrow: return VTERM_KEY_LEFT;
-        case ImGuiKey_RightArrow: return VTERM_KEY_RIGHT;
-        case ImGuiKey_Insert: return VTERM_KEY_INS;
-        case ImGuiKey_Delete: return VTERM_KEY_DEL;
-        case ImGuiKey_Home: return VTERM_KEY_HOME;
-        case ImGuiKey_End: return VTERM_KEY_END;
-        case ImGuiKey_PageUp: return VTERM_KEY_PAGEUP;
-        case ImGuiKey_PageDown:
-            return VTERM_KEY_PAGEDOWN;
-        case ImGuiKey_F2: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(2));
-        case ImGuiKey_F3: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(3));
-        case ImGuiKey_F4: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(4));
-        case ImGuiKey_F8: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(8));
-        case ImGuiKey_F9: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(9));
-        case ImGuiKey_F10: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(10));
-        case ImGuiKey_F11: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(11));
-        case ImGuiKey_F12: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(12));
-        default: return VTERM_KEY_NONE;
+    case ImGuiKey_Enter:
+    case ImGuiKey_KeypadEnter:
+        return VTERM_KEY_ENTER;
+    case ImGuiKey_Tab:
+        return VTERM_KEY_TAB;
+    case ImGuiKey_Backspace:
+        return VTERM_KEY_BACKSPACE;
+    case ImGuiKey_Escape:
+        return VTERM_KEY_ESCAPE;
+    case ImGuiKey_UpArrow:
+        return VTERM_KEY_UP;
+    case ImGuiKey_DownArrow:
+        return VTERM_KEY_DOWN;
+    case ImGuiKey_LeftArrow:
+        return VTERM_KEY_LEFT;
+    case ImGuiKey_RightArrow:
+        return VTERM_KEY_RIGHT;
+    case ImGuiKey_Insert:
+        return VTERM_KEY_INS;
+    case ImGuiKey_Delete:
+        return VTERM_KEY_DEL;
+    case ImGuiKey_Home:
+        return VTERM_KEY_HOME;
+    case ImGuiKey_End:
+        return VTERM_KEY_END;
+    case ImGuiKey_PageUp:
+        return VTERM_KEY_PAGEUP;
+    case ImGuiKey_PageDown:
+        return VTERM_KEY_PAGEDOWN;
+    case ImGuiKey_F2:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(2));
+    case ImGuiKey_F3:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(3));
+    case ImGuiKey_F4:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(4));
+    case ImGuiKey_F8:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(8));
+    case ImGuiKey_F9:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(9));
+    case ImGuiKey_F10:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(10));
+    case ImGuiKey_F11:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(11));
+    case ImGuiKey_F12:
+        return static_cast<VTermKey>(VTERM_KEY_FUNCTION(12));
+    default:
+        return VTERM_KEY_NONE;
     }
 }
 
@@ -133,10 +156,11 @@ void rv_editor_term_type(rv_editor_terminal &term, const std::string &text)
     while (i < text.size()) {
         // One code point; a byte that starts none is skipped.
         const auto b = static_cast<unsigned char>(text[i]);
-        const size_t n = b < utf8_1byte_limit ? 1 : (b >> utf8_2byte_lead_shift) == utf8_2byte_lead_check ? utf8_2byte_length :
-            (b >> utf8_3byte_lead_shift) == utf8_3byte_lead_check                                         ? utf8_3byte_length :
-            (b >> utf8_4byte_lead_shift) == utf8_4byte_lead_check                                         ? utf8_4byte_length :
-                                                                                                            0;
+        const size_t n = b < utf8_1byte_limit                     ? 1 :
+            (b >> utf8_2byte_lead_shift) == utf8_2byte_lead_check ? utf8_2byte_length :
+            (b >> utf8_3byte_lead_shift) == utf8_3byte_lead_check ? utf8_3byte_length :
+            (b >> utf8_4byte_lead_shift) == utf8_4byte_lead_check ? utf8_4byte_length :
+                                                                    0;
         if (n == 0 || i + n > text.size()) {
             ++i;
             continue;
@@ -212,12 +236,10 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     if (view.term == nullptr || !view.term->running() || !view.error.empty()) {
         std::string why;
         if (!view.error.empty()) {
-            why = rv_editor_text_format("pane_terminal.shell_not_started",
-                std::make_format_args(view.error));
+            why = rv_editor_text_format("pane_terminal.shell_not_started", std::make_format_args(view.error));
         } else if (view.term != nullptr && !view.term->running()) {
             const std::string ended_msg = view.term->ended();
-            why = rv_editor_text_format("pane_terminal.shell_ended",
-                std::make_format_args(ended_msg));
+            why = rv_editor_text_format("pane_terminal.shell_ended", std::make_format_args(ended_msg));
         }
         if (!why.empty()) {
             rv_editor_font_code_pop();
@@ -240,12 +262,15 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
         ImGui::SameLine();
         const bool cancel = rv_editor_button(rv_editor_text("pane_terminal.cancel"), theme);
-        const float lines = static_cast<float>(std::min<size_t>(max_paste_preview_lines,
-            1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
+        const float lines = static_cast<float>(
+            std::min<size_t>(max_paste_preview_lines, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
         rv_editor_font_code_push();
-        const float box_height = ImGui::GetTextLineHeightWithSpacing() * lines +
-            ImGui::GetStyle().FramePadding.y * frame_padding_sides;
-        ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1, ImVec2(-1.0f, box_height),
+        const float box_height =
+            ImGui::GetTextLineHeightWithSpacing() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+        ImGui::InputTextMultiline("##paste",
+            view.paste.data(),
+            view.paste.size() + 1,
+            ImVec2(-1.0f, box_height),
             ImGuiInputTextFlags_ReadOnly);
         rv_editor_font_code_pop();
         if (paste) {
@@ -295,9 +320,8 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     const int shown = std::min(rows, term.rows());
     for (int r = 0; r < shown; ++r) {
         const int from_screen = r - view.scroll; // negative: a line above the screen
-        const rv_editor_term_line line = from_screen < 0
-            ? back[back.size() + static_cast<size_t>(from_screen)]
-            : term.line(from_screen);
+        const rv_editor_term_line line =
+            from_screen < 0 ? back[back.size() + static_cast<size_t>(from_screen)] : term.line(from_screen);
         rv_editor_term_draw_line(dl, line, ImVec2(at.x, at.y + r * cell.y), cell, theme.code_base);
     }
     const int cursor_r = term.cursor_row() + view.scroll;
@@ -321,8 +345,8 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         const ImVec2 status(at.x, at.y + (rows - 1) * cell.y);
         dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_rgb(theme.code_surface));
         const int scroll_count = view.scroll;
-        const std::string label = rv_editor_text_format("pane_terminal.scroll_back_status",
-            std::make_format_args(scroll_count));
+        const std::string label =
+            rv_editor_text_format("pane_terminal.scroll_back_status", std::make_format_args(scroll_count));
         dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_rgb(theme.code_text), label.c_str());
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {

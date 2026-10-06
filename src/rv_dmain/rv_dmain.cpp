@@ -150,8 +150,7 @@ void rv_dmain::frame_render()
     // The Z flag is on because the cut-out row depends on it: a hole must write
     // neither colour nor depth, and that is only observable when per-pixel depth
     // resolves primitives sharing an ordering-table bucket.
-    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z,
-        rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
+    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z, rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
 
     draw_test_grid();
     draw_post();

@@ -36,8 +36,7 @@ constexpr float burn_log_ratio = 0.68f;
 constexpr float burn_game_ratio = 0.35f;
 
 // Builds a tree by inserting panes next to panes already placed.
-struct rv_editor_preset_builder
-{
+struct rv_editor_preset_builder {
     rv_editor_pane_registry panes{};
     rv_editor_layout layout{};
 
@@ -122,8 +121,7 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
-    const rv_editor_pane_id candidate =
-        b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
+    const rv_editor_pane_id candidate = b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
     b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_game_ratio);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
@@ -147,8 +145,7 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
     return "";
 }
 
-void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes,
-    rv_editor_layout &layout)
+void rv_editor_layout_preset_make(rv_editor_layout_preset preset, rv_editor_pane_registry &panes, rv_editor_layout &layout)
 {
     rv_editor_pane_kind first = rv_editor_pane_kind::code;
     if (preset == rv_editor_layout_preset::scene) {

@@ -34,7 +34,10 @@ public:
 
     int64_t card_erase(int64_t slot) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 };
 
 } // namespace rv_3dmppc

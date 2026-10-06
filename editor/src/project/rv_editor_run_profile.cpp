@@ -181,8 +181,7 @@ rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root
     return config;
 }
 
-int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
-    std::string &error)
+int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config, std::string &error)
 {
     std::string t = std::string(run_config_header);
     t += section_open;
@@ -299,8 +298,7 @@ std::string rv_editor_run_profile_problem(const rv_editor_run_profile &p, const 
         for (const auto &[name, why] : owned) {
             if (flag == name) {
                 const char *why_text = rv_editor_text(why);
-                return rv_editor_text_format("run_profile.console_option_owned",
-                    std::make_format_args(a, why_text));
+                return rv_editor_text_format("run_profile.console_option_owned", std::make_format_args(a, why_text));
             }
         }
         if (flag == console_flag_scale_short) {

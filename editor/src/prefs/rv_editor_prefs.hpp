@@ -12,8 +12,7 @@ namespace rv_editor
 // How the Game tile scales the console's frame: fit fills the tile keeping the
 // frame's proportions, integer takes the largest whole multiple that fits, the
 // rest are fixed multiples.
-enum class rv_editor_game_scale
-{
+enum class rv_editor_game_scale {
     fit,
     integer,
     x1,
@@ -32,8 +31,7 @@ constexpr float ui_scale_large = 2.0f;
 
 // What the user chose for the view, kept between runs in its own file next to
 // the layout, never in settings.toml or disc.toml.
-struct rv_editor_prefs
-{
+struct rv_editor_prefs {
     rv_editor_code_size code_size = rv_editor_code_size::small;
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
     std::string workspace = "code"; // the layout shown last: "code", "scene", "debug" or "burn"

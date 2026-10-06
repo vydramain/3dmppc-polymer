@@ -60,9 +60,8 @@ constexpr std::string_view lua_open_buffer_at_cursor =
     "end";
 
 // Lua script: execute user's choice (recover or discard) for a swap file
-constexpr std::string_view lua_swap_resolve_action =
-    "local win, file, choice = ...\n"
-    "rv_swap_resolve(tonumber(win), file, choice)";
+constexpr std::string_view lua_swap_resolve_action = "local win, file, choice = ...\n"
+                                                     "rv_swap_resolve(tonumber(win), file, choice)";
 
 } // namespace
 
@@ -111,7 +110,8 @@ bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mp
                 return true;
             }
             swaps_[file_str] = { swap->s, state_str, 0 };
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
                 file_str + ": a crashed nvim left unsaved text in " + swap->s +
                     "; the file is read-only until Recover or Discard");
             return true;
@@ -123,7 +123,8 @@ bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mp
                 pid_val = pid->i;
             }
             swaps_[file_str] = { "", state_str, pid_val };
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
                 file_str + ": nvim process " + std::to_string(pid_val) + " is editing it; opened read-only");
             return true;
         }

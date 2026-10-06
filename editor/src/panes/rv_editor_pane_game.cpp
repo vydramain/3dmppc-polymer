@@ -99,10 +99,16 @@ constexpr size_t bytes_per_pixel_argb8888 = 4;
 // candidate view carries its own Run Candidate here instead of the dev Run.
 void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit, rv_editor_game_scale::integer,
-        rv_editor_game_scale::x1, rv_editor_game_scale::x2, rv_editor_game_scale::x3 };
-    constexpr const char *ids[] = { "pane_game.scale_fit", "pane_game.scale_integer",
-        "pane_game.scale_1x", "pane_game.scale_2x", "pane_game.scale_3x" };
+    constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit,
+        rv_editor_game_scale::integer,
+        rv_editor_game_scale::x1,
+        rv_editor_game_scale::x2,
+        rv_editor_game_scale::x3 };
+    constexpr const char *ids[] = { "pane_game.scale_fit",
+        "pane_game.scale_integer",
+        "pane_game.scale_1x",
+        "pane_game.scale_2x",
+        "pane_game.scale_3x" };
     for (size_t i = 0; i < std::size(modes); ++i) {
         const char *label = rv_editor_text(ids[i]);
         if (i > 0) {
@@ -116,8 +122,7 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
     if (app.release_view) {
         const char *run_candidate_text = rv_editor_text("pane_game.run_candidate");
         rv_editor_flow(rv_editor_button_width(run_candidate_text));
-        if (rv_editor_button(run_candidate_text, theme,
-                { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
+        if (rv_editor_button(run_candidate_text, theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
             rv_editor_app_run_candidate(app);
         }
         return;
@@ -138,20 +143,16 @@ std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor
         return rv_editor_text_format("pane_game.scale_fit_text", std::make_format_args(scale));
     case rv_editor_game_scale::integer:
         if (view.reduced) {
-            return rv_editor_text_format("pane_game.scale_integer_reduced",
-                std::make_format_args(scale));
+            return rv_editor_text_format("pane_game.scale_integer_reduced", std::make_format_args(scale));
         } else {
-            return rv_editor_text_format("pane_game.scale_integer_normal",
-                std::make_format_args(scale));
+            return rv_editor_text_format("pane_game.scale_integer_normal", std::make_format_args(scale));
         }
     default: {
         const char *name = rv_editor_game_scale_name(mode);
         if (view.reduced) {
-            return rv_editor_text_format("pane_game.scale_other_reduced",
-                std::make_format_args(name, scale));
+            return rv_editor_text_format("pane_game.scale_other_reduced", std::make_format_args(name, scale));
         } else {
-            return rv_editor_text_format("pane_game.scale_other_normal",
-                std::make_format_args(name));
+            return rv_editor_text_format("pane_game.scale_other_normal", std::make_format_args(name));
         }
     }
     }
@@ -159,25 +160,35 @@ std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor
 
 // The status line's colour: normal for a live or plain-stopped line, warn for a
 // stale/disconnected frame, muted while no frame has ever arrived yet.
-enum class rv_editor_game_line { normal, warn, muted };
+enum class rv_editor_game_line {
+    normal,
+    warn,
+    muted
+};
 
 // One status line, then the picture area to the tile's bottom edge, dark, with the
 // frame placed as Game Scale says once a texture exists; empty otherwise. Every
 // state routes through here so this-frame's area is the same shape regardless of
 // what the state has to show (game-steady).
-void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, std::string status,
-    rv_editor_game_line line, bool clickable)
+void rv_editor_game_picture(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    std::string status,
+    rv_editor_game_line line,
+    bool clickable)
 {
     const bool have = rv_editor_game_texture != nullptr && rv_editor_game_frame != 0;
     ImVec2 area = ImGui::GetContentRegionAvail();
     area.y -= ImGui::GetTextLineHeightWithSpacing();
     rv_editor_game_view view{};
     if (have) {
-        view = rv_editor_game_place(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h), area.x,
-            area.y, app.game_scale);
+        view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
+            static_cast<int>(rv_editor_game_h),
+            area.x,
+            area.y,
+            app.game_scale);
         status = std::to_string(rv_editor_game_w) + dimension_sep.data() + std::to_string(rv_editor_game_h) +
-            dimensions_scale_sep.data() + rv_editor_game_scale_text(app.game_scale, view) +
-            dimensions_scale_sep.data() + status;
+            dimensions_scale_sep.data() + rv_editor_game_scale_text(app.game_scale, view) + dimensions_scale_sep.data() +
+            status;
     }
     if (line == rv_editor_game_line::warn) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
@@ -211,10 +222,17 @@ void rv_editor_game_picture(rv_editor_app &app, const rv_editor_theme &theme, st
     }
     const ImVec2 i0(p0.x + view.x, p0.y + view.y);
     const ImVec2 i1(i0.x + view.w, i0.y + view.h);
-    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)), i0, i1, ImVec2(0.0f, 0.0f),
-        ImVec2(1.0f, 1.0f), line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
+    dl->AddImage(ImTextureID(reinterpret_cast<intptr_t>(rv_editor_game_texture)),
+        i0,
+        i1,
+        ImVec2(0.0f, 0.0f),
+        ImVec2(1.0f, 1.0f),
+        line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
     if (app.game_captured) {
-        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1), ImVec2(i1.x + 1, i1.y + 1), rv_editor_col(theme.selection), 0.0f,
+        dl->AddRect(ImVec2(i0.x - 1, i0.y - 1),
+            ImVec2(i1.x + 1, i1.y + 1),
+            rv_editor_col(theme.selection),
+            0.0f,
             frame_thickness_px);
     }
 }
@@ -230,8 +248,8 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
     }
     const uint64_t session_num = s.number();
     const char *state_name = rv_editor_run_state_name(s.state());
-    const std::string stale_msg = rv_editor_text_format("pane_game.stale_session",
-        std::make_format_args(session_num, state_name));
+    const std::string stale_msg =
+        rv_editor_text_format("pane_game.stale_session", std::make_format_args(session_num, state_name));
     status += stale_msg;
     return true;
 }
@@ -246,12 +264,10 @@ void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &th
         status = rv_editor_text("pane_game.no_candidate");
     } else {
         const uint32_t candidate_num = app.release.candidates[app.release.selected].number;
-        status = rv_editor_text_format("pane_game.candidate_image",
-            std::make_format_args(candidate_num));
+        status = rv_editor_text_format("pane_game.candidate_image", std::make_format_args(candidate_num));
     }
     const bool stale = rv_editor_game_join_stale(app, status);
-    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
-        false);
+    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
 }
 
 } // namespace
@@ -263,8 +279,10 @@ int rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path
         error = rv_editor_text("pane_game.error_no_frame");
         return RV_ERR_NOENT;
     }
-    SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h),
-        SDL_PIXELFORMAT_ARGB8888, rv_editor_game_pixels.data(),
+    SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w),
+        static_cast<int>(rv_editor_game_h),
+        SDL_PIXELFORMAT_ARGB8888,
+        rv_editor_game_pixels.data(),
         static_cast<int>(rv_editor_game_w * bytes_per_pixel_argb8888));
     if (surface == nullptr) {
         error = SDL_GetError();
@@ -298,8 +316,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     // text, all measured inside it.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    app.game_area = { static_cast<int32_t>(avail.x),
-        static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
+    app.game_area = { static_cast<int32_t>(avail.x), static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
 
     const auto body = [&]() {
         if (!s.live()) {
@@ -311,19 +328,18 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             if (app.release_view && app.release.player != nullptr) {
                 // The player draws in a window of its own: here only what the editor knows.
                 const rv_editor_release &r = app.release;
-                const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-                    std::chrono::steady_clock::now() - r.player_started)
-                                         .count();
-                const uint32_t number = r.player_candidate >= 0 ?
-                    r.candidates[static_cast<size_t>(r.player_candidate)].number :
-                    0;
+                const auto seconds =
+                    std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - r.player_started)
+                        .count();
+                const uint32_t number =
+                    r.player_candidate >= 0 ? r.candidates[static_cast<size_t>(r.player_candidate)].number : 0;
                 const int player_pid = static_cast<int>(r.player->pid());
                 const long long elapsed_secs = static_cast<long long>(seconds);
-                const std::string external_msg = rv_editor_text_format("pane_game.external_player",
-                    std::make_format_args(number, player_pid, elapsed_secs));
+                const std::string external_msg =
+                    rv_editor_text_format("pane_game.external_player", std::make_format_args(number, player_pid, elapsed_secs));
                 ImGui::TextWrapped("%s", external_msg.c_str());
-                const char *button_text = r.player_stopped ? rv_editor_text("pane_game.kill_player") :
-                                                             rv_editor_text("pane_game.stop_player");
+                const char *button_text =
+                    r.player_stopped ? rv_editor_text("pane_game.kill_player") : rv_editor_text("pane_game.stop_player");
                 if (rv_editor_button(button_text, theme)) {
                     rv_editor_app_stop_player(app);
                 }
@@ -339,8 +355,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             std::string status;
             if (!rv_editor_app_run_builds(app)) {
                 const uint32_t build_num = app.build.last_success()->number;
-                status = rv_editor_text_format("pane_game.stopped_builds",
-                    std::make_format_args(build_num));
+                status = rv_editor_text_format("pane_game.stopped_builds", std::make_format_args(build_num));
             } else {
                 status = rv_editor_text("pane_game.stopped_rebuilds");
             }
@@ -370,8 +385,11 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 if (rv_editor_game_texture != nullptr) {
                     SDL_DestroyTexture(rv_editor_game_texture);
                 }
-                rv_editor_game_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                    SDL_TEXTUREACCESS_STREAMING, static_cast<int>(w), static_cast<int>(h));
+                rv_editor_game_texture = SDL_CreateTexture(renderer,
+                    SDL_PIXELFORMAT_ARGB8888,
+                    SDL_TEXTUREACCESS_STREAMING,
+                    static_cast<int>(w),
+                    static_cast<int>(h));
                 if (rv_editor_game_texture != nullptr) {
                     SDL_SetTextureScaleMode(rv_editor_game_texture, SDL_SCALEMODE_NEAREST);
                 }
@@ -379,7 +397,9 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 rv_editor_game_h = h;
             }
             if (rv_editor_game_texture != nullptr) {
-                SDL_UpdateTexture(rv_editor_game_texture, nullptr, rv_editor_game_pixels.data(),
+                SDL_UpdateTexture(rv_editor_game_texture,
+                    nullptr,
+                    rv_editor_game_pixels.data(),
                     static_cast<int>(w * bytes_per_pixel_argb8888));
             }
             rv_editor_game_frame = f;
@@ -387,8 +407,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
         // The texture may still hold the last session's frame: not this one's.
         if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
-            rv_editor_game_picture(app, theme, rv_editor_text("pane_game.frame_waiting"),
-                rv_editor_game_line::muted, false);
+            rv_editor_game_picture(app, theme, rv_editor_text("pane_game.frame_waiting"), rv_editor_game_line::muted, false);
             return;
         }
 
@@ -424,8 +443,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         }
 
         const auto frame = s.frame();
-        rv_editor_game_picture(app, theme,
-            rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)), line,
+        rv_editor_game_picture(app,
+            theme,
+            rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)),
+            line,
             s.state() != rv_editor_run_state::disconnected);
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
@@ -442,8 +463,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     if (app.project.screen_w > 0 && app.project.screen_h > 0) {
         app.game_need = rv_editor_size{ static_cast<int32_t>(app.project.screen_w) +
                 std::max(0, static_cast<int32_t>(region.x) - app.game_area.w),
-            static_cast<int32_t>(app.project.screen_h) +
-                std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) };
+            static_cast<int32_t>(app.project.screen_h) + std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) };
     }
     rv_editor_well_end();
 }

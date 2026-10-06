@@ -170,7 +170,8 @@ void rv_editor_nvim::switch_root(const std::filesystem::path &root, std::functio
         done({});
         return;
     }
-    exec_lua(rv_editor_lua_switch_root, { root.string() },
+    exec_lua(rv_editor_lua_switch_root,
+        { root.string() },
         [done = std::move(done)](const rv_editor_mpack &error, const rv_editor_mpack &result) {
             done(error.is(mtype::nil) ? result.s : rv_editor_reply_error(error));
         });

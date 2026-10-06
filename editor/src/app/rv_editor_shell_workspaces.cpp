@@ -30,10 +30,14 @@ size_t rv_editor_workspace_slot(rv_editor_layout_preset preset)
 const char *rv_editor_workspace_key_of(rv_editor_layout_preset preset)
 {
     switch (preset) {
-        case rv_editor_layout_preset::scene: return "scene";
-        case rv_editor_layout_preset::debug: return "debug";
-        case rv_editor_layout_preset::burn: return "burn";
-        default: return "code";
+    case rv_editor_layout_preset::scene:
+        return "scene";
+    case rv_editor_layout_preset::debug:
+        return "debug";
+    case rv_editor_layout_preset::burn:
+        return "burn";
+    default:
+        return "code";
     }
 }
 
@@ -48,10 +52,14 @@ std::filesystem::path rv_editor_workspace_file(const std::filesystem::path &path
 std::filesystem::path rv_editor_workspace_old_file(const std::filesystem::path &path, rv_editor_layout_preset preset)
 {
     switch (preset) {
-        case rv_editor_layout_preset::code: return path;
-        case rv_editor_layout_preset::debug: return path.parent_path() / (path.filename().string() + "-test");
-        case rv_editor_layout_preset::burn: return path.parent_path() / (path.filename().string() + "-release");
-        default: return {};
+    case rv_editor_layout_preset::code:
+        return path;
+    case rv_editor_layout_preset::debug:
+        return path.parent_path() / (path.filename().string() + "-test");
+    case rv_editor_layout_preset::burn:
+        return path.parent_path() / (path.filename().string() + "-release");
+    default:
+        return {};
     }
 }
 
@@ -94,11 +102,14 @@ bool rv_editor_preset_fits_game(rv_editor_layout_preset preset)
 // adjusts `node`'s ratio by `delta` (positive grow, negative shrink). When
 // `guard_bottom_sibling` and `delta > 0`, skips taking height from bottom row.
 // Placement clamps results to panes' minimums; returns RV_OK or RV_ERR_NOENT if no ancestor has space.
-int rv_editor_shell_grow_game(rv_editor_workspace &ws, uint32_t node, rv_editor_axis axis, int32_t delta,
+int rv_editor_shell_grow_game(rv_editor_workspace &ws,
+    uint32_t node,
+    rv_editor_axis axis,
+    int32_t delta,
     bool guard_bottom_sibling)
 {
     for (uint32_t parent = ws.layout.nodes[node].parent; parent != rv_editor_tile_none;
-         node = parent, parent = ws.layout.nodes[parent].parent) {
+        node = parent, parent = ws.layout.nodes[parent].parent) {
         const rv_editor_tile_split &split = ws.layout.nodes[parent].split;
         const uint32_t sibling = node == split.first ? split.second : split.first;
         if (ws.layout.nodes[parent].kind != rv_editor_tile_kind::split || split.axis != axis ||
@@ -171,8 +182,7 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
             continue;
         }
         const bool first_is_strip = rv_editor_strip_leaf(ws, n.split.first) || rv_editor_strip_row(ws, n.split.first);
-        const bool second_is_strip =
-            rv_editor_strip_leaf(ws, n.split.second) || rv_editor_strip_row(ws, n.split.second);
+        const bool second_is_strip = rv_editor_strip_leaf(ws, n.split.second) || rv_editor_strip_row(ws, n.split.second);
         if (first_is_strip == second_is_strip) {
             continue; // neither, or both: nothing to fit against
         }
@@ -185,8 +195,8 @@ void rv_editor_shell_fit_strips(rv_editor_workspace &ws)
         }
         const uint32_t strip = first_is_strip ? n.split.first : n.split.second;
         const int32_t need = rv_editor_strip_like_min_along(ws, strip, axis);
-        const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total)
-                                            : 1.0f - static_cast<float>(need) / static_cast<float>(total);
+        const float ratio = first_is_strip ? static_cast<float>(need) / static_cast<float>(total) :
+                                             1.0f - static_cast<float>(need) / static_cast<float>(total);
         (void)rv_editor_tile_set_ratio(ws.layout, i, ratio);
     }
 }
@@ -320,8 +330,10 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
             continue;
         }
         if (!file.empty() && std::filesystem::exists(file, ec)) {
-            std::fprintf(stderr, "3dmppc-editor: %s is not a layout this editor reads; starting from %s\n",
-                file.c_str(), rv_editor_layout_preset_name(preset));
+            std::fprintf(stderr,
+                "3dmppc-editor: %s is not a layout this editor reads; starting from %s\n",
+                file.c_str(),
+                rv_editor_layout_preset_name(preset));
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);
         shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
@@ -349,8 +361,7 @@ int rv_editor_shell_save_layouts(const rv_editor_shell &shell, const std::filesy
 {
     int result = RV_OK;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-        const rv_editor_layout &tree =
-            preset == shell.active ? shell.ws.layout : shell.trees[rv_editor_workspace_slot(preset)];
+        const rv_editor_layout &tree = preset == shell.active ? shell.ws.layout : shell.trees[rv_editor_workspace_slot(preset)];
         std::string why;
         const int err = rv_editor_layout_save(rv_editor_workspace_file(path, preset), shell.ws.panes, tree, why);
         if (err != RV_OK && result == RV_OK) {

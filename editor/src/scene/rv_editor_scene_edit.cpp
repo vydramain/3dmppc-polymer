@@ -66,8 +66,8 @@ mat3 rv_editor_rotation(const rv_editor_vec3 &deg)
 
 rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
 {
-    const double det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) -
-        a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+    const double det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
+        a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
     ok = std::fabs(det) > matrix_epsilon;
     rv_editor_affine r{};
     if (!ok) {
@@ -103,8 +103,8 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
             r[i][j] = m[i][j] / s[j];
         }
     }
-    const double det = r[0][0] * (r[1][1] * r[2][2] - r[1][2] * r[2][1]) -
-        r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0]) + r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]);
+    const double det = r[0][0] * (r[1][1] * r[2][2] - r[1][2] * r[2][1]) - r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0]) +
+        r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]);
     if (det < 0.0) {
         s[0] = -s[0];
         for (int i = 0; i < space_axes; ++i) {
@@ -264,11 +264,12 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
     rv_editor_scene_object o;
     o.id = rv_editor_scene_new_id(doc.scene);
     o.kind = kind;
-    o.name = kind == kind_camera ? default_camera_name : kind == kind_mesh ? default_mesh_name :
-        kind == kind_quad                                                  ? default_quad_name :
-        kind == kind_billboard                                             ? default_billboard_name :
-        kind == kind_volume                                                ? default_volume_name :
-                                                                             default_group_name;
+    o.name = kind == kind_camera ? default_camera_name :
+        kind == kind_mesh        ? default_mesh_name :
+        kind == kind_quad        ? default_quad_name :
+        kind == kind_billboard   ? default_billboard_name :
+        kind == kind_volume      ? default_volume_name :
+                                   default_group_name;
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
     doc.selected = o.id;
@@ -328,8 +329,11 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
     return made.front().id;
 }
 
-int rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, const std::string &parent,
-    bool keep_world, std::string &why)
+int rv_editor_scene_reparent(rv_editor_scene_doc &doc,
+    const std::string &id,
+    const std::string &parent,
+    bool keep_world,
+    std::string &why)
 {
     const int at = rv_editor_scene_find(doc.scene, id);
     if (at < 0) {

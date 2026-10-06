@@ -137,8 +137,7 @@ int64_t normalize_winding(rv_pctri &tri)
 // and an entirely off-screen primitive costs only this comparison.
 //
 // Returns false when the box is empty (nothing to draw).
-bool clip_bounds(const rv_pctri &tri, const rv_pcfbuf &fbuf, int64_t &min_x, int64_t &min_y,
-    int64_t &max_x, int64_t &max_y)
+bool clip_bounds(const rv_pctri &tri, const rv_pcfbuf &fbuf, int64_t &min_x, int64_t &min_y, int64_t &max_x, int64_t &max_y)
 {
     min_x = max64(min64(tri.x[0], min64(tri.x[1], tri.x[2])), 0);
     min_y = max64(min64(tri.y[0], min64(tri.y[1], tri.y[2])), 0);
@@ -149,9 +148,13 @@ bool clip_bounds(const rv_pctri &tri, const rv_pcfbuf &fbuf, int64_t &min_x, int
 
 // Edge i runs from vertex i to vertex (i + 1) % RV_PCRASTER_TRIANGLE_VERTICES; the vertex it does NOT
 // touch is (i + 2) % RV_PCRASTER_TRIANGLE_VERTICES.
-void setup_edges(const rv_pctri &tri, int64_t min_x, int64_t min_y,
-    int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
-    int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES], int64_t row[RV_PCRASTER_TRIANGLE_VERTICES])
+void setup_edges(const rv_pctri &tri,
+    int64_t min_x,
+    int64_t min_y,
+    int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t row[RV_PCRASTER_TRIANGLE_VERTICES])
 {
     for (int i = 0; i < RV_PCRASTER_TRIANGLE_VERTICES; ++i) {
         const int a = i;
@@ -182,9 +185,13 @@ void setup_edges(const rv_pctri &tri, int64_t min_x, int64_t min_y,
 // Worst on large, steeply angled surfaces (floors, walls); invisible on small
 // or screen-parallel ones. A disc manages it exactly as PSX games did - by
 // subdividing a big surface into more, smaller polygons.
-rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t area2,
-    const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
-    int64_t min_x, int64_t min_y)
+rv_pcuvwalk setup_uv(const rv_pctri &tri,
+    const rv_pctexstage &stage,
+    int64_t area2,
+    const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES],
+    const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t min_x,
+    int64_t min_y)
 {
     rv_pcuvwalk uv;
     if (stage.stretch()) {
@@ -215,10 +222,8 @@ rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t ar
         // coordinate is exactly that vertex's uv - no division and no
         // rounding, so the texel the disc authored to sit on a corner is the
         // one texel guaranteed to land on it.
-        uv.u = (u0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.du_dx +
-            (min_y - tri.y[0]) * uv.du_dy;
-        uv.v = (v0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.dv_dx +
-            (min_y - tri.y[0]) * uv.dv_dy;
+        uv.u = (u0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.du_dx + (min_y - tri.y[0]) * uv.du_dy;
+        uv.v = (v0 << RV_UV_FX_SHIFT) + (min_x - tri.x[0]) * uv.dv_dx + (min_y - tri.y[0]) * uv.dv_dy;
     }
     return uv;
 }
@@ -228,14 +233,20 @@ rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t ar
 // One covered pixel of a textured fill. Its own function so the scanline loop
 // stays a loop: the sample-then-test pair is a third level of nesting that has
 // nothing to do with walking the bounding box.
-void shade_textured(rv_pcfbuf &fbuf, const rv_pctexstage &stage, int64_t x, int64_t y, int64_t u_fx,
-    int64_t v_fx, int32_t depth, bool z_enabled)
+void shade_textured(rv_pcfbuf &fbuf,
+    const rv_pctexstage &stage,
+    int64_t x,
+    int64_t y,
+    int64_t u_fx,
+    int64_t v_fx,
+    int32_t depth,
+    bool z_enabled)
 {
     // >> on a signed value floors (C++20 onwards), so a coordinate lands in the
     // same texel on both sides of zero - no half-texel jump across u == 0 under
     // TILE.
-    const rv_pctexel_sample texel = rv_pctexel::sample(
-        *stage.view, u_fx >> RV_UV_FX_SHIFT, v_fx >> RV_UV_FX_SHIFT, stage.mapping);
+    const rv_pctexel_sample texel =
+        rv_pctexel::sample(*stage.view, u_fx >> RV_UV_FX_SHIFT, v_fx >> RV_UV_FX_SHIFT, stage.mapping);
     // A transparent texel writes NOTHING - not colour, not depth. The Z test is
     // inside emit(), so simply not calling it is the whole rule (see
     // rv_pctexel.cpp).
@@ -246,8 +257,16 @@ void shade_textured(rv_pcfbuf &fbuf, const rv_pctexstage &stage, int64_t x, int6
 
 // One covered pixel of a flat/Gouraud fill: the three edge functions the inside
 // test already computed, turned into barycentric weights and mixed.
-void shade_gouraud(rv_pcfbuf &fbuf, const rv_pctri &tri, int64_t x, int64_t y, int64_t e0,
-    int64_t e1, int64_t e2, double inv_area2, int32_t depth, bool z_enabled)
+void shade_gouraud(rv_pcfbuf &fbuf,
+    const rv_pctri &tri,
+    int64_t x,
+    int64_t y,
+    int64_t e0,
+    int64_t e1,
+    int64_t e2,
+    double inv_area2,
+    int32_t depth,
+    bool z_enabled)
 {
     const double w0 = static_cast<double>(e1) * inv_area2; // opposite edge 1
     const double w1 = static_cast<double>(e2) * inv_area2; // opposite edge 2
@@ -261,10 +280,21 @@ void shade_gouraud(rv_pcfbuf &fbuf, const rv_pctri &tri, int64_t x, int64_t y, i
     emit(fbuf, x, y, rv_pcraster::pack_rgb555_dithered(color, x, y), depth, z_enabled);
 }
 
-void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexstage &stage,
-    int32_t depth, bool z_enabled, int64_t min_x, int64_t min_y, int64_t max_x, int64_t max_y,
-    int64_t area2, const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
-    const int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES], int64_t row[RV_PCRASTER_TRIANGLE_VERTICES], bool textured,
+void rasterize_scanlines(rv_pcfbuf &fbuf,
+    const rv_pctri &tri,
+    const rv_pctexstage &stage,
+    int32_t depth,
+    bool z_enabled,
+    int64_t min_x,
+    int64_t min_y,
+    int64_t max_x,
+    int64_t max_y,
+    int64_t area2,
+    const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES],
+    const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
+    const int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t row[RV_PCRASTER_TRIANGLE_VERTICES],
+    bool textured,
     rv_pcuvwalk uv)
 {
     // Barycentric coordinates from the same edge functions - for a
@@ -309,8 +339,7 @@ void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexsta
     }
 }
 
-void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, int32_t depth,
-    bool z_enabled)
+void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, int32_t depth, bool z_enabled)
 {
     const int64_t area2 = normalize_winding(tri);
     if (area2 == 0) {
@@ -334,8 +363,22 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
         uv = setup_uv(tri, stage, area2, step_x, step_y, min_x, min_y);
     }
 
-    rasterize_scanlines(fbuf, tri, stage, depth, z_enabled, min_x, min_y, max_x, max_y, area2,
-        step_x, step_y, bias, row, textured, uv);
+    rasterize_scanlines(fbuf,
+        tri,
+        stage,
+        depth,
+        z_enabled,
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+        area2,
+        step_x,
+        step_y,
+        bias,
+        row,
+        textured,
+        uv);
 }
 
 rv_line make_edge(const rv_vertex &a, const rv_vertex &b)
@@ -348,8 +391,11 @@ rv_line make_edge(const rv_vertex &a, const rv_vertex &b)
 
 } // namespace
 
-void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
-    const rv_pctexview &texture, int32_t depth, bool z_enabled)
+void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf,
+    const rv_polygon &polygon,
+    const rv_pctexview &texture,
+    int32_t depth,
+    bool z_enabled)
 {
     if (polygon.vertex_count != RV_PCRASTER_TRIANGLE_VERTICES && polygon.vertex_count != RV_PCRASTER_QUAD_VERTICES) {
         return; // frame_put already rejected this; nothing sane to draw
@@ -384,9 +430,7 @@ void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
     // (1,2,3). The split is contract, not an implementation choice: it decides
     // how colours and uv interpolate across the surface, so vertex ORDER is part
     // of what the disc specifies (PSX rule, kept on purpose).
-    static const int RV_TRI_INDICES[RV_PCRASTER_QUAD_TRIANGLES][RV_PCRASTER_TRIANGLE_VERTICES] = {
-        { 0, 1, 2 }, { 1, 2, 3 }
-    };
+    static const int RV_TRI_INDICES[RV_PCRASTER_QUAD_TRIANGLES][RV_PCRASTER_TRIANGLE_VERTICES] = { { 0, 1, 2 }, { 1, 2, 3 } };
     const int tri_count = quad ? RV_PCRASTER_QUAD_TRIANGLES : 1;
 
     rv_pctexstage stage;

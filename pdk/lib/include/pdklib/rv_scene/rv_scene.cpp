@@ -94,8 +94,7 @@ int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
         return RV_ERR_INVAL;
     }
-    out = { static_cast<float>(e.value.nums[0]), static_cast<float>(e.value.nums[1]),
-        static_cast<float>(e.value.nums[2]) };
+    out = { static_cast<float>(e.value.nums[0]), static_cast<float>(e.value.nums[1]), static_cast<float>(e.value.nums[2]) };
     return RV_OK;
 }
 
@@ -121,7 +120,8 @@ int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
             return RV_ERR_INVAL;
         }
     }
-    out = { static_cast<uint8_t>(e.value.nums[0]), static_cast<uint8_t>(e.value.nums[1]),
+    out = { static_cast<uint8_t>(e.value.nums[0]),
+        static_cast<uint8_t>(e.value.nums[1]),
         static_cast<uint8_t>(e.value.nums[2]) };
     return RV_OK;
 }
@@ -177,14 +177,17 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         std::string parent;
         for (const rv_manifest_tree_entry &e : section.entries) {
             const bool text_value = e.value.kind == rv_manifest_value_kind::string;
-            std::string *field = e.key == "id" ? &o.id : e.key == "name" ? &o.name : e.key == "kind" ? &o.kind
-                : e.key == "mesh"                                     ? &o.mesh
-                : e.key == "texture"                                  ? &o.texture
-                : e.key == "parent"                                   ? &parent
-                                                                      : nullptr;
-            rv_vec3 *vec = e.key == "position" ? &o.position : e.key == "rotation" ? &o.rotation
-                : e.key == "scale"                                                 ? &o.scale
-                                                                                   : nullptr;
+            std::string *field = e.key == "id" ? &o.id :
+                e.key == "name"                ? &o.name :
+                e.key == "kind"                ? &o.kind :
+                e.key == "mesh"                ? &o.mesh :
+                e.key == "texture"             ? &o.texture :
+                e.key == "parent"              ? &parent :
+                                                 nullptr;
+            rv_vec3 *vec = e.key == "position" ? &o.position :
+                e.key == "rotation"            ? &o.rotation :
+                e.key == "scale"               ? &o.scale :
+                                                 nullptr;
             if (field != nullptr && text_value) {
                 *field = e.value.str;
             } else if (field != nullptr) {
@@ -203,8 +206,8 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
             problems += rv_scene_at(origin, section.line) + "object without an id\n";
             continue;
         }
-        if (o.kind != "group" && o.kind != "camera" && o.kind != "mesh" && o.kind != "quad" &&
-            o.kind != "billboard" && o.kind != "volume") {
+        if (o.kind != "group" && o.kind != "camera" && o.kind != "mesh" && o.kind != "quad" && o.kind != "billboard" &&
+            o.kind != "volume") {
             problems += rv_scene_at(origin, section.line) + "object '" + o.id + "' has kind '" + o.kind +
                 "': group, camera, mesh, quad, billboard or volume\n";
         }
@@ -229,8 +232,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     } else if (has_legacy_format) {
         // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
         if (!rv_version_compatible(0, 0)) {
-            problems += origin + ": scene version 0.0 is not compatible with this PDK's " +
-                std::string(rv_version_str) + "\n";
+            problems += origin + ": scene version 0.0 is not compatible with this PDK's " + std::string(rv_version_str) + "\n";
         }
     } else {
         problems += origin + ": no [scene] version\n";
@@ -259,8 +261,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
             ++steps;
         }
         if (p >= 0) {
-            problems += rv_scene_at(origin, parents[i].second) + "object '" + out.objects[i].id +
-                "' is its own ancestor\n";
+            problems += rv_scene_at(origin, parents[i].second) + "object '" + out.objects[i].id + "' is its own ancestor\n";
             cyclic.push_back(i);
         }
     }
@@ -277,8 +278,8 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
 
 rv_mat4 rv_scene_local(const rv_scene_object &o)
 {
-    const rv_mat4 r = rv_mat4_mul(
-        rv_scene_rotate_y(o.rotation.y), rv_mat4_mul(rv_scene_rotate_x(o.rotation.x), rv_scene_rotate_z(o.rotation.z)));
+    const rv_mat4 r = rv_mat4_mul(rv_scene_rotate_y(o.rotation.y),
+        rv_mat4_mul(rv_scene_rotate_x(o.rotation.x), rv_scene_rotate_z(o.rotation.z)));
     return rv_mat4_mul(rv_mat4_translate(o.position), rv_mat4_mul(r, rv_mat4_scale(o.scale)));
 }
 

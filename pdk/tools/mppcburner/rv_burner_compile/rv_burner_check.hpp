@@ -29,8 +29,7 @@ namespace rv_pdktools
 /// @param absolute_sources   receives @p sources joined to @p disc_dir
 /// @param error              set with a fragment the caller prefixes
 /// @return 0 on success, 1 on refusal
-int check_sources_outside_disc(
-    const rv_pdklib::rv_manifest &manifest,
+int check_sources_outside_disc(const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::vector<std::string> &sources,
     std::vector<std::string> &absolute_includes,

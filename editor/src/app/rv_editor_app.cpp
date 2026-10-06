@@ -38,7 +38,8 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
     std::error_code ec;
     std::filesystem::create_directories(app.project.state_dir, ec);
     if (ec) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
             app.project.state_dir.string() + ": " + ec.message());
         return RV_ERR_IO;
     }
@@ -56,15 +57,22 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
     const std::filesystem::path cwd = rv_editor_run_profile_path(profile.cwd, app.project.root);
     app.session_profile = card.empty() ? profile.name : "the candidate's own";
     if (card.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::info,
             "run profile " + profile.name + ": build #" + std::to_string(artifact.number));
     }
     std::string error;
-    const int err = app.session.start(runtime.empty() ? app.tools.console.path : runtime, artifact.dir,
-        !card.empty() ? card : !own_card.empty() ? own_card :
-                                                   app.project.state_dir / "memcard.mppccard",
-        cwd.empty() ? app.project.root : cwd, artifact.number, rv_editor_run_profile_args(profile), profile.env,
-        app.log, error);
+    const int err = app.session.start(runtime.empty() ? app.tools.console.path : runtime,
+        artifact.dir,
+        !card.empty()         ? card :
+            !own_card.empty() ? own_card :
+                                app.project.state_dir / "memcard.mppccard",
+        cwd.empty() ? app.project.root : cwd,
+        artifact.number,
+        rv_editor_run_profile_args(profile),
+        profile.env,
+        app.log,
+        error);
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return err;
@@ -72,7 +80,8 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
     const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
     app.build_map = rv_editor_build_map_read(map_path);
     if (app.build_map.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
             map_path.string() + ": no map; reload targets fall back to the entry script");
     }
     rv_editor_app_attach_session_log(app);
@@ -146,8 +155,7 @@ std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)
 
 bool rv_editor_app_run_builds(const rv_editor_app &app)
 {
-    return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded ||
-        !app.build.last_success();
+    return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded || !app.build.last_success();
 }
 
 void rv_editor_app_build(rv_editor_app &app)
@@ -228,7 +236,8 @@ void rv_editor_app_run_last(rv_editor_app &app)
         return;
     }
     const rv_editor_artifact artifact = *app.build.last_success();
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
         "running the last successful build, #" + std::to_string(artifact.number) +
             ": its native code with the current scripts, assets and scenes");
     (void)rv_editor_app_start(app, artifact);
@@ -249,8 +258,7 @@ void rv_editor_app_stop(rv_editor_app &app)
     app.session.stop(app.log);
 }
 
-int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name,
-    std::string &error)
+int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error)
 {
     error = app.nvim.buffers_unsaved_at(from);
     if (!error.empty()) {
@@ -262,8 +270,7 @@ int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, 
         return err;
     }
     app.nvim.rename_buffers_at(from, to);
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-        "renamed " + from.string() + " to " + name);
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "renamed " + from.string() + " to " + name);
     return RV_OK;
 }
 
@@ -323,7 +330,8 @@ void rv_editor_app_update(rv_editor_app &app)
             if (app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success()) {
                 (void)rv_editor_app_start(app, *app.build.last_success());
             } else {
-                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+                app.log.add(rv_editor_log_source::editor,
+                    rv_editor_log_level::warning,
                     std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));
             }
         }

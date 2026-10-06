@@ -75,11 +75,9 @@ int rv_pdktools::find_baker(const std::string &hint, std::string &out, std::stri
     // cmake nests a target's output under its own subdirectory.
     const fs::path self = executable_directory();
     if (!self.empty()) {
-        const fs::path candidates[] = {
-            self / k_baker_name,
+        const fs::path candidates[] = { self / k_baker_name,
             self / k_baker_name / k_baker_name,
-            self.parent_path() / k_baker_name / k_baker_name
-        };
+            self.parent_path() / k_baker_name / k_baker_name };
         for (const fs::path &candidate : candidates) {
             if (is_executable(candidate)) {
                 out = candidate.string();

@@ -17,8 +17,7 @@ namespace rv_editor
 {
 
 // The page the window without a project shows beside its Toolchest.
-enum class rv_editor_start_page
-{
+enum class rv_editor_start_page {
     recent,
     new_project,
     open_project,
@@ -28,8 +27,7 @@ enum class rv_editor_start_page
 };
 
 // New Project's form as typed, kept while other pages are shown; Reset clears it.
-struct rv_editor_start
-{
+struct rv_editor_start {
     char name[identifier_field_size] = {};
     char id[short_text_field_size] = {};
     char dir[filesystem_path_field_size] = {};
@@ -51,8 +49,7 @@ constexpr size_t editor_workspace_slots_count = 4;
 
 // One editor window: its tiles, its models, and the commands that reach them
 // from the menus and the keyboard.
-struct rv_editor_shell
-{
+struct rv_editor_shell {
     // The layouts Code, Scene, Debug and Burn, each a tile tree of its own over the
     // one pane registry in `ws`: choosing one swaps trees only, so no pane, shell,
     // nvim window or process goes with it. `ws.layout` is the chosen one's tree;
@@ -76,8 +73,7 @@ struct rv_editor_shell
     rv_editor_pane_id closing = rv_editor_tile_none;
     // Unsaved buffers stand between the user and leaving: the window closing or
     // another project opening. Nothing leaves until they are saved or discarded.
-    enum class rv_editor_leave
-    {
+    enum class rv_editor_leave {
         none,
         quit,
         open,
@@ -135,7 +131,9 @@ struct rv_editor_shell
 
 // Every tree a window keeps, as the switcher and Window > Reference Layouts offer them.
 inline constexpr rv_editor_layout_preset rv_editor_workspaces[] = { rv_editor_layout_preset::code,
-    rv_editor_layout_preset::scene, rv_editor_layout_preset::debug, rv_editor_layout_preset::burn };
+    rv_editor_layout_preset::scene,
+    rv_editor_layout_preset::debug,
+    rv_editor_layout_preset::burn };
 
 // Shows layout `to` as the user left it. Nothing else changes.
 void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to);
@@ -292,7 +290,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
 // Game's own mode row and status line (`game_need`, measured by the pane itself
 // rather than the frame at 1x) when larger, a strip's measured height when that
 // is larger still; unset when every source gives none.
-void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind,
+void rv_editor_shell_set_minimum(rv_editor_shell &shell,
+    rv_editor_pane_id pane,
+    rv_editor_pane_kind kind,
     rv_editor_size game_need);
 
 // True if UI scale fits on the window's display in 1280*scale x 720*scale pixels.
@@ -312,7 +312,6 @@ struct rv_editor_display_size {
 rv_editor_display_size rv_editor_get_display_size(SDL_Window *window);
 
 // Show error message window when display is too small; prints to stderr and exits via SDL_Quit.
-void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer,
-    const rv_editor_display_size &display_size);
+void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer, const rv_editor_display_size &display_size);
 
 } // namespace rv_editor

@@ -16,12 +16,14 @@ int rv_pccl_luajit::hook_insn_ceiling_()
     return 0;
 }
 
-int64_t rv_pccl_luajit::script_reload_entry(const void * /*bytecode*/, int64_t /*size*/,
-    const char * /*name*/, rv_pccl_reload_report &report)
+int64_t rv_pccl_luajit::script_reload_entry(const void * /*bytecode*/,
+    int64_t /*size*/,
+    const char * /*name*/,
+    rv_pccl_reload_report &report)
 {
     report.phase = "not_reloadable";
     report.message = "this console was built without the development runtime; "
-        "rebuild with -D3DMPPC_DEVTOOLS=ON to reload the entry chunk";
+                     "rebuild with -D3DMPPC_DEVTOOLS=ON to reload the entry chunk";
     report.effects_possible = false;
     return RV_ERR_INVAL;
 }
@@ -30,18 +32,19 @@ int64_t rv_pccl_luajit::script_reload_entry_from_drive(rv_pccl_reload_report &re
 {
     report.phase = "not_reloadable";
     report.message = "this console was built without the development runtime; "
-        "rebuild with -D3DMPPC_DEVTOOLS=ON to reload the entry chunk";
+                     "rebuild with -D3DMPPC_DEVTOOLS=ON to reload the entry chunk";
     report.effects_possible = false;
     return RV_ERR_INVAL;
 }
 
-
-int64_t rv_pccl_luajit::script_reload_module(const char * /*name*/, const void * /*bytecode*/, int64_t /*size*/,
+int64_t rv_pccl_luajit::script_reload_module(const char * /*name*/,
+    const void * /*bytecode*/,
+    int64_t /*size*/,
     rv_pccl_reload_report &report)
 {
     report.phase = "not_reloadable";
     report.message = "this console was built without the development runtime; "
-        "rebuild with -D3DMPPC_DEVTOOLS=ON to reload a module";
+                     "rebuild with -D3DMPPC_DEVTOOLS=ON to reload a module";
     report.effects_possible = false;
     return RV_ERR_INVAL;
 }
@@ -50,7 +53,7 @@ int64_t rv_pccl_luajit::script_reload_module_from_drive(const char * /*name*/, r
 {
     report.phase = "not_reloadable";
     report.message = "this console was built without the development runtime; "
-        "rebuild with -D3DMPPC_DEVTOOLS=ON to reload a module";
+                     "rebuild with -D3DMPPC_DEVTOOLS=ON to reload a module";
     report.effects_possible = false;
     return RV_ERR_INVAL;
 }

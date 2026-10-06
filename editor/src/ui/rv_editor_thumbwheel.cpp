@@ -50,7 +50,11 @@ constexpr int ridge_line_inset = 3;
 
 } // namespace
 
-float rv_editor_thumbwheel(const char *id, const char *label, bool vertical, float length, const rv_editor_theme &theme,
+float rv_editor_thumbwheel(const char *id,
+    const char *label,
+    bool vertical,
+    float length,
+    const rv_editor_theme &theme,
     bool &reset)
 {
     const float thick = ImGui::GetFrameHeight() * frame_thickness_ratio;
@@ -81,7 +85,8 @@ float rv_editor_thumbwheel(const char *id, const char *label, bool vertical, flo
     const ImVec2 p1(p0.x + size.x, p0.y + size.y);
     rv_editor_draw_bevel(dl, p0, p1, theme, rv_editor_bevel::sunken);
     dl->AddRectFilled(ImVec2(p0.x + border_margin, p0.y + border_margin),
-        ImVec2(p1.x - border_margin, p1.y - border_margin), rv_editor_col(theme.dark));
+        ImVec2(p1.x - border_margin, p1.y - border_margin),
+        rv_editor_col(theme.dark));
     const float span = vertical ? size.y : size.x;
     for (float at = phase; at < span - ridge_end_margin; at += ridge_spacing) {
         // Ridges crowd towards the ends, as on a cylinder seen side-on.
@@ -89,10 +94,12 @@ float rv_editor_thumbwheel(const char *id, const char *label, bool vertical, flo
         const float bent = span * half_span_ratio * (1.0f + std::sin(u * sine_frequency) / std::sin(sine_frequency));
         const uint32_t tone = std::fabs(u) > darkness_threshold ? theme.dark : theme.text;
         if (vertical) {
-            dl->AddLine(ImVec2(p0.x + ridge_line_inset, p0.y + bent), ImVec2(p1.x - ridge_line_inset, p0.y + bent),
+            dl->AddLine(ImVec2(p0.x + ridge_line_inset, p0.y + bent),
+                ImVec2(p1.x - ridge_line_inset, p0.y + bent),
                 rv_editor_col(tone));
         } else {
-            dl->AddLine(ImVec2(p0.x + bent, p0.y + ridge_line_inset), ImVec2(p0.x + bent, p1.y - ridge_line_inset),
+            dl->AddLine(ImVec2(p0.x + bent, p0.y + ridge_line_inset),
+                ImVec2(p0.x + bent, p1.y - ridge_line_inset),
                 rv_editor_col(tone));
         }
     }

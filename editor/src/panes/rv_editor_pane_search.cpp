@@ -26,7 +26,8 @@ constexpr float query_field_width_em = 14.0f;
 void rv_editor_search_list(rv_editor_app &app)
 {
     const rv_editor_search_result &r = app.project_search.result;
-    if (!ImGui::BeginTable("##hits", search_table_columns,
+    if (!ImGui::BeginTable("##hits",
+            search_table_columns,
             ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         return;
     }
@@ -46,7 +47,8 @@ void rv_editor_search_list(rv_editor_app &app)
             std::error_code ec;
             const std::filesystem::path shown = std::filesystem::relative(hit.file, app.project.root, ec);
             // The whole row answers a click; double click or Enter opens the place.
-            const bool pressed = ImGui::Selectable((ec || shown.empty() ? hit.file : shown).c_str(), false,
+            const bool pressed = ImGui::Selectable((ec || shown.empty() ? hit.file : shown).c_str(),
+                false,
                 ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick);
             const bool open = (pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) ||
                 (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
@@ -90,8 +92,8 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_checkbox(rv_editor_text("pane_search.match_case"), &s.match_case, theme);
     rv_editor_flow(rv_editor_checkbox_width(rv_editor_text("pane_search.skipped_folders")));
     rv_editor_checkbox(rv_editor_text("pane_search.skipped_folders"), &s.all, theme);
-    const std::string also_search_tooltip = rv_editor_text_format("pane_search.also_search",
-        std::make_format_args(rv_editor_search_skipped));
+    const std::string also_search_tooltip =
+        rv_editor_text_format("pane_search.also_search", std::make_format_args(rv_editor_search_skipped));
     ImGui::SetItemTooltip("%s", also_search_tooltip.c_str());
     rv_editor_shelf_end();
     if (run && s.query[0] != '\0') {
@@ -104,37 +106,35 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         if (s.searched.empty()) {
-            const std::string nothing_searched_msg = rv_editor_text_format("pane_search.nothing_searched",
-                std::make_format_args(rv_editor_search_skipped));
+            const std::string nothing_searched_msg =
+                rv_editor_text_format("pane_search.nothing_searched", std::make_format_args(rv_editor_search_skipped));
             ImGui::TextWrapped("%s", nothing_searched_msg.c_str());
             return;
         }
         const rv_editor_search_result &r = s.result;
         // The scope stated with the result, so an empty one says where it did not look.
         const std::string project_name = app.project.root.filename().string();
-        std::string scope = rv_editor_text_format("pane_search.scope_base",
-            std::make_format_args(s.searched, r.files, project_name));
+        std::string scope =
+            rv_editor_text_format("pane_search.scope_base", std::make_format_args(s.searched, r.files, project_name));
         if (r.skipped_dirs != 0) {
             const std::string skipped_msg = rv_editor_text_format("pane_search.scope_skipped_dirs",
                 std::make_format_args(r.skipped_dirs, rv_editor_search_skipped));
             scope += skipped_msg;
         }
         if (r.skipped_files != 0) {
-            const std::string files_msg = rv_editor_text_format("pane_search.scope_skipped_files",
-                std::make_format_args(r.skipped_files));
+            const std::string files_msg =
+                rv_editor_text_format("pane_search.scope_skipped_files", std::make_format_args(r.skipped_files));
             scope += files_msg;
         }
-        const std::string matches_text = std::to_string(r.hits.size()) + (r.truncated ? "+" : "") + " " +
-            rv_editor_text("pane_search.matches");
+        const std::string matches_text =
+            std::to_string(r.hits.size()) + (r.truncated ? "+" : "") + " " + rv_editor_text("pane_search.matches");
         const std::string count = r.hits.empty() ? rv_editor_text("pane_search.no_match") : matches_text;
-        rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok,
-            theme);
+        rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok, theme);
         ImGui::SameLine();
         ImGui::TextWrapped("%s", scope.c_str());
         if (r.truncated) {
             const size_t hits_count = r.hits.size();
-            const std::string stopped_msg = rv_editor_text_format("pane_search.stopped_at",
-                std::make_format_args(hits_count));
+            const std::string stopped_msg = rv_editor_text_format("pane_search.stopped_at", std::make_format_args(hits_count));
             ImGui::TextWrapped("%s", stopped_msg.c_str());
         }
         if (r.hits.empty()) {

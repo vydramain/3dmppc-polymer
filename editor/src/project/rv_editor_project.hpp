@@ -22,8 +22,7 @@ constexpr int64_t console_native_screen_height = 240;
 std::filesystem::path rv_editor_xdg_dir(const char *var, const char *home_fallback);
 
 // One tool the editor drives as a process.
-struct rv_editor_tool
-{
+struct rv_editor_tool {
     std::filesystem::path path;
     std::string origin;  // "settings.toml" or "next to the editor"
     std::string problem; // why it cannot be used; empty when it can
@@ -39,8 +38,7 @@ struct rv_editor_tool
 //   burner = "/path/to/mppcburner"
 //   baker = "/path/to/mppcbaker"
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
-struct rv_editor_toolchain
-{
+struct rv_editor_toolchain {
     rv_editor_tool console;
     rv_editor_tool burner;
     rv_editor_tool baker;
@@ -88,19 +86,18 @@ private:
 
 // The game directory the window works on: a directory holding
 // disc.toml, whichever of the two was opened.
-struct rv_editor_project
-{
+struct rv_editor_project {
     bool open = false;
     std::filesystem::path root;     // canonical
     std::filesystem::path manifest; // root / "disc.toml"
     std::string disc_id;
     std::string disc_title;
-    std::string manifest_error;     // disc.toml does not parse; the project still opens
+    std::string manifest_error; // disc.toml does not parse; the project still opens
     // [budget.pccv] screen size: the proportions a starting Game tile takes.
     int64_t screen_w = console_native_screen_width;
     int64_t screen_h = console_native_screen_height;
-    std::filesystem::path cache_dir; // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
-    std::filesystem::path state_dir; // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
+    std::filesystem::path cache_dir;            // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
+    std::filesystem::path state_dir;            // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
     std::vector<std::string> assets_patterns;   // [assets] files, relative to root
     std::vector<std::string> textures_patterns; // [textures] files, relative to root
     std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root

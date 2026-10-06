@@ -12,8 +12,7 @@ namespace rv_editor
 // What a widget is asked to look like. `live` follows the mouse and keyboard;
 // the other values freeze one state so the Widget Catalog can show every state
 // side by side.
-enum class rv_editor_look
-{
+enum class rv_editor_look {
     live,
     normal,
     hovered,
@@ -21,8 +20,7 @@ enum class rv_editor_look
     focused,
 };
 
-struct rv_editor_state
-{
+struct rv_editor_state {
     rv_editor_look look = rv_editor_look::live;
     // Why the widget is unavailable. Non-null disables it and becomes its
     // tooltip: a disabled control always says why.
@@ -31,8 +29,7 @@ struct rv_editor_state
 
 // One interactive rectangle: ImGui's InvisibleButton supplies id, hover,
 // press, click and keyboard focus; the widget draws the rest.
-struct rv_editor_item
-{
+struct rv_editor_item {
     ImVec2 min;
     ImVec2 max;
     bool hovered;

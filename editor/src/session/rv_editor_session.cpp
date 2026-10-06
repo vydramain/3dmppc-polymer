@@ -26,6 +26,10 @@ constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
 constexpr std::string_view pad_prefix = "pad 0 ";
 constexpr std::string_view protocol_frame_event = "0 event=frame ";
 
+constexpr std::string_view flag_dev = "--dev";
+constexpr std::string_view flag_frame_fd = "--frame-fd";
+constexpr std::string_view flag_memcard = "--memcard";
+
 constexpr int fd_frame_descriptor = 3;
 constexpr size_t hex_buffer_size = std::numeric_limits<uint64_t>::digits / 4 + 1; // 16 hex digits + NUL
 constexpr size_t read_buffer_size = 1 << 20;
@@ -78,9 +82,14 @@ bool rv_editor_session::hung() const
     return proc_.running() && quit_sent_ && std::chrono::steady_clock::now() - stop_sent_ > rv_editor_stop_grace;
 }
 
-int rv_editor_session::start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
-    const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
-    const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
+int rv_editor_session::start(const std::filesystem::path &console,
+    const std::filesystem::path &disc_dir,
+    const std::filesystem::path &memcard,
+    const std::filesystem::path &cwd,
+    uint32_t build_number,
+    const std::vector<std::string> &options,
+    const std::vector<std::string> &env,
+    rv_editor_log &log,
     std::string &error)
 {
     if (live()) {
@@ -92,8 +101,12 @@ int rv_editor_session::start(const std::filesystem::path &console, const std::fi
         return err_frame;
     }
     // The console writes its frames into frame_mem_, handed over as the frame descriptor.
-    std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", std::to_string(fd_frame_descriptor),
-        "--memcard", memcard.string() };
+    std::vector<std::string> argv = { console.string(),
+        std::string(flag_dev),
+        std::string(flag_frame_fd),
+        std::to_string(fd_frame_descriptor),
+        std::string(flag_memcard),
+        memcard.string() };
     argv.insert(argv.end(), options.begin(), options.end());
     argv.push_back(disc_dir.string());
     const int err_proc = proc_.start(argv, cwd, error, frame_mem_.fd(), env);
@@ -134,9 +147,14 @@ int rv_editor_session::start(const std::filesystem::path &console, const std::fi
     started_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::starting;
     active_ = true;
-    log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
-        "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --frame-fd 3 --memcard " +
-            memcard.string() + " " + disc_dir.string(), rv_editor_log_channel::none, proc_.pid(), number_);
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " " + std::string(flag_dev) + " " +
+            std::string(flag_frame_fd) + " " + std::to_string(fd_frame_descriptor) + " " + std::string(flag_memcard) + " " +
+            memcard.string() + " " + disc_dir.string(),
+        rv_editor_log_channel::none,
+        proc_.pid(),
+        number_);
     // Nothing is enabled until this answers.
     send(std::string(cmd_status), log);
     return RV_OK;
@@ -151,15 +169,23 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
     for (size_t nl = out_partial_.find('\n'); nl != std::string::npos; nl = out_partial_.find('\n', start)) {
         const std::string_view line(out_partial_.data() + start, nl - start);
         if (!line.starts_with(protocol_frame_event)) {
-            log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, line, rv_editor_log_channel::out,
-                proc_.pid(), number_);
+            log.add(rv_editor_log_source::protocol,
+                rv_editor_log_level::info,
+                line,
+                rv_editor_log_channel::out,
+                proc_.pid(),
+                number_);
         }
         start = nl + 1;
     }
     out_partial_.erase(0, start);
     if (out_partial_.size() > rv_editor_log::line_max) {
-        log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, out_partial_, rv_editor_log_channel::out,
-            proc_.pid(), number_);
+        log.add(rv_editor_log_source::protocol,
+            rv_editor_log_level::info,
+            out_partial_,
+            rv_editor_log_channel::out,
+            proc_.pid(),
+            number_);
         out_partial_.clear();
     }
 }
@@ -206,8 +232,11 @@ void rv_editor_session::force_stop(rv_editor_log &log)
         return;
     }
     forced_ = true;
-    log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
-        "force-stopping runtime pid " + std::to_string(proc_.pid()), rv_editor_log_channel::none, proc_.pid(),
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        "force-stopping runtime pid " + std::to_string(proc_.pid()),
+        rv_editor_log_channel::none,
+        proc_.pid(),
         number_);
     proc_.stop(true);
 }
@@ -236,16 +265,19 @@ void rv_editor_session::update(rv_editor_log &log)
     std::string err;
     proc_.read(out, err, read_buffer_size);
     proc_.flush();
-    log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(),
-        number_);
+    log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(), number_);
     if (!out.empty()) {
         trace(out, log);
         std::vector<rv_editor_devmsg> msgs;
         std::vector<std::string> errors;
         parser_.feed(out, msgs, errors);
         for (const std::string &e : errors) {
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "protocol: " + e,
-                rv_editor_log_channel::none, proc_.pid(), number_);
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                "protocol: " + e,
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         }
         for (const rv_editor_devmsg &m : msgs) {
             handle(m, log);
@@ -261,14 +293,17 @@ void rv_editor_session::update(rv_editor_log &log)
         if (channel_open_ && !proc_.stdout_open() && eof_at_ == std::chrono::steady_clock::time_point{}) {
             eof_at_ = now;
         }
-        if (channel_open_ && eof_at_ != std::chrono::steady_clock::time_point{} &&
-            now - eof_at_ > channel_lost_timeout) {
+        if (channel_open_ && eof_at_ != std::chrono::steady_clock::time_point{} && now - eof_at_ > channel_lost_timeout) {
             channel_open_ = false;
             if (!quit_sent_) {
                 state_ = rv_editor_run_state::disconnected;
                 end_reason_ = "the protocol channel closed while the process still runs";
-                log.add(rv_editor_log_source::editor, rv_editor_log_level::error, end_reason_,
-                    rv_editor_log_channel::none, proc_.pid(), number_);
+                log.add(rv_editor_log_source::editor,
+                    rv_editor_log_level::error,
+                    end_reason_,
+                    rv_editor_log_channel::none,
+                    proc_.pid(),
+                    number_);
             }
         }
 
@@ -276,8 +311,8 @@ void rv_editor_session::update(rv_editor_log &log)
         // ask for status, and never resend the request itself.
         bool ask_status = false;
         for (auto &[id, req] : pending_) {
-            const auto limit = !handshake_done_ && req.verb == "status" ? rv_editor_handshake_timeout
-                                                                        : rv_editor_request_timeout;
+            const auto limit =
+                !handshake_done_ && req.verb == "status" ? rv_editor_handshake_timeout : rv_editor_request_timeout;
             if (req.overdue || now - req.sent < limit) {
                 continue;
             }
@@ -286,8 +321,12 @@ void rv_editor_session::update(rv_editor_log &log)
                 state_ = rv_editor_run_state::refused;
                 refusal_ = "no answer to status: not a development console, or it could not load the disc";
                 end_reason_ = refusal_;
-                log.add(rv_editor_log_source::editor, rv_editor_log_level::error, refusal_,
-                    rv_editor_log_channel::none, proc_.pid(), number_);
+                log.add(rv_editor_log_source::editor,
+                    rv_editor_log_level::error,
+                    refusal_,
+                    rv_editor_log_channel::none,
+                    proc_.pid(),
+                    number_);
                 force_stop(log);
                 break;
             }
@@ -295,9 +334,13 @@ void rv_editor_session::update(rv_editor_log &log)
             // Whether it ran is unknown; the user may ask again, the editor never does.
             note_reload_timeout(id, req.verb);
             ask_status = ask_status || (req.verb != "status" && req.verb != "quit");
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
                 "no answer to '" + req.verb + "' after " + std::to_string(rv_editor_request_timeout.count()) +
-                    " s: whether it ran is unknown", rv_editor_log_channel::none, proc_.pid(), number_);
+                    " s: whether it ran is unknown",
+                rv_editor_log_channel::none,
+                proc_.pid(),
+                number_);
         }
         if (ask_status && channel_open_) {
             send(std::string(cmd_status), log);
@@ -318,15 +361,17 @@ void rv_editor_session::finish(rv_editor_log &log)
     std::string out;
     std::string err;
     proc_.read(out, err, read_buffer_size);
-    log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(),
-        number_);
+    log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(), number_);
     log.flush_stream(rv_editor_log_source::runtime, err_partial_, rv_editor_log_channel::err, proc_.pid(), number_);
     trace(out, log);
     log.flush_stream(rv_editor_log_source::protocol, out_partial_, rv_editor_log_channel::out, proc_.pid(), number_);
     if (proc_.output_cut()) {
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
             "runtime output after exit was not fully read: a process it started kept a pipe open past the grace",
-            rv_editor_log_channel::none, proc_.pid(), number_);
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
     }
     in_flight_.clear();
     for (const auto &[id, req] : pending_) {
@@ -360,10 +405,12 @@ void rv_editor_session::finish(rv_editor_log &log)
         end_reason_ = quit_sent_ ? "stopped" : "the console ended by itself";
     }
     log.add(rv_editor_log_source::editor,
-        state_ == rv_editor_run_state::crashed || state_ == rv_editor_run_state::refused ? rv_editor_log_level::error
-                                                                                         : rv_editor_log_level::info,
-        "runtime pid " + std::to_string(proc_.pid()) + " ended: " + end_reason_, rv_editor_log_channel::none,
-        proc_.pid(), number_);
+        state_ == rv_editor_run_state::crashed || state_ == rv_editor_run_state::refused ? rv_editor_log_level::error :
+                                                                                           rv_editor_log_level::info,
+        "runtime pid " + std::to_string(proc_.pid()) + " ended: " + end_reason_,
+        rv_editor_log_channel::none,
+        proc_.pid(),
+        number_);
 }
 
 void rv_editor_session::shutdown(rv_editor_log &log)

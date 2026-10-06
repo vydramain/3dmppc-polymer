@@ -33,14 +33,13 @@ constexpr std::string_view memcard_flag = "--memcard";
 // The candidate's number the player runs, or 0 outside a run.
 uint32_t rv_editor_player_run(const rv_editor_release &r)
 {
-    return r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()
-        ? r.candidates[static_cast<size_t>(r.player_candidate)].number
-        : 0;
+    return r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size() ?
+        r.candidates[static_cast<size_t>(r.player_candidate)].number :
+        0;
 }
 
 // One stream's output as log lines, each whole; a line still being written waits.
-void rv_editor_player_lines(rv_editor_app &app, rv_editor_log_channel channel, std::string &partial,
-    const std::string &bytes)
+void rv_editor_player_lines(rv_editor_app &app, rv_editor_log_channel channel, std::string &partial, const std::string &bytes)
 {
     rv_editor_release &r = app.release;
     partial += bytes;
@@ -60,30 +59,41 @@ void rv_editor_player_finish(rv_editor_app &app)
     rv_editor_release &r = app.release;
     const int64_t pid = r.player->pid();
     const uint32_t run = rv_editor_player_run(r);
-    rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial,
+    rv_editor_player_lines(app,
+        rv_editor_log_channel::out,
+        r.player_out_partial,
         r.player_out_partial.empty() ? std::string() : "\n");
-    rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial,
+    rv_editor_player_lines(app,
+        rv_editor_log_channel::err,
+        r.player_err_partial,
         r.player_err_partial.empty() ? std::string() : "\n");
     if (r.player->output_cut()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning,
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
             "player output after exit was not fully read: a process it started kept a pipe open past the grace",
-            rv_editor_log_channel::none, pid, run);
+            rv_editor_log_channel::none,
+            pid,
+            run);
     }
     const rv_editor_process::rv_editor_exit exit = r.player->exit_status();
-    const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-        r.player_started).count();
+    const auto seconds =
+        std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - r.player_started).count();
     const std::string ended = rv_editor_exit_text(exit) + " after " + std::to_string(seconds) + " s";
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "player ended: " + ended,
-        rv_editor_log_channel::none, pid, run);
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        "player ended: " + ended,
+        rv_editor_log_channel::none,
+        pid,
+        run);
     if (r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()) {
         rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.player_candidate)];
         // Stopped by the editor is the operator's act and proves no normal exit.
-        const rv_editor_check_state state = r.player_stopped ? rv_editor_check_state::not_run
-            : exit.signal == 0 && exit.code == 0             ? rv_editor_check_state::passed
-                                                             : rv_editor_check_state::failed;
-        const std::string note = r.player_stopped ? "stopped by the operator (" + ended + "): no normal exit shown"
-            : state == rv_editor_check_state::passed ? "ended by itself, " + ended
-                                                     : "ended " + ended;
+        const rv_editor_check_state state = r.player_stopped ? rv_editor_check_state::not_run :
+            exit.signal == 0 && exit.code == 0               ? rv_editor_check_state::passed :
+                                                               rv_editor_check_state::failed;
+        const std::string note = r.player_stopped  ? "stopped by the operator (" + ended + "): no normal exit shown" :
+            state == rv_editor_check_state::passed ? "ended by itself, " + ended :
+                                                     "ended " + ended;
         rv_editor_check_set(c, rv_editor_check_player, state, note, app.tools.player.path.string());
         // Its output beside the record, as the first free player-<k>.log.
         const std::filesystem::path dir = app.project.cache_dir / std::string(candidates_dir_name);
@@ -95,10 +105,13 @@ void rv_editor_player_finish(rv_editor_app &app)
             log_name = std::string(player_log_prefix) + std::to_string(k);
         }
         std::string error;
-        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, log_name),
-                r.player_output, error) != RV_OK) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player log not kept: " + error,
-                rv_editor_log_channel::none, pid, run);
+        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, log_name), r.player_output, error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::error,
+                "player log not kept: " + error,
+                rv_editor_log_channel::none,
+                pid,
+                run);
         }
     }
     r.player.reset();
@@ -144,9 +157,13 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     auto player = std::make_unique<rv_editor_process>();
     std::string error;
     if (player->start({ app.tools.player.path.string(), std::string(memcard_flag), card.string(), c.image.string() },
-            c.image.parent_path(), error) != RV_OK) {
-        rv_editor_check_set(c, rv_editor_check_player, rv_editor_check_state::failed,
-            "the player did not start: " + error, app.tools.player.path.string());
+            c.image.parent_path(),
+            error) != RV_OK) {
+        rv_editor_check_set(c,
+            rv_editor_check_player,
+            rv_editor_check_state::failed,
+            "the player did not start: " + error,
+            app.tools.player.path.string());
         return;
     }
     r.player = std::move(player);
@@ -156,11 +173,17 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     r.player_output.clear();
     r.player_out_partial.clear();
     r.player_err_partial.clear();
-    rv_editor_check_set(c, rv_editor_check_player, rv_editor_check_state::running,
-        "pid " + std::to_string(r.player->pid()), app.tools.player.path.string());
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,
+    rv_editor_check_set(c,
+        rv_editor_check_player,
+        rv_editor_check_state::running,
+        "pid " + std::to_string(r.player->pid()),
+        app.tools.player.path.string());
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
         "player started on candidate #" + std::to_string(c.number) + ": pid " + std::to_string(r.player->pid()),
-        rv_editor_log_channel::none, r.player->pid(), c.number);
+        rv_editor_log_channel::none,
+        r.player->pid(),
+        c.number);
 }
 
 void rv_editor_app_stop_player(rv_editor_app &app)
@@ -172,8 +195,12 @@ void rv_editor_app_stop_player(rv_editor_app &app)
     // The first ask is a polite SIGTERM; asked again, it is killed.
     r.player->stop(r.player_stopped);
     r.player_stopped = true;
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "player stopped by the operator",
-        rv_editor_log_channel::none, r.player->pid(), rv_editor_player_run(r));
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        "player stopped by the operator",
+        rv_editor_log_channel::none,
+        r.player->pid(),
+        rv_editor_player_run(r));
 }
 
 bool rv_editor_app_player_running(const rv_editor_app &app)

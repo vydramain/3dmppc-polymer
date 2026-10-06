@@ -6,7 +6,8 @@
 
 #include "pdk/rv_err.h"
 
-namespace {
+namespace
+{
 
 // Bit and byte constants
 constexpr unsigned RV_BITS_PER_BYTE = 8; // bits per byte in little-endian assembly
@@ -39,15 +40,13 @@ constexpr size_t RV_CHUNK_ALIGN_BOUNDARY = 2; // chunks pad to even boundary
 
 uint16_t read_le16(const uint8_t *p)
 {
-    return static_cast<uint16_t>(static_cast<unsigned>(p[0]) |
-        (static_cast<unsigned>(p[1]) << RV_BITS_PER_BYTE));
+    return static_cast<uint16_t>(static_cast<unsigned>(p[0]) | (static_cast<unsigned>(p[1]) << RV_BITS_PER_BYTE));
 }
 
 uint32_t read_le32(const uint8_t *p)
 {
     return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << RV_BITS_PER_BYTE) |
-        (static_cast<uint32_t>(p[2]) << (2 * RV_BITS_PER_BYTE)) |
-        (static_cast<uint32_t>(p[3]) << (3 * RV_BITS_PER_BYTE));
+        (static_cast<uint32_t>(p[2]) << (2 * RV_BITS_PER_BYTE)) | (static_cast<uint32_t>(p[3]) << (3 * RV_BITS_PER_BYTE));
 }
 
 // The fmt chunk fields this tool cares about; everything else in the chunk
@@ -150,23 +149,19 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
         return RV_ERR_INVAL;
     }
     if (fmt.audio_format != RV_WAV_FORMAT_PCM) {
-        error->message = "'" + input + "' is WAVE format " + std::to_string(fmt.audio_format) +
-            ", mppcbaker requires PCM (1)";
+        error->message = "'" + input + "' is WAVE format " + std::to_string(fmt.audio_format) + ", mppcbaker requires PCM (1)";
         return RV_ERR_INVAL;
     }
     if (fmt.bits_per_sample != RV_WAV_REQUIRED_BITS) {
-        error->message =
-            "'" + input + "' is " + std::to_string(fmt.bits_per_sample) + "-bit, mppcbaker requires 16-bit PCM";
+        error->message = "'" + input + "' is " + std::to_string(fmt.bits_per_sample) + "-bit, mppcbaker requires 16-bit PCM";
         return RV_ERR_INVAL;
     }
     if (fmt.sample_rate != RV_WAV_REQUIRED_RATE) {
-        error->message =
-            "'" + input + "' is " + std::to_string(fmt.sample_rate) + " Hz, mppcbaker requires 44100 Hz";
+        error->message = "'" + input + "' is " + std::to_string(fmt.sample_rate) + " Hz, mppcbaker requires 44100 Hz";
         return RV_ERR_INVAL;
     }
     if (fmt.channels != 1 && fmt.channels != RV_WAV_CHANNELS_STEREO) {
-        error->message =
-            "'" + input + "' has " + std::to_string(fmt.channels) + " channels, mppcbaker requires mono or stereo";
+        error->message = "'" + input + "' has " + std::to_string(fmt.channels) + " channels, mppcbaker requires mono or stereo";
         return RV_ERR_INVAL;
     }
 
@@ -188,8 +183,7 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
     for (size_t i = 0; i < frame_count; ++i) {
         const int16_t mono = downmix_frame(data + i * RV_STEREO_FRAME_SIZE);
         (*out)[i * RV_BYTES_PER_SAMPLE] = static_cast<uint8_t>(mono & RV_BYTE_MASK);
-        (*out)[i * RV_BYTES_PER_SAMPLE + 1] =
-            static_cast<uint8_t>((mono >> RV_BITS_PER_BYTE) & RV_BYTE_MASK);
+        (*out)[i * RV_BYTES_PER_SAMPLE + 1] = static_cast<uint8_t>((mono >> RV_BITS_PER_BYTE) & RV_BYTE_MASK);
     }
     return RV_OK;
 }

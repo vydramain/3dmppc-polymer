@@ -21,23 +21,19 @@ constexpr int ARGB8888_BYTES_PER_PIXEL = 4;
 // analog anything, but the layout below drives the sticks digitally, so the
 // stick sources are advertised honestly - a disc that asks "can port 0 give me
 // a left stick?" gets yes, and gets +-1 values.
-constexpr uint64_t RV_PCWINDOW_SDL3_KEYBOARD_ABILITIES =
-    RV_ISOURCE_FRONT_BTTN_SOUTH | RV_ISOURCE_FRONT_BTTN_EAST | RV_ISOURCE_FRONT_BTTN_WEST |
-    RV_ISOURCE_FRONT_BTTN_NORTH | RV_ISOURCE_BUMPER_LEFT | RV_ISOURCE_BUMPER_RIGHT |
-    RV_ISOURCE_MENU_BTTN_MENU | RV_ISOURCE_MENU_BTTN_VIEW | RV_ISOURCE_DPAD_MOVE |
-    RV_ISOURCE_DPAD_NORTH | RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_EAST |
-    RV_ISOURCE_LEFT_STICK_MOVE | RV_ISOURCE_LEFT_STICK_DPAD_NORTH |
-    RV_ISOURCE_LEFT_STICK_DPAD_SOUTH | RV_ISOURCE_LEFT_STICK_DPAD_WEST |
-    RV_ISOURCE_LEFT_STICK_DPAD_EAST | RV_ISOURCE_RIGHT_STICK_MOVE |
-    RV_ISOURCE_RIGHT_STICK_DPAD_NORTH | RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH |
-    RV_ISOURCE_RIGHT_STICK_DPAD_WEST | RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
+constexpr uint64_t RV_PCWINDOW_SDL3_KEYBOARD_ABILITIES = RV_ISOURCE_FRONT_BTTN_SOUTH | RV_ISOURCE_FRONT_BTTN_EAST |
+    RV_ISOURCE_FRONT_BTTN_WEST | RV_ISOURCE_FRONT_BTTN_NORTH | RV_ISOURCE_BUMPER_LEFT | RV_ISOURCE_BUMPER_RIGHT |
+    RV_ISOURCE_MENU_BTTN_MENU | RV_ISOURCE_MENU_BTTN_VIEW | RV_ISOURCE_DPAD_MOVE | RV_ISOURCE_DPAD_NORTH |
+    RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_EAST | RV_ISOURCE_LEFT_STICK_MOVE |
+    RV_ISOURCE_LEFT_STICK_DPAD_NORTH | RV_ISOURCE_LEFT_STICK_DPAD_SOUTH | RV_ISOURCE_LEFT_STICK_DPAD_WEST |
+    RV_ISOURCE_LEFT_STICK_DPAD_EAST | RV_ISOURCE_RIGHT_STICK_MOVE | RV_ISOURCE_RIGHT_STICK_DPAD_NORTH |
+    RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH | RV_ISOURCE_RIGHT_STICK_DPAD_WEST | RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
 
 // sectorization. An analog stick becomes four digital directions by
 // comparing |x| against |y|: the dominant axis picks the sector, its sign
 // picks the side. This is the diagonal-free 4-way reading; a disc that wants
 // the diagonals reads the raw axes instead.
-uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uint64_t west,
-    uint64_t east, uint64_t move)
+uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uint64_t west, uint64_t east, uint64_t move)
 {
     if (axes.x == 0.0f && axes.y == 0.0f) {
         return 0;
@@ -70,8 +66,7 @@ rv_pcwindow_sdl3::~rv_pcwindow_sdl3()
     }
 }
 
-int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t screen_height,
-    uint64_t scale)
+int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale)
 {
     // null object. cv=null means no window was ever wanted, and that
     // is a successful no-op, not a failure - RV_ERR_IO is reserved for a
@@ -106,11 +101,16 @@ int64_t rv_pcwindow_sdl3::open(const char *title, int64_t screen_width, int64_t 
     // The frame is always the native console resolution; the window is just a
     // magnifying glass over it. Integer scaling keeps the pixels square and
     // crisp instead of smearing them across a non-multiple window size.
-    SDL_SetRenderLogicalPresentation(renderer_, static_cast<int>(screen_width),
-        static_cast<int>(screen_height), SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
+    SDL_SetRenderLogicalPresentation(renderer_,
+        static_cast<int>(screen_width),
+        static_cast<int>(screen_height),
+        SDL_LOGICAL_PRESENTATION_INTEGER_SCALE);
 
-    texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
-        static_cast<int>(screen_width), static_cast<int>(screen_height));
+    texture_ = SDL_CreateTexture(renderer_,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        static_cast<int>(screen_width),
+        static_cast<int>(screen_height));
     if (!texture_) {
         RV_LOG_ERR("pcplatform", "SDL_CreateTexture failed: {}", SDL_GetError());
         return RV_ERR_IO;
@@ -234,28 +234,28 @@ void rv_pcwindow_sdl3::snapshot_keyboard()
     // produce the corners of the square, so the values are +-1 with no dead
     // zone to apply - the stick helper would only rescale a magnitude that is
     // already saturated.
-    const float wasd_x =
-        (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
-    const float wasd_y =
-        (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
-    const float ijkl_x =
-        (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
-    const float ijkl_y =
-        (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
+    const float wasd_x = (keys[SDL_SCANCODE_D] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_A] ? 1.0f : 0.0f);
+    const float wasd_y = (keys[SDL_SCANCODE_W] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_S] ? 1.0f : 0.0f);
+    const float ijkl_x = (keys[SDL_SCANCODE_L] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_J] ? 1.0f : 0.0f);
+    const float ijkl_y = (keys[SDL_SCANCODE_I] ? 1.0f : 0.0f) - (keys[SDL_SCANCODE_K] ? 1.0f : 0.0f);
 
     if (wasd_x != 0.0f || wasd_y != 0.0f) {
         state.left_stick = { wasd_x, wasd_y };
-        state.buttons |= stick_direction_bits(
-            state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH, RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
-            RV_ISOURCE_LEFT_STICK_DPAD_WEST, RV_ISOURCE_LEFT_STICK_DPAD_EAST,
+        state.buttons |= stick_direction_bits(state.left_stick,
+            RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
+            RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_LEFT_STICK_DPAD_WEST,
+            RV_ISOURCE_LEFT_STICK_DPAD_EAST,
             RV_ISOURCE_LEFT_STICK_MOVE);
     }
     if (ijkl_x != 0.0f || ijkl_y != 0.0f) {
         state.right_stick = { ijkl_x, ijkl_y };
-        state.buttons |= stick_direction_bits(
-            state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
-            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
-            RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
+        state.buttons |= stick_direction_bits(state.right_stick,
+            RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
+            RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
+            RV_ISOURCE_RIGHT_STICK_MOVE);
     }
 }
 

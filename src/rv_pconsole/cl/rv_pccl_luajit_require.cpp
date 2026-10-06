@@ -81,8 +81,7 @@ int rv_pccl_luajit::require_(lua_State *L)
     char asset[kAssetNameMaxLen];
     const int asset_code = self->module_asset_(name, asset, sizeof asset);
     if (asset_code == 1) {
-        return luaL_error(L,
-            "require('%s'): a module name is a file name with no extension and no directory", name);
+        return luaL_error(L, "require('%s'): a module name is a file name with no extension and no directory", name);
     }
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, self->loaded_ref_);
@@ -105,7 +104,9 @@ int rv_pccl_luajit::require_(lua_State *L)
     // every module, not just the entry itself.
     if (asset_code == ASSET_CODE_INVALID_EXTENSION) {
         clear_marker(L, loaded_idx, name);
-        return luaL_error(L, "require('%s'): the entry script '%s' is neither .lua nor .luac", name,
+        return luaL_error(L,
+            "require('%s'): the entry script '%s' is neither .lua nor .luac",
+            name,
             self->conf_.script_entry.c_str());
     }
 
