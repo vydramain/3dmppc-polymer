@@ -11,6 +11,19 @@ namespace
 
 using mtype = rv_editor_mpack::rv_editor_mpack_type;
 
+// nvim error reply format: [type, message] (msgpack-rpc spec)
+constexpr size_t error_message_index = 1;
+constexpr size_t error_array_min_size = 2;
+
+// Buffer save result field names from Lua script return value
+constexpr std::string_view buf_result_key_id = "id";
+constexpr std::string_view buf_result_key_name = "name";
+constexpr std::string_view buf_result_key_ok = "ok";
+constexpr std::string_view buf_result_key_error = "error";
+
+// Separator for comma-delimited buffer ID list passed to Lua script
+constexpr const char *buf_id_separator = ",";
+
 // Writes the modified buffers named in the first argument ("3,7"; empty: all)
 // and returns one { id, name, ok, error } per buffer.
 constexpr const char *rv_editor_lua_save = R"lua(
@@ -88,8 +101,8 @@ return ''
 // nvim's error reply is [type, message].
 std::string rv_editor_reply_error(const rv_editor_mpack &error)
 {
-    if (error.is(mtype::array) && error.items.size() >= 2) {
-        return error.items[1].s;
+    if (error.is(mtype::array) && error.items.size() >= error_array_min_size) {
+        return error.items[error_message_index].s;
     }
     return error.s.empty() ? "nvim refused the request" : error.s;
 }
@@ -99,16 +112,16 @@ std::vector<rv_editor_nvim_saved> rv_editor_saved_list(const rv_editor_mpack &re
     std::vector<rv_editor_nvim_saved> out;
     for (const rv_editor_mpack &m : result.items) {
         rv_editor_nvim_saved s;
-        if (const rv_editor_mpack *v = m.get("id")) {
+        if (const rv_editor_mpack *v = m.get(buf_result_key_id)) {
             s.id = v->i;
         }
-        if (const rv_editor_mpack *v = m.get("name")) {
+        if (const rv_editor_mpack *v = m.get(buf_result_key_name)) {
             s.name = v->s;
         }
-        if (const rv_editor_mpack *v = m.get("ok")) {
+        if (const rv_editor_mpack *v = m.get(buf_result_key_ok)) {
             s.ok = v->b;
         }
-        if (const rv_editor_mpack *v = m.get("error")) {
+        if (const rv_editor_mpack *v = m.get(buf_result_key_error)) {
             s.error = v->s;
         }
         out.push_back(std::move(s));
@@ -137,7 +150,7 @@ void rv_editor_nvim::save(const std::vector<int64_t> &ids, rv_editor_nvim_save_d
     }
     std::string list;
     for (const int64_t id : ids) {
-        list += (list.empty() ? "" : ",") + std::to_string(id);
+        list += (list.empty() ? "" : buf_id_separator) + std::to_string(id);
     }
     exec_lua(rv_editor_lua_save, { list }, rv_editor_save_reply(std::move(done)));
 }
