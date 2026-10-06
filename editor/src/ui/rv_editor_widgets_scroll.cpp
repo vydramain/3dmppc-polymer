@@ -29,6 +29,27 @@ struct rv_editor_scroll_frame
     float bar;
 };
 
+// Multiplier: arrow scrolling step is text line height scaled by three.
+constexpr float scrollbar_step_scale = 3.0f;
+// Arrow button inset from edges, as a denominator of bar width.
+constexpr float arrow_inset_divisor = 4.0f;
+// Mouse hold duration in seconds before continuous scroll acceleration starts.
+constexpr float hold_duration_threshold_sec = 0.3f;
+// Continuous scroll multiplier for delta time when button is held.
+constexpr float scroll_acceleration_factor = 10.0f;
+// Bar widths to subtract from track length at both ends.
+constexpr float track_bar_count = 2.0f;
+// Halves a span to find its middle.
+constexpr float half_divisor = 2.0f;
+// Grip groove spacing in scaled pixels.
+constexpr int grip_groove_step_px = 3;
+// Grip edge inset from thumb borders in scaled pixels.
+constexpr int grip_inset_px = 3;
+// Grip groove thickness in scaled pixels (used vertically and horizontally).
+constexpr int grip_groove_px = 2;
+// Visibility epsilon for scrollbar appearance decision.
+constexpr float scrollbar_visibility_epsilon = 0.5f;
+
 // Begin/end nest like BeginChild/EndChild.
 std::vector<rv_editor_scroll_frame> rv_editor_scroll_stack;
 
@@ -46,7 +67,7 @@ float rv_editor_scrollbar(const char *id, bool vertical, ImVec2 min, ImVec2 max,
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float bar = vertical ? max.x - min.x : max.y - min.y;
     const float length = vertical ? max.y - min.y : max.x - min.x;
-    const float step = ImGui::GetTextLineHeightWithSpacing() * 3.0f;
+    const float step = ImGui::GetTextLineHeightWithSpacing() * scrollbar_step_scale;
     ImGui::PushID(id);
 
     // The arrow boxes.
@@ -56,25 +77,27 @@ float rv_editor_scrollbar(const char *id, bool vertical, ImVec2 min, ImVec2 max,
         const bool down = item.held && item.hovered;
         rv_editor_draw_panel(dl, a, b, theme, down ? theme.inset : theme.button,
             down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
-        const float inset = std::floor(bar / 4.0f);
+        const float inset = std::floor(bar / arrow_inset_divisor);
         rv_editor_draw_arrow(dl, ImVec2(a.x + inset, a.y + inset), ImVec2(b.x - inset, b.y - inset), theme, dir,
             item.hovered ? theme.text_bright : theme.text);
         // Held down, the arrow keeps scrolling, like a Motif arrow button.
-        return item.clicked || (item.held && ImGui::GetIO().MouseDownDuration[0] > 0.3f);
+        return item.clicked || (item.held && ImGui::GetIO().MouseDownDuration[0] > hold_duration_threshold_sec);
     };
     const ImVec2 first_max = vertical ? ImVec2(max.x, min.y + bar) : ImVec2(min.x + bar, max.y);
     const ImVec2 last_min = vertical ? ImVec2(min.x, max.y - bar) : ImVec2(max.x - bar, min.y);
+    const bool held_long = ImGui::GetIO().MouseDownDuration[0] > hold_duration_threshold_sec;
+    const float accel = held_long ? ImGui::GetIO().DeltaTime * scroll_acceleration_factor : 1.0f;
     if (arrow("##less", min, first_max, vertical ? ImGuiDir_Up : ImGuiDir_Left)) {
-        scroll -= step * (ImGui::GetIO().MouseDownDuration[0] > 0.3f ? ImGui::GetIO().DeltaTime * 10.0f : 1.0f);
+        scroll -= step * accel;
     }
     if (arrow("##more", last_min, max, vertical ? ImGuiDir_Down : ImGuiDir_Right)) {
-        scroll += step * (ImGui::GetIO().MouseDownDuration[0] > 0.3f ? ImGui::GetIO().DeltaTime * 10.0f : 1.0f);
+        scroll += step * accel;
     }
 
     // The trough and the thumb in it.
     const ImVec2 t_min = vertical ? ImVec2(min.x, first_max.y) : ImVec2(first_max.x, min.y);
     const ImVec2 t_max = vertical ? ImVec2(max.x, last_min.y) : ImVec2(last_min.x, max.y);
-    const float track = std::max(0.0f, length - 2.0f * bar);
+    const float track = std::max(0.0f, length - track_bar_count * bar);
     rv_editor_draw_panel(dl, t_min, t_max, theme, theme.inset, rv_editor_bevel::sunken);
     ImGui::SetCursorScreenPos(t_min);
     const rv_editor_item trough = rv_editor_item_add("##track", ImVec2(t_max.x - t_min.x, t_max.y - t_min.y), {});
@@ -84,29 +107,41 @@ float rv_editor_scrollbar(const char *id, bool vertical, ImVec2 min, ImVec2 max,
     const float room = track - thumb;
     const float at = scroll_max > 0.0f ? room * std::clamp(scroll / scroll_max, 0.0f, 1.0f) : 0.0f;
     const ImVec2 th_min = vertical ? ImVec2(t_min.x, std::floor(t_min.y + at)) : ImVec2(std::floor(t_min.x + at), t_min.y);
-    const ImVec2 th_max = vertical ? ImVec2(t_max.x, std::floor(th_min.y + thumb)) : ImVec2(std::floor(th_min.x + thumb), t_max.y);
+    const float th_max_y = std::floor(th_min.y + thumb);
+    const float th_max_x = std::floor(th_min.x + thumb);
+    const ImVec2 th_max = vertical ? ImVec2(t_max.x, th_max_y) : ImVec2(th_max_x, t_max.y);
 
     if (trough.held && room > 0.0f) {
         // While the trough is held the thumb's middle follows the pointer.
         const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const float p = (vertical ? mouse.y - t_min.y : mouse.x - t_min.x) - thumb / 2.0f;
+        const float p = (vertical ? mouse.y - t_min.y : mouse.x - t_min.x) - thumb / half_divisor;
         scroll = scroll_max * std::clamp(p / room, 0.0f, 1.0f);
     }
     const bool hot = trough.hovered || trough.held;
     rv_editor_draw_panel(dl, th_min, th_max, theme, hot ? theme.bevel_hi : theme.button, rv_editor_bevel::raised);
     // The grip: three grooves across the thumb's middle.
     const float px = static_cast<float>(theme.scale);
-    const ImVec2 mid((th_min.x + th_max.x) / 2.0f, (th_min.y + th_max.y) / 2.0f);
+    const ImVec2 mid((th_min.x + th_max.x) / half_divisor, (th_min.y + th_max.y) / half_divisor);
+    const float inset = grip_inset_px * px;
+    const float groove = grip_groove_px * px;
     for (int k = -1; k <= 1; ++k) {
-        const float o = std::floor(static_cast<float>(k) * 3.0f * px);
+        const float o = std::floor(static_cast<float>(k) * grip_groove_step_px * px);
         if (vertical) {
             const float y = std::floor(mid.y + o);
-            dl->AddRectFilled(ImVec2(th_min.x + 3 * px, y), ImVec2(th_max.x - 3 * px, y + px), rv_editor_col(theme.bevel_lo));
-            dl->AddRectFilled(ImVec2(th_min.x + 3 * px, y + px), ImVec2(th_max.x - 3 * px, y + 2 * px), rv_editor_col(theme.bevel_hi));
+            const ImVec2 g1_min(th_min.x + inset, y);
+            const ImVec2 g1_max(th_max.x - inset, y + px);
+            const ImVec2 g2_min(th_min.x + inset, y + px);
+            const ImVec2 g2_max(th_max.x - inset, y + groove);
+            dl->AddRectFilled(g1_min, g1_max, rv_editor_col(theme.bevel_lo));
+            dl->AddRectFilled(g2_min, g2_max, rv_editor_col(theme.bevel_hi));
         } else {
             const float x = std::floor(mid.x + o);
-            dl->AddRectFilled(ImVec2(x, th_min.y + 3 * px), ImVec2(x + px, th_max.y - 3 * px), rv_editor_col(theme.bevel_lo));
-            dl->AddRectFilled(ImVec2(x + px, th_min.y + 3 * px), ImVec2(x + 2 * px, th_max.y - 3 * px), rv_editor_col(theme.bevel_hi));
+            const ImVec2 g1_min(x, th_min.y + inset);
+            const ImVec2 g1_max(x + px, th_max.y - inset);
+            const ImVec2 g2_min(x + px, th_min.y + inset);
+            const ImVec2 g2_max(x + groove, th_max.y - inset);
+            dl->AddRectFilled(g1_min, g1_max, rv_editor_col(theme.bevel_lo));
+            dl->AddRectFilled(g2_min, g2_max, rv_editor_col(theme.bevel_hi));
         }
     }
     ImGui::PopID();
@@ -139,9 +174,9 @@ bool rv_editor_scroll_begin(const char *id, ImVec2 size, bool horizontal, ImGuiC
     const float ch = store.GetFloat(f.content_h, 0.0f);
     const float aw = f.max.x - f.min.x;
     const float ah = f.max.y - f.min.y;
-    const bool h0 = horizontal && cw > aw + 0.5f;
-    f.show_v = ch > ah + 0.5f || (h0 && ch > ah - f.bar + 0.5f);
-    f.show_h = h0 || (horizontal && f.show_v && cw > aw - f.bar + 0.5f);
+    const bool h0 = horizontal && cw > aw + scrollbar_visibility_epsilon;
+    f.show_v = ch > ah + scrollbar_visibility_epsilon || (h0 && ch > ah - f.bar + scrollbar_visibility_epsilon);
+    f.show_h = h0 || (horizontal && f.show_v && cw > aw - f.bar + scrollbar_visibility_epsilon);
 
     const float want_x = store.GetFloat(f.want_x, -1.0f);
     const float want_y = store.GetFloat(f.want_y, -1.0f);
