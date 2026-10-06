@@ -12,6 +12,81 @@ namespace
 
 using mtype = rv_editor_mpack::rv_editor_mpack_type;
 
+// MessagePack spec, formats (https://github.com/msgpack/msgpack/blob/master/spec.md).
+constexpr uint8_t mpack_positive_fixint_max = 0x7f;
+constexpr uint8_t mpack_negative_fixint_min = 0xe0;
+constexpr uint8_t mpack_fixmap_mask = 0xf0;
+constexpr uint8_t mpack_fixmap_value = 0x80;
+constexpr uint8_t mpack_fixmap_size_mask = 0x0f;
+constexpr uint8_t mpack_fixarray_mask = 0xf0;
+constexpr uint8_t mpack_fixarray_value = 0x90;
+constexpr uint8_t mpack_fixarray_size_mask = 0x0f;
+constexpr uint8_t mpack_fixstr_mask = 0xe0;
+constexpr uint8_t mpack_fixstr_value = 0xa0;
+constexpr uint8_t mpack_fixstr_size_mask = 0x1f;
+constexpr uint8_t mpack_nil = 0xc0;
+constexpr uint8_t mpack_false = 0xc2;
+constexpr uint8_t mpack_true = 0xc3;
+constexpr uint8_t mpack_bin8 = 0xc4;
+constexpr uint8_t mpack_bin16 = 0xc5;
+constexpr uint8_t mpack_bin32 = 0xc6;
+constexpr uint8_t mpack_ext8 = 0xc7;
+constexpr uint8_t mpack_ext16 = 0xc8;
+constexpr uint8_t mpack_ext32 = 0xc9;
+constexpr uint8_t mpack_float32 = 0xca;
+constexpr uint8_t mpack_float64 = 0xcb;
+constexpr uint8_t mpack_uint8 = 0xcc;
+constexpr uint8_t mpack_uint16 = 0xcd;
+constexpr uint8_t mpack_uint32 = 0xce;
+constexpr uint8_t mpack_uint64 = 0xcf;
+constexpr uint8_t mpack_int8 = 0xd0;
+constexpr uint8_t mpack_int16 = 0xd1;
+constexpr uint8_t mpack_int32 = 0xd2;
+constexpr uint8_t mpack_int64 = 0xd3;
+constexpr uint8_t mpack_fixext1 = 0xd4;
+constexpr uint8_t mpack_fixext2 = 0xd5;
+constexpr uint8_t mpack_fixext4 = 0xd6;
+constexpr uint8_t mpack_fixext8 = 0xd7;
+constexpr uint8_t mpack_fixext16 = 0xd8;
+constexpr uint8_t mpack_str8 = 0xd9;
+constexpr uint8_t mpack_str16 = 0xda;
+constexpr uint8_t mpack_str32 = 0xdb;
+constexpr uint8_t mpack_array16 = 0xdc;
+constexpr uint8_t mpack_array32 = 0xdd;
+constexpr uint8_t mpack_map16 = 0xde;
+constexpr uint8_t mpack_map32 = 0xdf;
+
+// Nesting depth limit: https://github.com/msgpack/msgpack/blob/master/spec.md.
+constexpr int mpack_max_nesting_depth = 64;
+
+// Starting depth for parsing inner msgpack values within ext payloads: allows one more level before limit.
+constexpr int mpack_ext_inner_start_depth = mpack_max_nesting_depth - 1;
+
+// Integer length widths in bytes: https://github.com/msgpack/msgpack/blob/master/spec.md.
+constexpr int mpack_int8_bytes = 1;
+constexpr int mpack_int16_bytes = 2;
+constexpr int mpack_int32_bytes = 4;
+constexpr int mpack_int64_bytes = 8;
+
+// Floating-point format sizes in bytes: https://github.com/msgpack/msgpack/blob/master/spec.md.
+constexpr int mpack_float32_bytes = 4;
+constexpr int mpack_float64_bytes = 8;
+
+// String/array/map length header sizes in bytes: https://github.com/msgpack/msgpack/blob/master/spec.md.
+constexpr int mpack_len8_bytes = 1;
+constexpr int mpack_len16_bytes = 2;
+constexpr int mpack_len32_bytes = 4;
+
+// Fixed extension type payload sizes in bytes: https://github.com/msgpack/msgpack/blob/master/spec.md.
+constexpr int mpack_fixext1_bytes = 1;
+constexpr int mpack_fixext2_bytes = 2;
+constexpr int mpack_fixext4_bytes = 4;
+constexpr int mpack_fixext8_bytes = 8;
+constexpr int mpack_fixext16_bytes = 16;
+
+// Bits per byte for big-endian encoding/decoding.
+constexpr int bits_per_byte = 8;
+
 class rv_editor_mpack_cursor
 {
 public:
@@ -24,7 +99,7 @@ public:
     {
         uint64_t v = 0;
         for (int k = 0; k < bytes; ++k) {
-            v = (v << 8) | static_cast<uint8_t>(data_[pos_++]);
+            v = (v << bits_per_byte) | static_cast<uint8_t>(data_[pos_++]);
         }
         return v;
     }
@@ -102,7 +177,8 @@ int rv_editor_mpack_ext(rv_editor_mpack_cursor &c, rv_editor_mpack &v, size_t n)
     // nvim's handles are a msgpack integer inside the ext payload.
     rv_editor_mpack_cursor inner(c.take(n));
     rv_editor_mpack id;
-    if (n > 0 && rv_editor_mpack_value(inner, id, 63) == 1 && id.is(mtype::integer)) {
+    if (n > 0 && rv_editor_mpack_value(inner, id, mpack_ext_inner_start_depth) == 1 &&
+        id.is(mtype::integer)) {
         v.i = id.i;
     }
     return 1;
@@ -110,7 +186,7 @@ int rv_editor_mpack_ext(rv_editor_mpack_cursor &c, rv_editor_mpack &v, size_t n)
 
 int rv_editor_mpack_value(rv_editor_mpack_cursor &c, rv_editor_mpack &v, int depth)
 {
-    if (depth > 64) {
+    if (depth > mpack_max_nesting_depth) {
         return -1;
     }
     if (!c.need(1)) {
@@ -118,24 +194,24 @@ int rv_editor_mpack_value(rv_editor_mpack_cursor &c, rv_editor_mpack &v, int dep
     }
     const uint8_t t = c.byte();
     v = {};
-    if (t <= 0x7f) {
+    if (t <= mpack_positive_fixint_max) {
         v.type = mtype::integer;
         v.i = t;
         return 1;
     }
-    if (t >= 0xe0) {
+    if (t >= mpack_negative_fixint_min) {
         v.type = mtype::integer;
         v.i = static_cast<int8_t>(t);
         return 1;
     }
-    if ((t & 0xf0) == 0x80) {
-        return rv_editor_mpack_map(c, v, t & 0x0f, depth);
+    if ((t & mpack_fixmap_mask) == mpack_fixmap_value) {
+        return rv_editor_mpack_map(c, v, t & mpack_fixmap_size_mask, depth);
     }
-    if ((t & 0xf0) == 0x90) {
-        return rv_editor_mpack_array(c, v, t & 0x0f, depth);
+    if ((t & mpack_fixarray_mask) == mpack_fixarray_value) {
+        return rv_editor_mpack_array(c, v, t & mpack_fixarray_size_mask, depth);
     }
-    if ((t & 0xe0) == 0xa0) {
-        const size_t n = t & 0x1f;
+    if ((t & mpack_fixstr_mask) == mpack_fixstr_value) {
+        const size_t n = t & mpack_fixstr_size_mask;
         if (!c.need(n)) {
             return 0;
         }
@@ -151,11 +227,11 @@ int rv_editor_mpack_value(rv_editor_mpack_cursor &c, rv_editor_mpack &v, int dep
         v.type = mtype::integer;
         if (!is_signed) {
             v.i = static_cast<int64_t>(raw);
-        } else if (bytes == 1) {
+        } else if (bytes == mpack_int8_bytes) {
             v.i = static_cast<int8_t>(raw);
-        } else if (bytes == 2) {
+        } else if (bytes == mpack_int16_bytes) {
             v.i = static_cast<int16_t>(raw);
-        } else if (bytes == 4) {
+        } else if (bytes == mpack_int32_bytes) {
             v.i = static_cast<int32_t>(raw);
         } else {
             v.i = static_cast<int64_t>(raw);
@@ -171,56 +247,88 @@ int rv_editor_mpack_value(rv_editor_mpack_cursor &c, rv_editor_mpack &v, int dep
     };
     size_t n = 0;
     switch (t) {
-        case 0xc0: v.type = mtype::nil; return 1;
-        case 0xc2: v.type = mtype::boolean; v.b = false; return 1;
-        case 0xc3: v.type = mtype::boolean; v.b = true; return 1;
-        case 0xcc: return integer(1, false);
-        case 0xcd: return integer(2, false);
-        case 0xce: return integer(4, false);
-        case 0xcf: return integer(8, false);
-        case 0xd0: return integer(1, true);
-        case 0xd1: return integer(2, true);
-        case 0xd2: return integer(4, true);
-        case 0xd3: return integer(8, true);
-        case 0xca: {
-            if (!c.need(4)) {
-                return 0;
-            }
-            const uint32_t raw = static_cast<uint32_t>(c.be(4));
-            float f;
-            std::memcpy(&f, &raw, 4);
-            v.type = mtype::real;
-            v.d = f;
-            return 1;
+    case mpack_nil:
+        v.type = mtype::nil;
+        return 1;
+    case mpack_false:
+        v.type = mtype::boolean;
+        v.b = false;
+        return 1;
+    case mpack_true:
+        v.type = mtype::boolean;
+        v.b = true;
+        return 1;
+    case mpack_uint8:
+        return integer(mpack_int8_bytes, false);
+    case mpack_uint16:
+        return integer(mpack_int16_bytes, false);
+    case mpack_uint32:
+        return integer(mpack_int32_bytes, false);
+    case mpack_uint64:
+        return integer(mpack_int64_bytes, false);
+    case mpack_int8:
+        return integer(mpack_int8_bytes, true);
+    case mpack_int16:
+        return integer(mpack_int16_bytes, true);
+    case mpack_int32:
+        return integer(mpack_int32_bytes, true);
+    case mpack_int64:
+        return integer(mpack_int64_bytes, true);
+    case mpack_float32: {
+        if (!c.need(mpack_float32_bytes)) {
+            return 0;
         }
-        case 0xcb: {
-            if (!c.need(8)) {
-                return 0;
-            }
-            const uint64_t raw = c.be(8);
-            v.type = mtype::real;
-            std::memcpy(&v.d, &raw, 8);
-            return 1;
+        const uint32_t raw = static_cast<uint32_t>(c.be(mpack_float32_bytes));
+        float f;
+        std::memcpy(&f, &raw, mpack_float32_bytes);
+        v.type = mtype::real;
+        v.d = f;
+        return 1;
+    }
+    case mpack_float64: {
+        if (!c.need(mpack_float64_bytes)) {
+            return 0;
         }
-        case 0xd9:
-        case 0xc4: return rv_editor_mpack_blob(c, v, 1);
-        case 0xda:
-        case 0xc5: return rv_editor_mpack_blob(c, v, 2);
-        case 0xdb:
-        case 0xc6: return rv_editor_mpack_blob(c, v, 4);
-        case 0xdc: return length(2, n) ? rv_editor_mpack_array(c, v, n, depth) : 0;
-        case 0xdd: return length(4, n) ? rv_editor_mpack_array(c, v, n, depth) : 0;
-        case 0xde: return length(2, n) ? rv_editor_mpack_map(c, v, n, depth) : 0;
-        case 0xdf: return length(4, n) ? rv_editor_mpack_map(c, v, n, depth) : 0;
-        case 0xd4: return rv_editor_mpack_ext(c, v, 1);
-        case 0xd5: return rv_editor_mpack_ext(c, v, 2);
-        case 0xd6: return rv_editor_mpack_ext(c, v, 4);
-        case 0xd7: return rv_editor_mpack_ext(c, v, 8);
-        case 0xd8: return rv_editor_mpack_ext(c, v, 16);
-        case 0xc7: return length(1, n) ? rv_editor_mpack_ext(c, v, n) : 0;
-        case 0xc8: return length(2, n) ? rv_editor_mpack_ext(c, v, n) : 0;
-        case 0xc9: return length(4, n) ? rv_editor_mpack_ext(c, v, n) : 0;
-        default: return -1;
+        const uint64_t raw = c.be(mpack_float64_bytes);
+        v.type = mtype::real;
+        std::memcpy(&v.d, &raw, mpack_float64_bytes);
+        return 1;
+    }
+    case mpack_str8:
+    case mpack_bin8:
+        return rv_editor_mpack_blob(c, v, mpack_len8_bytes);
+    case mpack_str16:
+    case mpack_bin16:
+        return rv_editor_mpack_blob(c, v, mpack_len16_bytes);
+    case mpack_str32:
+    case mpack_bin32:
+        return rv_editor_mpack_blob(c, v, mpack_len32_bytes);
+    case mpack_array16:
+        return length(mpack_len16_bytes, n) ? rv_editor_mpack_array(c, v, n, depth) : 0;
+    case mpack_array32:
+        return length(mpack_len32_bytes, n) ? rv_editor_mpack_array(c, v, n, depth) : 0;
+    case mpack_map16:
+        return length(mpack_len16_bytes, n) ? rv_editor_mpack_map(c, v, n, depth) : 0;
+    case mpack_map32:
+        return length(mpack_len32_bytes, n) ? rv_editor_mpack_map(c, v, n, depth) : 0;
+    case mpack_fixext1:
+        return rv_editor_mpack_ext(c, v, mpack_fixext1_bytes);
+    case mpack_fixext2:
+        return rv_editor_mpack_ext(c, v, mpack_fixext2_bytes);
+    case mpack_fixext4:
+        return rv_editor_mpack_ext(c, v, mpack_fixext4_bytes);
+    case mpack_fixext8:
+        return rv_editor_mpack_ext(c, v, mpack_fixext8_bytes);
+    case mpack_fixext16:
+        return rv_editor_mpack_ext(c, v, mpack_fixext16_bytes);
+    case mpack_ext8:
+        return length(mpack_len8_bytes, n) ? rv_editor_mpack_ext(c, v, n) : 0;
+    case mpack_ext16:
+        return length(mpack_len16_bytes, n) ? rv_editor_mpack_ext(c, v, n) : 0;
+    case mpack_ext32:
+        return length(mpack_len32_bytes, n) ? rv_editor_mpack_ext(c, v, n) : 0;
+    default:
+        return -1;
     }
 }
 
