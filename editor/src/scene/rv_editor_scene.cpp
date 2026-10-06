@@ -207,7 +207,7 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
     }
     if (has_version) {
         uint32_t major = 0, minor = 0;
-        if (!rv_pdklib::rv_version_parse(version_str, major, minor)) {
+        if (rv_pdklib::rv_version_parse(version_str, major, minor) != RV_OK) {
             error = path.string() + ": malformed [scene] version '" + version_str + "'";
             return RV_ERR_INVAL;
         }

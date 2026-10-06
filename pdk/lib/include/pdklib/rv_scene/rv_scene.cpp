@@ -209,7 +209,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     }
     if (has_version) {
         uint32_t major = 0, minor = 0;
-        if (!rv_version_parse(version_str, major, minor)) {
+        if (rv_version_parse(version_str, major, minor) != RV_OK) {
             problems += origin + ": malformed [scene] version '" + version_str + "'\n";
         } else if (!rv_version_compatible(major, minor)) {
             problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
