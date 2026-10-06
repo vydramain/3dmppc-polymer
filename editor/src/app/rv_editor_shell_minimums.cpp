@@ -13,6 +13,11 @@ namespace rv_editor
 namespace
 {
 
+// Minimum width in font sizes for log/output panes.
+constexpr float log_pane_min_width_em = 30.0f;
+// Minimum height in frame heights for log/output panes.
+constexpr float log_pane_min_height_frames = 6.0f;
+
 // The log panes' one control row, down to Source + Level + Find (at its own
 // minimum) + More, once Follow, Wrap, Copy, Export and Clear View have all
 // dropped behind More (rv_editor_output_controls); a few lines under it.
@@ -25,7 +30,8 @@ rv_editor_size rv_editor_shell_pane_minimum(rv_editor_pane_kind kind)
     switch (kind) {
         case rv_editor_pane_kind::output:
         case rv_editor_pane_kind::runtime_log:
-        case rv_editor_pane_kind::build_log: return { static_cast<int32_t>(fs * 30.0f), static_cast<int32_t>(fh * 6.0f) };
+        case rv_editor_pane_kind::build_log:
+            return { static_cast<int32_t>(fs * log_pane_min_width_em), static_cast<int32_t>(fh * log_pane_min_height_frames) };
         default: return { 0, 0 };
     }
 }

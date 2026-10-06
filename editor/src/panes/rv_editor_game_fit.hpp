@@ -8,6 +8,11 @@
 namespace rv_editor
 {
 
+// Guard against float rounding loss in exact scale multiples before floor.
+constexpr float game_view_rounding_epsilon = 0.001f;
+// Divide by 2 to center the frame in the area.
+constexpr float game_view_center_divisor = 2.0f;
+
 // Where the console's frame goes inside the Game tile's picture area, in pixels
 // from the area's corner. The frame keeps its proportions. Fit never scales below
 // 1x, so it is cut only when the window itself is smaller than the tile's 1x
@@ -46,9 +51,10 @@ inline rv_editor_game_view rv_editor_game_place(int frame_w, int frame_h, float 
         reduced = scale != static_cast<float>(wanted);
     }
     // A hair over the product before flooring: 240 * (500 / 240) is 499.99998 in float.
-    const float w = std::floor(static_cast<float>(frame_w) * scale + 0.001f);
-    const float h = std::floor(static_cast<float>(frame_h) * scale + 0.001f);
-    return { std::floor((area_w - w) / 2.0f), std::floor((area_h - h) / 2.0f), w, h, scale, reduced };
+    const float w = std::floor(static_cast<float>(frame_w) * scale + game_view_rounding_epsilon);
+    const float h = std::floor(static_cast<float>(frame_h) * scale + game_view_rounding_epsilon);
+    return { std::floor((area_w - w) / game_view_center_divisor),
+        std::floor((area_h - h) / game_view_center_divisor), w, h, scale, reduced };
 }
 
 } // namespace rv_editor
