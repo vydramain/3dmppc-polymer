@@ -38,6 +38,25 @@ constexpr std::size_t RV_PCCMDCHAN_READ_PER_TICK = 1 << 20;
 // cheaper than carrying the corpse.
 constexpr std::size_t RV_PCCMDCHAN_COMPACT_AT = 64 * 1024;
 
+// parse_u63: maximum decimal digits that fit in int63 (10^18 < 2^63 < 10^19).
+constexpr int RV_PCCMDCHAN_PARSE_U63_MAX_DIGITS = 18;
+
+// parse_u63: ASCII boundaries for decimal digit verification.
+constexpr char RV_PCCMDCHAN_PARSE_DIGIT_MIN = '0';
+constexpr char RV_PCCMDCHAN_PARSE_DIGIT_MAX = '9';
+
+// parse_u63: decimal number base.
+constexpr int RV_PCCMDCHAN_PARSE_U63_BASE = 10;
+
+// take_header: size of the "bytes <n>" argument pair at the end of a payload request.
+constexpr std::size_t RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE = 2;
+
+// take_header: protocol keyword that marks the start of a payload specification.
+constexpr std::string_view RV_PCCMDCHAN_PAYLOAD_ARG_KEYWORD = "bytes";
+
+// next_request: maximum loop iterations per frame when parsing requests.
+constexpr int RV_PCCMDCHAN_PARSE_LOOP_GUARD_MAX = 64;
+
 struct sigaction rv_pccmdchan_sigpipe_old;
 
 // A token is a run of non-space characters; runs of spaces collapse. An editor
@@ -66,15 +85,15 @@ std::vector<std::string> split_tokens(std::string_view line)
 // loosely is a size an attacker picks.
 bool parse_u63(std::string_view text, int64_t &out)
 {
-    if (text.empty() || text.size() > 18) {
+    if (text.empty() || text.size() > RV_PCCMDCHAN_PARSE_U63_MAX_DIGITS) {
         return false;
     }
     int64_t value = 0;
     for (const char c : text) {
-        if (c < '0' || c > '9') {
+        if (c < RV_PCCMDCHAN_PARSE_DIGIT_MIN || c > RV_PCCMDCHAN_PARSE_DIGIT_MAX) {
             return false;
         }
-        value = value * 10 + (c - '0');
+        value = value * RV_PCCMDCHAN_PARSE_U63_BASE + (c - RV_PCCMDCHAN_PARSE_DIGIT_MIN);
     }
     out = value;
     return true;
@@ -301,7 +320,8 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
     // A trailing `bytes <n>` is the channel's business, not the verb's: only the
     // channel can know where the next header starts, so it strips the pair here
     // and gathers the bytes itself.
-    if (req.args.size() >= 2 && req.args[req.args.size() - 2] == "bytes") {
+    if (req.args.size() >= RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE &&
+        req.args[req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE] == RV_PCCMDCHAN_PAYLOAD_ARG_KEYWORD) {
         int64_t size = 0;
         if (!parse_u63(req.args.back(), size) || size > RV_PCCMDCHAN_PAYLOAD_MAX) {
             // Fatal to the framing: the sender is about to write a number of
@@ -311,7 +331,7 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
             close("payload size could not be framed");
             return false;
         }
-        req.args.resize(req.args.size() - 2);
+        req.args.resize(req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE);
         req.has_payload = true;
         need_ = static_cast<std::size_t>(size);
         pending_ = std::move(req);
@@ -383,7 +403,7 @@ bool rv_pccmdchan_stdio::next_request(rv_pccmdreq &out)
     // frame each, so the loop keeps going as long as it is making progress. The
     // guard is there because "progress" must never be allowed to mean "forever".
     bool got = false;
-    for (int guard = 0; guard < 64 && connected_; ++guard) {
+    for (int guard = 0; guard < RV_PCCMDCHAN_PARSE_LOOP_GUARD_MAX && connected_; ++guard) {
         const std::size_t before = consumed_;
         got = phase_ == phase::payload ? take_payload(out) : take_header(out);
         if (got || consumed_ == before) {
