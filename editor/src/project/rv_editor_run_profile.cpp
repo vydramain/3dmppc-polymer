@@ -21,18 +21,62 @@ namespace rv_editor
 namespace
 {
 
+// Run configuration directory (state directory in project root; value must match rv_editor_watch).
+constexpr std::string_view run_config_dir = ".3dmppc-editor";
+constexpr std::string_view run_config_file = "project.toml";
+
+// File header comment written to project configuration file.
+constexpr std::string_view run_config_header =
+    "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
+
+// TOML keys for run profile string fields.
+constexpr std::string_view key_runtime = "runtime";
+constexpr std::string_view key_memcard = "memcard";
+constexpr std::string_view key_cwd = "cwd";
+
+// TOML keys for run profile boolean flags.
+constexpr std::string_view key_mute = "mute";
+constexpr std::string_view key_paused = "paused";
+constexpr std::string_view key_fixed_step = "fixed_step";
+constexpr std::string_view key_reload_on_save = "reload_on_save";
+
+// TOML keys for run profile array fields.
+constexpr std::string_view key_args = "args";
+constexpr std::string_view key_env = "env";
+
+// TOML section names and active profile key.
+constexpr std::string_view section_run = "run";
+constexpr std::string_view key_active = "active";
+constexpr std::string_view section_profile_prefix = "profile.";
+
+// TOML array formatting delimiters.
+constexpr char array_start = '[';
+constexpr std::string_view array_sep = ", ";
+constexpr char array_end = ']';
+
+// TOML section and line formatting.
+constexpr char section_open = '[';
+constexpr char section_close = ']';
+constexpr std::string_view key_value_sep = " = ";
+constexpr char line_end = '\n';
+
 std::filesystem::path rv_editor_run_config_path(const std::filesystem::path &root)
 {
-    return root / ".3dmppc-editor" / "project.toml";
+    return root / run_config_dir / run_config_file;
 }
 
 std::string rv_editor_run_array(const std::vector<std::string> &items)
 {
-    std::string out = "[";
+    std::string out;
+    out += array_start;
     for (size_t i = 0; i < items.size(); ++i) {
-        out += (i == 0 ? "" : ", ") + rv_editor_toml_quote(items[i]);
+        if (i > 0) {
+            out += array_sep;
+        }
+        out += rv_editor_toml_quote(items[i]);
     }
-    return out + "]";
+    out += array_end;
+    return out;
 }
 
 // A profile name is a section name: letters, digits, '-' and '_'.
@@ -48,23 +92,34 @@ void rv_editor_run_read_entry(rv_editor_run_profile &p, const rv_pdklib::rv_mani
     using kind = rv_pdklib::rv_manifest_value_kind;
     const rv_pdklib::rv_manifest_mvalue &v = e.value;
     if (v.kind == kind::string) {
-        std::string *field = e.key == "runtime" ? &p.runtime : e.key == "memcard" ? &p.memcard
-            : e.key == "cwd"                                           ? &p.cwd
-                                                                       : nullptr;
+        std::string *field = nullptr;
+        if (e.key == key_runtime) {
+            field = &p.runtime;
+        } else if (e.key == key_memcard) {
+            field = &p.memcard;
+        } else if (e.key == key_cwd) {
+            field = &p.cwd;
+        }
         if (field != nullptr) {
             *field = v.str;
         }
     } else if (v.kind == kind::integer) {
-        bool *flag = e.key == "mute" ? &p.mute : e.key == "paused" ? &p.paused
-            : e.key == "fixed_step"                                 ? &p.fixed_step
-            : e.key == "reload_on_save"                             ? &p.reload_on_save
-                                                                    : nullptr;
+        bool *flag = nullptr;
+        if (e.key == key_mute) {
+            flag = &p.mute;
+        } else if (e.key == key_paused) {
+            flag = &p.paused;
+        } else if (e.key == key_fixed_step) {
+            flag = &p.fixed_step;
+        } else if (e.key == key_reload_on_save) {
+            flag = &p.reload_on_save;
+        }
         if (flag != nullptr) {
             *flag = v.num != 0;
         }
-    } else if (e.key == "args") {
+    } else if (e.key == key_args) {
         p.args = v.arr;
-    } else if (e.key == "env") {
+    } else if (e.key == key_env) {
         p.env = v.arr;
     }
 }
@@ -89,19 +144,19 @@ rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root
     }
     std::string active;
     for (const rv_pdklib::rv_manifest_tree_section &section : tree.sections) {
-        if (section.name == "run") {
+        if (section.name == section_run) {
             for (const auto &e : section.entries) {
-                if (e.key == "active" && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
+                if (e.key == key_active && e.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
                     active = e.value.str;
                 }
             }
             continue;
         }
-        if (!section.name.starts_with("profile.")) {
+        if (!section.name.starts_with(section_profile_prefix)) {
             continue;
         }
         rv_editor_run_profile p;
-        p.name = section.name.substr(8);
+        p.name = section.name.substr(section_profile_prefix.size());
         for (const auto &e : section.entries) {
             rv_editor_run_read_entry(p, e);
         }
@@ -121,19 +176,58 @@ rv_editor_run_config rv_editor_run_config_load(const std::filesystem::path &root
 int rv_editor_run_config_save(const std::filesystem::path &root, const rv_editor_run_config &config,
     std::string &error)
 {
-    std::string t = "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
-    t += "[run]\nactive = " + rv_editor_toml_quote(config.profiles[config.active].name) + "\n";
+    std::string t = std::string(run_config_header);
+    t += section_open;
+    t += section_run;
+    t += section_close;
+    t += line_end;
+    t += key_active;
+    t += key_value_sep;
+    t += rv_editor_toml_quote(config.profiles[config.active].name);
+    t += line_end;
     for (const rv_editor_run_profile &p : config.profiles) {
-        t += "\n[profile." + p.name + "]\n";
-        t += "runtime = " + rv_editor_toml_quote(p.runtime) + "\n";
-        t += "memcard = " + rv_editor_toml_quote(p.memcard) + "\n";
-        t += "cwd = " + rv_editor_toml_quote(p.cwd) + "\n";
-        t += "mute = " + std::to_string(p.mute ? 1 : 0) + "\n";
-        t += "paused = " + std::to_string(p.paused ? 1 : 0) + "\n";
-        t += "fixed_step = " + std::to_string(p.fixed_step ? 1 : 0) + "\n";
-        t += "args = " + rv_editor_run_array(p.args) + "\n";
-        t += "env = " + rv_editor_run_array(p.env) + "\n";
-        t += "reload_on_save = " + std::to_string(p.reload_on_save ? 1 : 0) + "\n";
+        t += line_end;
+        t += section_open;
+        t += section_profile_prefix;
+        t += p.name;
+        t += section_close;
+        t += line_end;
+        t += key_runtime;
+        t += key_value_sep;
+        t += rv_editor_toml_quote(p.runtime);
+        t += line_end;
+        t += key_memcard;
+        t += key_value_sep;
+        t += rv_editor_toml_quote(p.memcard);
+        t += line_end;
+        t += key_cwd;
+        t += key_value_sep;
+        t += rv_editor_toml_quote(p.cwd);
+        t += line_end;
+        t += key_mute;
+        t += key_value_sep;
+        t += std::to_string(p.mute ? 1 : 0);
+        t += line_end;
+        t += key_paused;
+        t += key_value_sep;
+        t += std::to_string(p.paused ? 1 : 0);
+        t += line_end;
+        t += key_fixed_step;
+        t += key_value_sep;
+        t += std::to_string(p.fixed_step ? 1 : 0);
+        t += line_end;
+        t += key_args;
+        t += key_value_sep;
+        t += rv_editor_run_array(p.args);
+        t += line_end;
+        t += key_env;
+        t += key_value_sep;
+        t += rv_editor_run_array(p.env);
+        t += line_end;
+        t += key_reload_on_save;
+        t += key_value_sep;
+        t += std::to_string(p.reload_on_save ? 1 : 0);
+        t += line_end;
     }
     const int code = rv_editor_file_replace(rv_editor_run_config_path(root), t, error);
     if (code != RV_OK) {
