@@ -85,7 +85,8 @@ int64_t rv_pcloader::bring_up()
         RV_LOG_ERR(
             "pcloader", "dlopen of disc '{}' failed: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            rv_pdklib::rv_log_escape(dl_error != nullptr ? dl_error : "no reason given", 160));
+            rv_pdklib::rv_log_escape(dl_error != nullptr ? dl_error : "no reason given",
+                RV_PCLOADER_SYSTEM_ERROR_MAX_LEN));
         unload();
         return RV_ERR_IO;
     }

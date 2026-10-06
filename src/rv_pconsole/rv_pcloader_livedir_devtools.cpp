@@ -108,7 +108,7 @@ int64_t rv_pcloader::read_dir_manifest_(const std::filesystem::path &root, const
         != 0) {
         RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
             rv_pdklib::rv_log_escape(dir_path), RV_PCLOADER_MANIFEST_ENTRY,
-            rv_pdklib::rv_log_escape(merror.c_str(), 512));
+            rv_pdklib::rv_log_escape(merror.c_str(), RV_PCLOADER_MANIFEST_ERROR_MAX_LEN));
         return RV_ERR_INVAL;
     }
     return RV_OK;

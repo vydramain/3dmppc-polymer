@@ -74,7 +74,7 @@ int64_t open_archive(const char *archive_path,
     if (out_zip->open(archive_path, zip_error) != RV_OK) {
         RV_LOG_ERR("pcloader", "'{}' is not a readable .mppcdisc archive: {}",
             rv_pdklib::rv_log_escape(archive_path),
-            rv_pdklib::rv_log_escape(zip_error.c_str(), 160));
+            rv_pdklib::rv_log_escape(zip_error.c_str(), RV_PCLOADER_SYSTEM_ERROR_MAX_LEN));
         return RV_ERR_IO;
     }
     return RV_OK;
@@ -127,7 +127,7 @@ int64_t parse_manifest(const std::string &manifest_text,
         RV_LOG_ERR("pcloader", "'{}' carries a '{}' that does not parse: {}",
             rv_pdklib::rv_log_escape(archive_path),
             RV_PCLOADER_MANIFEST_ENTRY,
-            rv_pdklib::rv_log_escape(merror.c_str(), 512));
+            rv_pdklib::rv_log_escape(merror.c_str(), RV_PCLOADER_MANIFEST_ERROR_MAX_LEN));
         return RV_ERR_INVAL;
     }
     return RV_OK;
