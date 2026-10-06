@@ -376,7 +376,7 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
 
 int rv_editor_font_ttf_em(double scale)
 {
-    return static_cast<int>(std::floor(rv_pdklib::rv_font_cell_height * scale + 0.5));
+    return static_cast<int>(std::floor(rv_pdklib::rv_font_cell_height * scale + rounding_offset));
 }
 
 std::string rv_editor_font_ttf(double scale)

@@ -356,7 +356,7 @@ const rv_editor_mpack *rv_editor_mpack::get(std::string_view key) const
 void rv_editor_mpack_writer::put_be(uint64_t v, int bytes)
 {
     for (int k = bytes - 1; k >= 0; --k) {
-        put(static_cast<uint8_t>(v >> (8 * k)));
+        put(static_cast<uint8_t>(v >> (bits_per_byte * k)));
     }
 }
 
@@ -378,10 +378,10 @@ void rv_editor_mpack_writer::integer(int64_t v)
         put(static_cast<uint8_t>(v));
     } else if (v >= 0 && v <= mpack_uint32_max) {
         put(mpack_uint32);
-        put_be(static_cast<uint64_t>(v), 4);
+        put_be(static_cast<uint64_t>(v), mpack_int32_bytes);
     } else {
         put(mpack_int64);
-        put_be(static_cast<uint64_t>(v), 8);
+        put_be(static_cast<uint64_t>(v), mpack_int64_bytes);
     }
 }
 
@@ -391,13 +391,13 @@ void rv_editor_mpack_writer::string(std::string_view v)
         put(static_cast<uint8_t>(mpack_fixstr_value | v.size()));
     } else if (v.size() <= mpack_uint8_max) {
         put(mpack_str8);
-        put_be(v.size(), 1);
+        put_be(v.size(), mpack_len8_bytes);
     } else if (v.size() <= mpack_uint16_max) {
         put(mpack_str16);
-        put_be(v.size(), 2);
+        put_be(v.size(), mpack_len16_bytes);
     } else {
         put(mpack_str32);
-        put_be(v.size(), 4);
+        put_be(v.size(), mpack_len32_bytes);
     }
     out_.append(v);
 }
@@ -408,10 +408,10 @@ void rv_editor_mpack_writer::array(uint32_t count)
         put(static_cast<uint8_t>(mpack_fixarray_value | count));
     } else if (count <= mpack_uint16_max) {
         put(mpack_array16);
-        put_be(count, 2);
+        put_be(count, mpack_len16_bytes);
     } else {
         put(mpack_array32);
-        put_be(count, 4);
+        put_be(count, mpack_len32_bytes);
     }
 }
 
@@ -421,10 +421,10 @@ void rv_editor_mpack_writer::map(uint32_t count)
         put(static_cast<uint8_t>(mpack_fixmap_value | count));
     } else if (count <= mpack_uint16_max) {
         put(mpack_map16);
-        put_be(count, 2);
+        put_be(count, mpack_len16_bytes);
     } else {
         put(mpack_map32);
-        put_be(count, 4);
+        put_be(count, mpack_len32_bytes);
     }
 }
 
