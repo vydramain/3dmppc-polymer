@@ -18,6 +18,15 @@ namespace rv_editor
 namespace
 {
 
+// Table columns in build summary (process, exit status)
+constexpr int summary_columns = 2;
+
+// Separator between state label and status text in build status line
+constexpr const char *state_separator = ": ";
+
+// Log source name for build and candidate build diagnostics
+constexpr const char *log_source_build = "build";
+
 rv_editor_status_kind rv_editor_build_lamp(rv_editor_build_state state)
 {
     switch (state) {
@@ -37,7 +46,7 @@ void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b
     if (b.output_cut()) {
         exit_line += rv_editor_text("pane_build_result.output_cut");
     }
-    if (ImGui::BeginTable("##build_summary", 2, ImGuiTableFlags_SizingStretchProp)) {
+    if (ImGui::BeginTable("##build_summary", summary_columns, ImGuiTableFlags_SizingStretchProp)) {
         const char *lbl_process = rv_editor_text("pane_build_result.summary_process");
         const auto pid = b.pid();
         const auto process_text = rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid));
@@ -79,7 +88,7 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
                 const auto img_name = b.image().filename().string();
                 what = rv_editor_text_format("pane_build_result.candidate_image", std::make_format_args(img_name));
             }
-            const std::string line = what + ": " + rv_editor_build_state_name(b.state());
+            const std::string line = what + state_separator + rv_editor_build_state_name(b.state());
             rv_editor_status(line.c_str(), rv_editor_build_lamp(b.state()), theme);
             if (!b.busy()) {
                 rv_editor_build_result_summary(app, b, theme);
@@ -134,7 +143,7 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         }
         rv_editor_log_begin("##diag", ImVec2(0, 0), theme);
         for (const rv_editor_log_line *l : found) {
-            rv_editor_log_row("", "build",
+            rv_editor_log_row("", log_source_build,
                 l->level == rv_editor_log_level::error ? rv_editor_severity::error : rv_editor_severity::warning,
                 l->text.c_str(), theme);
         }
