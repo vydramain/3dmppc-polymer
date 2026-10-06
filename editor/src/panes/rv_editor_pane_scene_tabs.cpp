@@ -26,6 +26,16 @@ namespace rv_editor
 namespace
 {
 
+// Picture file extension.
+constexpr std::string_view png_extension = ".png";
+
+// Sound file extensions.
+constexpr std::string_view wav_extension = ".wav";
+constexpr std::string_view pcm_extension = ".pcm";
+
+// Path escape indicator: relative path goes outside project root.
+constexpr std::string_view path_escape_indicator = "..";
+
 // The last failed play, kept until the front tab moves to a different file.
 struct rv_editor_scene_sound_error
 {
@@ -40,7 +50,7 @@ std::string rv_editor_scene_tab_rel(const rv_editor_app &app, const std::filesys
 {
     std::error_code ec;
     const std::filesystem::path rel = std::filesystem::relative(path, app.project.root, ec);
-    if (ec || rel.empty() || rel.native().starts_with(std::filesystem::path("..").native())) {
+    if (ec || rel.empty() || rel.native().starts_with(std::filesystem::path(path_escape_indicator).native())) {
         return path.filename().string();
     }
     return rel.generic_string();
@@ -118,9 +128,9 @@ void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::pat
 {
     const std::string ext = path.extension().string();
     rv_editor_scene_tab_kind kind;
-    if (ext == ".png") {
+    if (ext == png_extension) {
         kind = rv_editor_scene_tab_kind::picture;
-    } else if (ext == ".wav" || ext == ".pcm") {
+    } else if (ext == wav_extension || ext == pcm_extension) {
         kind = rv_editor_scene_tab_kind::sound;
     } else {
         return;
