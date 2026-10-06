@@ -85,145 +85,145 @@ print("Hello from example lua!")
 -- hook only reaches for the ones it uses. Explained here, once, because
 -- every hook below takes the same `o_` for the same reason.
 function M.disc_initialize(o_)
-	local cv = pdk.cv(o_)
+    local cv = pdk.cv(o_)
 
-	-- Nothing inserts a default for this any more - the console only WATCHES
-	-- `state`'s shape now, it does not manufacture values for it - so the
-	-- field this example exists to demonstrate has to start at 0 here, the
-	-- one time disc_initialize ever runs, or frame_update below finds nil.
-	state.frame_count = 0
+    -- Nothing inserts a default for this any more - the console only WATCHES
+    -- `state`'s shape now, it does not manufacture values for it - so the
+    -- field this example exists to demonstrate has to start at 0 here, the
+    -- one time disc_initialize ever runs, or frame_update below finds nil.
+    state.frame_count = 0
 
-	-- Read something real back through pdk and log it: the headless-
-	-- verifiable proof that a Lua call reached the console's own
-	-- rv_cv_screen_width and got its real answer, not a stub. Stored in
-	-- state, not a local, because frame_render (below) needs it and a local
-	-- set here would not survive a reload.
-	state.screen_width = tonumber(pdk.cv_screen_width(cv))
-	state.screen_height = tonumber(pdk.cv_screen_height(cv))
-	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
+    -- Read something real back through pdk and log it: the headless-
+    -- verifiable proof that a Lua call reached the console's own
+    -- rv_cv_screen_width and got its real answer, not a stub. Stored in
+    -- state, not a local, because frame_render (below) needs it and a local
+    -- set here would not survive a reload.
+    state.screen_width = tonumber(pdk.cv_screen_width(cv))
+    state.screen_height = tonumber(pdk.cv_screen_height(cv))
+    print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
 
-	-- Nothing to acquire here: the drive makes ASSET_TEXTURE_NAME resident
-	-- the first time frame_render names it, not before.
+    -- Nothing to acquire here: the drive makes ASSET_TEXTURE_NAME resident
+    -- the first time frame_render names it, not before.
 
-	-- The tone, by contrast, is acquired right here: rv_cd_resource_addr and
-	-- rv_cd_resource_size (both against RV_CD_RESOURCE_AUDIO) are what makes
-	-- ASSET_TONE_NAME resident in sound RAM - this script never calls
-	-- rv_ca_sound_asset_malloc itself, the drive owns that the same way it
-	-- owns video RAM for a texture. tonumber() unwraps the cdata int64_t
-	-- both calls return, the same way state.screen_width did above.
-	local cd = pdk.cd(o_)
-	local ca = pdk.ca(o_)
-	local addr_tone = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
-	local size_tone = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
-	print(string.format("example-lua: tone resident at addr=%d size=%d byte(s)", addr_tone, size_tone))
+    -- The tone, by contrast, is acquired right here: rv_cd_resource_addr and
+    -- rv_cd_resource_size (both against RV_CD_RESOURCE_AUDIO) are what makes
+    -- ASSET_TONE_NAME resident in sound RAM - this script never calls
+    -- rv_ca_sound_asset_malloc itself, the drive owns that the same way it
+    -- owns video RAM for a texture. tonumber() unwraps the cdata int64_t
+    -- both calls return, the same way state.screen_width did above.
+    local cd = pdk.cd(o_)
+    local ca = pdk.ca(o_)
+    local addr_tone = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
+    local size_tone = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
+    print(string.format("example-lua: tone resident at addr=%d size=%d byte(s)", addr_tone, size_tone))
 
-	-- The cross-kind proof this task exists to make: a query that does not
-	-- describe the kind it was asked of must answer a negative rv_err, not a
-	-- fabricated 0 that would read back as "no palette" or "0 bytes". Both
-	-- probes below are expected to be negative.
-	local texture_query_on_audio_name = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TONE_NAME))
-	local size_query_on_texture_name = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
-	print(string.format(
-		"example-lua: cross-kind probe: texture-query(audio name)=%d size-query(texture name)=%d",
-		texture_query_on_audio_name, size_query_on_texture_name))
+    -- The cross-kind proof this task exists to make: a query that does not
+    -- describe the kind it was asked of must answer a negative rv_err, not a
+    -- fabricated 0 that would read back as "no palette" or "0 bytes". Both
+    -- probes below are expected to be negative.
+    local texture_query_on_audio_name = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TONE_NAME))
+    local size_query_on_texture_name = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
+    print(string.format(
+        "example-lua: cross-kind probe: texture-query(audio name)=%d size-query(texture name)=%d",
+        texture_query_on_audio_name, size_query_on_texture_name))
 
-	if addr_tone >= 0 and ca ~= nil and tonumber(pdk.ca_voice_count(ca)) >= 1 then
-		-- Same ADSR shape rv_dmain_setup.cpp's own build_beep() uses for its
-		-- built-in beep - a known-good envelope, not a value this example
-		-- invented. Set field by field, the way set_vertex above fills a
-		-- vertex, rather than a positional pdk.new(...) table: a voice
-		-- config has eleven fields and reads better named than counted.
-		local voice = pdk.new("rv_voice_conf")
-		voice.voice = 1 -- voice 0
-		voice.loop_type = pdk.LOOP_NONE
-		voice.sample_address = addr_tone
-		voice.ar = 5
-		voice.dr = 40
-		voice.sr = 0
-		voice.rr = 120
-		voice.sl = 26000
-		voice.volume = 32767
-		voice.volume_l = 32767
-		voice.volume_r = 32767
-		if tonumber(pdk.ca_voice_setup(ca, voice)) >= 0 then
-			pdk.ca_voice_play(ca, 1)
-		end
-	end
+    if addr_tone >= 0 and ca ~= nil and tonumber(pdk.ca_voice_count(ca)) >= 1 then
+        -- Same ADSR shape rv_dmain_setup.cpp's own build_beep() uses for its
+        -- built-in beep - a known-good envelope, not a value this example
+        -- invented. Set field by field, the way set_vertex above fills a
+        -- vertex, rather than a positional pdk.new(...) table: a voice
+        -- config has eleven fields and reads better named than counted.
+        local voice = pdk.new("rv_voice_conf")
+        voice.voice = 1 -- voice 0
+        voice.loop_type = pdk.LOOP_NONE
+        voice.sample_address = addr_tone
+        voice.ar = 5
+        voice.dr = 40
+        voice.sr = 0
+        voice.rr = 120
+        voice.sl = 26000
+        voice.volume = 32767
+        voice.volume_l = 32767
+        voice.volume_r = 32767
+        if tonumber(pdk.ca_voice_setup(ca, voice)) >= 0 then
+            pdk.ca_voice_play(ca, 1)
+        end
+    end
 end
 function M.frame_update(dt, o_)
-	-- The frame counter: the one field this example exists to demonstrate.
-	-- It lives in `state`, so a code reload (the console re-wires `state`
-	-- into the new code's environment; this chunk's locals do not survive)
-	-- leaves it exactly where it was - the count CONTINUES instead of
-	-- restarting at 0.
-	state.frame_count = state.frame_count + 1
+    -- The frame counter: the one field this example exists to demonstrate.
+    -- It lives in `state`, so a code reload (the console re-wires `state`
+    -- into the new code's environment; this chunk's locals do not survive)
+    -- leaves it exactly where it was - the count CONTINUES instead of
+    -- restarting at 0.
+    state.frame_count = state.frame_count + 1
 
-	-- Should the disc stop? this example does not wire a button up to check
-	-- - false every frame is still the honest answer for a script that
-	-- raises no stop condition of its own.
-	return false
+    -- Should the disc stop? this example does not wire a button up to check
+    -- - false every frame is still the honest answer for a script that
+    -- raises no stop condition of its own.
+    return false
 end
 
 function M.frame_render(o_)
-	local cv = pdk.cv(o_)
+    local cv = pdk.cv(o_)
 
-	-- Same shape as example-cpp.cpp's own frame_render: configure the frame
-	-- (clear colour), fill it with a primitive, and leave the flush to the
-	-- disc's C++ side (src/example-lua.cpp), which calls rv_cv_frame_flush
-	-- right after this hook returns.
-	pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
+    -- Same shape as example-cpp.cpp's own frame_render: configure the frame
+    -- (clear colour), fill it with a primitive, and leave the flush to the
+    -- disc's C++ side (src/example-lua.cpp), which calls rv_cv_frame_flush
+    -- right after this hook returns.
+    pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
 
-	-- pdk.primitive_polygon(3) (pdklib) hands back an rv_primitive with
-	-- every field the console requires from a flat-coloured triangle
-	-- already set - type, fill_mode, mapping, the zeroed texture/palette
-	-- pair, vertex_count; see that helper's own comment for why those are
-	-- its job and not this script's. depth and the three vertices - their
-	-- positions and their colours - are this game's content, so they are
-	-- set right here, not in pdklib.
-	local primitive = pdk.primitive_polygon(3)
-	primitive.depth = 0
-	local polygon = primitive.data.polygon
+    -- pdk.primitive_polygon(3) (pdklib) hands back an rv_primitive with
+    -- every field the console requires from a flat-coloured triangle
+    -- already set - type, fill_mode, mapping, the zeroed texture/palette
+    -- pair, vertex_count; see that helper's own comment for why those are
+    -- its job and not this script's. depth and the three vertices - their
+    -- positions and their colours - are this game's content, so they are
+    -- set right here, not in pdklib.
+    local primitive = pdk.primitive_polygon(3)
+    primitive.depth = 0
+    local polygon = primitive.data.polygon
 
-	local function set_vertex(i, x, y, r, g, b)
-		local v = polygon.vertexes[i]
-		v.x, v.y = math.floor(x), math.floor(y)
-		v.color.r, v.color.g, v.color.b = r, g, b
-	end
+    local function set_vertex(i, x, y, r, g, b)
+        local v = polygon.vertexes[i]
+        v.x, v.y = math.floor(x), math.floor(y)
+        v.color.r, v.color.g, v.color.b = r, g, b
+    end
 
-	local w, h = state.screen_width, state.screen_height
-	set_vertex(0, w / 2, 40, 255, 80, 80)
-	set_vertex(1, 40, h - 40, 80, 255, 80)
-	set_vertex(2, w - 40, h - 40, 80, 80, 255)
+    local w, h = state.screen_width, state.screen_height
+    set_vertex(0, w / 2, 40, 255, 80, 80)
+    set_vertex(1, 40, h - 40, 80, 255, 80)
+    set_vertex(2, w - 40, h - 40, 80, 80, 255)
 
-	pdk.cv_frame_put(cv, primitive)
+    pdk.cv_frame_put(cv, primitive)
 
-	-- The sprite next to the triangle: SAMPLE_TEXTURE against ASSET_TEXTURE_NAME,
-	-- resolved by name through pdk.resource_resolve (pdklib), which is now
-	-- the one place that speaks RV_CD_RESOURCE_TEXTURE and makes the four
-	-- separate drive calls - see that helper's comment for why the kind is
-	-- pdklib's business and the name stays this script's. Resolved fresh
-	-- every frame, not cached, because an address is only valid until that
-	-- texture is reloaded. A nil result (the asset missing) is this script's
-	-- own decision to skip the sprite rather than crash - disc_initialize
-	-- never has to refuse to start over it, and the triangle above still
-	-- draws either way.
-	local resolved = pdk.resource_resolve(o_, ASSET_TEXTURE_NAME)
-	if resolved ~= nil then
-		-- pdk.primitive_sprite (pdklib) fills in type, fill_mode, mapping
-		-- and the resolved addr_texture/addr_palette, and defaults
-		-- width/height to the texture's own size; see that helper's
-		-- comment for why. depth, position and colour are this game's to
-		-- set, so they are set right here, not in pdklib.
-		local sprite_primitive = pdk.primitive_sprite(resolved)
-		sprite_primitive.depth = 1
+    -- The sprite next to the triangle: SAMPLE_TEXTURE against ASSET_TEXTURE_NAME,
+    -- resolved by name through pdk.resource_resolve (pdklib), which is now
+    -- the one place that speaks RV_CD_RESOURCE_TEXTURE and makes the four
+    -- separate drive calls - see that helper's comment for why the kind is
+    -- pdklib's business and the name stays this script's. Resolved fresh
+    -- every frame, not cached, because an address is only valid until that
+    -- texture is reloaded. A nil result (the asset missing) is this script's
+    -- own decision to skip the sprite rather than crash - disc_initialize
+    -- never has to refuse to start over it, and the triangle above still
+    -- draws either way.
+    local resolved = pdk.resource_resolve(o_, ASSET_TEXTURE_NAME)
+    if resolved ~= nil then
+        -- pdk.primitive_sprite (pdklib) fills in type, fill_mode, mapping
+        -- and the resolved addr_texture/addr_palette, and defaults
+        -- width/height to the texture's own size; see that helper's
+        -- comment for why. depth, position and colour are this game's to
+        -- set, so they are set right here, not in pdklib.
+        local sprite_primitive = pdk.primitive_sprite(resolved)
+        sprite_primitive.depth = 1
 
-		local sprite = sprite_primitive.data.sprite
-		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
-		sprite.x = 16
-		sprite.y = 16
+        local sprite = sprite_primitive.data.sprite
+        sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
+        sprite.x = 16
+        sprite.y = 16
 
-		pdk.cv_frame_put(cv, sprite_primitive)
-	end
+        pdk.cv_frame_put(cv, sprite_primitive)
+    end
 end
 
 function M.disc_shutdown(o_) end
