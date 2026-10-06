@@ -11,9 +11,31 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Bit shifts to extract RGB channels from packed 0xRRGGBB colour
+constexpr int channel_shift_red = 16;
+constexpr int channel_shift_green = 8;
+// 8-bit channel mask of a packed 0xRRGGBB colour
+constexpr uint32_t rgb_channel_mask = 0xffu;
+// Full opacity in IM_COL32 (8-bit alpha)
+constexpr uint32_t alpha_opaque = 255;
+// Minimum cursor dimension in pixels to ensure visibility
+constexpr float cursor_min_dimension_px = 2.0f;
+// Scale factor to convert cursor shape percent to fraction
+constexpr float cursor_shape_percent_scale = 100.0f;
+// Floating window anchor positions in nvim's win_float_pos
+constexpr std::string_view float_anchor_ne = "NE";
+constexpr std::string_view float_anchor_sw = "SW";
+constexpr std::string_view float_anchor_se = "SE";
+
+} // namespace
+
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
-    return IM_COL32((rgb >> 16) & 0xff, (rgb >> 8) & 0xff, rgb & 0xff, 255);
+    return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask,
+        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask, alpha_opaque);
 }
 
 void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_editor_nvim_grid &grid, ImVec2 at,
@@ -56,12 +78,14 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_edit
     // The shape nvim gives the current mode (guicursor, mode_info_set).
     const rv_editor_nvim_cursor shape = screen.cursor_shape();
     if (shape.kind == rv_editor_nvim_cursor_kind::vertical) {
-        const float w = std::max(2.0f, std::floor(cell.x * static_cast<float>(shape.percent) / 100.0f));
+        const float w = std::max(cursor_min_dimension_px,
+            std::floor(cell.x * static_cast<float>(shape.percent) / cursor_shape_percent_scale));
         dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + cell.y), rv_editor_rgb(fg));
         return;
     }
     if (shape.kind == rv_editor_nvim_cursor_kind::horizontal) {
-        const float h = std::max(2.0f, std::floor(cell.y * static_cast<float>(shape.percent) / 100.0f));
+        const float h = std::max(cursor_min_dimension_px,
+            std::floor(cell.y * static_cast<float>(shape.percent) / cursor_shape_percent_scale));
         dl->AddRectFilled(ImVec2(p0.x, p0.y + cell.y - h), ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
         return;
     }
@@ -95,11 +119,11 @@ void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen, int32_t gri
             }
         }
 
-        if (grid->anchor == "NE") {
+        if (grid->anchor == float_anchor_ne) {
             float_col -= grid->width;
-        } else if (grid->anchor == "SW") {
+        } else if (grid->anchor == float_anchor_sw) {
             float_row -= grid->height;
-        } else if (grid->anchor == "SE") {
+        } else if (grid->anchor == float_anchor_se) {
             float_row -= grid->height;
             float_col -= grid->width;
         }
