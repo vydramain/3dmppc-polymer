@@ -19,6 +19,15 @@ namespace rv_editor
 namespace
 {
 
+// TOML manifest key for file patterns in a section
+constexpr std::string_view manifest_key_files = "files";
+// Line ending: CRLF detected from file format to preserve Windows newlines
+constexpr std::string_view manifest_eol_crlf = "\r\n";
+// Line ending: LF fallback for Unix/unknown formats
+constexpr std::string_view manifest_eol_lf = "\n";
+// Array element separator in TOML format
+constexpr std::string_view manifest_array_separator = ",";
+
 // starts[n] is the byte offset where line n (1-based, matching tree line
 // numbers) begins. A trailing line with no final '\n' has no entry past it.
 std::vector<size_t> rv_manifest_edit_line_starts(const std::string &text)
@@ -72,9 +81,9 @@ std::string rv_manifest_edit_eol(const std::string &text)
 {
     const size_t nl = text.find('\n');
     if (nl != std::string::npos && nl > 0 && text[nl - 1] == '\r') {
-        return "\r\n";
+        return std::string(manifest_eol_crlf);
     }
-    return "\n";
+    return std::string(manifest_eol_lf);
 }
 
 size_t rv_manifest_edit_indent_end(const std::string &text, size_t line_start)
@@ -205,7 +214,7 @@ void rv_manifest_edit_append_element(std::string &text,
     const size_t insert_at = next_nl == std::string::npos ? text.size() : next_nl + 1;
     text.insert(insert_at, indent + quoted + eol);
     if (!has_comma) {
-        text.insert(value_end, ",");
+        text.insert(value_end, std::string(manifest_array_separator));
     }
 }
 
@@ -248,7 +257,7 @@ int rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
     } else {
         const rv_pdklib::rv_manifest_tree_entry *files = nullptr;
         for (const auto &e : sec->entries) {
-            if (e.key == "files") {
+            if (e.key == manifest_key_files) {
                 files = &e;
                 break;
             }

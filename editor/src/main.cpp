@@ -31,6 +31,9 @@
 namespace
 {
 
+// Program name shown as the window title and in error messages
+constexpr const char *program_name = "3dmppc-editor";
+
 // UI text filename next to preferences.
 constexpr std::string_view ui_texts_filename = "texts.toml";
 // Window padding counts twice: above and below the status bar.
@@ -269,7 +272,7 @@ int main(int argc, char **argv)
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr;
     constexpr SDL_WindowFlags window_flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    if (!SDL_CreateWindowAndRenderer("3dmppc-editor", rv_editor::window_min_width,
+    if (!SDL_CreateWindowAndRenderer(program_name, rv_editor::window_min_width,
             rv_editor::window_min_height, window_flags, &window, &renderer)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_CreateWindowAndRenderer: %s\n", SDL_GetError());
         SDL_Quit();

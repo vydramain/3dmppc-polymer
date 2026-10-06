@@ -26,6 +26,9 @@ namespace rv_editor
 namespace
 {
 
+// Current directory marker used when PATH component is empty
+constexpr const char *current_dir_marker = ".";
+
 // How long a reaped child's output may keep arriving from a grandchild that
 // still holds a pipe open, before the process gives up and calls it cut.
 constexpr auto rv_editor_output_grace = std::chrono::seconds(2);
@@ -348,7 +351,7 @@ std::filesystem::path rv_editor_process_find(const char *name)
     std::string dir;
     while (std::getline(dirs, dir, path_separator)) {
         std::error_code ec;
-        const std::filesystem::path p = std::filesystem::path(dir.empty() ? "." : dir) / name;
+        const std::filesystem::path p = std::filesystem::path(dir.empty() ? current_dir_marker : dir) / name;
         const auto st = std::filesystem::status(p, ec);
         if (!ec && std::filesystem::is_regular_file(st) &&
             (st.permissions() & std::filesystem::perms::owner_exec) != std::filesystem::perms::none) {
