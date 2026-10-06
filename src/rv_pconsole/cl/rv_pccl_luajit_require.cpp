@@ -18,6 +18,12 @@ namespace rv_3dmppc
 namespace
 {
 
+// Maximum module name length (anything longer is rejected as invalid).
+constexpr std::size_t MAX_MODULE_NAME_LEN = 200;
+
+// Entry script is neither .lua nor .luac.
+constexpr int ASSET_CODE_INVALID_EXTENSION = 2;
+
 // Undoes the "being loaded" marker for `name` without raising, so every
 // failure path below can clear it and then error freely.
 void clear_marker(lua_State *L, int loaded_idx, const char *name)
@@ -37,7 +43,7 @@ void clear_marker(lua_State *L, int loaded_idx, const char *name)
 int rv_pccl_luajit::module_asset_(const char *name, char *out, std::size_t cap) const
 {
     const std::size_t len = std::strlen(name);
-    bool bad = len == 0 || len > 200;
+    bool bad = len == 0 || len > MAX_MODULE_NAME_LEN;
     for (std::size_t i = 0; !bad && i < len; ++i) {
         const char c = name[i];
         if (c == '.' || c == '/' || c == '\\') {
@@ -54,7 +60,7 @@ int rv_pccl_luajit::module_asset_(const char *name, char *out, std::size_t cap) 
     } else if (conf_.script_entry.ends_with(".lua")) {
         ext = ".lua";
     } else {
-        return 2;
+        return ASSET_CODE_INVALID_EXTENSION;
     }
 
     std::snprintf(out, cap, "%s%s", name, ext);
@@ -97,7 +103,7 @@ int rv_pccl_luajit::require_(lua_State *L)
 
     // The entry's own extension decides the archive/--unpacked question for
     // every module, not just the entry itself.
-    if (asset_code == 2) {
+    if (asset_code == ASSET_CODE_INVALID_EXTENSION) {
         clear_marker(L, loaded_idx, name);
         return luaL_error(L, "require('%s'): the entry script '%s' is neither .lua nor .luac", name,
             self->conf_.script_entry.c_str());
