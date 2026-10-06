@@ -11,11 +11,35 @@ namespace rv_editor
 namespace
 {
 
+// Splitter container height in frame heights (GetFrameHeight() multiplier)
+constexpr float splitter_height_frames = 4.0f;
+
+// Minimum pane height in frame heights (GetFrameHeight() multiplier) in a splitter
+constexpr float splitter_min_pane_height_frames = 2.0f;
+
+// Catalog tile window display area height in frame heights (GetFrameHeight() multiplier)
+constexpr float catalog_tile_height_frames = 8.0f;
+
+// Catalog lists and well view height in frame heights (GetFrameHeight() multiplier)
+constexpr float catalog_view_height_frames = 6.0f;
+
+// Number of columns in the catalog demo table (rows[][N])
+constexpr int catalog_table_columns = 2;
+
+// Number of columns in the catalog panes overview table
+constexpr int catalog_panes_table_columns = 3;
+
+// Initial left pane share of splitter width in the demo section
+constexpr float splitter_demo_initial_left_share = 0.5f;
+
+// Divisor for calculating half-heights in splitter initialization
+constexpr float splitter_half_divisor = 2.0f;
+
 struct rv_editor_pane_values
 {
     int selected = 1;
     int tab = 0;
-    float left_share = 0.5f; // splitter demo: the left pane's share of the width
+    float left_share = splitter_demo_initial_left_share;
     float top = 0.0f;        // splitter demo heights, set on first use
     float bottom = 0.0f;
 };
@@ -47,8 +71,8 @@ void rv_editor_catalog_list(float height)
     if (!ImGui::BeginListBox("##list", ImVec2(-1.0f, height))) {
         return;
     }
-    for (int i = 0; i < 4; ++i) {
-        ImGui::BeginDisabled(i == 3);
+    for (int i = 0; i < static_cast<int>(std::size(items)); ++i) {
+        ImGui::BeginDisabled(i == static_cast<int>(std::size(items)) - 1);
         if (ImGui::Selectable(items[i], rv_editor_pane_data.selected == i)) {
             rv_editor_pane_data.selected = i;
         }
@@ -60,13 +84,17 @@ void rv_editor_catalog_list(float height)
 void rv_editor_catalog_table()
 {
     constexpr ImGuiTableFlags flags = ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg;
-    if (!ImGui::BeginTable("##table", 2, flags)) {
+    if (!ImGui::BeginTable("##table", catalog_table_columns, flags)) {
         return;
     }
     ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_name"));
     ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_directory"));
     ImGui::TableHeadersRow();
-    const char *rows[][2] = {{"solid-maid", "~/Projects"}, {"example-lua", "mppcdiscs"}, {"example-cpp", "mppcdiscs"}};
+    const char *rows[][catalog_table_columns] = {
+        { "solid-maid", "~/Projects" },
+        { "example-lua", "mppcdiscs" },
+        { "example-cpp", "mppcdiscs" }
+    };
     for (const auto &row : rows) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
@@ -82,20 +110,20 @@ void rv_editor_catalog_tabs(const rv_editor_theme &t)
     const char *const labels[] = { rv_editor_text("catalog_panes.tab_project"),
         rv_editor_text("catalog_panes.tab_scene"), rv_editor_text("catalog_panes.tab_assets"),
         rv_editor_text("catalog_panes.tab_console_output") };
-    rv_editor_tab_strip("##tabs", labels, 4, &rv_editor_pane_data.tab, t);
+    rv_editor_tab_strip("##tabs", labels, static_cast<int>(std::size(labels)), &rv_editor_pane_data.tab, t);
 }
 
 void rv_editor_catalog_splitters(const rv_editor_theme &t)
 {
     const float avail = ImGui::GetContentRegionAvail().x;
-    const float height = ImGui::GetFrameHeight() * 4.0f;
+    const float height = ImGui::GetFrameHeight() * splitter_height_frames;
     const float bar = static_cast<float>(t.pad_px * t.scale);
     rv_editor_pane_values &v = rv_editor_pane_data;
     if (v.top <= 0.0f) {
         v.top = (height - bar) / 2.0f;
         v.bottom = height - bar - v.top;
     }
-    const float min = ImGui::GetFrameHeight() * 2.0f;
+    const float min = ImGui::GetFrameHeight() * splitter_min_pane_height_frames;
 
     // Widths follow the space available each frame (it shrinks when the
     // scrollbar appears); the splitter moves the share, not a pixel count.
@@ -115,7 +143,8 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     ImGui::BeginChild("##top", ImVec2(right, v.top), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_top"));
     ImGui::EndChild();
-    rv_editor_splitter("##split_y", rv_editor_axis::y, right, &v.top, &v.bottom, min / 2.0f, min / 2.0f, t);
+    rv_editor_splitter("##split_y", rv_editor_axis::y, right, &v.top, &v.bottom, min / splitter_half_divisor,
+        min / splitter_half_divisor, t);
     ImGui::BeginChild("##bottom", ImVec2(right, v.bottom), ImGuiChildFlags_Borders);
     ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_bottom"));
     ImGui::EndChild();
@@ -144,8 +173,12 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
     }();
     ImGui::SeparatorText(rv_editor_text("catalog_panes.section_tile_windows"));
     const ImVec2 at = ImGui::GetCursorScreenPos();
-    const rv_editor_rect area{ static_cast<int>(at.x), static_cast<int>(at.y),
-        static_cast<int>(ImGui::GetContentRegionAvail().x), static_cast<int>(ImGui::GetFrameHeight() * 8.0f) };
+    const rv_editor_rect area{
+        static_cast<int>(at.x),
+        static_cast<int>(at.y),
+        static_cast<int>(ImGui::GetContentRegionAvail().x),
+        static_cast<int>(ImGui::GetFrameHeight() * catalog_tile_height_frames)
+    };
     rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area);
 }
 
@@ -164,7 +197,7 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
             rv_editor_text("catalog_panes.button_delete"), t)) {
     }
     rv_editor_shelf_end();
-    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * 6.0f), t)) {
+    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_view_height_frames), t)) {
         rv_editor_catalog_tree();
     }
     rv_editor_well_end();
@@ -189,8 +222,8 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
 
 void rv_editor_catalog_lists(const rv_editor_theme &)
 {
-    const float height = ImGui::GetFrameHeight() * 6.0f;
-    if (ImGui::BeginTable("##panes", 3)) {
+    const float height = ImGui::GetFrameHeight() * catalog_view_height_frames;
+    if (ImGui::BeginTable("##panes", catalog_panes_table_columns)) {
         ImGui::TableNextColumn();
         ImGui::BeginChild("##tree", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
         rv_editor_catalog_tree();
