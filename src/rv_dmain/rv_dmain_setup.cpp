@@ -52,7 +52,7 @@ void rv_dmain::build_font()
     // dies at the end of this function because video_asset_write copies during
     // the call. 128x48 IDX4 is 3 KiB - cheap enough to keep resident forever.
     std::vector<uint8_t> atlas(rv_pdklib::rv_font_atlas_size, 0);
-    if (!rv_pdklib::rv_font_build_atlas(atlas.data(), atlas.size())) {
+    if (rv_pdklib::rv_font_build_atlas(atlas.data(), atlas.size()) != RV_OK) {
         return;
     }
 
@@ -72,7 +72,8 @@ void rv_dmain::build_font()
     // pointing addr_palette at it - which is exactly how the machine this
     // imitates recoloured its fonts.
     std::vector<uint16_t> palette(rv_pdklib::rv_font_palette_entries, 0);
-    rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(), palette.size());
+    (void)rv_pdklib::rv_font_build_palette(rv_color{ 220, 226, 240 }, palette.data(),
+        palette.size());
 
     const int64_t palette_addr =
         rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));
@@ -89,7 +90,7 @@ void rv_dmain::build_font()
 
     // The failure colour, over the same atlas. Two palettes, one set of glyphs.
     std::vector<uint16_t> bad(rv_pdklib::rv_font_palette_entries, 0);
-    rv_pdklib::rv_font_build_palette(rv_color{ 240, 90, 80 }, bad.data(), bad.size());
+    (void)rv_pdklib::rv_font_build_palette(rv_color{ 240, 90, 80 }, bad.data(), bad.size());
 
     const int64_t bad_addr =
         rv_cv_video_asset_malloc(cv, static_cast<int64_t>(rv_pdklib::rv_font_palette_size));

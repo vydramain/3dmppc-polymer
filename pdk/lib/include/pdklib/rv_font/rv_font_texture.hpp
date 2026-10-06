@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "pdk/cv/rv_texture.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_font/rv_font_cyrillic.hpp"
 #include "pdklib/rv_font/rv_font_data.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
@@ -122,7 +123,7 @@ inline int rv_font_cell_v(int glyph_index)
 // keeps on the stack for the length of disc_initialize and drops afterwards; the
 // bytes are copied during the upload.
 //
-// Returns false if `out` is null or `size` is under rv_font_atlas_size.
+// Returns RV_ERR_INVAL if `out` is null or `size` is under rv_font_atlas_size; RV_OK on success.
 //
 // IDX4 packing. Two texels share a byte and the LOW nibble is the LEFT
 // one - the PSX order, fixed by the console (the
@@ -161,10 +162,10 @@ inline void rv_font_atlas_put_glyph(uint8_t *out, int glyph, const uint8_t *rows
     }
 }
 
-inline bool rv_font_build_atlas(uint8_t *out, std::size_t size)
+inline int rv_font_build_atlas(uint8_t *out, std::size_t size)
 {
     if (out == nullptr || size < rv_font_atlas_size) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Index 0 everywhere: the background, which the palette makes transparent.
@@ -175,21 +176,21 @@ inline bool rv_font_build_atlas(uint8_t *out, std::size_t size)
     for (int glyph = 0; glyph < rv_font_glyph_count; ++glyph) {
         rv_font_atlas_put_glyph(out, glyph, &rv_font_bits[glyph * rv_font_cell_height]);
     }
-    return true;
+    return RV_OK;
 }
 
 // The same atlas with the chosen blocks after ASCII; `size` must be at least
 // rv_font_atlas_size_for(blocks). The ASCII part is byte for byte the atlas above.
-inline bool rv_font_build_atlas(uint8_t *out, std::size_t size, uint32_t blocks)
+inline int rv_font_build_atlas(uint8_t *out, std::size_t size, uint32_t blocks)
 {
     if (out == nullptr || size < rv_font_atlas_size_for(blocks)) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     for (std::size_t i = rv_font_atlas_size; i < rv_font_atlas_size_for(blocks); ++i) {
         out[i] = 0;
     }
-    rv_font_build_atlas(out, size);
+    (void)rv_font_build_atlas(out, size);
 
     if ((blocks & rv_font_block_cyrillic) != 0) {
         for (int slot = 0; slot < rv_font_cyrillic_glyph_count; ++slot) {
@@ -197,7 +198,7 @@ inline bool rv_font_build_atlas(uint8_t *out, std::size_t size, uint32_t blocks)
                 &rv_font_cyrillic_bits[slot * rv_font_cell_height]);
         }
     }
-    return true;
+    return RV_OK;
 }
 
 // Describe an atlas buffer for rv_cv_video_asset_write. The rv_texture
@@ -243,17 +244,17 @@ inline uint16_t rv_font_pack_rgb555(rv_color c)
 // text, a yellow highlight and a red warning uploads three palettes of 32 bytes
 // each and switches rv_polygon::addr_palette - see the note at the top.
 //
-// Returns false if `out` is null or `count` is under rv_font_palette_entries.
-inline bool rv_font_build_palette(rv_color ink, uint16_t *out, std::size_t count)
+// Returns RV_ERR_INVAL if `out` is null or `count` is under rv_font_palette_entries; RV_OK on success.
+inline int rv_font_build_palette(rv_color ink, uint16_t *out, std::size_t count)
 {
     if (out == nullptr || count < rv_font_palette_entries) {
-        return false;
+        return RV_ERR_INVAL;
     }
     for (std::size_t i = 0; i < rv_font_palette_entries; ++i) {
         out[i] = 0x0000;
     }
     out[rv_font_index_ink] = rv_font_pack_rgb555(ink);
-    return true;
+    return RV_OK;
 }
 
 // Describe a palette buffer for rv_cv_video_asset_write. A palette is uploaded as
