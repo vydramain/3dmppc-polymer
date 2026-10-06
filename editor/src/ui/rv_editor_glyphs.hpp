@@ -25,6 +25,7 @@ constexpr const char *recent = "Rc";
 constexpr const char *open = "Op";
 constexpr const char *settings = "Se";
 constexpr const char *help = "Hp";
+constexpr const char *manual = "Mn";
 constexpr const char *mark_moment = "Mk";
 constexpr const char *capture_frame = "Cp";
 constexpr const char *report_issue = "Is";

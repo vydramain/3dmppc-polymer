@@ -155,3 +155,8 @@ playing_keyboard = "playing: Shift+Esc gives the keyboard back"
 click_to_play = "click the picture to play"
 stale_session = "  stale: the last frame of session {}, {}"
 frame_status = "frame {}, {}"
+
+[manual]
+title = "Manual"
+start_label = "Manual"
+start_tooltip = "Read the editor's manual (F1)"

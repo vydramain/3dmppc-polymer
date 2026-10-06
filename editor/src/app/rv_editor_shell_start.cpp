@@ -90,6 +90,10 @@ void rv_editor_start_toolchest(rv_editor_shell &shell, const rv_editor_theme &th
             rv_editor_text("shell_start.help_tooltip"), theme, rv_editor_start_row(shell, rv_editor_start_page::help))) {
         rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
+    if (rv_editor_command_button("##manual", rv_editor_glyph::manual, theme.code_yellow, rv_editor_text("manual.start_label"),
+            rv_editor_text("manual.start_tooltip"), theme, rv_editor_start_row(shell, rv_editor_start_page::manual))) {
+        rv_editor_shell_page(shell, rv_editor_start_page::manual);
+    }
 }
 
 void rv_editor_start_empty(rv_editor_shell &shell, const rv_editor_theme &theme)
