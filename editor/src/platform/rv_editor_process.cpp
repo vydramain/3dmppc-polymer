@@ -30,6 +30,24 @@ namespace
 // still holds a pipe open, before the process gives up and calls it cut.
 constexpr auto rv_editor_output_grace = std::chrono::seconds(2);
 
+// Read buffer size for draining subprocess output
+constexpr size_t read_buffer_size = 16384;
+
+// Frame descriptor number passed to console: must match "--frame-fd" in rv_editor_session.cpp
+constexpr int inherit_fd_number = 3;
+
+// Maximum bytes to read from subprocess output per poll
+constexpr size_t read_output_limit = 65536;
+
+// Milliseconds to sleep between output polls
+constexpr int output_poll_sleep_ms = 5;
+
+// PATH environment variable component separator
+constexpr char path_separator = ':';
+
+// PATH environment variable name for executable search
+constexpr const char *env_var_path = "PATH";
+
 // A write to a pipe whose reader has died must fail with EPIPE, not kill the
 // editor with SIGPIPE.
 void rv_editor_ignore_sigpipe()
@@ -54,7 +72,7 @@ int rv_editor_pipe(int fds[2])
 // Drains one non-blocking pipe. Closes it at end of file.
 void rv_editor_drain(int &fd, std::string &into, size_t limit)
 {
-    char buf[16384];
+    char buf[read_buffer_size];
     size_t taken = 0;
     while (fd >= 0 && taken < limit) {
         const ssize_t n = ::read(fd, buf, std::min(sizeof(buf), limit - taken));
@@ -124,12 +142,12 @@ int rv_editor_process::start(const std::vector<std::string> &argv, const std::fi
 
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_adddup2(&actions, in[0], 0);
-    posix_spawn_file_actions_adddup2(&actions, out[1], 1);
-    posix_spawn_file_actions_adddup2(&actions, err[1], 2);
+    posix_spawn_file_actions_adddup2(&actions, in[0], STDIN_FILENO);
+    posix_spawn_file_actions_adddup2(&actions, out[1], STDOUT_FILENO);
+    posix_spawn_file_actions_adddup2(&actions, err[1], STDERR_FILENO);
     // dup2 leaves the copy without close-on-exec, so this one descriptor crosses.
     if (inherit_fd >= 0) {
-        posix_spawn_file_actions_adddup2(&actions, inherit_fd, 3);
+        posix_spawn_file_actions_adddup2(&actions, inherit_fd, inherit_fd_number);
     }
     if (!cwd.empty()) {
         posix_spawn_file_actions_addchdir_np(&actions, cwd.c_str());
@@ -322,13 +340,13 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit)
 
 std::filesystem::path rv_editor_process_find(const char *name)
 {
-    const char *path = std::getenv("PATH");
+    const char *path = std::getenv(env_var_path);
     if (path == nullptr) {
         return {};
     }
     std::stringstream dirs(path);
     std::string dir;
-    while (std::getline(dirs, dir, ':')) {
+    while (std::getline(dirs, dir, path_separator)) {
         std::error_code ec;
         const std::filesystem::path p = std::filesystem::path(dir.empty() ? "." : dir) / name;
         const auto st = std::filesystem::status(p, ec);
@@ -351,10 +369,10 @@ bool rv_editor_process_output(const std::vector<std::string> &argv, const std::f
     std::string err;
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
     while (!proc.poll() && std::chrono::steady_clock::now() < until) {
-        proc.read(out, err, 65536);
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        proc.read(out, err, read_output_limit);
+        std::this_thread::sleep_for(std::chrono::milliseconds(output_poll_sleep_ms));
     }
-    proc.read(out, err, 65536);
+    proc.read(out, err, read_output_limit);
     const rv_editor_process::rv_editor_exit exit = proc.exit_status();
     return exit.exited && exit.signal == 0 && exit.code == 0;
 }
