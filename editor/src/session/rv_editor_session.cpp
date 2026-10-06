@@ -3,6 +3,7 @@
 #include "session/rv_editor_session.hpp"
 
 #include <cstdio>
+#include <limits>
 #include <thread>
 #include <vector>
 
@@ -20,6 +21,25 @@ constexpr auto rv_editor_request_timeout = std::chrono::seconds(5);
 constexpr auto rv_editor_handshake_timeout = std::chrono::seconds(15);
 // After quit, a console still running this long counts as hung.
 constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
+
+// Commands the console reads (src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
+constexpr std::string_view cmd_status = "status";
+constexpr std::string_view cmd_pause = "pause";
+constexpr std::string_view cmd_resume = "resume";
+constexpr std::string_view cmd_step = "step";
+constexpr std::string_view cmd_quit = "quit";
+
+constexpr std::string_view pad_prefix = "pad 0 ";
+constexpr std::string_view protocol_frame_event = "0 event=frame ";
+
+constexpr int fd_frame_descriptor = 3;
+constexpr size_t hex_buffer_size = std::numeric_limits<uint64_t>::digits / 4 + 1; // 16 hex digits + NUL
+constexpr size_t read_buffer_size = 1 << 20;
+constexpr auto channel_lost_timeout = std::chrono::milliseconds(500);
+constexpr auto shutdown_timeout = std::chrono::seconds(2);
+constexpr auto shutdown_grace_timeout = std::chrono::milliseconds(2500);
+constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
+constexpr int exit_code_player_build = 2;
 
 } // namespace
 
@@ -65,8 +85,9 @@ int rv_editor_session::start(const std::filesystem::path &console, const std::fi
     if (err_frame != RV_OK) {
         return err_frame;
     }
-    // The console writes its frames into frame_mem_, handed over as descriptor 3.
-    std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string() };
+    // The console writes its frames into frame_mem_, handed over as the frame descriptor.
+    std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", std::to_string(fd_frame_descriptor),
+        "--memcard", memcard.string() };
     argv.insert(argv.end(), options.begin(), options.end());
     argv.push_back(disc_dir.string());
     const int err_proc = proc_.start(argv, cwd, error, frame_mem_.fd(), env);
@@ -111,7 +132,7 @@ int rv_editor_session::start(const std::filesystem::path &console, const std::fi
         "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " --dev --frame-fd 3 --memcard " +
             memcard.string() + " " + disc_dir.string(), rv_editor_log_channel::none, proc_.pid(), number_);
     // Nothing is enabled until this answers.
-    send("status", log);
+    send(std::string(cmd_status), log);
     return RV_OK;
 }
 
@@ -123,7 +144,7 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
     size_t start = 0;
     for (size_t nl = out_partial_.find('\n'); nl != std::string::npos; nl = out_partial_.find('\n', start)) {
         const std::string_view line(out_partial_.data() + start, nl - start);
-        if (!line.starts_with("0 event=frame ")) {
+        if (!line.starts_with(protocol_frame_event)) {
             log.add(rv_editor_log_source::protocol, rv_editor_log_level::info, line, rv_editor_log_channel::out,
                 proc_.pid(), number_);
         }
@@ -139,21 +160,21 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
 
 void rv_editor_session::pause(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::running && proc_.running() && send("pause", log) != 0) {
+    if (state_ == rv_editor_run_state::running && proc_.running() && send(std::string(cmd_pause), log) != 0) {
         state_ = rv_editor_run_state::pausing;
     }
 }
 
 void rv_editor_session::resume(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && proc_.running() && send("resume", log) != 0) {
+    if (state_ == rv_editor_run_state::paused && proc_.running() && send(std::string(cmd_resume), log) != 0) {
         state_ = rv_editor_run_state::resuming;
     }
 }
 
 void rv_editor_session::step(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && proc_.running() && send("step", log) != 0) {
+    if (state_ == rv_editor_run_state::paused && proc_.running() && send(std::string(cmd_step), log) != 0) {
         state_ = rv_editor_run_state::stepping;
     }
 }
@@ -166,7 +187,7 @@ void rv_editor_session::stop(rv_editor_log &log)
     quit_sent_ = true;
     stop_sent_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::stopping;
-    if (send("quit", log) == 0 && !proc_.stdin_open()) {
+    if (send(std::string(cmd_quit), log) == 0 && !proc_.stdin_open()) {
         // Nobody reads the channel any more: the process can only be ended. One
         // that only stopped reading shows as hung and gets Force Stop.
         force_stop(log);
@@ -190,9 +211,9 @@ void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
     if (!handshake_done_ || !proc_.running() || quit_sent_ || buttons == pad_sent_) {
         return;
     }
-    char hex[17];
+    char hex[hex_buffer_size];
     std::snprintf(hex, sizeof(hex), "%llx", static_cast<unsigned long long>(buttons));
-    if (send(std::string("pad 0 ") + hex, log) != 0) {
+    if (send(std::string(pad_prefix) + hex, log) != 0) {
         pad_sent_ = buttons;
     }
 }
@@ -207,7 +228,7 @@ void rv_editor_session::update(rv_editor_log &log)
 
     std::string out;
     std::string err;
-    proc_.read(out, err, 1 << 20);
+    proc_.read(out, err, read_buffer_size);
     proc_.flush();
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(),
         number_);
@@ -235,7 +256,7 @@ void rv_editor_session::update(rv_editor_log &log)
             eof_at_ = now;
         }
         if (channel_open_ && eof_at_ != std::chrono::steady_clock::time_point{} &&
-            now - eof_at_ > std::chrono::milliseconds(500)) {
+            now - eof_at_ > channel_lost_timeout) {
             channel_open_ = false;
             if (!quit_sent_) {
                 state_ = rv_editor_run_state::disconnected;
@@ -273,7 +294,7 @@ void rv_editor_session::update(rv_editor_log &log)
                     " s: whether it ran is unknown", rv_editor_log_channel::none, proc_.pid(), number_);
         }
         if (ask_status && channel_open_) {
-            send("status", log);
+            send(std::string(cmd_status), log);
         }
 
         if (state_ == rv_editor_run_state::refused && hung()) {
@@ -290,7 +311,7 @@ void rv_editor_session::finish(rv_editor_log &log)
 {
     std::string out;
     std::string err;
-    proc_.read(out, err, 1 << 20);
+    proc_.read(out, err, read_buffer_size);
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(),
         number_);
     log.flush_stream(rv_editor_log_source::runtime, err_partial_, rv_editor_log_channel::err, proc_.pid(), number_);
@@ -317,9 +338,11 @@ void rv_editor_session::finish(rv_editor_log &log)
         end_reason_ = refusal_;
     } else if (!handshake_done_) {
         state_ = rv_editor_run_state::refused;
-        end_reason_ = exit.signal == 0 && exit.code == 2
-            ? "exit code 2 before answering status: a player build does not know --dev"
-            : how + " before answering status";
+        if (exit.signal == 0 && exit.code == exit_code_player_build) {
+            end_reason_ = "exit code 2 before answering status: a player build does not know --dev";
+        } else {
+            end_reason_ = how + " before answering status";
+        }
     } else if (forced_) {
         state_ = rv_editor_run_state::exited;
         end_reason_ = "force-stopped (" + how + ")";
@@ -343,20 +366,20 @@ void rv_editor_session::shutdown(rv_editor_log &log)
         return;
     }
     stop(log);
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    const auto until = std::chrono::steady_clock::now() + shutdown_timeout;
     while (live() && proc_.running() && std::chrono::steady_clock::now() < until) {
         update(log);
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(shutdown_poll_interval);
     }
     if (proc_.running()) {
         force_stop(log);
     }
     // Bounded even when a grandchild keeps a pipe open past output_done()'s grace:
     // shutdown never hangs.
-    const auto grace_until = std::chrono::steady_clock::now() + std::chrono::milliseconds(2500);
+    const auto grace_until = std::chrono::steady_clock::now() + shutdown_grace_timeout;
     while (live() && std::chrono::steady_clock::now() < grace_until) {
         update(log);
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(shutdown_poll_interval);
     }
     if (live()) {
         finish(log);
