@@ -19,10 +19,12 @@ namespace rv_3dmppc
 namespace
 {
 
+constexpr int64_t DEFAULT_PAGE_SIZE = 4096; // bytes, fallback when sysconf(_SC_PAGESIZE) fails
+
 int64_t page_size()
 {
     static const int64_t size = sysconf(_SC_PAGESIZE);
-    return size > 0 ? size : 4096;
+    return size > 0 ? size : DEFAULT_PAGE_SIZE;
 }
 
 int64_t round_up_to_page(int64_t bytes)
