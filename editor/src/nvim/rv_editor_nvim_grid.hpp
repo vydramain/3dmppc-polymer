@@ -51,6 +51,8 @@ struct rv_editor_nvim_cell
 
 // Floating grid layering z-index (higher values render on top)
 constexpr int32_t nvim_float_default_zindex = 50;
+// Nvim's default anchor for a floating window
+constexpr std::string_view float_anchor_nw = "NW";
 
 struct rv_editor_nvim_grid
 {
@@ -62,7 +64,7 @@ struct rv_editor_nvim_grid
     int64_t win = 0;      // the window it shows, 0 for grid 1 and message grids
     bool hidden = false;
     bool is_float = false;     // floating window overlay
-    std::string anchor = "NW"; // NW, NE, SW, SE
+    std::string anchor = std::string(float_anchor_nw); // NW, NE, SW, SE
     int32_t anchor_grid = 1;   // grid id this float is anchored to
     double anchor_row = 0.0;   // row on anchor_grid, stored as-is (may be fractional)
     double anchor_col = 0.0;   // col on anchor_grid

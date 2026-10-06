@@ -26,6 +26,8 @@ constexpr unsigned char utf8_continuation_mask = 0xc0;
 constexpr unsigned char utf8_continuation_byte = 0x80;
 // Error marker glyph for field invalid state indicator.
 constexpr const char *error_marker_glyph = "!";
+// Dirty marker glyph for field unsaved state indicator.
+constexpr const char *dirty_marker_glyph = "*";
 
 struct rv_editor_field_look
 {
@@ -72,7 +74,7 @@ void rv_editor_field_frame(ImDrawList *dl, ImVec2 min, ImVec2 max, const rv_edit
         x -= glyph;
     }
     if (f.dirty) {
-        dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.warning), "*");
+        dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.warning), dirty_marker_glyph);
     }
 }
 
