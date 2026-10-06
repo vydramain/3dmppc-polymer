@@ -1,4 +1,5 @@
 #include "rv_pccard_version.hpp"
+#include "rv_pccard_bytes.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -17,13 +18,13 @@ namespace
 constexpr int64_t RV_PCCARD_HEADER_SIZE = 32;
 constexpr int64_t RV_PCCARD_LENGTH_ENTRY = 8;
 
-// Bit and byte operations
-constexpr int BITS_PER_BYTE = 8;
-constexpr uint8_t BYTE_MASK = 0xFFu;
-
-// Integer type sizes for put/get operations
-constexpr int BYTES_PER_U32 = sizeof(uint32_t);
-constexpr int BYTES_PER_I64 = sizeof(int64_t);
+using rv_pccard_detail::BITS_PER_BYTE;
+using rv_pccard_detail::BYTE_MASK;
+using rv_pccard_detail::BYTES_PER_I64;
+using rv_pccard_detail::BYTES_PER_U32;
+using rv_pccard_detail::get_i64;
+using rv_pccard_detail::put_i64;
+using rv_pccard_detail::put_u32;
 
 // Version packing: major in bits[31:16], minor in bits[15:0]
 constexpr int VERSION_MAJOR_SHIFT = 16;
@@ -35,30 +36,6 @@ constexpr int64_t HEADER_OFFSET_VERSION = HEADER_MAGIC_SIZE;
 constexpr int64_t HEADER_OFFSET_RESERVED = HEADER_OFFSET_VERSION + BYTES_PER_U32;
 constexpr int64_t HEADER_OFFSET_SLOT_COUNT = HEADER_OFFSET_RESERVED + BYTES_PER_U32;
 constexpr int64_t HEADER_OFFSET_SLOT_SIZE = HEADER_OFFSET_SLOT_COUNT + BYTES_PER_I64;
-
-void put_u32(uint8_t *p, uint32_t v)
-{
-    for (int i = 0; i < BYTES_PER_U32; ++i) {
-        p[i] = static_cast<uint8_t>((v >> (BITS_PER_BYTE * i)) & BYTE_MASK);
-    }
-}
-
-void put_i64(uint8_t *p, int64_t v)
-{
-    const uint64_t u = static_cast<uint64_t>(v);
-    for (int i = 0; i < BYTES_PER_I64; ++i) {
-        p[i] = static_cast<uint8_t>((u >> (BITS_PER_BYTE * i)) & BYTE_MASK);
-    }
-}
-
-int64_t get_i64(const uint8_t *p)
-{
-    uint64_t u = 0;
-    for (int i = 0; i < BYTES_PER_I64; ++i) {
-        u |= static_cast<uint64_t>(p[i]) << (BITS_PER_BYTE * i);
-    }
-    return static_cast<int64_t>(u);
-}
 
 } // namespace
 
