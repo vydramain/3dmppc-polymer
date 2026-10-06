@@ -12,6 +12,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -71,7 +72,9 @@ std::string rv_editor_path_text(const std::vector<std::string> &path)
 std::string rv_editor_value_text(const rv_editor_answer &a)
 {
     if (!a.ok) {
-        return "unavailable: " + a.error;
+        const std::string &error = a.error;
+        return rv_editor_text_format("pane_observe.value_unavailable",
+            std::make_format_args(error));
     }
     const auto field = [&a](std::string_view key) {
         for (const auto &[k, v] : a.fields) {
@@ -83,16 +86,19 @@ std::string rv_editor_value_text(const rv_editor_answer &a)
     };
     const std::string type = field("type");
     if (field("found") != "1") {
-        return "absent (nil)";
+        return rv_editor_text("pane_observe.value_absent");
     }
     if (type == "boolean") {
-        return field("value") == "1" ? "true" : "false";
+        return field("value") == "1" ? rv_editor_text("pane_observe.value_true") :
+                                       rv_editor_text("pane_observe.value_false");
     }
     if (type == "string") {
         return "\"" + rv_editor_hex_decode(field("value")) + "\"";
     }
     if (type == "table") {
-        return "table, " + field("count") + " entries";
+        const std::string &count = field("count");
+        return rv_editor_text_format("pane_observe.value_table",
+            std::make_format_args(count));
     }
     if (type == "number") {
         return field("value");
@@ -105,10 +111,15 @@ std::string rv_editor_value_text(const rv_editor_answer &a)
 std::string rv_editor_updated_text(const rv_editor_answer &a, const rv_editor_session &s)
 {
     if (!a.frame_exact) {
-        return "sampled " + rv_editor_clock(a.at) + ", running";
+        const std::string &clock_str = rv_editor_clock(a.at);
+        return rv_editor_text_format("pane_observe.updated_sampled",
+            std::make_format_args(clock_str));
     }
     const bool current = s.state() == rv_editor_run_state::paused && a.frame == s.frame();
-    return "frame " + std::to_string(a.frame) + (current ? "" : " (stale)");
+    const auto frame_num = std::to_string(a.frame);
+    const char *frame_key = current ? "pane_observe.updated_frame" :
+                                      "pane_observe.updated_frame_stale";
+    return rv_editor_text_format(frame_key, std::make_format_args(frame_num));
 }
 
 struct rv_editor_key_row
@@ -149,7 +160,7 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
             row.shown = "[" + key + "]";
             row.name = key;
         } else {
-            row.shown = "(a key of another type)";
+            row.shown = rv_editor_text("pane_observe.value_unknown_key");
         }
         rows.push_back(row);
     }
@@ -172,20 +183,49 @@ void rv_editor_observe_facts(const rv_editor_session &s)
     if (!ImGui::BeginTable("##facts", 2, ImGuiTableFlags_SizingStretchProp)) {
         return;
     }
-    rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()) +
-        ", started " + rv_editor_clock(s.started_at()));
-    rv_editor_fact("Frame", std::to_string(s.frame()) +
-        (s.state() == rv_editor_run_state::paused ? ", paused" : ", last reported by the running console"));
-    rv_editor_fact("Disc", f.disc + (f.medium == "live" ? ", directory (development build)" : ", disc image"));
-    rv_editor_fact("Code hash", f.code_hash + ", PDK " + f.pdk);
+    const auto num = std::to_string(s.number());
+    const auto state = rv_editor_run_state_name(s.state());
+    const auto start_at = rv_editor_clock(s.started_at());
+    rv_editor_fact(rv_editor_text("pane_observe.fact_session"),
+        rv_editor_text_format("pane_observe.fact_session_value",
+            std::make_format_args(num, state, start_at)));
+    const auto frame = std::to_string(s.frame());
+    const char *frame_key = s.state() == rv_editor_run_state::paused ?
+        "pane_observe.fact_frame_paused" :
+        "pane_observe.fact_frame_running";
+    rv_editor_fact(rv_editor_text("pane_observe.fact_frame"),
+        rv_editor_text_format(frame_key, std::make_format_args(frame)));
+    const char *disc_key = f.medium == "live" ?
+        "pane_observe.fact_disc_directory" :
+        "pane_observe.fact_disc_image";
+    rv_editor_fact(rv_editor_text("pane_observe.fact_disc"),
+        rv_editor_text_format(disc_key, std::make_format_args(f.disc)));
+    const auto &pdk = f.pdk;
+    rv_editor_fact(rv_editor_text("pane_observe.fact_code_hash"),
+        rv_editor_text_format("pane_observe.fact_code_hash_value",
+            std::make_format_args(f.code_hash, pdk)));
     if (f.lua_budget > 0) {
-        const std::string reloaded = f.revision != f.first_revision
-            ? ", changed by reload from " + std::to_string(f.first_revision)
-            : ", as loaded";
-        rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) + reloaded);
-        rv_editor_fact("Lua memory", std::to_string(f.lua_used) + " of " + std::to_string(f.lua_budget) + " bytes");
+        const auto rev = std::to_string(f.revision);
+        std::string entry_val;
+        if (f.revision != f.first_revision) {
+            const auto first_rev = std::to_string(f.first_revision);
+            entry_val = rv_editor_text_format("pane_observe.fact_entry_reloaded",
+                std::make_format_args(rev, first_rev));
+        } else {
+            entry_val = rv_editor_text_format("pane_observe.fact_entry_as_loaded",
+                std::make_format_args(rev));
+        }
+        rv_editor_fact(rv_editor_text("pane_observe.fact_entry_script"), entry_val);
+        const auto lua_used = std::to_string(f.lua_used);
+        const auto lua_budget = std::to_string(f.lua_budget);
+        rv_editor_fact(rv_editor_text("pane_observe.fact_lua_memory"),
+            rv_editor_text_format("pane_observe.fact_lua_memory_value",
+                std::make_format_args(lua_used, lua_budget)));
     }
-    rv_editor_fact("Facts from", "status at " + rv_editor_clock(f.at));
+    const auto facts_at = rv_editor_clock(f.at);
+    rv_editor_fact(rv_editor_text("pane_observe.fact_facts_from"),
+        rv_editor_text_format("pane_observe.fact_facts_from_value",
+            std::make_format_args(facts_at)));
     ImGui::EndTable();
 }
 
@@ -200,14 +240,17 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     if (!s.live()) {
-        rv_editor_dim("No session is running: Run starts one, and what it says about itself shows here.");
+        rv_editor_dim(rv_editor_text("pane_observe.no_session"));
         if (!s.end_reason().empty()) {
-            rv_editor_dim("Session #" + std::to_string(s.number()) + " ended: " + s.end_reason());
+            const std::string num_str = std::to_string(s.number());
+            const std::string &reason = s.end_reason();
+            rv_editor_dim(rv_editor_text_format("pane_observe.session_ended",
+                std::make_format_args(num_str, reason)));
         }
         return;
     }
     if (!s.connected()) {
-        rv_editor_dim("Waiting for the console's first status.");
+        rv_editor_dim(rv_editor_text("pane_observe.waiting_console"));
         return;
     }
 
@@ -216,13 +259,12 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         rv_editor_observe_facts(s);
-        if (rv_editor_button("Refresh", theme)) {
+        if (rv_editor_button(rv_editor_text("pane_observe.refresh"), theme)) {
             s.refresh(app.log);
             rv_editor_observe_read(app);
         }
         if (s.facts().lua_budget <= 0) {
-            rv_editor_dim("This disc declares no Lua machine, so there is no script state to inspect. Play it in Game "
-                          "and record what you see in Findings.");
+            rv_editor_dim(rv_editor_text("pane_observe.no_lua_machine"));
             return;
         }
 
@@ -231,16 +273,15 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         if (s.state() == rv_editor_run_state::paused && o.read_frame != s.frame()) {
             rv_editor_observe_read(app);
         }
-        rv_editor_dim("Each value is its own read. On a paused machine they all see the frame shown; while running they "
-                      "are samples taken at different moments.");
+        rv_editor_dim(rv_editor_text("pane_observe.each_value_note"));
 
-        ImGui::SeparatorText("Pinned");
+        ImGui::SeparatorText(rv_editor_text("pane_observe.pinned"));
         if (o.pins.empty()) {
-            rv_editor_dim("Pin a value below to keep watching it.");
+            rv_editor_dim(rv_editor_text("pane_observe.pin_value"));
         } else if (ImGui::BeginTable("##pins", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-            ImGui::TableSetupColumn("Path");
-            ImGui::TableSetupColumn("Value");
-            ImGui::TableSetupColumn("Updated");
+            ImGui::TableSetupColumn(rv_editor_text("pane_observe.path_column"));
+            ImGui::TableSetupColumn(rv_editor_text("pane_observe.value_column"));
+            ImGui::TableSetupColumn(rv_editor_text("pane_observe.updated_column"));
             ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableHeadersRow();
             std::string unpin;
@@ -251,11 +292,13 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                 ImGui::TextUnformatted(pin.c_str());
                 const auto it = s.answers().find("get " + pin);
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted(it == s.answers().end() ? "not read yet" : rv_editor_value_text(it->second).c_str());
+                ImGui::TextUnformatted(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
+                                                                 rv_editor_value_text(it->second).c_str());
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted(it == s.answers().end() ? "-" : rv_editor_updated_text(it->second, s).c_str());
+                ImGui::TextUnformatted(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
+                                                                 rv_editor_updated_text(it->second, s).c_str());
                 ImGui::TableNextColumn();
-                if (rv_editor_button("Unpin", theme)) {
+                if (rv_editor_button(rv_editor_text("pane_observe.unpin"), theme)) {
                     unpin = pin;
                 }
                 ImGui::PopID();
@@ -266,19 +309,21 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
 
         ImGui::SeparatorText(rv_editor_path_text(o.path).c_str());
         if (!o.path.empty()) {
-            if (rv_editor_button("Up", theme)) {
+            if (rv_editor_button(rv_editor_text("pane_observe.up"), theme)) {
                 o.path.pop_back();
                 rv_editor_observe_read(app);
             }
         }
         const auto it = s.answers().find(rv_editor_request("keys", o.path));
         if (it == s.answers().end()) {
-            rv_editor_dim("Not read yet: Refresh reads it.");
+            rv_editor_dim(rv_editor_text("pane_observe.not_read_refresh"));
             return;
         }
         const rv_editor_answer &a = it->second;
         if (!a.ok) {
-            rv_editor_dim("Unavailable: " + a.error);
+            const std::string &error = a.error;
+            rv_editor_dim(rv_editor_text_format("pane_observe.unavailable",
+                std::make_format_args(error)));
             return;
         }
         const std::vector<rv_editor_key_row> rows = rv_editor_key_rows(a);
@@ -288,13 +333,20 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             count = k == "count" ? v : count;
             shown = k == "shown" ? v : shown;
         }
-        rv_editor_dim(std::to_string(rows.size()) + " keys" + (shown != count ? " (" + shown + " of " + count + " shown)" : "") +
-            ", listed " + rv_editor_updated_text(a, s));
+        const std::string num_keys = std::to_string(rows.size());
+        std::string partial;
+        if (shown != count) {
+            partial = rv_editor_text_format("pane_observe.keys_partial",
+                std::make_format_args(shown, count));
+        }
+        const std::string &updated = rv_editor_updated_text(a, s);
+        rv_editor_dim(rv_editor_text_format("pane_observe.keys_listed",
+            std::make_format_args(num_keys, partial, updated)));
         if (!ImGui::BeginTable("##keys", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
             return;
         }
-        ImGui::TableSetupColumn("Key");
-        ImGui::TableSetupColumn("Type");
+        ImGui::TableSetupColumn(rv_editor_text("pane_observe.key_column"));
+        ImGui::TableSetupColumn(rv_editor_text("pane_observe.type_column"));
         ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableHeadersRow();
         std::vector<std::string> open;
@@ -307,9 +359,9 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::TextUnformatted(row.type.c_str());
             ImGui::TableNextColumn();
             if (row.name.empty()) {
-                ImGui::TextUnformatted("-");
+                ImGui::TextUnformatted(rv_editor_text("pane_observe.dash"));
             } else if (row.type == "table") {
-                if (rv_editor_button("Open", theme)) {
+                if (rv_editor_button(rv_editor_text("pane_observe.open"), theme)) {
                     open = o.path;
                     open.push_back(row.name);
                 }
@@ -319,7 +371,9 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                     pin = *p + " " + pin;
                 }
                 const bool pinned = std::find(o.pins.begin(), o.pins.end(), pin) != o.pins.end();
-                if (rv_editor_button("Pin", theme, { rv_editor_look::live, pinned ? "Already pinned" : nullptr })) {
+                const char *tooltip = pinned ? rv_editor_text("pane_observe.already_pinned") : nullptr;
+                if (rv_editor_button(rv_editor_text("pane_observe.pin"), theme,
+                        { rv_editor_look::live, tooltip })) {
                     o.pins.push_back(pin);
                     app.session.query("get " + pin, app.log);
                 }
