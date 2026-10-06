@@ -9,13 +9,6 @@ namespace rv_3dmppc
 namespace
 {
 
-// Polygon vertex counts
-constexpr int TRIANGLE_VERTICES = 3;
-constexpr int QUAD_VERTICES = 4;
-
-// Triangles per quad after triangulation
-constexpr int QUAD_TRIANGLES = 2;
-
 // Edge function (half-plane test, Pineda 1988) -
 //   E(p) = (p.x - x0) * (y1 - y0) - (p.y - y0) * (x1 - x0)
 // is the 2D cross product of the edge vector with the vector to p, i.e. twice the
@@ -93,10 +86,10 @@ struct rv_pcuvwalk {
 };
 
 struct rv_pctri {
-    int64_t x[TRIANGLE_VERTICES];
-    int64_t y[TRIANGLE_VERTICES];
-    rv_color color[TRIANGLE_VERTICES];
-    rv_uv uv[TRIANGLE_VERTICES];
+    int64_t x[RV_PCRASTER_TRIANGLE_VERTICES];
+    int64_t y[RV_PCRASTER_TRIANGLE_VERTICES];
+    rv_color color[RV_PCRASTER_TRIANGLE_VERTICES];
+    rv_uv uv[RV_PCRASTER_TRIANGLE_VERTICES];
 };
 
 // Signed area - area2 = E(v0, v1, v2) is twice the signed area of
@@ -154,15 +147,15 @@ bool clip_bounds(const rv_pctri &tri, const rv_pcfbuf &fbuf, int64_t &min_x, int
     return min_x <= max_x && min_y <= max_y;
 }
 
-// Edge i runs from vertex i to vertex (i + 1) % TRIANGLE_VERTICES; the vertex it does NOT
-// touch is (i + 2) % TRIANGLE_VERTICES.
+// Edge i runs from vertex i to vertex (i + 1) % RV_PCRASTER_TRIANGLE_VERTICES; the vertex it does NOT
+// touch is (i + 2) % RV_PCRASTER_TRIANGLE_VERTICES.
 void setup_edges(const rv_pctri &tri, int64_t min_x, int64_t min_y,
-    int64_t step_x[TRIANGLE_VERTICES], int64_t step_y[TRIANGLE_VERTICES],
-    int64_t bias[TRIANGLE_VERTICES], int64_t row[TRIANGLE_VERTICES])
+    int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
+    int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES], int64_t row[RV_PCRASTER_TRIANGLE_VERTICES])
 {
-    for (int i = 0; i < TRIANGLE_VERTICES; ++i) {
+    for (int i = 0; i < RV_PCRASTER_TRIANGLE_VERTICES; ++i) {
         const int a = i;
-        const int b = (i + 1) % TRIANGLE_VERTICES;
+        const int b = (i + 1) % RV_PCRASTER_TRIANGLE_VERTICES;
         const int64_t dx = tri.x[b] - tri.x[a];
         const int64_t dy = tri.y[b] - tri.y[a];
 
@@ -190,7 +183,7 @@ void setup_edges(const rv_pctri &tri, int64_t min_x, int64_t min_y,
 // or screen-parallel ones. A disc manages it exactly as PSX games did - by
 // subdividing a big surface into more, smaller polygons.
 rv_pcuvwalk setup_uv(const rv_pctri &tri, const rv_pctexstage &stage, int64_t area2,
-    const int64_t step_x[TRIANGLE_VERTICES], const int64_t step_y[TRIANGLE_VERTICES],
+    const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
     int64_t min_x, int64_t min_y)
 {
     rv_pcuvwalk uv;
@@ -270,13 +263,13 @@ void shade_gouraud(rv_pcfbuf &fbuf, const rv_pctri &tri, int64_t x, int64_t y, i
 
 void rasterize_scanlines(rv_pcfbuf &fbuf, const rv_pctri &tri, const rv_pctexstage &stage,
     int32_t depth, bool z_enabled, int64_t min_x, int64_t min_y, int64_t max_x, int64_t max_y,
-    int64_t area2, const int64_t step_x[TRIANGLE_VERTICES], const int64_t step_y[TRIANGLE_VERTICES],
-    const int64_t bias[TRIANGLE_VERTICES], int64_t row[TRIANGLE_VERTICES], bool textured,
+    int64_t area2, const int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES], const int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES],
+    const int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES], int64_t row[RV_PCRASTER_TRIANGLE_VERTICES], bool textured,
     rv_pcuvwalk uv)
 {
     // Barycentric coordinates from the same edge functions - for a
     // point p inside, E_i(p) is twice the area of the sub-triangle opposite
-    // vertex (i + 2) % TRIANGLE_VERTICES, so w_(i+2) = E_i(p) / area2. The three weights are
+    // vertex (i + 2) % RV_PCRASTER_TRIANGLE_VERTICES, so w_(i+2) = E_i(p) / area2. The three weights are
     // non-negative, sum to 1 (the three sub-areas tile the triangle), and equal
     // (1,0,0) at v0 and so on - exactly the affine interpolation Gouraud
     // shading needs. Reusing the numbers the inside test already computed means
@@ -329,10 +322,10 @@ void fill_triangle(rv_pcfbuf &fbuf, rv_pctri tri, const rv_pctexstage &stage, in
         return;
     }
 
-    int64_t step_x[TRIANGLE_VERTICES];
-    int64_t step_y[TRIANGLE_VERTICES];
-    int64_t bias[TRIANGLE_VERTICES];
-    int64_t row[TRIANGLE_VERTICES];
+    int64_t step_x[RV_PCRASTER_TRIANGLE_VERTICES];
+    int64_t step_y[RV_PCRASTER_TRIANGLE_VERTICES];
+    int64_t bias[RV_PCRASTER_TRIANGLE_VERTICES];
+    int64_t row[RV_PCRASTER_TRIANGLE_VERTICES];
     setup_edges(tri, min_x, min_y, step_x, step_y, bias, row);
 
     const bool textured = stage.active();
@@ -358,10 +351,10 @@ rv_line make_edge(const rv_vertex &a, const rv_vertex &b)
 void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
     const rv_pctexview &texture, int32_t depth, bool z_enabled)
 {
-    if (polygon.vertex_count != TRIANGLE_VERTICES && polygon.vertex_count != QUAD_VERTICES) {
+    if (polygon.vertex_count != RV_PCRASTER_TRIANGLE_VERTICES && polygon.vertex_count != RV_PCRASTER_QUAD_VERTICES) {
         return; // frame_put already rejected this; nothing sane to draw
     }
-    const bool quad = polygon.vertex_count == QUAD_VERTICES;
+    const bool quad = polygon.vertex_count == RV_PCRASTER_QUAD_VERTICES;
 
     if (polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_WIREFRAME) {
         // The PERIMETER only. For a quad the (2,3) diagonal is an interior edge
@@ -391,10 +384,10 @@ void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
     // (1,2,3). The split is contract, not an implementation choice: it decides
     // how colours and uv interpolate across the surface, so vertex ORDER is part
     // of what the disc specifies (PSX rule, kept on purpose).
-    static const int RV_TRI_INDICES[QUAD_TRIANGLES][TRIANGLE_VERTICES] = {
+    static const int RV_TRI_INDICES[RV_PCRASTER_QUAD_TRIANGLES][RV_PCRASTER_TRIANGLE_VERTICES] = {
         { 0, 1, 2 }, { 1, 2, 3 }
     };
-    const int tri_count = quad ? QUAD_TRIANGLES : 1;
+    const int tri_count = quad ? RV_PCRASTER_QUAD_TRIANGLES : 1;
 
     rv_pctexstage stage;
     if (polygon.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE) {
@@ -423,7 +416,7 @@ void rv_pcraster::draw_polygon(rv_pcfbuf &fbuf, const rv_polygon &polygon,
 
     for (int t = 0; t < tri_count; ++t) {
         rv_pctri tri;
-        for (int i = 0; i < TRIANGLE_VERTICES; ++i) {
+        for (int i = 0; i < RV_PCRASTER_TRIANGLE_VERTICES; ++i) {
             const rv_vertex &vertex = polygon.vertexes[RV_TRI_INDICES[t][i]];
             tri.x[i] = vertex.x;
             tri.y[i] = vertex.y;

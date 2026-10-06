@@ -10,17 +10,11 @@ namespace rv_3dmppc
 namespace
 {
 
-// IDX4 format: two 4-bit indices per byte.
-constexpr int IDX4_TEXELS_PER_BYTE = 2;
-
 // Bit shift to access the high nibble (most significant 4 bits) in IDX4 format.
 constexpr int IDX4_HIGH_NIBBLE_SHIFT = 4;
 
 // Mask for the low nibble (least significant 4 bits) in IDX4 format.
 constexpr uint8_t IDX4_LOW_NIBBLE_MASK = 0x0F;
-
-// DIRECT15 format: 2 bytes per texel.
-constexpr int DIRECT15_BYTES_PER_TEXEL = 2;
 
 // Read one 16-bit value out of the region. std::memcpy and not a
 // reinterpret_cast: video_asset_write() copies the disc's bytes verbatim, so a
@@ -120,7 +114,7 @@ rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_
         // nibble is the LEFT texel of the pair. A disc's texture converter
         // has to agree with exactly one convention, so it is stated in the
         // code rather than derived from anything.
-        const int64_t stride = (view.width + 1) / IDX4_TEXELS_PER_BYTE;
+        const int64_t stride = (view.width + 1) / RV_PCTEXEL_IDX4_TEXELS_PER_BYTE;
         const uint8_t packed = view.texels[tv * stride + (tu >> 1)];
         const uint8_t index = (tu & 1) != 0 ?
             static_cast<uint8_t>(packed >> IDX4_HIGH_NIBBLE_SHIFT) :
@@ -144,7 +138,7 @@ rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_
     case RV_TEXFMT_DIRECT15:
         // The texel IS the framebuffer word — same bit layout (0-4 R, 5-9 G,
         // 10-14 B, 15 STP), so no conversion happens anywhere on this path.
-        value = load_u16(view.texels + (tv * view.width + tu) * DIRECT15_BYTES_PER_TEXEL);
+        value = load_u16(view.texels + (tv * view.width + tu) * RV_PCTEXEL_DIRECT15_BYTES_PER_TEXEL);
         break;
 
     default:
