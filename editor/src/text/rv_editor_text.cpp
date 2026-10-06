@@ -3,6 +3,7 @@
 #include "text/rv_editor_text.hpp"
 
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -95,6 +96,17 @@ const char *rv_editor_text(std::string_view id)
 
     // Insert and return the ID itself for unknown entries.
     return g_texts.emplace(id_str, id_str).first->second.c_str();
+}
+
+std::string rv_editor_text_format(std::string_view id, std::format_args args)
+{
+    const char *template_text = rv_editor_text(id);
+    try {
+        return std::vformat(template_text, args);
+    } catch (const std::format_error &) {
+        // Return template text unchanged on invalid placeholders.
+        return std::string(template_text);
+    }
 }
 
 } // namespace rv_editor

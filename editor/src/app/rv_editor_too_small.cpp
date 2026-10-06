@@ -14,6 +14,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -46,14 +47,15 @@ static void rv_editor_print_too_small_error(const rv_editor_display_size &displa
         display_size.w_pixels, display_size.h_pixels);
 }
 
-// Draw message: "Display too small", "Required: 1280 x 720", "Current: W x H".
+// Draw message: "too_small.title", "too_small.required", "too_small.current" (formatted with width x height).
 static void rv_editor_draw_too_small_message(const rv_editor_display_size &display_size)
 {
-    ImGui::TextUnformatted("Display too small");
+    ImGui::TextUnformatted(rv_editor_text("too_small.title"));
     ImGui::Spacing();
-    ImGui::TextUnformatted("Required: 1280 x 720");
-    std::string current = "Current: " + std::to_string(display_size.w_pixels) + " x " +
-        std::to_string(display_size.h_pixels);
+    ImGui::TextUnformatted(rv_editor_text("too_small.required"));
+    const int w = display_size.w_pixels;
+    const int h = display_size.h_pixels;
+    const std::string current = rv_editor_text_format("too_small.current", std::make_format_args(w, h));
     ImGui::TextUnformatted(current.c_str());
 }
 

@@ -21,6 +21,7 @@
 #include "panes/rv_editor_panes.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "prefs/rv_editor_prefs.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_icons.hpp"
@@ -223,6 +224,20 @@ int main(int argc, char **argv)
     }
     if (!SDL_SetRenderVSync(renderer, 1)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_SetRenderVSync: %s\n", SDL_GetError());
+    }
+
+    // Load UI texts: embedded default + optional user file next to prefs.
+    // UI text overrides next to prefs
+    constexpr std::string_view ui_texts_filename = "texts.toml";
+    const std::filesystem::path prefs_file_path = rv_editor::rv_editor_prefs_file_path();
+    std::filesystem::path user_texts_file;
+    if (!prefs_file_path.empty()) {
+        user_texts_file = prefs_file_path.parent_path() / ui_texts_filename;
+    }
+    std::string text_error;
+    if (rv_editor::rv_editor_text_load(user_texts_file, text_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: %.*s: %s\n", static_cast<int>(ui_texts_filename.size()),
+            ui_texts_filename.data(), text_error.c_str());
     }
 
     // Check if display is large enough (needs 1280x720 at scale 1.0).
