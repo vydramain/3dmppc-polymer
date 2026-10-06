@@ -5,6 +5,7 @@
 // thread.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc
@@ -17,7 +18,7 @@ rv_pcaudio_sdl3::~rv_pcaudio_sdl3()
     }
 }
 
-bool rv_pcaudio_sdl3::open()
+int rv_pcaudio_sdl3::open()
 {
     // The console's own format, stated once. SDL_OpenAudioDeviceStream binds a
     // converting stream to the device, so whatever rate and layout the
@@ -34,18 +35,18 @@ bool rv_pcaudio_sdl3::open()
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr,
         nullptr);
     if (!stream_) {
-        return false;
+        return RV_ERR_IO;
     }
 
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
         SDL_DestroyAudioStream(stream_);
         stream_ = nullptr;
-        return false;
+        return RV_ERR_IO;
     }
 
     RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE,
         RV_PCPLATFORM_PCM_CHANNELS);
-    return true;
+    return RV_OK;
 }
 
 bool rv_pcaudio_sdl3::available() const

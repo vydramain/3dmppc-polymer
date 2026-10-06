@@ -148,7 +148,7 @@ std::unique_ptr<rv_pcplatform> rv_pcplatform_sdl3_make(const rv_pcplatform_wants
     if (wants.audio) {
         const bool subsystem_ok = SDL_InitSubSystem(SDL_INIT_AUDIO);
         platform->quit_guard_.armed = platform->quit_guard_.armed || subsystem_ok;
-        const bool device_ok = subsystem_ok && platform->audio_.open();
+        const bool device_ok = subsystem_ok && platform->audio_.open() == RV_OK;
         platform->audio_up_ = subsystem_ok && device_ok;
         if (!subsystem_ok) {
             RV_LOG_WARN("pcplatform", "audio subsystem did not come up: {}", SDL_GetError());

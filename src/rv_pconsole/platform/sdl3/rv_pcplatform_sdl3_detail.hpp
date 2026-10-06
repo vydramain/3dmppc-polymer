@@ -112,10 +112,10 @@ public:
 
     ~rv_pcaudio_sdl3() override;
 
-    // Opens SDL_INIT_AUDIO's default playback device stream. Returns whether a
-    // device is now streaming; the caller (rv_pcplatform_sdl3::make) logs the
-    // failure with SDL_GetError().
-    bool open();
+    // Opens SDL_INIT_AUDIO's default playback device stream. Returns RV_OK if
+    // streaming, RV_ERR_IO if device failed; the caller (rv_pcplatform_sdl3::make)
+    // logs the failure with SDL_GetError().
+    int open();
 
 private:
     SDL_AudioStream *stream_ = nullptr;
