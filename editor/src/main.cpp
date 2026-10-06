@@ -86,6 +86,48 @@ bool rv_editor_bar_begin(const char *id, ImVec2 pos, ImVec2 size)
     return ImGui::Begin(id, nullptr, flags);
 }
 
+// Screen type enumeration. Adding a new screen: one enum member + one table row, no new if branch.
+enum class rv_editor_screen {
+    start,
+    workspace,
+    count
+};
+
+// No project: its start screen instead of a grid of empty tiles; the layouts wait unchanged.
+rv_editor_screen rv_editor_screen_pick(const rv_editor::rv_editor_shell &shell)
+{
+    return shell.app.project.open ? rv_editor_screen::workspace : rv_editor_screen::start;
+}
+
+// Draw the start screen; it needs no tile area.
+void rv_editor_screen_draw_start(rv_editor::rv_editor_shell &shell,
+    const rv_editor::rv_editor_theme &theme,
+    const rv_editor::rv_editor_rect &area)
+{
+    (void)area; // Not used by start screen.
+    rv_editor::rv_editor_shell_start_screen(shell, theme);
+}
+
+// Draw the workspace's tiles in `area`.
+void rv_editor_screen_draw_workspace(rv_editor::rv_editor_shell &shell,
+    const rv_editor::rv_editor_theme &theme,
+    const rv_editor::rv_editor_rect &area)
+{
+    rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane,
+        rv_editor::rv_editor_shell_close_pane, &shell, area);
+}
+
+// Dispatch table for screen drawing functions.
+using rv_editor_screen_draw_fn = void (*)(rv_editor::rv_editor_shell &,
+    const rv_editor::rv_editor_theme &,
+    const rv_editor::rv_editor_rect &);
+constexpr rv_editor_screen_draw_fn rv_editor_screen_draw_table[] = {
+    rv_editor_screen_draw_start,
+    rv_editor_screen_draw_workspace,
+};
+static_assert(std::size(rv_editor_screen_draw_table) == static_cast<size_t>(rv_editor_screen::count),
+    "screen dispatch table size must match enum count");
+
 // One frame of the editor's UI: menus, the tiles and the status bar.
 void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_editor_theme &theme)
 {
@@ -111,13 +153,9 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     const bool host = rv_editor_bar_begin("##tiles", top, ImVec2(size.x, size.y - bar));
     ImGui::PopStyleVar();
-    // No project: its start screen instead of a grid of empty tiles; the
-    // layouts wait unchanged.
-    if (host && !shell.app.project.open) {
-        rv_editor::rv_editor_shell_start_screen(shell, theme);
-    } else if (host) {
-        rv_editor::rv_editor_workspace_draw(shell.ws, theme, rv_editor::rv_editor_shell_pane,
-            rv_editor::rv_editor_shell_close_pane, &shell, area);
+    // One screen per frame, picked from the shell's state.
+    if (host) {
+        rv_editor_screen_draw_table[static_cast<size_t>(rv_editor_screen_pick(shell))](shell, theme, area);
     }
     ImGui::End();
     rv_editor::rv_editor_shell_game_input(shell);
