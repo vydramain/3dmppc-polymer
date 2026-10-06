@@ -3,6 +3,7 @@
 #include <filesystem>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_common/rv_burner_globs.hpp"
 
 namespace fs = std::filesystem;
@@ -67,7 +68,7 @@ static int plan_section(
             ? (disc_dir / relative).string()
             : (payload_dir / item.name).string();
 
-        if (!check_asset_name(item.name, error)) {
+        if (check_asset_name(item.name, error) != RV_OK) {
             error = std::string(section) + ": " + error + " (from '" + relative + "')";
             return 1;
         }
@@ -125,7 +126,7 @@ int rv_pdktools::plan_archive(
     //
     // Across sections, not within one: a PNG and a .lua can collapse onto the
     // same archive name just as easily as two PNGs can.
-    if (!check_collisions(plan.items, error)) {
+    if (check_collisions(plan.items, error) != RV_OK) {
         return 1;
     }
 

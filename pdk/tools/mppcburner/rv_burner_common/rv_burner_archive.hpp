@@ -45,14 +45,14 @@ std::string flat_name(const std::string &relative_path);
 ///
 /// @param name   a flat name, normally from flat_name()
 /// @param error  set with the reason when the name is refused
-/// @return true when the name may enter the archive
-bool check_asset_name(const std::string &name, std::string &error);
+/// @return RV_OK when the name may enter the archive, RV_ERR_INVAL on bad data
+int check_asset_name(const std::string &name, std::string &error);
 
 /// Refuse a plan in which two different originals collapse onto one flat name.
 ///
 /// @param items  the whole planned archive, in any order
 /// @param error  set naming the flat name and both originals
-/// @return true when every flat name in @p items is unique
-bool check_collisions(const std::vector<archive_item> &items, std::string &error);
+/// @return RV_OK when every flat name in @p items is unique, RV_ERR_INVAL on collision
+int check_collisions(const std::vector<archive_item> &items, std::string &error);
 
 } // namespace rv_pdktools
