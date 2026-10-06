@@ -40,8 +40,8 @@ struct zip_archive {
 /// @param path   the .mppcdisc to open
 /// @param out    receives the bytes and the entry list
 /// @param error  set when the file cannot be read or is not a zip archive
-/// @return true when @p out is usable
-bool zip_open(const std::filesystem::path &path, zip_archive &out, std::string &error);
+/// @return RV_OK when @p out is usable; RV_ERR_IO or RV_ERR_INVAL on failure
+int zip_open(const std::filesystem::path &path, zip_archive &out, std::string &error);
 
 /// Find one entry by its exact name.
 ///
@@ -56,8 +56,8 @@ const zip_read_entry *zip_find(const zip_archive &archive, const std::string &na
 /// @param entry    the entry to read
 /// @param out      receives the entry's contents
 /// @param error    set when the entry is compressed or its extent is wrong
-/// @return true when @p out holds the entry's bytes
-bool zip_entry_bytes(
+/// @return RV_OK when @p out holds the entry's bytes; RV_ERR_INVAL on failure
+int zip_entry_bytes(
     const zip_archive &archive,
     const zip_read_entry &entry,
     std::string &out,
