@@ -41,6 +41,14 @@ constexpr double right_view_yaw = -90.0;
 constexpr float dropdown_width_factor = 5.0f;
 constexpr double snap_step_epsilon = 1e-9;
 
+// Snap step labels and values for the viewport tool dropdown.
+constexpr const char *snap_step_labels[] = { "0.1", "0.25", "0.5", "1" };
+constexpr double snap_step_values[] = { 0.1, 0.25, 0.5, 1.0 };
+static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
+    "snap_step_labels and snap_step_values must have equal size");
+// Default snap step choice index (0.25 matches camera_snap_step_default in rv_editor_app.hpp).
+constexpr int default_snap_step_index = 1;
+
 } // namespace
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
@@ -211,15 +219,13 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
     const char *snap_label = rv_editor_text("scene_tools.snap_label");
     rv_editor_checkbox(snap_label, &cam.snap, theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_tooltip"));
-    const char *const steps[] = { "0.1", "0.25", "0.5", "1" };
-    const double values[] = { 0.1, 0.25, 0.5, 1.0 };
-    int step = 1;
-    for (int i = 0; i < std::ssize(values); ++i) {
-        step = std::fabs(cam.snap_step - values[i]) < snap_step_epsilon ? i : step;
+    int step = default_snap_step_index;
+    for (int i = 0; i < std::ssize(snap_step_values); ++i) {
+        step = std::fabs(cam.snap_step - snap_step_values[i]) < snap_step_epsilon ? i : step;
     }
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * dropdown_width_factor);
-    if (rv_editor_dropdown("##snapstep", &step, steps, std::ssize(steps), theme)) {
-        cam.snap_step = values[step];
+    if (rv_editor_dropdown("##snapstep", &step, snap_step_labels, std::ssize(snap_step_labels), theme)) {
+        cam.snap_step = snap_step_values[step];
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_step_tooltip"));
     const char *grid_label = rv_editor_text("scene_tools.grid_label");

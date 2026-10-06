@@ -20,6 +20,11 @@ using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
 using rv_editor_tint = std::array<int, 3>;
 
+// Default tint, same as pdklib when a scene object lacks a `tint` key.
+constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
+// Default tess, same as pdklib when a scene object lacks a `tess` key.
+constexpr double default_object_tess = 2.0;
+
 struct rv_editor_scene_object
 {
     std::string id;     // stable; never changes once given
@@ -32,8 +37,8 @@ struct rv_editor_scene_object
     std::string mesh;
     std::string texture;
     rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
-    rv_editor_tint tint{ 255, 255, 255 };  // quad/billboard modulation
-    double tess = 2.0;                     // quad/billboard subdivision density
+    rv_editor_tint tint = default_object_tint; // quad/billboard modulation
+    double tess = default_object_tess;         // quad/billboard subdivision density
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
 };
