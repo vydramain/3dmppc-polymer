@@ -14,6 +14,7 @@
 #include "imgui.h"
 
 #include "panes/rv_editor_scene_draw.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -68,27 +69,30 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
     // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
     // visible label in the UI font.
+    const char *const rot_x_label = rv_editor_text("scene_viewport.rot_x");
+    const char *const rot_y_label = rv_editor_text("scene_viewport.rot_y");
+    const char *const dolly_label = rv_editor_text("scene_viewport.dolly");
     const float wheel = ImGui::GetFrameHeight() * wheel_height_factor;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float line = ImGui::GetTextLineHeightWithSpacing();
-    const ImVec2 label_x = ImGui::CalcTextSize("Rot X");
-    const ImVec2 label_y = ImGui::CalcTextSize("Rot Y");
-    const ImVec2 label_d = ImGui::CalcTextSize("Dolly");
+    const ImVec2 label_x = ImGui::CalcTextSize(rot_x_label);
+    const ImVec2 label_y = ImGui::CalcTextSize(rot_y_label);
+    const ImVec2 label_d = ImGui::CalcTextSize(dolly_label);
     const ImVec2 size(
         std::max(min_viewport_size, avail.x - wheel_width_spacing * wheel - label_x.x - label_d.x - gap_multiplier * gap),
         std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
     cam.pitch = std::clamp(
-        cam.pitch - rv_editor_thumbwheel("##rotx", "Rot X", true, size.y, theme, reset) * rotation_sensitivity,
+        cam.pitch - rv_editor_thumbwheel("##rotx", rot_x_label, true, size.y, theme, reset) * rotation_sensitivity,
         pitch_min, pitch_max);
     if (reset) {
         cam.pitch = rv_editor_scene_camera{}.pitch;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
-    ImGui::TextUnformatted("Rot X");
+    ImGui::TextUnformatted(rot_x_label);
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##viewport", size,
@@ -99,22 +103,24 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     ImGui::SameLine();
     const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
     cam.distance = std::clamp(
-        cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", "Dolly", true, size.y, theme, reset) * dolly_sensitivity),
+        cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", dolly_label, true, size.y, theme, reset) * dolly_sensitivity),
         camera_distance_min, camera_distance_max);
     if (reset) {
         cam.distance = rv_editor_scene_camera{}.distance;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
-    ImGui::TextUnformatted("Dolly");
+    ImGui::TextUnformatted(dolly_label);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw += rv_editor_thumbwheel("##roty", "Rot Y", false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
+    cam.yaw += rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme,
+                   reset) *
+        rotation_sensitivity;
     if (reset) {
         cam.yaw = rv_editor_scene_camera{}.yaw;
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
-    ImGui::TextUnformatted("Rot Y");
+    ImGui::TextUnformatted(rot_y_label);
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     ImGuiIO &io = ImGui::GetIO();
@@ -284,42 +290,46 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     dl->PopClipRect();
 
     // What the view is, in numbers, and which camera this is.
+    const std::string seek_msg = cam.seeking ? rv_editor_text("scene_viewport.seek_hint") : "";
+    const std::string camera_info = rv_editor_text_format("scene_viewport.camera_status",
+        std::make_format_args(cam.yaw, cam.pitch, cam.distance, seek_msg));
     char buf[160];
-    std::snprintf(buf, sizeof(buf), "Editor camera, not the game's: yaw %.0f, pitch %.0f, distance %.1f%s", cam.yaw,
-        cam.pitch, cam.distance, cam.seeking ? " | Seek: click an object" : "");
+    std::snprintf(buf, sizeof(buf), "%s", camera_info.c_str());
     // Whether the running game has read this open scene document (its resource
     // name is the file's own name: the disc flattens scenes/*.scene.toml). The
     // status line stays short; the reason is a tooltip.
     const std::string scene_name = doc.scene.path.filename().string();
-    const char *read_line = "Game: not running";
+    const char *read_line = rv_editor_text("scene_viewport.game_not_running");
     std::string read_tip;
     if (app.session.connected()) {
         if (app.session.scenes_read().contains(scene_name)) {
-            read_line = "Game: read this scene";
-            read_tip = "Restart the game after Save and Build to see edits";
+            read_line = rv_editor_text("scene_viewport.game_read_scene");
+            read_tip = rv_editor_text("scene_viewport.game_restart_needed");
         } else {
-            read_line = "Game: has not read this scene";
-            read_tip = "The running disc did not open " + scene_name;
+            read_line = rv_editor_text("scene_viewport.game_not_read_scene");
+            read_tip = rv_editor_text_format("scene_viewport.game_disc_not_opened",
+                std::make_format_args(scene_name));
         }
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
     if (mesh_error.empty()) {
-        ImGui::TextDisabled("%s | %s", buf, read_line);
+        const std::string status_line = rv_editor_text_format("scene_viewport.status_line_format",
+            std::make_format_args(buf, read_line));
+        ImGui::TextDisabled("%s", status_line.c_str());
     } else {
-        ImGui::TextDisabled("%s | %s | Mesh placeholder: %s", buf, read_line, mesh_error.c_str());
+        const char *error_str = mesh_error.c_str();
+        const std::string status_line = rv_editor_text_format("scene_viewport.mesh_placeholder_format",
+            std::make_format_args(buf, read_line, error_str));
+        ImGui::TextDisabled("%s", status_line.c_str());
     }
     if (!read_tip.empty()) {
         ImGui::SetItemTooltip("%s", read_tip.c_str());
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
-    ImGui::TextDisabled("Example draws meshes as boxes");
+    ImGui::TextDisabled("%s", rv_editor_text("scene_viewport.example_meshes_title"));
     if (ImGui::BeginItemTooltip()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
-        ImGui::TextUnformatted("The viewport draws .obj meshes, quads, billboards and volumes. The example disc, and "
-                               "every New Project made from it, draws each mesh object as a unit box, ignores its mesh "
-                               "file, and does not draw quads, billboards or volumes. A disc draws only what its own "
-                               "code draws. Drawing .obj meshes, quads, polygons and the rest in the game comes in "
-                               "the next version.");
+        ImGui::TextUnformatted(rv_editor_text("scene_viewport.example_meshes_tooltip"));
         ImGui::PopTextWrapPos();
         ImGui::EndTooltip();
     }
