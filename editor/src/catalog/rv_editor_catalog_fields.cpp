@@ -57,19 +57,18 @@ struct rv_editor_field_values
     rv_editor_field_values()
     {
         for (int c = 0; c < rv_editor_field_column_count; ++c) {
-            std::strncpy(text[c], "my-game", sizeof(text[c]));
+            std::strncpy(text[c], rv_editor_text("catalog_fields.sample_text"), sizeof(text[c]));
             number[c] = sample_spinner_value;
             choice[c] = 0;
         }
     }
 };
 
-rv_editor_field_values rv_editor_field_data;
-
 } // namespace
 
 void rv_editor_catalog_fields(const rv_editor_theme &theme)
 {
+    static rv_editor_field_values rv_editor_field_data;
     if (!ImGui::BeginTable("fields", rv_editor_field_column_count + 1)) {
         return;
     }
