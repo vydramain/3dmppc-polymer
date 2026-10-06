@@ -56,7 +56,7 @@ void rv_editor_term_draw_line(ImDrawList *dl, const rv_editor_term_line &line, I
     }
 }
 
-// Named keys in libvterm's terms; F5, F6 and F7 stay the editor's (section 12).
+// Named keys in libvterm's terms; F1, F5, F6 and F7 stay the editor's (section 12).
 VTermKey rv_editor_term_key(ImGuiKey key)
 {
     switch (key) {
@@ -74,8 +74,8 @@ VTermKey rv_editor_term_key(ImGuiKey key)
         case ImGuiKey_Home: return VTERM_KEY_HOME;
         case ImGuiKey_End: return VTERM_KEY_END;
         case ImGuiKey_PageUp: return VTERM_KEY_PAGEUP;
-        case ImGuiKey_PageDown: return VTERM_KEY_PAGEDOWN;
-        case ImGuiKey_F1: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(1));
+        case ImGuiKey_PageDown:
+            return VTERM_KEY_PAGEDOWN;
         case ImGuiKey_F2: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(2));
         case ImGuiKey_F3: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(3));
         case ImGuiKey_F4: return static_cast<VTermKey>(VTERM_KEY_FUNCTION(4));

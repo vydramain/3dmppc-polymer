@@ -13,6 +13,7 @@
 #include "imgui.h"
 
 #include "font/rv_editor_font.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
@@ -282,6 +283,9 @@ void rv_editor_menu_window(rv_editor_shell &shell)
 
 void rv_editor_menu_help(rv_editor_shell &shell)
 {
+    if (ImGui::MenuItem(rv_editor_text("manual.menu_item"), "F1")) {
+        rv_editor_shell_page(shell, rv_editor_start_page::manual);
+    }
     if (ImGui::MenuItem("Keyboard Shortcuts")) {
         rv_editor_shell_page(shell, rv_editor_start_page::help);
     }
@@ -357,6 +361,9 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell)
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_F)) {
         app.project_search.focus = true;
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::search);
+    }
+    if (ImGui::IsKeyChordPressed(ImGuiKey_F1)) {
+        rv_editor_shell_page(shell, rv_editor_start_page::manual);
     }
     if (ImGui::IsKeyChordPressed(ImGuiKey_F5)) {
         rv_editor_app_run(app);
@@ -462,6 +469,7 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         { "Window", "Focus Next / Previous Pane", "Ctrl+F6 / Ctrl+Shift+F6" },
         { "Game", "Release Game input", "Shift+Esc" },
         { "Code", "Vim mode in a code tile", "F2" },
+        { "Help", "Manual", "F1" },
     };
     if (!ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
         return;

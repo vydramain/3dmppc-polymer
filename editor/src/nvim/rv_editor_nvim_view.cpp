@@ -63,8 +63,8 @@ const char *rv_editor_nvim_key(ImGuiKey key)
         case ImGuiKey_LeftArrow: return "Left";
         case ImGuiKey_RightArrow: return "Right";
         case ImGuiKey_UpArrow: return "Up";
-        case ImGuiKey_DownArrow: return "Down";
-        case ImGuiKey_F1: return "F1";
+        case ImGuiKey_DownArrow:
+            return "Down";
         case ImGuiKey_F2: return "F2";
         case ImGuiKey_F3: return "F3";
         case ImGuiKey_F4: return "F4";
@@ -77,7 +77,7 @@ const char *rv_editor_nvim_key(ImGuiKey key)
     }
 }
 
-// This frame's keyboard as nvim keys. F5, F6, F7 and Ctrl+B stay the editor's
+// This frame's keyboard as nvim keys. F1, F5, F6, F7 and Ctrl+B stay the editor's
 // own (section 12); everything else typed into a focused code tile is nvim's.
 std::string rv_editor_nvim_keys()
 {
