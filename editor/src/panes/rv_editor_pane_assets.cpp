@@ -17,6 +17,7 @@
 #include "imgui.h"
 
 #include "build/rv_editor_build_map.hpp"
+#include "text/rv_editor_text.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
@@ -109,12 +110,25 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
     }
     const auto entry = rv_editor_assets.map.find(a.rel);
     if (entry == rv_editor_assets.map.end()) {
-        ImGui::SetItemTooltip("%s\nNot on the disc of the last build: %s", a.rel.c_str(),
-            rv_editor_assets.map.empty() ? "Build once, and the burner names each file"
-                                         : "the manifest does not take it");
+        const char *status;
+        if (rv_editor_assets.map.empty()) {
+            status = rv_editor_text("pane_assets.tooltip_build_once");
+        } else {
+            status = rv_editor_text("pane_assets.tooltip_manifest");
+        }
+        const std::string tooltip1 = rv_editor_text_format("pane_assets.tooltip_not_on_disc",
+            std::make_format_args(status));
+        ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip1.c_str());
     } else {
-        ImGui::SetItemTooltip("%s\nOn the disc: %s (%s%s%s)", a.rel.c_str(), entry->second.name.c_str(),
-            entry->second.kind.c_str(), entry->second.parameter.empty() ? "" : ", ", entry->second.parameter.c_str());
+        const char *sep;
+        if (entry->second.parameter.empty()) {
+            sep = "";
+        } else {
+            sep = rv_editor_text("pane_assets.tooltip_sep");
+        }
+        const std::string tooltip2 = rv_editor_text_format("pane_assets.tooltip_on_disc",
+            std::make_format_args(entry->second.name, entry->second.kind, sep, entry->second.parameter));
+        ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip2.c_str());
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         const std::string ext = a.path.extension().string();
@@ -160,7 +174,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
 
     // The folder, the filter, and the view: icons or a list with details.
     rv_editor_shelf_begin("##shelf", theme);
-    std::vector<std::string> folders{ "All folders" };
+    std::vector<std::string> folders{ rv_editor_text("pane_assets.all_folders") };
     for (const rv_editor_asset &a : rv_editor_assets.files) {
         if (std::find(folders.begin(), folders.end(), a.folder) == folders.end()) {
             folders.push_back(a.folder);
@@ -176,29 +190,31 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
     rv_editor_flow(ImGui::GetFontSize() * 9.0f);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9.0f);
     rv_editor_text_field("##filter", ui.filter, sizeof(ui.filter), theme);
-    ImGui::SetItemTooltip("Filter: only names holding this text");
-    rv_editor_flow(rv_editor_checkbox_width("Details"));
-    rv_editor_checkbox("Details", &ui.details, theme);
+    ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.filter_tooltip"));
+    const char *details_text = rv_editor_text("pane_assets.details");
+    rv_editor_flow(rv_editor_checkbox_width(details_text));
+    rv_editor_checkbox(details_text, &ui.details, theme);
     if (!rv_editor_assets.selected.empty()) {
         const std::filesystem::path file = app.project.root / rv_editor_assets.selected;
         const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
         const char *why = nullptr;
         if (!app.session.live() || !rv_editor_app_can_reload(app)) {
-            why = "No running console that can reload";
+            why = rv_editor_text("pane_assets.no_console");
         } else if (plan.action != rv_editor_change_action::refresh_texture) {
-            why = "Not a texture of the running build";
+            why = rv_editor_text("pane_assets.not_texture");
         } else {
             why = rv_editor_app_why_not_reload(app);
         }
-        rv_editor_flow(rv_editor_button_width("Refresh in Game"));
+        const char *refresh_text = rv_editor_text("pane_assets.refresh");
+        rv_editor_flow(rv_editor_button_width(refresh_text));
         rv_editor_state state;
         state.disabled = why;
-        if (rv_editor_button("Refresh in Game", theme, state)) {
+        if (rv_editor_button(refresh_text, theme, state)) {
             app.texture_bake.message.clear();
             rv_editor_app_texture_bake_start(app, plan.name, file);
         }
         if (why == nullptr) {
-            ImGui::SetItemTooltip("Bake the PNG and send it to the running game");
+            ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.refresh_tooltip"));
         }
     }
     rv_editor_shelf_end();
@@ -250,15 +266,20 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
 
     ImGui::BeginChild("##asset_list", ImVec2(list_w, list_h), false);
     if (shown.empty()) {
-        ImGui::TextDisabled(rv_editor_assets.files.empty() ? "No resource files: put them in a folder such as assets/."
-                                                           : "Nothing matches the folder and the filter.");
+        const char *empty_msg;
+        if (rv_editor_assets.files.empty()) {
+            empty_msg = rv_editor_text("pane_assets.no_resources");
+        } else {
+            empty_msg = rv_editor_text("pane_assets.no_match_filter");
+        }
+        ImGui::TextDisabled("%s", empty_msg);
     } else if (ui.details) {
         if (ImGui::BeginTable("##assets", 4,
                 ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
-            ImGui::TableSetupColumn("File");
-            ImGui::TableSetupColumn("Kind", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn("On the disc");
-            ImGui::TableSetupColumn("Size", ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_file"));
+            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_kind"), ImGuiTableColumnFlags_WidthFixed);
+            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_on_disc"));
+            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_size"), ImGuiTableColumnFlags_WidthFixed);
             ImGui::TableSetupScrollFreeze(0, 1);
             ImGui::TableHeadersRow();
             for (const rv_editor_asset *a : shown) {
@@ -270,8 +291,10 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(entry == rv_editor_assets.map.end() ? "-" : entry->second.kind.c_str());
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted(
-                    entry == rv_editor_assets.map.end() ? "not on the disc" : entry->second.name.c_str());
+                const char *disc_name = entry == rv_editor_assets.map.end() ?
+                    rv_editor_text("pane_assets.not_on_disc") :
+                    entry->second.name.c_str();
+                ImGui::TextUnformatted(disc_name);
                 ImGui::TableNextColumn();
                 ImGui::Text("%ju", a->size);
             }
