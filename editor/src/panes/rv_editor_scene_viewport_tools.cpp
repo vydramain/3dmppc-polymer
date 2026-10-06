@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include "panes/rv_editor_scene_draw.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -134,72 +135,82 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_scene_camera &cam = app.scene_ui.camera;
     const struct
     {
-        const char *label;
+        const char *label_id;
         double yaw, pitch;
     } views[] = {
-        { "Persp", perspective_view_yaw, perspective_view_pitch },
-        { "Top", 0.0, top_view_pitch },
-        { "Front", 0.0, 0.0 },
-        { "Right", right_view_yaw, 0.0 }
+        { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
+        { "scene_tools.view_top", 0.0, top_view_pitch },
+        { "scene_tools.view_front", 0.0, 0.0 },
+        { "scene_tools.view_right", right_view_yaw, 0.0 }
     };
     for (const auto &view : views) {
-        rv_editor_flow(rv_editor_button_width(view.label));
-        if (rv_editor_button(view.label, theme)) {
+        const char *label = rv_editor_text(view.label_id);
+        rv_editor_flow(rv_editor_button_width(label));
+        if (rv_editor_button(label, theme)) {
             cam.yaw = view.yaw;
             cam.pitch = view.pitch;
         }
     }
-    const char *no_selection = app.scene->selected.empty() ? "Nothing is selected" : nullptr;
-    rv_editor_flow(rv_editor_button_width("Frame Selection"));
-    if (rv_editor_button("Frame Selection", theme, { rv_editor_look::live, no_selection })) {
+    const char *no_selection = app.scene->selected.empty() ? rv_editor_text("scene_tools.nothing_selected") : nullptr;
+    const char *frame_btn = rv_editor_text("scene_tools.toolbar_frame_selection");
+    rv_editor_flow(rv_editor_button_width(frame_btn));
+    if (rv_editor_button(frame_btn, theme, { rv_editor_look::live, no_selection })) {
         rv_editor_scene_frame(app, false);
     }
-    ImGui::SetItemTooltip("F: the selected object fills the view");
-    rv_editor_flow(rv_editor_button_width("View All"));
-    if (rv_editor_button("View All", theme)) {
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_frame_tooltip"));
+    const char *view_all = rv_editor_text("scene_tools.toolbar_view_all");
+    rv_editor_flow(rv_editor_button_width(view_all));
+    if (rv_editor_button(view_all, theme)) {
         rv_editor_scene_frame(app, true);
     }
-    rv_editor_flow(rv_editor_button_width("Home"));
-    if (rv_editor_button("Home", theme)) {
+    const char *home = rv_editor_text("scene_tools.toolbar_home");
+    rv_editor_flow(rv_editor_button_width(home));
+    if (rv_editor_button(home, theme)) {
         cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
     }
-    ImGui::SetItemTooltip("Home key: the view the scene opened with");
-    rv_editor_flow(rv_editor_button_width("Seek"));
-    bool seek = cam.seeking;
-    if (rv_editor_toggle("Seek", &seek, theme)) {
-        cam.seeking = seek;
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_home_tooltip"));
+    const char *seek = rv_editor_text("scene_tools.toolbar_seek");
+    rv_editor_flow(rv_editor_button_width(seek));
+    bool seek_val = cam.seeking;
+    if (rv_editor_toggle(seek, &seek_val, theme)) {
+        cam.seeking = seek_val;
     }
-    ImGui::SetItemTooltip("Then click an object: the view turns about it");
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_seek_tooltip"));
     const struct
     {
-        const char *label;
+        const char *label_id;
+        const char *tip_id;
         rv_editor_scene_shading shading;
-        const char *tip;
     } shadings[] = {
-        { "Wireframe", rv_editor_scene_shading::wireframe, "Wireframe: edges only" },
-        { "Filled", rv_editor_scene_shading::filled, "Filled: shaded polygons" },
-        { "Textured", rv_editor_scene_shading::textured, "Textured: meshes with their scene texture; untextured ones flat" },
+        { "scene_tools.shading_wireframe", "scene_tools.shading_wireframe_tooltip", rv_editor_scene_shading::wireframe },
+        { "scene_tools.shading_filled", "scene_tools.shading_filled_tooltip", rv_editor_scene_shading::filled },
+        { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
     };
     for (const auto &s : shadings) {
-        rv_editor_flow(rv_editor_button_width(s.label));
-        if (rv_editor_radio(s.label, cam.shading == s.shading, theme)) {
+        const char *label = rv_editor_text(s.label_id);
+        rv_editor_flow(rv_editor_button_width(label));
+        if (rv_editor_radio(label, cam.shading == s.shading, theme)) {
             cam.shading = s.shading;
         }
-        ImGui::SetItemTooltip("%s", s.tip);
+        ImGui::SetItemTooltip("%s", rv_editor_text(s.tip_id));
     }
 }
 
 void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_scene_camera &cam = app.scene_ui.camera;
-    const char *const names[] = { "Select (Q)", "Move (W)", "Rotate (E)", "Scale (R)" };
-    for (int t = 0; t < std::ssize(names); ++t) {
-        if (rv_editor_radio(names[t], cam.tool == static_cast<rv_editor_scene_tool>(t), theme)) {
+    const char *const tool_ids[] = {
+        "scene_tools.tool_select", "scene_tools.tool_move", "scene_tools.tool_rotate", "scene_tools.tool_scale"
+    };
+    for (int t = 0; t < std::ssize(tool_ids); ++t) {
+        const char *tool_name = rv_editor_text(tool_ids[t]);
+        if (rv_editor_radio(tool_name, cam.tool == static_cast<rv_editor_scene_tool>(t), theme)) {
             cam.tool = static_cast<rv_editor_scene_tool>(t);
         }
     }
-    rv_editor_checkbox("Snap", &cam.snap, theme);
-    ImGui::SetItemTooltip("Move by the step below, turn by 15 degrees, scale by 0.1");
+    const char *snap_label = rv_editor_text("scene_tools.snap_label");
+    rv_editor_checkbox(snap_label, &cam.snap, theme);
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_tooltip"));
     const char *const steps[] = { "0.1", "0.25", "0.5", "1" };
     const double values[] = { 0.1, 0.25, 0.5, 1.0 };
     int step = 1;
@@ -210,8 +221,9 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_dropdown("##snapstep", &step, steps, std::ssize(steps), theme)) {
         cam.snap_step = values[step];
     }
-    ImGui::SetItemTooltip("The Move snap step, in scene units");
-    rv_editor_checkbox("Grid", &cam.grid, theme);
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_step_tooltip"));
+    const char *grid_label = rv_editor_text("scene_tools.grid_label");
+    rv_editor_checkbox(grid_label, &cam.grid, theme);
 }
 
 } // namespace rv_editor
