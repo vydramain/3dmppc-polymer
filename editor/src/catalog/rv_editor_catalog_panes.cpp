@@ -1,6 +1,7 @@
 // Catalog section: tree, list, table, tab strip, splitter and pane headers.
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -62,8 +63,8 @@ void rv_editor_catalog_table()
     if (!ImGui::BeginTable("##table", 2, flags)) {
         return;
     }
-    ImGui::TableSetupColumn("Name");
-    ImGui::TableSetupColumn("Directory");
+    ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_name"));
+    ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_directory"));
     ImGui::TableHeadersRow();
     const char *rows[][2] = {{"solid-maid", "~/Projects"}, {"example-lua", "mppcdiscs"}, {"example-cpp", "mppcdiscs"}};
     for (const auto &row : rows) {
@@ -78,7 +79,9 @@ void rv_editor_catalog_table()
 
 void rv_editor_catalog_tabs(const rv_editor_theme &t)
 {
-    const char *const labels[] = {"Project", "Scene", "Assets", "Console Output"};
+    const char *const labels[] = { rv_editor_text("catalog_panes.tab_project"),
+        rv_editor_text("catalog_panes.tab_scene"), rv_editor_text("catalog_panes.tab_assets"),
+        rv_editor_text("catalog_panes.tab_console_output") };
     rv_editor_tab_strip("##tabs", labels, 4, &rv_editor_pane_data.tab, t);
 }
 
@@ -101,7 +104,7 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     float right = span - left;
 
     ImGui::BeginChild("##left", ImVec2(left, height), ImGuiChildFlags_Borders);
-    ImGui::TextUnformatted("Drag the bar");
+    ImGui::TextUnformatted(rv_editor_text("catalog_panes.drag_bar"));
     ImGui::EndChild();
     ImGui::SameLine(0.0f, 0.0f);
     if (rv_editor_splitter("##split_x", rv_editor_axis::x, height, &left, &right, min, min, t)) {
@@ -110,11 +113,11 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     ImGui::SameLine(0.0f, 0.0f);
     ImGui::BeginGroup();
     ImGui::BeginChild("##top", ImVec2(right, v.top), ImGuiChildFlags_Borders);
-    ImGui::TextUnformatted("Top");
+    ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_top"));
     ImGui::EndChild();
     rv_editor_splitter("##split_y", rv_editor_axis::y, right, &v.top, &v.bottom, min / 2.0f, min / 2.0f, t);
     ImGui::BeginChild("##bottom", ImVec2(right, v.bottom), ImGuiChildFlags_Borders);
-    ImGui::TextUnformatted("Bottom");
+    ImGui::TextUnformatted(rv_editor_text("catalog_panes.split_bottom"));
     ImGui::EndChild();
     ImGui::EndGroup();
 }
@@ -139,7 +142,7 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
         rv_editor_tile_insert(w.layout, rv_editor_tile_find(w.layout, output), terminal, rv_editor_tile_dock::tab);
         return w;
     }();
-    ImGui::SeparatorText("Tile windows");
+    ImGui::SeparatorText(rv_editor_text("catalog_panes.section_tile_windows"));
     const ImVec2 at = ImGui::GetCursorScreenPos();
     const rv_editor_rect area{ static_cast<int>(at.x), static_cast<int>(at.y),
         static_cast<int>(ImGui::GetContentRegionAvail().x), static_cast<int>(ImGui::GetFrameHeight() * 8.0f) };
@@ -150,13 +153,15 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
 // stacked, so the tone and bevels can be checked by eye.
 void rv_editor_catalog_layers(const rv_editor_theme &t)
 {
-    ImGui::SeparatorText("Shelf and well");
-    rv_editor_pane_header("Files", true, t, true);
+    ImGui::SeparatorText(rv_editor_text("catalog_panes.section_shelf_well"));
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_files"), true, t, true);
     rv_editor_shelf_begin("##shelf", t);
-    if (rv_editor_letter_button("##new", rv_editor_glyph::new_, t.code_green, "New File", t)) {
+    if (rv_editor_letter_button(
+            "##new", rv_editor_glyph::new_, t.code_green, rv_editor_text("catalog_panes.button_new_file"), t)) {
     }
     rv_editor_flow(ImGui::GetFrameHeight());
-    if (rv_editor_letter_button("##del", rv_editor_glyph::delete_, t.code_red, "Delete", t)) {
+    if (rv_editor_letter_button("##del", rv_editor_glyph::delete_, t.code_red,
+            rv_editor_text("catalog_panes.button_delete"), t)) {
     }
     rv_editor_shelf_end();
     if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * 6.0f), t)) {
@@ -169,11 +174,14 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
 
 void rv_editor_catalog_headers(const rv_editor_theme &theme)
 {
-    rv_editor_pane_header("Hierarchy", true, theme, true);
-    rv_editor_pane_header("Inspector", false, theme, true);
-    rv_editor_pane_header("Boxes hovered", true, theme, true, { rv_editor_look::hovered });
-    rv_editor_pane_header("Boxes pressed", true, theme, true, { rv_editor_look::pressed });
-    rv_editor_pane_header("Boxes focused", true, theme, true, { rv_editor_look::focused });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_hierarchy"), true, theme, true);
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_inspector"), false, theme, true);
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_hovered"), true, theme, true,
+        { rv_editor_look::hovered });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_pressed"), true, theme, true,
+        { rv_editor_look::pressed });
+    rv_editor_pane_header(rv_editor_text("catalog_panes.header_boxes_focused"), true, theme, true,
+        { rv_editor_look::focused });
     rv_editor_catalog_splitters(theme);
     rv_editor_catalog_tiles(theme);
     rv_editor_catalog_layers(theme);
