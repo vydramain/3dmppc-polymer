@@ -15,14 +15,48 @@ namespace
 {
 
 constexpr double rv_editor_rad = 3.14159265358979323846 / 180.0;
+// Threshold for near-zero determinants and scales in matrix operations.
+constexpr double matrix_epsilon = 1e-12;
+// Relative tolerance for transform decomposition validation.
+constexpr double decompose_tolerance = 1e-6;
+// Sine value threshold: below this indicates gimbal lock (pitch near +-90 degrees).
+constexpr double gimbal_lock_threshold = 0.999999;
+// Number of spatial axes (x, y, z).
+constexpr int space_axes = 3;
+// Number of columns in an affine transformation matrix (3 for rotation/scale, 1 for translation).
+constexpr int affine_cols = 4;
+// Scene object kind: camera.
+constexpr std::string_view kind_camera = "camera";
+// Scene object kind: mesh loaded from a file.
+constexpr std::string_view kind_mesh = "mesh";
+// Scene object kind: flat textured quad.
+constexpr std::string_view kind_quad = "quad";
+// Scene object kind: camera-facing textured card.
+constexpr std::string_view kind_billboard = "billboard";
+// Scene object kind: volume trigger or constraint.
+constexpr std::string_view kind_volume = "volume";
+// Default name for newly created camera objects.
+constexpr std::string_view default_camera_name = "Camera";
+// Default name for newly created mesh objects.
+constexpr std::string_view default_mesh_name = "Box";
+// Default name for newly created quad objects.
+constexpr std::string_view default_quad_name = "Quad";
+// Default name for newly created billboard objects.
+constexpr std::string_view default_billboard_name = "Billboard";
+// Default name for newly created volume objects.
+constexpr std::string_view default_volume_name = "Volume";
+// Default name for newly created group objects.
+constexpr std::string_view default_group_name = "Group";
+// Suffix appended to duplicated object names.
+constexpr std::string_view duplicate_suffix = " copy";
 
 using mat3 = std::array<std::array<double, 3>, 3>;
 
 mat3 rv_editor_mat3_mul(const mat3 &a, const mat3 &b)
 {
     mat3 r{};
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < space_axes; ++i) {
+        for (int j = 0; j < space_axes; ++j) {
             r[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j];
         }
     }
@@ -43,7 +77,7 @@ rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
 {
     const double det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) -
         a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
-    ok = std::fabs(det) > 1e-12;
+    ok = std::fabs(det) > matrix_epsilon;
     rv_editor_affine r{};
     if (!ok) {
         return r;
@@ -58,8 +92,8 @@ rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
     r[2][0] = (a[1][0] * a[2][1] - a[1][1] * a[2][0]) * inv;
     r[2][1] = (a[0][1] * a[2][0] - a[0][0] * a[2][1]) * inv;
     r[2][2] = (a[0][0] * a[1][1] - a[0][1] * a[1][0]) * inv;
-    for (int i = 0; i < 3; ++i) {
-        r[i][3] = -(r[i][0] * a[0][3] + r[i][1] * a[1][3] + r[i][2] * a[2][3]);
+    for (int i = 0; i < space_axes; ++i) {
+        r[i][affine_cols - 1] = -(r[i][0] * a[0][3] + r[i][1] * a[1][3] + r[i][2] * a[2][3]);
     }
     return r;
 }
@@ -69,12 +103,12 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
 {
     rv_editor_vec3 s{};
     mat3 r{};
-    for (int j = 0; j < 3; ++j) {
+    for (int j = 0; j < space_axes; ++j) {
         s[j] = std::sqrt(m[0][j] * m[0][j] + m[1][j] * m[1][j] + m[2][j] * m[2][j]);
-        if (s[j] < 1e-12) {
+        if (s[j] < matrix_epsilon) {
             return RV_ERR_INVAL;
         }
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < space_axes; ++i) {
             r[i][j] = m[i][j] / s[j];
         }
     }
@@ -82,14 +116,14 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
         r[0][1] * (r[1][0] * r[2][2] - r[1][2] * r[2][0]) + r[0][2] * (r[1][0] * r[2][1] - r[1][1] * r[2][0]);
     if (det < 0.0) {
         s[0] = -s[0];
-        for (int i = 0; i < 3; ++i) {
+        for (int i = 0; i < space_axes; ++i) {
             r[i][0] = -r[i][0];
         }
     }
     const double sx = std::fmax(-1.0, std::fmin(1.0, -r[1][2]));
     rv_editor_vec3 deg{};
     deg[0] = std::asin(sx);
-    if (std::fabs(sx) < 0.999999) {
+    if (std::fabs(sx) < gimbal_lock_threshold) {
         deg[1] = std::atan2(r[0][2], r[2][2]);
         deg[2] = std::atan2(r[1][0], r[1][1]);
     } else {
@@ -105,9 +139,9 @@ int rv_editor_decompose(const rv_editor_affine &m, rv_editor_scene_object &o)
     t.scale = s;
     // Rebuilt, it must be the same matrix: otherwise the source had a shear.
     const rv_editor_affine back = rv_editor_scene_local(t);
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            if (std::fabs(back[i][j] - m[i][j]) > 1e-6 * (1.0 + std::fabs(m[i][j]))) {
+    for (int i = 0; i < space_axes; ++i) {
+        for (int j = 0; j < affine_cols; ++j) {
+            if (std::fabs(back[i][j] - m[i][j]) > decompose_tolerance * (1.0 + std::fabs(m[i][j]))) {
                 return RV_ERR_INVAL;
             }
         }
@@ -137,9 +171,10 @@ void rv_editor_scene_subtree(const rv_editor_scene &scene, const std::string &id
 rv_editor_affine rv_editor_affine_mul(const rv_editor_affine &a, const rv_editor_affine &b)
 {
     rv_editor_affine r{};
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 4; ++j) {
-            r[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j] + (j == 3 ? a[i][3] : 0.0);
+    for (int i = 0; i < space_axes; ++i) {
+        for (int j = 0; j < affine_cols; ++j) {
+            r[i][j] = a[i][0] * b[0][j] + a[i][1] * b[1][j] + a[i][2] * b[2][j] +
+                (j == affine_cols - 1 ? a[i][affine_cols - 1] : 0.0);
         }
     }
     return r;
@@ -168,11 +203,11 @@ rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o)
 {
     const mat3 r = rv_editor_rotation(o.rotation);
     rv_editor_affine m{};
-    for (int i = 0; i < 3; ++i) {
-        for (int j = 0; j < 3; ++j) {
+    for (int i = 0; i < space_axes; ++i) {
+        for (int j = 0; j < space_axes; ++j) {
             m[i][j] = r[i][j] * o.scale[j];
         }
-        m[i][3] = o.position[i];
+        m[i][affine_cols - 1] = o.position[i];
     }
     return m;
 }
@@ -238,10 +273,11 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
     rv_editor_scene_object o;
     o.id = rv_editor_scene_new_id(doc.scene);
     o.kind = kind;
-    o.name = kind == "camera" ? "Camera" : kind == "mesh" ? "Box" : kind == "quad" ? "Quad"
-        : kind == "billboard"                                                    ? "Billboard"
-        : kind == "volume"                                                       ? "Volume"
-                                                                                  : "Group";
+    o.name = kind == kind_camera ? default_camera_name : kind == kind_mesh ? default_mesh_name :
+        kind == kind_quad                                                  ? default_quad_name :
+        kind == kind_billboard                                             ? default_billboard_name :
+        kind == kind_volume                                                ? default_volume_name :
+                                                                             default_group_name;
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
     doc.selected = o.id;
@@ -295,7 +331,7 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
             }
         }
     }
-    made.front().name += " copy";
+    made.front().name += duplicate_suffix;
     doc.scene.objects.insert(doc.scene.objects.end(), made.begin(), made.end());
     doc.selected = made.front().id;
     return made.front().id;
