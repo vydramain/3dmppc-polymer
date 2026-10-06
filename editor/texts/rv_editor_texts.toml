@@ -393,3 +393,8 @@ row_spinner = "Spinner"
 row_dropdown = "Dropdown"
 disabled_reason = "Disabled: shown here to check the look"
 invalid_reason = "Invalid: shown here to check the look"
+
+[widgets_fields]
+readonly_arrow = "Read-only"
+button_copy = "Copy"
+path_ellipsis = "..."

@@ -3,6 +3,7 @@
 
 #include <cmath>
 
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -129,7 +130,7 @@ bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_
     rv_editor_state arrows = field.state;
     arrows.look = rv_editor_look::live;
     if (field.read_only && arrows.disabled == nullptr) {
-        arrows.disabled = "Read-only";
+        arrows.disabled = rv_editor_text("widgets_fields.readonly_arrow");
     }
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float half = std::floor(h / 2.0f);
@@ -198,9 +199,12 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(label, rv_editor_label_end(label));
     ImGui::SameLine();
-    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width("Copy") - ImGui::GetStyle().ItemSpacing.x;
+    const char *copy_label = rv_editor_text("widgets_fields.button_copy");
+    const float room = ImGui::GetContentRegionAvail().x - rv_editor_button_width(copy_label) -
+        ImGui::GetStyle().ItemSpacing.x;
     std::string shown = path;
     if (ImGui::CalcTextSize(path.c_str()).x > room) {
+        const char *path_ellipsis = rv_editor_text("widgets_fields.path_ellipsis");
         // Drop whole UTF-8 characters from the front until "..." and the rest fit.
         size_t start = 0;
         do {
@@ -208,13 +212,13 @@ void rv_editor_path_row(const char *label, const std::string &path, const rv_edi
             while (start < path.size() && (static_cast<unsigned char>(path[start]) & 0xc0) == 0x80) {
                 ++start;
             }
-            shown = "..." + path.substr(start);
+            shown = std::string(path_ellipsis) + path.substr(start);
         } while (start < path.size() && ImGui::CalcTextSize(shown.c_str()).x > room);
     }
     ImGui::TextUnformatted(shown.c_str());
     ImGui::SetItemTooltip("%s", path.c_str());
     ImGui::SameLine();
-    if (rv_editor_button("Copy", theme)) {
+    if (rv_editor_button(copy_label, theme)) {
         ImGui::SetClipboardText(path.c_str());
     }
     ImGui::PopID();
