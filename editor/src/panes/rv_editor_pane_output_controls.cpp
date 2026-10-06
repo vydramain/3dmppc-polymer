@@ -9,6 +9,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -21,7 +22,13 @@ namespace
 
 const char *rv_editor_output_level_filter(rv_editor_log_level level)
 {
-    return level == rv_editor_log_level::error ? "Errors" : level == rv_editor_log_level::warning ? "Warnings+" : "All";
+    if (level == rv_editor_log_level::error) {
+        return rv_editor_text("pane_output_controls.level_errors");
+    }
+    if (level == rv_editor_log_level::warning) {
+        return rv_editor_text("pane_output_controls.level_warnings");
+    }
+    return rv_editor_text("pane_output_controls.level_all");
 }
 
 // A button that opens a menu: "Source: All" with a down arrow at its right end.
@@ -59,8 +66,17 @@ std::vector<rv_editor_output_run> rv_editor_output_runs(const rv_editor_log &log
             has_candidate = has_candidate || line.source == rv_editor_log_source::candidate;
             run = line.run;
         }
-        const char *kind = has_build ? "build" : has_candidate ? "candidate" : "session";
-        runs.push_back({ pid, std::string(kind) + " #" + std::to_string(run) + ", pid " + std::to_string(pid) });
+        const char *kind;
+        if (has_build) {
+            kind = rv_editor_text("pane_output_controls.source_build");
+        } else if (has_candidate) {
+            kind = rv_editor_text("pane_output_controls.source_candidate");
+        } else {
+            kind = rv_editor_text("pane_output_controls.source_session");
+        }
+        const std::string label = rv_editor_text_format("pane_output_controls.run_label",
+            std::make_format_args(kind, run, pid));
+        runs.push_back({ pid, label });
     }
     return runs;
 }
@@ -91,7 +107,9 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
     };
 
     const std::string source_label = view.run_pid != 0 ? view.run_label : rv_editor_output_sources(view, false);
-    if (rv_editor_output_drop(rv_editor_output_drop_label("Source: " + source_label, "sources"), theme)) {
+    const std::string source_drop = std::string(rv_editor_text("pane_output_controls.dropdown_source")) +
+        source_label;
+    if (rv_editor_output_drop(rv_editor_output_drop_label(source_drop, "sources"), theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
     rv_editor_menu_style_push();
@@ -103,7 +121,7 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             }
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("All runs", nullptr, view.run_pid == 0)) {
+        if (ImGui::MenuItem(rv_editor_text("pane_output_controls.menu_all_runs"), nullptr, view.run_pid == 0)) {
             view.run_pid = 0;
             view.run_label.clear();
         }
@@ -114,7 +132,7 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
             }
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Reset Filters")) {
+        if (ImGui::MenuItem(rv_editor_text("pane_output_controls.menu_reset_filters"))) {
             view.show = {};
             view.show[static_cast<size_t>(rv_editor_log_source::editor)] = true;
             view.show[static_cast<size_t>(rv_editor_log_source::build)] = true;
@@ -130,8 +148,10 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
     rv_editor_menu_style_pop();
     ImGui::SameLine();
 
-    const std::string level =
-        rv_editor_output_drop_label(std::string("Level: ") + rv_editor_output_level_filter(view.level), "level");
+    const std::string level = rv_editor_output_drop_label(
+        std::string(rv_editor_text("pane_output_controls.dropdown_level")) +
+            rv_editor_output_level_filter(view.level),
+        "level");
     if (rv_editor_output_drop(level, theme)) {
         ImGui::OpenPopup("##level_menu");
     }
@@ -151,9 +171,12 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
     // Follow, Wrap, Copy, Export, Clear View: dropped in this order (Clear View
     // first, Follow last) behind More, so the row never runs wider than the tile.
     const float gap = ImGui::GetStyle().ItemSpacing.x;
-    const float tail_w[5] = { rv_editor_checkbox_width("Follow"), rv_editor_checkbox_width("Wrap"),
-        rv_editor_button_width("Copy"), rv_editor_button_width("Export"), rv_editor_button_width("Clear View") };
-    const float more_w = rv_editor_button_width("More");
+    const float tail_w[5] = { rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_follow")),
+        rv_editor_checkbox_width(rv_editor_text("pane_output_controls.button_wrap")),
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_copy")),
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_export")),
+        rv_editor_button_width(rv_editor_text("pane_output_controls.button_clear_view")) };
+    const float more_w = rv_editor_button_width(rv_editor_text("pane_output_controls.button_more"));
     constexpr size_t drop_order[5] = { 4, 3, 2, 1, 0 };
     bool hidden[5] = {};
     const auto tail_width = [&](bool any_hidden) {
@@ -192,42 +215,42 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 pad = ImGui::GetStyle().FramePadding;
         ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
-            ImGui::GetColorU32(ImGuiCol_TextDisabled), "Find...");
+            ImGui::GetColorU32(ImGuiCol_TextDisabled), rv_editor_text("pane_output_controls.placeholder_find"));
     }
-    ImGui::SetItemTooltip("Shows only lines containing this text");
+    ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_find"));
 
     bool any_shown = false;
     if (!hidden[0]) {
         ImGui::SameLine();
-        if (rv_editor_checkbox("Follow", &view.follow, theme)) {
+        if (rv_editor_checkbox(rv_editor_text("pane_output_controls.button_follow"), &view.follow, theme)) {
             view.picked_from = view.picked_to = 0;
         }
-        ImGui::SetItemTooltip("Keep the newest line in sight; scrolling up turns it off");
+        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_follow"));
         any_shown = true;
     }
     if (!hidden[1]) {
         ImGui::SameLine();
-        rv_editor_checkbox("Wrap", &view.wrap, theme);
+        rv_editor_checkbox(rv_editor_text("pane_output_controls.button_wrap"), &view.wrap, theme);
         any_shown = true;
     }
     if (!hidden[2]) {
         ImGui::SameLine();
-        copy = rv_editor_button("Copy", theme);
-        ImGui::SetItemTooltip("The selected lines, or every line shown when none is selected");
+        copy = rv_editor_button(rv_editor_text("pane_output_controls.button_copy"), theme);
+        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_copy"));
         any_shown = true;
     }
     if (!hidden[3]) {
         ImGui::SameLine();
-        exporting = rv_editor_button("Export", theme,
-            { rv_editor_look::live, app.project.open ? nullptr : "No project: exports go to its cache directory" });
+        exporting = rv_editor_button(rv_editor_text("pane_output_controls.button_export"), theme,
+            { rv_editor_look::live, app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project") });
         any_shown = true;
     }
     if (!hidden[4]) {
         ImGui::SameLine();
-        if (rv_editor_button("Clear View", theme)) {
+        if (rv_editor_button(rv_editor_text("pane_output_controls.button_clear_view"), theme)) {
             clear_view();
         }
-        ImGui::SetItemTooltip("Hides the lines shown now in this view; the log keeps them");
+        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_clear_view"));
         any_shown = true;
     }
     if (dropped == 0) {
@@ -236,37 +259,37 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
     if (any_shown) {
         ImGui::SameLine();
     }
-    if (rv_editor_button("More", theme)) {
+    if (rv_editor_button(rv_editor_text("pane_output_controls.button_more"), theme)) {
         ImGui::OpenPopup("##output_more");
     }
     rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##output_more")) {
         if (hidden[0]) {
             bool on = view.follow;
-            if (ImGui::MenuItem("Follow", nullptr, &on)) {
+            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_follow"), nullptr, &on)) {
                 view.follow = on;
                 view.picked_from = view.picked_to = 0;
             }
         }
         if (hidden[1]) {
             bool on = view.wrap;
-            if (ImGui::MenuItem("Wrap", nullptr, &on)) {
+            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_wrap"), nullptr, &on)) {
                 view.wrap = on;
             }
         }
-        if (hidden[2] && ImGui::MenuItem("Copy")) {
+        if (hidden[2] && ImGui::MenuItem(rv_editor_text("pane_output_controls.button_copy"))) {
             copy = true;
         }
         if (hidden[3]) {
-            const char *disabled = app.project.open ? nullptr : "No project: exports go to its cache directory";
-            if (ImGui::MenuItem("Export", nullptr, false, disabled == nullptr)) {
+            const char *disabled = app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project");
+            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_export"), nullptr, false, disabled == nullptr)) {
                 exporting = true;
             }
             if (disabled != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
                 ImGui::SetTooltip("%s", disabled);
             }
         }
-        if (hidden[4] && ImGui::MenuItem("Clear View")) {
+        if (hidden[4] && ImGui::MenuItem(rv_editor_text("pane_output_controls.button_clear_view"))) {
             clear_view();
         }
         ImGui::EndPopup();
