@@ -40,6 +40,25 @@ constexpr float scale_speed = 0.01f;
 constexpr float uv_speed = 0.5f;
 constexpr float tess_speed = 0.05f;
 
+// Scene object kinds: category for inspector layout and properties.
+constexpr std::string_view kind_mesh = "mesh";
+constexpr std::string_view kind_quad = "quad";
+constexpr std::string_view kind_billboard = "billboard";
+
+// UV drag range for coordinate edit fields.
+constexpr double uv_drag_bound = 1e6;
+
+// Undo step names for inspector fields.
+constexpr const char *undo_name = "Name";
+constexpr const char *undo_position = "Position";
+constexpr const char *undo_rotation = "Rotation";
+constexpr const char *undo_scale = "Scale";
+constexpr const char *undo_mesh = "Mesh";
+constexpr const char *undo_texture = "Texture";
+constexpr const char *undo_uv = "UV";
+constexpr const char *undo_tint = "Tint";
+constexpr const char *undo_tess = "Tess";
+
 // A label column, then the field.
 void rv_editor_inspector_label(const char *label)
 {
@@ -255,41 +274,41 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             ImGui::TextWrapped("%s", msg.c_str());
         }
         ImGui::BeginDisabled(read_only);
-        rv_editor_inspector_text(app, "Name", &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme,
+        rv_editor_inspector_text(app, undo_name, &rv_editor_scene_object::name, ui.name, sizeof(ui.name), o.id, theme,
             rv_editor_text("pane_scene_inspector.name_label"));
         rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.kind_label"));
-        ImGui::TextUnformatted(o.kind == "mesh" ? rv_editor_text("pane_scene_inspector.kind_mesh") :
-                                                  o.kind.c_str());
+        ImGui::TextUnformatted(o.kind == kind_mesh ? rv_editor_text("pane_scene_inspector.kind_mesh") :
+                                                     o.kind.c_str());
         rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.id_label"));
         ImGui::TextDisabled("%s", o.id.c_str());
         ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.transform_header"));
-        rv_editor_inspector_vec(app, "Position", &rv_editor_scene_object::position, position_speed, o.id,
+        rv_editor_inspector_vec(app, undo_position, &rv_editor_scene_object::position, position_speed, o.id,
             rv_editor_text("pane_scene_inspector.position_label"));
-        rv_editor_inspector_vec(app, "Rotation", &rv_editor_scene_object::rotation, rotation_speed, o.id,
+        rv_editor_inspector_vec(app, undo_rotation, &rv_editor_scene_object::rotation, rotation_speed, o.id,
             rv_editor_text("pane_scene_inspector.rotation_label"));
         ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.rotation_tooltip"));
-        rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, scale_speed, o.id,
+        rv_editor_inspector_vec(app, undo_scale, &rv_editor_scene_object::scale, scale_speed, o.id,
             rv_editor_text("pane_scene_inspector.scale_label"));
-        if (o.kind == "mesh") {
+        if (o.kind == kind_mesh) {
             ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.resources_header"));
-            rv_editor_inspector_text(app, "Mesh", &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme,
+            rv_editor_inspector_text(app, undo_mesh, &rv_editor_scene_object::mesh, ui.mesh, sizeof(ui.mesh), o.id, theme,
                 rv_editor_text("pane_scene_inspector.mesh_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.mesh_tooltip"));
-            rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
+            rv_editor_inspector_text(app, undo_texture, &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
                 o.id, theme, rv_editor_text("pane_scene_inspector.texture_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.texture_tooltip"));
         }
-        if (o.kind == "quad" || o.kind == "billboard") {
+        if (o.kind == kind_quad || o.kind == kind_billboard) {
             ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.resources_header"));
-            rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
+            rv_editor_inspector_text(app, undo_texture, &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
                 o.id, theme, rv_editor_text("pane_scene_inspector.texture_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.texture_tooltip"));
-            rv_editor_inspector_array<rv_editor_uv>(app, "UV", &rv_editor_scene_object::uv, ImGuiDataType_Double, uv_speed,
-                "%.1f", o.id, -1e6, 1e6, rv_editor_text("pane_scene_inspector.uv_label"));
+            rv_editor_inspector_array<rv_editor_uv>(app, undo_uv, &rv_editor_scene_object::uv, ImGuiDataType_Double, uv_speed,
+                "%.1f", o.id, -uv_drag_bound, uv_drag_bound, rv_editor_text("pane_scene_inspector.uv_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.uv_tooltip"));
-            rv_editor_inspector_array<rv_editor_tint>(app, "Tint", &rv_editor_scene_object::tint, ImGuiDataType_S32,
+            rv_editor_inspector_array<rv_editor_tint>(app, undo_tint, &rv_editor_scene_object::tint, ImGuiDataType_S32,
                 1.0f, "%d", o.id, 0, tint_channel_max, rv_editor_text("pane_scene_inspector.tint_label"));
-            rv_editor_inspector_tess(app, "Tess", &rv_editor_scene_object::tess, tess_speed, o.id,
+            rv_editor_inspector_tess(app, undo_tess, &rv_editor_scene_object::tess, tess_speed, o.id,
                 rv_editor_text("pane_scene_inspector.tess_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.tess_tooltip"));
         }
