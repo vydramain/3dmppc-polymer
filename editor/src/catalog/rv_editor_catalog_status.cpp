@@ -11,6 +11,12 @@ namespace rv_editor
 namespace
 {
 
+// Number of text lines to display in the log area
+constexpr float log_display_rows = 4.0f;
+
+// Multiplier for vertical padding in log display (applied to WindowPadding.y)
+constexpr float log_padding_y_multiplier = 2.0f;
+
 struct rv_editor_status_values
 {
     bool snap = true;
@@ -84,7 +90,8 @@ void rv_editor_catalog_indicators(const rv_editor_theme &t)
 
 void rv_editor_catalog_log(const rv_editor_theme &t)
 {
-    const float rows = 4.0f * ImGui::GetTextLineHeightWithSpacing() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    const float rows = log_display_rows * ImGui::GetTextLineHeightWithSpacing() +
+        log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
     rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
     rv_editor_log_row("12:00:01", "burn", rv_editor_severity::info, "[4/4] burn build/example-lua.discdir", t);
     rv_editor_log_row("12:00:02", "mppc", rv_editor_severity::info, "entry_revision=1 frame=120 mode=paused", t);
@@ -112,7 +119,7 @@ void rv_editor_catalog_transport(const rv_editor_theme &t)
     const char *const status_fields[] = { rv_editor_text("catalog_status.status_bar_ready"),
         rv_editor_text("catalog_status.status_bar_runtime"),
         rv_editor_text("catalog_status.status_bar_position") };
-    rv_editor_status_bar(status_fields, 3, t);
+    rv_editor_status_bar(status_fields, static_cast<int>(std::size(status_fields)), t);
 }
 
 } // namespace
