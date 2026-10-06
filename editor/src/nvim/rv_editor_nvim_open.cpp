@@ -5,6 +5,33 @@
 namespace rv_editor
 {
 
+namespace
+{
+// Notification method names from nvim
+constexpr std::string_view notification_swap = "rv_swap";
+constexpr std::string_view notification_open_error = "rv_open_error";
+
+// Map keys in rv_swap notification
+constexpr std::string_view swap_key_file = "file";
+constexpr std::string_view swap_key_state = "state";
+constexpr std::string_view swap_key_swap = "swap";
+constexpr std::string_view swap_key_pid = "pid";
+
+// Map keys in rv_open_error notification
+constexpr std::string_view open_error_key_file = "file";
+constexpr std::string_view open_error_key_msg = "msg";
+
+// Swap state values from nvim
+constexpr std::string_view swap_state_recoverable = "recoverable";
+constexpr std::string_view swap_state_in_use = "in_use";
+constexpr std::string_view swap_state_resolved = "resolved";
+
+// Swap action choices for rv_swap_resolve in nvim
+constexpr std::string_view swap_action_recover = "recover";
+constexpr std::string_view swap_action_discard = "discard";
+
+} // namespace
+
 void rv_editor_nvim::open(int64_t win, const std::filesystem::path &path, int32_t line, int32_t col)
 {
     if (!running() || win == 0) {
@@ -54,7 +81,7 @@ void rv_editor_nvim::swap_resolve(int64_t win, const std::string &file, bool rec
     if (!running() || win == 0) {
         return;
     }
-    const std::string choice = recover ? "recover" : "discard";
+    const std::string choice = recover ? std::string(swap_action_recover) : std::string(swap_action_discard);
     exec_lua("local win, file, choice = ...\n"
              "rv_swap_resolve(tonumber(win), file, choice)",
         { std::to_string(win), file, choice });
@@ -62,17 +89,17 @@ void rv_editor_nvim::swap_resolve(int64_t win, const std::string &file, bool rec
 
 bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log)
 {
-    if (method == "rv_swap" && !params.items.empty()) {
+    if (method == notification_swap && !params.items.empty()) {
         const rv_editor_mpack &m = params.items[0];
-        const rv_editor_mpack *file = m.get("file");
-        const rv_editor_mpack *state = m.get("state");
+        const rv_editor_mpack *file = m.get(swap_key_file.data());
+        const rv_editor_mpack *state = m.get(swap_key_state.data());
         if (file == nullptr || state == nullptr) {
             return true;
         }
         const std::string file_str = file->s;
         const std::string state_str = state->s;
-        if (state_str == "recoverable") {
-            const rv_editor_mpack *swap = m.get("swap");
+        if (state_str == swap_state_recoverable) {
+            const rv_editor_mpack *swap = m.get(swap_key_swap.data());
             if (swap == nullptr) {
                 return true;
             }
@@ -82,8 +109,8 @@ bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mp
                     "; the file is read-only until Recover or Discard");
             return true;
         }
-        if (state_str == "in_use") {
-            const rv_editor_mpack *pid = m.get("pid");
+        if (state_str == swap_state_in_use) {
+            const rv_editor_mpack *pid = m.get(swap_key_pid.data());
             int64_t pid_val = 0;
             if (pid != nullptr && pid->is(rv_editor_mpack::rv_editor_mpack_type::integer)) {
                 pid_val = pid->i;
@@ -93,17 +120,17 @@ bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mp
                 file_str + ": nvim process " + std::to_string(pid_val) + " is editing it; opened read-only");
             return true;
         }
-        if (state_str == "resolved") {
+        if (state_str == swap_state_resolved) {
             swaps_.erase(file_str);
             log.add(rv_editor_log_source::editor, rv_editor_log_level::info, file_str + ": swap file resolved");
             return true;
         }
         return true;
     }
-    if (method == "rv_open_error" && !params.items.empty()) {
+    if (method == notification_open_error && !params.items.empty()) {
         const rv_editor_mpack &m = params.items[0];
-        const rv_editor_mpack *file = m.get("file");
-        const rv_editor_mpack *msg = m.get("msg");
+        const rv_editor_mpack *file = m.get(open_error_key_file.data());
+        const rv_editor_mpack *msg = m.get(open_error_key_msg.data());
         if (file == nullptr || msg == nullptr) {
             return true;
         }
