@@ -19,6 +19,12 @@ namespace
 // Time format buffer; sized for "%Y-%m-%d %H:%M:%S" plus null terminator (19 bytes minimum).
 constexpr size_t time_format_buffer_bytes = 32;
 
+// Environment variable for the current user login.
+constexpr const char *user_env_var_name = "USER";
+
+// Default operator name when the USER environment variable is unset.
+constexpr const char *default_operator_name = "unknown operator";
+
 } // namespace
 
 const char *rv_editor_check_state_name(rv_editor_check_state state)
@@ -171,8 +177,8 @@ void rv_editor_candidate_poll(rv_editor_candidate &c)
 
 std::string rv_editor_operator()
 {
-    const char *user = std::getenv("USER");
-    return user != nullptr && user[0] != '\0' ? user : "unknown operator";
+    const char *user = std::getenv(user_env_var_name);
+    return user != nullptr && user[0] != '\0' ? user : default_operator_name;
 }
 
 std::string rv_editor_wall_clock()

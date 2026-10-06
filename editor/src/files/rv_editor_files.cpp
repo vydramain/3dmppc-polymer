@@ -23,6 +23,15 @@ constexpr size_t changed_paths_max = 4096;
 // File head buffer for binary detection: reads up to this many bytes to scan for null bytes
 constexpr size_t file_head_read_bytes = 8192;
 
+// Parent directory path component; used to detect path escaping and as an invalid file name.
+constexpr std::string_view parent_dir_marker = "..";
+
+// Current directory name; invalid as a file or directory to create.
+constexpr std::string_view current_dir_marker = ".";
+
+// Filesystem path separator; used in inside() to check path boundaries.
+constexpr const char *path_separator = "/";
+
 } // namespace
 
 void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log)
@@ -98,7 +107,7 @@ void rv_editor_files::list(rv_editor_file_node &dir)
 void rv_editor_files::reveal(const std::filesystem::path &path)
 {
     const std::filesystem::path rel = path.lexically_relative(root_.path);
-    if (!is_open() || rel.empty() || *rel.begin() == "..") {
+    if (!is_open() || rel.empty() || *rel.begin() == parent_dir_marker) {
         return;
     }
     rv_editor_file_node *node = &root_;
@@ -140,7 +149,7 @@ rv_editor_file_node *rv_editor_files::find(rv_editor_file_node &node, const std:
         return &node;
     }
     for (rv_editor_file_node &child : node.children) {
-        if (child.dir && !child.symlink && path.native().starts_with(child.path.native() + "/")) {
+        if (child.dir && !child.symlink && path.native().starts_with(child.path.native() + path_separator)) {
             return find(child, path);
         }
         if (child.path == path) {
@@ -191,7 +200,7 @@ void rv_editor_files::relist(const std::filesystem::path &dir)
 
 bool rv_editor_files::valid_name(const std::string &name, std::string &error)
 {
-    if (name.empty() || name == "." || name == "..") {
+    if (name.empty() || name == current_dir_marker || name == parent_dir_marker) {
         error = rv_editor_text("files.name_is_needed");
         return false;
     }
@@ -215,7 +224,7 @@ bool rv_editor_files::inside(const std::filesystem::path &path) const
         return false;
     }
     const std::string &r = root_.path.native();
-    return p.native() == r || p.native().starts_with(r + "/");
+    return p.native() == r || p.native().starts_with(r + path_separator);
 }
 
 int rv_editor_files::create_file(const std::filesystem::path &dir, const std::string &name,
