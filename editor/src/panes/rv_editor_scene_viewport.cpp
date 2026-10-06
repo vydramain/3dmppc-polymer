@@ -51,6 +51,7 @@ constexpr float gizmo_click_threshold = 40.0f;
 constexpr float text_wrap_width = 28.0f;
 constexpr float status_text_offset = 2.0f;
 constexpr int grid_half_extent = 10;
+constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw, pitch, distance
 
 } // namespace
 
@@ -293,7 +294,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     const std::string seek_msg = cam.seeking ? rv_editor_text("scene_viewport.seek_hint") : "";
     const std::string camera_info = rv_editor_text_format("scene_viewport.camera_status",
         std::make_format_args(cam.yaw, cam.pitch, cam.distance, seek_msg));
-    char buf[160];
+    char buf[camera_status_buffer_size];
     std::snprintf(buf, sizeof(buf), "%s", camera_info.c_str());
     // Whether the running game has read this open scene document (its resource
     // name is the file's own name: the disc flattens scenes/*.scene.toml). The

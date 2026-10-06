@@ -22,14 +22,26 @@ namespace rv_editor
 namespace
 {
 
+// Demo checkbox UI widget count
+constexpr int demo_checkbox_count = 3;
+
+// Demo text field buffer sizes
+constexpr size_t demo_editable_field_size = 32;    // editable text field demo buffer
+constexpr size_t demo_locked_field_size = 32;      // read-only text field demo buffer
+constexpr size_t demo_pocket_field_size = 64;      // demo text field buffer
+constexpr size_t code_line_number_buffer_size = 8; // code sample line number formatting buffer
+
+// Code sample display dimensions
+constexpr int code_sample_pieces_per_line = 4; // text segments per code line row
+
 struct rv_editor_catalog_more_data
 {
-    bool checks[3] = { false, true, false };
+    bool checks[demo_checkbox_count] = { false, true, false };
     int radio = 1;
-    char pocket[64] = {};
+    char pocket[demo_pocket_field_size] = {};
     float wheel = 0.0f;
-    char editable[32] = {};
-    char locked[32] = {};
+    char editable[demo_editable_field_size] = {};
+    char locked[demo_locked_field_size] = {};
     bool samples_filled = false;
 };
 
@@ -192,7 +204,7 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
         const char *text;
         uint32_t color;
     };
-    const piece rows[][4] = {
+    const piece rows[][code_sample_pieces_per_line] = {
         { { "local ", theme.code_magenta }, { "M", theme.code_text }, { " = {}", theme.code_text }, { "", 0 } },
         { { "function ", theme.code_magenta }, { "M.frame_update", theme.code_blue }, { "(dt)", theme.code_text },
             { "", 0 } },
@@ -207,7 +219,7 @@ void rv_editor_catalog_code(const rv_editor_theme &theme)
     for (int r = 0; r < static_cast<int>(std::size(rows)); ++r) {
         float x = p0.x + code_lines_left_margin_px;
         const float y = p0.y + code_line_number_top_offset_px + r * cl;
-        char number[8];
+        char number[code_line_number_buffer_size];
         std::snprintf(number, sizeof(number), "%2d", r + 1);
         dl->AddText(ImVec2(p0.x + code_line_number_left_offset_px, y), rv_editor_col(theme.code_subtext), number);
         if (r == code_sample_cursor_row) {
