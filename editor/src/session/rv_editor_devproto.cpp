@@ -5,6 +5,7 @@
 #include <charconv>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -41,9 +42,6 @@ constexpr size_t devproto_event_fields_start = 1;
 
 // Maximum bytes to include in error message context when truncating.
 constexpr size_t devproto_error_context_max = 200;
-
-// Separator between error description and protocol line context.
-constexpr std::string_view devproto_error_separator = ": ";
 
 // Hex digit range: '0' to '9'.
 constexpr char hex_digit_zero = '0';
@@ -100,14 +98,14 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
         p = end;
     }
     if (words.size() < devproto_min_words) {
-        error = "not a protocol line";
+        error = rv_editor_text("devproto.not_a_protocol_line");
         return RV_ERR_INVAL;
     }
 
     int64_t id = -1;
     const auto [ptr, ec] = std::from_chars(words[0].data(), words[0].data() + words[0].size(), id);
     if (ec != std::errc{} || ptr != words[0].data() + words[0].size() || id < 0) {
-        error = "no request id";
+        error = rv_editor_text("devproto.no_request_id");
         return RV_ERR_INVAL;
     }
 
@@ -123,14 +121,14 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
     } else if (words[1] == devproto_err_kind) {
         m.kind = rv_editor_devmsg::rv_editor_devmsg_kind::err;
     } else {
-        error = "reply is neither ok nor err";
+        error = rv_editor_text("devproto.reply_neither_ok_nor_err");
         return RV_ERR_INVAL;
     }
 
     for (size_t i = first_field; i < words.size(); ++i) {
         const size_t eq = words[i].find(devproto_field_separator);
         if (eq == std::string_view::npos || eq == 0) {
-            error = "field without key=value";
+            error = rv_editor_text("devproto.field_without_key_value");
             return RV_ERR_INVAL;
         }
         m.fields.emplace_back(std::string(words[i].substr(0, eq)),
@@ -138,7 +136,7 @@ int rv_editor_devmsg_parse(std::string_view line, rv_editor_devmsg &msg, std::st
     }
     if (m.kind == rv_editor_devmsg::rv_editor_devmsg_kind::event &&
         !m.has(devproto_event_field_name)) {
-        error = "event without a name";
+        error = rv_editor_text("devproto.event_without_name");
         return RV_ERR_INVAL;
     }
     msg = std::move(m);
@@ -155,7 +153,9 @@ void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_dev
 
         if (!skipping_) {
             if (line_.size() + piece.size() > line_max) {
-                errors.push_back("a line over " + std::to_string(line_max) + " bytes was dropped");
+                const auto max = std::to_string(line_max);
+                errors.push_back(rv_editor_text_format("devproto.line_over_bytes_dropped",
+                    std::make_format_args(max)));
                 line_.clear();
                 skipping_ = true;
             } else {
@@ -175,8 +175,9 @@ void rv_editor_devparser::feed(std::string_view bytes, std::vector<rv_editor_dev
         if (rv_editor_devmsg_parse(line_, msg, error) == RV_OK) {
             out.push_back(std::move(msg));
         } else {
-            errors.push_back(error + std::string(devproto_error_separator) +
-                line_.substr(0, devproto_error_context_max));
+            const std::string excerpt = line_.substr(0, devproto_error_context_max);
+            errors.push_back(rv_editor_text_format("devproto.error_at_line",
+                std::make_format_args(error, excerpt)));
         }
         line_.clear();
     }

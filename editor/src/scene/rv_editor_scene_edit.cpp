@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -342,15 +343,15 @@ int rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, co
 {
     const int at = rv_editor_scene_find(doc.scene, id);
     if (at < 0) {
-        why = "no such object";
+        why = rv_editor_text("scene_edit.no_such_object");
         return RV_ERR_INVAL;
     }
     if (!parent.empty() && rv_editor_scene_find(doc.scene, parent) < 0) {
-        why = "no such parent";
+        why = rv_editor_text("scene_edit.no_such_parent");
         return RV_ERR_INVAL;
     }
     if (!parent.empty() && rv_editor_scene_under(doc.scene, parent, id)) {
-        why = "an object cannot go under itself or its own children";
+        why = rv_editor_text("scene_edit.cannot_go_under_itself");
         return RV_ERR_INVAL;
     }
     rv_editor_scene_object moved = doc.scene.objects[static_cast<size_t>(at)];
@@ -362,13 +363,12 @@ int rv_editor_scene_reparent(rv_editor_scene_doc &doc, const std::string &id, co
             bool ok = false;
             local = rv_editor_affine_mul(rv_editor_affine_inverse(rv_editor_scene_world(doc.scene, p), ok), world);
             if (!ok) {
-                why = "the new parent's scale is zero";
+                why = rv_editor_text("scene_edit.new_parent_scale_zero");
                 return RV_ERR_INVAL;
             }
         }
         if (rv_editor_decompose(local, moved) != RV_OK) {
-            why = "keeping where it is would need a shear under that parent, which position, rotation and scale "
-                  "cannot hold; Reparent (Keep Local Values) moves it without";
+            why = rv_editor_text("scene_edit.keeping_would_need_shear");
             return RV_ERR_INVAL;
         }
     }

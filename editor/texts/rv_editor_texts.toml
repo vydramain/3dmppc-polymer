@@ -1057,3 +1057,19 @@ approve_button = "Approve"
 reject_button = "Reject"
 undecide_button = "Undecide"
 report_row = "Report"
+
+[devproto]
+not_a_protocol_line = "not a protocol line"
+no_request_id = "no request id"
+reply_neither_ok_nor_err = "reply is neither ok nor err"
+field_without_key_value = "field without key=value"
+event_without_name = "event without a name"
+line_over_bytes_dropped = "a line over {} bytes was dropped"
+error_at_line = "{}: {}"
+
+[scene_edit]
+no_such_object = "no such object"
+no_such_parent = "no such parent"
+cannot_go_under_itself = "an object cannot go under itself or its own children"
+new_parent_scale_zero = "the new parent's scale is zero"
+keeping_would_need_shear = "keeping where it is would need a shear under that parent, which position, rotation and scale cannot hold; Reparent (Keep Local Values) moves it without"
