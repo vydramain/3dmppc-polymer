@@ -16,6 +16,25 @@ namespace
 
 using mtype = rv_editor_mpack::rv_editor_mpack_type;
 
+// nvim UI attachment protocol: defaults and msgpack structure sizes
+constexpr int32_t ui_default_width_cols = 120; // nvim_ui_attach default width
+constexpr int32_t ui_default_height_rows = 40; // nvim_ui_attach default height
+constexpr size_t ui_attach_args_count = 3;     // nvim_ui_attach: [width, height, options]
+constexpr size_t ui_attach_options_count = 3;  // ui options map: rgb, ext_linegrid, ext_multigrid
+
+// nvim RPC protocol message sizes
+constexpr size_t exec_lua_args_count = 2;           // nvim_exec_lua: [code, args]
+constexpr size_t open_win_args_count = 3;           // nvim_open_win: [buffer, enter, opts]
+constexpr size_t open_win_options_count = 2;        // open_win opts: split, win
+constexpr size_t win_close_args_count = 2;          // nvim_win_close: [window, force]
+constexpr size_t ui_try_resize_grid_args_count = 3; // nvim_ui_try_resize_grid: [grid, cols, rows]
+constexpr size_t ui_try_resize_args_count = 2;      // nvim_ui_try_resize: [cols, rows]
+constexpr size_t input_mouse_args_count = 6;        // nvim_input_mouse: [button, action, mod, grid, row, col]
+
+// UI constraints and timing
+constexpr int32_t cmdline_min_rows = 3;           // grid 1 (command line) minimum height
+constexpr int32_t window_switch_timeout_ms = 300; // wait for cursor after window switch
+
 std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &fill)
 {
     std::string out;
@@ -70,10 +89,10 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
 void rv_editor_nvim::attach()
 {
     rpc_.request("nvim_ui_attach", rv_editor_args([](rv_editor_mpack_writer &w) {
-        w.array(3);
-        w.integer(120);
-        w.integer(40);
-        w.map(3);
+        w.array(ui_attach_args_count);
+        w.integer(ui_default_width_cols);
+        w.integer(ui_default_height_rows);
+        w.map(ui_attach_options_count);
         w.string("rgb");
         w.boolean(true);
         w.string("ext_linegrid");
@@ -104,7 +123,7 @@ void rv_editor_nvim::exec_lua(const std::string &code, const std::vector<std::st
     rv_editor_nvim_rpc::rv_editor_nvim_reply reply)
 {
     rpc_.request("nvim_exec_lua", rv_editor_args([&](rv_editor_mpack_writer &w) {
-        w.array(2);
+        w.array(exec_lua_args_count);
         w.string(code);
         w.array(static_cast<uint32_t>(args.size()));
         for (const std::string &a : args) {
@@ -120,7 +139,10 @@ void rv_editor_nvim::update(rv_editor_log &log)
         return;
     }
     std::string why;
-    const bool alive = rpc_.poll([&](const std::string &method, const rv_editor_mpack &params) { notified(method, params, log); },
+    const bool alive = rpc_.poll(
+        [&](const std::string &method, const rv_editor_mpack &params) {
+            notified(method, params, log);
+        },
         why);
     const std::string err = rpc_.take_stderr();
     if (!err.empty()) {
@@ -173,10 +195,10 @@ int64_t rv_editor_nvim::window_for(uint32_t pane)
     // A new window of its own; where nvim puts it does not matter, the tile
     // draws its grid (0005).
     rpc_.request("nvim_open_win", rv_editor_args([](rv_editor_mpack_writer &w) {
-        w.array(3);
+        w.array(open_win_args_count);
         w.integer(0);
         w.boolean(false);
-        w.map(2);
+        w.map(open_win_options_count);
         w.string("split");
         w.string("below");
         w.string("win");
@@ -206,7 +228,7 @@ void rv_editor_nvim::release(uint32_t pane)
         return;
     }
     rpc_.request("nvim_win_close", rv_editor_args([win](rv_editor_mpack_writer &w) {
-        w.array(2);
+        w.array(win_close_args_count);
         w.integer(win);
         w.boolean(true);
     }));
@@ -224,16 +246,16 @@ void rv_editor_nvim::resize(int64_t win, int32_t cols, int32_t rows)
     }
     sizes_[win] = want;
     rpc_.request("nvim_ui_try_resize_grid", rv_editor_args([&](rv_editor_mpack_writer &w) {
-        w.array(3);
+        w.array(ui_try_resize_grid_args_count);
         w.integer(grid);
         w.integer(cols);
         w.integer(rows);
     }));
     // Grid 1 carries the command line: as wide as the tile being typed in.
     rpc_.request("nvim_ui_try_resize", rv_editor_args([&](rv_editor_mpack_writer &w) {
-        w.array(2);
+        w.array(ui_try_resize_args_count);
         w.integer(cols);
-        w.integer(std::max(rows, 3));
+        w.integer(std::max(rows, cmdline_min_rows));
     }));
 }
 
@@ -262,7 +284,7 @@ void rv_editor_nvim::mouse(const char *button, const char *action, int32_t grid,
         return;
     }
     rpc_.notify("nvim_input_mouse", rv_editor_args([&](rv_editor_mpack_writer &w) {
-        w.array(6);
+        w.array(input_mouse_args_count);
         w.string(button);
         w.string(action);
         w.string("");
@@ -280,7 +302,8 @@ void rv_editor_nvim::input(const std::string &keys)
     held_ += keys;
     if (switching_ != 0) {
         const bool arrived = screen_.cursor_grid() == screen_.grid_of_window(switching_);
-        const bool late = std::chrono::steady_clock::now() - switch_at_ > std::chrono::milliseconds(300);
+        const bool late =
+            std::chrono::steady_clock::now() - switch_at_ > std::chrono::milliseconds(window_switch_timeout_ms);
         if (!arrived && !late) {
             return;
         }
