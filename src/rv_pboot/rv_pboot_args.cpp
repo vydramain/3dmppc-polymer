@@ -4,6 +4,8 @@
 
 #include <getopt.h>
 
+#include "pdk/rv_err.h"
+
 #include <charconv>
 #include <cstddef>
 #include <format>
@@ -23,11 +25,14 @@ namespace
 
 // Strict non-negative decimal. Anything else, empty, a sign, letters, trailing
 // junk, a value too large for the type, is a bad argument, not a zero.
-bool parse_u64(const char* text, uint64_t& out) {
-    if (text == nullptr || text[0] == '\0' || text[0] == '+' || text[0] == '-') return false;
-    const char* end = text + std::string_view(text).size();
+int parse_u64(const char *text, uint64_t &out)
+{
+    if (text == nullptr || text[0] == '\0' || text[0] == '+' || text[0] == '-') {
+        return RV_ERR_INVAL;
+    }
+    const char *end = text + std::string_view(text).size();
     auto [ptr, ec] = std::from_chars(text, end, out);
-    return ec == std::errc() && ptr == end;
+    return (ec == std::errc() && ptr == end) ? RV_OK : RV_ERR_INVAL;
 }
 
 // Joins a table's `.name` column as "a or b" (two rows) or "a, b or c"
@@ -51,21 +56,23 @@ std::string join_names_or(const Table &table) {
 // Every bad argument ends the same way: name it, print the usage, exit 2.
 // Written once because it was written five times, and the fifth copy is where
 // one of them stops matching the others.
-bool refuse(const std::string &what, int &exit_code) {
+int refuse(const std::string &what, int &exit_code)
+{
     rv_3dmppc::rv_console_print_error(what);
     rv_3dmppc::rv_console_print_usage(stderr);
     exit_code = 2;
-    return false;
+    return RV_ERR_INVAL;
 }
 
 // A numeric option, refused by its own name. `floor` is the smallest value the
 // option accepts, so --scale can reject 0 without a second check at the call.
-bool option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code) {
-    if (!parse_u64(text, out) || out < floor) {
+int option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code)
+{
+    if (parse_u64(text, out) != RV_OK || out < floor) {
         return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)),
             exit_code);
     }
-    return true;
+    return RV_OK;
 }
 
 }  // namespace
@@ -149,7 +156,8 @@ namespace {
 // recognises. Its own function because it is its own question - the loop above
 // only collects strings - and because the two ways of getting it wrong each
 // need a sentence.
-bool rv_pboot_args_disc(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
+int rv_pboot_args_disc(int argc, char **argv, rv_pboot_args &args, int &exit_code)
+{
     // getopt_long has left optind on the first thing that was not a flag. One
     // positional argument is expected - the disc - and more than one is a typo
     // worth refusing rather than silently ignoring.
@@ -166,12 +174,13 @@ bool rv_pboot_args_disc(int argc, char** argv, rv_pboot_args& args, int& exit_co
     if (optind + 1 < argc) {
         return refuse(std::format("expected at most one disc path, got {}", argc - optind), exit_code);
     }
-    return true;
+    return RV_OK;
 }
 
 }  // namespace
 
-bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
+int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_code)
+{
     // There is no game's name here. The console mounts whatever medium it is
     // pointed at and boots the disc it is handed on the command line; with
     // nothing at all it runs the built-in skeleton against an empty drive.
@@ -211,7 +220,9 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 break;
             case 'G': {
                 uint64_t fd = 0;
-                if (!option_u64("frame-fd", optarg, 0, fd, exit_code)) return false;
+                if (option_u64("frame-fd", optarg, 0, fd, exit_code) != RV_OK) {
+                    return RV_ERR_INVAL;
+                }
                 args.frame_fd = static_cast<int64_t>(fd);
                 break;
             }
@@ -240,10 +251,14 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 args.mode_cm = optarg;
                 break;
             case 's':
-                if (!option_u64("scale", optarg, 1, args.scale, exit_code)) return false;
+                if (option_u64("scale", optarg, 1, args.scale, exit_code) != RV_OK) {
+                    return RV_ERR_INVAL;
+                }
                 break;
             case 'n':
-                if (!option_u64("frames", optarg, 0, args.max_frames, exit_code)) return false;
+                if (option_u64("frames", optarg, 0, args.max_frames, exit_code) != RV_OK) {
+                    return RV_ERR_INVAL;
+                }
                 break;
             case 'd':
                 args.medium_path = optarg;
@@ -261,7 +276,7 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
                 // getopt has already named the offending option on stderr.
                 rv_3dmppc::rv_console_print_usage(stderr);
                 exit_code = 2;
-                return false;
+                return RV_ERR_INVAL;
             default:
                 break;
         }

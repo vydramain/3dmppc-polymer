@@ -7,6 +7,8 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "rv_dmain/rv_dmain.hpp"
 #include "rv_pboot_args.hpp"
 #include "rv_pboot_args_cmd.hpp"
@@ -46,7 +48,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
 {
     // Parse the command line and validate the mode name. Nothing is
     // brought up here: a bad argument must cost a diagnostic, not a machine.
-    if (!rv_pboot_args_parse(argc, argv, args, exit_code)) {
+    if (rv_pboot_args_parse(argc, argv, args, exit_code) != RV_OK) {
         return false;
     }
 

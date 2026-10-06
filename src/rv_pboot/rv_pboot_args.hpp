@@ -91,9 +91,9 @@ struct rv_pboot_args {
     const char *disc_path = nullptr;
 };
 
-// Parse argv into `out`. Returns true on success. Returns false when the
-// caller must return `exit_code` immediately (2 for a bad command line)
+// Parse argv into `out`. Returns RV_OK on success. Returns RV_ERR_INVAL
+// when the caller must return `exit_code` immediately (2 for a bad command line)
 // without doing anything else: no disc, no SDL, nothing.
-bool rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &out, int &exit_code);
+int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &out, int &exit_code);
 
 } // namespace rv_3dmppc
