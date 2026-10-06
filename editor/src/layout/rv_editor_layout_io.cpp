@@ -20,7 +20,33 @@ namespace rv_editor
 namespace
 {
 
-const std::string rv_editor_layout_header = std::string("3dmppc-editor-layout ") + rv_pdklib::rv_version_str;
+// Layout file format syntax and keywords.
+constexpr std::string_view layout_header_prefix = "3dmppc-editor-layout ";
+constexpr std::string_view layout_field_sep = " ";
+constexpr std::string_view layout_line_end = "\n";
+constexpr std::string_view layout_keyword_pane = "pane";
+constexpr std::string_view layout_keyword_node = "node";
+constexpr std::string_view layout_keyword_root = "root";
+constexpr std::string_view layout_keyword_maximized = "maximized";
+constexpr std::string_view layout_node_type_free = "free";
+constexpr std::string_view layout_node_type_leaf = "leaf";
+constexpr std::string_view layout_node_type_split = "split";
+constexpr std::string_view layout_axis_x = "x";
+constexpr std::string_view layout_axis_y = "y";
+constexpr std::string_view layout_index_marker = "-";
+constexpr std::string_view layout_pane_legacy_console = "console";
+// Protocol field counts for file format.
+constexpr int layout_pane_field_count = 2;
+constexpr int layout_leaf_field_min = 4;
+constexpr int layout_node_field_min = 2;
+constexpr int layout_split_field_count = 7;
+// Buffer size for formatting split ratio with %.4f
+constexpr int layout_ratio_format_buf_size = 16;
+// Ratio range bounds: valid split division is from 0% to 100%
+constexpr float layout_ratio_min = 0.0f;
+constexpr float layout_ratio_max = 1.0f;
+
+const std::string rv_editor_layout_header = std::string(layout_header_prefix) + rv_pdklib::rv_version_str;
 
 constexpr std::string_view kind_names[] = {
     "empty", "catalog", "project", "files", "assets", "scene", "hierarchy", "inspector",
@@ -38,7 +64,7 @@ std::string_view kind_name(rv_editor_pane_kind k)
 int kind_from_name(std::string_view s, rv_editor_pane_kind &k)
 {
     // A layout saved by an earlier editor names this pane "console"; it loads as output.
-    if (s == "console") {
+    if (s == layout_pane_legacy_console) {
         k = rv_editor_pane_kind::output;
         return RV_OK;
     }
@@ -53,11 +79,11 @@ int kind_from_name(std::string_view s, rv_editor_pane_kind &k)
 
 int axis_from_name(std::string_view s, rv_editor_axis &a)
 {
-    if (s == "x") {
+    if (s == layout_axis_x) {
         a = rv_editor_axis::x;
         return RV_OK;
     }
-    if (s == "y") {
+    if (s == layout_axis_y) {
         a = rv_editor_axis::y;
         return RV_OK;
     }
@@ -94,7 +120,7 @@ int parse_f32(std::string_view s, float &out)
 
 int parse_index(std::string_view s, uint32_t &out)
 {
-    if (s == "-") {
+    if (s == layout_index_marker) {
         out = rv_editor_tile_none;
         return RV_OK;
     }
@@ -155,35 +181,64 @@ std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const r
         }
         for (const rv_editor_pane_id x : n.leaf.tabs) {
             renumber[x] = written++;
-            pane_lines += "pane " + std::string(kind_name(panes.panes[x].kind)) + "\n";
+            pane_lines += std::string(layout_keyword_pane) + std::string(layout_field_sep) +
+                std::string(kind_name(panes.panes[x].kind)) + std::string(layout_line_end);
         }
     }
 
-    std::string r = rv_editor_layout_header + "\n" + pane_lines;
+    std::string r = rv_editor_layout_header + std::string(layout_line_end) + pane_lines;
     for (const auto &n : layout.nodes) {
         if (n.kind == rv_editor_tile_kind::free) {
-            r += "node free\n";
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
+                std::string(layout_node_type_free) + std::string(layout_line_end);
         } else if (n.kind == rv_editor_tile_kind::leaf) {
-            r += "node leaf " +
-                (n.parent == rv_editor_tile_none ? std::string("-") : std::to_string(n.parent));
-            r += " " + std::to_string(n.leaf.active);
-            for (auto x : n.leaf.tabs) {
-                r += " " + std::to_string(renumber[x]);
+            std::string parent_str;
+            if (n.parent == rv_editor_tile_none) {
+                parent_str = layout_index_marker;
+            } else {
+                parent_str = std::to_string(n.parent);
             }
-            r += "\n";
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
+                std::string(layout_node_type_leaf) + std::string(layout_field_sep) + parent_str;
+            r += std::string(layout_field_sep) + std::to_string(n.leaf.active);
+            for (auto x : n.leaf.tabs) {
+                r += std::string(layout_field_sep) + std::to_string(renumber[x]);
+            }
+            r += std::string(layout_line_end);
         } else {
-            r += "node split " +
-                (n.parent == rv_editor_tile_none ? std::string("-") : std::to_string(n.parent));
-            r += (n.split.axis == rv_editor_axis::x ? " x " : " y ");
-            char buf[16];
+            std::string parent_str;
+            if (n.parent == rv_editor_tile_none) {
+                parent_str = layout_index_marker;
+            } else {
+                parent_str = std::to_string(n.parent);
+            }
+            std::string axis_str;
+            if (n.split.axis == rv_editor_axis::x) {
+                axis_str = std::string(layout_axis_x);
+            } else {
+                axis_str = std::string(layout_axis_y);
+            }
+            r += std::string(layout_keyword_node) + std::string(layout_field_sep) +
+                std::string(layout_node_type_split) + std::string(layout_field_sep) + parent_str;
+            r += std::string(layout_field_sep) + axis_str;
+            char buf[layout_ratio_format_buf_size];
             std::snprintf(buf, sizeof(buf), "%.4f", n.split.ratio);
-            r += std::string(buf) + " " + std::to_string(n.split.first) + " " +
-                std::to_string(n.split.second) + "\n";
+            r += std::string(layout_field_sep) + std::string(buf) +
+                std::string(layout_field_sep) + std::to_string(n.split.first) +
+                std::string(layout_field_sep) + std::to_string(n.split.second) +
+                std::string(layout_line_end);
         }
     }
-    r += "root " + std::to_string(layout.root) + "\n";
-    r += "maximized " + (layout.maximized_leaf == rv_editor_tile_none ?
-        std::string("-") : std::to_string(layout.maximized_leaf)) + "\n";
+    r += std::string(layout_keyword_root) + std::string(layout_field_sep) +
+        std::to_string(layout.root) + std::string(layout_line_end);
+    std::string max_leaf_str;
+    if (layout.maximized_leaf == rv_editor_tile_none) {
+        max_leaf_str = layout_index_marker;
+    } else {
+        max_leaf_str = std::to_string(layout.maximized_leaf);
+    }
+    r += std::string(layout_keyword_maximized) + std::string(layout_field_sep) + max_leaf_str +
+        std::string(layout_line_end);
     return r;
 }
 
@@ -198,10 +253,10 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
     rv_editor_pane_registry np;
     while (idx < lines.size()) {
         auto p = split_line(lines[idx]);
-        if (p.empty() || p[0] != "pane") {
+        if (p.empty() || p[0] != layout_keyword_pane) {
             break;
         }
-        if (p.size() != 2) {
+        if (p.size() != layout_pane_field_count) {
             return RV_ERR_INVAL;
         }
         rv_editor_pane_kind k;
@@ -214,21 +269,21 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
     rv_editor_layout nl;
     while (idx < lines.size()) {
         auto p = split_line(lines[idx]);
-        if (p.empty() || p[0] != "node") {
+        if (p.empty() || p[0] != layout_keyword_node) {
             break;
         }
-        if (p.size() < 2) {
+        if (p.size() < layout_node_field_min) {
             return RV_ERR_INVAL;
         }
         rv_editor_tile_node n{};
-        if (p[1] == "free") {
-            if (p.size() != 2) {
+        if (p[1] == layout_node_type_free) {
+            if (p.size() != layout_pane_field_count) {
                 return RV_ERR_INVAL;
             }
             n.kind = rv_editor_tile_kind::free;
             n.parent = rv_editor_tile_none;
-        } else if (p[1] == "leaf") {
-            if (p.size() < 4) {
+        } else if (p[1] == layout_node_type_leaf) {
+            if (p.size() < layout_leaf_field_min) {
                 return RV_ERR_INVAL;
             }
             n.kind = rv_editor_tile_kind::leaf;
@@ -238,15 +293,15 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
             if (parse_u32(p[3], n.leaf.active) != RV_OK) {
                 return RV_ERR_INVAL;
             }
-            for (size_t i = 4; i < p.size(); ++i) {
+            for (size_t i = layout_leaf_field_min; i < p.size(); ++i) {
                 uint32_t tab_id = 0;
                 if (parse_u32(p[i], tab_id) != RV_OK) {
                     return RV_ERR_INVAL;
                 }
                 n.leaf.tabs.push_back(tab_id);
             }
-        } else if (p[1] == "split") {
-            if (p.size() != 7) {
+        } else if (p[1] == layout_node_type_split) {
+            if (p.size() != layout_split_field_count) {
                 return RV_ERR_INVAL;
             }
             n.kind = rv_editor_tile_kind::split;
@@ -277,7 +332,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
         return RV_ERR_INVAL;
     }
     auto p = split_line(lines[idx]);
-    if (p.size() != 2 || p[0] != "root") {
+    if (p.size() != layout_pane_field_count || p[0] != layout_keyword_root) {
         return RV_ERR_INVAL;
     }
     if (parse_u32(p[1], nl.root) != RV_OK) {
@@ -288,7 +343,7 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
         return RV_ERR_INVAL;
     }
     p = split_line(lines[idx]);
-    if (p.size() != 2 || p[0] != "maximized") {
+    if (p.size() != layout_pane_field_count || p[0] != layout_keyword_maximized) {
         return RV_ERR_INVAL;
     }
     if (parse_index(p[1], nl.maximized_leaf) != RV_OK) {
@@ -322,7 +377,8 @@ int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes,
             }
         } else if (n.kind == rv_editor_tile_kind::split) {
             // The axis was read by name, so only the ratio can still be out of range.
-            if (!std::isfinite(n.split.ratio) || n.split.ratio < 0.0f || n.split.ratio > 1.0f) {
+            if (!std::isfinite(n.split.ratio) || n.split.ratio < layout_ratio_min ||
+                n.split.ratio > layout_ratio_max) {
                 return RV_ERR_INVAL;
             }
             if (n.split.first == n.split.second ||
