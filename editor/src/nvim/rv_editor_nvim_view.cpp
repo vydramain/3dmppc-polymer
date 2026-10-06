@@ -16,6 +16,7 @@
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -25,111 +26,22 @@ namespace rv_editor
 namespace
 {
 
-// One code point as UTF-8 (ImGui's own encoder is internal API, 0001).
-void rv_editor_utf8_append(std::string &out, uint32_t cp)
-{
-    if (cp < 0x80) {
-        out += static_cast<char>(cp);
-    } else if (cp < 0x800) {
-        out += static_cast<char>(0xc0 | (cp >> 6));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
-    } else if (cp < 0x10000) {
-        out += static_cast<char>(0xe0 | (cp >> 12));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3f));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
-    } else {
-        out += static_cast<char>(0xf0 | (cp >> 18));
-        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3f));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3f));
-        out += static_cast<char>(0x80 | (cp & 0x3f));
-    }
-}
+// nvim mouse operation names.
+constexpr const char *nvim_mouse_button_left = "left";
+constexpr const char *nvim_mouse_button_wheel = "wheel";
+constexpr const char *nvim_mouse_action_press = "press";
+constexpr const char *nvim_mouse_action_drag = "drag";
+constexpr const char *nvim_mouse_action_release = "release";
+constexpr const char *nvim_mouse_dir_up = "up";
+constexpr const char *nvim_mouse_dir_down = "down";
+constexpr const char *nvim_mouse_dir_left = "left";
+constexpr const char *nvim_mouse_dir_right = "right";
 
-// Key name in nvim_input notation, or nullptr for keys typed as text.
-const char *rv_editor_nvim_key(ImGuiKey key)
-{
-    switch (key) {
-        case ImGuiKey_Enter:
-        case ImGuiKey_KeypadEnter: return "CR";
-        case ImGuiKey_Backspace: return "BS";
-        case ImGuiKey_Tab: return "Tab";
-        case ImGuiKey_Escape: return "Esc";
-        case ImGuiKey_Delete: return "Del";
-        case ImGuiKey_Insert: return "Insert";
-        case ImGuiKey_Home: return "Home";
-        case ImGuiKey_End: return "End";
-        case ImGuiKey_PageUp: return "PageUp";
-        case ImGuiKey_PageDown: return "PageDown";
-        case ImGuiKey_LeftArrow: return "Left";
-        case ImGuiKey_RightArrow: return "Right";
-        case ImGuiKey_UpArrow: return "Up";
-        case ImGuiKey_DownArrow:
-            return "Down";
-        case ImGuiKey_F2: return "F2";
-        case ImGuiKey_F3: return "F3";
-        case ImGuiKey_F4: return "F4";
-        case ImGuiKey_F8: return "F8";
-        case ImGuiKey_F9: return "F9";
-        case ImGuiKey_F10: return "F10";
-        case ImGuiKey_F11: return "F11";
-        case ImGuiKey_F12: return "F12";
-        default: return nullptr;
-    }
-}
-
-// This frame's keyboard as nvim keys. F1, F5, F6, F7 and Ctrl+B stay the editor's
-// own (section 12); everything else typed into a focused code tile is nvim's.
-std::string rv_editor_nvim_keys()
-{
-    const ImGuiIO &io = ImGui::GetIO();
-    std::string keys;
-    std::string mods;
-    if (io.KeyCtrl) {
-        mods += "C-";
-    }
-    if (io.KeyAlt) {
-        mods += "M-";
-    }
-    if (io.KeySuper) {
-        mods += "D-";
-    }
-    for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
-        const ImGuiKey key = static_cast<ImGuiKey>(k);
-        if (!ImGui::IsKeyPressed(key, true)) {
-            continue;
-        }
-        if (const char *name = rv_editor_nvim_key(key)) {
-            keys += "<" + std::string(io.KeyShift ? "S-" : "") + mods + name + ">";
-            continue;
-        }
-        // Letters and digits with Ctrl or Alt arrive as keys, not as text.
-        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B)) {
-            char ch = 0;
-            if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
-                ch = static_cast<char>('a' + (key - ImGuiKey_A));
-            } else if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
-                ch = static_cast<char>('0' + (key - ImGuiKey_0));
-            } else if (key == ImGuiKey_Space) {
-                keys += "<" + std::string(io.KeyShift ? "S-" : "") + mods + "Space>";
-                continue;
-            }
-            if (ch != 0) {
-                keys += "<" + std::string(io.KeyShift ? "S-" : "") + mods + std::string(1, ch) + ">";
-            }
-        }
-    }
-    // Typed text, Cyrillic included, as UTF-8; "<" is spelled out.
-    if (!io.KeyCtrl && !io.KeyAlt) {
-        for (const ImWchar ch : io.InputQueueCharacters) {
-            if (ch == '<') {
-                keys += "<lt>";
-                continue;
-            }
-            rv_editor_utf8_append(keys, ch);
-        }
-    }
-    return keys;
-}
+// nvim protocol state values: swap file states and LSP server states.
+constexpr const char *nvim_swap_state_recoverable = "recoverable";
+constexpr const char *nvim_swap_state_in_use = "in_use";
+constexpr const char *nvim_lsp_state_running = "running";
+constexpr const char *nvim_lsp_state_missing = "missing";
 
 } // namespace
 
@@ -170,12 +82,12 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
         if (name == shown) {
             active = static_cast<int>(text.size());
         }
-        text.push_back(std::filesystem::path(name).filename().string() + (held(name)->modified ? " [+]" : "") + "##" +
-            name);
+        const std::string marker = held(name)->modified ? rv_editor_text("pane_code.file_modified_marker") : "";
+        text.push_back(std::filesystem::path(name).filename().string() + marker + "##" + name);
     }
     if (front != nullptr && shown.empty()) {
         active = static_cast<int>(text.size());
-        text.push_back(std::string("Untitled") + (front->modified ? " [+]" : ""));
+        text.push_back(std::string("Untitled") + (front->modified ? rv_editor_text("pane_code.file_modified_marker") : ""));
     }
     if (text.empty()) {
         return;
@@ -263,7 +175,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         if (const rv_editor_nvim_swap *swap = nvim.swap_for(buf->name)) {
             rv_editor_shelf_begin("##swap", theme);
-            if (swap->state == "recoverable") {
+            if (swap->state == nvim_swap_state_recoverable) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::TextUnformatted(
                     "Unsaved text from a crashed nvim is in its swap file. The file is read-only until you choose.");
@@ -278,7 +190,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
                     nvim.swap_resolve(win, name, false);
                 }
                 ImGui::SetItemTooltip("Delete the swap file and keep the text on disk.");
-            } else if (swap->state == "in_use") {
+            } else if (swap->state == nvim_swap_state_in_use) {
                 ImGui::AlignTextToFramePadding();
                 ImGui::Text("Read-only: nvim process %lld is editing this file.", static_cast<long long>(swap->pid));
             }
@@ -311,11 +223,11 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         const int32_t row = std::clamp(static_cast<int32_t>((m.y - at.y) / cell.y), 0, rows - 1);
         const int32_t col = std::clamp(static_cast<int32_t>((m.x - at.x) / cell.x), 0, cols - 1);
         if (ImGui::IsItemActivated()) {
-            nvim.mouse("left", "press", grid_id, row, col);
+            nvim.mouse(nvim_mouse_button_left, nvim_mouse_action_press, grid_id, row, col);
         } else if (ImGui::IsItemActive() && (row != last_row || col != last_col)) {
-            nvim.mouse("left", "drag", grid_id, row, col);
+            nvim.mouse(nvim_mouse_button_left, nvim_mouse_action_drag, grid_id, row, col);
         } else if (ImGui::IsItemDeactivated()) {
-            nvim.mouse("left", "release", grid_id, row, col);
+            nvim.mouse(nvim_mouse_button_left, nvim_mouse_action_release, grid_id, row, col);
         }
         last_row = row;
         last_col = col;
@@ -326,9 +238,11 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             const bool sideways = io.MouseWheelH != 0.0f || io.KeyShift;
             const float amount = io.MouseWheelH != 0.0f ? io.MouseWheelH : io.MouseWheel;
             const int notches = static_cast<int>(std::lround(std::fabs(amount)));
-            const char *dir = sideways ? (amount > 0.0f ? "left" : "right") : (amount > 0.0f ? "up" : "down");
+            const char *h_dir = amount > 0.0f ? nvim_mouse_dir_left : nvim_mouse_dir_right;
+            const char *v_dir = amount > 0.0f ? nvim_mouse_dir_up : nvim_mouse_dir_down;
+            const char *dir = sideways ? h_dir : v_dir;
             for (int i = 0; amount != 0.0f && i < std::max(1, notches); ++i) {
-                nvim.mouse("wheel", dir, grid_id, row, col);
+                nvim.mouse(nvim_mouse_button_wheel, dir, grid_id, row, col);
             }
         }
     }
@@ -355,7 +269,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             ? std::filesystem::relative(buf->name, app.project.root, ec)
             : std::filesystem::path(buf->name);
         label = buf->name.empty() ? "Untitled" : (ec || rel.empty() ? buf->name : rel.string());
-        label += buf->modified ? " [+]" : "";
+        label += buf->modified ? rv_editor_text("pane_code.file_modified_marker") : "";
     }
     dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_col(rv_editor_mocha_text), label.c_str());
 
@@ -365,9 +279,9 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win); buf != nullptr && !buf->name.empty()) {
         const std::string server = nvim.lsp_server_for(buf->name);
         const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
-        if (lsp != nullptr && lsp->state != "running") {
+        if (lsp != nullptr && lsp->state != nvim_lsp_state_running) {
             const std::string note =
-                "LSP: " + server + " " + (lsp->state == "missing" ? "not running" : "stopped");
+                "LSP: " + server + " " + (lsp->state == nvim_lsp_state_missing ? "not running" : "stopped");
             const ImVec2 note_pos(note_x, status.y);
             dl->AddText(note_pos, rv_editor_rgb(theme.code_yellow), note.c_str());
             if (!lsp->reason.empty()) {

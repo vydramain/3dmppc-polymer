@@ -46,6 +46,8 @@ void rv_editor_output_controls(rv_editor_app &app, rv_editor_output_view &view, 
 
 // A code tile: one window of the editor's nvim.
 void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+// This frame's keyboard as nvim keys.
+std::string rv_editor_nvim_keys();
 
 // RGB to ImU32 conversion.
 ImU32 rv_editor_rgb(uint32_t rgb);

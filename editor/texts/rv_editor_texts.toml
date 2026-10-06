@@ -858,6 +858,9 @@ cancel = "Cancel"
 unknown_error = "unknown error"
 scroll_back_status = "{} lines back: type or scroll down to return"
 
+[pane_code]
+file_modified_marker = " [+]"
+
 [nvim_rpc]
 sent_not_msgpack = "nvim sent something that is not msgpack"
 not_reading_input = "nvim is not reading its input"
