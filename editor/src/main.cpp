@@ -31,6 +31,28 @@
 namespace
 {
 
+// RGB channel shift: red in bits 16-23.
+constexpr int channel_shift_red = 16;
+// RGB channel shift: green in bits 8-15.
+constexpr int channel_shift_green = 8;
+// Mask for 8-bit colour channel.
+constexpr uint32_t rgb_channel_mask = 0xffu;
+// Opaque alpha value for colour rendering.
+constexpr uint8_t alpha_opaque = 255;
+// UI text filename next to preferences.
+constexpr std::string_view ui_texts_filename = "texts.toml";
+// Window padding counts twice: above and below the status bar.
+constexpr float window_padding_sides = 2.0f;
+// UI scale candidates, largest first: test each for screen fit.
+constexpr float ui_scale_candidates[] = { 2.0f, 1.5f, 1.0f };
+// Exit code for argument parse or initialization errors.
+constexpr int exit_code_error = 2;
+// Command-line options: --help / -h.
+constexpr char option_help_long[] = "help";
+constexpr char option_help_short = 'h';
+// Short options string for getopt_long.
+constexpr char short_options[] = { option_help_short, '\0' };
+
 void rv_editor_usage(std::FILE *out)
 {
     std::fprintf(out,
@@ -42,19 +64,19 @@ void rv_editor_usage(std::FILE *out)
 // Sets exit_code only when caller should exit: 0 for --help, 2 for errors.
 int rv_editor_args_parse(int argc, char **argv, std::string &path, int &exit_code)
 {
-    static struct option long_opts[] = { { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
+    static struct option long_opts[] = { { option_help_long, no_argument, 0, option_help_short }, { 0, 0, 0, 0 } };
 
     int c;
-    while ((c = getopt_long(argc, argv, "h", long_opts, nullptr)) != -1) {
+    while ((c = getopt_long(argc, argv, short_options, long_opts, nullptr)) != -1) {
         switch (c) {
-        case 'h':
+        case option_help_short:
             rv_editor_usage(stdout);
             exit_code = 0;
             return RV_OK;
         case '?':
             // getopt has already printed its own error message on stderr.
             rv_editor_usage(stderr);
-            exit_code = 2;
+            exit_code = exit_code_error;
             return RV_ERR_INVAL;
         }
     }
@@ -63,7 +85,7 @@ int rv_editor_args_parse(int argc, char **argv, std::string &path, int &exit_cod
     if (argc - optind > 1) {
         std::fprintf(stderr, "3dmppc-editor: unexpected argument '%s'\n", argv[optind + 1]);
         rv_editor_usage(stderr);
-        exit_code = 2;
+        exit_code = exit_code_error;
         return RV_ERR_INVAL;
     }
 
@@ -141,7 +163,7 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
     const ImGuiViewport *viewport = ImGui::GetMainViewport();
     const ImVec2 top = viewport->WorkPos;
     const ImVec2 size = viewport->WorkSize;
-    const float bar = ImGui::GetFrameHeight() + 2.0f * ImGui::GetStyle().WindowPadding.y;
+    const float bar = ImGui::GetFrameHeight() + window_padding_sides * ImGui::GetStyle().WindowPadding.y;
     if (rv_editor_bar_begin("##status", ImVec2(top.x, top.y + size.y - bar), ImVec2(size.x, bar))) {
         rv_editor::rv_editor_shell_status(shell, theme);
     }
@@ -239,7 +261,7 @@ int main(int argc, char **argv)
     std::string open_path;
     int exit_code = -1;
     if (rv_editor_args_parse(argc, argv, open_path, exit_code) != RV_OK) {
-        return exit_code >= 0 ? exit_code : 2;
+        return exit_code >= 0 ? exit_code : exit_code_error;
     }
     if (exit_code >= 0) {
         return exit_code;
@@ -266,8 +288,6 @@ int main(int argc, char **argv)
     }
 
     // Load UI texts: embedded default + optional user file next to prefs.
-    // UI text overrides next to prefs
-    constexpr std::string_view ui_texts_filename = "texts.toml";
     const std::filesystem::path prefs_file_path = rv_editor::rv_editor_prefs_file_path();
     std::filesystem::path user_texts_file;
     if (!prefs_file_path.empty()) {
@@ -303,9 +323,8 @@ int main(int argc, char **argv)
 
     // Use largest fitting scale if saved one doesn't fit.
     if (!rv_editor::rv_editor_shell_scale_fits(window, theme.scale)) {
-        constexpr float candidates[] = { 2.0f, 1.5f, 1.0f };
         theme.scale = 1.0f;
-        for (float candidate : candidates) {
+        for (float candidate : ui_scale_candidates) {
             if (rv_editor::rv_editor_shell_scale_fits(window, candidate)) {
                 theme.scale = candidate;
                 break;
@@ -383,7 +402,9 @@ int main(int argc, char **argv)
         rv_editor_frame(*shell, theme);
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff, theme.window & 0xff, 255);
+        SDL_SetRenderDrawColor(renderer, (theme.window >> channel_shift_red) & rgb_channel_mask,
+            (theme.window >> channel_shift_green) & rgb_channel_mask, theme.window & rgb_channel_mask,
+            alpha_opaque);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
