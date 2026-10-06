@@ -71,7 +71,7 @@ int64_t open_archive(const char *archive_path,
 {
     out_zip = std::make_unique<rv_zipreader>();
     std::string zip_error;
-    if (!out_zip->open(archive_path, zip_error)) {
+    if (out_zip->open(archive_path, zip_error) != RV_OK) {
         RV_LOG_ERR("pcloader", "'{}' is not a readable .mppcdisc archive: {}",
             rv_pdklib::rv_log_escape(archive_path),
             rv_pdklib::rv_log_escape(zip_error.c_str(), 160));

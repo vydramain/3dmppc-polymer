@@ -67,12 +67,13 @@ class rv_zipreader {
     rv_zipreader(const rv_zipreader&) = delete;
     rv_zipreader& operator=(const rv_zipreader&) = delete;
 
-    // Open `path` and parse its central directory. Returns false and fills
-    // `error` with a human-readable reason on any failure — a missing file, a
-    // file that is not a zip, a truncated one, a compressed one, or one whose
-    // fields point outside itself. A failed open leaves the object closed and
-    // empty; it is never half-usable.
-    bool open(const std::string& path, std::string& error);
+    // Open `path` and parse its central directory. Returns RV_OK on success or
+    // RV_ERR_IO (file cannot be opened or measured), RV_ERR_INVAL (bad data), or
+    // parse_directory's code on failure. Fills `error` with a human-readable reason
+    // on any failure — a missing file, a file that is not a zip, a truncated one, a
+    // compressed one, or one whose fields point outside itself. A failed open leaves
+    // the object closed and empty; it is never half-usable.
+    int open(const std::string &path, std::string &error);
 
     // True once open() has succeeded.
     bool ok() const { return ok_; }

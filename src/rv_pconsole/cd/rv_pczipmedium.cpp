@@ -31,7 +31,7 @@ rv_pczipmedium::rv_pczipmedium(const std::string &archive_path)
     }
 
     std::string error;
-    if (!zip_.open(archive_path, error)) {
+    if (zip_.open(archive_path, error) != RV_OK) {
         // Worth shouting about - someone inserted something that is not a disc -
         // but the machine stays usable, just empty. `error` is the reader's own
         // wording and may quote an entry name from the archive, which is why the

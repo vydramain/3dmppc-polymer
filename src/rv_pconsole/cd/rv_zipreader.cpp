@@ -53,7 +53,8 @@ uint32_t crc32_update(uint32_t state, const void* data, std::size_t size) {
 
 }  // namespace
 
-bool rv_zipreader::open(const std::string& path, std::string& error) {
+int rv_zipreader::open(const std::string &path, std::string &error)
+{
     ok_ = false;
     entries_.clear();
     by_name_.clear();
@@ -65,7 +66,7 @@ bool rv_zipreader::open(const std::string& path, std::string& error) {
     file_.open(path, std::ios::binary);
     if (!file_) {
         error = "cannot open archive";
-        return false;
+        return RV_ERR_IO;
     }
 
     file_.seekg(0, std::ios::end);
@@ -73,26 +74,27 @@ bool rv_zipreader::open(const std::string& path, std::string& error) {
     if (!file_ || end < 0) {
         error = "cannot measure archive";
         file_.close();
-        return false;
+        return RV_ERR_IO;
     }
     file_size_ = static_cast<int64_t>(end);
 
     if (file_size_ < static_cast<int64_t>(rv_pdklib::rv_zip_eocd_size)) {
         error = "file is smaller than an empty zip archive";
         file_.close();
-        return false;
+        return RV_ERR_INVAL;
     }
 
-    if (parse_directory(error) != RV_OK) {
+    const int r = parse_directory(error);
+    if (r != RV_OK) {
         entries_.clear();
         by_name_.clear();
         file_.close();
         file_.clear();
-        return false;
+        return r;
     }
 
     ok_ = true;
-    return true;
+    return RV_OK;
 }
 
 int rv_zipreader::read_at(int64_t offset, void *dst, int64_t count) const
