@@ -15,6 +15,7 @@
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -169,14 +170,20 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
 
     // A shell that ended or never started says so above the screen it left.
     if (view.term == nullptr || !view.term->running() || !view.error.empty()) {
-        const std::string why = !view.error.empty()       ? "The shell did not start: " + view.error
-            : view.term != nullptr && !view.term->running() ? "The shell ended: " + view.term->ended() + "."
-                                                            : std::string();
+        std::string why;
+        if (!view.error.empty()) {
+            why = rv_editor_text_format("pane_terminal.shell_not_started",
+                std::make_format_args(view.error));
+        } else if (view.term != nullptr && !view.term->running()) {
+            const std::string ended_msg = view.term->ended();
+            why = rv_editor_text_format("pane_terminal.shell_ended",
+                std::make_format_args(ended_msg));
+        }
         if (!why.empty()) {
             rv_editor_font_code_pop();
             ImGui::TextUnformatted(why.c_str());
             ImGui::SameLine();
-            if (rv_editor_button("Start Again", theme)) {
+            if (rv_editor_button(rv_editor_text("pane_terminal.start_again"), theme)) {
                 view = {};
             }
             rv_editor_font_code_push();
@@ -186,13 +193,13 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     // Several lines are shown over the screen before they reach the shell.
     if (!view.paste.empty() && view.term != nullptr) {
         rv_editor_font_code_pop();
-        rv_editor_ask_begin("Paste into the terminal", theme);
+        rv_editor_ask_begin(rv_editor_text("pane_terminal.paste_dialog_title"), theme);
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted("These lines will run as typed:");
+        ImGui::TextUnformatted(rv_editor_text("pane_terminal.paste_lines_info"));
         ImGui::SameLine();
-        const bool paste = rv_editor_button("Paste", theme);
+        const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
         ImGui::SameLine();
-        const bool cancel = rv_editor_button("Cancel", theme);
+        const bool cancel = rv_editor_button(rv_editor_text("pane_terminal.cancel"), theme);
         const float lines = static_cast<float>(std::min<size_t>(8, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
         rv_editor_font_code_push();
         ImGui::InputTextMultiline("##paste", view.paste.data(), view.paste.size() + 1,
@@ -219,7 +226,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         view.term = std::make_unique<rv_editor_terminal>();
         view.cwd = app.project.open ? app.project.root : std::filesystem::current_path();
         if (view.term->start(view.cwd, cols, rows, theme, view.error) != RV_OK && view.error.empty()) {
-            view.error = "unknown error";
+            view.error = rv_editor_text("pane_terminal.unknown_error");
         }
     }
     rv_editor_terminal &term = *view.term;
@@ -271,7 +278,9 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
     if (view.scroll > 0) {
         const ImVec2 status(at.x, at.y + (rows - 1) * cell.y);
         dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_rgb(theme.code_surface));
-        const std::string label = std::to_string(view.scroll) + " lines back: type or scroll down to return";
+        const int scroll_count = view.scroll;
+        const std::string label = rv_editor_text_format("pane_terminal.scroll_back_status",
+            std::make_format_args(scroll_count));
         dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_rgb(theme.code_text), label.c_str());
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
