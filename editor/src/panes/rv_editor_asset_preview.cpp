@@ -79,6 +79,12 @@ constexpr int wav_min_bits_per_sample = 8;
 // Size of chunk identifiers in RIFF/WAVE format: RIFF, WAVE, fmt, data tags.
 constexpr size_t wav_riff_chunk_id_bytes = 4;
 
+// WAV/RIFF format chunk identifiers.
+constexpr std::string_view wav_riff_chunk_id = "RIFF";
+constexpr std::string_view wav_wave_chunk_id = "WAVE";
+constexpr std::string_view wav_fmt_chunk_id = "fmt ";
+constexpr std::string_view wav_data_chunk_id = "data";
+
 // Size of 16-bit fields in WAV fmt chunk: format tag, channels, bits per sample.
 constexpr size_t wav_u16_field_bytes = 2;
 
@@ -121,8 +127,8 @@ double rv_editor_wav_seconds(const std::filesystem::path &path)
     f.read(riff, wav_riff_chunk_id_bytes);
     f.seekg(wav_wave_marker_offset, std::ios::beg);
     f.read(wave, static_cast<std::streamsize>(wav_riff_chunk_id_bytes));
-    const bool is_riff = std::string(riff, wav_riff_chunk_id_bytes) == "RIFF";
-    const bool is_wave = std::string(wave, wav_riff_chunk_id_bytes) == "WAVE";
+    const bool is_riff = std::string(riff, wav_riff_chunk_id_bytes) == wav_riff_chunk_id;
+    const bool is_wave = std::string(wave, wav_riff_chunk_id_bytes) == wav_wave_chunk_id;
     if (!f || !is_riff || !is_wave) {
         return 0.0;
     }
@@ -140,7 +146,7 @@ double rv_editor_wav_seconds(const std::filesystem::path &path)
             break;
         }
         const auto pad = static_cast<std::streamoff>(size & 1u);
-        if (std::string(id, wav_riff_chunk_id_bytes) == "fmt ") {
+        if (std::string(id, wav_riff_chunk_id_bytes) == wav_fmt_chunk_id) {
             if (size < wav_fmt_chunk_min_size) {
                 f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
                 continue; // too short to trust: rate stays 0, duration unknown
@@ -151,7 +157,7 @@ double rv_editor_wav_seconds(const std::filesystem::path &path)
             f.seekg(wav_byte_rate_block_align_size, std::ios::cur);
             f.read(reinterpret_cast<char *>(&bits), static_cast<std::streamsize>(wav_u16_field_bytes));
             f.seekg(static_cast<std::streamoff>(size) - wav_fmt_chunk_min_size + pad, std::ios::cur);
-        } else if (std::string(id, wav_riff_chunk_id_bytes) == "data") {
+        } else if (std::string(id, wav_riff_chunk_id_bytes) == wav_data_chunk_id) {
             data_size = size;
             break;
         } else {

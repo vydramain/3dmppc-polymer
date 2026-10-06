@@ -229,7 +229,7 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
 // Its picture when it is a PNG the editor can read, else an empty icon.
 rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_asset &a)
 {
-    if (a.path.extension() != ".png" || renderer == nullptr) {
+    if (a.path.extension() != png_extension || renderer == nullptr) {
         return {};
     }
     auto it = rv_editor_assets.pictures.find(a.rel);

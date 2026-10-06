@@ -17,6 +17,10 @@ namespace
 // Sample rate of the interface sounds in Hz.
 constexpr int sound_sample_rate = 44100;
 
+// Audio file extensions: WAV and raw PCM.
+constexpr std::string_view wav_file_extension = ".wav";
+constexpr std::string_view pcm_file_extension = ".pcm";
+
 // One sound at a time: the open audio subsystem, its stream, and the file it plays.
 struct rv_editor_sound_state
 {
@@ -59,14 +63,14 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
     const uint8_t *data = nullptr;
     uint32_t len = 0;
 
-    if (file.extension() == ".wav") {
+    if (file.extension() == wav_file_extension) {
         if (!SDL_LoadWAV(file.string().c_str(), &spec, &wav_buf, &wav_len)) {
             error = SDL_GetError();
             return RV_ERR_INVAL;
         }
         data = wav_buf;
         len = wav_len;
-    } else if (file.extension() == ".pcm") {
+    } else if (file.extension() == pcm_file_extension) {
         pcm = rv_editor_pcm_read(file, error);
         if (pcm.empty() && !error.empty()) {
             return RV_ERR_IO;
