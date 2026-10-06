@@ -23,6 +23,24 @@ namespace rv_editor
 namespace
 {
 
+// Stands in for the project folder name (Disc ID) in the path preview while the field is empty.
+constexpr const char *disc_id_placeholder = "?";
+
+// Environment variable name for the user's home directory.
+constexpr const char *env_home = "HOME";
+
+// New project form width in font size units.
+constexpr float form_width_em = 44.0f;
+
+// Room the preview needs beside the form for the side-by-side layout, in font size units.
+constexpr float wide_threshold_em = 30.0f;
+
+// Label column width in font size units.
+constexpr float label_width_em = 9.0f;
+
+// Spacing between form and preview in font size units.
+constexpr float side_spacing_em = 2.0f;
+
 void rv_editor_new_label(const char *label, float label_w)
 {
     ImGui::AlignTextToFramePadding();
@@ -58,7 +76,7 @@ void rv_editor_new_preview(const rv_editor_new_project &p, const std::vector<rv_
     ImGui::PopStyleColor();
     ImGui::TextWrapped("%s", templates[index].description.c_str());
     ImGui::Spacing();
-    const std::string root = (p.parent / (p.disc_id.empty() ? "?" : p.disc_id)).string();
+    const std::string root = (p.parent / (p.disc_id.empty() ? disc_id_placeholder : p.disc_id)).string();
     ImGui::TextUnformatted(rv_editor_text("shell_start_new.creates"));
     ImGui::TextWrapped("%s", root.c_str());
     ImGui::Spacing();
@@ -76,7 +94,7 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     rv_editor_start &f = shell.start;
     // The home directory until one is chosen.
     if (f.dir[0] == '\0') {
-        const char *home = std::getenv("HOME");
+        const char *home = std::getenv(env_home);
         rv_editor_new_copy(f.dir, sizeof(f.dir), home != nullptr ? home : "");
     }
     const std::vector<rv_editor_template> templates = rv_editor_templates();
@@ -89,9 +107,9 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
 
     rv_editor_pane_header(rv_editor_text("shell_start_new.title"), true, theme);
     const float font = ImGui::GetFontSize();
-    const float form_w = font * 44.0f;
-    const bool wide = ImGui::GetContentRegionAvail().x >= form_w + font * 30.0f;
-    const float label_w = font * 9.0f;
+    const float form_w = font * form_width_em;
+    const bool wide = ImGui::GetContentRegionAvail().x >= form_w + font * wide_threshold_em;
+    const float label_w = font * label_width_em;
     const float field_w = form_w - label_w - font;
 
     ImGui::BeginChild("##new_form", ImVec2(wide ? form_w : 0.0f, 0.0f), ImGuiChildFlags_AutoResizeY);
@@ -158,7 +176,7 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     ImGui::EndChild();
 
     if (wide) {
-        ImGui::SameLine(0.0f, font * 2.0f);
+        ImGui::SameLine(0.0f, font * side_spacing_em);
     }
     ImGui::BeginChild("##new_side", ImVec2(0.0f, 0.0f));
     if (f.browsing) {
