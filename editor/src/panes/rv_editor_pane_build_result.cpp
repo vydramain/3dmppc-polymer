@@ -9,6 +9,7 @@
 #include "imgui.h"
 
 #include "platform/rv_editor_process.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -34,18 +35,23 @@ void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b
 {
     std::string exit_line = rv_editor_exit_text(b.exit_status());
     if (b.output_cut()) {
-        exit_line += " (its output past this point was not kept)";
+        exit_line += rv_editor_text("pane_build_result.output_cut");
     }
     if (ImGui::BeginTable("##build_summary", 2, ImGuiTableFlags_SizingStretchProp)) {
-        rv_editor_fact("Process", "mppcburner, pid " + std::to_string(b.pid()));
-        rv_editor_fact("Exit", exit_line);
+        const char *lbl_process = rv_editor_text("pane_build_result.summary_process");
+        const auto pid = b.pid();
+        const auto process_text = rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid));
+        rv_editor_fact(lbl_process, process_text.c_str());
+        const char *lbl_exit = rv_editor_text("pane_build_result.summary_exit");
+        rv_editor_fact(lbl_exit, exit_line);
         ImGui::EndTable();
     }
 
     const std::string file = app.log.file_for(b.pid());
-    const char *no_log = b.image().empty() ? "This build kept no log file."
-                                            : "A candidate image's logs are kept beside the candidate.";
-    if (rv_editor_button("Open Build Log", theme, { rv_editor_look::live, file.empty() ? no_log : nullptr })) {
+    const char *log_key = b.image().empty() ? "pane_build_result.log_kept_no" : "pane_build_result.log_candidate";
+    const char *no_log = rv_editor_text(log_key);
+    const char *btn_text = rv_editor_text("pane_build_result.open_log_button");
+    if (rv_editor_button(btn_text, theme, { rv_editor_look::live, file.empty() ? no_log : nullptr })) {
         app.open_requests.push_back({ file, 0 });
     }
 }
@@ -63,10 +69,16 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         if (b.state() == rv_editor_build_state::idle) {
-            ImGui::TextWrapped("Nothing built in this window yet.");
+            ImGui::TextWrapped("%s", rv_editor_text("pane_build_result.nothing_built"));
         } else {
-            const std::string what = b.image().empty() ? "Development build #" + std::to_string(b.number())
-                                                       : "Candidate image " + b.image().filename().string();
+            std::string what;
+            if (b.image().empty()) {
+                const auto build_num = b.number();
+                what = rv_editor_text_format("pane_build_result.dev_build", std::make_format_args(build_num));
+            } else {
+                const auto img_name = b.image().filename().string();
+                what = rv_editor_text_format("pane_build_result.candidate_image", std::make_format_args(img_name));
+            }
             const std::string line = what + ": " + rv_editor_build_state_name(b.state());
             rv_editor_status(line.c_str(), rv_editor_build_lamp(b.state()), theme);
             if (!b.busy()) {
@@ -74,18 +86,24 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
             }
         }
 
-        if (rv_editor_button("Build", theme, { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
+        const char *why_not = rv_editor_app_why_not_build(app);
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_button"), theme,
+                { rv_editor_look::live, why_not })) {
             rv_editor_app_build(app);
         }
         ImGui::SameLine();
-        if (rv_editor_button("Build Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_build(app) })) {
+        if (rv_editor_button(rv_editor_text("pane_build_result.build_candidate_button"), theme,
+                { rv_editor_look::live, why_not })) {
             rv_editor_app_build_candidate(app);
         }
         ImGui::SameLine();
-        const rv_editor_state cancel = b.state() == rv_editor_build_state::building
-            ? rv_editor_state{}
-            : rv_editor_state{ rv_editor_look::live, "No build is running" };
-        if (rv_editor_button("Cancel Build", theme, cancel)) {
+        rv_editor_state cancel;
+        if (b.state() == rv_editor_build_state::building) {
+            cancel = rv_editor_state{};
+        } else {
+            cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("pane_build_result.no_build_running") };
+        }
+        if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, cancel)) {
             app.build.cancel();
         }
 
@@ -105,10 +123,13 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         if (b.state() == rv_editor_build_state::idle) {
             return;
         }
-        ImGui::SeparatorText("Diagnostics of this build");
-        ImGui::Text("%zu errors, %zu warnings", errors, warnings);
+        ImGui::SeparatorText(rv_editor_text("pane_build_result.diagnostics"));
+        const auto diag_text = rv_editor_text_format("pane_build_result.errors_warnings",
+            std::make_format_args(errors, warnings));
+        ImGui::Text("%s", diag_text.c_str());
         if (found.empty()) {
-            ImGui::TextWrapped(b.busy() ? "None so far." : "None. The full output is in the Build Log.");
+            const char *status = rv_editor_text(b.busy() ? "pane_build_result.none_so_far" : "pane_build_result.none_full_log");
+            ImGui::TextWrapped("%s", status);
             return;
         }
         rv_editor_log_begin("##diag", ImVec2(0, 0), theme);
