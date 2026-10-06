@@ -14,24 +14,53 @@ namespace rv_editor
 namespace
 {
 
+// Shelf fill is window color blended one quarter toward the bevel highlight.
+constexpr int shelf_blend_divisor = 4;
+
+// Well fill is halfway between inset and dark surface tones.
+constexpr int well_blend_divisor = 2;
+
+// Number of render channels for layered drawing (strip, content).
+constexpr int channel_count = 2;
+
+// Color channel layout: 0xRRGGBB; extract and compose RGB values.
+constexpr int red_shift = 16;
+constexpr int green_shift = 8;
+constexpr int channel_mask = 0xff;
+
+// Padding applied on both sides of the well (reduces inner size by this multiple of pad).
+constexpr float padded_sides = 2.0f;
+
 // The theme has no strip token of its own: the shelf's tone is the window
 // blended a quarter of the way toward the raised edge's light colour.
 uint32_t rv_editor_shelf_fill(const rv_editor_theme &theme)
 {
-    const auto lerp8 = [](int a, int b) { return static_cast<uint32_t>(a + (b - a) / 4); };
-    const int wr = (theme.window >> 16) & 0xff, wg = (theme.window >> 8) & 0xff, wb = theme.window & 0xff;
-    const int hr = (theme.bevel_hi >> 16) & 0xff, hg = (theme.bevel_hi >> 8) & 0xff, hb = theme.bevel_hi & 0xff;
-    return (lerp8(wr, hr) << 16) | (lerp8(wg, hg) << 8) | lerp8(wb, hb);
+    const auto lerp8 = [](int a, int b) {
+        return static_cast<uint32_t>(a + (b - a) / shelf_blend_divisor);
+    };
+    const int wr = (theme.window >> red_shift) & channel_mask;
+    const int wg = (theme.window >> green_shift) & channel_mask;
+    const int wb = theme.window & channel_mask;
+    const int hr = (theme.bevel_hi >> red_shift) & channel_mask;
+    const int hg = (theme.bevel_hi >> green_shift) & channel_mask;
+    const int hb = theme.bevel_hi & channel_mask;
+    return (lerp8(wr, hr) << red_shift) | (lerp8(wg, hg) << green_shift) | lerp8(wb, hb);
 }
 
 // The well has no token of its own either: halfway between the inset tone and
 // the theme's darkest surface, so it reads as clearly deeper than the shelf.
 uint32_t rv_editor_well_fill(const rv_editor_theme &theme)
 {
-    const auto lerp8 = [](int a, int b) { return static_cast<uint32_t>((a + b) / 2); };
-    const int ir = (theme.inset >> 16) & 0xff, ig = (theme.inset >> 8) & 0xff, ib = theme.inset & 0xff;
-    const int dr = (theme.dark >> 16) & 0xff, dg = (theme.dark >> 8) & 0xff, db = theme.dark & 0xff;
-    return (lerp8(ir, dr) << 16) | (lerp8(ig, dg) << 8) | lerp8(ib, db);
+    const auto lerp8 = [](int a, int b) {
+        return static_cast<uint32_t>((a + b) / well_blend_divisor);
+    };
+    const int ir = (theme.inset >> red_shift) & channel_mask;
+    const int ig = (theme.inset >> green_shift) & channel_mask;
+    const int ib = theme.inset & channel_mask;
+    const int dr = (theme.dark >> red_shift) & channel_mask;
+    const int dg = (theme.dark >> green_shift) & channel_mask;
+    const int db = theme.dark & channel_mask;
+    return (lerp8(ir, dr) << red_shift) | (lerp8(ig, dg) << green_shift) | lerp8(ib, db);
 }
 
 struct rv_editor_shelf_frame
@@ -62,7 +91,7 @@ void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme)
     const ImVec2 origin = ImGui::GetCursorScreenPos();
     // Channel 1 (content) is measured before channel 0 (the strip) is drawn,
     // since the strip's height follows the content's.
-    ImGui::GetWindowDrawList()->ChannelsSplit(2);
+    ImGui::GetWindowDrawList()->ChannelsSplit(channel_count);
     ImGui::GetWindowDrawList()->ChannelsSetCurrent(1);
     ImGui::SetCursorScreenPos(ImVec2(origin.x + pad, origin.y + pad));
     ImGui::BeginGroup();
@@ -102,7 +131,9 @@ bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &th
     rv_editor_draw_panel(dl, min, max, theme, rv_editor_well_fill(theme), rv_editor_bevel::sunken);
     rv_editor_well_stack.push_back({ min, max });
 
-    const ImVec2 inner(std::max(1.0f, max.x - min.x - 2.0f * pad), std::max(1.0f, max.y - min.y - 2.0f * pad));
+    const float bevel_width = padded_sides * pad;
+    const ImVec2 inner(std::max(1.0f, max.x - min.x - bevel_width),
+        std::max(1.0f, max.y - min.y - bevel_width));
     ImGui::SetCursorScreenPos(ImVec2(min.x + pad, min.y + pad));
     // Transparent, so the well's fill shows through this child and any child
     // nested in it (e.g. a scroll area), instead of ImGui's own ChildBg.
