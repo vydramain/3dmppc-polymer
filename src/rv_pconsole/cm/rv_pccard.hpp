@@ -6,8 +6,8 @@
 // the disk, and a write rewrites the entire image - which is what makes the
 // contract's atomicity promise implementable (see the note in rv_pccard.cpp).
 //
-// This class knows nothing about rv_err: it answers bool / -1 and leaves the
-// contract vocabulary to rv_pccm.
+// Operations that can fail return rv_err codes; yes/no questions (medium_ok(), valid())
+// stay bool. rv_pccm maps error codes to the public contract vocabulary.
 #pragma once
 
 #include <cstdint>
@@ -96,9 +96,10 @@ public:
     int slot_erase(int64_t slot);
 
 private:
-    // Reads the file into image_. Returns false only for a file that exists and
-    // cannot be trusted; a missing file yields a freshly formatted RAM image.
-    bool load();
+    // Reads the file into image_. Returns RV_OK on success, RV_ERR_IO on a read failure,
+    // or RV_ERR_INVAL for a file that exists and cannot be trusted. A missing file yields
+    // a freshly formatted RAM image and returns RV_OK.
+    int load();
 
     // Writes image_ out atomically (temp file + fsync + rename). Returns RV_OK or RV_ERR_IO.
     int flush();
