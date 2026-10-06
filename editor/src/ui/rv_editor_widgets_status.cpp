@@ -16,6 +16,17 @@ namespace rv_editor
 namespace
 {
 
+// Style colours rv_editor_log_begin pushes (child background, text).
+constexpr int log_style_pushed_count = 2;
+// Gap between status fields in scaled pixels.
+constexpr int status_bar_gap_px = 2;
+// Theme pads added to each status field's text width.
+constexpr float status_bar_field_pads = 4.0f;
+// Theme pads from a field's left edge to its text.
+constexpr float status_bar_text_inset_pads = 2.0f;
+// Divisor for centering by halving.
+constexpr float half_divisor = 2.0f;
+
 // Every state has a symbol as well as a colour, so none is told by colour alone.
 struct rv_editor_mark
 {
@@ -94,7 +105,7 @@ bool rv_editor_log_begin(const char *id, ImVec2 size, const rv_editor_theme &the
 void rv_editor_log_end(const rv_editor_theme &theme)
 {
     rv_editor_scroll_end(theme);
-    ImGui::PopStyleColor(2);
+    ImGui::PopStyleColor(log_style_pushed_count);
 }
 
 void rv_editor_log_row(const char *time, const char *source, rv_editor_severity severity, const char *text,
@@ -243,10 +254,10 @@ void rv_editor_status_bar(const char *const fields[], int count, const rv_editor
     }
     const float h = ImGui::GetFrameHeight();
     const float pad = static_cast<float>(theme.pad_px * theme.scale);
-    const float gap = static_cast<float>(2 * theme.scale);
+    const float gap = static_cast<float>(status_bar_gap_px * theme.scale);
     float rest = 0.0f;
     for (int i = 1; i < count; ++i) {
-        rest += ImGui::CalcTextSize(fields[i]).x + pad * 4.0f + gap;
+        rest += ImGui::CalcTextSize(fields[i]).x + pad * status_bar_field_pads + gap;
     }
 
     const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -255,12 +266,14 @@ void rv_editor_status_bar(const char *const fields[], int count, const rv_editor
     float x = origin.x;
     for (int i = 0; i < count; ++i) {
         const ImVec2 text = ImGui::CalcTextSize(fields[i]);
-        const float w = i == 0 ? std::max(width - rest, pad * 4.0f) : text.x + pad * 4.0f;
+        const float field_pad = pad * status_bar_field_pads;
+        const float w = i == 0 ? std::max(width - rest, field_pad) : text.x + field_pad;
         const ImVec2 min(x, origin.y);
         const ImVec2 max(x + w, origin.y + h);
         rv_editor_draw_panel(dl, min, max, theme, theme.window, rv_editor_bevel::sunken);
-        const ImVec2 at(std::floor(min.x + pad * 2.0f), std::floor((min.y + max.y - text.y) / 2.0f));
-        dl->AddText(at, rv_editor_col(theme.text), fields[i]);
+        const float text_x = std::floor(min.x + pad * status_bar_text_inset_pads);
+        const float text_y = std::floor((min.y + max.y - text.y) / half_divisor);
+        dl->AddText(ImVec2(text_x, text_y), rv_editor_col(theme.text), fields[i]);
         x = max.x + gap;
     }
     ImGui::Dummy(ImVec2(width, h));
