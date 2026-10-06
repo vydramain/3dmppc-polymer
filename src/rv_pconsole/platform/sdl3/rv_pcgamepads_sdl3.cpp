@@ -59,12 +59,12 @@ uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uin
 // single point where SDL's conventions are allowed to exist (the caller).
 float axis_norm(int16_t raw)
 {
-    return static_cast<float>(raw) / 32767.0f;
+    return static_cast<float>(raw) / static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
 }
 
 float trigger_norm(int16_t raw)
 {
-    const float v = static_cast<float>(raw) / 32767.0f;
+    const float v = static_cast<float>(raw) / static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
     return v < 0.0f ? 0.0f : v;
 }
 

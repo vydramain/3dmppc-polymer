@@ -95,7 +95,7 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
         loader_->notify_initialized(disc);
     }
 
-    run.target_fps = params_.target_fps ? params_.target_fps : 60;
+    run.target_fps = params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS;
     run.frame_budget = std::chrono::duration<double>{ 1.0 / static_cast<double>(run.target_fps) };
 
     // One timeline. Frame N is exactly N/target_fps of machine time in every
@@ -350,7 +350,7 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     // Best effort, bounded: the last answer should reach a client that is still
     // there, and a client that is gone must not hold the shutdown open.
     if (cmd_) {
-        cmd_->drain(std::chrono::milliseconds(50));
+        cmd_->drain(RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT);
     }
 }
 

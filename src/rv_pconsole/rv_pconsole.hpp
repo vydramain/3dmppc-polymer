@@ -22,6 +22,14 @@
 namespace rv_3dmppc
 {
 
+// Frame rate when the disc does not specify target_fps; used by both
+// rv_pconsole.cpp and rv_pconsole_run.cpp to compute the default timeline.
+constexpr uint64_t RV_PCONSOLE_DEFAULT_TARGET_FPS = 60;
+
+// Bounded, best-effort wait at shutdown for the dev command channel: the last answer
+// reaches a client still listening, and a client that is gone cannot hold the shutdown open.
+constexpr auto RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT = std::chrono::milliseconds(50);
+
 // Composition root. This is the single place where the concrete
 // machine is assembled - the platform it is served by, the six controllers,
 // and the geometry they were built from. Nothing below constructs a
