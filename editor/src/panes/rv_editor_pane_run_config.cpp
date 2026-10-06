@@ -23,6 +23,19 @@ namespace rv_editor
 namespace
 {
 
+// Label column position in em units.
+constexpr float label_column_em = 9.0f;
+// Checkbox alignment at double the label column in em units.
+constexpr float checkbox_spacing_em = 18.0f;
+// Multiline input box height in text lines.
+constexpr float multiline_box_lines = 3.5f;
+// Profile list width in em units.
+constexpr float profile_list_width_em = 12.0f;
+// Actions area height in frame heights with spacing.
+constexpr float actions_height_frames = 2.0f;
+// Minimum well content area height in frame heights.
+constexpr float min_well_height_frames = 6.0f;
+
 std::string rv_editor_run_lines(const std::vector<std::string> &items)
 {
     std::string out;
@@ -85,7 +98,7 @@ void rv_editor_run_path(const char *label, char *buf, size_t size, const char *e
 {
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(display_label);
-    ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
+    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field((std::string("##") + label).c_str(), buf, size, theme);
     const auto empty_means = rv_editor_text(empty_means_key);
@@ -152,7 +165,7 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
     rv_editor_run_group(rv_editor_text("pane_run_config.session_group"), theme);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(rv_editor_text("pane_run_config.name_label"));
-    ImGui::SameLine(ImGui::GetFontSize() * 9.0f);
+    ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##name", form.name, sizeof(form.name), theme);
     rv_editor_run_path("Runtime", form.runtime, sizeof(form.runtime), "pane_run_config.runtime_empty_tooltip",
@@ -161,12 +174,12 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         theme, rv_editor_text("pane_run_config.working_dir_label"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.start_paused_label"), &form.paused, theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.start_paused_tooltip"));
-    ImGui::SameLine(ImGui::GetFontSize() * 18.0f);
+    ImGui::SameLine(ImGui::GetFontSize() * checkbox_spacing_em);
     rv_editor_checkbox(rv_editor_text("pane_run_config.fixed_step_label"), &form.fixed_step, theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.fixed_step_tooltip"));
     rv_editor_checkbox(rv_editor_text("pane_run_config.reload_on_save_label"), &form.reload_on_save, theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.reload_on_save_tooltip"));
-    const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * 3.5f);
+    const ImVec2 box(-1.0f, ImGui::GetTextLineHeight() * multiline_box_lines);
     ImGui::TextUnformatted(rv_editor_text("pane_run_config.console_options_label"));
     ImGui::InputTextMultiline("##args", form.args, sizeof(form.args), box);
     ImGui::TextUnformatted(rv_editor_text("pane_run_config.environment_label"));
@@ -240,7 +253,7 @@ void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         rv_editor_run_form_fill(app.run_form, config.profiles[config.active]);
         app.run_form.loaded = app.run_config_revision;
     }
-    const float list = ImGui::GetFontSize() * 12.0f;
+    const float list = ImGui::GetFontSize() * profile_list_width_em;
     rv_editor_run_profiles(app, list, size.y, theme);
     ImGui::SameLine();
     rv_editor_run_fields(app, ImVec2(std::max(1.0f, size.x - list - ImGui::GetStyle().ItemSpacing.x), size.y), theme);
@@ -255,10 +268,12 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    const float actions = ImGui::GetFrameHeightWithSpacing() * 2.0f;
+    const float actions = ImGui::GetFrameHeightWithSpacing() * actions_height_frames;
     // The two-column body in one well; its size still comes from the region left
     // once the well's own padding is taken out.
-    rv_editor_well_begin("##well", ImVec2(0, std::max(ImGui::GetFrameHeight() * 6.0f, avail.y - actions)), theme);
+    const float well_height =
+        std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
+    rv_editor_well_begin("##well", ImVec2(0, well_height), theme);
     rv_editor_run_editor(app, ImGui::GetContentRegionAvail(), theme);
     rv_editor_well_end();
     rv_editor_run_actions(app, theme);
