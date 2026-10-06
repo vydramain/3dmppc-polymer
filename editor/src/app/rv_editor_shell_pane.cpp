@@ -10,6 +10,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// A control strip's width, in font sizes.
+constexpr int rv_editor_strip_width_em = 20;
+
+} // namespace
+
 void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_kind kind, const rv_editor_theme &theme)
 {
     rv_editor_shell &shell = *static_cast<rv_editor_shell *>(context);
@@ -38,7 +46,8 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
                 rv_editor_pane_release_controls(shell.app, theme);
             }
             const float tall = ImGui::GetCursorPosY() - top - ImGui::GetStyle().ItemSpacing.y;
-            shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * 20), static_cast<int32_t>(tall) };
+            shell.strips[pane] = { static_cast<int32_t>(ImGui::GetFontSize() * rv_editor_strip_width_em),
+                static_cast<int32_t>(tall) };
             return;
         }
         case rv_editor_pane_kind::runtime_log:

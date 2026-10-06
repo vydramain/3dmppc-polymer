@@ -20,6 +20,9 @@ namespace rv_editor
 namespace
 {
 
+// A new tile splits its neighbour in half.
+constexpr float rv_editor_even_split = 0.5f;
+
 // Code panes the tree shows now.
 std::vector<rv_editor_pane_id> rv_editor_code_panes(const rv_editor_workspace &ws)
 {
@@ -296,7 +299,7 @@ void rv_editor_shell_new_tile(rv_editor_shell &shell, rv_editor_pane_kind kind)
     const rv_editor_pane_id pane = rv_editor_pane_add(ws.panes, kind);
     const uint32_t leaf = rv_editor_tile_insert(ws.layout, rv_editor_target_leaf(ws), pane, rv_editor_tile_dock::right);
     if (leaf != rv_editor_tile_none) {
-        (void)rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, 0.5f);
+        (void)rv_editor_tile_set_ratio(ws.layout, ws.layout.nodes[leaf].parent, rv_editor_even_split);
         ws.focused_leaf = leaf;
     }
 }
