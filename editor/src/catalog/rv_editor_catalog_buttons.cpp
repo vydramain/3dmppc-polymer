@@ -11,6 +11,20 @@ namespace rv_editor
 namespace
 {
 
+// Widget row indices in the buttons catalog
+constexpr int row_button = 0;
+constexpr int row_icon_button = 1;
+constexpr int row_toggle_off = 2;
+constexpr int row_toggle_on = 3;
+constexpr int row_check_off = 4;
+constexpr int row_check_on = 5;
+constexpr int row_radio_off = 6;
+constexpr int row_radio_on = 7;
+
+// Radio button group state indices
+constexpr int radio_lua = 0;
+constexpr int radio_cpp = 1;
+
 struct rv_editor_column
 {
     const char *name;
@@ -57,43 +71,43 @@ void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
         bool frozen_off = false;
         bool frozen_on = true;
         switch (row) {
-        case 0:
+        case row_button:
             rv_editor_button(rv_editor_text("catalog_buttons.button_ok"), t, s);
             break;
-        case 1:
+        case row_icon_button:
             rv_editor_icon_button("##icon", rv_editor_icon_name::folder, t, s);
             break;
-        case 2: {
+        case row_toggle_off: {
             const char *snap = rv_editor_text("catalog_buttons.toggle_snap");
             rv_editor_toggle(snap, live ? &rv_editor_live_values.toggle_off : &frozen_off, t, s);
             break;
         }
-        case 3: {
+        case row_toggle_on: {
             const char *snap = rv_editor_text("catalog_buttons.toggle_snap");
             rv_editor_toggle(snap, live ? &rv_editor_live_values.toggle_on : &frozen_on, t, s);
             break;
         }
-        case 4: {
+        case row_check_off: {
             const char *grid = rv_editor_text("catalog_buttons.checkbox_grid");
             rv_editor_checkbox(grid, live ? &rv_editor_live_values.check_off : &frozen_off, t, s);
             break;
         }
-        case 5: {
+        case row_check_on: {
             const char *grid = rv_editor_text("catalog_buttons.checkbox_grid");
             rv_editor_checkbox(grid, live ? &rv_editor_live_values.check_on : &frozen_on, t, s);
             break;
         }
-        case 6: {
+        case row_radio_off: {
             const char *lua_text = rv_editor_text("catalog_buttons.radio_lua");
-            if (rv_editor_radio(lua_text, live ? rv_editor_live_values.radio == 0 : false, t, s) && live) {
-                rv_editor_live_values.radio = 0;
+            if (rv_editor_radio(lua_text, live ? rv_editor_live_values.radio == radio_lua : false, t, s) && live) {
+                rv_editor_live_values.radio = radio_lua;
             }
             break;
         }
-        default: {
+        case row_radio_on: {
             const char *cpp_text = rv_editor_text("catalog_buttons.radio_cpp");
-            if (rv_editor_radio(cpp_text, live ? rv_editor_live_values.radio == 1 : true, t, s) && live) {
-                rv_editor_live_values.radio = 1;
+            if (rv_editor_radio(cpp_text, live ? rv_editor_live_values.radio == radio_cpp : true, t, s) && live) {
+                rv_editor_live_values.radio = radio_cpp;
             }
             break;
         }

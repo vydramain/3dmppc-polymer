@@ -13,6 +13,17 @@ namespace rv_editor
 namespace
 {
 
+// Text field buffer size
+constexpr size_t text_field_buffer_size = 32;
+
+// Spinner increment step
+constexpr int spinner_step = 8;
+
+// Widget row indices in the fields catalog
+constexpr int row_text_field = 0;
+constexpr int row_spinner = 1;
+constexpr int row_dropdown = 2;
+
 struct rv_editor_field_column
 {
     const char *name;
@@ -36,7 +47,7 @@ constexpr int rv_editor_field_column_count =
 // One value per cell, so typing into one field does not change its neighbours.
 struct rv_editor_field_values
 {
-    char text[rv_editor_field_column_count][32];
+    char text[rv_editor_field_column_count][text_field_buffer_size];
     int number[rv_editor_field_column_count];
     int choice[rv_editor_field_column_count];
 
@@ -86,17 +97,18 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
                 f.invalid = rv_editor_text(f.invalid);
             }
             switch (row) {
-            case 0:
+            case row_text_field:
                 rv_editor_text_field("##text", rv_editor_field_data.text[c], sizeof(rv_editor_field_data.text[c]),
                     theme, f);
                 break;
-            case 1:
-                rv_editor_spinner("##number", &rv_editor_field_data.number[c], 8, theme, f);
+            case row_spinner:
+                rv_editor_spinner("##number", &rv_editor_field_data.number[c], spinner_step, theme, f);
                 break;
-            default: {
+            case row_dropdown: {
                 const char *templates[] = { rv_editor_text("catalog_fields.template_lua"),
                     rv_editor_text("catalog_fields.template_cpp") };
-                rv_editor_dropdown("##choice", &rv_editor_field_data.choice[c], templates, 2, theme, f);
+                rv_editor_dropdown("##choice", &rv_editor_field_data.choice[c], templates,
+                    static_cast<int>(std::size(templates)), theme, f);
                 break;
             }
             }
