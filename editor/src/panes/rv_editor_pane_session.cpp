@@ -18,6 +18,15 @@ namespace rv_editor
 namespace
 {
 
+// Maximum number of stderr lines to retain in a session log.
+constexpr size_t max_stderr_lines = 8;
+
+// Number of columns in session information tables.
+constexpr int table_column_count = 2;
+
+// Seconds in a minute for time display conversion.
+constexpr long long seconds_per_minute = 60;
+
 // Up to the 8 most recent stderr lines this pid left in the log, oldest first.
 std::vector<const rv_editor_log_line *> rv_editor_session_stderr(const rv_editor_log &log, pid_t pid)
 {
@@ -27,7 +36,7 @@ std::vector<const rv_editor_log_line *> rv_editor_session_stderr(const rv_editor
             continue;
         }
         out.push_back(&line);
-        if (out.size() > 8) {
+        if (out.size() > max_stderr_lines) {
             out.erase(out.begin());
         }
     }
@@ -42,7 +51,7 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
     if (s.output_cut()) {
         exit_line += " (its output past this point was not kept)";
     }
-    if (ImGui::BeginTable("##session_summary", 2, ImGuiTableFlags_SizingStretchProp)) {
+    if (ImGui::BeginTable("##session_summary", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
         rv_editor_fact("Process", s.console().string() + ", pid " + std::to_string(s.pid()));
         rv_editor_fact("Exit", exit_line);
         ImGui::EndTable();
@@ -111,14 +120,17 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         const long long seconds = std::chrono::duration_cast<std::chrono::seconds>(until - s.started_at()).count();
         const rv_editor_session_facts &f = s.facts();
         const bool is_latest_build = s.build_number() == app.build.number();
-        if (!ImGui::BeginTable("##session", 2, ImGuiTableFlags_SizingStretchProp)) {
+        if (!ImGui::BeginTable("##session", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
             return;
         }
         rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()));
         rv_editor_fact("Build", "#" + std::to_string(s.build_number()));
         rv_editor_fact("Profile", app.session_profile);
-        rv_editor_fact("Time", "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(seconds / 60) +
-            " min " + std::to_string(seconds % 60) + " s" + (s.live() ? " so far" : ""));
+        const long long minutes = seconds / seconds_per_minute;
+        const long long rest_seconds = seconds % seconds_per_minute;
+        std::string time_text = "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(minutes) + " min ";
+        time_text += std::to_string(rest_seconds) + " s" + (s.live() ? " so far" : "");
+        rv_editor_fact("Time", time_text);
         rv_editor_fact("Frame", std::to_string(s.frame()) + (s.live() ? "" : ", the last reported"));
         if (!f.disc.empty()) {
             rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
