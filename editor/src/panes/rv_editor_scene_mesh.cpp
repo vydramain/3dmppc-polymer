@@ -26,6 +26,42 @@ namespace rv_editor
 namespace
 {
 
+// Half-extent of placeholder geometric primitives (unit cube and quad, local coordinates).
+constexpr double unit_half_extent = 0.5;
+// Minimum shade value for unlit triangle surfaces.
+constexpr float min_shade_value = 0.15f;
+// Maximum value for sRGB colour channel normalization.
+constexpr float color_channel_max = 255.0f;
+// Directory name pattern to exclude from asset search.
+constexpr std::string_view skip_build_dir_name = "build";
+// Normalization threshold: minimum vector length before clamping to zero.
+constexpr double normalize_epsilon = 1e-12;
+// Vertex count for triangles: used for depth averaging and geometry creation.
+constexpr int tri_vertices = 3;
+// Corners of a unit cube.
+constexpr int cube_corner_count = 8;
+// Face definitions of a unit cube: six faces with four corner indices each.
+constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
+    { 0, 1, 2, 3 },
+    { 5, 4, 7, 6 },
+    { 4, 0, 3, 7 },
+    { 1, 5, 6, 2 },
+    { 3, 2, 6, 7 },
+    { 4, 5, 1, 0 },
+} };
+// Vertices of a quad.
+constexpr int quad_vertex_count = 4;
+// UV of a quad's corners: (0,0), (1,0), (1,1), (0,1).
+constexpr std::array<ImVec2, quad_vertex_count> quad_uv_corners = { { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } };
+// Scene object kind: a flat textured quad.
+constexpr std::string_view kind_quad = "quad";
+// Scene object kind: a camera-facing textured card.
+constexpr std::string_view kind_billboard = "billboard";
+// Scene object kind: a mesh loaded from a file.
+constexpr std::string_view kind_mesh = "mesh";
+// Number of vertices per triangle for depth averaging (derived from tri_vertices).
+constexpr double triangle_vertex_count = static_cast<double>(tri_vertices);
+
 vec3 cross(const vec3 &a, const vec3 &b)
 {
     return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
@@ -34,7 +70,7 @@ vec3 cross(const vec3 &a, const vec3 &b)
 vec3 norm(const vec3 &a)
 {
     const double l = std::sqrt(dot(a, a));
-    return l > 1e-12 ? mul(a, 1.0 / l) : a;
+    return l > normalize_epsilon ? mul(a, 1.0 / l) : a;
 }
 
 vec3 to_vec3(const rv_pdklib::rv_vec3 &v)
@@ -101,18 +137,18 @@ const rv_pdklib::rv_obj_mesh *rv_editor_mesh_load(const std::filesystem::path &p
 std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 {
     auto p = [&m](double x, double y, double z) { return rv_editor_affine_point(m, { x, y, z }); };
-    const double h = 0.5;
-    const vec3 c[8] = { p(-h, -h, -h), p(h, -h, -h), p(h, h, -h), p(-h, h, -h), p(-h, -h, h), p(h, -h, h),
-        p(h, h, h), p(-h, h, h) };
-    const int faces[6][4] = {
-        { 0, 1, 2, 3 }, { 5, 4, 7, 6 }, { 4, 0, 3, 7 }, { 1, 5, 6, 2 }, { 3, 2, 6, 7 }, { 4, 5, 1, 0 },
-    };
-    // Whole texture per face: the quad's own corners at (0,0) (1,0) (1,1) (0,1).
-    const ImVec2 uv[4] = { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } };
+    const vec3 c[cube_corner_count] = { p(-unit_half_extent, -unit_half_extent, -unit_half_extent),
+        p(unit_half_extent, -unit_half_extent, -unit_half_extent),
+        p(unit_half_extent, unit_half_extent, -unit_half_extent),
+        p(-unit_half_extent, unit_half_extent, -unit_half_extent),
+        p(-unit_half_extent, -unit_half_extent, unit_half_extent),
+        p(unit_half_extent, -unit_half_extent, unit_half_extent),
+        p(unit_half_extent, unit_half_extent, unit_half_extent),
+        p(-unit_half_extent, unit_half_extent, unit_half_extent) };
     std::vector<rv_editor_tri> tris;
-    for (const auto &f : faces) {
-        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] }, { uv[0], uv[1], uv[2] } });
-        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] }, { uv[0], uv[2], uv[3] } });
+    for (const auto &f : cube_faces) {
+        tris.push_back({ { c[f[0]], c[f[1]], c[f[2]] }, { quad_uv_corners[0], quad_uv_corners[1], quad_uv_corners[2] } });
+        tris.push_back({ { c[f[0]], c[f[2]], c[f[3]] }, { quad_uv_corners[0], quad_uv_corners[2], quad_uv_corners[3] } });
     }
     return tris;
 }
@@ -136,7 +172,7 @@ rv_editor_name_cache rv_editor_texture_names;
 // True for a directory the tree walk skips whole: dotfiles and build outputs.
 bool rv_editor_mesh_skip_dir(const std::string &name)
 {
-    return !name.empty() && (name[0] == '.' || name.starts_with("build"));
+    return !name.empty() && (name[0] == '.' || name.starts_with(skip_build_dir_name));
 }
 
 // The project file under `patterns` for which `match` holds, cached in `cache` under `key`.
@@ -240,7 +276,7 @@ rv_editor_icon rv_editor_object_texture(
 // The four corners' pixel-rect uv, top-left, top-right, bottom-left, bottom-right, from an
 // object's `uv` (u0,v0,u1,v1). Raw pixels; rv_editor_draw_filled normalizes once a texture's
 // pixel size is known, or leaves them unused when the object draws flat.
-std::array<ImVec2, 4> rv_editor_quad_uv(const rv_editor_uv &uv)
+std::array<ImVec2, quad_vertex_count> rv_editor_quad_uv(const rv_editor_uv &uv)
 {
     return { ImVec2{ static_cast<float>(uv[0]), static_cast<float>(uv[1]) },
         ImVec2{ static_cast<float>(uv[2]), static_cast<float>(uv[1]) },
@@ -252,9 +288,11 @@ std::array<ImVec2, 4> rv_editor_quad_uv(const rv_editor_uv &uv)
 // order (top-left, top-right, bottom-left, bottom-right; scale is already in `m`).
 std::vector<rv_editor_tri> rv_editor_quad_triangles(const rv_editor_affine &m, const rv_editor_uv &uv)
 {
-    const vec3 c[4] = { rv_editor_affine_point(m, { -0.5, 0.5, 0.0 }), rv_editor_affine_point(m, { 0.5, 0.5, 0.0 }),
-        rv_editor_affine_point(m, { -0.5, -0.5, 0.0 }), rv_editor_affine_point(m, { 0.5, -0.5, 0.0 }) };
-    const std::array<ImVec2, 4> t = rv_editor_quad_uv(uv);
+    const vec3 c[4] = { rv_editor_affine_point(m, { -unit_half_extent, unit_half_extent, 0.0 }),
+        rv_editor_affine_point(m, { unit_half_extent, unit_half_extent, 0.0 }),
+        rv_editor_affine_point(m, { -unit_half_extent, -unit_half_extent, 0.0 }),
+        rv_editor_affine_point(m, { unit_half_extent, -unit_half_extent, 0.0 }) };
+    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(uv);
     return {
         { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
         { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
@@ -275,11 +313,11 @@ std::vector<rv_editor_tri> rv_editor_billboard_triangles(
     const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
 {
     const vec3 center = rv_editor_affine_point(m, { 0.0, 0.0, 0.0 });
-    const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * 0.5);
-    const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * 0.5);
+    const vec3 right = mul(v.right, rv_editor_affine_column_length(m, 0) * unit_half_extent);
+    const vec3 up = mul(v.up, rv_editor_affine_column_length(m, 1) * unit_half_extent);
     const vec3 c[4] = { add(center, sub(up, right)), add(center, add(up, right)), sub(center, add(up, right)),
         add(center, sub(right, up)) };
-    const std::array<ImVec2, 4> t = rv_editor_quad_uv(o.uv);
+    const std::array<ImVec2, quad_vertex_count> t = rv_editor_quad_uv(o.uv);
     return {
         { { c[0], c[2], c[1] }, { t[0], t[2], t[1] } },
         { { c[1], c[2], c[3] }, { t[1], t[2], t[3] } },
@@ -292,10 +330,10 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
     const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
-    if (o.kind == "quad") {
+    if (o.kind == kind_quad) {
         return rv_editor_quad_triangles(rv_editor_scene_world(scene, index), o.uv);
     }
-    if (o.kind != "mesh") {
+    if (o.kind != kind_mesh) {
         return {};
     }
     const rv_editor_affine m = rv_editor_scene_world(scene, index);
@@ -318,7 +356,7 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(
     tris.reserve(mesh->triangles.size());
     for (const rv_pdklib::rv_obj_triangle &t : mesh->triangles) {
         rv_editor_tri tri;
-        for (int k = 0; k < 3; ++k) {
+        for (int k = 0; k < tri_vertices; ++k) {
             tri.p[k] = rv_editor_affine_point(m, to_vec3(rv_pdklib::rv_obj_position(*mesh, t.corner[k])));
             if (t.corner[k].uv >= 0) {
                 const rv_pdklib::rv_vec2 uv = rv_pdklib::rv_obj_uv(*mesh, t.corner[k], { 0, 0 });
@@ -349,22 +387,26 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
     std::vector<rv_editor_shaded_tri> shaded;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
-        if (o.kind != "mesh" && o.kind != "quad" && o.kind != "billboard") {
+        if (o.kind != kind_mesh && o.kind != kind_quad && o.kind != kind_billboard) {
             continue; // volumes, cameras, groups and other kinds are not filled
         }
         const bool is_selected = o.id == selected;
         const rv_editor_icon tex = rv_editor_object_texture(renderer, project, o);
         // quad/billboard uv is a pixel rect, normalized here once the texture's size is known;
         // a mesh's is already 0..1 from rv_editor_object_triangles.
-        const bool pixel_uv = o.kind != "mesh" && tex.id != ImTextureID{} && tex.w > 0 && tex.h > 0;
-        const std::vector<rv_editor_tri> tris = o.kind == "billboard"
-            ? rv_editor_billboard_triangles(v, rv_editor_scene_world(scene, static_cast<int>(i)), o)
-            : rv_editor_object_triangles(scene, project, static_cast<int>(i));
+        const bool pixel_uv = o.kind != kind_mesh && tex.id != ImTextureID{} && tex.w > 0 && tex.h > 0;
+        std::vector<rv_editor_tri> tris;
+        if (o.kind == kind_billboard) {
+            const rv_editor_affine world = rv_editor_scene_world(scene, static_cast<int>(i));
+            tris = rv_editor_billboard_triangles(v, world, o);
+        } else {
+            tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
+        }
         for (const rv_editor_tri &tri : tris) {
             rv_editor_shaded_tri st;
             st.depth = 0.0;
             bool visible = true;
-            for (int k = 0; k < 3; ++k) {
+            for (int k = 0; k < tri_vertices; ++k) {
                 const vec3 view_p = v.to_view(tri.p[k]);
                 if (view_p[2] < rv_editor_near) {
                     visible = false;
@@ -378,11 +420,13 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
             if (!visible) {
                 continue;
             }
-            st.depth /= 3.0;
+            st.depth /= triangle_vertex_count;
             const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            st.shade = static_cast<float>(std::max(0.15, std::abs(dot(n, mul(v.forward, -1.0)))));
+            st.shade = static_cast<float>(
+                std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
-            st.tint = { o.tint[0] / 255.0f, o.tint[1] / 255.0f, o.tint[2] / 255.0f, 1.0f };
+            st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max,
+                1.0f };
             st.tex = tex.id;
             shaded.push_back(st);
         }
@@ -411,7 +455,7 @@ void rv_editor_draw_filled(ImDrawList *dl, const rv_editor_view &v, const rv_edi
         const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(sel_tint.x * obj_tint.x * st.shade,
             sel_tint.y * obj_tint.y * st.shade, sel_tint.z * obj_tint.z * st.shade, 1.0f));
         dl->PushTexture(st.tex);
-        dl->PrimReserve(3, 3);
+        dl->PrimReserve(tri_vertices, tri_vertices);
         dl->PrimVtx(st.s[0], st.uv[0], col);
         dl->PrimVtx(st.s[1], st.uv[1], col);
         dl->PrimVtx(st.s[2], st.uv[2], col);
