@@ -24,6 +24,15 @@
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
 
+namespace
+{
+// Build phases in order: manifest, compile, assets, burn.
+constexpr int k_step_manifest = 1;
+constexpr int k_step_compile = 2;
+constexpr int k_step_assets = 3;
+constexpr int k_step_burn = 4;
+} // namespace
+
 namespace fs = std::filesystem;
 
 namespace rv_pdktools
@@ -68,7 +77,7 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
         if (burn_directory(destination.path, manifest, disc_module, plan, error) != 0) {
             return 1;
         }
-        rv_burner_print_step(4, "burn", destination.path.string() + " (unpacked)");
+        rv_burner_print_step(k_step_burn, "burn", destination.path.string() + " (unpacked)");
         return 0;
     }
 
@@ -76,7 +85,7 @@ static int rv_burner_destination_burn(const rv_burner_destination &destination,
     if (burn_archive(destination.path, manifest, disc_module, plan, burned_size, error) != 0) {
         return 1;
     }
-    rv_burner_print_step(4, "burn",
+    rv_burner_print_step(k_step_burn, "burn",
         std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
     return 0;
 }
@@ -99,7 +108,7 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
         return 1;
     }
 
-    rv_burner_print_step(1, "manifest", std::format("{} — {}", manifest.disc_id, manifest.disc_title));
+    rv_burner_print_step(k_step_manifest, "manifest", std::format("{} — {}", manifest.disc_id, manifest.disc_title));
     return 0;
 }
 
@@ -125,7 +134,7 @@ static int rv_burner_build_compile(const rv_burner_options &options, const rv_pd
         return 1;
     }
 
-    rv_burner_print_step(2, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
+    rv_burner_print_step(k_step_compile, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
     return 0;
 }
 
@@ -230,7 +239,7 @@ static int rv_burner_build_assets(const rv_burner_options &options, rv_pdklib::r
 
     const char *scripts_wording =
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
-    rv_burner_print_step(3, "assets",
+    rv_burner_print_step(k_step_assets, "assets",
         std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied", plan.texture_count,
             plan.sound_count, plan.script_count, scripts_wording, plan.asset_count));
     return 0;

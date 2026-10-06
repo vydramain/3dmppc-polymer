@@ -27,6 +27,18 @@
 #include "rv_burner_print.hpp"
 #include "rv_burner_inspect/rv_burner_inspect_runner.hpp"
 
+namespace
+{
+// Commands with bake-texture need 2 operands: disc directory and source to bake.
+constexpr int k_bake_texture_operands = 2;
+
+// Minimum argc: program name plus command.
+constexpr int k_min_argc = 2;
+
+// Base 10 for decimal number parsing in strtol.
+constexpr int k_decimal_base = 10;
+} // namespace
+
 namespace rv_pdktools
 {
 static void print_usage(std::FILE *stream)
@@ -124,7 +136,7 @@ static int nullable_handler(const rv_burner_options &)
 constexpr rv_burner_command_spec COMMANDS[] = {
     { "build", RV_BURNER_MASK_BUILD, 1, rv_burner_build_run },
     { "inspect", RV_BURNER_MASK_INSPECT, 1, rv_burner_inspect_run },
-    { "bake-texture", RV_BURNER_MASK_BAKE, 2, rv_burner_bake_texture_run },
+    { "bake-texture", RV_BURNER_MASK_BAKE, k_bake_texture_operands, rv_burner_bake_texture_run },
     { "help", 0, 0, nullable_handler },
     { "-h", 0, 0, nullable_handler },
     { "--help", 0, 0, nullable_handler },
@@ -133,7 +145,7 @@ constexpr rv_burner_command_spec COMMANDS[] = {
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < k_min_argc) {
         rv_pdktools::print_usage(stderr);
         return 1;
     }
@@ -224,7 +236,7 @@ int main(int argc, char **argv)
         }
         case 'j': {
             char *end = nullptr;
-            const long value = std::strtol(optarg, &end, 10);
+            const long value = std::strtol(optarg, &end, k_decimal_base);
             if (*optarg == '\0' || *end != '\0' || value <= 0 || value > INT_MAX) {
                 rv_pdktools::rv_burner_print_error("invalid --jobs value '" + std::string(optarg) + "'");
                 return 1;
@@ -265,7 +277,7 @@ int main(int argc, char **argv)
     if (cmd->operands >= 1) {
         burner_options.operand = local_argv[optind];
     }
-    if (cmd->operands >= 2) {
+    if (cmd->operands >= k_bake_texture_operands) {
         burner_options.bake_source = local_argv[optind + 1];
     }
 
