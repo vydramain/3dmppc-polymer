@@ -16,6 +16,7 @@
 
 #include "panes/rv_editor_panes.hpp"
 #include "text/rv_editor_text.hpp"
+#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -24,14 +25,6 @@ namespace rv_editor
 namespace
 {
 
-// RGB channel shift: red in bits 16-23.
-constexpr int channel_shift_red = 16;
-// RGB channel shift: green in bits 8-15.
-constexpr int channel_shift_green = 8;
-// Mask for 8-bit colour channel.
-constexpr uint32_t rgb_channel_mask = 0xff;
-// Alpha channel fully opaque.
-constexpr int alpha_opaque = 255;
 // UTF-8 single-byte lead threshold.
 constexpr uint8_t utf8_1byte_limit = 0x80;
 // UTF-8 two-byte lead byte pattern check (bits 7:5 = 0b110).
@@ -70,7 +63,7 @@ constexpr int scroll_lines_per_notch = 3;
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
     return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask, (rgb >> channel_shift_green) & rgb_channel_mask,
-        rgb & rgb_channel_mask, alpha_opaque);
+        rgb & rgb_channel_mask, rv_editor::alpha_opaque);
 }
 
 // One line of cells: backgrounds other than the area's own in runs, then each

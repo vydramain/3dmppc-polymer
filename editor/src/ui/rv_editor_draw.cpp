@@ -37,12 +37,6 @@ constexpr uint32_t luma_g_coeff = 587;
 constexpr uint32_t luma_b_coeff = 114;
 // Luma threshold for bright ink on coloured backgrounds (ITU-R BT.601 * 1000).
 constexpr uint32_t luma_brightness_threshold = 128000;
-// Bit shift to extract red channel from 0xRRGGBB color.
-constexpr int channel_shift_red = 16;
-// Bit shift to extract green channel from 0xRRGGBB color.
-constexpr int channel_shift_green = 8;
-// Bitmask for a single 8-bit color channel.
-constexpr uint32_t rgb_channel_mask = 0xffu;
 
 // Whole-pixel rectangle; every primitive below ends here.
 void rv_editor_fill(ImDrawList *dl, float x0, float y0, float x1, float y1, uint32_t color)

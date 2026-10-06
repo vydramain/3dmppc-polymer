@@ -31,12 +31,6 @@ constexpr int measure_window_height = 240; // pixels, temporary measurement canv
 // Frames needed to stabilize window size calculation.
 constexpr int measure_frames_count = 4; // iterations for size convergence
 
-// Bit masks and shifts for extracting RGB color components.
-constexpr int color_channel_mask = 0xff; // isolate one color channel
-constexpr int color_red_shift = 16;      // red channel bit position in packed color
-constexpr int color_green_shift = 8;     // green channel bit position in packed color
-constexpr int color_alpha_opaque = 255;  // maximum alpha for fully opaque color
-
 } // namespace
 
 rv_editor_display_size rv_editor_get_display_size(SDL_Window *window)
@@ -192,9 +186,9 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
 
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, (theme.window >> color_red_shift) & color_channel_mask,
-            (theme.window >> color_green_shift) & color_channel_mask, theme.window & color_channel_mask,
-            color_alpha_opaque);
+        SDL_SetRenderDrawColor(renderer, (theme.window >> channel_shift_red) & rgb_channel_mask,
+            (theme.window >> channel_shift_green) & rgb_channel_mask, theme.window & rgb_channel_mask,
+            alpha_opaque);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);

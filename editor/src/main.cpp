@@ -31,14 +31,6 @@
 namespace
 {
 
-// RGB channel shift: red in bits 16-23.
-constexpr int channel_shift_red = 16;
-// RGB channel shift: green in bits 8-15.
-constexpr int channel_shift_green = 8;
-// Mask for 8-bit colour channel.
-constexpr uint32_t rgb_channel_mask = 0xffu;
-// Opaque alpha value for colour rendering.
-constexpr uint8_t alpha_opaque = 255;
 // UI text filename next to preferences.
 constexpr std::string_view ui_texts_filename = "texts.toml";
 // Window padding counts twice: above and below the status bar.
@@ -402,9 +394,11 @@ int main(int argc, char **argv)
         rv_editor_frame(*shell, theme);
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, (theme.window >> channel_shift_red) & rgb_channel_mask,
-            (theme.window >> channel_shift_green) & rgb_channel_mask, theme.window & rgb_channel_mask,
-            alpha_opaque);
+        SDL_SetRenderDrawColor(renderer,
+            (theme.window >> rv_editor::channel_shift_red) & rv_editor::rgb_channel_mask,
+            (theme.window >> rv_editor::channel_shift_green) & rv_editor::rgb_channel_mask,
+            theme.window & rv_editor::rgb_channel_mask,
+            rv_editor::alpha_opaque);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);

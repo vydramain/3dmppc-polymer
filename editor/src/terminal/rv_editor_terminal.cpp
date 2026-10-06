@@ -8,6 +8,7 @@
 #include <vterm.h>
 
 #include "pdk/rv_err.h"
+#include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
 {
@@ -15,12 +16,6 @@ namespace rv_editor
 namespace
 {
 
-// RGB channel shift: red in bits 16-23.
-constexpr int channel_shift_red = 16;
-// RGB channel shift: green in bits 8-15.
-constexpr int channel_shift_green = 8;
-// Mask for 8-bit colour channel.
-constexpr uint32_t rgb_channel_mask = 0xffu;
 // Minimum columns or rows for terminal grid.
 constexpr int min_terminal_size = 2;
 // ANSI color palette size (standard 16 colours).

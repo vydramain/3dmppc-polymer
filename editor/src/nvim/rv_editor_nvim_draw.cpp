@@ -8,19 +8,14 @@
 
 #include "imgui.h"
 
+#include "theme/rv_editor_theme_imgui.hpp"
+
 namespace rv_editor
 {
 
 namespace
 {
 
-// Bit shifts to extract RGB channels from packed 0xRRGGBB colour
-constexpr int channel_shift_red = 16;
-constexpr int channel_shift_green = 8;
-// 8-bit channel mask of a packed 0xRRGGBB colour
-constexpr uint32_t rgb_channel_mask = 0xffu;
-// Full opacity in IM_COL32 (8-bit alpha)
-constexpr uint32_t alpha_opaque = 255;
 // Minimum cursor dimension in pixels to ensure visibility
 constexpr float cursor_min_dimension_px = 2.0f;
 // Scale factor to convert cursor shape percent to fraction
@@ -35,7 +30,7 @@ constexpr std::string_view float_anchor_se = "SE";
 ImU32 rv_editor_rgb(uint32_t rgb)
 {
     return IM_COL32((rgb >> channel_shift_red) & rgb_channel_mask,
-        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask, alpha_opaque);
+        (rgb >> channel_shift_green) & rgb_channel_mask, rgb & rgb_channel_mask, rv_editor::alpha_opaque);
 }
 
 void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen, const rv_editor_nvim_grid &grid, ImVec2 at,

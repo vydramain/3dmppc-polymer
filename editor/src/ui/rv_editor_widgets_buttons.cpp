@@ -50,9 +50,6 @@ ImVec2 rv_editor_floor(ImVec2 v)
 // Blend two 0xRRGGBB colours by averaging each channel.
 uint32_t rv_editor_blend_color(uint32_t color1, uint32_t color2)
 {
-    constexpr int channel_shift_red = 16;
-    constexpr int channel_shift_green = 8;
-    constexpr uint32_t rgb_channel_mask = 0xffu;
     // Two colours are averaged.
     constexpr uint32_t blended_colors = 2;
 

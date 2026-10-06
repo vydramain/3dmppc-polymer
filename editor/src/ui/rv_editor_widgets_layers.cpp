@@ -23,11 +23,6 @@ constexpr int well_blend_divisor = 2;
 // Number of render channels for layered drawing (strip, content).
 constexpr int channel_count = 2;
 
-// Color channel layout: 0xRRGGBB; extract and compose RGB values.
-constexpr int red_shift = 16;
-constexpr int green_shift = 8;
-constexpr int channel_mask = 0xff;
-
 // Padding applied on both sides of the well (reduces inner size by this multiple of pad).
 constexpr float padded_sides = 2.0f;
 
@@ -38,13 +33,13 @@ uint32_t rv_editor_shelf_fill(const rv_editor_theme &theme)
     const auto lerp8 = [](int a, int b) {
         return static_cast<uint32_t>(a + (b - a) / shelf_blend_divisor);
     };
-    const int wr = (theme.window >> red_shift) & channel_mask;
-    const int wg = (theme.window >> green_shift) & channel_mask;
-    const int wb = theme.window & channel_mask;
-    const int hr = (theme.bevel_hi >> red_shift) & channel_mask;
-    const int hg = (theme.bevel_hi >> green_shift) & channel_mask;
-    const int hb = theme.bevel_hi & channel_mask;
-    return (lerp8(wr, hr) << red_shift) | (lerp8(wg, hg) << green_shift) | lerp8(wb, hb);
+    const int wr = (theme.window >> channel_shift_red) & rgb_channel_mask;
+    const int wg = (theme.window >> channel_shift_green) & rgb_channel_mask;
+    const int wb = theme.window & rgb_channel_mask;
+    const int hr = (theme.bevel_hi >> channel_shift_red) & rgb_channel_mask;
+    const int hg = (theme.bevel_hi >> channel_shift_green) & rgb_channel_mask;
+    const int hb = theme.bevel_hi & rgb_channel_mask;
+    return (lerp8(wr, hr) << channel_shift_red) | (lerp8(wg, hg) << channel_shift_green) | lerp8(wb, hb);
 }
 
 // The well has no token of its own either: halfway between the inset tone and
@@ -54,13 +49,13 @@ uint32_t rv_editor_well_fill(const rv_editor_theme &theme)
     const auto lerp8 = [](int a, int b) {
         return static_cast<uint32_t>((a + b) / well_blend_divisor);
     };
-    const int ir = (theme.inset >> red_shift) & channel_mask;
-    const int ig = (theme.inset >> green_shift) & channel_mask;
-    const int ib = theme.inset & channel_mask;
-    const int dr = (theme.dark >> red_shift) & channel_mask;
-    const int dg = (theme.dark >> green_shift) & channel_mask;
-    const int db = theme.dark & channel_mask;
-    return (lerp8(ir, dr) << red_shift) | (lerp8(ig, dg) << green_shift) | lerp8(ib, db);
+    const int ir = (theme.inset >> channel_shift_red) & rgb_channel_mask;
+    const int ig = (theme.inset >> channel_shift_green) & rgb_channel_mask;
+    const int ib = theme.inset & rgb_channel_mask;
+    const int dr = (theme.dark >> channel_shift_red) & rgb_channel_mask;
+    const int dg = (theme.dark >> channel_shift_green) & rgb_channel_mask;
+    const int db = theme.dark & rgb_channel_mask;
+    return (lerp8(ir, dr) << channel_shift_red) | (lerp8(ig, dg) << channel_shift_green) | lerp8(ib, db);
 }
 
 struct rv_editor_shelf_frame

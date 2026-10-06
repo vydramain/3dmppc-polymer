@@ -74,6 +74,9 @@ constexpr int hash_length_bytes = 8;
 // Bits per byte for length encoding: FIPS 180-4, section 5.1.1.
 constexpr int bits_per_byte = 8;
 
+// Maximum padding blocks SHA-256 ever needs: padding start byte + length field.
+constexpr int max_padding_blocks = 2;
+
 // Buffer size for file streaming: power of 2 for efficiency.
 constexpr size_t buffer_size = 1 << 16;
 
@@ -174,7 +177,7 @@ std::string rv_editor_sha256_file(const std::filesystem::path &path, uint64_t &s
     std::copy(buf.begin(), buf.begin() + static_cast<std::ptrdiff_t>(held), tail.begin());
     tail[held] = padding_byte;
     const size_t length_field_with_padding = hash_length_bytes + 1;
-    const size_t blocks = held + length_field_with_padding > block_size ? 2 : 1;
+    const size_t blocks = held + length_field_with_padding > block_size ? max_padding_blocks : 1;
     const uint64_t bits = size * bits_per_byte;
     for (int i = 0; i < hash_length_bytes; ++i) {
         tail[blocks * block_size - 1 - i] = static_cast<unsigned char>(bits >> (i * bits_per_byte));
