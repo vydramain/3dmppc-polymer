@@ -26,6 +26,13 @@ namespace
 constexpr std::string_view run_config_dir = ".3dmppc-editor";
 constexpr std::string_view run_config_file = "project.toml";
 
+// Console command-line flags for run profile options (see src/rv_pboot/rv_pboot_args.cpp).
+constexpr std::string_view console_flag_mute = "--mute";
+constexpr std::string_view console_flag_paused = "--paused";
+constexpr std::string_view console_flag_fixed_step = "--fixed-step";
+constexpr std::string_view console_flag_scale = "--scale";
+constexpr std::string_view console_flag_scale_short = "-s"; // short form of --scale (window magnification)
+
 // File header comment written to project configuration file.
 constexpr std::string_view run_config_header =
     "# Run profiles of 3dmppc-editor (Run > Run Configuration); the editor rewrites this file.\n\n";
@@ -279,13 +286,13 @@ std::string rv_editor_run_profile_problem(const rv_editor_run_profile &p, const 
         { "-m", "run_profile.owned_memcard" },
         { "--memcard", "run_profile.owned_memcard" },
         { "-M", "run_profile.owned_mute" },
-        { "--mute", "run_profile.owned_mute" },
-        { "--paused", "run_profile.owned_paused" },
+        { console_flag_mute, "run_profile.owned_mute" },
+        { console_flag_paused, "run_profile.owned_paused" },
         { "-F", "run_profile.owned_fixed_step" },
-        { "--fixed-step", "run_profile.owned_fixed_step" },
+        { console_flag_fixed_step, "run_profile.owned_fixed_step" },
         { "-d", "run_profile.owned_disc" },
         { "--disc", "run_profile.owned_disc" },
-        { "--scale", "run_profile.owned_scale" },
+        { console_flag_scale, "run_profile.owned_scale" },
     } };
     for (const std::string &a : p.args) {
         const std::string_view flag = std::string_view(a).substr(0, a.find('='));
@@ -296,7 +303,7 @@ std::string rv_editor_run_profile_problem(const rv_editor_run_profile &p, const 
                     std::make_format_args(a, why_text));
             }
         }
-        if (flag == "-s") {
+        if (flag == console_flag_scale_short) {
             return rv_editor_text("run_profile.console_option_s");
         }
     }
@@ -307,13 +314,13 @@ std::vector<std::string> rv_editor_run_profile_args(const rv_editor_run_profile 
 {
     std::vector<std::string> args;
     if (p.mute) {
-        args.push_back("--mute");
+        args.push_back(std::string(console_flag_mute));
     }
     if (p.paused) {
-        args.push_back("--paused");
+        args.push_back(std::string(console_flag_paused));
     }
     if (p.fixed_step) {
-        args.push_back("--fixed-step");
+        args.push_back(std::string(console_flag_fixed_step));
     }
     args.insert(args.end(), p.args.begin(), p.args.end());
     return args;

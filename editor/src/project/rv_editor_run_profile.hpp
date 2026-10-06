@@ -8,11 +8,14 @@
 namespace rv_editor
 {
 
+// Default run profile name, written to the profiles file.
+constexpr std::string_view default_run_profile_name = "Default";
+
 // How Run starts the development console. Tool paths are Settings'; a
 // profile only says what differs for this project. Relative paths are the root's.
 struct rv_editor_run_profile
 {
-    std::string name = "Default";
+    std::string name = std::string(default_run_profile_name);
     std::string runtime;           // empty: Settings' runtime
     std::string memcard;           // empty: the project's card in the state directory
     std::string cwd;               // empty: the project root

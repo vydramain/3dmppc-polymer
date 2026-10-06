@@ -24,6 +24,18 @@ constexpr size_t read_chunk_bytes = 1 << 20;
 // A cancelled burner gets this long to stop by itself before it is killed.
 constexpr auto rv_editor_cancel_grace = std::chrono::seconds(3);
 
+// Build log file extension.
+constexpr std::string_view build_log_ext = ".log";
+
+// mppcburner command: build a disc or candidate image.
+constexpr std::string_view build_command = "build";
+
+// mppcburner flag: use this baker binary.
+constexpr std::string_view build_flag_baker = "--baker";
+
+// mppcburner flag: write the disc map to this file.
+constexpr std::string_view build_flag_map = "--map";
+
 // `name` as a whole number, or 0 if any of it is not a digit.
 uint32_t rv_editor_parse_number(const std::string &name)
 {
@@ -59,7 +71,7 @@ std::vector<uint32_t> rv_editor_build_numbers(const std::filesystem::path &build
             }
             continue;
         }
-        if (it->path().extension() == ".log") {
+        if (it->path().extension() == build_log_ext) {
             const uint32_t n = rv_editor_parse_number(it->path().stem().string());
             if (n != 0) {
                 numbers.push_back(n);
@@ -125,8 +137,9 @@ int rv_editor_build::start(const rv_editor_project &project, const rv_editor_too
             error = image_.string() + " already exists";
             return RV_ERR_INVAL;
         }
-        const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "-o",
-            image_.string(), "--baker", tools.baker.path.string(), "--map",
+        const std::vector<std::string> argv = { tools.burner.path.string(), std::string(build_command),
+            project.root.string(), "-o", image_.string(), std::string(build_flag_baker),
+            tools.baker.path.string(), std::string(build_flag_map),
             rv_editor_build_map_path(image_).string() };
         const int err = proc_.start(argv, project.root, error);
         if (err != RV_OK) {
@@ -151,8 +164,9 @@ int rv_editor_build::start(const rv_editor_project &project, const rv_editor_too
     number_ = numbers.empty() ? 1 : numbers.back() + 1;
     dir_ = builds_ / std::to_string(number_);
 
-    const std::vector<std::string> argv = { tools.burner.path.string(), "build", project.root.string(), "--unpacked",
-        dir_.string(), "--baker", tools.baker.path.string(), "--map", rv_editor_build_map_path(dir_).string() };
+    const std::vector<std::string> argv = { tools.burner.path.string(), std::string(build_command),
+        project.root.string(), "--unpacked", dir_.string(), std::string(build_flag_baker),
+        tools.baker.path.string(), std::string(build_flag_map), rv_editor_build_map_path(dir_).string() };
     const int err = proc_.start(argv, project.root, error);
     if (err != RV_OK) {
         return err;
@@ -269,7 +283,7 @@ void rv_editor_build::prune(const std::filesystem::path &in_use)
         std::error_code ec;
         std::filesystem::remove_all(dir, ec);
         std::filesystem::remove(rv_editor_build_map_path(dir), ec);
-        std::filesystem::remove(builds_ / (std::to_string(numbers[i]) + ".log"), ec);
+        std::filesystem::remove(builds_ / (std::to_string(numbers[i]) + std::string(build_log_ext)), ec);
     }
 }
 
