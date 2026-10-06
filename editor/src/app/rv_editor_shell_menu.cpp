@@ -159,8 +159,8 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             const char *why_not = nullptr;
             char why_not_buffer[64];
             if (!fits && s.scale != 1.0f) {
-                const int needed_w = static_cast<int>(std::ceil(1280.0f * s.scale));
-                const int needed_h = static_cast<int>(std::ceil(720.0f * s.scale));
+                const int needed_w = static_cast<int>(std::ceil(static_cast<float>(window_min_width) * s.scale));
+                const int needed_h = static_cast<int>(std::ceil(static_cast<float>(window_min_height) * s.scale));
                 std::snprintf(why_not_buffer, sizeof(why_not_buffer), "Needs a %dx%d display", needed_w, needed_h);
                 why_not = why_not_buffer;
             }
@@ -406,8 +406,8 @@ bool rv_editor_shell_scale_fits(SDL_Window *window, float scale)
     // Display mode size is in points; convert to pixels using pixel density.
     int display_w_pixels = static_cast<int>(mode->w * mode->pixel_density);
     int display_h_pixels = static_cast<int>(mode->h * mode->pixel_density);
-    int needed_w = static_cast<int>(std::ceil(1280 * scale));
-    int needed_h = static_cast<int>(std::ceil(720 * scale));
+    int needed_w = static_cast<int>(std::ceil(window_min_width * scale));
+    int needed_h = static_cast<int>(std::ceil(window_min_height * scale));
     return needed_w <= display_w_pixels && needed_h <= display_h_pixels;
 }
 
