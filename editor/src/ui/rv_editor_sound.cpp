@@ -13,6 +13,9 @@ namespace rv_editor
 namespace
 {
 
+// Sample rate of the interface sounds in Hz.
+constexpr int sound_sample_rate = 44100;
+
 // One sound at a time: the open audio subsystem, its stream, and the file it plays.
 struct rv_editor_sound_state
 {
@@ -69,7 +72,7 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         }
         spec.format = SDL_AUDIO_S16LE;
         spec.channels = 1;
-        spec.freq = 44100;
+        spec.freq = sound_sample_rate;
         data = pcm.data();
         len = static_cast<uint32_t>(pcm.size());
     } else {

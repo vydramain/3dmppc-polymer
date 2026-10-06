@@ -21,6 +21,9 @@ rv_editor_change_plan rv_editor_app_change_for(const rv_editor_app &app, const s
 namespace
 {
 
+// Quiet time after the last file change before a reload.
+constexpr auto reload_delay = std::chrono::milliseconds(300);
+
 // Sends the reload for `file`'s plan (reload_module: that module; otherwise the
 // entry); an empty `file` always means the entry. The caller has already gated.
 void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &file)
@@ -63,7 +66,7 @@ void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::
         app.reload_queue.push_back(changed);
     }
     // Every relevant change moves the settle wait on, for the whole burst.
-    app.reload_due = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+    app.reload_due = std::chrono::steady_clock::now() + reload_delay;
 }
 
 void rv_editor_app_reload_queue_update(rv_editor_app &app)
