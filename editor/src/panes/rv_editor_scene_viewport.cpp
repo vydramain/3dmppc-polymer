@@ -21,6 +21,38 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+constexpr float wheel_height_factor = 0.75f;
+constexpr float min_viewport_size = 40.0f;
+constexpr float wheel_width_spacing = 2.0f;
+constexpr float line_height_spacing = 2.0f;
+constexpr float gap_multiplier = 4.0f;
+constexpr double rotation_sensitivity = 0.4;
+constexpr double pitch_min = -89.9;
+constexpr double pitch_max = 89.9;
+constexpr float half = 0.5f;
+constexpr double dolly_sensitivity = 0.01;
+constexpr double camera_distance_min = 0.5;
+constexpr double camera_distance_max = 200.0;
+constexpr double pan_sensitivity = 0.002;
+constexpr double zoom_base = 0.9;
+constexpr double keyboard_rotation_step = 2.0;
+constexpr float line_width_selected = 2.0f;
+constexpr float gizmo_line_width_normal = 2.0f;
+constexpr float gizmo_line_width_hot = 4.0f;
+constexpr float gizmo_circle_radius = 40.0f;
+constexpr int gizmo_circle_segments = 32;
+constexpr float gizmo_circle_line_width = 1.5f;
+constexpr double gizmo_size_factor = 0.15;
+constexpr float gizmo_click_threshold = 40.0f;
+constexpr float text_wrap_width = 28.0f;
+constexpr float status_text_offset = 2.0f;
+constexpr int grid_half_extent = 10;
+
+} // namespace
+
 void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
 {
     rv_editor_scene_doc &doc = *app.scene;
@@ -36,24 +68,26 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     // The canvas between a Rot X wheel on the left, a Dolly wheel on the right and a
     // Rot Y wheel below, as Open Inventor's viewers have them; each wheel carries a
     // visible label in the UI font.
-    const float wheel = ImGui::GetFrameHeight() * 0.75f;
+    const float wheel = ImGui::GetFrameHeight() * wheel_height_factor;
     const float gap = ImGui::GetStyle().ItemSpacing.x;
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float line = ImGui::GetTextLineHeightWithSpacing();
     const ImVec2 label_x = ImGui::CalcTextSize("Rot X");
     const ImVec2 label_y = ImGui::CalcTextSize("Rot Y");
     const ImVec2 label_d = ImGui::CalcTextSize("Dolly");
-    const ImVec2 size(std::max(40.0f, avail.x - 2.0f * wheel - label_x.x - label_d.x - 4.0f * gap),
-        std::max(40.0f, avail.y - wheel - 2.0f * line - gap));
+    const ImVec2 size(
+        std::max(min_viewport_size, avail.x - wheel_width_spacing * wheel - label_x.x - label_d.x - gap_multiplier * gap),
+        std::max(min_viewport_size, avail.y - wheel - line_height_spacing * line - gap));
     bool reset = false;
     const ImVec2 top = ImGui::GetCursorScreenPos();
-    cam.pitch = std::clamp(cam.pitch - rv_editor_thumbwheel("##rotx", "Rot X", true, size.y, theme, reset) * 0.4,
-        -89.9, 89.9);
+    cam.pitch = std::clamp(
+        cam.pitch - rv_editor_thumbwheel("##rotx", "Rot X", true, size.y, theme, reset) * rotation_sensitivity,
+        pitch_min, pitch_max);
     if (reset) {
         cam.pitch = rv_editor_scene_camera{}.pitch;
     }
     ImGui::SameLine();
-    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * 0.5f));
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
     ImGui::TextUnformatted("Rot X");
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
@@ -64,50 +98,54 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     const bool focused = ImGui::IsItemFocused() || ImGui::IsWindowFocused();
     ImGui::SameLine();
     const ImVec2 dolly_top = ImGui::GetCursorScreenPos();
-    cam.distance = std::clamp(cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", "Dolly", true, size.y, theme, reset) *
-        0.01), 0.5, 200.0);
+    cam.distance = std::clamp(
+        cam.distance * std::exp(-rv_editor_thumbwheel("##dolly", "Dolly", true, size.y, theme, reset) * dolly_sensitivity),
+        camera_distance_min, camera_distance_max);
     if (reset) {
         cam.distance = rv_editor_scene_camera{}.distance;
     }
     ImGui::SameLine();
-    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * 0.5f));
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
     ImGui::TextUnformatted("Dolly");
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
-    cam.yaw += rv_editor_thumbwheel("##roty", "Rot Y", false, size.x - gap - label_y.x, theme, reset) * 0.4;
+    cam.yaw += rv_editor_thumbwheel("##roty", "Rot Y", false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
     if (reset) {
         cam.yaw = rv_editor_scene_camera{}.yaw;
     }
     ImGui::SameLine();
-    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * 0.5f));
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
     ImGui::TextUnformatted("Rot Y");
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     ImGuiIO &io = ImGui::GetIO();
     const ImVec2 mouse = io.MousePos;
-    const double gizmo = cam.distance * 0.15;
+    const double gizmo = cam.distance * gizmo_size_factor;
     const bool read_only = !doc.scene.read_only.empty();
 
     // Navigation: right drag orbits, middle drag pans, the wheel dollies; keys as well.
     if (active && ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
-        cam.yaw += io.MouseDelta.x * 0.4;
-        cam.pitch = std::clamp(cam.pitch + io.MouseDelta.y * 0.4, -89.9, 89.9);
+        cam.yaw += io.MouseDelta.x * rotation_sensitivity;
+        cam.pitch = std::clamp(cam.pitch + io.MouseDelta.y * rotation_sensitivity, pitch_min, pitch_max);
     }
     if (active && ImGui::IsMouseDown(ImGuiMouseButton_Middle)) {
-        const double k = cam.distance * 0.002;
+        const double k = cam.distance * pan_sensitivity;
         cam.target = add(cam.target, add(mul(v.right, -io.MouseDelta.x * k), mul(v.up, io.MouseDelta.y * k)));
     }
     if (hovered && io.MouseWheel != 0.0f) {
-        cam.distance = std::clamp(cam.distance * std::pow(0.9, io.MouseWheel), 0.5, 200.0);
+        cam.distance = std::clamp(cam.distance * std::pow(zoom_base, io.MouseWheel), camera_distance_min, camera_distance_max);
     }
     if (focused && !io.WantTextInput && !ImGui::IsAnyItemActive()) {
-        cam.yaw += ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -2.0 : ImGui::IsKeyDown(ImGuiKey_RightArrow) ? 2.0 : 0.0;
-        cam.pitch = std::clamp(cam.pitch + (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? 2.0 : 0.0) -
-            (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? 2.0 : 0.0), -89.9, 89.9);
+        cam.yaw += ImGui::IsKeyDown(ImGuiKey_LeftArrow) ? -keyboard_rotation_step :
+            ImGui::IsKeyDown(ImGuiKey_RightArrow)       ? keyboard_rotation_step :
+                                                          0.0;
+        cam.pitch = std::clamp(cam.pitch + (ImGui::IsKeyDown(ImGuiKey_UpArrow) ? keyboard_rotation_step : 0.0) -
+                (ImGui::IsKeyDown(ImGuiKey_DownArrow) ? keyboard_rotation_step : 0.0),
+            pitch_min, pitch_max);
         if (ImGui::IsKeyPressed(ImGuiKey_Equal) || ImGui::IsKeyPressed(ImGuiKey_KeypadAdd)) {
-            cam.distance = std::max(0.5, cam.distance * 0.9);
+            cam.distance = std::max(camera_distance_min, cam.distance * zoom_base);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Minus) || ImGui::IsKeyPressed(ImGuiKey_KeypadSubtract)) {
-            cam.distance = std::min(200.0, cam.distance / 0.9);
+            cam.distance = std::min(camera_distance_max, cam.distance / zoom_base);
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Home)) {
             cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
@@ -117,7 +155,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         }
         // One letter per tool, only here, where it is not typing.
         const ImGuiKey keys[] = { ImGuiKey_Q, ImGuiKey_W, ImGuiKey_E, ImGuiKey_R };
-        for (int t = 0; t < 4; ++t) {
+        for (int t = 0; t < std::ssize(keys); ++t) {
             if (ImGui::IsKeyPressed(keys[t], false)) {
                 cam.tool = static_cast<rv_editor_scene_tool>(t);
             }
@@ -134,7 +172,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             } else if (cam.tool != rv_editor_scene_tool::select) {
                 ImVec2 so;
                 const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
-                if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < 40.0f) {
+                if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold) {
                     axis = 0;
                 }
             }
@@ -187,10 +225,12 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     dl->AddRectFilled(p0, p1, rv_editor_col(theme.code_base));
     if (cam.grid) {
         const ImU32 grid = rv_editor_col(theme.dark);
-        for (int i = -10; i <= 10; ++i) {
+        for (int i = -grid_half_extent; i <= grid_half_extent; ++i) {
             const double f = static_cast<double>(i);
-            rv_editor_line(dl, v, { f, 0, -10 }, { f, 0, 10 }, i == 0 ? rv_editor_col(theme.code_blue) : grid, 1.0f);
-            rv_editor_line(dl, v, { -10, 0, f }, { 10, 0, f }, i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
+            rv_editor_line(dl, v, { f, 0, -grid_half_extent }, { f, 0, grid_half_extent },
+                i == 0 ? rv_editor_col(theme.code_blue) : grid, 1.0f);
+            rv_editor_line(dl, v, { -grid_half_extent, 0, f }, { grid_half_extent, 0, f },
+                i == 0 ? rv_editor_col(theme.code_red) : grid, 1.0f);
         }
     }
     const bool filled = cam.shading != rv_editor_scene_shading::wireframe;
@@ -216,7 +256,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             }
         } else {
             for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i), &error)) {
-                rv_editor_line(dl, v, a, b, color, sel ? 2.0f : 1.0f);
+                rv_editor_line(dl, v, a, b, color, sel ? line_width_selected : 1.0f);
             }
         }
         if (mesh_error.empty() && !error.empty()) {
@@ -226,18 +266,19 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     const int at = rv_editor_scene_find(doc.scene, doc.selected);
     if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
         const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
-        const uint32_t colors[3] = { theme.code_red, theme.code_green, theme.code_blue };
-        for (int a = 0; a < 3; ++a) {
+        const uint32_t colors[] = { theme.code_red, theme.code_green, theme.code_blue };
+        for (int a = 0; a < std::ssize(colors); ++a) {
             vec3 tip = o;
             tip[static_cast<size_t>(a)] += gizmo;
             const bool hot = (ui.gizmo_dragging && ui.gizmo_axis == a) ||
                 (!ui.gizmo_dragging && hovered && rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo) == a);
-            rv_editor_line(dl, v, o, tip, rv_editor_col(colors[a]), hot ? 4.0f : 2.0f);
+            rv_editor_line(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
         }
     } else if (at >= 0 && cam.tool != rv_editor_scene_tool::select) {
         ImVec2 so;
         if (v.point(rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 }), so)) {
-            dl->AddCircle(so, 40.0f, rv_editor_col(theme.selection), 32, 1.5f);
+            dl->AddCircle(so, gizmo_circle_radius, rv_editor_col(theme.selection),
+                gizmo_circle_segments, gizmo_circle_line_width);
         }
     }
     dl->PopClipRect();
@@ -261,7 +302,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             read_tip = "The running disc did not open " + scene_name;
         }
     }
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + 2.0f));
+    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
     if (mesh_error.empty()) {
         ImGui::TextDisabled("%s | %s", buf, read_line);
     } else {
@@ -270,10 +311,10 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
     if (!read_tip.empty()) {
         ImGui::SetItemTooltip("%s", read_tip.c_str());
     }
-    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + 2.0f + line));
+    ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
     ImGui::TextDisabled("Example draws meshes as boxes");
     if (ImGui::BeginItemTooltip()) {
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 28.0f);
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
         ImGui::TextUnformatted("The viewport draws .obj meshes, quads, billboards and volumes. The example disc, and "
                                "every New Project made from it, draws each mesh object as a unit box, ignores its mesh "
                                "file, and does not draw quads, billboards or volumes. A disc draws only what its own "
