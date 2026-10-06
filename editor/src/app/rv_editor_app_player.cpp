@@ -9,6 +9,7 @@
 
 #include "project/rv_editor_toml.hpp"
 #include "release/rv_editor_candidate_store.hpp"
+#include "text/rv_editor_text.hpp"
 
 #include "pdk/rv_err.h"
 
@@ -97,17 +98,17 @@ const char *rv_editor_app_why_not_play(const rv_editor_app &app)
 {
     const rv_editor_release &r = app.release;
     if (r.candidates.empty()) {
-        return "No candidate yet: Build Candidate first";
+        return rv_editor_text("app_player.no_candidate");
     }
     if (r.player != nullptr) {
-        return "The player is running";
+        return rv_editor_text("app_player.player_running");
     }
     const rv_editor_candidate &c = r.candidates[r.selected];
     if (c.bytes_changed) {
-        return "The image's bytes changed after it was built";
+        return rv_editor_text("app_player.image_bytes_changed");
     }
     if (c.sha256.empty()) {
-        return "Hashing the image first";
+        return rv_editor_text("app_player.hashing_image");
     }
     if (!app.tools.player.problem.empty()) {
         return app.tools.player.problem.c_str();

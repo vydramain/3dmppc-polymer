@@ -552,3 +552,15 @@ runtime_with_number = "Runtime: {}, session {}"
 swatch_format = "{} #{:06x}"
 missing = "(missing)"
 cyrillic_label = "Cyrillic: Каталог"
+
+[app_player]
+no_candidate = "No candidate yet: Build Candidate first"
+player_running = "The player is running"
+image_bytes_changed = "The image's bytes changed after it was built"
+hashing_image = "Hashing the image first"
+
+[app_release]
+no_candidate = "No candidate yet: Build Candidate first"
+image_bytes_changed = "The image's bytes changed after it was built"
+hashing_image = "Hashing the image first"
+session_running = "A session is running: Stop it first"

@@ -5,6 +5,7 @@
 
 #include "release/rv_editor_candidate_store.hpp"
 #include "project/rv_editor_toml.hpp"
+#include "text/rv_editor_text.hpp"
 
 #include <charconv>
 #include <fstream>
@@ -133,17 +134,17 @@ const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
 {
     const rv_editor_release &r = app.release;
     if (r.candidates.empty()) {
-        return "No candidate yet: Build Candidate first";
+        return rv_editor_text("app_release.no_candidate");
     }
     const rv_editor_candidate &c = r.candidates[r.selected];
     if (c.bytes_changed) {
-        return "The image's bytes changed after it was built";
+        return rv_editor_text("app_release.image_bytes_changed");
     }
     if (c.sha256.empty()) {
-        return "Hashing the image first";
+        return rv_editor_text("app_release.hashing_image");
     }
     if (app.session.live()) {
-        return "A session is running: Stop it first";
+        return rv_editor_text("app_release.session_running");
     }
     if (!app.tools.console.problem.empty()) {
         return app.tools.console.problem.c_str();
