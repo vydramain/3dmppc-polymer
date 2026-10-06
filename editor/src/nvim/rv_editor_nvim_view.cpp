@@ -87,7 +87,8 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
     }
     if (front != nullptr && shown.empty()) {
         active = static_cast<int>(text.size());
-        text.push_back(std::string("Untitled") + (front->modified ? rv_editor_text("pane_code.file_modified_marker") : ""));
+        text.push_back(std::string(rv_editor_text("pane_code.untitled_document")) +
+            (front->modified ? rv_editor_text("pane_code.file_modified_marker") : ""));
     }
     if (text.empty()) {
         return;
@@ -112,11 +113,15 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
     rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##tabmenu")) {
         const bool named = active >= 0 && active < static_cast<int>(tabs.names.size());
-        const char *why_not = !named                   ? "An Untitled document has no tab to close; save it first."
-            : tabs.names.size() < 2                    ? "The tile's only file stays in front."
-            : held(tabs.names[static_cast<size_t>(active)])->modified ? "The file has unsaved changes; save it first."
-                                                       : nullptr;
-        if (ImGui::MenuItem("Close Tab", nullptr, false, why_not == nullptr)) {
+        const char *why_not = nullptr;
+        if (!named) {
+            why_not = rv_editor_text("pane_code.close_tab_untitled");
+        } else if (tabs.names.size() < 2) {
+            why_not = rv_editor_text("pane_code.close_tab_only_file");
+        } else if (held(tabs.names[static_cast<size_t>(active)])->modified) {
+            why_not = rv_editor_text("pane_code.close_tab_unsaved");
+        }
+        if (ImGui::MenuItem(rv_editor_text("pane_code.close_tab_menu_item"), nullptr, false, why_not == nullptr)) {
             const size_t at = static_cast<size_t>(active);
             tabs.dropped = tabs.names[at];
             tabs.names.erase(tabs.names.begin() + static_cast<std::ptrdiff_t>(at));
@@ -151,7 +156,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
     if (!nvim.problem.empty()) {
         ImGui::TextWrapped("%s", nvim.problem.c_str());
-        if (rv_editor_button("Start nvim Again", theme)) {
+        if (rv_editor_button(rv_editor_text("pane_code.start_nvim_again"), theme)) {
             nvim.problem.clear();
         }
         return;
@@ -168,7 +173,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     if (rv_editor_toggle("Vim##mode", &vim, theme)) {
         nvim.toggle_vim_mode();
     }
-    ImGui::SetItemTooltip("Full Vim: normal mode and Vim keys. Off: an ordinary editor. F2 switches too.");
+    ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.vim_mode_tooltip"));
     rv_editor_code_tab_row(app, pane, win, theme);
     rv_editor_shelf_end();
     // Swap recovery UI when nvim opened a file read-only due to a crashed nvim.
@@ -177,22 +182,24 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             rv_editor_shelf_begin("##swap", theme);
             if (swap->state == nvim_swap_state_recoverable) {
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted(
-                    "Unsaved text from a crashed nvim is in its swap file. The file is read-only until you choose.");
+                ImGui::TextUnformatted(rv_editor_text("pane_code.swap_recovery_message"));
                 ImGui::SameLine();
                 std::string name = buf->name;
-                if (rv_editor_button("Recover", theme)) {
+                if (rv_editor_button(rv_editor_text("pane_code.swap_recover_button"), theme)) {
                     nvim.swap_resolve(win, name, true);
                 }
-                ImGui::SetItemTooltip("Load the unsaved text from the swap file; save it to keep it.");
+                ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.swap_recover_button_tooltip"));
                 ImGui::SameLine();
-                if (rv_editor_button("Discard", theme)) {
+                if (rv_editor_button(rv_editor_text("pane_code.swap_discard_button"), theme)) {
                     nvim.swap_resolve(win, name, false);
                 }
-                ImGui::SetItemTooltip("Delete the swap file and keep the text on disk.");
+                ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.swap_discard_button_tooltip"));
             } else if (swap->state == nvim_swap_state_in_use) {
                 ImGui::AlignTextToFramePadding();
-                ImGui::Text("Read-only: nvim process %lld is editing this file.", static_cast<long long>(swap->pid));
+                const long long pid = static_cast<long long>(swap->pid);
+                const std::string readonly_msg = rv_editor_text_format("pane_code.readonly_process_editing",
+                    std::make_format_args(pid));
+                ImGui::Text("%s", readonly_msg.c_str());
             }
             rv_editor_shelf_end();
         }
@@ -249,7 +256,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     ImDrawList *dl = ImGui::GetWindowDrawList();
     dl->AddRectFilled(at, ImVec2(at.x + cols * cell.x, at.y + (rows + 2) * cell.y), rv_editor_col(rv_editor_mocha_base));
     if (grid == nullptr) {
-        dl->AddText(at, rv_editor_col(rv_editor_mocha_subtext0), "Starting nvim...");
+        dl->AddText(at, rv_editor_col(rv_editor_mocha_subtext0), rv_editor_text("pane_code.starting_nvim"));
         rv_editor_well_end();
         return;
     }
@@ -262,13 +269,19 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     // The tile's status line: the file, and whether it is saved.
     const ImVec2 status(at.x, at.y + rows * cell.y);
     dl->AddRectFilled(status, ImVec2(at.x + cols * cell.x, status.y + cell.y), rv_editor_col(rv_editor_mocha_surface1));
-    std::string label = "Untitled";
+    std::string label = rv_editor_text("pane_code.untitled_document");
     if (const rv_editor_nvim_buffer *buf = nvim.buffer_in(win)) {
         std::error_code ec;
         const std::filesystem::path rel = app.project.open && !buf->name.empty()
             ? std::filesystem::relative(buf->name, app.project.root, ec)
             : std::filesystem::path(buf->name);
-        label = buf->name.empty() ? "Untitled" : (ec || rel.empty() ? buf->name : rel.string());
+        if (buf->name.empty()) {
+            label = rv_editor_text("pane_code.untitled_document");
+        } else if (ec || rel.empty()) {
+            label = buf->name;
+        } else {
+            label = rel.string();
+        }
         label += buf->modified ? rv_editor_text("pane_code.file_modified_marker") : "";
     }
     dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_col(rv_editor_mocha_text), label.c_str());
@@ -280,8 +293,14 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         const std::string server = nvim.lsp_server_for(buf->name);
         const rv_editor_nvim_lsp *lsp = server.empty() ? nullptr : nvim.lsp_status(server);
         if (lsp != nullptr && lsp->state != nvim_lsp_state_running) {
+            std::string lsp_state;
+            if (lsp->state == nvim_lsp_state_missing) {
+                lsp_state = rv_editor_text("pane_code.lsp_state_missing");
+            } else {
+                lsp_state = rv_editor_text("pane_code.lsp_state_other");
+            }
             const std::string note =
-                "LSP: " + server + " " + (lsp->state == nvim_lsp_state_missing ? "not running" : "stopped");
+                rv_editor_text_format("pane_code.lsp_status_format", std::make_format_args(server, lsp_state));
             const ImVec2 note_pos(note_x, status.y);
             dl->AddText(note_pos, rv_editor_rgb(theme.code_yellow), note.c_str());
             if (!lsp->reason.empty()) {
@@ -304,23 +323,23 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
         bool warn = false;
         switch (plan.action) {
         case rv_editor_change_action::reload_entry:
-            text = "Reload: entry script";
+            text = rv_editor_text("pane_code.reload_entry_script");
             break;
         case rv_editor_change_action::reload_module:
-            owned = "Reload: module " + plan.name;
+            owned = rv_editor_text_format("pane_code.reload_module_format", std::make_format_args(plan.name));
             text = owned.c_str();
             break;
         case rv_editor_change_action::refresh_texture:
-            owned = "Refresh: texture " + plan.name;
+            owned = rv_editor_text_format("pane_code.refresh_texture_format", std::make_format_args(plan.name));
             text = owned.c_str();
             break;
         case rv_editor_change_action::build_restart:
         case rv_editor_change_action::restart_required:
-            text = "Build and Restart";
+            text = rv_editor_text("pane_code.build_restart");
             warn = true;
             break;
         case rv_editor_change_action::not_in_disc:
-            text = "Not on the running disc";
+            text = rv_editor_text("pane_code.not_on_running_disc");
             warn = true;
             break;
         case rv_editor_change_action::none:
