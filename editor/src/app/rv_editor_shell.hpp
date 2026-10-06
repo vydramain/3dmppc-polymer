@@ -172,6 +172,9 @@ void rv_editor_shell_shortcuts(rv_editor_shell &shell);
 // Help as a page or a tab: the keyboard shortcuts, filtered by what is typed.
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme);
 
+// The embedded user manual, as a page and a tab.
+void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme);
+
 // A menu item that is disabled with its reason shown on hover.
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
 // The main menu's Scene (editor/src/app/rv_editor_shell_menu_scene.cpp).
