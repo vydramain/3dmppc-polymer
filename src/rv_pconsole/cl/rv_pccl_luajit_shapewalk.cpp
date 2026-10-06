@@ -16,6 +16,7 @@
 
 #include "lua.hpp"
 
+#include "pdk/rv_err.h"
 #include "rv_pconsole/cl/rv_pccl_luajit_detail.hpp"
 
 namespace rv_3dmppc
@@ -37,7 +38,8 @@ bool legal_state_type(int t)
 // forbids during iteration, so a number key is converted on a throwaway
 // duplicate. Only string and number keys have a text form at all - anything
 // else is refused rather than guessed at. Stack-neutral on both paths.
-bool key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std::string &parent_path,
+// Returns RV_OK on success, RV_ERR_INVAL if the key has an invalid type.
+int key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std::string &parent_path,
     std::string &out)
 {
     const int t = lua_type(L, key_idx);
@@ -45,20 +47,20 @@ bool key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std:
         ctx.refused = true;
         ctx.refuse_path = parent_path;
         ctx.refuse_message = std::string("state key must be a string or number, found ") + lua_typename(L, t);
-        return false;
+        return RV_ERR_INVAL;
     }
     if (t == LUA_TSTRING) {
         std::size_t len = 0;
         const char *s = lua_tolstring(L, key_idx, &len);
         out.assign(s, len);
-        return true;
+        return RV_OK;
     }
     lua_pushvalue(L, key_idx);
     std::size_t len = 0;
     const char *s = lua_tolstring(L, -1, &len);
     out.assign(s, len);
     lua_pop(L, 1);
-    return true;
+    return RV_OK;
 }
 
 } // namespace
@@ -69,29 +71,31 @@ bool key_to_string(lua_State *L, int key_idx, shape_capture_ctx &ctx, const std:
 // `table_idx` is a table on the lua stack (the live state table, or one of
 // its own sub-tables on a recursive call) - there is no second, shape-side
 // table to walk in parallel any more.
-bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth)
+// Returns RV_OK on success, RV_ERR_INVAL on invalid state structure.
+int capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth)
 {
     lua_State *L = ctx.L;
     if (depth > kShapeMaxDepth) {
         ctx.refused = true;
         ctx.refuse_path = path;
         ctx.refuse_message = "state nested too deep";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (++ctx.nodes > kShapeMaxNodes) {
         ctx.refused = true;
         ctx.refuse_path = path;
         ctx.refuse_message = "state has too many fields";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     lua_pushnil(L);
     while (lua_next(L, table_idx) != 0) {
         // [key, value]
         std::string kstr;
-        if (!key_to_string(L, -2, ctx, path, kstr)) {
+        const int key_err = key_to_string(L, -2, ctx, path, kstr);
+        if (key_err != RV_OK) {
             lua_pop(L, 2);
-            return false;
+            return key_err;
         }
         const std::string child_path = path.empty() ? kstr : path + "." + kstr;
         if (++ctx.nodes > kShapeMaxNodes) {
@@ -99,7 +103,7 @@ bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path
             ctx.refuse_path = child_path;
             ctx.refuse_message = "state has too many fields";
             lua_pop(L, 2);
-            return false;
+            return RV_ERR_INVAL;
         }
 
         const int value_idx = lua_gettop(L);
@@ -109,7 +113,7 @@ bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path
             ctx.refuse_path = child_path;
             ctx.refuse_message = std::string("state holds a value it must not carry: a ") + lua_typename(L, t);
             lua_pop(L, 2);
-            return false;
+            return RV_ERR_INVAL;
         }
 
         // The comparison against what the console remembers - the only thing
@@ -124,22 +128,22 @@ bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path
                 ctx.refuse_message =
                     std::string("expected ") + lua_typename(L, it->second) + ", found " + lua_typename(L, t);
                 lua_pop(L, 2);
-                return false;
+                return RV_ERR_INVAL;
             }
         }
 
         (*ctx.fresh)[child_path] = t;
         if (t == LUA_TTABLE) {
-            const bool ok = capture_walk(ctx, value_idx, child_path, depth + 1);
+            const int walk_err = capture_walk(ctx, value_idx, child_path, depth + 1);
             lua_pop(L, 1); // value; key stays for lua_next
-            if (!ok) {
-                return false;
+            if (walk_err != RV_OK) {
+                return walk_err;
             }
             continue;
         }
         lua_pop(L, 1); // value; key stays for lua_next
     }
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

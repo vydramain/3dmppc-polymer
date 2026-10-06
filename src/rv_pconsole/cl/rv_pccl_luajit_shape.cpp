@@ -52,7 +52,7 @@ int rv_pccl_luajit::shape_capture_trampoline_(lua_State *L)
     ctx.old_shape = args->initial ? nullptr : &self->state_shape_;
     ctx.fresh = &args->fresh;
 
-    const bool ok = capture_walk(ctx, state_idx, "", 0);
+    const bool ok = capture_walk(ctx, state_idx, "", 0) == RV_OK;
     if (!ok) {
         args->refused = true;
         args->refuse_path = ctx.refuse_path;
