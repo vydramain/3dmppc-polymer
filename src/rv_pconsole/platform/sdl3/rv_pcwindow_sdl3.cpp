@@ -14,6 +14,9 @@ namespace rv_3dmppc
 namespace
 {
 
+// One ARGB8888 pixel is 4 bytes; the SDL texture pitch is the screen width times this.
+constexpr int ARGB8888_BYTES_PER_PIXEL = 4;
+
 // What the keyboard overlay on port 0 is able to report. A keyboard has no
 // analog anything, but the layout below drives the sticks digitally, so the
 // stick sources are advertised honestly - a disc that asks "can port 0 give me
@@ -132,7 +135,7 @@ void rv_pcwindow_sdl3::present(const uint32_t *argb)
         return;
     }
 
-    SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * 4));
+    SDL_UpdateTexture(texture_, nullptr, argb, static_cast<int>(screen_width_ * ARGB8888_BYTES_PER_PIXEL));
     SDL_RenderClear(renderer_);
     SDL_RenderTexture(renderer_, texture_, nullptr, nullptr);
     SDL_RenderPresent(renderer_);

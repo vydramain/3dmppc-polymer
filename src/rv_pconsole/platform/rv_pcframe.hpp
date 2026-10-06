@@ -23,9 +23,12 @@ inline constexpr uint32_t RV_PCFRAME_MAGIC = 0x42465652; // "RVFB"
 inline constexpr uint32_t RV_PCFRAME_VERSION = rv_pdklib::rv_version_packed32;
 inline constexpr uint32_t RV_PCFRAME_SLOTS = 3;
 inline constexpr uint32_t RV_PCFRAME_FORMAT_ARGB8888 = 1;
+inline constexpr uint32_t RV_PCFRAME_BYTES_PER_PIXEL = 4; // ARGB8888: 32-bit color
 inline constexpr uint32_t RV_PCFRAME_NONE = 0xFFFFFFFFu;
 inline constexpr uint64_t RV_PCFRAME_HEADER_BYTES = 64;
 inline constexpr uint64_t RV_PCFRAME_SLOT_HEADER_BYTES = 32;
+inline constexpr uint64_t RV_PCFRAME_SLOT_ALIGN = 64;  // slot_bytes is rounded up to a multiple of this
+inline constexpr uint32_t RV_PCFRAME_SEQLOCK_STEP = 2; // one write moves seq from even to the next even; odd while writing
 
 struct rv_pcframe_header {
     uint32_t magic;       // RV_PCFRAME_MAGIC

@@ -50,8 +50,10 @@ public:
             return RV_ERR_INVAL;
         }
 
-        uint64_t stride = w * 4;
-        uint64_t slot_bytes = (RV_PCFRAME_SLOT_HEADER_BYTES + stride * h + 63) / 64 * 64;
+        uint64_t stride = w * RV_PCFRAME_BYTES_PER_PIXEL;
+        uint64_t unaligned_size =
+            RV_PCFRAME_SLOT_HEADER_BYTES + stride * h + RV_PCFRAME_SLOT_ALIGN - 1;
+        uint64_t slot_bytes = (unaligned_size / RV_PCFRAME_SLOT_ALIGN) * RV_PCFRAME_SLOT_ALIGN;
         uint64_t size = RV_PCFRAME_HEADER_BYTES + RV_PCFRAME_SLOTS * slot_bytes;
 
         if (map_ != nullptr) {
@@ -120,11 +122,11 @@ public:
         slot->frame = ++frames_;
         slot->width = w_;
         slot->height = h_;
-        slot->stride = w_ * 4;
+        slot->stride = w_ * RV_PCFRAME_BYTES_PER_PIXEL;
         std::memcpy(reinterpret_cast<uint8_t *>(slot) + RV_PCFRAME_SLOT_HEADER_BYTES, argb,
-            w_ * 4 * h_);
+            w_ * RV_PCFRAME_BYTES_PER_PIXEL * h_);
 
-        seq.store(s + 2, std::memory_order_release);
+        seq.store(s + RV_PCFRAME_SEQLOCK_STEP, std::memory_order_release);
         // A reader drops a copy whose seq was odd or changed, so the console never waits.
         std::atomic_ref<uint32_t>(header->latest).store(k, std::memory_order_release);
         latest_ = k;
