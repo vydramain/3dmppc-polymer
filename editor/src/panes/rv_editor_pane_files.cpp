@@ -15,6 +15,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -25,11 +26,16 @@ namespace
 const char *rv_editor_files_dialog_title(rv_editor_files_view::rv_editor_files_dialog dialog)
 {
     switch (dialog) {
-        case rv_editor_files_view::rv_editor_files_dialog::new_file: return "New File";
-        case rv_editor_files_view::rv_editor_files_dialog::new_dir: return "New Folder";
-        case rv_editor_files_view::rv_editor_files_dialog::rename: return "Rename";
-        case rv_editor_files_view::rv_editor_files_dialog::remove: return "Delete";
-        default: return "";
+    case rv_editor_files_view::rv_editor_files_dialog::new_file:
+        return rv_editor_text("pane_files.dialog_title_new_file");
+    case rv_editor_files_view::rv_editor_files_dialog::new_dir:
+        return rv_editor_text("pane_files.dialog_title_new_dir");
+    case rv_editor_files_view::rv_editor_files_dialog::rename:
+        return rv_editor_text("pane_files.dialog_title_rename");
+    case rv_editor_files_view::rv_editor_files_dialog::remove:
+        return rv_editor_text("pane_files.dialog_title_remove");
+    default:
+        return "";
     }
 }
 
@@ -81,25 +87,25 @@ void rv_editor_files_ask(rv_editor_files_view &view, rv_editor_files_view::rv_ed
 
 void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const rv_editor_file_node &node)
 {
-    if (ImGui::MenuItem("New File")) {
+    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_file"))) {
         app.files.selected = node.path;
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file,
             rv_editor_files_target_dir(app), "");
     }
-    if (ImGui::MenuItem("New Folder")) {
+    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_folder"))) {
         app.files.selected = node.path;
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir,
             rv_editor_files_target_dir(app), "");
     }
-    if (!node.dir && ImGui::MenuItem("Open as Text")) {
+    if (!node.dir && ImGui::MenuItem(rv_editor_text("pane_files.menu_open_as_text"))) {
         app.open_as_text.insert(node.path);
         app.open_requests.push_back({ node.path, 0 });
     }
     const bool is_root = node.path == app.files.root().path;
-    if (ImGui::MenuItem("Rename", nullptr, false, !is_root)) {
+    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_rename"), nullptr, false, !is_root)) {
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::rename, node.path, node.name);
     }
-    if (ImGui::MenuItem("Delete", nullptr, false, !is_root)) {
+    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_delete"), nullptr, false, !is_root)) {
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::remove, node.path, node.name);
     }
 }
@@ -197,7 +203,10 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     }
     if (node.symlink && ImGui::IsItemHovered()) {
         std::error_code ec;
-        ImGui::SetTooltip("link to %s", std::filesystem::read_symlink(node.path, ec).c_str());
+        const std::string link_target = std::filesystem::read_symlink(node.path, ec).generic_string();
+        const std::string tooltip_text =
+            rv_editor_text_format("pane_files.symlink_tooltip", std::make_format_args(link_target));
+        ImGui::SetTooltip("%s", tooltip_text.c_str());
     }
     rv_editor_menu_style_push();
     if (ImGui::BeginPopupContextItem("##menu")) {
@@ -233,17 +242,25 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
     if (view.dialog == dialog_kind::remove) {
         std::error_code ec;
         const bool dir = std::filesystem::is_directory(std::filesystem::symlink_status(view.target, ec));
-        ImGui::TextWrapped("Delete %s%s? This cannot be undone. It removes:", what.c_str(),
-            dir ? " and everything in it" : "");
+        const std::string dir_suffix = dir ? rv_editor_text("pane_files.remove_with_contents") : "";
+        const std::string confirm_msg =
+            rv_editor_text_format("pane_files.remove_confirm", std::make_format_args(what, dir_suffix));
+        ImGui::TextWrapped("%s", confirm_msg.c_str());
         for (const std::string &entry : view.doomed) {
             ImGui::BulletText("%s", entry.c_str());
         }
         if (view.doomed_total > view.doomed.size()) {
-            ImGui::Text("and %zu more", view.doomed_total - view.doomed.size());
+            const size_t more_count = view.doomed_total - view.doomed.size();
+            const std::string more_text =
+                rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
+            ImGui::TextWrapped("%s", more_text.c_str());
         }
     } else {
-        ImGui::Text("%s in %s", view.dialog == dialog_kind::rename ? "New name" : "Name",
-            (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).c_str());
+        const char *rename_label = rv_editor_text("pane_files.new_name");
+        const char *name_label = rv_editor_text("pane_files.name");
+        const char *label = view.dialog == dialog_kind::rename ? rename_label : name_label;
+        const std::string target_path = (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).string();
+        ImGui::Text("%s in %s", label, target_path.c_str());
         rv_editor_field field;
         field.invalid = view.error.empty() ? nullptr : view.error.c_str();
         if (view.opening) {
@@ -257,9 +274,12 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
     if (!view.error.empty()) {
         ImGui::TextWrapped("%s", view.error.c_str());
     }
-    confirm = rv_editor_button(view.dialog == dialog_kind::remove ? "Delete" : "OK", theme) || confirm;
+    const char *delete_btn = rv_editor_text("pane_files.delete_button");
+    const char *ok_btn = rv_editor_text("pane_files.ok_button");
+    const char *confirm_button_text = view.dialog == dialog_kind::remove ? delete_btn : ok_btn;
+    confirm = rv_editor_button(confirm_button_text, theme) || confirm;
     ImGui::SameLine();
-    const bool cancel = rv_editor_button("Cancel", theme);
+    const bool cancel = rv_editor_button(rv_editor_text("pane_files.cancel_button"), theme);
 
     if (confirm) {
         bool ok = false;
@@ -298,34 +318,40 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     if (!app.files.is_open()) {
-        ImGui::TextWrapped("No project is open: File > Open Project...");
+        ImGui::TextWrapped("%s", rv_editor_text("pane_files.no_project_open"));
         return;
     }
     rv_editor_files_view &view = app.files_views[pane];
     using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
 
     const bool has_sel = !app.files.selected.empty() && app.files.selected != app.files.root().path;
-    const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, "Select a file or folder first" };
+    const char *select_hint = rv_editor_text("pane_files.select_first");
+    const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, select_hint };
     // Square buttons, a coloured code each until the icons are drawn.
     const float side = ImGui::GetFrameHeight();
     rv_editor_shelf_begin("##shelf", theme);
-    if (rv_editor_letter_button("##new_file", rv_editor_glyph::new_, theme.code_green, "New File", theme)) {
+    if (rv_editor_letter_button("##new_file", rv_editor_glyph::new_, theme.code_green,
+            rv_editor_text("pane_files.button_new_file"), theme)) {
         rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##new_dir", rv_editor_glyph::new_folder, theme.code_yellow, "New Folder", theme)) {
+    if (rv_editor_letter_button("##new_dir", rv_editor_glyph::new_folder, theme.code_yellow,
+            rv_editor_text("pane_files.button_new_folder"), theme)) {
         rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app), "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##rename", rv_editor_glyph::rename, theme.code_blue, "Rename", theme, need_sel)) {
+    if (rv_editor_letter_button("##rename", rv_editor_glyph::rename, theme.code_blue,
+            rv_editor_text("pane_files.button_rename"), theme, need_sel)) {
         rv_editor_files_ask(view, dialog_kind::rename, app.files.selected, app.files.selected.filename().string());
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##delete", rv_editor_glyph::delete_, theme.code_red, "Delete", theme, need_sel)) {
+    if (rv_editor_letter_button("##delete", rv_editor_glyph::delete_, theme.code_red,
+            rv_editor_text("pane_files.button_delete"), theme, need_sel)) {
         rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
     }
     rv_editor_flow(side);
-    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, rv_editor_mocha_teal, "Refresh", theme)) {
+    if (rv_editor_letter_button("##refresh", rv_editor_glyph::refresh, rv_editor_mocha_teal,
+            rv_editor_text("pane_files.button_refresh"), theme)) {
         app.files.refresh();
     }
     rv_editor_shelf_end();
