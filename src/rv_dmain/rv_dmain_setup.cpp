@@ -2,6 +2,7 @@
 #include "rv_dmain.hpp"
 
 #include <cmath>
+#include <numbers>
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/cd/rv_cd.h"
@@ -41,6 +42,41 @@ constexpr float RV_DMAIN_BEEP_HZ = 440.0f;
 constexpr int16_t RV_DMAIN_BEEP_PEAK = 20000;
 
 constexpr uint32_t RV_DMAIN_SAVE_MAGIC = 0x524D4149; // 'RMAI'
+
+// --- the test texture center ---
+
+// Half the texture dimension: center coordinate for quadrant divisions.
+constexpr int64_t RV_DMAIN_TEX_HALF = RV_DMAIN_TEX_SIZE / 2;
+
+// --- IDX4 packing ---
+
+// IDX4 format packs two texels per byte; stride accounts for byte alignment per row.
+constexpr int64_t RV_DMAIN_IDX4_TEXEL_PER_BYTE = 2;
+
+// Bit width of an IDX4 index: 4 bits per texel, so 1 << 4 = 16 entries per palette.
+constexpr int RV_DMAIN_IDX4_INDEX_BITS = 4;
+
+// Number of palette entries in IDX4 format: derived from index bit width.
+constexpr int64_t RV_DMAIN_IDX4_PALETTE_SIZE = 1 << RV_DMAIN_IDX4_INDEX_BITS;
+
+// Mask for low nibble (lower 4 bits) in IDX4 byte packing: the bits of an index.
+constexpr uint8_t RV_DMAIN_IDX4_MASK_LOW =
+    static_cast<uint8_t>(RV_DMAIN_IDX4_PALETTE_SIZE - 1);
+
+// Mask for high nibble (upper 4 bits) in IDX4 byte packing: index shifted left.
+constexpr uint8_t RV_DMAIN_IDX4_MASK_HIGH =
+    static_cast<uint8_t>(RV_DMAIN_IDX4_MASK_LOW << RV_DMAIN_IDX4_INDEX_BITS);
+
+// Frame border uses colours in a repeating cycle of 3 across diagonals.
+constexpr int RV_DMAIN_FRAME_COLOR_CYCLE = 3;
+
+// --- beep envelope ---
+
+// envelope exp(-6 t): the beep fades by e^-6 over one second.
+constexpr float RV_DMAIN_BEEP_DECAY = -6.0f;
+
+// Full revolution in radians for 2π: used in sine wave calculation.
+constexpr float RV_DMAIN_BEEP_FULL_ROTATION = 2.0f * std::numbers::pi_v<float>;
 
 } // namespace
 
@@ -119,15 +155,14 @@ void rv_dmain::build_texture()
     texels_.assign(static_cast<std::size_t>(RV_DMAIN_TEX_SIZE * RV_DMAIN_TEX_SIZE),
         RV_TEXEL_TRANSPARENT);
 
-    const int64_t half = RV_DMAIN_TEX_SIZE / 2;
     for (int64_t y = 0; y < RV_DMAIN_TEX_SIZE; ++y) {
         for (int64_t x = 0; x < RV_DMAIN_TEX_SIZE; ++x) {
             uint16_t texel;
-            if (x < half && y < half) {
+            if (x < RV_DMAIN_TEX_HALF && y < RV_DMAIN_TEX_HALF) {
                 texel = RV_DMAIN_TEXEL_RED;
-            } else if (x >= half && y < half) {
+            } else if (x >= RV_DMAIN_TEX_HALF && y < RV_DMAIN_TEX_HALF) {
                 texel = RV_DMAIN_TEXEL_GREEN;
-            } else if (x < half && y >= half) {
+            } else if (x < RV_DMAIN_TEX_HALF && y >= RV_DMAIN_TEX_HALF) {
                 texel = RV_DMAIN_TEXEL_BLUE;
             } else {
                 texel = RV_TEXEL_TRANSPARENT; // the cut-out quadrant
@@ -179,19 +214,19 @@ void rv_dmain::build_idx4_texture()
         for (int64_t x = 0; x < size; ++x) {
             // A ring: index 0 (transparent) in the middle, colours around it.
             const bool edge = x == 0 || y == 0 || x == size - 1 || y == size - 1;
-            const uint8_t index = edge ? static_cast<uint8_t>(1 + ((x + y) % 3)) : 0;
+            const uint8_t index = edge ? static_cast<uint8_t>(1 + ((x + y) % RV_DMAIN_FRAME_COLOR_CYCLE)) : 0;
 
-            const std::size_t byte = static_cast<std::size_t>(y * ((size + 1) / 2) + x / 2);
+            const std::size_t byte = static_cast<std::size_t>(y * ((size + 1) / 2) + x / RV_DMAIN_IDX4_TEXEL_PER_BYTE);
             if ((x & 1) == 0) {
-                texels_idx4_[byte] = static_cast<uint8_t>((texels_idx4_[byte] & 0xF0) | index);
+                texels_idx4_[byte] = static_cast<uint8_t>((texels_idx4_[byte] & RV_DMAIN_IDX4_MASK_HIGH) | index);
             } else {
                 texels_idx4_[byte] =
-                    static_cast<uint8_t>((texels_idx4_[byte] & 0x0F) | (index << 4));
+                    static_cast<uint8_t>((texels_idx4_[byte] & RV_DMAIN_IDX4_MASK_LOW) | (index << RV_DMAIN_IDX4_INDEX_BITS));
             }
         }
     }
 
-    palette_idx4_.assign(16, RV_TEXEL_TRANSPARENT); // entry 0 stays the hole
+    palette_idx4_.assign(static_cast<std::size_t>(RV_DMAIN_IDX4_PALETTE_SIZE), RV_TEXEL_TRANSPARENT); // entry 0 stays the hole
     palette_idx4_[1] = RV_DMAIN_TEXEL_RED;
     palette_idx4_[2] = RV_DMAIN_TEXEL_GREEN;
     palette_idx4_[3] = RV_DMAIN_TEXEL_WHITE;
@@ -326,8 +361,8 @@ void rv_dmain::build_beep()
     std::vector<int16_t> pcm(static_cast<std::size_t>(RV_DMAIN_BEEP_FRAMES));
     for (int64_t i = 0; i < RV_DMAIN_BEEP_FRAMES; ++i) {
         const float t = static_cast<float>(i) / static_cast<float>(RV_DMAIN_BEEP_RATE);
-        const float envelope = std::exp(-6.0f * t);
-        const float wave = std::sin(6.28318531f * RV_DMAIN_BEEP_HZ * t);
+        const float envelope = std::exp(RV_DMAIN_BEEP_DECAY * t);
+        const float wave = std::sin(RV_DMAIN_BEEP_FULL_ROTATION * RV_DMAIN_BEEP_HZ * t);
         pcm[static_cast<std::size_t>(i)] =
             static_cast<int16_t>(wave * envelope * static_cast<float>(RV_DMAIN_BEEP_PEAK));
     }
