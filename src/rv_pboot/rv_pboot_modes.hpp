@@ -10,10 +10,10 @@
 namespace rv_3dmppc
 {
 
-// Resolves `args` into `out`. Returns true on success. Returns false when the
-// caller must return `exit_code` immediately (2 for a bad --mode or
-// --mode_<slot> value, with a diagnostic and the usage text already printed).
-bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code);
+// Resolves `args` into `out`. Returns RV_OK on success, or rv_err code (RV_ERR_NOENT,
+// RV_ERR_INVAL, RV_ERR_IO) when resolution fails; exit_code is set to 2 and diagnostic
+// and usage are printed when an rv_err is returned.
+int rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code);
 
 // Renders the built-in preset table for --help as "name (platform impl)"
 // pairs joined by "and", one entry per row of RV_PBOOT_BUILTIN_PRESETS.

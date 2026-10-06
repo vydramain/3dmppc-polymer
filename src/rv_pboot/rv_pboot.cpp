@@ -60,7 +60,7 @@ bool rv_pboot_preflight(int argc, char **argv, rv_pboot_args &args, rv_pcslots &
     // Resolve the preset and its per-slot overrides into the concrete choice
     // this run boots with. Nothing is brought up yet: a bad --mode or
     // --mode_<slot> must still cost a diagnostic, not a machine.
-    if (!rv_pboot_modes_resolve(args, slots, exit_code)) {
+    if (rv_pboot_modes_resolve(args, slots, exit_code) != RV_OK) {
         return false;
     }
 

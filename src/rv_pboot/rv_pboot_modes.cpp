@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_failer.hpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_lexer.hpp"
@@ -52,31 +53,31 @@ struct rv_pboot_runtime_preset {
     rv_pcslots slots;
 };
 
-bool find_preset(const std::vector<rv_pboot_runtime_preset> &table, const std::string &name, rv_pcslots &out)
+int find_preset(const std::vector<rv_pboot_runtime_preset> &table, const std::string &name, rv_pcslots &out)
 {
     for (const rv_pboot_runtime_preset &preset : table) {
         if (name == preset.name) {
             out = preset.slots;
-            return true;
+            return RV_OK;
         }
     }
-    return false;
+    return RV_ERR_NOENT;
 }
 
-// Applies a non-empty `--mode_<slot>=value` override. Returns false (with a
-// diagnostic already printed) when `value` names nothing in `table`.
+// Applies a non-empty `--mode_<slot>=value` override. Returns RV_OK on success or
+// RV_ERR_INVAL (with a diagnostic already printed) when `value` names nothing in `table`.
 template <typename Table, typename Impl>
-bool apply_override(const Table &table, const std::string &slot_flag, const std::string &value,
+int apply_override(const Table &table, const std::string &slot_flag, const std::string &value,
     Impl &out, int &exit_code)
 {
     if (value.empty()) {
-        return true;
+        return RV_OK;
     }
     std::string available;
     for (const auto &row : table) {
         if (value == row.name) {
             out = row.impl;
-            return true;
+            return RV_OK;
         }
         if (!available.empty()) {
             available += ", ";
@@ -87,7 +88,7 @@ bool apply_override(const Table &table, const std::string &slot_flag, const std:
         rv_pdklib::rv_log_escape(value.c_str()), available));
     rv_console_print_usage(stderr);
     exit_code = 2;
-    return false;
+    return RV_ERR_INVAL;
 }
 
 // Reads a `[mode.<NAME>]` value for one slot: must be a string naming a row
@@ -208,36 +209,34 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
     return static_cast<int>(pendings.size());
 }
 
-// Merges modes.toml from the executable's directory (build/pconsole/) into
-// `table`.
-// Absent file: nothing happens. Present but unreadable, or present with a
-// schema/parse problem: a diagnostic and false. `table` is left untouched on
-// failure.
-bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
+// Merges modes.toml from the executable's directory (build/pconsole/) into `table`.
+// Absent file: returns RV_OK. Present but unreadable: RV_ERR_IO with diagnostic.
+// Parse error: RV_ERR_INVAL with diagnostic. `table` is left untouched on failure.
+int load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code)
 {
     const std::filesystem::path dir = rv_pboot_exe_dir();
     if (dir.empty()) {
-        return true;
+        return RV_OK;
     }
     const std::filesystem::path path = dir / "modes.toml";
 
     std::error_code exists_ec;
     if (!std::filesystem::exists(path, exists_ec)) {
-        return true;
+        return RV_OK;
     }
 
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         rv_console_print_error(std::format("cannot open modes file '{}'", path.string()));
         exit_code = 2;
-        return false;
+        return RV_ERR_IO;
     }
     std::ostringstream buffer;
     buffer << in.rdbuf();
     if (in.bad()) {
         rv_console_print_error(std::format("cannot read modes file '{}'", path.string()));
         exit_code = 2;
-        return false;
+        return RV_ERR_IO;
     }
     const std::string text = buffer.str();
 
@@ -263,11 +262,11 @@ bool load_modes_file(std::vector<rv_pboot_runtime_preset> &table, int &exit_code
             start = nl + 1;
         }
         exit_code = 2;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     RV_LOG_INFO("main", "modes: {} preset(s) from '{}'", loaded, path.string());
-    return true;
+    return RV_OK;
 }
 
 } // namespace
@@ -286,19 +285,21 @@ std::string rv_pboot_builtin_presets_summary()
     return result;
 }
 
-bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code)
+int rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit_code)
 {
     std::vector<rv_pboot_runtime_preset> table;
     for (const rv_pboot_preset &preset : RV_PBOOT_BUILTIN_PRESETS) {
         table.push_back({ preset.name, preset.slots });
     }
 
-    if (!load_modes_file(table, exit_code)) {
-        return false;
+    int err = load_modes_file(table, exit_code);
+    if (err != RV_OK) {
+        return err;
     }
 
     rv_pcslots slots;
-    if (!find_preset(table, args.mode, slots)) {
+    err = find_preset(table, args.mode, slots);
+    if (err != RV_OK) {
         std::string available;
         for (const rv_pboot_runtime_preset &preset : table) {
             if (!available.empty()) {
@@ -311,21 +312,34 @@ bool rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exi
                 available));
         rv_console_print_usage(stderr);
         exit_code = 2;
-        return false;
+        return RV_ERR_NOENT;
     }
 
-    if (!apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform, slots.platform, exit_code) ||
-        !apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code) ||
-        !apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code) ||
-        !apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code) ||
-        !apply_override(RV_PCSLOTS_CL, "cl", args.mode_cl, slots.cl, exit_code) ||
-        !apply_override(RV_PCSLOTS_CD, "cd", args.mode_cd, slots.cd, exit_code) ||
-        !apply_override(RV_PCSLOTS_CM, "cm", args.mode_cm, slots.cm, exit_code)) {
-        return false;
+    if ((err = apply_override(RV_PCSLOTS_PLATFORM, "platform", args.mode_platform,
+             slots.platform, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CA, "ca", args.mode_ca, slots.ca, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CL, "cl", args.mode_cl, slots.cl, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CD, "cd", args.mode_cd, slots.cd, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CM, "cm", args.mode_cm, slots.cm, exit_code)) != RV_OK) {
+        return err;
     }
 
     out = slots;
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc
