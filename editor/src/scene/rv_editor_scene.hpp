@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
@@ -11,6 +12,14 @@
 
 namespace rv_editor
 {
+
+// Scene object kind constants: the `kind` values of a scene object, as pdklib's scene format names them.
+inline constexpr std::string_view kind_group = "group";
+inline constexpr std::string_view kind_camera = "camera";
+inline constexpr std::string_view kind_mesh = "mesh";
+inline constexpr std::string_view kind_quad = "quad";
+inline constexpr std::string_view kind_billboard = "billboard";
+inline constexpr std::string_view kind_volume = "volume";
 
 // A scene document as the editor edits it.
 // The disc reads the same file with pdklib/rv_scene; the editor keeps its own

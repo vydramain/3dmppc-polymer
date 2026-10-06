@@ -53,12 +53,6 @@ constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
 constexpr int quad_vertex_count = 4;
 // UV of a quad's corners: (0,0), (1,0), (1,1), (0,1).
 constexpr std::array<ImVec2, quad_vertex_count> quad_uv_corners = { { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } };
-// Scene object kind: a flat textured quad.
-constexpr std::string_view kind_quad = "quad";
-// Scene object kind: a camera-facing textured card.
-constexpr std::string_view kind_billboard = "billboard";
-// Scene object kind: a mesh loaded from a file.
-constexpr std::string_view kind_mesh = "mesh";
 // Number of vertices per triangle for depth averaging (derived from tri_vertices).
 constexpr double triangle_vertex_count = static_cast<double>(tri_vertices);
 

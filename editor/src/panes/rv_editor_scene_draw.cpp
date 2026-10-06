@@ -77,14 +77,6 @@ constexpr int octahedron_vertex_count = 6;
 // Pointer proximity threshold for interactive picking and gizmo interaction.
 constexpr float pointer_proximity_threshold_px = 6.0f;
 
-// Scene object type identifiers.
-constexpr std::string_view object_kind_mesh = "mesh";
-constexpr std::string_view object_kind_camera = "camera";
-constexpr std::string_view object_kind_group = "group";
-constexpr std::string_view object_kind_quad = "quad";
-constexpr std::string_view object_kind_billboard = "billboard";
-constexpr std::string_view object_kind_volume = "volume";
-
 vec3 cross(const vec3 &a, const vec3 &b)
 {
     return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
@@ -286,21 +278,21 @@ std::vector<std::pair<vec3, vec3>> rv_editor_object_edges(
     const std::string &kind = scene.objects[static_cast<size_t>(index)].kind;
     auto p = [&m](double x, double y, double z) { return rv_editor_affine_point(m, { x, y, z }); };
     std::vector<std::pair<vec3, vec3>> e;
-    if (kind == object_kind_mesh) {
+    if (kind == kind_mesh) {
         for (const rv_editor_tri &tri : rv_editor_object_triangles(scene, project, index, error)) {
             e.emplace_back(tri.p[0], tri.p[1]);
             e.emplace_back(tri.p[1], tri.p[2]);
             e.emplace_back(tri.p[2], tri.p[0]);
         }
-    } else if (kind == object_kind_camera) {
+    } else if (kind == kind_camera) {
         rv_editor_camera_edges(e, p);
-    } else if (kind == object_kind_group) {
+    } else if (kind == kind_group) {
         rv_editor_group_edges(e, p);
-    } else if (kind == object_kind_quad) {
+    } else if (kind == kind_quad) {
         rv_editor_quad_edges(e, p);
-    } else if (kind == object_kind_billboard) {
+    } else if (kind == kind_billboard) {
         rv_editor_billboard_edges(e, p);
-    } else if (kind == object_kind_volume) {
+    } else if (kind == kind_volume) {
         rv_editor_volume_edges(e, p);
     } else {
         rv_editor_other_edges(e, p);

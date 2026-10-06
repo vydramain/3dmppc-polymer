@@ -40,11 +40,6 @@ constexpr float scale_speed = 0.01f;
 constexpr float uv_speed = 0.5f;
 constexpr float tess_speed = 0.05f;
 
-// Scene object kinds: category for inspector layout and properties.
-constexpr std::string_view kind_mesh = "mesh";
-constexpr std::string_view kind_quad = "quad";
-constexpr std::string_view kind_billboard = "billboard";
-
 // UV drag range for coordinate edit fields.
 constexpr double uv_drag_bound = 1e6;
 

@@ -40,12 +40,6 @@ constexpr std::string_view object_uv_key = "uv";
 constexpr std::string_view object_tint_key = "tint";
 constexpr std::string_view object_tess_key = "tess";
 
-// Scene object kinds.
-constexpr std::string_view kind_camera = "camera";
-constexpr std::string_view kind_mesh = "mesh";
-constexpr std::string_view kind_quad = "quad";
-constexpr std::string_view kind_billboard = "billboard";
-
 // Default names for newly created objects.
 constexpr std::string_view default_camera_name = "Camera";
 constexpr std::string_view default_mesh_name = "Box";

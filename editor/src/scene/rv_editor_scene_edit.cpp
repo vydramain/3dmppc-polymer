@@ -26,16 +26,6 @@ constexpr double gimbal_lock_threshold = 0.999999;
 constexpr int space_axes = 3;
 // Number of columns in an affine transformation matrix (3 for rotation/scale, 1 for translation).
 constexpr int affine_cols = 4;
-// Scene object kind: camera.
-constexpr std::string_view kind_camera = "camera";
-// Scene object kind: mesh loaded from a file.
-constexpr std::string_view kind_mesh = "mesh";
-// Scene object kind: flat textured quad.
-constexpr std::string_view kind_quad = "quad";
-// Scene object kind: camera-facing textured card.
-constexpr std::string_view kind_billboard = "billboard";
-// Scene object kind: volume trigger or constraint.
-constexpr std::string_view kind_volume = "volume";
 // Default name for newly created camera objects.
 constexpr std::string_view default_camera_name = "Camera";
 // Default name for newly created mesh objects.
