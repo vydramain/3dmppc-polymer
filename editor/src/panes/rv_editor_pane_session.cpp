@@ -4,12 +4,14 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <chrono>
+#include <format>
 #include <string>
 #include <vector>
 
 #include "imgui.h"
 
 #include "platform/rv_editor_process.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -52,40 +54,40 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
         exit_line += " (its output past this point was not kept)";
     }
     if (ImGui::BeginTable("##session_summary", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
-        rv_editor_fact("Process", s.console().string() + ", pid " + std::to_string(s.pid()));
-        rv_editor_fact("Exit", exit_line);
+        rv_editor_fact(rv_editor_text("pane_session.process"), s.console().string() + ", pid " + std::to_string(s.pid()));
+        rv_editor_fact(rv_editor_text("pane_session.exit"), exit_line);
         ImGui::EndTable();
     }
 
-    ImGui::SeparatorText("In flight");
+    ImGui::SeparatorText(rv_editor_text("pane_session.in_flight"));
     if (s.in_flight().empty()) {
-        rv_editor_dim("Nothing was still waiting for an answer when it ended.");
+        rv_editor_dim(rv_editor_text("pane_session.in_flight_empty"));
     }
     for (const rv_editor_in_flight &req : s.in_flight()) {
         rv_editor_dim(req.overdue ? req.verb + ": no answer came, so whether it ran is unknown."
                                    : req.verb + ": still waiting when it ended.");
     }
 
-    ImGui::SeparatorText("Last confirmed");
+    ImGui::SeparatorText(rv_editor_text("pane_session.last_confirmed"));
     const rv_editor_last_confirmed &c = s.last_confirmed();
     if (c.verb.empty()) {
-        rv_editor_dim("The console had confirmed nothing.");
+        rv_editor_dim(rv_editor_text("pane_session.last_confirmed_empty"));
     } else {
         rv_editor_dim(c.verb + " at frame " + std::to_string(c.frame) + ", " + rv_editor_clock(c.at));
     }
 
-    ImGui::SeparatorText("Last stderr lines");
+    ImGui::SeparatorText(rv_editor_text("pane_session.last_stderr_lines"));
     const std::vector<const rv_editor_log_line *> err_lines = rv_editor_session_stderr(app.log, s.pid());
     if (err_lines.empty()) {
-        rv_editor_dim("No stderr lines are left in memory for this session.");
+        rv_editor_dim(rv_editor_text("pane_session.last_stderr_lines_empty"));
     }
     for (const rv_editor_log_line *line : err_lines) {
         ImGui::TextUnformatted(line->text.c_str());
     }
 
     const std::string file = app.log.file_for(s.pid());
-    if (rv_editor_button("Open Full Log", theme,
-            { rv_editor_look::live, file.empty() ? "This session kept no log file." : nullptr })) {
+    if (rv_editor_button(rv_editor_text("pane_session.open_full_log"), theme,
+            { rv_editor_look::live, file.empty() ? rv_editor_text("pane_session.open_full_log_no_file") : nullptr })) {
         app.open_requests.push_back({ file, 0 });
     }
 }
@@ -104,13 +106,17 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         if (s.number() == 0) {
-            rv_editor_dim("No session has run in this window yet: Run starts one, and this says what it was.");
+            rv_editor_dim(rv_editor_text("pane_session.no_session_yet"));
             return;
         }
         // How it ended comes first: after the game it is what is looked for.
         if (!s.live()) {
             const bool bad = s.state() == rv_editor_run_state::crashed || s.state() == rv_editor_run_state::refused;
-            rv_editor_status(("Session #" + std::to_string(s.number()) + " ended: " + s.end_reason()).c_str(),
+            const auto session_number = s.number();
+            const auto end_reason = s.end_reason();
+            const auto status_text = rv_editor_text_format("pane_session.session_ended_format",
+                std::make_format_args(session_number, end_reason));
+            rv_editor_status(status_text.c_str(),
                 bad ? rv_editor_status_kind::error : rv_editor_status_kind::ok, theme);
         }
         if (!s.live() && s.number() > 0) {
@@ -123,48 +129,77 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         if (!ImGui::BeginTable("##session", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
             return;
         }
-        rv_editor_fact("Session", "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()));
-        rv_editor_fact("Build", "#" + std::to_string(s.build_number()));
-        rv_editor_fact("Profile", app.session_profile);
+        const auto session_label = rv_editor_text("pane_session.session");
+        const auto session_value = "#" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state());
+        rv_editor_fact(session_label, session_value);
+        rv_editor_fact(rv_editor_text("pane_session.build"), "#" + std::to_string(s.build_number()));
+        rv_editor_fact(rv_editor_text("pane_session.profile"), app.session_profile);
         const long long minutes = seconds / seconds_per_minute;
         const long long rest_seconds = seconds % seconds_per_minute;
-        std::string time_text = "started " + rv_editor_clock(s.started_at()) + ", " + std::to_string(minutes) + " min ";
-        time_text += std::to_string(rest_seconds) + " s" + (s.live() ? " so far" : "");
-        rv_editor_fact("Time", time_text);
-        rv_editor_fact("Frame", std::to_string(s.frame()) + (s.live() ? "" : ", the last reported"));
+        const auto clock_str = rv_editor_clock(s.started_at());
+        std::string time_text = s.live() ? rv_editor_text_format("pane_session.time_running",
+                                               std::make_format_args(clock_str, minutes, rest_seconds)) :
+                                           rv_editor_text_format("pane_session.time_finished",
+                                               std::make_format_args(clock_str, minutes, rest_seconds));
+        rv_editor_fact(rv_editor_text("pane_session.time"), time_text);
+        const auto frame_num = std::to_string(s.frame());
+        std::string frame_value;
+        if (s.live()) {
+            frame_value = frame_num;
+        } else {
+            frame_value = rv_editor_text_format("pane_session.frame_last_reported_fmt",
+                std::make_format_args(frame_num));
+        }
+        rv_editor_fact(rv_editor_text("pane_session.frame"), frame_value);
         if (!f.disc.empty()) {
-            rv_editor_fact("Disc", f.disc + ", PDK " + f.pdk);
+            const auto disc_text = rv_editor_text_format("pane_session.disc_pdk_format",
+                std::make_format_args(f.disc, f.pdk));
+            rv_editor_fact(rv_editor_text("pane_session.disc"), disc_text);
         }
         if (f.lua_budget > 0) {
-            std::string entry_suffix;
+            std::string entry_text;
             if (f.revision != f.first_revision) {
-                entry_suffix = ", reloaded from " + std::to_string(f.first_revision);
+                entry_text = rv_editor_text_format("pane_session.entry_script_reloaded",
+                    std::make_format_args(f.revision, f.first_revision));
             } else if (is_latest_build) {
-                entry_suffix = ", as built";
+                entry_text = rv_editor_text_format("pane_session.entry_script_as_built",
+                    std::make_format_args(f.revision));
+            } else {
+                entry_text = rv_editor_text_format("pane_session.entry_script_revision_only",
+                    std::make_format_args(f.revision));
             }
-            rv_editor_fact("Entry script", "revision " + std::to_string(f.revision) + entry_suffix);
+            rv_editor_fact(rv_editor_text("pane_session.entry_script"), entry_text);
         }
         if (!is_latest_build) {
-            rv_editor_fact("Note",
-                "native code from build #" + std::to_string(s.build_number()) + "; scripts, assets, scenes from current disk");
+            const auto build_num = s.build_number();
+            const auto note_text = rv_editor_text_format("pane_session.note_native_code_format",
+                std::make_format_args(build_num));
+            rv_editor_fact(rv_editor_text("pane_session.note"), note_text);
         }
         if (!s.reload_result().empty()) {
-            rv_editor_fact("Last reload", (s.reload_ok() ? "applied: " : "refused: ") + s.reload_result());
+            const auto reload_text = s.reload_ok() ? rv_editor_text_format("pane_session.last_reload_applied",
+                                                         std::make_format_args(s.reload_result())) :
+                                                     rv_editor_text_format("pane_session.last_reload_refused",
+                                                         std::make_format_args(s.reload_result()));
+            rv_editor_fact(rv_editor_text("pane_session.last_reload"), reload_text);
         }
-        rv_editor_fact("Saved", std::to_string(app.findings.saved.size()) + " findings and test results in this window");
+        const auto saved_count = app.findings.saved.size();
+        const auto saved_text = rv_editor_text_format("pane_session.saved_format",
+            std::make_format_args(saved_count));
+        rv_editor_fact(rv_editor_text("pane_session.saved"), saved_text);
         ImGui::EndTable();
 
         // Collapsed by default: the build path and the code hash, each with its own Copy.
-        if (ImGui::CollapsingHeader("Details")) {
-            rv_editor_path_row("Build directory", s.disc_dir().string(), theme);
+        if (ImGui::CollapsingHeader(rv_editor_text("pane_session.details"))) {
+            rv_editor_path_row(rv_editor_text("pane_session.build_directory"), s.disc_dir().string(), theme);
             if (!f.disc.empty()) {
-                rv_editor_path_row("Code hash", f.code_hash, theme);
+                rv_editor_path_row(rv_editor_text("pane_session.code_hash"), f.code_hash, theme);
             }
         }
 
-        ImGui::SeparatorText("Marks");
+        ImGui::SeparatorText(rv_editor_text("pane_session.marks"));
         if (app.marks.empty()) {
-            rv_editor_dim("Mark Moment in the Session Toolchest notes the frame, and a word on it, while you play.");
+            rv_editor_dim(rv_editor_text("pane_session.marks_help"));
         }
         for (size_t i = 0; i < app.marks.size(); ++i) {
             ImGui::Text("%zu. %s", i + 1, app.marks[i].c_str());
