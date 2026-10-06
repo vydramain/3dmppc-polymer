@@ -7,6 +7,7 @@
 
 #include "imgui.h"
 
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -17,41 +18,72 @@ namespace rv_editor
 const char *rv_editor_pane_title(rv_editor_pane_kind kind)
 {
     switch (kind) {
-        case rv_editor_pane_kind::empty: return "Empty";
-        case rv_editor_pane_kind::catalog: return "Widget Catalog";
-        case rv_editor_pane_kind::project: return "Project Settings";
-        case rv_editor_pane_kind::files: return "Files";
-        case rv_editor_pane_kind::assets: return "Assets";
-        case rv_editor_pane_kind::scene: return "Scene";
-        case rv_editor_pane_kind::hierarchy: return "Hierarchy";
-        case rv_editor_pane_kind::inspector: return "Inspector";
-        case rv_editor_pane_kind::game: return "Game";
-        case rv_editor_pane_kind::code: return "Code";
-        case rv_editor_pane_kind::controls: return "Runtime Controls";
-        case rv_editor_pane_kind::run_config: return "Run Configuration";
-        case rv_editor_pane_kind::output: return "Console Output";
-        case rv_editor_pane_kind::terminal: return "Terminal";
-        case rv_editor_pane_kind::problems: return "Problems";
-        case rv_editor_pane_kind::search: return "Search Results";
-        case rv_editor_pane_kind::toolchest: return "Toolchest";
-        case rv_editor_pane_kind::runtime_log: return "Runtime Log";
-        case rv_editor_pane_kind::build_log: return "Build Log";
-        case rv_editor_pane_kind::observe: return "Inspector: state (Runtime, read-only)";
-        case rv_editor_pane_kind::findings: return "Findings";
-        case rv_editor_pane_kind::candidate: return "Release Candidate";
-        case rv_editor_pane_kind::release_controls: return "Release Controls";
-        case rv_editor_pane_kind::build_result: return "Build Result";
-        case rv_editor_pane_kind::checks: return "Checks";
-        case rv_editor_pane_kind::session: return "Session";
-        case rv_editor_pane_kind::test_case: return "Test Case";
-        case rv_editor_pane_kind::open_project: return "Open Project";
-        case rv_editor_pane_kind::settings: return "Settings";
-        case rv_editor_pane_kind::help: return "Help";
-        case rv_editor_pane_kind::review_changes: return "Review Changes";
-        case rv_editor_pane_kind::manual:
-            return "Manual";
-        }
-    return "?";
+    case rv_editor_pane_kind::empty:
+        return rv_editor_text("workspace.pane_empty");
+    case rv_editor_pane_kind::catalog:
+        return rv_editor_text("workspace.pane_catalog");
+    case rv_editor_pane_kind::project:
+        return rv_editor_text("workspace.pane_project");
+    case rv_editor_pane_kind::files:
+        return rv_editor_text("workspace.pane_files");
+    case rv_editor_pane_kind::assets:
+        return rv_editor_text("workspace.pane_assets");
+    case rv_editor_pane_kind::scene:
+        return rv_editor_text("workspace.pane_scene");
+    case rv_editor_pane_kind::hierarchy:
+        return rv_editor_text("workspace.pane_hierarchy");
+    case rv_editor_pane_kind::inspector:
+        return rv_editor_text("workspace.pane_inspector");
+    case rv_editor_pane_kind::game:
+        return rv_editor_text("workspace.pane_game");
+    case rv_editor_pane_kind::code:
+        return rv_editor_text("workspace.pane_code");
+    case rv_editor_pane_kind::controls:
+        return rv_editor_text("workspace.pane_controls");
+    case rv_editor_pane_kind::run_config:
+        return rv_editor_text("workspace.pane_run_config");
+    case rv_editor_pane_kind::output:
+        return rv_editor_text("workspace.pane_output");
+    case rv_editor_pane_kind::terminal:
+        return rv_editor_text("workspace.pane_terminal");
+    case rv_editor_pane_kind::problems:
+        return rv_editor_text("workspace.pane_problems");
+    case rv_editor_pane_kind::search:
+        return rv_editor_text("workspace.pane_search");
+    case rv_editor_pane_kind::toolchest:
+        return rv_editor_text("workspace.pane_toolchest");
+    case rv_editor_pane_kind::runtime_log:
+        return rv_editor_text("workspace.pane_runtime_log");
+    case rv_editor_pane_kind::build_log:
+        return rv_editor_text("workspace.pane_build_log");
+    case rv_editor_pane_kind::observe:
+        return rv_editor_text("workspace.pane_observe");
+    case rv_editor_pane_kind::findings:
+        return rv_editor_text("workspace.pane_findings");
+    case rv_editor_pane_kind::candidate:
+        return rv_editor_text("workspace.pane_candidate");
+    case rv_editor_pane_kind::release_controls:
+        return rv_editor_text("workspace.pane_release_controls");
+    case rv_editor_pane_kind::build_result:
+        return rv_editor_text("workspace.pane_build_result");
+    case rv_editor_pane_kind::checks:
+        return rv_editor_text("workspace.pane_checks");
+    case rv_editor_pane_kind::session:
+        return rv_editor_text("workspace.pane_session");
+    case rv_editor_pane_kind::test_case:
+        return rv_editor_text("workspace.pane_test_case");
+    case rv_editor_pane_kind::open_project:
+        return rv_editor_text("workspace.pane_open_project");
+    case rv_editor_pane_kind::settings:
+        return rv_editor_text("workspace.pane_settings");
+    case rv_editor_pane_kind::help:
+        return rv_editor_text("workspace.pane_help");
+    case rv_editor_pane_kind::review_changes:
+        return rv_editor_text("workspace.pane_review_changes");
+    case rv_editor_pane_kind::manual:
+        return rv_editor_text("workspace.pane_manual");
+    }
+    return rv_editor_text("workspace.pane_unknown");
 }
 
 namespace
@@ -115,7 +147,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
-    const char *title = active == rv_editor_tile_none ? "Empty" : rv_editor_title_of(ws, active);
+    const char *title = active == rv_editor_tile_none ? rv_editor_text("workspace.pane_empty") : rv_editor_title_of(ws, active);
     // X takes the tile off the screen, M maximizes it.
     bool title_pressed = false;
     const rv_editor_header_action clicked =
@@ -139,17 +171,17 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
     }
     rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##tile")) {
-        if (ImGui::MenuItem("Split Right")) {
+        if (ImGui::MenuItem(rv_editor_text("workspace.split_right"))) {
             action.what = rv_editor_tile_action::op::split;
             action.leaf = node;
             action.dock = rv_editor_tile_dock::right;
         }
-        if (ImGui::MenuItem("Split Down")) {
+        if (ImGui::MenuItem(rv_editor_text("workspace.split_down"))) {
             action.what = rv_editor_tile_action::op::split;
             action.leaf = node;
             action.dock = rv_editor_tile_dock::bottom;
         }
-        if (ImGui::BeginMenu("Change To", active != rv_editor_tile_none)) {
+        if (ImGui::BeginMenu(rv_editor_text("workspace.change_to"), active != rv_editor_tile_none)) {
             for (uint32_t k = 0; k <= static_cast<uint32_t>(rv_editor_pane_kind_last); ++k) {
                 const auto kind = static_cast<rv_editor_pane_kind>(k);
                 const char *label = rv_editor_pane_title(kind);
@@ -162,12 +194,14 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
             }
             ImGui::EndMenu();
         }
-        if (ImGui::MenuItem(ws.layout.maximized_leaf == node ? "Restore" : "Maximize")) {
+        const bool is_maximized = ws.layout.maximized_leaf == node;
+        const char *maximize_label = is_maximized ? rv_editor_text("workspace.restore") : rv_editor_text("workspace.maximize");
+        if (ImGui::MenuItem(maximize_label)) {
             action.what = rv_editor_tile_action::op::maximize;
             action.leaf = node;
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Close", nullptr, false, active != rv_editor_tile_none)) {
+        if (ImGui::MenuItem(rv_editor_text("workspace.close"), nullptr, false, active != rv_editor_tile_none)) {
             action.what = rv_editor_tile_action::op::close;
             action.pane = active;
         }
