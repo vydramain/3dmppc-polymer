@@ -38,7 +38,7 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     rv_pcbudget_cost cost;
 
     // vram_ (rv_pcvram pool): exactly video_memory_size bytes.
-    if (rv_pcbudget_add(cost, "budget.pccv.video_memory_size", budget.pccv.video_memory_size)) {
+    if (rv_pcbudget_add(cost, "budget.pccv.video_memory_size", budget.pccv.video_memory_size) != RV_OK) {
         return cost;
     }
 
@@ -46,8 +46,8 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     int64_t vram_blocks_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pccv.video_memory_size",
             rv_pcpool<rv_pcvram_meta>::max_blocks(budget.pccv.video_memory_size, rv_pcvram::RV_PCVRAM_ALIGN),
-            rv_pcpool<rv_pcvram_meta>::block_bytes(), vram_blocks_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.video_memory_size", vram_blocks_bytes)) {
+            rv_pcpool<rv_pcvram_meta>::block_bytes(), vram_blocks_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.video_memory_size", vram_blocks_bytes) != RV_OK) {
         return cost;
     }
 
@@ -55,11 +55,11 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     int64_t pixels = 0;
     int64_t fbuf_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height", budget.pccv.screen_width,
-            budget.pccv.screen_height, pixels) ||
+            budget.pccv.screen_height, pixels) != RV_OK ||
         rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel", pixels,
-            rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL, fbuf_bytes) ||
+            rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL, fbuf_bytes) != RV_OK ||
         rv_pcbudget_add(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel",
-            fbuf_bytes)) {
+            fbuf_bytes) != RV_OK) {
         return cost;
     }
 
@@ -68,19 +68,19 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     int64_t otable_bucket_bytes = 0;
     int64_t otable_next_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count,
-            rv_pcotable::RV_PCOTABLE_BYTES_PER_BUCKET, otable_bucket_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.ot_bucket_count", otable_bucket_bytes) ||
+            rv_pcotable::RV_PCOTABLE_BYTES_PER_BUCKET, otable_bucket_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.ot_bucket_count", otable_bucket_bytes) != RV_OK ||
         rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
-            rv_pcotable::RV_PCOTABLE_BYTES_PER_PRIMITIVE, otable_next_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", otable_next_bytes)) {
+            rv_pcotable::RV_PCOTABLE_BYTES_PER_PRIMITIVE, otable_next_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", otable_next_bytes) != RV_OK) {
         return cost;
     }
 
     // primitives_ (primitives_.reserve(frame_capacity)): frame_capacity * sizeof(rv_primitive).
     int64_t primitives_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
-            static_cast<int64_t>(sizeof(rv_primitive)), primitives_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", primitives_bytes)) {
+            static_cast<int64_t>(sizeof(rv_primitive)), primitives_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", primitives_bytes) != RV_OK) {
         return cost;
     }
 

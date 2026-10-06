@@ -15,8 +15,8 @@ rv_pcbudget_cost rv_pccio_platform::evaluate(const rv_pdklib::rv_manifest_budget
     rv_pcbudget_cost cost;
     int64_t total = 0;
     if (rv_pcbudget_mul(cost, "budget.pccio.iport_count", budget.pccio.iport_count,
-            static_cast<int64_t>(sizeof(rv_pccio_platform_port)), total) ||
-        rv_pcbudget_add(cost, "budget.pccio.iport_count", total)) {
+            static_cast<int64_t>(sizeof(rv_pccio_platform_port)), total) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccio.iport_count", total) != RV_OK) {
         return cost;
     }
     return cost;

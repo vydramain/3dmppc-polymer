@@ -58,7 +58,7 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
 
     // sram_ (rv_pcpool<rv_pcca_meta>): the pool region is exactly sound_memory_size
     // bytes.
-    if (rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size)) {
+    if (rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size) != RV_OK) {
         return cost;
     }
 
@@ -66,8 +66,8 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     int64_t sram_blocks_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pcca.sound_memory_size",
             rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
-            rv_pcpool<rv_pcca_meta>::block_bytes(), sram_blocks_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes)) {
+            rv_pcpool<rv_pcca_meta>::block_bytes(), sram_blocks_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes) != RV_OK) {
         return cost;
     }
 
@@ -77,9 +77,9 @@ rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     const int64_t accumulator_bytes =
         RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
     if (rv_pcbudget_mul(cost, "budget.pcca.voice_count", budget.pcca.voice_count,
-            static_cast<int64_t>(sizeof(rv_pcvoice)), voices_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", voices_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", accumulator_bytes)) {
+            static_cast<int64_t>(sizeof(rv_pcvoice)), voices_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pcca.voice_count", voices_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pcca.voice_count", accumulator_bytes) != RV_OK) {
         return cost;
     }
 

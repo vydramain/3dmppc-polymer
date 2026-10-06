@@ -18,14 +18,14 @@ rv_pcbudget_cost rv_pccm_posix::evaluate(const rv_pdklib::rv_manifest_budget &bu
     int64_t card_payload_bytes = 0;
     int64_t card_table_bytes = 0;
     if (rv_pcbudget_mul(cost, "budget.pccm.card_slots * card_slot_size", budget.pccm.card_slots,
-            budget.pccm.card_slot_size, card_payload_bytes) ||
+            budget.pccm.card_slot_size, card_payload_bytes) != RV_OK ||
         rv_pcbudget_mul(cost, "budget.pccm.card_slots", budget.pccm.card_slots,
-            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES, card_table_bytes)) {
+            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES, card_table_bytes) != RV_OK) {
         return cost;
     }
 
-    if (rv_pcbudget_add(cost, "budget.pccm.card_slots", card_table_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccm.card_slots * card_slot_size", card_payload_bytes)) {
+    if (rv_pcbudget_add(cost, "budget.pccm.card_slots", card_table_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccm.card_slots * card_slot_size", card_payload_bytes) != RV_OK) {
         return cost;
     }
 

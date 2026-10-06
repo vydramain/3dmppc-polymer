@@ -53,7 +53,7 @@ int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
         }
 
         RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, cost.bytes);
-        if (rv_pcbudget_add(total, slot, cost.bytes)) {
+        if (rv_pcbudget_add(total, slot, cost.bytes) != RV_OK) {
             RV_LOG_ERR("pccheck", "{}={}: {}", slot, row.name, total.reason);
             return RV_ERR_INVAL;
         }
