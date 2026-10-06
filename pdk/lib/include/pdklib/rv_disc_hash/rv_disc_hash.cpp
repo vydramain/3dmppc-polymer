@@ -81,11 +81,40 @@ constexpr uint32_t sha256_k[64] = {
     0xc67178f2,
 };
 
-// This is a cyclic rotation of a 32-bit number to the right by n bits (rotr = rotate right).
-// Bits that fall off the right side come back in on the left.
+// Rotation and size constants: FIPS 180-4 reference sections noted below.
+constexpr int word_bits = 32;
+constexpr int big_sigma0_rot_a = 2;
+constexpr int big_sigma0_rot_b = 13;
+constexpr int big_sigma0_rot_c = 22;
+constexpr int big_sigma1_rot_a = 6;
+constexpr int big_sigma1_rot_b = 11;
+constexpr int big_sigma1_rot_c = 25;
+constexpr int sigma0_rot_a = 7;
+constexpr int sigma0_rot_b = 18;
+constexpr int sigma0_rot_c = 3;
+constexpr int sigma1_rot_a = 17;
+constexpr int sigma1_rot_b = 19;
+constexpr int sigma1_rot_c = 10;
+constexpr int block_size = 64;
+constexpr int message_schedule_initial = 16;
+constexpr int message_schedule_full = 64;
+constexpr int w_schedule_lag_2 = 2;
+constexpr int w_schedule_lag_7 = 7;
+constexpr int w_schedule_lag_15 = 15;
+constexpr int w_schedule_lag_16 = 16;
+constexpr int big_endian_shift_1 = 24;
+constexpr int big_endian_shift_2 = 16;
+constexpr int big_endian_shift_3 = 8;
+constexpr int hash_state_words = 8;
+constexpr int bytes_per_word = 4;
+constexpr int hash_length_bytes = 8;
+constexpr int bits_per_byte = 8;
+constexpr int hash_digest_bytes = 32;
+constexpr int hash_padding_boundary = 56;
+
 inline uint32_t rotr(uint32_t x, uint32_t n)
 {
-    return (x >> n) | (x << (32 - n));
+    return (x >> n) | (x << (word_bits - n));
 }
 
 // This is the initial state of SHA-256.
@@ -107,28 +136,26 @@ struct sha256_ctx {
     size_t buf_len = 0;
     uint64_t total_len = 0;
 };
-
-// This function processes one 64-byte block and updates the accumulated SHA-256 state.
-//
-// - ctx - the computation state, passed by reference: the function modifies its h[8].
-// - p - a pointer to 64 bytes of input data, which the function only reads.
 void sha256_block(sha256_ctx &ctx, const unsigned char *p)
 {
-    uint32_t w[64];
+    uint32_t w[message_schedule_full];
     // Turns 64 bytes into 16 uint32_t numbers.
-    for (int i = 0; i < 16; ++i) {
-        w[i] = (uint32_t(p[i * 4]) << 24) | (uint32_t(p[i * 4 + 1]) << 16) |
-            (uint32_t(p[i * 4 + 2]) << 8) | uint32_t(p[i * 4 + 3]);
+    for (int i = 0; i < message_schedule_initial; ++i) {
+        w[i] = (uint32_t(p[i * bytes_per_word]) << big_endian_shift_1) |
+            (uint32_t(p[i * bytes_per_word + 1]) << big_endian_shift_2) |
+            (uint32_t(p[i * bytes_per_word + 2]) << big_endian_shift_3) | uint32_t(p[i * bytes_per_word + 3]);
     }
 
     // The second loop fills w[16] ... w[63] from the previous elements,
     // using rotations, XOR (^) and addition:
     // The result is 64 words - one for each round.
     // All of them depend on the original block.
-    for (int i = 16; i < 64; ++i) {
-        uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
-        uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    for (int i = message_schedule_initial; i < message_schedule_full; ++i) {
+        uint32_t s0 = rotr(w[i - w_schedule_lag_15], sigma0_rot_a) ^
+            rotr(w[i - w_schedule_lag_15], sigma0_rot_b) ^ (w[i - w_schedule_lag_15] >> sigma0_rot_c);
+        uint32_t s1 = rotr(w[i - w_schedule_lag_2], sigma1_rot_a) ^
+            rotr(w[i - w_schedule_lag_2], sigma1_rot_b) ^ (w[i - w_schedule_lag_2] >> sigma1_rot_c);
+        w[i] = w[i - w_schedule_lag_16] + s0 + w[i - w_schedule_lag_7] + s1;
     }
 
     uint32_t a = ctx.h[0];
@@ -141,11 +168,11 @@ void sha256_block(sha256_ctx &ctx, const unsigned char *p)
     uint32_t h = ctx.h[7];
 
     // Performs 64 rounds of mixing
-    for (int i = 0; i < 64; ++i) {
-        uint32_t s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+    for (int i = 0; i < message_schedule_full; ++i) {
+        uint32_t s1 = rotr(e, big_sigma1_rot_a) ^ rotr(e, big_sigma1_rot_b) ^ rotr(e, big_sigma1_rot_c);
         uint32_t ch = (e & f) ^ (~e & g);
         uint32_t t1 = h + s1 + ch + sha256_k[i] + w[i];
-        uint32_t s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        uint32_t s0 = rotr(a, big_sigma0_rot_a) ^ rotr(a, big_sigma0_rot_b) ^ rotr(a, big_sigma0_rot_c);
         uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
         uint32_t t2 = s0 + maj;
         h = g;
@@ -175,7 +202,7 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
 {
     ctx.total_len += len;
     while (len > 0) {
-        size_t take = 64 - ctx.buf_len;
+        size_t take = block_size - ctx.buf_len;
         if (take > len) {
             take = len;
         }
@@ -183,7 +210,7 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
         ctx.buf_len += take;
         data += take;
         len -= take;
-        if (ctx.buf_len == 64) {
+        if (ctx.buf_len == block_size) {
             sha256_block(ctx, ctx.buf);
             ctx.buf_len = 0;
         }
@@ -192,12 +219,12 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
 
 // Finalises the SHA-256 computation: pads the remaining data, processes
 // the closing blocks and writes the full 32-byte hash into digest.
-void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
+void sha256_final(sha256_ctx &ctx, unsigned char digest[hash_digest_bytes])
 {
     // Length of the original data in bits, before the padding added below.
-    uint64_t bit_len = ctx.total_len * 8;
+    uint64_t bit_len = ctx.total_len * bits_per_byte;
     {
-        // The buffer has between 0 and 63 not-yet-processed bytes left.
+        // The buffer has between 0 and (block_size - 1) not-yet-processed bytes left.
         size_t buf_len = ctx.buf_len;
 
         // 0x80 = 10000000: the mandatory 1 bit followed by the first seven zero bits
@@ -206,20 +233,21 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
 
         // The last 8 bytes of the block are reserved for the length of the original data.
         // If there is no room for it, finish the current block with zeros and process it.
-        if (buf_len > 56) {
-            std::memset(ctx.buf + buf_len, 0, 64 - buf_len);
+        if (buf_len > hash_padding_boundary) {
+            std::memset(ctx.buf + buf_len, 0, block_size - buf_len);
             sha256_block(ctx, ctx.buf);
 
             // The next block is assembled from the start of the same buffer.
             buf_len = 0;
         }
 
-        // Fill the free bytes up to the length field with zeros (indices up to 55 inclusive).
-        std::memset(ctx.buf + buf_len, 0, 56 - buf_len);
+        // Fill the free bytes up to the length field with zeros (indices up to padding_boundary - 1 inclusive).
+        std::memset(ctx.buf + buf_len, 0, hash_padding_boundary - buf_len);
 
-        // Write the length in bits into bytes 56-63, big-endian (most significant byte first).
-        for (int i = 0; i < 8; ++i) {
-            ctx.buf[56 + i] = static_cast<unsigned char>(bit_len >> (56 - 8 * i));
+        // Write the length in bits into bytes (padding_boundary) to (block_size - 1), big-endian.
+        for (int i = 0; i < hash_length_bytes; ++i) {
+            const int shift_amount = hash_length_bytes * bits_per_byte - bits_per_byte * (i + 1);
+            ctx.buf[hash_padding_boundary + i] = static_cast<unsigned char>(bit_len >> shift_amount);
         }
 
         // After processing the last block, ctx.h holds the final hash state.
@@ -228,11 +256,11 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
 
     // Write the eight 32-bit state words into 32 bytes of digest:
     // each word big-endian (most significant byte first).
-    for (int i = 0; i < 8; ++i) {
-        digest[i * 4] = static_cast<unsigned char>(ctx.h[i] >> 24);
-        digest[i * 4 + 1] = static_cast<unsigned char>(ctx.h[i] >> 16);
-        digest[i * 4 + 2] = static_cast<unsigned char>(ctx.h[i] >> 8);
-        digest[i * 4 + 3] = static_cast<unsigned char>(ctx.h[i]);
+    for (int i = 0; i < hash_state_words; ++i) {
+        digest[i * bytes_per_word] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_1);
+        digest[i * bytes_per_word + 1] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_2);
+        digest[i * bytes_per_word + 2] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_3);
+        digest[i * bytes_per_word + 3] = static_cast<unsigned char>(ctx.h[i]);
     }
 }
 
@@ -369,9 +397,9 @@ int feed_section(
     }
 
     uint64_t size = found ? sh_size : 0;
-    unsigned char size_le[8];
-    for (int i = 0; i < 8; ++i) {
-        size_le[i] = static_cast<unsigned char>(size >> (8 * i));
+    unsigned char size_le[hash_length_bytes];
+    for (int i = 0; i < hash_length_bytes; ++i) {
+        size_le[i] = static_cast<unsigned char>(size >> (bits_per_byte * i));
     }
     sha256_update(ctx, size_le, sizeof(size_le));
 
@@ -474,7 +502,7 @@ int rv_disc_hash_compute(
         }
     }
 
-    unsigned char digest[32];
+    unsigned char digest[hash_digest_bytes];
     sha256_final(ctx, digest);
     std::memcpy(out, digest, RV_DISC_HASH_BYTES);
     return RV_OK;
