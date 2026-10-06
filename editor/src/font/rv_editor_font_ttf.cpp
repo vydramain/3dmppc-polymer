@@ -21,13 +21,96 @@ namespace rv_editor
 namespace
 {
 
-constexpr int rv_editor_ttf_unit = 64; // font units per target pixel
+// Point is on the curve: OpenType spec, 'glyf' table.
+constexpr int glyf_flag_on_curve = 0x01;
+// Points per rectangular contour.
+constexpr int glyf_contour_points = 4;
+// End point index in 4-point contour (0-indexed).
+constexpr int glyf_contour_end_point = 3;
+
+// Cell width in pixels per byte: pdklib raster font cell representation.
+constexpr int cell_width_bits = 8;
+// Leftmost pixel mask in byte (bit 7).
+constexpr uint32_t cell_leftmost_bit = 0x80u;
+// Full byte value mask.
+constexpr uint32_t byte_value_mask = 0xff;
+
+// Big-endian word serialization: bit shift widths.
+// Bits from word to halfword
+constexpr int shift_word_to_halfword = 16;
+// Bits from halfword to byte
+constexpr int shift_halfword_to_byte = 8;
+
+// Floating-point rounding: coordinate conversion from double scale.
+// Add before floor() for round-half-up
+constexpr double rounding_offset = 0.5;
+
+// Memory alignment: binary format word boundaries.
+// 32-bit word boundary (4 bytes)
+constexpr int word_alignment = 4;
+// 16-bit halfword boundary (2 bytes)
+constexpr int halfword_alignment = 2;
+
+// Pairs (min, max) for bounds coordinates.
+constexpr int bounds_coord_pairs = 2;
+// Total bounds fields (xMin, yMin, xMax, yMax).
+constexpr int bounds_field_count = 4;
+
+constexpr int rv_editor_ttf_unit = 64;
+
+// Version fixed 1.0: OpenType spec, 'head' table.
+constexpr uint32_t head_version = 0x00010000;
+// Magic number.
+constexpr uint32_t head_magic_number = 0x5F0F3CF5;
+// Baseline at y=0, integer ppem, lsb at x=0.
+constexpr uint16_t head_flags = 0x000B;
+// Directional hint.
+constexpr uint16_t head_font_direction_hint = 2;
+
+// Version 0.5: OpenType spec, 'maxp' table.
+constexpr uint32_t maxp_version = 0x00005000;
+
+// Windows platform: OpenType spec, 'cmap' table.
+constexpr uint16_t cmap_platform_id = 3;
+// Unicode BMP.
+constexpr uint16_t cmap_encoding_id = 1;
+// Format 4 (segment to delta).
+constexpr uint16_t cmap_format = 4;
+// Subtable header size.
+constexpr uint16_t cmap_header_length = 12;
+// End of cmap segments.
+constexpr uint16_t cmap_segment_end_marker = 0xFFFF;
+// Multiplier for segCountX2.
+constexpr uint16_t cmap_segment_count_multiplier = 2;
+// Length field offset in format 4 subtable (bytes 2..3 after format).
+constexpr int cmap_length_field_offset = 2;
+
+// SFnt version fixed 1.0: OpenType spec, 'Offset Table'.
+constexpr uint32_t ttf_sfnt_version = 0x00010000;
+// searchRange for table count.
+constexpr uint16_t ttf_search_range = 64;
+// entrySelector for table count.
+constexpr uint16_t ttf_entry_selector = 2;
+// Offset table header size.
+constexpr uint16_t ttf_header_size = 12;
+// Bytes per table directory entry.
+constexpr uint16_t ttf_catalog_entry_size = 16;
+// Tag length in table directory (OpenType spec 'Table Directory').
+constexpr int table_tag_bytes = 4;
+
+// Bytes per glyph in rv_pdklib.
+constexpr size_t glyph_data_stride = 8;
+
+// First code point: Unicode standard, Cyrillic block.
+constexpr uint32_t cyrillic_range_start = 0x0400;
+// Last code point.
+constexpr uint32_t cyrillic_range_end = 0x045f;
 
 // Source pixel edge i lands on a whole target pixel by a fixed nearest rule (halves round up), so each
 // source pixel covers a whole number of target pixels and nothing is smoothed.
 int rv_editor_ttf_edge(int i, double scale)
 {
-    return static_cast<int>(std::floor(i * scale + 0.5)) * rv_editor_ttf_unit;
+    return static_cast<int>(std::floor(i * scale + rounding_offset)) * rv_editor_ttf_unit;
 }
 
 struct rv_editor_ttf_glyph
@@ -39,20 +122,23 @@ struct rv_editor_ttf_glyph
 struct rv_editor_ttf_out
 {
     std::string b;
-    void u8(uint32_t v) { b.push_back(static_cast<char>(v & 0xff)); }
+    void u8(uint32_t v)
+    {
+        b.push_back(static_cast<char>(v & byte_value_mask));
+    }
     void u16(uint32_t v)
     {
-        u8(v >> 8);
+        u8(v >> shift_halfword_to_byte);
         u8(v);
     }
     void u32(uint32_t v)
     {
-        u16(v >> 16);
+        u16(v >> shift_word_to_halfword);
         u16(v);
     }
     void pad4()
     {
-        while (b.size() % 4 != 0) {
+        while (b.size() % word_alignment != 0) {
             u8(0);
         }
     }
@@ -68,13 +154,13 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
     std::vector<run> runs;
     for (int row = 0; g.rows != nullptr && row < cell_h; ++row) {
         const uint8_t bits = g.rows[row];
-        for (int x = 0; x < 8;) {
-            if ((bits & (0x80u >> x)) == 0) {
+        for (int x = 0; x < cell_width_bits;) {
+            if ((bits & (cell_leftmost_bit >> x)) == 0) {
                 ++x;
                 continue;
             }
             const int start = x;
-            while (x < 8 && (bits & (0x80u >> x)) != 0) {
+            while (x < cell_width_bits && (bits & (cell_leftmost_bit >> x)) != 0) {
                 ++x;
             }
             // Row 0 is the top of the cell; font y grows upward from the cell's bottom.
@@ -107,11 +193,11 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
         o.u16(static_cast<uint16_t>(static_cast<int16_t>(v)));
     }
     for (size_t k = 0; k < runs.size(); ++k) {
-        o.u16(static_cast<uint32_t>(k * 4 + 3)); // end point of each 4-point contour
+        o.u16(static_cast<uint32_t>(k * glyf_contour_points + glyf_contour_end_point)); // end point of each 4-point contour
     }
     o.u16(0); // no instructions
-    for (size_t k = 0; k < runs.size() * 4; ++k) {
-        o.u8(0x01); // on curve, 16-bit x and y deltas
+    for (size_t k = 0; k < runs.size() * glyf_contour_points; ++k) {
+        o.u8(glyf_flag_on_curve); // on curve, 16-bit x and y deltas
     }
     // Clockwise: bottom-left, top-left, top-right, bottom-right.
     int px = 0;
@@ -128,7 +214,7 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
             py = y;
         }
     }
-    while (o.b.size() % 2 != 0) {
+    while (o.b.size() % halfword_alignment != 0) {
         o.u8(0);
     }
     return o.b;
@@ -139,8 +225,8 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
 std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     const std::vector<std::pair<uint32_t, uint16_t>> &map, int src_cell_w, int src_cell_h, double scale)
 {
-    const int cell_h = static_cast<int>(std::floor(src_cell_h * scale + 0.5));
-    const int cell_w = static_cast<int>(std::floor(src_cell_w * scale + 0.5));
+    const int cell_h = static_cast<int>(std::floor(src_cell_h * scale + rounding_offset));
+    const int cell_w = static_cast<int>(std::floor(src_cell_w * scale + rounding_offset));
     // `map` is in increasing code point order, as cmap format 4 needs.
     std::string glyf;
     // glyf and loca.
@@ -152,9 +238,10 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
         int16_t b[4];
         glyf += rv_editor_ttf_glyf(g, src_cell_h, scale, b);
         lsb.push_back(b[0]);
-        for (int k = 0; k < 2; ++k) {
+        for (int k = 0; k < bounds_coord_pairs; ++k) {
             font_bounds[k] = std::min(font_bounds[k], b[k]);
-            font_bounds[k + 2] = std::max(font_bounds[k + 2], b[k + 2]);
+            font_bounds[k + bounds_coord_pairs] =
+                std::max(font_bounds[k + bounds_coord_pairs], b[k + bounds_coord_pairs]);
         }
     }
     loca.push_back(static_cast<uint32_t>(glyf.size()));
@@ -163,27 +250,27 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     const int cell_h_units = cell_h * rv_editor_ttf_unit;
 
     rv_editor_ttf_out head;
-    head.u32(0x00010000);
-    head.u32(0x00010000);
-    head.u32(0);          // checkSumAdjustment: nobody here checks it
-    head.u32(0x5F0F3CF5); // magic
-    head.u16(0x000B);     // baseline at y=0, integer ppem, lsb at x=0
-    head.u16(static_cast<uint32_t>(cell_h_units)); // unitsPerEm: one em is one cell high
-    for (int k = 0; k < 4; ++k) {
-        head.u32(0); // created, modified
+    head.u32(head_version);
+    head.u32(head_version);
+    head.u32(0);
+    head.u32(head_magic_number);
+    head.u16(head_flags);
+    head.u16(static_cast<uint32_t>(cell_h_units));
+    for (int k = 0; k < bounds_field_count; ++k) {
+        head.u32(0);
     }
     for (int16_t v : font_bounds) {
         head.u16(static_cast<uint16_t>(v));
     }
-    head.u16(0);  // macStyle
-    head.u16(static_cast<uint32_t>(cell_h));  // lowestRecPPEM
-    head.u16(2);  // fontDirectionHint
-    head.u16(1);  // indexToLocFormat: long
-    head.u16(0);  // glyphDataFormat
+    head.u16(0);
+    head.u16(static_cast<uint32_t>(cell_h));
+    head.u16(head_font_direction_hint);
+    head.u16(1);
+    head.u16(0);
 
     // The cell sits on the baseline: ascent is the whole cell, descent none.
     rv_editor_ttf_out hhea;
-    hhea.u32(0x00010000);
+    hhea.u32(head_version);
     hhea.u16(static_cast<uint32_t>(cell_h_units));
     hhea.u16(0);
     hhea.u16(0);
@@ -194,7 +281,7 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     hhea.u16(1);
     hhea.u16(0);
     hhea.u16(0);
-    for (int k = 0; k < 4; ++k) {
+    for (int k = 0; k < bounds_field_count; ++k) {
         hhea.u16(0);
     }
     hhea.u16(0);
@@ -207,7 +294,7 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     }
 
     rv_editor_ttf_out maxp;
-    maxp.u32(0x00005000);
+    maxp.u32(maxp_version);
     maxp.u16(count);
 
     rv_editor_ttf_out locat;
@@ -220,32 +307,32 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
     rv_editor_ttf_out cmap;
     cmap.u16(0);
     cmap.u16(1);
-    cmap.u16(3);
-    cmap.u16(1);
-    cmap.u32(12);
+    cmap.u16(cmap_platform_id);
+    cmap.u16(cmap_encoding_id);
+    cmap.u32(cmap_header_length);
     const size_t sub = cmap.b.size();
-    cmap.u16(4);
-    cmap.u16(0); // length, patched below
+    cmap.u16(cmap_format);
+    cmap.u16(0);
     cmap.u16(0);
     uint16_t search = 1;
     uint16_t selector = 0;
-    while (search * 2 <= segs) {
-        search = static_cast<uint16_t>(search * 2);
+    while (search * cmap_segment_count_multiplier <= segs) {
+        search = static_cast<uint16_t>(search * cmap_segment_count_multiplier);
         ++selector;
     }
-    cmap.u16(static_cast<uint16_t>(segs * 2));
-    cmap.u16(static_cast<uint16_t>(search * 2));
+    cmap.u16(static_cast<uint16_t>(segs * cmap_segment_count_multiplier));
+    cmap.u16(static_cast<uint16_t>(search * cmap_segment_count_multiplier));
     cmap.u16(selector);
-    cmap.u16(static_cast<uint16_t>((segs - search) * 2));
+    cmap.u16(static_cast<uint16_t>((segs - search) * cmap_segment_count_multiplier));
     for (const auto &[code, glyph] : map) {
-        cmap.u16(code); // endCode
+        cmap.u16(code);
     }
-    cmap.u16(0xFFFF);
-    cmap.u16(0); // reservedPad
+    cmap.u16(cmap_segment_end_marker);
+    cmap.u16(0);
     for (const auto &[code, glyph] : map) {
-        cmap.u16(code); // startCode
+        cmap.u16(code);
     }
-    cmap.u16(0xFFFF);
+    cmap.u16(cmap_segment_end_marker);
     for (const auto &[code, glyph] : map) {
         cmap.u16(static_cast<uint16_t>(glyph - code)); // idDelta, modulo 65536
     }
@@ -254,31 +341,33 @@ std::string rv_editor_ttf_build(const std::vector<rv_editor_ttf_glyph> &glyphs,
         cmap.u16(0); // idRangeOffset: none, idDelta says it all
     }
     const size_t len = cmap.b.size() - sub;
-    cmap.b[sub + 2] = static_cast<char>((len >> 8) & 0xff);
-    cmap.b[sub + 3] = static_cast<char>(len & 0xff);
+    cmap.b[sub + cmap_length_field_offset] =
+        static_cast<char>((len >> shift_halfword_to_byte) & byte_value_mask);
+    cmap.b[sub + cmap_length_field_offset + 1] =
+        static_cast<char>(len & byte_value_mask);
 
     // The file: offset table, directory sorted by tag, tables 4-byte aligned.
     const std::pair<const char *, const std::string *> tables[] = { { "cmap", &cmap.b }, { "glyf", &glyf },
         { "head", &head.b }, { "hhea", &hhea.b }, { "hmtx", &hmtx.b }, { "loca", &locat.b }, { "maxp", &maxp.b } };
     const uint16_t n = static_cast<uint16_t>(std::size(tables));
     rv_editor_ttf_out file;
-    file.u32(0x00010000);
+    file.u32(ttf_sfnt_version);
     file.u16(n);
-    file.u16(64);
-    file.u16(2);
-    file.u16(static_cast<uint32_t>(n * 16 - 64));
-    uint32_t offset = 12 + 16u * n;
+    file.u16(ttf_search_range);
+    file.u16(ttf_entry_selector);
+    file.u16(static_cast<uint32_t>(n * ttf_catalog_entry_size - ttf_search_range));
+    uint32_t offset = ttf_header_size + static_cast<uint32_t>(ttf_catalog_entry_size) * n;
     std::string body;
     for (const auto &[tag, data] : tables) {
-        file.b.append(tag, 4);
-        file.u32(0); // checksum: nobody here checks it
+        file.b.append(tag, table_tag_bytes);
+        file.u32(0);
         file.u32(offset);
         file.u32(static_cast<uint32_t>(data->size()));
         body += *data;
-        while (body.size() % 4 != 0) {
+        while (body.size() % word_alignment != 0) {
             body.push_back('\0');
         }
-        offset = 12 + 16u * n + static_cast<uint32_t>(body.size());
+        offset = ttf_header_size + static_cast<uint32_t>(ttf_catalog_entry_size) * n + static_cast<uint32_t>(body.size());
     }
     return file.b + body;
 }
@@ -294,13 +383,13 @@ std::string rv_editor_font_ttf(double scale)
 {
     // Glyph 0 is notdef; then ASCII 32..126, then the Cyrillic block by slot.
     std::vector<rv_editor_ttf_glyph> glyphs;
-    glyphs.push_back({ &rv_pdklib::rv_font_bits[rv_pdklib::rv_font_notdef_index * 8] });
+    glyphs.push_back({ &rv_pdklib::rv_font_bits[rv_pdklib::rv_font_notdef_index * glyph_data_stride] });
     for (int code = rv_pdklib::rv_font_first_code; code <= rv_pdklib::rv_font_last_code; ++code) {
-        glyphs.push_back({ &rv_pdklib::rv_font_bits[(code - rv_pdklib::rv_font_first_code) * 8] });
+        glyphs.push_back({ &rv_pdklib::rv_font_bits[(code - rv_pdklib::rv_font_first_code) * glyph_data_stride] });
     }
     const size_t cyrillic_first = glyphs.size();
     for (int slot = 0; slot < rv_pdklib::rv_font_cyrillic_glyph_count; ++slot) {
-        glyphs.push_back({ &rv_pdklib::rv_font_cyrillic_bits[slot * 8] });
+        glyphs.push_back({ &rv_pdklib::rv_font_cyrillic_bits[slot * glyph_data_stride] });
     }
 
     // Code point -> glyph, in code point order, for cmap format 4.
@@ -308,7 +397,7 @@ std::string rv_editor_font_ttf(double scale)
     for (int code = rv_pdklib::rv_font_first_code; code <= rv_pdklib::rv_font_last_code; ++code) {
         map.push_back({ static_cast<uint32_t>(code), static_cast<uint16_t>(code - rv_pdklib::rv_font_first_code + 1) });
     }
-    for (uint32_t code = 0x0400; code <= 0x045f; ++code) {
+    for (uint32_t code = cyrillic_range_start; code <= cyrillic_range_end; ++code) {
         const int slot = rv_pdklib::rv_font_cyrillic_slot(code);
         if (slot >= 0) {
             map.push_back({ code, static_cast<uint16_t>(cyrillic_first + static_cast<size_t>(slot)) });
