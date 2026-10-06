@@ -14,13 +14,21 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+constexpr float filter_width_in_font_sizes = 30.0f;
+constexpr int help_table_columns = 2;
+
+} // namespace
+
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted(rv_editor_text("page_help.filter_label"));
     ImGui::SameLine();
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 30.0f);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * filter_width_in_font_sizes);
     rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
     // A row stays when its command or its keys hold the filter, case aside.
     const auto holds = [&](const char *text) {
@@ -53,7 +61,7 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         { "workspace.pane_code", "page_help.label_vim", "page_help.shortcut_vim" },
         { "shell_menu.help", "manual.start_label", "page_help.shortcut_f1" },
     };
-    if (!ImGui::BeginTable("##keys", 2, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
+    if (!ImGui::BeginTable("##keys", help_table_columns, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
         return;
     }
     const char *last_group_text = nullptr;

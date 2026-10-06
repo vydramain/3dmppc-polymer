@@ -17,6 +17,9 @@ namespace rv_editor
 namespace
 {
 
+constexpr auto shutdown_wait_timeout = std::chrono::seconds(4);
+constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
+
 void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_editor_tool &tool)
 {
     if (tool.problem.empty()) {
@@ -350,10 +353,10 @@ void rv_editor_app_update(rv_editor_app &app)
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
     app.build.cancel();
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+    const auto until = std::chrono::steady_clock::now() + shutdown_wait_timeout;
     while (app.build.busy() && std::chrono::steady_clock::now() < until) {
         app.build.update(app.log);
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        std::this_thread::sleep_for(shutdown_poll_interval);
     }
     app.session.shutdown(app.log);
     app.nvim.stop();

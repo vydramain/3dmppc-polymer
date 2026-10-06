@@ -31,6 +31,9 @@ bool rv_editor_menu_item(const char *label, const char *shortcut, const char *wh
 namespace
 {
 
+constexpr float menu_centering_divisor = 2.0f;
+constexpr float item_spacings_per_name = 2.0f;
+
 // A top-level menu with its mnemonic, the first letter, underlined. Alt
 // moves the keyboard into the bar; the arrows walk it.
 bool rv_editor_menu_begin(const char *label)
@@ -39,10 +42,10 @@ bool rv_editor_menu_begin(const char *label)
     const ImVec2 min = ImGui::GetItemRectMin();
     const ImVec2 max = ImGui::GetItemRectMax();
     const float text = ImGui::CalcTextSize(label).x;
-    const float x = std::floor(min.x + (max.x - min.x - text) / 2.0f);
-    const char first[2] = { label[0], '\0' };
+    const float x = std::floor(min.x + (max.x - min.x - text) / menu_centering_divisor);
+    const char first[] = { label[0], '\0' };
     // Below the baseline; the bar's own clip would cut it, so it goes on top.
-    const float y = std::floor(min.y + (max.y - min.y + ImGui::GetFontSize()) / 2.0f) - 1.0f;
+    const float y = std::floor(min.y + (max.y - min.y + ImGui::GetFontSize()) / menu_centering_divisor) - 1.0f;
     ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(x, y), ImVec2(x + ImGui::CalcTextSize(first).x, y + 1.0f),
         ImGui::GetColorU32(ImGuiCol_Text));
     return open;
@@ -351,7 +354,7 @@ void rv_editor_shell_menu(rv_editor_shell &shell)
     // The layout switch at the bar's right end, as in the references: one place, once a project is open.
     float names = 0.0f;
     for (const rv_editor_layout_preset preset : rv_editor_workspaces) {
-        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + 2.0f * ImGui::GetStyle().ItemSpacing.x;
+        names += ImGui::CalcTextSize(rv_editor_layout_preset_name(preset)).x + item_spacings_per_name * ImGui::GetStyle().ItemSpacing.x;
     }
     const float at = ImGui::GetWindowWidth() - names - ImGui::GetStyle().WindowPadding.x;
     if (shell.app.project.open && at > ImGui::GetCursorPosX()) {
