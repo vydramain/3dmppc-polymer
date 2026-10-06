@@ -24,6 +24,21 @@ constexpr std::string_view scene_suffix = ".scene.toml";
 // Numbering of a copied scene name starts here.
 constexpr int first_copy_number = 2;
 
+// Project's scenes directory.
+constexpr std::string_view scenes_dir = "scenes";
+
+// First name for a new scene.
+constexpr std::string_view main_scene_name = "main";
+
+// Prefix for numbered scene copies.
+constexpr std::string_view scene_num_prefix = "scene";
+
+// Section name in disc.toml for scene assets.
+constexpr std::string_view assets_section = "assets";
+
+// Glob pattern for scene files in the assets section.
+constexpr std::string_view scenes_glob_pattern = "scenes/*.scene.toml";
+
 std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesystem::path &path)
 {
     std::error_code ec;
@@ -52,8 +67,8 @@ std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app
 {
     std::vector<std::filesystem::path> out;
     std::error_code ec;
-    for (std::filesystem::directory_iterator it(app.project.root / "scenes", ec), end; !ec && it != end;
-         it.increment(ec)) {
+    for (std::filesystem::directory_iterator it(app.project.root / scenes_dir, ec), end; !ec && it != end;
+        it.increment(ec)) {
         const std::string name = it->path().filename().string();
         if (name.size() > scene_suffix.size() && name.ends_with(scene_suffix)) {
             out.push_back(it->path());
@@ -113,12 +128,12 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
 {
     // A free name: an existing file is never written over.
-    std::string name = "main";
+    std::string name = std::string(main_scene_name);
     std::error_code ec;
     std::string suffix_str(scene_suffix);
     for (int n = first_copy_number;
-        std::filesystem::exists(app.project.root / "scenes" / (name + suffix_str), ec); ++n) {
-        name = "scene" + std::to_string(n);
+        std::filesystem::exists(app.project.root / scenes_dir / (name + suffix_str), ec); ++n) {
+        name = std::string(scene_num_prefix) + std::to_string(n);
     }
     return name;
 }
@@ -134,7 +149,7 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
         error = "name must be non-empty letters, digits, _ or -";
         return RV_ERR_INVAL;
     }
-    const std::string rel = "scenes/" + std::string(name) + ".scene.toml";
+    const std::string rel = std::string(scenes_dir) + "/" + std::string(name) + std::string(scene_suffix);
     const std::filesystem::path path = app.project.root / rel;
     std::error_code ec;
     if (std::filesystem::exists(path, ec)) {
@@ -156,8 +171,8 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
     std::string reason;
     if (!rv_editor_project_on_disc(app.project, rel)) {
         std::string add_error;
-        const int add_code = rv_editor_manifest_add_pattern(app.project.manifest, "assets",
-            "scenes/*.scene.toml", add_error);
+        const int add_code = rv_editor_manifest_add_pattern(app.project.manifest, assets_section,
+            scenes_glob_pattern, add_error);
         if (add_code == RV_OK) {
             rv_editor_project_reload_manifest(app.project);
             app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info,

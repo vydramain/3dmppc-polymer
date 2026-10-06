@@ -28,6 +28,12 @@ namespace
 // Scene name buffer: the name entered in the New Scene dialog, with room including NUL
 constexpr size_t new_scene_name_bytes = 64;
 
+// Project's scenes directory.
+constexpr std::string_view scenes_dir = "scenes";
+
+// Scene file extension with dot.
+constexpr std::string_view scene_file_suffix = ".scene.toml";
+
 // Kinds the Add menu offers, in menu order
 constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
 
@@ -132,7 +138,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
     const char *disabled;
     if (!rv_editor_new_scene_name_valid(name)) {
         disabled = rv_editor_text("shell_menu_scene.invalid_name");
-    } else if (std::filesystem::exists(app.project.root / "scenes" / (name + ".scene.toml"), ec)) {
+    } else if (std::filesystem::exists(app.project.root / scenes_dir / (name + std::string(scene_file_suffix)), ec)) {
         disabled = rv_editor_text("shell_menu_scene.name_already_exists");
     } else {
         disabled = nullptr;

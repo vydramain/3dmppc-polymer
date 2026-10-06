@@ -17,6 +17,18 @@ namespace
 // Bytes read from the baker per poll.
 constexpr size_t read_chunk_bytes = 1 << 20;
 
+// Cache subdirectory for baked textures.
+constexpr std::string_view cache_staging_dir = "staging";
+
+// Burner command to bake a texture.
+constexpr std::string_view burner_cmd_bake = "bake-texture";
+
+// Burner argument for output file path.
+constexpr std::string_view burner_arg_output = "-o";
+
+// Burner argument to specify the baker tool path.
+constexpr std::string_view burner_arg_baker = "--baker";
+
 // The last non-empty line of `text`, for a one-line failure summary.
 std::string rv_editor_texture_last_line(const std::string &text)
 {
@@ -112,7 +124,7 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
     bake.name = name;
     bake.png = png;
     bake.build_number = app.session.build_number();
-    const std::filesystem::path staging = app.project.cache_dir / "staging" / std::to_string(bake.build_number);
+    const std::filesystem::path staging = app.project.cache_dir / cache_staging_dir / std::to_string(bake.build_number);
     bake.out = staging / name;
     std::error_code ec;
     std::filesystem::create_directories(staging, ec);
@@ -122,8 +134,9 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
         return;
     }
-    const std::vector<std::string> argv = { app.tools.burner.path.string(), "bake-texture",
-        app.project.root.string(), png.string(), "-o", bake.out.string(), "--baker", app.tools.baker.path.string() };
+    const std::vector<std::string> argv = { app.tools.burner.path.string(), std::string(burner_cmd_bake),
+        app.project.root.string(), png.string(), std::string(burner_arg_output), bake.out.string(),
+        std::string(burner_arg_baker), app.tools.baker.path.string() };
     bake.proc = std::make_unique<rv_editor_process>();
     bake.out_partial.clear();
     bake.err_partial.clear();
