@@ -15,6 +15,7 @@
 
 #include "pdk/rv_err.h"
 
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -325,7 +326,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     // No controls row at the top: the New Test Case button sits inside the
     // content between the selector and the case preview, so only a well.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
-    if (rv_editor_radio("Exploratory: free play, no checklist", f.test_case < 0, theme)) {
+    if (rv_editor_radio(rv_editor_text("findings.exploratory_desc"), f.test_case < 0, theme)) {
         f.test_case = -1;
     }
     // Each case file is read every frame for its title; a cache when a project keeps dozens.
@@ -336,27 +337,28 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         }
         ImGui::PopID();
     }
-    if (rv_editor_button("New Test Case", theme)) {
+    if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme)) {
         rv_editor_case_new(app);
     }
-    ImGui::SetItemTooltip("Writes testcases/case-N.txt in the project and opens it in Code");
+    ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
     rv_editor_case c{ "Exploratory", {}, {} };
     if (f.test_case >= 0) {
         c = rv_editor_case_read(f.cases[static_cast<size_t>(f.test_case)]);
-        ImGui::SeparatorText("Steps");
-        ImGui::TextWrapped("%s", c.steps.empty() ? "(none written)" : c.steps.c_str());
-        ImGui::SeparatorText("Expected");
-        ImGui::TextWrapped("%s", c.expected.empty() ? "(none written)" : c.expected.c_str());
+        ImGui::SeparatorText(rv_editor_text("findings.steps"));
+        ImGui::TextWrapped("%s", c.steps.empty() ? rv_editor_text("findings.none_written") : c.steps.c_str());
+        ImGui::SeparatorText(rv_editor_text("findings.expected"));
+        ImGui::TextWrapped("%s", c.expected.empty() ? rv_editor_text("findings.none_written") : c.expected.c_str());
     }
-    ImGui::SeparatorText("Result");
+    ImGui::SeparatorText(rv_editor_text("findings.result"));
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
-    ImGui::SetItemTooltip("What happened, in a line: kept with the result");
-    const char *why_not = app.session.number() != 0 ? nullptr : "No session has run yet: play the game first";
+    ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
+    const char *why_not = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
     constexpr const char *results[] = { result_type_passed.data(), result_type_failed.data(),
         result_type_blocked.data() };
-    constexpr const char *labels[] = { "Passed", "Failed", "Blocked" };
+    const char *labels[] = { rv_editor_text("findings.passed"), rv_editor_text("findings.failed"),
+        rv_editor_text("findings.blocked") };
     for (size_t i = 0; i < std::size(results); ++i) {
         if (i > 0) {
             ImGui::SameLine();
@@ -391,13 +393,13 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
     rv_editor_shelf_begin("##shelf", theme);
-    const char *why_not_capture = app.session.live() ? nullptr : "No session is running: there is no frame to capture";
-    if (rv_editor_button("Capture Frame", theme, { rv_editor_look::live, why_not_capture })) {
+    const char *why_not_capture = app.session.live() ? nullptr : rv_editor_text("findings.no_session_running");
+    if (rv_editor_button(rv_editor_text("findings.capture_frame"), theme, { rv_editor_look::live, why_not_capture })) {
         rv_editor_findings_capture(app);
     }
-    rv_editor_flow(rv_editor_button_width("Record Finding"));
-    const char *why_not_record = f.title[0] == '\0' ? "Give the finding a title first" : nullptr;
-    if (rv_editor_button("Record Finding", theme, { rv_editor_look::live, why_not_record })) {
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.record_finding")));
+    const char *why_not_record = f.title[0] == '\0' ? rv_editor_text("findings.title_first") : nullptr;
+    if (rv_editor_button(rv_editor_text("findings.record_finding"), theme, { rv_editor_look::live, why_not_record })) {
         std::error_code ec;
         std::filesystem::create_directories(dir, ec);
         rv_editor_record(app, dir);
@@ -409,24 +411,25 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
     }
 
-    ImGui::TextUnformatted("Title");
+    ImGui::TextUnformatted(rv_editor_text("findings.title"));
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##title", f.title, sizeof(f.title), theme);
-    rv_editor_multiline("Steps", f.steps, sizeof(f.steps));
-    rv_editor_multiline("Expected", f.expected, sizeof(f.expected));
-    rv_editor_multiline("Actual", f.actual, sizeof(f.actual));
-    rv_editor_path_row("Screenshot", f.capture.empty() ? std::string("none: Capture Frame attaches one") : f.capture.string(),
-        theme);
-    ImGui::TextWrapped("The session, build, frame and revision are added when it is saved, with the log since the "
-                       "session started.");
+    rv_editor_multiline(rv_editor_text("findings.steps"), f.steps, sizeof(f.steps));
+    rv_editor_multiline(rv_editor_text("findings.expected"), f.expected, sizeof(f.expected));
+    rv_editor_multiline(rv_editor_text("findings.actual"), f.actual, sizeof(f.actual));
+    rv_editor_path_row(rv_editor_text("findings.screenshot"),
+        f.capture.empty() ? std::string(rv_editor_text("findings.none_screenshot")) : f.capture.string(), theme);
+    ImGui::TextWrapped("%s", rv_editor_text("findings.session_added"));
 
-    ImGui::SeparatorText("Saved in this window");
+    ImGui::SeparatorText(rv_editor_text("findings.saved_in_this_window"));
     if (f.saved.empty()) {
-        ImGui::TextWrapped("None yet. They go to %s.", dir.c_str());
+        const std::string dir_str = dir.string();
+        const auto saved_msg = rv_editor_text_format("findings.saved_format", std::make_format_args(dir_str));
+        ImGui::TextWrapped("%s", saved_msg.c_str());
     }
     for (size_t i = 0; i < f.saved.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
-        rv_editor_path_row("Finding", f.saved[i].string(), theme);
+        rv_editor_path_row(rv_editor_text("findings.finding_label"), f.saved[i].string(), theme);
         ImGui::PopID();
     }
     rv_editor_well_end();

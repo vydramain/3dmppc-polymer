@@ -112,13 +112,12 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_ask_end();
         return;
     }
-    ImGui::Text("Name");
+    ImGui::TextUnformatted(rv_editor_text("shell_menu_scene.name_label"));
     if (g_new_scene.focus_name) {
         app.scene_tabs.front = 0; // the scene's own tab, so the created scene shows
         ImGui::SetKeyboardFocusHere();
         g_new_scene.focus_name = false;
     }
-    ImGui::Text("%s", rv_editor_text("shell_menu_scene.name_label"));
     rv_editor_text_field("##new_scene_name", g_new_scene.name, sizeof(g_new_scene.name), theme);
 
     const std::string name = g_new_scene.name;
