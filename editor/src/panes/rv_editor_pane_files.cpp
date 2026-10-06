@@ -23,6 +23,21 @@ namespace rv_editor
 namespace
 {
 
+// Folder glyph colour: the olive theme's selection colour (rv_editor_theme_olive.selection).
+constexpr uint32_t folder_color = 0x958831;
+
+// Project manifest file name.
+constexpr const char *disc_manifest_filename = "disc.toml";
+
+// String appended to symlink names in file tree.
+constexpr const char *symlink_indicator = " ->";
+
+// Input field width for dialogs, in font size units.
+constexpr float dialog_field_width_em = 24.0f;
+
+// Divisor for vertical center calculation in file tree rows.
+constexpr float vertical_center_divisor = 2.0f;
+
 const char *rv_editor_files_dialog_title(rv_editor_files_view::rv_editor_files_dialog dialog)
 {
     switch (dialog) {
@@ -66,6 +81,7 @@ void rv_editor_files_ask(rv_editor_files_view &view, rv_editor_files_view::rv_ed
         return;
     }
     // Listed once, when asked: the first entries by name and how many there are.
+    // At most this many doomed entries are listed by name in the Delete dialog.
     constexpr size_t shown = 12;
     const std::filesystem::path base = target.parent_path();
     const auto note = [&](const std::filesystem::path &p) {
@@ -120,7 +136,7 @@ void rv_editor_files_chip(const rv_editor_file_node &node, const char *&code, ui
     }
     if (node.dir) {
         code = rv_editor_glyph::folder;
-        color = 0x958831;
+        color = folder_color;
         return;
     }
     rv_editor_file_chip(node.path, code, color);
@@ -137,6 +153,7 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
         const char *code;
         uint32_t color;
     };
+    // File extension -> list glyph and colour.
     static constexpr kind kinds[] = { { ".lua", rv_editor_glyph::lua, rv_editor_mocha_mauve },
         { ".cpp", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".c", rv_editor_glyph::cpp, rv_editor_mocha_blue },
         { ".cc", rv_editor_glyph::cpp, rv_editor_mocha_blue }, { ".hpp", rv_editor_glyph::header, rv_editor_mocha_sapphire },
@@ -146,7 +163,7 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
         { ".txt", rv_editor_glyph::text, rv_editor_mocha_text } };
     code = rv_editor_glyph::other_file;
     color = rv_editor_mocha_subtext0;
-    if (path.filename() == "disc.toml") {
+    if (path.filename() == disc_manifest_filename) {
         code = rv_editor_glyph::disc_toml;
         color = rv_editor_mocha_peach;
         return;
@@ -179,7 +196,8 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     const float space_w = ImGui::CalcTextSize(" ").x;
     const float reserve = ImGui::CalcTextSize(rv_editor_glyph::disc_toml).x + ImGui::GetStyle().ItemSpacing.x;
     const int spaces = std::max(1, static_cast<int>(std::ceil(reserve / space_w)));
-    const std::string label = std::string(static_cast<size_t>(spaces), ' ') + node.name + (node.symlink ? " ->" : "");
+    const std::string label = std::string(static_cast<size_t>(spaces), ' ') + node.name +
+        (node.symlink ? symlink_indicator : "");
     ImGui::PushID(node.path.c_str());
     if (branch) {
         ImGui::SetNextItemOpen(node.expanded);
@@ -192,7 +210,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
         // A row is one cell high: the stand-in is the code itself, in its colour.
         const float cell = ImGui::GetTextLineHeight();
         const ImVec2 at(ImGui::GetItemRectMin().x + ImGui::GetTreeNodeToLabelSpacing(),
-            std::floor((ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y - cell) / 2.0f));
+            std::floor((ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y - cell) / vertical_center_divisor));
         ImGui::GetWindowDrawList()->AddText(at, rv_editor_col(color), code);
     }
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
@@ -267,7 +285,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
             ImGui::SetKeyboardFocusHere();
             view.opening = false;
         }
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 24.0f);
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * dialog_field_width_em);
         rv_editor_text_field("##name", view.name, sizeof(view.name), theme, field);
         confirm = ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter);
     }

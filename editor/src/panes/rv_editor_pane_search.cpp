@@ -17,10 +17,16 @@ namespace rv_editor
 namespace
 {
 
+// Number of columns in search results table: file, line number, text excerpt.
+constexpr int search_table_columns = 3;
+
+// Query input field width in font size units.
+constexpr float query_field_width_em = 14.0f;
+
 void rv_editor_search_list(rv_editor_app &app)
 {
     const rv_editor_search_result &r = app.project_search.result;
-    if (!ImGui::BeginTable("##hits", 3,
+    if (!ImGui::BeginTable("##hits", search_table_columns,
             ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
         return;
     }
@@ -67,8 +73,8 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_search_view &s = app.project_search;
     rv_editor_shelf_begin("##shelf", theme);
-    rv_editor_flow(ImGui::GetFontSize() * 14.0f);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 14.0f);
+    rv_editor_flow(ImGui::GetFontSize() * query_field_width_em);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * query_field_width_em);
     if (s.focus) {
         ImGui::SetKeyboardFocusHere();
         s.focus = false;
