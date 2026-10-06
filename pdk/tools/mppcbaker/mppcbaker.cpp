@@ -158,14 +158,15 @@ constexpr size_t RV_BAKER_HEX_RGB_DIGITS = 6;
 // Bits in one hex digit of RRGGBB.
 constexpr int RV_BAKER_HEX_DIGIT_BITS = 4;
 
-// Parses RRGGBB, with an optional leading '#', into an 8-bit colour.
-bool parse_hex_rgb(std::string_view text, rv_color *out)
+// Parses RRGGBB, with an optional leading '#', into an 8-bit colour; RV_OK on
+// success, RV_ERR_INVAL if the string is not six hex digits.
+int parse_hex_rgb(std::string_view text, rv_color *out)
 {
     if (!text.empty() && text.front() == '#') {
         text.remove_prefix(1);
     }
     if (text.size() != RV_BAKER_HEX_RGB_DIGITS) {
-        return false;
+        return RV_ERR_INVAL;
     }
     uint32_t value = 0;
     for (const char c : text) {
@@ -176,14 +177,14 @@ bool parse_hex_rgb(std::string_view text, rv_color *out)
         } else if (std::isxdigit(u)) {
             digit = std::tolower(u) - 'a' + 10;
         } else {
-            return false;
+            return RV_ERR_INVAL;
         }
         value = (value << RV_BAKER_HEX_DIGIT_BITS) | static_cast<uint32_t>(digit);
     }
     out->r = static_cast<uint8_t>((value >> 16) & 0xFF);
     out->g = static_cast<uint8_t>((value >> 8) & 0xFF);
     out->b = static_cast<uint8_t>(value & 0xFF);
-    return true;
+    return RV_OK;
 }
 
 // Fills `out` from argv. RV_ERR_INVAL is a command line that cannot be obeyed;
@@ -212,7 +213,7 @@ rv_err parse_args(int argc, char **argv, options *out, baker_error *error)
         }
         case 'k': {
             rv_color key;
-            if (!parse_hex_rgb(optarg, &key)) {
+            if (parse_hex_rgb(optarg, &key) != RV_OK) {
                 error->message = "'" + std::string(optarg) + "' is not six hex digits (e.g. FF00FF)";
                 return RV_ERR_INVAL;
             }

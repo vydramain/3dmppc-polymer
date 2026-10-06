@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "pdk/rv_err.h"
+
 namespace {
 
 // --- little-endian field readers ---
@@ -36,24 +38,25 @@ constexpr uint32_t RV_WAV_REQUIRED_RATE = 44100;
 constexpr uint16_t RV_WAV_REQUIRED_BITS = 16;
 
 // Reads the whole file into memory. WAV assets are small; a chunk walk over a
-// single buffer is simpler and safer than seeking a FILE* back and forth.
-bool read_whole_file(const std::string &path, std::vector<uint8_t> *out)
+// single buffer is simpler and safer than seeking a FILE* back and forth. Returns
+// RV_OK on success, RV_ERR_IO if the file could not be opened or read.
+int read_whole_file(const std::string &path, std::vector<uint8_t> *out)
 {
     std::FILE *in = std::fopen(path.c_str(), "rb");
     if (in == nullptr) {
-        return false;
+        return RV_ERR_IO;
     }
     std::fseek(in, 0, SEEK_END);
     const long size = std::ftell(in);
     std::rewind(in);
     if (size < 0) {
         std::fclose(in);
-        return false;
+        return RV_ERR_IO;
     }
     out->resize(static_cast<size_t>(size));
     const size_t read = out->empty() ? 0 : std::fread(out->data(), 1, out->size(), in);
     const bool ok = std::fclose(in) == 0 && read == out->size();
-    return ok;
+    return ok ? RV_OK : RV_ERR_IO;
 }
 
 // Downmixes one interleaved stereo frame to mono, rounding toward zero: plain
@@ -70,7 +73,7 @@ int16_t downmix_frame(const uint8_t *frame)
 rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_error *error)
 {
     std::vector<uint8_t> file;
-    if (!read_whole_file(input, &file)) {
+    if (read_whole_file(input, &file) != RV_OK) {
         error->message = "cannot read '" + input + "'";
         return RV_ERR_IO;
     }
