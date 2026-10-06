@@ -17,39 +17,6 @@ constexpr float log_display_rows = 4.0f;
 // Multiplier for vertical padding in log display (applied to WindowPadding.y)
 constexpr float log_padding_y_multiplier = 2.0f;
 
-// Sample timestamp for first log entry shown in catalog
-constexpr std::string_view log_sample_time_1 = "12:00:01";
-
-// Sample logger name (burn) shown in catalog
-constexpr std::string_view log_sample_logger_burn = "burn";
-
-// Sample build message shown in catalog
-constexpr std::string_view log_sample_msg_build = "[4/4] burn build/example-lua.discdir";
-
-// Sample timestamp for second log entry shown in catalog
-constexpr std::string_view log_sample_time_2 = "12:00:02";
-
-// Sample logger name (mppc) shown in catalog
-constexpr std::string_view log_sample_logger_mppc = "mppc";
-
-// Sample runtime information message shown in catalog
-constexpr std::string_view log_sample_msg_runtime = "entry_revision=1 frame=120 mode=paused";
-
-// Sample timestamp for third log entry shown in catalog
-constexpr std::string_view log_sample_time_3 = "12:00:03";
-
-// Sample logger name (disc) shown in catalog
-constexpr std::string_view log_sample_logger_disc = "disc";
-
-// Sample message about missing texture shown in catalog
-constexpr std::string_view log_sample_msg_missing_texture = "texture 'tone' is not resident";
-
-// Sample timestamp for fourth log entry shown in catalog
-constexpr std::string_view log_sample_time_4 = "12:00:04";
-
-// Sample error message from script shown in catalog
-constexpr std::string_view log_sample_msg_error = "script_error: main.lua:12: ')' expected";
-
 struct rv_editor_status_values
 {
     bool snap = true;
@@ -126,14 +93,14 @@ void rv_editor_catalog_log(const rv_editor_theme &t)
     const float rows = log_display_rows * ImGui::GetTextLineHeightWithSpacing() +
         log_padding_y_multiplier * ImGui::GetStyle().WindowPadding.y;
     rv_editor_log_begin("##log", ImVec2(0.0f, rows), t);
-    rv_editor_log_row(log_sample_time_1.data(), log_sample_logger_burn.data(), rv_editor_severity::info,
-        log_sample_msg_build.data(), t);
-    rv_editor_log_row(log_sample_time_2.data(), log_sample_logger_mppc.data(), rv_editor_severity::info,
-        log_sample_msg_runtime.data(), t);
-    rv_editor_log_row(log_sample_time_3.data(), log_sample_logger_disc.data(), rv_editor_severity::warning,
-        log_sample_msg_missing_texture.data(), t);
-    rv_editor_log_row(log_sample_time_4.data(), log_sample_logger_mppc.data(), rv_editor_severity::error,
-        log_sample_msg_error.data(), t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_1"), rv_editor_text("catalog_status.log_source_burn"),
+        rv_editor_severity::info, rv_editor_text("catalog_status.log_msg_build"), t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_2"), rv_editor_text("catalog_status.log_source_mppc"),
+        rv_editor_severity::info, rv_editor_text("catalog_status.log_msg_runtime"), t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_3"), rv_editor_text("catalog_status.log_source_disc"),
+        rv_editor_severity::warning, rv_editor_text("catalog_status.log_msg_missing_texture"), t);
+    rv_editor_log_row(rv_editor_text("catalog_status.log_time_4"), rv_editor_text("catalog_status.log_source_mppc"),
+        rv_editor_severity::error, rv_editor_text("catalog_status.log_msg_error"), t);
     rv_editor_log_end(t);
 }
 

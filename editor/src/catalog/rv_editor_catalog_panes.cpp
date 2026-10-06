@@ -53,15 +53,15 @@ void rv_editor_catalog_tree()
 {
     constexpr ImGuiTreeNodeFlags open = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_DrawLinesFull;
     constexpr ImGuiTreeNodeFlags leaf = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-    if (!ImGui::TreeNodeEx("my-game/", open)) {
+    if (!ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_my_game"), open)) {
         return;
     }
-    ImGui::TreeNodeEx("disc.toml", leaf | ImGuiTreeNodeFlags_Selected);
-    ImGui::TreeNodeEx("main.lua", leaf);
-    if (ImGui::TreeNodeEx("assets/", open)) {
-        ImGui::TreeNodeEx("tone.pcm", leaf);
+    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_disc_toml"), leaf | ImGuiTreeNodeFlags_Selected);
+    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_main_lua"), leaf);
+    if (ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_assets"), open)) {
+        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_tone_pcm"), leaf);
         ImGui::BeginDisabled();
-        ImGui::TreeNodeEx("broken.png", leaf);
+        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_broken_png"), leaf);
         ImGui::EndDisabled();
         ImGui::TreePop();
     }
@@ -70,7 +70,9 @@ void rv_editor_catalog_tree()
 
 void rv_editor_catalog_list(float height)
 {
-    const char *items[] = {"solid-maid", "example-lua", "example-cpp", "missing-disc"};
+    const char *items[] = { rv_editor_text("catalog_panes.list_solid_maid"),
+        rv_editor_text("catalog_panes.list_example_lua"), rv_editor_text("catalog_panes.list_example_cpp"),
+        rv_editor_text("catalog_panes.list_missing_disc") };
     if (!ImGui::BeginListBox("##list", ImVec2(-1.0f, height))) {
         return;
     }
@@ -93,11 +95,11 @@ void rv_editor_catalog_table()
     ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_name"));
     ImGui::TableSetupColumn(rv_editor_text("catalog_panes.column_directory"));
     ImGui::TableHeadersRow();
-    const char *rows[][catalog_table_columns] = {
-        { "solid-maid", "~/Projects" },
-        { "example-lua", "mppcdiscs" },
-        { "example-cpp", "mppcdiscs" }
-    };
+    const char *rows[][catalog_table_columns] = { { rv_editor_text("catalog_panes.table_solid_maid"),
+                                                      rv_editor_text("catalog_panes.table_path_projects") },
+        { rv_editor_text("catalog_panes.table_example_lua"), rv_editor_text("catalog_panes.table_path_mppcdiscs") },
+        { rv_editor_text("catalog_panes.table_example_cpp"),
+            rv_editor_text("catalog_panes.table_path_mppcdiscs") } };
     for (const auto &row : rows) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();

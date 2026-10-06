@@ -28,8 +28,9 @@ struct rv_editor_catalog_more_data
     int radio = 1;
     char pocket[64] = {};
     float wheel = 0.0f;
-    char editable[32] = "editable";
-    char locked[32] = "read-only";
+    char editable[32] = {};
+    char locked[32] = {};
+    bool samples_filled = false;
 };
 
 rv_editor_catalog_more_data rv_editor_catalog_more;
@@ -273,7 +274,10 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
 {
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
     // Catalog cells of each kind, one whose picture failed, and a drop pocket to drop them on.
-    const char *files[] = { "sprite.png", "tone.pcm", "main.lua", "main.scene.toml", "broken.png (no picture)" };
+    const char *files[] = { rv_editor_text("catalog_more.asset_sprite_png"),
+        rv_editor_text("catalog_more.asset_tone_pcm"), rv_editor_text("catalog_more.asset_main_lua"),
+        rv_editor_text("catalog_more.asset_main_scene_toml"),
+        rv_editor_text("catalog_more.asset_broken_png_text") };
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const float cell = ImGui::GetFontSize() * asset_cell_size_em;
     for (int i = 0; i < static_cast<int>(std::size(files)); ++i) {
@@ -312,6 +316,12 @@ void rv_editor_catalog_cells(const rv_editor_theme &theme)
 void rv_editor_catalog_type(const rv_editor_theme &theme)
 {
     rv_editor_catalog_more_data &d = rv_editor_catalog_more;
+    // Fill the sample texts once; after that the fields keep what was typed.
+    if (!d.samples_filled) {
+        std::strncpy(d.editable, rv_editor_text("catalog_more.editable_sample"), sizeof(d.editable));
+        std::strncpy(d.locked, rv_editor_text("catalog_more.readonly_sample"), sizeof(d.locked));
+        d.samples_filled = true;
+    }
     const float font_size = ImGui::GetFontSize();
     const auto font_args = std::make_format_args(font_size);
     const auto font_text = rv_editor_text_format("catalog_more.type_ui_font_description", font_args);
