@@ -35,6 +35,12 @@ namespace
 constexpr float menu_centering_divisor = 2.0f;
 constexpr float item_spacings_per_name = 2.0f;
 
+// nvim key sequences sent from Edit/File menus to the focused code tile
+constexpr const char *code_keys_new_buffer = "<Cmd>enew<CR>";
+constexpr const char *code_keys_save = "<C-s>";
+constexpr const char *code_keys_undo = "<C-z>";
+constexpr const char *code_keys_redo = "<C-S-z>";
+
 // A top-level menu with its mnemonic, the first letter, underlined. Alt
 // moves the keyboard into the bar; the arrows walk it.
 bool rv_editor_menu_begin(const char *label)
@@ -77,14 +83,14 @@ void rv_editor_menu_file(rv_editor_shell &shell)
 {
     const char *no_code = rv_editor_menu_code_window(shell) == 0 ? rv_editor_text("shell_menu.why_no_code_tile") : nullptr;
     if (rv_editor_menu_item(rv_editor_text("shell_menu.new_file"), nullptr, no_code)) {
-        rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
+        rv_editor_menu_code_keys(shell, code_keys_new_buffer);
     }
     if (ImGui::MenuItem(rv_editor_text("shell_start.open_project"))) {
         rv_editor_shell_open_project(shell);
     }
     ImGui::Separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.save"), rv_editor_text("shell_menu.shortcut_save"), no_code)) {
-        rv_editor_menu_code_keys(shell, "<C-s>");
+        rv_editor_menu_code_keys(shell, code_keys_save);
     }
     if (ImGui::MenuItem(rv_editor_text("catalog_status.menu_save_all"), rv_editor_text("catalog_status.shortcut_save_all"))) {
         rv_editor_shell_save_all(shell);
@@ -108,10 +114,10 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
 {
     const char *no_code = rv_editor_menu_code_window(shell) == 0 ? rv_editor_text("shell_menu.why_no_code_edit") : nullptr;
     if (rv_editor_menu_item(rv_editor_text("shell_menu.undo"), rv_editor_text("shell_menu.shortcut_undo"), no_code)) {
-        rv_editor_menu_code_keys(shell, "<C-z>");
+        rv_editor_menu_code_keys(shell, code_keys_undo);
     }
     if (rv_editor_menu_item(rv_editor_text("shell_menu.redo"), rv_editor_text("shell_menu.shortcut_redo"), no_code)) {
-        rv_editor_menu_code_keys(shell, "<C-S-z>");
+        rv_editor_menu_code_keys(shell, code_keys_redo);
     }
     ImGui::Separator();
     if (ImGui::MenuItem(rv_editor_text("shell_menu.find_in_project"), rv_editor_text("shell_menu.shortcut_find"))) {
@@ -440,7 +446,7 @@ bool rv_editor_shell_scale_fits(SDL_Window *window, float scale)
 
 void rv_editor_shell_new_file(rv_editor_shell &shell)
 {
-    rv_editor_menu_code_keys(shell, "<Cmd>enew<CR>");
+    rv_editor_menu_code_keys(shell, code_keys_new_buffer);
 }
 
 void rv_editor_shell_ask_terminal(rv_editor_shell &shell, const rv_editor_theme &theme)
