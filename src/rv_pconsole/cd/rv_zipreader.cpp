@@ -25,16 +25,19 @@ constexpr std::size_t RV_PCZIP_MAX_ENTRIES = 65536;
 constexpr int64_t RV_PCZIP_CRC_CHUNK = 64 * 1024;
 
 // CRC-32/ISO-HDLC - the checksum zip stores. Reflected input and
-// output, polynomial 0xedb88320, pre- and post-inverted. It is written out here
-// instead of being pulled from zlib because the whole point of the store-only
-// container is that the console links no compression library at all; a 256-entry
-// table is a cheaper dependency than any of them.
-const std::array<uint32_t, 256>& crc_table() {
-    static const std::array<uint32_t, 256> table = [] {
-        std::array<uint32_t, 256> t{};
-        for (uint32_t i = 0; i < 256; ++i) {
+// output, pre- and post-inverted. It is written out here instead of being
+// pulled from zlib because the whole point of the store-only container is
+// that the console links no compression library at all; a 256-entry table is
+// a cheaper dependency than any of them.
+const std::array<uint32_t, rv_pdklib::rv_zip_crc_table_size> &crc_table()
+{
+    static const std::array<uint32_t, rv_pdklib::rv_zip_crc_table_size> table = [] {
+        std::array<uint32_t, rv_pdklib::rv_zip_crc_table_size> t{};
+        for (uint32_t i = 0; i < rv_pdklib::rv_zip_crc_table_size; ++i) {
             uint32_t c = i;
-            for (int k = 0; k < 8; ++k) c = (c & 1u) ? (0xedb88320u ^ (c >> 1)) : (c >> 1);
+            for (int k = 0; k < rv_pdklib::rv_zip_crc_bits_per_byte; ++k) {
+                c = (c & 1u) ? (rv_pdklib::rv_zip_crc_polynomial ^ (c >> 1)) : (c >> 1);
+            }
             t[i] = c;
         }
         return t;
@@ -45,10 +48,12 @@ const std::array<uint32_t, 256>& crc_table() {
 // Running CRC: `state` is the value carried between chunks, starting at 0.
 uint32_t crc32_update(uint32_t state, const void* data, std::size_t size) {
     const auto& table = crc_table();
-    uint32_t c = state ^ 0xffffffffu;
+    uint32_t c = state ^ rv_pdklib::rv_zip_crc_init_xor;
     const unsigned char* p = static_cast<const unsigned char*>(data);
-    for (std::size_t i = 0; i < size; ++i) c = table[(c ^ p[i]) & 0xffu] ^ (c >> 8);
-    return c ^ 0xffffffffu;
+    for (std::size_t i = 0; i < size; ++i) {
+        c = table[(c ^ p[i]) & rv_pdklib::rv_zip_crc_byte_mask] ^ (c >> rv_pdklib::rv_zip_crc_bits_per_byte);
+    }
+    return c ^ rv_pdklib::rv_zip_crc_init_xor;
 }
 
 }  // namespace

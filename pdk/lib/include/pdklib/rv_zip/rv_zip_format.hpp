@@ -47,6 +47,39 @@ inline constexpr std::size_t rv_zip_max_comment_size = 0xFFFFu;
 // out, which is what lets the console skip linking a decompressor.
 inline constexpr uint16_t rv_zip_method_store = 0;
 
+// Every entry carries a CRC-32 of its uncompressed bytes, and the console-side
+// reader recomputes it and refuses the entry when it disagrees. This is not
+// ceremony. The failure mode a disc actually has is SILENT corruption: a burn
+// interrupted midway, a truncated copy over a flaky transfer, a texture blob
+// half-overwritten by a tool that crashed. None of those break the zip
+// structure - the offsets still point somewhere, the sizes still add up - so
+// without a checksum the reader hands the game plausible garbage and the bug
+// surfaces as a texture full of noise or a mesh with a spike through it,
+// arbitrarily far from the actual damage. A 32-bit CRC turns "wrong pixels
+// somewhere" into "entry 'hero.mppctex' is corrupt", which is a diagnosis.
+//
+// The polynomial is 0xEDB88320: the standard CRC-32 (IEEE 802.3) polynomial
+// 0x04C11DB7 written REFLECTED - its bits reversed. That is not a different
+// algorithm, it is the same one arranged for the direction the bytes arrive in.
+// The mathematical definition shifts the register towards the most significant
+// bit and feeds each byte MSB-first; reflecting the polynomial lets the register
+// shift RIGHT instead and consume each byte LSB-first, so a whole byte can be
+// folded in with one table lookup and one shift, with no bit-reversal at either
+// end. Both forms compute the same remainder over GF(2), and only the reflected
+// form matches what the zip specification's test vectors and every other zip
+// implementation produce - a "CRC32" built from the unreflected polynomial
+// would be self-consistent and rejected by everyone.
+//
+// The pre-inversion (~0) and post-inversion of the register are also part of the
+// standard: they are what makes leading zero bytes and trailing zero bytes
+// change the result, so a truncation to zeros - the exact shape of an
+// interrupted burn - cannot pass unnoticed.
+inline constexpr std::size_t rv_zip_crc_table_size = 256;      // one entry per byte value
+inline constexpr int rv_zip_crc_bits_per_byte = 8;             // bits per byte: loop iterations and shift amount
+inline constexpr uint32_t rv_zip_crc_polynomial = 0xEDB88320u; // IEEE 802.3 reflected
+inline constexpr uint32_t rv_zip_crc_init_xor = 0xFFFFFFFFu;   // pre- and post-invert
+inline constexpr uint32_t rv_zip_crc_byte_mask = 0xFFu;        // mask for byte extraction
+
 // An all-ones field is zip's "the real value is in a zip64 extra record"
 // sentinel. Neither side here supports zip64; a reader that finds one of these
 // is expected to refuse the entry or archive rather than treat the sentinel as

@@ -85,44 +85,18 @@ constexpr std::size_t RV_BURNER_ZIP_MAX_NAME_LENGTH = 0xFFFFu;
 
 // --- CRC32 --------------------------------------------------------------------
 //
-// Every entry carries a CRC-32 of its uncompressed bytes, and the console-side
-// reader recomputes it and refuses the entry when it disagrees. This is not
-// ceremony. The failure mode a disc actually has is SILENT corruption: a burn
-// interrupted midway, a truncated copy over a flaky transfer, a texture blob
-// half-overwritten by a tool that crashed. None of those break the zip
-// structure - the offsets still point somewhere, the sizes still add up - so
-// without a checksum the reader hands the game plausible garbage and the bug
-// surfaces as a texture full of noise or a mesh with a spike through it,
-// arbitrarily far from the actual damage. A 32-bit CRC turns "wrong pixels
-// somewhere" into "entry 'hero.mppctex' is corrupt", which is a diagnosis.
-//
-// The polynomial is 0xEDB88320: the standard CRC-32 (IEEE 802.3) polynomial
-// 0x04C11DB7 written REFLECTED - its bits reversed. That is not a different
-// algorithm, it is the same one arranged for the direction the bytes arrive in.
-// The mathematical definition shifts the register towards the most significant
-// bit and feeds each byte MSB-first; reflecting the polynomial lets the register
-// shift RIGHT instead and consume each byte LSB-first, so a whole byte can be
-// folded in with one table lookup and one shift, with no bit-reversal at either
-// end. Both forms compute the same remainder over GF(2), and only the reflected
-// form matches what the zip specification's test vectors and every other zip
-// implementation produce - a "CRC32" built from the unreflected polynomial
-// would be self-consistent and rejected by everyone.
-//
-// The pre-inversion (~0) and post-inversion of the register are also part of the
-// standard: they are what makes leading zero bytes and trailing zero bytes
-// change the result, so a truncation to zeros - the exact shape of an
-// interrupted burn - cannot pass unnoticed.
-constexpr uint32_t RV_BURNER_ZIP_CRC_POLYNOMIAL = 0xEDB88320u;
+// The CRC-32 constants and design rationale are documented in
+// pdklib/rv_zip/rv_zip_format.hpp; the table is built here at compile time.
 
 struct crc32_table {
-    uint32_t entry[256] = {};
+    uint32_t entry[rv_pdklib::rv_zip_crc_table_size] = {};
 
     constexpr crc32_table()
     {
-        for (uint32_t i = 0; i < 256; ++i) {
+        for (uint32_t i = 0; i < rv_pdklib::rv_zip_crc_table_size; ++i) {
             uint32_t c = i;
-            for (int bit = 0; bit < 8; ++bit) {
-                c = (c & 1u) ? (RV_BURNER_ZIP_CRC_POLYNOMIAL ^ (c >> 1)) : (c >> 1);
+            for (int bit = 0; bit < rv_pdklib::rv_zip_crc_bits_per_byte; ++bit) {
+                c = (c & 1u) ? (rv_pdklib::rv_zip_crc_polynomial ^ (c >> 1)) : (c >> 1);
             }
             entry[i] = c;
         }
@@ -134,11 +108,12 @@ constexpr crc32_table RV_BURNER_ZIP_CRC_TABLE{};
 static uint32_t crc32_of(const void *data, std::size_t size)
 {
     const uint8_t *p = static_cast<const uint8_t *>(data);
-    uint32_t crc = 0xFFFFFFFFu;
+    uint32_t crc = rv_pdklib::rv_zip_crc_init_xor;
     for (std::size_t i = 0; i < size; ++i) {
-        crc = RV_BURNER_ZIP_CRC_TABLE.entry[(crc ^ p[i]) & 0xFFu] ^ (crc >> 8);
+        uint32_t idx = (crc ^ p[i]) & rv_pdklib::rv_zip_crc_byte_mask;
+        crc = RV_BURNER_ZIP_CRC_TABLE.entry[idx] ^ (crc >> rv_pdklib::rv_zip_crc_bits_per_byte);
     }
-    return crc ^ 0xFFFFFFFFu;
+    return crc ^ rv_pdklib::rv_zip_crc_init_xor;
 }
 
 // --- byte-exact serialisation -------------------------------------------------
@@ -290,7 +265,7 @@ int rv_zipwriter::add(const std::string &name, const void *data, std::size_t siz
     // Local file header, 30 bytes plus the name. Stored, so the compressed and
     // uncompressed sizes are the same number written twice.
     std::vector<uint8_t> header;
-    header.reserve(30 + name.size());
+    header.reserve(rv_pdklib::rv_zip_local_header_size + name.size());
     put_le_u32(header, rv_pdklib::rv_zip_sig_local);
     put_le_u16(header, RV_BURNER_ZIP_VERSION);     // version needed to extract
     put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);    // general purpose flags
