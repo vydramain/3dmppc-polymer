@@ -12,6 +12,10 @@
 namespace rv_editor
 {
 
+// Console's native screen dimensions: the default proportions for a new project's Game tile
+constexpr int64_t console_native_screen_width = 320;
+constexpr int64_t console_native_screen_height = 240;
+
 // Where the editor keeps what is not the game's.
 // `var` is an XDG variable; without it, or when it is not absolute,
 // $HOME/<home_fallback>. Empty when neither gives an absolute directory.
@@ -93,8 +97,8 @@ struct rv_editor_project
     std::string disc_title;
     std::string manifest_error;     // disc.toml does not parse; the project still opens
     // [budget.pccv] screen size: the proportions a starting Game tile takes.
-    int64_t screen_w = 320;
-    int64_t screen_h = 240;
+    int64_t screen_w = console_native_screen_width;
+    int64_t screen_h = console_native_screen_height;
     std::filesystem::path cache_dir; // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir; // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
     std::vector<std::string> assets_patterns;   // [assets] files, relative to root

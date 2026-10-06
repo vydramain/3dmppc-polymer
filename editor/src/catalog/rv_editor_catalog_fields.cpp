@@ -19,6 +19,9 @@ constexpr size_t text_field_buffer_size = 32;
 // Spinner increment step
 constexpr int spinner_step = 8;
 
+// Demo value for the catalog's number spinners
+constexpr int sample_spinner_value = 320;
+
 // Widget row indices in the fields catalog
 constexpr int row_text_field = 0;
 constexpr int row_spinner = 1;
@@ -55,7 +58,7 @@ struct rv_editor_field_values
     {
         for (int c = 0; c < rv_editor_field_column_count; ++c) {
             std::strncpy(text[c], "my-game", sizeof(text[c]));
-            number[c] = 320;
+            number[c] = sample_spinner_value;
             choice[c] = 0;
         }
     }
