@@ -133,6 +133,7 @@ target_compile_definitions(3dmppc-editor PRIVATE
 # at configure time and generate a C++ header; changes trigger a rebuild.
 set(RV_TEXTS_TOML "${CMAKE_CURRENT_SOURCE_DIR}/texts/rv_editor_texts.toml")
 set(RV_TEXTS_HPP "${RV_PALETTE_GEN_DIR}/rv_editor_texts_default.hpp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RV_TEXTS_TOML}")
 
 file(READ "${RV_TEXTS_TOML}" RV_TEXTS_CONTENT)
 
@@ -156,6 +157,36 @@ string(APPEND RV_TEXTS_CPP "}\n")
 # Write to .in file without substitution, then configure_file copies without substituting @ or ${.
 file(WRITE "${RV_TEXTS_HPP}.in" "${RV_TEXTS_CPP}")
 configure_file("${RV_TEXTS_HPP}.in" "${RV_TEXTS_HPP}" COPYONLY)
+
+# --- Editor manual (editor/texts/rv_editor_manual.md) --------------------------
+# Embed the default manual in the binary as a constexpr array. Read the markdown
+# at configure time and generate a C++ header; changes trigger a rebuild.
+set(RV_MANUAL_MD "${CMAKE_CURRENT_SOURCE_DIR}/texts/rv_editor_manual.md")
+set(RV_MANUAL_HPP "${RV_PALETTE_GEN_DIR}/rv_editor_manual_default.hpp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${RV_MANUAL_MD}")
+
+file(READ "${RV_MANUAL_MD}" RV_MANUAL_CONTENT)
+
+# Reject content that would break the raw string literal.
+if(RV_MANUAL_CONTENT MATCHES "\\)rvmanual\"")
+  message(FATAL_ERROR "rv_editor_manual.md contains )rvmanual\", breaks C++ raw string literal")
+endif()
+
+set(RV_MANUAL_CPP "#pragma once\n")
+string(APPEND RV_MANUAL_CPP "// Generated from editor/texts/rv_editor_manual.md by editor/CMakeLists.txt\n")
+string(APPEND RV_MANUAL_CPP "\n")
+string(APPEND RV_MANUAL_CPP "namespace rv_editor\n")
+string(APPEND RV_MANUAL_CPP "{\n")
+string(APPEND RV_MANUAL_CPP "\n")
+string(APPEND RV_MANUAL_CPP "inline constexpr char rv_editor_manual_default[] = R\"rvmanual(\n")
+string(APPEND RV_MANUAL_CPP "${RV_MANUAL_CONTENT}")
+string(APPEND RV_MANUAL_CPP ")rvmanual\";\n")
+string(APPEND RV_MANUAL_CPP "\n")
+string(APPEND RV_MANUAL_CPP "}\n")
+
+# Write to .in file without substitution, then configure_file copies without substituting @ or ${.
+file(WRITE "${RV_MANUAL_HPP}.in" "${RV_MANUAL_CPP}")
+configure_file("${RV_MANUAL_HPP}.in" "${RV_MANUAL_HPP}" COPYONLY)
 
 # nvim's channel is read on a thread of its own.
 find_package(Threads REQUIRED)
