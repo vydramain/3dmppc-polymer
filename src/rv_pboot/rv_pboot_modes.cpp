@@ -92,9 +92,9 @@ int apply_override(const Table &table, const std::string &slot_flag, const std::
 }
 
 // Reads a `[mode.<NAME>]` value for one slot: must be a string naming a row
-// of `table`. A diagnostic on `failer` and false otherwise.
+// of `table`. Returns RV_OK on success or RV_ERR_INVAL with a diagnostic on `failer`.
 template <typename Table, typename Impl>
-bool lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entry &entry, Impl &out,
+int lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_entry &entry, Impl &out,
     rv_pdklib::rv_manifest_failer &failer)
 {
     if (entry.value.kind != rv_pdklib::rv_manifest_value_kind::string) {
@@ -102,13 +102,13 @@ bool lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_ent
             std::format("'{}' must be {}, got {}", entry.key, rv_pdklib::rv_manifest_kind_name(
                                                                     rv_pdklib::rv_manifest_value_kind::string),
                 rv_pdklib::rv_manifest_kind_name(entry.value.kind)));
-        return false;
+        return RV_ERR_INVAL;
     }
     std::string available;
     for (const auto &row : table) {
         if (entry.value.str == row.name) {
             out = row.impl;
-            return true;
+            return RV_OK;
         }
         if (!available.empty()) {
             available += ", ";
@@ -117,7 +117,7 @@ bool lookup_slot_value(const Table &table, const rv_pdklib::rv_manifest_tree_ent
     }
     failer.fail(entry.value.line,
         std::format("unknown {} '{}', available: {}", entry.key, entry.value.str, available));
-    return false;
+    return RV_ERR_INVAL;
 }
 
 // Validates the whole tree against the mode-file schema and, only if the
@@ -168,19 +168,19 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree, std::vector<rv_pbo
             seen_keys.push_back(entry.key);
 
             if (entry.key == "platform") {
-                lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
             } else if (entry.key == "ca") {
-                lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
             } else if (entry.key == "cv") {
-                lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
             } else if (entry.key == "cio") {
-                lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
             } else if (entry.key == "cl") {
-                lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
             } else if (entry.key == "cd") {
-                lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
             } else if (entry.key == "cm") {
-                lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
+                (void)lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
             } else {
                 failer.fail(entry.line, std::format("unknown key '{}'", entry.key));
             }
