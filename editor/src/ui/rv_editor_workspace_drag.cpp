@@ -113,7 +113,7 @@ void rv_editor_tile_drag_update(rv_editor_workspace &ws, const std::vector<rv_ed
             const uint32_t target = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
             rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
             if (target != rv_editor_tile_none && rv_editor_tile_drop_zone(ws.layout, target, rect_of[target], pos, dock)) {
-                rv_editor_tile_move(ws.layout, drag.pane, target, dock);
+                (void)rv_editor_tile_move(ws.layout, drag.pane, target, dock);
             }
         }
         drag = rv_editor_tile_drag{};

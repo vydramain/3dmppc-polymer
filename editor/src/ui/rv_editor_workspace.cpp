@@ -233,9 +233,9 @@ void rv_editor_tile_apply(rv_editor_workspace &ws, const rv_editor_tile_action &
             rv_editor_pane_add(ws.panes, code ? rv_editor_pane_kind::code : rv_editor_pane_kind::empty);
         rv_editor_tile_insert(ws.layout, a.leaf, id, a.dock);
     } else if (a.what == rv_editor_tile_action::op::set_kind) {
-        rv_editor_pane_set_kind(ws.panes, a.pane, a.kind);
+        (void)rv_editor_pane_set_kind(ws.panes, a.pane, a.kind);
     } else if (a.what == rv_editor_tile_action::op::maximize) {
-        rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
+        (void)rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
     } else if (a.what == rv_editor_tile_action::op::close) {
         rv_editor_tile_remove(ws.layout, a.pane);
     } else if (a.what == rv_editor_tile_action::op::close_leaf) {

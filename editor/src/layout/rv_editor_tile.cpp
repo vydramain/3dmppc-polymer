@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -111,13 +113,13 @@ rv_editor_pane_id rv_editor_pane_add(rv_editor_pane_registry &registry, rv_edito
     return static_cast<rv_editor_pane_id>(registry.panes.size() - 1);
 }
 
-bool rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_id id, rv_editor_pane_kind kind)
+int rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_id id, rv_editor_pane_kind kind)
 {
     if (id >= registry.panes.size()) {
-        return false;
+        return RV_ERR_INVAL;
     }
     registry.panes[id].kind = kind;
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_pane_adopt(rv_editor_pane_registry &into, const rv_editor_pane_registry &from,
@@ -233,22 +235,22 @@ bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane)
     return true;
 }
 
-bool rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock)
+int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock)
 {
     const uint32_t from = rv_editor_tile_find(layout, pane);
     if (from == rv_editor_tile_none || !rv_editor_tile_is(layout, leaf, rv_editor_tile_kind::leaf)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     // Into its own tab strip changes nothing; beside itself needs a second tab to stay behind.
     if (from == leaf && (dock == rv_editor_tile_dock::tab || layout.nodes[from].leaf.tabs.size() < 2)) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // `leaf` survives the removal: only `from` and its parent split can go, and
     // neither is `leaf` here.
     rv_editor_tile_remove(layout, pane);
     rv_editor_tile_insert(layout, leaf, pane, dock);
-    return true;
+    return RV_OK;
 }
 
 bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane)
@@ -276,13 +278,13 @@ bool rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ra
     return true;
 }
 
-bool rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf)
+int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf)
 {
     if (!rv_editor_tile_is(layout, leaf, rv_editor_tile_kind::leaf)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     layout.maximized_leaf = layout.maximized_leaf == leaf ? rv_editor_tile_none : leaf;
-    return true;
+    return RV_OK;
 }
 
 // --- placement ----------------------------------------------------------------

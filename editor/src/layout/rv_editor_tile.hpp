@@ -90,7 +90,9 @@ struct rv_editor_pane_registry
 };
 
 rv_editor_pane_id rv_editor_pane_add(rv_editor_pane_registry &registry, rv_editor_pane_kind kind);
-bool rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_id id, rv_editor_pane_kind kind);
+
+// Changes the kind of pane `id` to `kind`. Returns RV_OK, or RV_ERR_INVAL for unknown id.
+int rv_editor_pane_set_kind(rv_editor_pane_registry &registry, rv_editor_pane_id id, rv_editor_pane_kind kind);
 
 // --- the tree -----------------------------------------------------------------
 
@@ -167,15 +169,16 @@ uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_edito
 // split gives its place to the sibling; the last leaf stays, empty.
 bool rv_editor_tile_remove(rv_editor_layout &layout, rv_editor_pane_id pane);
 
-// Move `pane` into or beside `leaf`. False, changing nothing, when the move is
-// impossible: a leaf split or tabbed by its own only pane, or an unknown pane or leaf.
-bool rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock);
+// Move `pane` into or beside `leaf`. RV_OK, or RV_ERR_INVAL when the move is impossible:
+// a leaf split or tabbed by its own only pane, or an unknown pane or leaf.
+int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32_t leaf, rv_editor_tile_dock dock);
 
 bool rv_editor_tile_activate(rv_editor_layout &layout, rv_editor_pane_id pane);
 bool rv_editor_tile_set_ratio(rv_editor_layout &layout, uint32_t split, float ratio);
 
 // Maximize `leaf`, or restore the tree when it is already the maximized one.
-bool rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf);
+// Returns RV_OK, or RV_ERR_INVAL for invalid leaf.
+int rv_editor_tile_toggle_maximize(rv_editor_layout &layout, uint32_t leaf);
 
 // --- placement ----------------------------------------------------------------
 
