@@ -108,9 +108,9 @@ public:
     // RV_PCCMDCHAN_PAYLOAD_MAX): sending more is refused there before it is tried.
     static constexpr size_t asset_payload_max = 4 << 20;
 
-    // False with the reason when a session cannot start now.
+    // RV_OK on success; RV_ERR_* on failure with the reason in error.
     // `options` go before the disc, `env` over the editor's environment (a run profile).
-    bool start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
+    int start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
         const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
         const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
         std::string &error);

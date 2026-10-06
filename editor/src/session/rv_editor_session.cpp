@@ -60,24 +60,26 @@ bool rv_editor_session::hung() const
     return proc_.running() && quit_sent_ && std::chrono::steady_clock::now() - stop_sent_ > rv_editor_stop_grace;
 }
 
-bool rv_editor_session::start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
+int rv_editor_session::start(const std::filesystem::path &console, const std::filesystem::path &disc_dir,
     const std::filesystem::path &memcard, const std::filesystem::path &cwd, uint32_t build_number,
     const std::vector<std::string> &options, const std::vector<std::string> &env, rv_editor_log &log,
     std::string &error)
 {
     if (live()) {
         error = "a runtime is already running in this window";
-        return false;
+        return RV_ERR_BUSY;
     }
-    if (frame_mem_.create(error) != RV_OK) {
-        return false;
+    const int err_frame = frame_mem_.create(error);
+    if (err_frame != RV_OK) {
+        return err_frame;
     }
     // The console writes its frames into frame_mem_, handed over as descriptor 3.
     std::vector<std::string> argv = { console.string(), "--dev", "--frame-fd", "3", "--memcard", memcard.string() };
     argv.insert(argv.end(), options.begin(), options.end());
     argv.push_back(disc_dir.string());
-    if (proc_.start(argv, cwd, error, frame_mem_.fd(), env) != RV_OK) {
-        return false;
+    const int err_proc = proc_.start(argv, cwd, error, frame_mem_.fd(), env);
+    if (err_proc != RV_OK) {
+        return err_proc;
     }
 
     parser_ = {};
@@ -118,7 +120,7 @@ bool rv_editor_session::start(const std::filesystem::path &console, const std::f
             memcard.string() + " " + disc_dir.string(), rv_editor_log_channel::none, proc_.pid(), number_);
     // Nothing is enabled until this answers.
     send("status", log);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)

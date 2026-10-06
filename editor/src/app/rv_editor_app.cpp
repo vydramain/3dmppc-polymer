@@ -57,12 +57,14 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
             "run profile " + profile.name + ": build #" + std::to_string(artifact.number));
     }
     std::string error;
-    if (!app.session.start(runtime.empty() ? app.tools.console.path : runtime, artifact.dir,
-            !card.empty() ? card : !own_card.empty() ? own_card : app.project.state_dir / "memcard.mppccard",
-            cwd.empty() ? app.project.root : cwd, artifact.number, rv_editor_run_profile_args(profile), profile.env,
-            app.log, error)) {
+    const int err = app.session.start(runtime.empty() ? app.tools.console.path : runtime, artifact.dir,
+        !card.empty() ? card : !own_card.empty() ? own_card :
+                                                   app.project.state_dir / "memcard.mppccard",
+        cwd.empty() ? app.project.root : cwd, artifact.number, rv_editor_run_profile_args(profile), profile.env,
+        app.log, error);
+    if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
-        return RV_ERR_IO;
+        return err;
     }
     const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
     app.build_map = rv_editor_build_map_read(map_path);
