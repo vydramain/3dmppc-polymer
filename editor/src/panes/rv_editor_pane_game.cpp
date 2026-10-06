@@ -13,6 +13,7 @@
 #include "panes/rv_editor_game_fit.hpp"
 #include "pdk/cio/rv_isource.h"
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -82,25 +83,30 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
 {
     constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit, rv_editor_game_scale::integer,
         rv_editor_game_scale::x1, rv_editor_game_scale::x2, rv_editor_game_scale::x3 };
-    constexpr const char *labels[] = { "Fit", "Integer", "1x", "2x", "3x" };
+    constexpr const char *ids[] = { "pane_game.scale_fit", "pane_game.scale_integer",
+        "pane_game.scale_1x", "pane_game.scale_2x", "pane_game.scale_3x" };
     for (size_t i = 0; i < std::size(modes); ++i) {
+        const char *label = rv_editor_text(ids[i]);
         if (i > 0) {
-            rv_editor_flow(rv_editor_button_width(labels[i]));
+            rv_editor_flow(rv_editor_button_width(label));
         }
         bool on = app.game_scale == modes[i];
-        if (rv_editor_toggle(labels[i], &on, theme)) {
+        if (rv_editor_toggle(label, &on, theme)) {
             app.game_scale = modes[i];
         }
     }
     if (app.release_view) {
-        rv_editor_flow(rv_editor_button_width("Run Candidate"));
-        if (rv_editor_button("Run Candidate", theme, { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
+        const char *run_candidate_text = rv_editor_text("pane_game.run_candidate");
+        rv_editor_flow(rv_editor_button_width(run_candidate_text));
+        if (rv_editor_button(run_candidate_text, theme,
+                { rv_editor_look::live, rv_editor_app_why_not_run_candidate(app) })) {
             rv_editor_app_run_candidate(app);
         }
         return;
     }
-    rv_editor_flow(rv_editor_button_width("Run"));
-    if (rv_editor_button("Run", theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
+    const char *run_text = rv_editor_text("pane_game.run");
+    rv_editor_flow(rv_editor_button_width(run_text));
+    if (rv_editor_button(run_text, theme, { rv_editor_look::live, rv_editor_app_why_not_run(app) })) {
         rv_editor_app_run(app);
     }
 }
@@ -108,19 +114,29 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
 // "Fit 2.37x", "Integer 2x", "3x, lowered to 2x to fit".
 std::string rv_editor_game_scale_text(rv_editor_game_scale mode, const rv_editor_game_view &view)
 {
-    char buf[64];
+    const float scale = view.scale;
     switch (mode) {
-        case rv_editor_game_scale::fit: std::snprintf(buf, sizeof(buf), "Fit %.2fx", view.scale); break;
-        case rv_editor_game_scale::integer:
-            std::snprintf(buf, sizeof(buf), view.reduced ? "Integer: %.2fx, below 1x to fit" : "Integer %.0fx",
-                view.scale);
-            break;
-        default:
-            std::snprintf(buf, sizeof(buf), view.reduced ? "%s, lowered to %.2fx to fit" : "%s",
-                rv_editor_game_scale_name(mode), view.scale);
-            break;
+    case rv_editor_game_scale::fit:
+        return rv_editor_text_format("pane_game.scale_fit_text", std::make_format_args(scale));
+    case rv_editor_game_scale::integer:
+        if (view.reduced) {
+            return rv_editor_text_format("pane_game.scale_integer_reduced",
+                std::make_format_args(scale));
+        } else {
+            return rv_editor_text_format("pane_game.scale_integer_normal",
+                std::make_format_args(scale));
+        }
+    default: {
+        const char *name = rv_editor_game_scale_name(mode);
+        if (view.reduced) {
+            return rv_editor_text_format("pane_game.scale_other_reduced",
+                std::make_format_args(name, scale));
+        } else {
+            return rv_editor_text_format("pane_game.scale_other_normal",
+                std::make_format_args(name));
+        }
     }
-    return buf;
+    }
 }
 
 // The status line's colour: normal for a live or plain-stopped line, warn for a
@@ -193,8 +209,11 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
     if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0 || s.number() == 0) {
         return false;
     }
-    status += "  stale: the last frame of session " + std::to_string(s.number()) + ", " +
-        rv_editor_run_state_name(s.state());
+    const uint64_t session_num = s.number();
+    const char *state_name = rv_editor_run_state_name(s.state());
+    const std::string stale_msg = rv_editor_text_format("pane_game.stale_session",
+        std::make_format_args(session_num, state_name));
+    status += stale_msg;
     return true;
 }
 
@@ -203,12 +222,17 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
 // whether stopped or a development session is live.
 void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    std::string status = app.release.candidates.empty()
-        ? "Stopped. No candidate yet: Build Candidate, then Run Candidate plays it here."
-        : "Stopped. Run Candidate plays candidate #" +
-            std::to_string(app.release.candidates[app.release.selected].number) + "'s image here.";
+    std::string status;
+    if (app.release.candidates.empty()) {
+        status = rv_editor_text("pane_game.no_candidate");
+    } else {
+        const uint32_t candidate_num = app.release.candidates[app.release.selected].number;
+        status = rv_editor_text_format("pane_game.candidate_image",
+            std::make_format_args(candidate_num));
+    }
     const bool stale = rv_editor_game_join_stale(app, status);
-    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
+    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
+        false);
 }
 
 } // namespace
@@ -217,7 +241,7 @@ int rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path
 {
     // Only a frame this session's console wrote: the pixels a stopped or older one left are not it.
     if (!app.session.live() || app.session.frame_memory().fd() != rv_editor_game_fd || rv_editor_game_frame == 0) {
-        error = "no frame of the running session has arrived yet";
+        error = rv_editor_text("pane_game.error_no_frame");
         return RV_ERR_NOENT;
     }
     SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h),
@@ -267,16 +291,23 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             if (app.release_view && app.release.player != nullptr) {
                 // The player draws in a window of its own: here only what the editor knows.
                 const rv_editor_release &r = app.release;
-                const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() -
-                    r.player_started).count();
-                const uint32_t number = r.player_candidate >= 0 ? r.candidates[static_cast<size_t>(r.player_candidate)].number
-                                                                : 0;
-                ImGui::TextWrapped("External player running candidate #%u in its own window: pid %d, %lld s.", number,
-                    static_cast<int>(r.player->pid()), static_cast<long long>(seconds));
-                if (rv_editor_button(r.player_stopped ? "Kill Player" : "Stop Player", theme)) {
+                const auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
+                    std::chrono::steady_clock::now() - r.player_started)
+                                         .count();
+                const uint32_t number = r.player_candidate >= 0 ?
+                    r.candidates[static_cast<size_t>(r.player_candidate)].number :
+                    0;
+                const int player_pid = static_cast<int>(r.player->pid());
+                const long long elapsed_secs = static_cast<long long>(seconds);
+                const std::string external_msg = rv_editor_text_format("pane_game.external_player",
+                    std::make_format_args(number, player_pid, elapsed_secs));
+                ImGui::TextWrapped("%s", external_msg.c_str());
+                const char *button_text = r.player_stopped ? rv_editor_text("pane_game.kill_player") :
+                                                             rv_editor_text("pane_game.stop_player");
+                if (rv_editor_button(button_text, theme)) {
                     rv_editor_app_stop_player(app);
                 }
-                ImGui::SetItemTooltip("The operator's act: the Player check does not pass from it");
+                ImGui::SetItemTooltip("%s", rv_editor_text("pane_game.stop_player_tooltip"));
                 return;
             }
             if (app.release_view) {
@@ -285,12 +316,16 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             }
             // Stopped: what the shelf's Run starts; a stale frame, if one is left,
             // joins the same line rather than opening a second one.
-            std::string status = !rv_editor_app_run_builds(app)
-                ? "Stopped. Run starts build #" + std::to_string(app.build.last_success()->number) + " here."
-                : "Stopped. Run builds the saved files, then starts that build here.";
+            std::string status;
+            if (!rv_editor_app_run_builds(app)) {
+                const uint32_t build_num = app.build.last_success()->number;
+                status = rv_editor_text_format("pane_game.stopped_builds",
+                    std::make_format_args(build_num));
+            } else {
+                status = rv_editor_text("pane_game.stopped_rebuilds");
+            }
             const bool stale = rv_editor_game_join_stale(app, status);
-            rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
-                false);
+            rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
             return;
         }
 
@@ -332,8 +367,8 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
         // The texture may still hold the last session's frame: not this one's.
         if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
-            rv_editor_game_picture(app, theme, "Waiting for the console's first frame.", rv_editor_game_line::muted,
-                false);
+            rv_editor_game_picture(app, theme, rv_editor_text("pane_game.frame_waiting"),
+                rv_editor_game_line::muted, false);
             return;
         }
 
@@ -342,33 +377,35 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         rv_editor_game_line line = rv_editor_game_line::normal;
 
         if (s.state() == rv_editor_run_state::disconnected) {
-            state = "stale: the console stopped answering";
+            state = rv_editor_text("pane_game.console_disconnected");
             line = rv_editor_game_line::warn;
             app.game_captured = false;
         } else if (s.state() == rv_editor_run_state::stopping && s.hung()) {
-            state = "not stopping: Force Stop ends it";
+            state = rv_editor_text("pane_game.not_stopping");
             line = rv_editor_game_line::warn;
         } else if (s.state() == rv_editor_run_state::stopping) {
-            state = "stopping";
+            state = rv_editor_text("pane_game.state_stopping");
         } else if (s.uncertain()) {
-            state = "not answering: the last request timed out";
+            state = rv_editor_text("pane_game.timeout");
             line = rv_editor_game_line::warn;
         } else if (s.state() == rv_editor_run_state::paused) {
-            state = "paused";
+            state = rv_editor_text("pane_game.state_paused");
         } else if (s.state() == rv_editor_run_state::pausing || s.state() == rv_editor_run_state::stepping ||
             s.state() == rv_editor_run_state::resuming || s.state() == rv_editor_run_state::starting) {
             state = rv_editor_run_state_name(s.state());
         } else if (s.state() == rv_editor_run_state::running) {
             if (app.game_captured) {
-                state = "playing: Shift+Esc gives the keyboard back";
+                state = rv_editor_text("pane_game.playing_keyboard");
             } else {
-                state = "click the picture to play";
+                state = rv_editor_text("pane_game.click_to_play");
             }
         } else {
             state = rv_editor_run_state_name(s.state());
         }
 
-        rv_editor_game_picture(app, theme, "frame " + std::to_string(s.frame()) + ", " + state, line,
+        const auto frame = s.frame();
+        rv_editor_game_picture(app, theme,
+            rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)), line,
             s.state() != rv_editor_run_state::disconnected);
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
