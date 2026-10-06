@@ -102,21 +102,21 @@ class rv_zipreader {
     bool parse_directory(std::string& error);
 
     // Locate the End Of Central Directory record inside `tail`, which is the
-    // last bytes of the file. Returns false when there is none.
-    static bool find_eocd(const std::vector<unsigned char>& tail, std::size_t& pos);
+    // last bytes of the file. Returns RV_OK when found, RV_ERR_INVAL when not.
+    static int find_eocd(const std::vector<unsigned char> &tail, std::size_t &pos);
 
     // Read the file's tail and locate the EOCD record within it. `tail` and
-    // `eocd_pos` are filled on success.
-    bool locate_eocd(std::string& error, std::vector<unsigned char>& tail, std::size_t& eocd_pos) const;
+    // `eocd_pos` are filled on success. Returns RV_OK on success, error codes otherwise.
+    int locate_eocd(std::string &error, std::vector<unsigned char> &tail, std::size_t &eocd_pos) const;
 
     // Walk the central directory bytes into `entries_`/`by_name_`.
     bool parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total, std::string& error);
 
     const rv_zipentry* find(const char* name) const;
 
-    // Seek + read exactly `count` bytes at `offset`. False on any short read;
-    // the caller has already bounds-checked `offset`/`count` against file_size_.
-    bool read_at(int64_t offset, void* dst, int64_t count) const;
+    // Seek + read exactly `count` bytes at `offset`. Returns RV_OK on success,
+    // RV_ERR_IO on any short read; the caller has already bounds-checked `offset`/`count` against file_size_.
+    int read_at(int64_t offset, void *dst, int64_t count) const;
 
     // The archive is read through a const interface (the medium is const), but
     // reading moves a file position: the stream is mutable state behind a

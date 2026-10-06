@@ -5,6 +5,7 @@
 #include <cstring>
 #include <format>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_zip/rv_zip_format.hpp"
 
@@ -94,13 +95,18 @@ bool rv_zipreader::open(const std::string& path, std::string& error) {
     return true;
 }
 
-bool rv_zipreader::read_at(int64_t offset, void* dst, int64_t count) const {
-    if (count == 0) return true;
+int rv_zipreader::read_at(int64_t offset, void *dst, int64_t count) const
+{
+    if (count == 0) {
+        return RV_OK;
+    }
     file_.clear();
     file_.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
-    if (!file_) return false;
+    if (!file_) {
+        return RV_ERR_IO;
+    }
     file_.read(static_cast<char*>(dst), static_cast<std::streamsize>(count));
-    return file_.gcount() == static_cast<std::streamsize>(count);
+    return file_.gcount() == static_cast<std::streamsize>(count) ? RV_OK : RV_ERR_IO;
 }
 
 // Backward search for the End Of Central Directory record - the EOCD is
@@ -118,8 +124,11 @@ bool rv_zipreader::read_at(int64_t offset, void* dst, int64_t count) const {
 // the search deterministic. "Plausible" is then checked properly - the comment
 // length field must account for exactly the bytes that follow the record, which
 // is what tells a real EOCD from four coincidental bytes of a texture.
-bool rv_zipreader::find_eocd(const std::vector<unsigned char>& tail, std::size_t& pos) {
-    if (tail.size() < rv_pdklib::rv_zip_eocd_size) return false;
+int rv_zipreader::find_eocd(const std::vector<unsigned char> &tail, std::size_t &pos)
+{
+    if (tail.size() < rv_pdklib::rv_zip_eocd_size) {
+        return RV_ERR_INVAL;
+    }
 
     for (std::size_t i = tail.size() - rv_pdklib::rv_zip_eocd_size + 1; i-- > 0;) {
         const rv_pdklib::rv_zip_eocd rec =
@@ -131,31 +140,36 @@ bool rv_zipreader::find_eocd(const std::vector<unsigned char>& tail, std::size_t
         if (comment_len != after) continue;  // impostor: the tail does not add up
 
         pos = i;
-        return true;
+        return RV_OK;
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
-bool rv_zipreader::locate_eocd(std::string& error, std::vector<unsigned char>& tail, std::size_t& eocd_pos) const {
+int rv_zipreader::locate_eocd(std::string &error, std::vector<unsigned char> &tail, std::size_t &eocd_pos) const
+{
     const int64_t tail_size =
         std::min<int64_t>(file_size_, static_cast<int64_t>(rv_pdklib::rv_zip_eocd_size + rv_pdklib::rv_zip_max_comment_size));
     tail.resize(static_cast<std::size_t>(tail_size));
-    if (!read_at(file_size_ - tail_size, tail.data(), tail_size)) {
+    int r = read_at(file_size_ - tail_size, tail.data(), tail_size);
+    if (r != RV_OK) {
         error = "cannot read the end of the archive";
-        return false;
+        return r;
     }
 
-    if (!find_eocd(tail, eocd_pos)) {
+    r = find_eocd(tail, eocd_pos);
+    if (r != RV_OK) {
         error = "no end-of-central-directory record: this is not a zip archive";
-        return false;
+        return r;
     }
-    return true;
+    return RV_OK;
 }
 
 bool rv_zipreader::parse_directory(std::string& error) {
     std::vector<unsigned char> tail;
     std::size_t eocd_pos = 0;
-    if (!locate_eocd(error, tail, eocd_pos)) return false;
+    if (locate_eocd(error, tail, eocd_pos) != RV_OK) {
+        return false;
+    }
 
     const rv_pdklib::rv_zip_eocd_result validated = rv_pdklib::rv_zip_validate_eocd(
         {tail.data() + eocd_pos, rv_pdklib::rv_zip_eocd_size}, file_size_, RV_PCZIP_MAX_DIRECTORY_BYTES);
@@ -178,7 +192,7 @@ bool rv_zipreader::parse_directory(std::string& error) {
     const rv_pdklib::rv_zip_eocd_fields& fields = validated.fields;
 
     std::vector<unsigned char> cdir(static_cast<std::size_t>(fields.cd_size));
-    if (!read_at(static_cast<int64_t>(fields.cd_offset), cdir.data(), static_cast<int64_t>(fields.cd_size))) {
+    if (read_at(static_cast<int64_t>(fields.cd_offset), cdir.data(), static_cast<int64_t>(fields.cd_size)) != RV_OK) {
         error = "cannot read the central directory (archive is truncated)";
         return false;
     }
@@ -341,7 +355,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
     // garbage rather than an error, which is the worst possible failure mode for
     // a texture or a model.
     unsigned char lh[rv_pdklib::rv_zip_local_header_size];
-    if (!read_at(lho, lh, static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size))) {
+    if (read_at(lho, lh, static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size)) != RV_OK) {
         RV_LOG_ERR("pczip", "entry '{}': local header unreadable", rv_pdklib::rv_log_escape(name));
         return rv_zipread::corrupt;
     }
@@ -379,7 +393,7 @@ rv_zipread rv_zipreader::read(const char* name, void* baddr, int64_t cap, int64_
         return rv_zipread::ok;
     }
 
-    if (!read_at(data_offset, baddr, size)) {
+    if (read_at(data_offset, baddr, size) != RV_OK) {
         std::memset(baddr, 0, static_cast<std::size_t>(size));
         RV_LOG_ERR("pczip", "entry '{}': short read of {} bytes", rv_pdklib::rv_log_escape(name), size);
         return rv_zipread::io_error;
