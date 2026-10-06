@@ -128,6 +128,35 @@ target_include_directories(3dmppc-editor PRIVATE "${RV_PALETTE_GEN_DIR}")
 target_compile_definitions(3dmppc-editor PRIVATE
   RV_EDITOR_NVIM_PALETTE="${RV_PALETTE_LUA}")
 
+# --- Editor UI text strings (editor/texts/rv_editor_texts.toml) ---------------
+# Embed the default text strings in the binary as a constexpr array. Read the TOML
+# at configure time and generate a C++ header; changes trigger a rebuild.
+set(RV_TEXTS_TOML "${CMAKE_CURRENT_SOURCE_DIR}/texts/rv_editor_texts.toml")
+set(RV_TEXTS_HPP "${RV_PALETTE_GEN_DIR}/rv_editor_texts_default.hpp")
+
+file(READ "${RV_TEXTS_TOML}" RV_TEXTS_CONTENT)
+
+# Reject content that would break the raw string literal.
+if(RV_TEXTS_CONTENT MATCHES "\\)rvtexts\"")
+  message(FATAL_ERROR "rv_editor_texts.toml contains )rvtexts\", breaks C++ raw string literal")
+endif()
+
+set(RV_TEXTS_CPP "#pragma once\n")
+string(APPEND RV_TEXTS_CPP "// Generated from editor/texts/rv_editor_texts.toml by editor/CMakeLists.txt\n")
+string(APPEND RV_TEXTS_CPP "\n")
+string(APPEND RV_TEXTS_CPP "namespace rv_editor\n")
+string(APPEND RV_TEXTS_CPP "{\n")
+string(APPEND RV_TEXTS_CPP "\n")
+string(APPEND RV_TEXTS_CPP "inline constexpr char rv_editor_texts_default[] = R\"rvtexts(\n")
+string(APPEND RV_TEXTS_CPP "${RV_TEXTS_CONTENT}")
+string(APPEND RV_TEXTS_CPP ")rvtexts\";\n")
+string(APPEND RV_TEXTS_CPP "\n")
+string(APPEND RV_TEXTS_CPP "}\n")
+
+# Write to .in file without substitution, then configure_file copies without substituting @ or ${.
+file(WRITE "${RV_TEXTS_HPP}.in" "${RV_TEXTS_CPP}")
+configure_file("${RV_TEXTS_HPP}.in" "${RV_TEXTS_HPP}" COPYONLY)
+
 # nvim's channel is read on a thread of its own.
 find_package(Threads REQUIRED)
 target_link_libraries(3dmppc-editor PRIVATE Threads::Threads)

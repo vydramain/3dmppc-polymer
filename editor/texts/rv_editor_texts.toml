@@ -1,0 +1,6 @@
+# Editor UI text strings embedded as default. Text IDs in code are "section.key".
+
+[too_small]
+title = "Display too small"
+required = "Required: 1280 x 720"
+current = "Current: {} x {}"
