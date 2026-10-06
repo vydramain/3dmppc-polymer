@@ -79,12 +79,12 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             rv_editor_log_channel::none, proc_.pid(), number_);
         // What the machine does now is whatever it says it does.
         if (state_ != rv_editor_run_state::stopping && proc_.running()) {
-            send("status", log);
+            send(std::string(cmd_status), log);
         }
         return;
     }
 
-    if (verb == "status") {
+    if (verb == cmd_status) {
         uncertain_ = false;
         if (!handshake_done_) {
             const std::string_view protocol = msg.get("protocol");
@@ -98,7 +98,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                 quit_sent_ = true;
                 stop_sent_ = std::chrono::steady_clock::now();
                 if (proc_.running()) {
-                    send("quit", log);
+                    send(std::string(cmd_quit), log);
                 }
                 return;
             }
@@ -114,19 +114,19 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
         }
         return;
     }
-    if (verb == "pause" || verb == "resume" || verb == "step") {
+    if (verb == cmd_pause || verb == cmd_resume || verb == cmd_step) {
         const std::string_view mode = msg.get("mode");
         if (mode != "paused" && mode != "running") {
             // An answer that does not say where the machine is: ask.
             if (proc_.running()) {
-                send("status", log);
+                send(std::string(cmd_status), log);
             }
             return;
         }
         handle_mode(mode);
         return;
     }
-    if (verb == "quit") {
+    if (verb == cmd_quit) {
         state_ = rv_editor_run_state::stopping;
     }
 }
