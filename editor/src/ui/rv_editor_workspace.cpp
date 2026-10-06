@@ -57,6 +57,17 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
 namespace
 {
 
+// Outline width multiplier in scaled pixels: bevel plus outline on both sides.
+constexpr float outline_mul = 2.0f;
+// Chrome thickness multiplier: padding and bevel on both sides.
+constexpr float chrome_mul = 2.0f;
+// Minimum pane width in character widths (width of M glyph).
+constexpr int pane_min_width_em = 20;
+// Minimum pane height in frame heights.
+constexpr int pane_min_height_frames = 4;
+// Buffer size for split node ID string.
+constexpr size_t split_id_buf_size = 32;
+
 // A pane's title: the owner's for this frame, or its kind's.
 const char *rv_editor_title_of(const rv_editor_workspace &ws, rv_editor_pane_id pane)
 {
@@ -100,7 +111,7 @@ void draw_leaf(rv_editor_workspace &ws, uint32_t node, rv_editor_rect rect, cons
 
     ImGui::SetCursorScreenPos(ImVec2(outer_min.x + bevel, outer_min.y + bevel));
     ImGui::PushID(node);
-    ImGui::BeginChild("##leaf", ImVec2(rect.w - 2.0f * bevel, rect.h - 2.0f * bevel), ImGuiChildFlags_None,
+    ImGui::BeginChild("##leaf", ImVec2(rect.w - outline_mul * bevel, rect.h - outline_mul * bevel), ImGuiChildFlags_None,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 
     const rv_editor_pane_id active = leaf.tabs.empty() ? rv_editor_tile_none : leaf.tabs[leaf.active];
@@ -281,8 +292,8 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
     // Leaf chrome: the frame, the header, room for a tab strip and the content padding.
     const float pad = theme.pad_px * s;
     const rv_editor_tile_metrics m{ static_cast<int>(pad),
-        { static_cast<int>(2.0f * (bevel + pad)),
-            static_cast<int>(2.0f * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
+        { static_cast<int>(chrome_mul * (bevel + pad)),
+            static_cast<int>(chrome_mul * (bevel + pad) + frame_h + ImGui::GetStyle().ItemSpacing.y) },
         static_cast<int>(frame_h) };
 
     std::vector<rv_editor_size> pane_min(ws.panes.panes.size());
@@ -297,7 +308,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
             // Smaller until the first frame, and Fit shows what fits.
             pane_min[i] = { 0, 0 };
         } else {
-            pane_min[i] = {static_cast<int>(glyph.x * 20), static_cast<int>(frame_h * 4)};
+            pane_min[i] = { static_cast<int>(glyph.x * pane_min_width_em), static_cast<int>(frame_h * pane_min_height_frames) };
         }
     }
 
@@ -345,7 +356,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws, const rv_editor_theme &th
                 ImGui::SetCursorScreenPos(ImVec2(place.rect.x, a.y + a.h));
             }
 
-            char id[32];
+            char id[split_id_buf_size];
             std::snprintf(id, sizeof(id), "##split%u", place.node);
             if (rv_editor_splitter(id, sp.axis, length, &fa, &fb, min_a, min_b, theme) && fa + fb > 0) {
                 (void)rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
