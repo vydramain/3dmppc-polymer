@@ -5,6 +5,18 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Ellipsis marker for text truncation when text doesn't fit in available width
+constexpr const char *text_ellipsis = "...";
+// UTF-8 continuation byte mask; checks top 2 bits to identify continuation bytes
+constexpr unsigned char utf8_continuation_mask = 0xC0;
+// UTF-8 continuation byte marker; continuation bytes have form 10xxxxxx
+constexpr unsigned char utf8_continuation_byte = 0x80;
+
+} // namespace
+
 rv_editor_item rv_editor_item_add(const char *id, ImVec2 size, const rv_editor_state &state)
 {
     rv_editor_item item = {};
@@ -69,11 +81,11 @@ const char *rv_editor_text_fit(const char *text, const char *end, float width)
     if (ImGui::CalcTextSize(text, end).x <= width) {
         return end;
     }
-    const float room = width - ImGui::CalcTextSize("...").x;
+    const float room = width - ImGui::CalcTextSize(text_ellipsis).x;
     const char *fit = text;
     while (fit < end) {
         const char *next = fit + 1;
-        while (next < end && (static_cast<unsigned char>(*next) & 0xC0) == 0x80) {
+        while (next < end && (static_cast<unsigned char>(*next) & utf8_continuation_mask) == utf8_continuation_byte) {
             ++next;
         }
         if (ImGui::CalcTextSize(text, next).x > room) {
