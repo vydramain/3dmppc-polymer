@@ -23,6 +23,23 @@ double rv_editor_snap(double v, double step)
     return std::round(v / step) * step;
 }
 
+constexpr int space_axes = 3;
+constexpr double half = 0.5;
+constexpr double rotation_speed_factor = 0.5;
+constexpr double rotation_snap_degrees = 15.0;
+constexpr double scale_sensitivity = 0.01;
+constexpr double scale_min = 0.1;
+constexpr double scale_snap_step = 0.1;
+constexpr double bounding_box_infinity = 1e30;
+constexpr double frame_distance_base = 2.0;
+constexpr double frame_distance_multiplier = 1.6;
+constexpr double perspective_view_yaw = 30.0;
+constexpr double perspective_view_pitch = 25.0;
+constexpr double top_view_pitch = 89.9;
+constexpr double right_view_yaw = -90.0;
+constexpr float dropdown_width_factor = 5.0f;
+constexpr double snap_step_epsilon = 1e-9;
+
 } // namespace
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
@@ -42,7 +59,7 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
         // Pixels along the axis as the screen shows it, into scene units, into the parent's space.
         const vec3 origin = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
         vec3 axis{ 0, 0, 0 };
-        axis[static_cast<size_t>(ui.gizmo_axis)] = 1.0;
+        axis[static_cast<size_t>(ui.gizmo_axis)] = 1;
         ImVec2 s0, s1;
         if (!v.point(origin, s0) || !v.point(add(origin, axis), s1)) {
             return;
@@ -67,18 +84,18 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
         }
     } else if (cam.tool == rv_editor_scene_tool::rotate) {
         o.rotation = ui.gizmo_before_rotation;
-        o.rotation[1] += total.x * 0.5;
-        o.rotation[0] += total.y * 0.5;
+        o.rotation[1] += total.x * rotation_speed_factor;
+        o.rotation[0] += total.y * rotation_speed_factor;
         if (cam.snap) {
-            o.rotation[0] = rv_editor_snap(o.rotation[0], 15.0);
-            o.rotation[1] = rv_editor_snap(o.rotation[1], 15.0);
+            o.rotation[0] = rv_editor_snap(o.rotation[0], rotation_snap_degrees);
+            o.rotation[1] = rv_editor_snap(o.rotation[1], rotation_snap_degrees);
         }
     } else if (cam.tool == rv_editor_scene_tool::scale) {
-        const double f = std::exp(-total.y * 0.01);
+        const double f = std::exp(-total.y * scale_sensitivity);
         o.scale = mul(ui.gizmo_before_scale, f);
         if (cam.snap) {
             for (double &c : o.scale) {
-                c = std::max(0.1, rv_editor_snap(c, 0.1));
+                c = std::max(scale_min, rv_editor_snap(c, scale_snap_step));
             }
         }
     }
@@ -88,7 +105,8 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
 {
     rv_editor_scene_doc &doc = *app.scene;
     rv_editor_scene_camera &cam = app.scene_ui.camera;
-    vec3 lo{ 1e30, 1e30, 1e30 }, hi{ -1e30, -1e30, -1e30 };
+    vec3 lo{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
+        hi{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
     bool any = false;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         if (!all && doc.scene.objects[i].id != doc.selected) {
@@ -96,7 +114,7 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
         }
         for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i))) {
             for (const vec3 &p : { a, b }) {
-                for (size_t k = 0; k < 3; ++k) {
+                for (size_t k = 0; k < space_axes; ++k) {
                     lo[k] = std::min(lo[k], p[k]);
                     hi[k] = std::max(hi[k], p[k]);
                 }
@@ -107,8 +125,8 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
     if (!any) {
         return;
     }
-    cam.target = mul(add(lo, hi), 0.5);
-    cam.distance = std::max(2.0, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * 1.6);
+    cam.target = mul(add(lo, hi), half);
+    cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
 }
 
 void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
@@ -118,7 +136,12 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     {
         const char *label;
         double yaw, pitch;
-    } views[] = { { "Persp", 30.0, 25.0 }, { "Top", 0.0, 89.9 }, { "Front", 0.0, 0.0 }, { "Right", -90.0, 0.0 } };
+    } views[] = {
+        { "Persp", perspective_view_yaw, perspective_view_pitch },
+        { "Top", 0.0, top_view_pitch },
+        { "Front", 0.0, 0.0 },
+        { "Right", right_view_yaw, 0.0 }
+    };
     for (const auto &view : views) {
         rv_editor_flow(rv_editor_button_width(view.label));
         if (rv_editor_button(view.label, theme)) {
@@ -170,7 +193,7 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_scene_camera &cam = app.scene_ui.camera;
     const char *const names[] = { "Select (Q)", "Move (W)", "Rotate (E)", "Scale (R)" };
-    for (int t = 0; t < 4; ++t) {
+    for (int t = 0; t < std::ssize(names); ++t) {
         if (rv_editor_radio(names[t], cam.tool == static_cast<rv_editor_scene_tool>(t), theme)) {
             cam.tool = static_cast<rv_editor_scene_tool>(t);
         }
@@ -180,11 +203,11 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
     const char *const steps[] = { "0.1", "0.25", "0.5", "1" };
     const double values[] = { 0.1, 0.25, 0.5, 1.0 };
     int step = 1;
-    for (int i = 0; i < 4; ++i) {
-        step = std::fabs(cam.snap_step - values[i]) < 1e-9 ? i : step;
+    for (int i = 0; i < std::ssize(values); ++i) {
+        step = std::fabs(cam.snap_step - values[i]) < snap_step_epsilon ? i : step;
     }
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.0f);
-    if (rv_editor_dropdown("##snapstep", &step, steps, 4, theme)) {
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * dropdown_width_factor);
+    if (rv_editor_dropdown("##snapstep", &step, steps, std::ssize(steps), theme)) {
         cam.snap_step = values[step];
     }
     ImGui::SetItemTooltip("The Move snap step, in scene units");
