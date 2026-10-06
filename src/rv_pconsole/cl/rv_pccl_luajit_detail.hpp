@@ -168,6 +168,6 @@ struct patch_ctx {
     const char *refuse_message = nullptr;
 };
 
-bool patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth);
-bool patch_reach(patch_ctx &ctx, int n_idx, int depth);
+int patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth);
+int patch_reach(patch_ctx &ctx, int n_idx, int depth);
 } // namespace rv_3dmppc

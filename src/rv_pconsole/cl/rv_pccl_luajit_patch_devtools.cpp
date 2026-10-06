@@ -216,7 +216,7 @@ int rv_pccl_luajit::patch_trampoline_(lua_State *L)
     }
     lua_pop(L, 1); // loaded table
 
-    if (!patch_pair(ctx, old_idx, new_idx, 1) || ctx.refused) {
+    if (patch_pair(ctx, old_idx, new_idx, 1) != RV_OK || ctx.refused) {
         args->outcome = RV_ERR_INVAL;
         args->report->phase = "patch";
         args->report->effects_possible = true;
@@ -224,7 +224,7 @@ int rv_pccl_luajit::patch_trampoline_(lua_State *L)
                                                                 : "the candidate could not be patched in place";
         return 0;
     }
-    if (!patch_reach(ctx, new_idx, 1) || ctx.refused) {
+    if (patch_reach(ctx, new_idx, 1) != RV_OK || ctx.refused) {
         args->outcome = RV_ERR_INVAL;
         args->report->phase = "patch";
         args->report->effects_possible = true;
