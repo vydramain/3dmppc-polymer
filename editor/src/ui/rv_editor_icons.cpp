@@ -18,6 +18,9 @@ namespace rv_editor
 namespace
 {
 
+// Icons load as 8-bit RGBA: four bytes per pixel.
+constexpr int rgba_channels = 4;
+
 constexpr int rv_editor_icon_count = static_cast<int>(rv_editor_icon_name::count);
 
 constexpr const char *rv_editor_icon_files[rv_editor_icon_count] = {
@@ -36,7 +39,7 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
     int w = 0;
     int h = 0;
     int channels = 0;
-    unsigned char *rgba = stbi_load(path.c_str(), &w, &h, &channels, 4);
+    unsigned char *rgba = stbi_load(path.c_str(), &w, &h, &channels, rgba_channels);
     if (rgba == nullptr) {
         std::fprintf(stderr, "3dmppc-editor: icon %s: %s\n", path.c_str(), stbi_failure_reason());
         return {};
@@ -48,7 +51,7 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
         stbi_image_free(rgba);
         return {};
     }
-    SDL_UpdateTexture(texture, nullptr, rgba, w * 4);
+    SDL_UpdateTexture(texture, nullptr, rgba, w * rgba_channels);
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
     stbi_image_free(rgba);

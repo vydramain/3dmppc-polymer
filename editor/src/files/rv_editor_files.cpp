@@ -13,6 +13,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Most recent changed paths kept before the oldest are dropped.
+constexpr size_t changed_paths_max = 4096;
+
+} // namespace
+
 void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log)
 {
     close();
@@ -164,8 +172,8 @@ void rv_editor_files::update(rv_editor_log &log)
     }
     stale_.clear();
     // Bounded: nobody who needs this list lets it grow across frames.
-    if (changed.size() > 4096) {
-        changed.erase(changed.begin(), changed.end() - 4096);
+    if (changed.size() > changed_paths_max) {
+        changed.erase(changed.begin(), changed.end() - changed_paths_max);
     }
 }
 
