@@ -17,8 +17,8 @@
 // attempt to print the version (rv_pcloader does exactly that when it reports an
 // incompatibility) turns into a compile error inside a template. A macro is
 // merely an int.
-#define RV_MPPC_VER_MAJOR 0
-#define RV_MPPC_VER_MINOR 4
+#define RV_MPPC_VER_MAJOR 1
+#define RV_MPPC_VER_MINOR 0
 
 #define RV_MPPC_NOTE_TYPE 1
 
