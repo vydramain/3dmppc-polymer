@@ -8,6 +8,8 @@
 #include <string>
 #include <utility>
 
+#include "text/rv_editor_text.hpp"
+
 namespace rv_editor
 {
 
@@ -69,17 +71,18 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
 {
     if (map.empty()) {
         return rv_editor_change_plan_of(rv_editor_change_action::none, "", "",
-            "Nothing is running, so there is nothing to apply.");
+            rv_editor_text("change.nothing_running"));
     }
 
     const std::filesystem::path changed_norm = changed.lexically_normal();
 
     if (changed_norm == manifest.lexically_normal()) {
-        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "", "Save, then Build and Restart.");
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+            rv_editor_text("change.save_and_rebuild"));
     }
     if (rv_editor_change_is_scene(changed_norm)) {
         return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
-            "Scenes are not reloaded yet. Save, then Build and Restart.");
+            rv_editor_text("change.scenes_reload_required"));
     }
 
     // Lexical, not resolved: root and changed must be spelled the same way, or
@@ -87,41 +90,49 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
     const std::filesystem::path rel = changed_norm.lexically_relative(root.lexically_normal());
     const bool outside_root = rel.empty() || rel.begin()->string() == parent_dir_marker;
     if (outside_root) {
-        return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "", "Not part of this project.");
+        return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "",
+            rv_editor_text("change.not_in_project"));
     }
 
     const auto found = map.find(rel.generic_string());
     if (found != map.end()) {
         const rv_editor_map_entry &entry = found->second;
         if (entry.kind == entry_kind_code) {
-            return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "", "Save, then Build and Restart.");
+            return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+                rv_editor_text("change.save_and_rebuild"));
         }
         if (entry.kind == entry_kind_entry) {
-            return rv_editor_change_plan_of(rv_editor_change_action::reload_entry, entry.name, "",
-                "Reload the entry script \"" + entry.name + "\".");
+            const auto args = std::make_format_args(entry.name);
+            const auto reason = rv_editor_text_format("change.reload_entry_script", args);
+            return rv_editor_change_plan_of(rv_editor_change_action::reload_entry, entry.name, "", reason);
         }
         if (entry.kind == entry_kind_module) {
-            return rv_editor_change_plan_of(rv_editor_change_action::reload_module, entry.parameter, "",
-                "Reload module \"" + entry.parameter + "\".");
+            const auto args = std::make_format_args(entry.parameter);
+            const auto reason = rv_editor_text_format("change.reload_module", args);
+            return rv_editor_change_plan_of(rv_editor_change_action::reload_module, entry.parameter, "", reason);
         }
         if (entry.kind == entry_kind_texture) {
-            return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name, entry.parameter,
-                "Refresh texture \"" + entry.name + "\".");
+            const auto args = std::make_format_args(entry.name);
+            const auto reason = rv_editor_text_format("change.refresh_texture", args);
+            return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name,
+                entry.parameter, reason);
         }
         if (entry.kind == entry_kind_sound) {
-            return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "",
-                "Sound \"" + entry.name + "\" changes only across a restart: Build and Restart.");
+            const auto args = std::make_format_args(entry.name);
+            const auto reason = rv_editor_text_format("change.sound_restart_required", args);
+            return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "", reason);
         }
         // kind == "file"
         return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "",
-            "The console cannot reload this kind of file: Build and Restart.");
+            rv_editor_text("change.file_reload_not_supported"));
     }
 
     if (rv_editor_change_is_cpp(changed_norm)) {
-        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "", "Save, then Build and Restart.");
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart, "", "",
+            rv_editor_text("change.save_and_rebuild"));
     }
     return rv_editor_change_plan_of(rv_editor_change_action::not_in_disc, "", "",
-        "Not on the running disc. Build and Restart puts it there if disc.toml lists it.");
+        rv_editor_text("change.not_on_disc"));
 }
 
 } // namespace rv_editor
