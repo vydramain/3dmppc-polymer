@@ -22,12 +22,16 @@ constexpr int32_t RV_DMAIN_DEPTH_ART_LO = -400;
 constexpr int32_t RV_DMAIN_DEPTH_ART_HI = 400;
 constexpr int32_t RV_DMAIN_DEPTH_TEXT = 900;  // over everything, it explains it
 
+// Polygon vertex counts
+constexpr int RV_DMAIN_TRI_VERTICES = 3;
+constexpr int RV_DMAIN_QUAD_VERTICES = 4;
+
 // The unit cube: six quads, each in the PDK's Z ORDER, because the console
 // splits a quad into triangles (1,2,3) and (2,3,4) rather than walking the rim.
 // Wound counter-clockwise as seen from OUTSIDE, which is what
 // RV_CULL_SCREEN_CW keeps.
 struct rv_dmain_face {
-    rv_pdklib::rv_vec3 corner[4];
+    rv_pdklib::rv_vec3 corner[RV_DMAIN_QUAD_VERTICES];
     rv_pdklib::rv_vec3 normal;
 };
 
@@ -76,6 +80,16 @@ constexpr int RV_DMAIN_GRID_TOP = 28;
 constexpr int RV_DMAIN_CELL_W = 78;
 constexpr int RV_DMAIN_CELL_H = 60;
 constexpr int RV_DMAIN_CELL_ART_TOP = 11; // below the cell's label
+constexpr int RV_DMAIN_CELL_GRID_OFFSET_X = 4;
+constexpr int RV_DMAIN_CELL_ART_OFFSET_X = 3;
+constexpr int RV_DMAIN_CELL_LABEL_OFFSET_X = 2;
+constexpr int RV_DMAIN_CELL_PADDING_RIGHT = 8;
+constexpr int RV_DMAIN_CELL_PADDING_BOTTOM = 5;
+constexpr int RV_DMAIN_DEPTH_STEP_OFFSET = 40;
+constexpr int RV_DMAIN_DEPTH_LADDER_STEP_X = 12;
+constexpr int RV_DMAIN_DEPTH_LADDER_STEP_Y = 8;
+constexpr int RV_DMAIN_DEPTH_LADDER_SHRINK_WIDTH = 24;
+constexpr int RV_DMAIN_DEPTH_LADDER_SHRINK_HEIGHT = 16;
 
 constexpr const char *RV_DMAIN_CELL_LABEL[] = {
     "LINE",
@@ -137,8 +151,8 @@ void rv_dmain::draw_cube_cell(int x, int y, int w, int h)
             rv_pdklib::rv_hsv_to_rgb(hue_ + 0.5f, 0.45f, 1.0f),
             rv_pdklib::rv_mat4_mul_direction(model, face.normal), to_light, 0.25f);
 
-        rv_pdklib::rv_xform_vertex vertexes[4];
-        for (int i = 0; i < 4; ++i) {
+        rv_pdklib::rv_xform_vertex vertexes[RV_DMAIN_QUAD_VERTICES];
+        for (int i = 0; i < RV_DMAIN_QUAD_VERTICES; ++i) {
             vertexes[i].position = face.corner[i];
             vertexes[i].color = shade;
             vertexes[i].uv = rv_uv{ 0, 0 };
@@ -164,14 +178,14 @@ void rv_dmain::draw_cell(int index)
 {
     const int col = index % RV_DMAIN_GRID_COLS;
     const int row = index / RV_DMAIN_GRID_COLS;
-    const int cx = 4 + col * RV_DMAIN_CELL_W;
+    const int cx = RV_DMAIN_CELL_GRID_OFFSET_X + col * RV_DMAIN_CELL_W;
     const int cy = RV_DMAIN_GRID_TOP + row * RV_DMAIN_CELL_H;
 
     // The art area: the cell minus its label strip and a pixel of breathing room.
-    const int ax = cx + 3;
+    const int ax = cx + RV_DMAIN_CELL_ART_OFFSET_X;
     const int ay = cy + RV_DMAIN_CELL_ART_TOP;
-    const int aw = RV_DMAIN_CELL_W - 8;
-    const int ah = RV_DMAIN_CELL_H - RV_DMAIN_CELL_ART_TOP - 5;
+    const int aw = RV_DMAIN_CELL_W - RV_DMAIN_CELL_PADDING_RIGHT;
+    const int ah = RV_DMAIN_CELL_H - RV_DMAIN_CELL_ART_TOP - RV_DMAIN_CELL_PADDING_BOTTOM;
 
     draw_cell_label(index, cx, cy);
 
@@ -188,8 +202,8 @@ void rv_dmain::draw_cell_label(int index, int cx, int cy)
         rv_cv *cv = rv_pdko_cv(pdk_);
         const rv_pdklib::rv_font_style ink =
             rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
-        rv_pdklib::rv_font_draw(ink, cx + 2, cy + 1, RV_DMAIN_CELL_LABEL[index],
-            [cv](const rv_primitive &p) {
+        rv_pdklib::rv_font_draw(ink, cx + RV_DMAIN_CELL_LABEL_OFFSET_X, cy + 1,
+            RV_DMAIN_CELL_LABEL[index], [cv](const rv_primitive &p) {
                 rv_cv_frame_put(cv, &p);
             });
     }
@@ -219,7 +233,7 @@ void rv_dmain::draw_cell_art(
         t.addr_texture = 0;
         t.addr_palette = 0;
         t.mapping = RV_TEXWRAP_CLAMP;
-        t.vertex_count = 3;
+        t.vertex_count = RV_DMAIN_TRI_VERTICES;
         t.vertexes[0] = make_vertex(ax + aw / 2, ay, hot);
         t.vertexes[1] = make_vertex(ax, ay + ah, cold);
         t.vertexes[2] = make_vertex(ax + aw, ay + ah, mid);
@@ -236,7 +250,7 @@ void rv_dmain::draw_cell_art(
         q.addr_texture = 0;
         q.addr_palette = 0;
         q.mapping = RV_TEXWRAP_CLAMP;
-        q.vertex_count = 4;
+        q.vertex_count = RV_DMAIN_QUAD_VERTICES;
         // Z ORDER, not around the rim: the console splits a quad into
         // (1,2,3) and (2,3,4).
         q.vertexes[0] = make_vertex(ax, ay, hot);
@@ -255,7 +269,7 @@ void rv_dmain::draw_cell_art(
         q.addr_texture = 0;
         q.addr_palette = 0;
         q.mapping = RV_TEXWRAP_CLAMP;
-        q.vertex_count = 4;
+        q.vertex_count = RV_DMAIN_QUAD_VERTICES;
         q.vertexes[0] = make_vertex(ax, ay, hot);
         q.vertexes[1] = make_vertex(ax + aw, ay, hot);
         q.vertexes[2] = make_vertex(ax, ay + ah, cold);
@@ -297,13 +311,15 @@ void rv_dmain::draw_cell_art(
     case 9: { // DEPTH - the ordering table sorts, submission order does not
         // Filed nearest FIRST. If the console honoured submission order
         // instead of the depth key, the stack would come out inverted.
-        const rv_color tint[3] = { hot, cold, mid };
-        const int32_t depth[3] = { RV_DMAIN_DEPTH_ART_HI, RV_DMAIN_DEPTH_ART_HI - 40,
-            RV_DMAIN_DEPTH_ART_LO };
-        for (int i = 0; i < 3; ++i) {
-            const rv_primitive primitive = make_bar(static_cast<float>(ax + i * 12),
-                static_cast<float>(ay + i * 8), static_cast<float>(aw - 24),
-                static_cast<float>(ah - 16), tint[i], depth[i]);
+        const rv_color tint[] = { hot, cold, mid };
+        const int32_t depth[] = { RV_DMAIN_DEPTH_ART_HI,
+            RV_DMAIN_DEPTH_ART_HI - RV_DMAIN_DEPTH_STEP_OFFSET, RV_DMAIN_DEPTH_ART_LO };
+        for (int i = 0; i < std::ssize(depth); ++i) {
+            const rv_primitive primitive = make_bar(
+                static_cast<float>(ax + i * RV_DMAIN_DEPTH_LADDER_STEP_X),
+                static_cast<float>(ay + i * RV_DMAIN_DEPTH_LADDER_STEP_Y),
+                static_cast<float>(aw - RV_DMAIN_DEPTH_LADDER_SHRINK_WIDTH),
+                static_cast<float>(ah - RV_DMAIN_DEPTH_LADDER_SHRINK_HEIGHT), tint[i], depth[i]);
             rv_cv_frame_put(cv, &primitive);
         }
         break;
