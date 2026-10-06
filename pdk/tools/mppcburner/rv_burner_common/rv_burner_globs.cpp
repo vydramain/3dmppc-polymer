@@ -4,6 +4,8 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace fs = std::filesystem;
 
 namespace rv_pdktools
@@ -79,35 +81,35 @@ static void glob_descend(const fs::path &root, const fs::path &relative,
 
 } // namespace rv_pdktools
 
-bool rv_pdktools::glob_expand(const fs::path &root, const std::vector<std::string> &patterns,
+int rv_pdktools::glob_expand(const fs::path &root, const std::vector<std::string> &patterns,
     std::vector<std::string> &out, std::string &error)
 {
     out.clear();
     for (const std::string &pattern : patterns) {
         if (pattern.empty()) {
             error = "empty pattern in the manifest";
-            return false;
+            return RV_ERR_INVAL;
         }
         if (pattern.front() == '/') {
             error = "pattern '" + pattern +
                 "' is absolute; manifest patterns are relative to the disc directory";
-            return false;
+            return RV_ERR_INVAL;
         }
         if (pattern.find("..") != std::string::npos) {
             error = "pattern '" + pattern +
                 "' contains '..'; a disc may only reach files inside its own directory";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         std::vector<std::string> matched;
         glob_descend(root, fs::path(), split_components(pattern), 0, matched);
         if (matched.empty()) {
             error = "pattern '" + pattern + "' matched no files under '" + root.string() + "'";
-            return false;
+            return RV_ERR_INVAL;
         }
         out.insert(out.end(), matched.begin(), matched.end());
     }
     std::sort(out.begin(), out.end());
     out.erase(std::unique(out.begin(), out.end()), out.end());
-    return true;
+    return RV_OK;
 }

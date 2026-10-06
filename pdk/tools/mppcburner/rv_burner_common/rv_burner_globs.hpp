@@ -36,8 +36,8 @@ using rv_pdklib::wildcard_match;
 /// @param patterns  the manifest's patterns; `*`, `?` and `**` are understood
 /// @param out       receives paths relative to @p root, sorted and unique
 /// @param error     set when a pattern is malformed or matches no file
-/// @return true on success; false leaves @p error set and @p out unusable
-bool glob_expand(
+/// @return RV_OK on success; RV_ERR_INVAL (bad pattern or no match) leaves @p error set and @p out unusable
+int glob_expand(
     const std::filesystem::path &root,
     const std::vector<std::string> &patterns,
     std::vector<std::string> &out,

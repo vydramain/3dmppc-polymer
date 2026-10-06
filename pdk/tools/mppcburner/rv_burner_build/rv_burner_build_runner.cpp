@@ -341,7 +341,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     // Expanded before anything is created, so a manifest that names no code is
     // refused before a build tree exists to clean up.
     std::vector<std::string> sources;
-    if (!glob_expand(disc_dir, manifest.build_sources, sources, error)) {
+    if (glob_expand(disc_dir, manifest.build_sources, sources, error) != RV_OK) {
         rv_burner_print_error("[build] sources: " + error);
         return 1;
     }

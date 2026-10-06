@@ -49,7 +49,7 @@ static int plan_section(
     }
 
     std::vector<std::string> matched;
-    if (!glob_expand(disc_dir, patterns, matched, error)) {
+    if (glob_expand(disc_dir, patterns, matched, error) != RV_OK) {
         error = std::string(section) + ": " + error;
         return 1;
     }
