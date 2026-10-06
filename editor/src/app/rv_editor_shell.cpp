@@ -12,6 +12,7 @@
 
 #include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -137,16 +138,37 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         : "#" + std::to_string(app.release.candidates[app.release.selected].number);
     std::string title;
     if (kind == rv_editor_pane_kind::game) {
-        title = burn ? "Candidate Playtest" + (candidate.empty() ? "" : ": " + candidate)
-                     : "Game" + (session.empty() ? "" : ": " + session);
+        const auto text_id = burn ? "shell_titles.candidate_playtest" : "workspace.pane_game";
+        const std::string base = rv_editor_text(text_id);
+        const std::string &suffix_value = burn ? candidate : session;
+        if (suffix_value.empty()) {
+            title = base;
+        } else {
+            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix",
+                std::make_format_args(suffix_value));
+            title = base + sfx;
+        }
     } else if (kind == rv_editor_pane_kind::runtime_log) {
-        title = burn ? "Playtest Log" + (candidate.empty() ? "" : ": " + candidate)
-                     : "Runtime Log" + (session.empty() ? "" : ": " + session);
+        const auto text_id = burn ? "shell_titles.playtest_log" : "shell_titles.runtime_log";
+        const std::string base = rv_editor_text(text_id);
+        const std::string &suffix_value = burn ? candidate : session;
+        if (suffix_value.empty()) {
+            title = base;
+        } else {
+            const auto sfx = rv_editor_text_format("shell_titles.subject_suffix",
+                std::make_format_args(suffix_value));
+            title = base + sfx;
+        }
     } else if (kind == rv_editor_pane_kind::scene && app.scene != nullptr) {
-        title = "Scene: " + rv_editor_app_scene_name(app) + (app.scene->dirty ? " *" : "") +
-            (app.scene->scene.read_only.empty() ? "" : " (read-only)");
+        const std::string scene_name = rv_editor_app_scene_name(app);
+        const std::string modified =
+            app.scene->dirty ? rv_editor_text("shell_titles.modified_marker") : "";
+        const std::string readonly =
+            app.scene->scene.read_only.empty() ? "" : rv_editor_text("shell_titles.scene_readonly");
+        title = std::string(rv_editor_text("shell_titles.scene_prefix")) + scene_name + modified + readonly;
     } else if (kind == rv_editor_pane_kind::problems && !app.problems.empty()) {
-        title = "Problems (" + std::to_string(app.problems.size()) + ")";
+        const auto count = app.problems.size();
+        title = rv_editor_text_format("shell_titles.problems", std::make_format_args(count));
     } else if (kind == rv_editor_pane_kind::output) {
         title = rv_editor_output_title(app, pane);
     } else if (kind == rv_editor_pane_kind::build_log) {
@@ -154,25 +176,41 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
         const bool candidate_view =
             it != app.outputs.end() && it->second.show[static_cast<size_t>(rv_editor_log_source::candidate)];
         if (candidate_view) {
-            title = app.release.candidates.empty()
-                ? "Build Log: no candidate yet"
-                : "Build Log: candidate #" + std::to_string(app.release.candidates.back().number);
+            if (app.release.candidates.empty()) {
+                title = rv_editor_text("shell_titles.build_log_no_candidate");
+            } else {
+                const auto num = app.release.candidates.back().number;
+                title = rv_editor_text_format("shell_titles.build_log_candidate",
+                    std::make_format_args(num));
+            }
         } else if (app.build.number() != 0) {
-            title = "Build Log: build " + std::to_string(app.build.number());
+            const auto build_num = app.build.number();
+            title = rv_editor_text_format("shell_titles.build_log_build",
+                std::make_format_args(build_num));
         }
     } else if (kind == rv_editor_pane_kind::terminal) {
         const auto it = app.terminals.find(pane);
         if (it != app.terminals.end() && it->second.term != nullptr) {
-            title = it->second.term->running() ? "Terminal: " + it->second.cwd.filename().string()
-                                               : "Terminal: ended (" + it->second.term->ended() + ")";
+            if (it->second.term->running()) {
+                title = std::string(rv_editor_text("shell_titles.terminal_prefix")) +
+                    it->second.cwd.filename().string();
+            } else {
+                const auto ended_msg = it->second.term->ended();
+                title = rv_editor_text_format("shell_titles.terminal_ended",
+                    std::make_format_args(ended_msg));
+            }
         }
     } else if (kind == rv_editor_pane_kind::code && app.nvim.running()) {
         const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(pane));
         if (buf != nullptr) {
-            title = "Code: " + rv_editor_shell_buffer_label(app, buf->name) + (buf->modified ? " *" : "");
+            const std::string label = rv_editor_shell_buffer_label(app, buf->name);
+            const std::string modified =
+                buf->modified ? rv_editor_text("shell_titles.modified_marker") : "";
+            title = std::string(rv_editor_text("shell_titles.code_prefix")) + label + modified;
         }
     } else if (kind == rv_editor_pane_kind::toolchest) {
-        title = app.preset == rv_editor_layout_preset::debug ? "Session Toolchest" : "Transform Toolchest";
+        title = rv_editor_text(
+            app.preset == rv_editor_layout_preset::debug ? "shell_titles.session_toolchest" : "shell_titles.transform_toolchest");
     }
     if (!title.empty()) {
         shell.ws.titles[pane] = title;
