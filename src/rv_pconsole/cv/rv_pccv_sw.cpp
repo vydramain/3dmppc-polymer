@@ -31,6 +31,11 @@ constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS =
 // primitive must still be able to write a pixel.
 constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
+constexpr int RV_PCCV_ARGB8888_RED_SHIFT = 16;  // bits 16-23: red channel
+constexpr int RV_PCCV_ARGB8888_GREEN_SHIFT = 8; // bits 8-15: green channel
+constexpr uint32_t RV_PCCV_ARGB8888_CHANNEL_MASK = 0xFF;
+constexpr int RV_PCCV_PPM_RGB_BYTES = 3;
+
 } // namespace
 
 rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget)
@@ -190,13 +195,13 @@ int64_t rv_pccv_sw::video_asset_write(int64_t addr, const rv_texture *texture_pt
     switch (texture.format) {
     case RV_TEXFMT_IDX4:
         // Rows stay byte-aligned, so an odd width costs a padding nibble.
-        needed = ((texture.width + 1) / 2) * texture.height;
+        needed = ((texture.width + 1) / RV_PCTEXEL_IDX4_TEXELS_PER_BYTE) * texture.height;
         break;
     case RV_TEXFMT_IDX8:
         needed = texels;
         break;
     case RV_TEXFMT_DIRECT15:
-        needed = texels * 2;
+        needed = texels * RV_PCTEXEL_DIRECT15_BYTES_PER_TEXEL;
         break;
     }
     if (texture.size < needed) {
@@ -288,7 +293,8 @@ int64_t rv_pccv_sw::frame_put(const rv_primitive *primitive_ptr)
 
     case RV_PRIMITIVE_POLYGON: {
         const rv_polygon &polygon = primitive.data.polygon;
-        if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
+        if (polygon.vertex_count != RV_PCRASTER_TRIANGLE_VERTICES &&
+            polygon.vertex_count != RV_PCRASTER_QUAD_VERTICES) {
             return RV_ERR_INVAL;
         }
         const int64_t fill =
@@ -471,9 +477,12 @@ void rv_pccv_sw::dump_last_frame(const std::string &path) const
     const int64_t pixels = conf_.screen_width * conf_.screen_height;
     for (int64_t i = 0; i < pixels; ++i) {
         const uint32_t c = last_frame_[i];
-        const unsigned char rgb[3] = { static_cast<unsigned char>((c >> 16) & 0xFF),
-            static_cast<unsigned char>((c >> 8) & 0xFF),
-            static_cast<unsigned char>(c & 0xFF) };
+        const unsigned char rgb[RV_PCCV_PPM_RGB_BYTES] = {
+            static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_RED_SHIFT) & RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_GREEN_SHIFT) &
+                RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>(c & RV_PCCV_ARGB8888_CHANNEL_MASK)
+        };
         std::fwrite(rgb, 1, sizeof(rgb), file);
     }
     std::fclose(file);

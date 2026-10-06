@@ -26,6 +26,13 @@
 namespace rv_3dmppc
 {
 
+// Polygon vertex counts: triangles have 3, quads have 4.
+constexpr int RV_PCRASTER_TRIANGLE_VERTICES = 3;
+constexpr int RV_PCRASTER_QUAD_VERTICES = 4;
+
+// Triangles produced when triangulating a quad.
+constexpr int RV_PCRASTER_QUAD_TRIANGLES = 2;
+
 class rv_pcraster
 {
 public:
