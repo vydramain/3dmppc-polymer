@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "catalog/rv_editor_catalog.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -19,20 +20,18 @@ struct rv_editor_field_column
 };
 
 const rv_editor_field_column rv_editor_field_columns[] = {
-    {"normal", {}},
-    {"hovered", {{rv_editor_look::hovered, nullptr}}},
-    {"focused", {{rv_editor_look::focused, nullptr}}},
-    {"disabled", {{rv_editor_look::normal, "Disabled: shown here to check the look"}}},
-    {"invalid", {{rv_editor_look::normal, nullptr}, false, false, "Invalid: shown here to check the look"}},
-    {"read-only", {{rv_editor_look::normal, nullptr}, true}},
-    {"dirty", {{rv_editor_look::normal, nullptr}, false, true}},
-    {"live", {}},
+    { "catalog_fields.col_normal", {} },
+    { "catalog_fields.col_hovered", { { rv_editor_look::hovered, nullptr } } },
+    { "catalog_fields.col_focused", { { rv_editor_look::focused, nullptr } } },
+    { "catalog_fields.col_disabled", { { rv_editor_look::normal, "catalog_fields.disabled_reason" } } },
+    { "catalog_fields.col_invalid", { { rv_editor_look::normal, nullptr }, false, false, "catalog_fields.invalid_reason" } },
+    { "catalog_fields.col_read_only", { { rv_editor_look::normal, nullptr }, true } },
+    { "catalog_fields.col_dirty", { { rv_editor_look::normal, nullptr }, false, true } },
+    { "catalog_fields.col_live", {} },
 };
 
 constexpr int rv_editor_field_column_count =
     static_cast<int>(sizeof(rv_editor_field_columns) / sizeof(rv_editor_field_columns[0]));
-
-constexpr const char *rv_editor_templates[] = {"Lua", "C++"};
 
 // One value per cell, so typing into one field does not change its neighbours.
 struct rv_editor_field_values
@@ -60,23 +59,32 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
     if (!ImGui::BeginTable("fields", rv_editor_field_column_count + 1)) {
         return;
     }
-    ImGui::TableSetupColumn("widget", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize("Icon button").x);
+    const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
+    ImGui::TableSetupColumn(rv_editor_text("catalog_fields.column_widget"),
+        ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(longest_label).x);
     for (const rv_editor_field_column &c : rv_editor_field_columns) {
-        ImGui::TableSetupColumn(c.name, ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn(rv_editor_text(c.name), ImGuiTableColumnFlags_WidthStretch);
     }
     ImGui::TableHeadersRow();
 
-    const char *rows[] = {"Text field", "Spinner", "Dropdown"};
-    for (int row = 0; row < 3; ++row) {
+    const char *row_ids[] = { "catalog_fields.row_text_field", "catalog_fields.row_spinner",
+        "catalog_fields.row_dropdown" };
+    for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(rows[row]);
+        ImGui::TextUnformatted(rv_editor_text(row_ids[row]));
         for (int c = 0; c < rv_editor_field_column_count; ++c) {
             ImGui::TableNextColumn();
             ImGui::PushID(row * rv_editor_field_column_count + c);
             ImGui::SetNextItemWidth(-1.0f);
-            const rv_editor_field &f = rv_editor_field_columns[c].field;
+            rv_editor_field f = rv_editor_field_columns[c].field;
+            if (f.state.disabled != nullptr) {
+                f.state.disabled = rv_editor_text(f.state.disabled);
+            }
+            if (f.invalid != nullptr) {
+                f.invalid = rv_editor_text(f.invalid);
+            }
             switch (row) {
             case 0:
                 rv_editor_text_field("##text", rv_editor_field_data.text[c], sizeof(rv_editor_field_data.text[c]),
@@ -85,9 +93,12 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
             case 1:
                 rv_editor_spinner("##number", &rv_editor_field_data.number[c], 8, theme, f);
                 break;
-            default:
-                rv_editor_dropdown("##choice", &rv_editor_field_data.choice[c], rv_editor_templates, 2, theme, f);
+            default: {
+                const char *templates[] = { rv_editor_text("catalog_fields.template_lua"),
+                    rv_editor_text("catalog_fields.template_cpp") };
+                rv_editor_dropdown("##choice", &rv_editor_field_data.choice[c], templates, 2, theme, f);
                 break;
+            }
             }
             ImGui::PopID();
         }
