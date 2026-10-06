@@ -13,6 +13,7 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "pdklib/rv_math/rv_obj.hpp"
 
@@ -85,7 +86,7 @@ const rv_pdklib::rv_obj_mesh *rv_editor_mesh_load(const std::filesystem::path &p
     std::ostringstream bytes;
     bytes << in.rdbuf();
     const std::string text = bytes.str();
-    entry.ok = in && rv_pdklib::rv_obj_parse(text.data(), text.size(), entry.mesh);
+    entry.ok = in && rv_pdklib::rv_obj_parse(text.data(), text.size(), entry.mesh) == RV_OK;
     if (!entry.ok) {
         entry.error = path.filename().string() + ": does not parse";
     }
