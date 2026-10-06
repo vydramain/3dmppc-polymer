@@ -27,7 +27,8 @@ console (`3dmppc --dev`) - it links none of their code.
 - Scene editor viewport shows `.obj` meshes and volumes but a game only draws
   what its own code draws; the example discs ignore meshes and don't draw quads
   or volumes yet
-- Scenes are PDK 0.4 files; a PDK 0.3 console cannot read them
+- Scenes are PDK 1.0 files; a scene of PDK 0.x opens read-only until
+  its `version` is raised to "1.0" by hand
 
 ## Requirements
 
