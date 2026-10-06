@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "pdk/rv_err.h"
+
 namespace rv_3dmppc
 {
 
@@ -56,12 +58,12 @@ void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *d
 // moves, so a call naming one unarmed voice out of eight leaves all eight
 // exactly as they were. Half-applied hardware commands are the kind of bug that
 // only shows up as an occasional stuck note.
-bool rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
+int rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
 {
     if (require_armed) {
         for (std::size_t i = 0; i < voices_.size(); ++i) {
             if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
-                return false;
+                return RV_ERR_INVAL;
             }
         }
     }
@@ -71,16 +73,16 @@ bool rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvo
             (voices_[i].*action)();
         }
     }
-    return true;
+    return RV_OK;
 }
 
-bool rv_pcmixer::play(int64_t mask)
+int rv_pcmixer::play(int64_t mask)
 {
     std::lock_guard<std::mutex> guard(lock_);
     return for_each_locked(mask, true, &rv_pcvoice::play);
 }
 
-bool rv_pcmixer::stop(int64_t mask)
+int rv_pcmixer::stop(int64_t mask)
 {
     std::lock_guard<std::mutex> guard(lock_);
     return for_each_locked(mask, true, &rv_pcvoice::stop);

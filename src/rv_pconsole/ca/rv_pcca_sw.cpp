@@ -241,7 +241,7 @@ int64_t rv_pcca_sw::voice_play(int64_t voice_mask)
         return mask_rc;
     }
 
-    return mixer_.play(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_.play(voice_mask);
 }
 
 int64_t rv_pcca_sw::voice_stop(int64_t voice_mask)
@@ -251,7 +251,7 @@ int64_t rv_pcca_sw::voice_stop(int64_t voice_mask)
         return mask_rc;
     }
 
-    return mixer_.stop(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_.stop(voice_mask);
 }
 
 int64_t rv_pcca_sw::voice_status(int64_t voice_mask)
