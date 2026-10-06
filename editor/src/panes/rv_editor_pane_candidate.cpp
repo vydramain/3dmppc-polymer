@@ -19,6 +19,21 @@ namespace rv_editor
 namespace
 {
 
+// SHA-256 short display length for approved_for_release decision.
+constexpr size_t sha256_approved_len = 12;
+
+// SHA-256 short display length for candidate facts with hash.
+constexpr size_t sha256_facts_len = 16;
+
+// Number of columns in checks table.
+constexpr int checks_table_columns = 3;
+
+// Number of columns in identity table.
+constexpr int identity_table_columns = 2;
+
+// Candidate selector dropdown width in em.
+constexpr float candidate_dropdown_width_em = 16.0f;
+
 void rv_editor_dim_text(const std::string &text)
 {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
@@ -76,7 +91,7 @@ std::string rv_editor_decision_text(const rv_editor_candidate &c)
     case rv_editor_decision::approved: {
         const auto &op = c.operator_name;
         const auto &dt = c.decided_at;
-        const auto &sha = c.sha256.substr(0, 12);
+        const auto &sha = c.sha256.substr(0, sha256_approved_len);
         return rv_editor_text_format("pane_candidate.approved_for_release",
             std::make_format_args(op, dt, sha));
     }
@@ -175,7 +190,7 @@ void rv_editor_candidate_checks(rv_editor_app &app, rv_editor_candidate &c, cons
     std::string help_text = rv_editor_text_format("pane_candidate.checks_help",
         std::make_format_args(check_count));
     rv_editor_dim_text(help_text);
-    if (ImGui::BeginTable("##checks", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+    if (ImGui::BeginTable("##checks", checks_table_columns, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn(rv_editor_text("pane_candidate.check_column"), ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(rv_editor_text("pane_candidate.state_column"), ImGuiTableColumnFlags_WidthFixed);
         ImGui::TableSetupColumn(rv_editor_text("pane_candidate.result_column"));
@@ -273,7 +288,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
             facts = rv_editor_text_format("pane_candidate.candidate_facts_hashing",
                 std::make_format_args(candidate_number, summary, decision));
         } else {
-            const auto sha_short = c.sha256.substr(0, 16);
+            const auto sha_short = c.sha256.substr(0, sha256_facts_len);
             facts = rv_editor_text_format("pane_candidate.candidate_facts_sha256",
                 std::make_format_args(candidate_number, sha_short, summary, decision));
         }
@@ -340,7 +355,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
                 items.push_back(n.c_str());
             }
             int selected = static_cast<int>(r.selected);
-            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16);
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * candidate_dropdown_width_em);
             if (rv_editor_dropdown(rv_editor_text("pane_candidate.shown_label"), &selected, items.data(),
                     static_cast<int>(items.size()), theme)) {
                 r.selected = static_cast<size_t>(selected);
@@ -354,7 +369,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_status(rv_editor_text("pane_candidate.bytes_changed"), rv_editor_status_kind::error, theme);
         }
 
-        if (ImGui::BeginTable("##identity", 2, ImGuiTableFlags_SizingStretchProp)) {
+        if (ImGui::BeginTable("##identity", identity_table_columns, ImGuiTableFlags_SizingStretchProp)) {
             const auto num = std::to_string(c.number);
             std::string candidate_info = rv_editor_text_format("pane_candidate.candidate_with_date",
                 std::make_format_args(num, c.built_at));

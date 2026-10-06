@@ -27,6 +27,19 @@ constexpr float label_column_em = 6.0f;
 // Largest tint channel value.
 constexpr int tint_channel_max = 255;
 
+// Components in a 3D vector (position, rotation, scale).
+constexpr int vec3_size = 3;
+
+// Minimum tessellation value clamped in drag.
+constexpr double tess_min = 0.01;
+
+// Drag speeds for transform fields.
+constexpr float position_speed = 0.01f;
+constexpr float rotation_speed = 0.5f;
+constexpr float scale_speed = 0.01f;
+constexpr float uv_speed = 0.5f;
+constexpr float tess_speed = 0.05f;
+
 // A label column, then the field.
 void rv_editor_inspector_label(const char *label)
 {
@@ -49,7 +62,7 @@ void rv_editor_inspector_vec(rv_editor_app &app, const char *label, rv_editor_ve
     }
     rv_editor_vec3 value = doc.scene.objects[static_cast<size_t>(at)].*field;
     rv_editor_inspector_label(display_label);
-    const bool changed = ImGui::DragScalarN((std::string("##") + label).c_str(), ImGuiDataType_Double, value.data(), 3,
+    const bool changed = ImGui::DragScalarN((std::string("##") + label).c_str(), ImGuiDataType_Double, value.data(), vec3_size,
         speed, nullptr, nullptr, "%.3f");
     if (ImGui::IsItemActivated()) {
         rv_editor_scene_step(doc);
@@ -148,7 +161,7 @@ void rv_editor_inspector_tess(rv_editor_app &app, const char *label, double rv_e
     }
     double value = doc.scene.objects[static_cast<size_t>(at)].*field;
     rv_editor_inspector_label(display_label);
-    const double lo = 0.01;
+    const double lo = tess_min;
     const bool changed =
         ImGui::DragScalar((std::string("##") + label).c_str(), ImGuiDataType_Double, &value, speed, &lo, nullptr, "%.3f");
     if (ImGui::IsItemActivated()) {
@@ -250,12 +263,12 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
         rv_editor_inspector_label(rv_editor_text("pane_scene_inspector.id_label"));
         ImGui::TextDisabled("%s", o.id.c_str());
         ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.transform_header"));
-        rv_editor_inspector_vec(app, "Position", &rv_editor_scene_object::position, 0.01f, o.id,
+        rv_editor_inspector_vec(app, "Position", &rv_editor_scene_object::position, position_speed, o.id,
             rv_editor_text("pane_scene_inspector.position_label"));
-        rv_editor_inspector_vec(app, "Rotation", &rv_editor_scene_object::rotation, 0.5f, o.id,
+        rv_editor_inspector_vec(app, "Rotation", &rv_editor_scene_object::rotation, rotation_speed, o.id,
             rv_editor_text("pane_scene_inspector.rotation_label"));
         ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.rotation_tooltip"));
-        rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, 0.01f, o.id,
+        rv_editor_inspector_vec(app, "Scale", &rv_editor_scene_object::scale, scale_speed, o.id,
             rv_editor_text("pane_scene_inspector.scale_label"));
         if (o.kind == "mesh") {
             ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.resources_header"));
@@ -271,12 +284,12 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
             rv_editor_inspector_text(app, "Texture", &rv_editor_scene_object::texture, ui.texture, sizeof(ui.texture),
                 o.id, theme, rv_editor_text("pane_scene_inspector.texture_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.texture_tooltip"));
-            rv_editor_inspector_array<rv_editor_uv>(app, "UV", &rv_editor_scene_object::uv, ImGuiDataType_Double, 0.5f,
+            rv_editor_inspector_array<rv_editor_uv>(app, "UV", &rv_editor_scene_object::uv, ImGuiDataType_Double, uv_speed,
                 "%.1f", o.id, -1e6, 1e6, rv_editor_text("pane_scene_inspector.uv_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.uv_tooltip"));
             rv_editor_inspector_array<rv_editor_tint>(app, "Tint", &rv_editor_scene_object::tint, ImGuiDataType_S32,
                 1.0f, "%d", o.id, 0, tint_channel_max, rv_editor_text("pane_scene_inspector.tint_label"));
-            rv_editor_inspector_tess(app, "Tess", &rv_editor_scene_object::tess, 0.05f, o.id,
+            rv_editor_inspector_tess(app, "Tess", &rv_editor_scene_object::tess, tess_speed, o.id,
                 rv_editor_text("pane_scene_inspector.tess_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.tess_tooltip"));
         }
