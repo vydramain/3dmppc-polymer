@@ -5,6 +5,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "imgui.h"
 #include "layout/rv_editor_tile.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -12,7 +13,7 @@ namespace rv_editor
 
 void rv_editor_pane_empty(rv_editor_shell &shell, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
-    ImGui::TextWrapped("Choose a pane kind:");
+    ImGui::TextWrapped("%s", rv_editor_text("pane_empty.choose_pane_kind"));
     ImGui::Spacing();
 
     // Display all kinds except empty in a grid of buttons.

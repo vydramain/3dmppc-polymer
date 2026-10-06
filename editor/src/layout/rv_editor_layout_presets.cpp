@@ -2,6 +2,7 @@
 // time it is chosen and after Layout > Reset Layout.
 
 #include "layout/rv_editor_tile.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -108,13 +109,13 @@ const char *rv_editor_layout_preset_name(rv_editor_layout_preset preset)
 {
     switch (preset) {
     case rv_editor_layout_preset::code:
-        return "Code";
+        return rv_editor_text("layout_presets.code");
     case rv_editor_layout_preset::scene:
-        return "Scene";
+        return rv_editor_text("layout_presets.scene");
     case rv_editor_layout_preset::debug:
-        return "Debug";
+        return rv_editor_text("layout_presets.debug");
     case rv_editor_layout_preset::burn:
-        return "Burn";
+        return rv_editor_text("layout_presets.burn");
     }
     return "";
 }

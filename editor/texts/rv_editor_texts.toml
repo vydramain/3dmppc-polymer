@@ -754,3 +754,12 @@ nothing_selected = "Nothing is selected"
 duplicate = "Duplicate"
 delete = "Delete"
 move_to_root = "Move to Root"
+
+[pane_empty]
+choose_pane_kind = "Choose a pane kind:"
+
+[layout_presets]
+code = "Code"
+scene = "Scene"
+debug = "Debug"
+burn = "Burn"
