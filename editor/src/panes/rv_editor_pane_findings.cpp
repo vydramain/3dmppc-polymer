@@ -75,6 +75,8 @@ constexpr std::string_view findings_label_log = "log: ";
 constexpr std::string_view findings_label_steps = "\nsteps:\n";
 constexpr std::string_view findings_label_expected = "\n\nexpected:\n";
 constexpr std::string_view findings_label_actual = "\n\nactual:\n";
+constexpr std::string_view findings_none = "none";
+constexpr const char *exploratory_case_title = "Exploratory"; // Default test case title, written into result files - not translated.
 
 // Result file format labels.
 constexpr std::string_view result_label_test_case = "test case: ";
@@ -175,7 +177,7 @@ void rv_editor_record(rv_editor_app &app, const std::filesystem::path &dir)
     std::string text = std::string(findings_label_title) + std::string(f.title) + "\n";
     text += std::string(findings_label_recorded) + rv_editor_now_text("%Y-%m-%d %H:%M:%S") + "\n";
     text += rv_editor_session_text(app);
-    text += std::string(findings_label_screenshot) + (f.capture.empty() ? std::string("none") : f.capture.string()) +
+    text += std::string(findings_label_screenshot) + (f.capture.empty() ? std::string(findings_none) : f.capture.string()) +
         "\n";
     text += std::string(findings_label_log) + log_path.string() + "\n";
     text += std::string(findings_label_steps) + std::string(f.steps) + std::string(findings_label_expected) +
@@ -297,10 +299,10 @@ void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const ch
     f.saved.push_back(path);
     f.results.push_back(std::string(result) + ": " + c.title + ", session #" + std::to_string(app.session.number()) +
         ", " + rv_editor_now_text("%H:%M"));
-    app.log.add(rv_editor_log_source::editor, std::string(result) == "failed" ? rv_editor_log_level::warning
-                                                                             : rv_editor_log_level::info,
+    app.log.add(rv_editor_log_source::editor,
+        std::string_view(result) == result_type_failed ? rv_editor_log_level::warning : rv_editor_log_level::info,
         "test case " + c.title + ": " + result + ", session #" + std::to_string(app.session.number()));
-    if (std::string(result) == "failed") {
+    if (std::string_view(result) == result_type_failed) {
         std::snprintf(f.title, sizeof(f.title), "%s: failed", c.title.c_str());
         std::snprintf(f.steps, sizeof(f.steps), "%s", c.steps.c_str());
         std::snprintf(f.expected, sizeof(f.expected), "%s", c.expected.c_str());
@@ -342,7 +344,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
-    rv_editor_case c{ "Exploratory", {}, {} };
+    rv_editor_case c{ std::string(exploratory_case_title), {}, {} };
     if (f.test_case >= 0) {
         c = rv_editor_case_read(f.cases[static_cast<size_t>(f.test_case)]);
         ImGui::SeparatorText(rv_editor_text("findings.steps"));
