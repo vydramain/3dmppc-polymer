@@ -289,6 +289,10 @@ void rv_editor_shell_set_minimum(rv_editor_shell &shell, rv_editor_pane_id pane,
 // True if UI scale fits on the window's display in 1280*scale x 720*scale pixels.
 bool rv_editor_shell_scale_fits(SDL_Window *window, float scale);
 
+// Minimum editor window size at scale 1.0.
+inline constexpr int window_min_width = 1280; // pixels required for UI layout
+inline constexpr int window_min_height = 720; // pixels required for UI layout
+
 // Display size in pixels.
 struct rv_editor_display_size {
     int w_pixels = 0;

@@ -21,6 +21,24 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Size of the error message window for measurement iterations.
+constexpr int measure_window_width = 400;  // pixels, temporary measurement canvas
+constexpr int measure_window_height = 240; // pixels, temporary measurement canvas
+
+// Frames needed to stabilize window size calculation.
+constexpr int measure_frames_count = 4; // iterations for size convergence
+
+// Bit masks and shifts for extracting RGB color components.
+constexpr int color_channel_mask = 0xff; // isolate one color channel
+constexpr int color_red_shift = 16;      // red channel bit position in packed color
+constexpr int color_green_shift = 8;     // green channel bit position in packed color
+constexpr int color_alpha_opaque = 255;  // maximum alpha for fully opaque color
+
+} // namespace
+
 rv_editor_display_size rv_editor_get_display_size(SDL_Window *window)
 {
     rv_editor_display_size result{};
@@ -43,8 +61,9 @@ rv_editor_display_size rv_editor_get_display_size(SDL_Window *window)
 // Print error message to stderr.
 static void rv_editor_print_too_small_error(const rv_editor_display_size &display_size)
 {
-    std::fprintf(stderr, "3dmppc-editor: the display is %dx%d, the editor needs at least 1280x720\n",
-        display_size.w_pixels, display_size.h_pixels);
+    std::fprintf(stderr,
+        "3dmppc-editor: the display is %dx%d, the editor needs at least %dx%d\n",
+        display_size.w_pixels, display_size.h_pixels, window_min_width, window_min_height);
 }
 
 // Draw message: "too_small.title", "too_small.required", "too_small.current" (formatted with width x height).
@@ -83,7 +102,7 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     ImGui_ImplSDLRenderer3_Init(renderer);
 
     // Measure message window size until stable (AlwaysAutoResize needs multiple frames).
-    io.DisplaySize = ImVec2(400, 240);
+    io.DisplaySize = ImVec2(measure_window_width, measure_window_height);
     io.DisplayFramebufferScale = ImVec2(1.0f, 1.0f);
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_AlwaysAutoResize |
@@ -95,7 +114,7 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     int window_h = 0;
     ImVec2 prev_size{};
 
-    for (int frame = 0; frame < 4; ++frame) {
+    for (int frame = 0; frame < measure_frames_count; ++frame) {
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -170,8 +189,9 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
 
         ImGui::Render();
 
-        SDL_SetRenderDrawColor(renderer, (theme.window >> 16) & 0xff, (theme.window >> 8) & 0xff,
-            theme.window & 0xff, 255);
+        SDL_SetRenderDrawColor(renderer, (theme.window >> color_red_shift) & color_channel_mask,
+            (theme.window >> color_green_shift) & color_channel_mask, theme.window & color_channel_mask,
+            color_alpha_opaque);
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
