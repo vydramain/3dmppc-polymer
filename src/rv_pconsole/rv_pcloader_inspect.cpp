@@ -30,15 +30,20 @@ constexpr uint64_t align_elf_note_field_size(uint64_t size)
     return (size + 3ull) & ~3ull;
 }
 
+// Hex encoding constants for bytes_to_hex.
+constexpr std::size_t HEX_CHARS_PER_BYTE = 2; // Two hex digits represent one byte
+constexpr int HIGH_NIBBLE_SHIFT = 4;          // Bit shift to extract high nibble
+constexpr uint8_t NIBBLE_MASK = 0x0f;         // Mask to extract low nibble
+
 // Local hex formatting for a log line only - pdklib ships raw bytes, not text.
 std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 {
     static const char *const digits = "0123456789abcdef";
     std::string out;
-    out.reserve(n * 2);
+    out.reserve(n * HEX_CHARS_PER_BYTE);
     for (std::size_t i = 0; i < n; ++i) {
-        out.push_back(digits[bytes[i] >> 4]);
-        out.push_back(digits[bytes[i] & 0x0f]);
+        out.push_back(digits[bytes[i] >> HIGH_NIBBLE_SHIFT]);
+        out.push_back(digits[bytes[i] & NIBBLE_MASK]);
     }
     return out;
 }

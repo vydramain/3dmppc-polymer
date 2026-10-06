@@ -37,6 +37,9 @@ namespace
 // console runs per process (rv_pboot.cpp holds the only rv_pconsole), and a
 // player build carries neither these values nor the lines that read them.
 
+// Radix for parsing hexadecimal button input in pad command.
+constexpr int HEX_RADIX = 16;
+
 // The closed channel is reported once, not every frame.
 bool cmd_close_logged = false;
 
@@ -203,7 +206,7 @@ void rv_3dmppc::rv_pconsole::cmd_dispatch(const rv_pccmdreq &req)
         uint64_t buttons = 0;
         const std::string_view port = req.arg(0);
         const std::string_view hex = req.arg(1);
-        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), buttons, 16);
+        const auto [end, ec] = std::from_chars(hex.data(), hex.data() + hex.size(), buttons, HEX_RADIX);
         if (port != "0" || hex.empty() || ec != std::errc{} || end != hex.data() + hex.size()) {
             cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "pad takes port 0 and hex buttons"));
             return;
