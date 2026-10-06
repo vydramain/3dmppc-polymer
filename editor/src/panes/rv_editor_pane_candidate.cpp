@@ -319,10 +319,11 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_status(r.last_failure.c_str(), rv_editor_status_kind::error, theme);
         }
         if (r.candidates.empty()) {
-            ImGui::TextWrapped("No candidate yet. Build Candidate has mppcburner write a disc image under a new "
-                               "number; the checks below are then kept for exactly its bytes.");
-            rv_editor_dim_text("Each candidate's image, record, logs and reports are kept in " +
-                (app.project.cache_dir / "candidates").string() + " and come back when the project opens.");
+            ImGui::TextWrapped("%s", rv_editor_text("pane_candidate.no_candidate_yet_candidate_pane"));
+            const auto dir = (app.project.cache_dir / "candidates").string();
+            std::string note = rv_editor_text_format("pane_candidate.candidates_dir_note",
+                std::make_format_args(dir));
+            rv_editor_dim_text(note);
             return;
         }
 
@@ -330,7 +331,9 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
         if (r.candidates.size() > 1) {
             std::vector<std::string> names;
             for (const rv_editor_candidate &c : r.candidates) {
-                names.push_back("Candidate #" + std::to_string(c.number));
+                const auto num = std::to_string(c.number);
+                names.push_back(rv_editor_text_format("pane_candidate.candidate_number",
+                    std::make_format_args(num)));
             }
             std::vector<const char *> items;
             for (const std::string &n : names) {
@@ -338,49 +341,80 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
             }
             int selected = static_cast<int>(r.selected);
             ImGui::SetNextItemWidth(ImGui::GetFontSize() * 16);
-            if (rv_editor_dropdown("Shown", &selected, items.data(), static_cast<int>(items.size()), theme)) {
+            if (rv_editor_dropdown(rv_editor_text("pane_candidate.shown_label"), &selected, items.data(),
+                    static_cast<int>(items.size()), theme)) {
                 r.selected = static_cast<size_t>(selected);
             }
         }
         rv_editor_candidate &c = r.candidates[r.selected];
         if (r.selected + 1 < r.candidates.size()) {
-            rv_editor_status("A newer candidate exists; this one is older", rv_editor_status_kind::warning, theme);
+            rv_editor_status(rv_editor_text("pane_candidate.newer_candidate"), rv_editor_status_kind::warning, theme);
         }
         if (c.bytes_changed) {
-            rv_editor_status("The image's bytes changed after it was built: no result below applies to it",
-                rv_editor_status_kind::error, theme);
+            rv_editor_status(rv_editor_text("pane_candidate.bytes_changed"), rv_editor_status_kind::error, theme);
         }
 
         if (ImGui::BeginTable("##identity", 2, ImGuiTableFlags_SizingStretchProp)) {
-            rv_editor_row("Candidate", "#" + std::to_string(c.number) + ", built " + c.built_at);
-            rv_editor_row("SHA-256", c.sha256.empty() ? (c.hash_error.empty() ? "hashing" : c.hash_error) : c.sha256);
-            rv_editor_row("Size", std::to_string(c.size) + " bytes");
-            rv_editor_row("Verified", c.hashing.valid() ? "reading the bytes again"
-                    : c.verified_hash == c.sha256       ? "same bytes at " + c.verified_at
-                                                        : "different bytes at " + c.verified_at);
-            rv_editor_row("Built by", "mppcburner build -o, the whole command on hover");
+            const auto num = std::to_string(c.number);
+            std::string candidate_info = rv_editor_text_format("pane_candidate.candidate_with_date",
+                std::make_format_args(num, c.built_at));
+            rv_editor_row(rv_editor_text("pane_candidate.candidate_row"), candidate_info);
+            const char *hash_verifying = rv_editor_text("pane_candidate.verifying_hash");
+            const char *default_hash = c.hash_error.empty() ? hash_verifying : c.hash_error.c_str();
+            const char *sha_value = c.sha256.empty() ? default_hash : c.sha256.c_str();
+            rv_editor_row(rv_editor_text("pane_candidate.sha256_row"), sha_value);
+            rv_editor_row(rv_editor_text("pane_candidate.size_row"), std::to_string(c.size) + " bytes");
+            std::string verified_value;
+            if (c.hashing.valid()) {
+                verified_value = rv_editor_text("pane_candidate.verified_reading");
+            } else if (c.verified_hash == c.sha256) {
+                verified_value = rv_editor_text_format("pane_candidate.verified_same",
+                    std::make_format_args(c.verified_at));
+            } else {
+                verified_value = rv_editor_text_format("pane_candidate.verified_different",
+                    std::make_format_args(c.verified_at));
+            }
+            rv_editor_row(rv_editor_text("pane_candidate.verified_row"), verified_value);
+            rv_editor_row(rv_editor_text("pane_candidate.built_by_row"),
+                rv_editor_text("pane_candidate.built_by_note"));
             ImGui::SetItemTooltip("%s", c.command.c_str());
-            rv_editor_row("Tools", c.burner + "; " + c.baker);
-            rv_editor_row("Revision", c.source_revision.empty() ? "not recorded" : c.source_revision);
-            rv_editor_row("Sources", c.tree_changed ? "changed since this build started: this candidate stays as built"
-                                                    : "no change seen since this build started");
+            rv_editor_row(rv_editor_text("pane_candidate.tools_row"), c.burner + "; " + c.baker);
+            const char *default_revision = rv_editor_text("pane_candidate.revision_not_recorded");
+            const char *revision_value = c.source_revision.empty() ? default_revision : c.source_revision.c_str();
+            rv_editor_row(rv_editor_text("pane_candidate.revision_row"), revision_value);
+            const char *sources_text1 = rv_editor_text("pane_candidate.sources_changed");
+            const char *sources_text2 = rv_editor_text("pane_candidate.sources_unchanged");
+            std::string sources_value = c.tree_changed ? std::string(sources_text1) : std::string(sources_text2);
+            rv_editor_row(rv_editor_text("pane_candidate.sources_row"), sources_value);
             const bool playing = app.session.live() && r.playing >= 0 && static_cast<size_t>(r.playing) == r.selected;
-            rv_editor_row("Playtest", playing ? "session #" + std::to_string(app.session.number()) + ", " +
-                        rv_editor_run_state_name(app.session.state()) + ", on the development console"
-                    : c.playtests == 0 ? std::string("not run yet")
-                                       : std::to_string(c.playtests) + " run(s); last ended: " + c.last_run_end);
+            std::string playtest_value;
+            if (playing) {
+                const auto num = std::to_string(app.session.number());
+                const auto state = rv_editor_run_state_name(app.session.state());
+                playtest_value = rv_editor_text_format("pane_candidate.playtest_live",
+                    std::make_format_args(num, state));
+            } else if (c.playtests == 0) {
+                playtest_value = rv_editor_text("pane_candidate.playtest_not_run");
+            } else {
+                const auto num = std::to_string(c.playtests);
+                playtest_value = rv_editor_text_format("pane_candidate.playtest_ended",
+                    std::make_format_args(num, c.last_run_end));
+            }
+            rv_editor_row(rv_editor_text("pane_candidate.playtest_row"), playtest_value);
             ImGui::EndTable();
         }
-        rv_editor_path_row("Image", c.image.string(), theme);
-        if (rv_editor_button("Verify Bytes", theme, { rv_editor_look::live, c.hashing.valid() ? "Already reading" : nullptr })) {
+        rv_editor_path_row(rv_editor_text("pane_candidate.image_row"), c.image.string(), theme);
+        const char *verify_disabled = c.hashing.valid() ? rv_editor_text("pane_candidate.already_verifying") : nullptr;
+        if (rv_editor_button(rv_editor_text("pane_candidate.verify_bytes_button"), theme,
+                { rv_editor_look::live, verify_disabled })) {
             rv_editor_candidate_hash(c);
         }
 
-        ImGui::SeparatorText("Checks");
+        ImGui::SeparatorText(rv_editor_text("pane_candidate.checks_separator"));
         rv_editor_candidate_checks(app, c, theme);
 
-        ImGui::SeparatorText("Decision");
-        rv_editor_status("Build succeeded", rv_editor_status_kind::ok, theme);
+        ImGui::SeparatorText(rv_editor_text("pane_candidate.decision_separator"));
+        rv_editor_status(rv_editor_text("pane_candidate.build_succeeded"), rv_editor_status_kind::ok, theme);
         const bool all = rv_editor_why_not_approve(c) == nullptr || c.decision == rv_editor_decision::approved;
         rv_editor_status(rv_editor_checks_summary(c).c_str(), all ? rv_editor_status_kind::ok : rv_editor_status_kind::warning,
             theme);
@@ -390,26 +424,27 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme)
                 : c.decision == rv_editor_decision::rejected ? rv_editor_status_kind::error
                                                              : rv_editor_status_kind::idle,
             theme);
-        if (rv_editor_button("Approve", theme, { rv_editor_look::live, rv_editor_why_not_approve(c) })) {
+        if (rv_editor_button(rv_editor_text("pane_candidate.approve_button"), theme,
+                { rv_editor_look::live, rv_editor_why_not_approve(c) })) {
             c.approve_pending = true;
             rv_editor_candidate_hash(c);
         }
         ImGui::SameLine();
-        if (rv_editor_button("Reject", theme)) {
+        if (rv_editor_button(rv_editor_text("pane_candidate.reject_button"), theme)) {
             c.decision = rv_editor_decision::rejected;
             c.decided_at = rv_editor_wall_clock();
             c.operator_name = rv_editor_operator();
             c.dirty = true;
         }
         ImGui::SameLine();
-        if (rv_editor_button("Undecide", theme)) {
+        if (rv_editor_button(rv_editor_text("pane_candidate.undecide_button"), theme)) {
             c.decision = rv_editor_decision::none;
             c.decided_at.clear();
             c.operator_name.clear();
             c.dirty = true;
         }
         if (!r.report.empty()) {
-            rv_editor_path_row("Report", r.report, theme);
+            rv_editor_path_row(rv_editor_text("pane_candidate.report_row"), r.report, theme);
         }
         if (!r.error.empty()) {
             rv_editor_status(r.error.c_str(), rv_editor_status_kind::error, theme);
