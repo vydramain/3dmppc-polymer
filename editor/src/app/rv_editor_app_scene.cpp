@@ -18,6 +18,12 @@ namespace rv_editor
 namespace
 {
 
+// Suffix for scene file names.
+constexpr std::string_view scene_suffix = ".scene.toml";
+
+// Numbering of a copied scene name starts here.
+constexpr int first_copy_number = 2;
+
 std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesystem::path &path)
 {
     std::error_code ec;
@@ -49,7 +55,7 @@ std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app
     for (std::filesystem::directory_iterator it(app.project.root / "scenes", ec), end; !ec && it != end;
          it.increment(ec)) {
         const std::string name = it->path().filename().string();
-        if (name.size() > 11 && name.ends_with(".scene.toml")) {
+        if (name.size() > scene_suffix.size() && name.ends_with(scene_suffix)) {
             out.push_back(it->path());
         }
     }
@@ -109,7 +115,9 @@ std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
     // A free name: an existing file is never written over.
     std::string name = "main";
     std::error_code ec;
-    for (int n = 2; std::filesystem::exists(app.project.root / "scenes" / (name + ".scene.toml"), ec); ++n) {
+    std::string suffix_str(scene_suffix);
+    for (int n = first_copy_number;
+        std::filesystem::exists(app.project.root / "scenes" / (name + suffix_str), ec); ++n) {
         name = "scene" + std::to_string(n);
     }
     return name;

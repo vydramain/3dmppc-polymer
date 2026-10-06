@@ -22,6 +22,12 @@ namespace
 
 constexpr size_t rv_editor_recent_max = 10;
 
+// Only ASCII letters and digits count.
+constexpr unsigned char ascii_limit = 0x80;
+
+// Search key for the project title in disc.toml.
+constexpr std::string_view title_key = "title = \"";
+
 std::filesystem::path rv_editor_recent_path()
 {
     const std::filesystem::path layout = rv_editor_layout_file_path();
@@ -87,7 +93,7 @@ std::string rv_editor_disc_id_from(const std::string &name)
     std::string id;
     for (const char c : name) {
         const auto u = static_cast<unsigned char>(c);
-        if (std::isalnum(u) && u < 0x80) {
+        if (std::isalnum(u) && u < ascii_limit) {
             id += static_cast<char>(std::tolower(u));
         } else if (!id.empty() && id.back() != '-') {
             id += '-';
@@ -195,12 +201,13 @@ int rv_editor_new_project_create(const rv_editor_new_project &p, const rv_editor
         std::string body = rv_editor_template_rename(text.str(), t.id, p.disc_id);
         if (it->path().filename() == "disc.toml") {
             // The title line is the project's name.
-            const size_t at = body.find("title = \"");
+            const size_t at = body.find(title_key);
             if (at != std::string::npos) {
-                const size_t end_quote = body.find('"', at + 9);
+                const size_t end_quote = body.find('"', at + title_key.size());
                 std::string title = p.name;
                 std::erase(title, '"');
-                body.replace(at + 9, end_quote - (at + 9), title);
+                const size_t value_at = at + title_key.size();
+                body.replace(value_at, end_quote - value_at, title);
             }
         }
         std::ofstream out(dst, std::ios::binary | std::ios::trunc);
