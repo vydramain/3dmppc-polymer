@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <optional>
 #include <string>
 #include <system_error>
 
@@ -179,23 +180,19 @@ void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_ed
     }
 }
 
+constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::nullopt, std::nullopt,
+    rv_editor_pane_kind::open_project, rv_editor_pane_kind::settings, rv_editor_pane_kind::help,
+    rv_editor_pane_kind::manual };
+static_assert(std::size(rv_editor_page_pane) == static_cast<size_t>(rv_editor_start_page::manual) + 1);
 } // namespace
-
 void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 {
     if (!shell.app.project.open) {
         shell.start_page = page;
         return;
     }
-    switch (page) {
-        case rv_editor_start_page::open_project: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::open_project, true); return;
-        case rv_editor_start_page::settings: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::settings, true); return;
-        case rv_editor_start_page::help: rv_editor_shell_show(shell.ws, rv_editor_pane_kind::help, true); return;
-        case rv_editor_start_page::manual:
-            rv_editor_shell_show(shell.ws, rv_editor_pane_kind::manual, true);
-            return;
-        case rv_editor_start_page::recent:
-        case rv_editor_start_page::new_project: return;
+    if (const auto kind = rv_editor_page_pane[static_cast<size_t>(page)]) {
+        rv_editor_shell_show(shell.ws, *kind, true);
     }
 }
 
