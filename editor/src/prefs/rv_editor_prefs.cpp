@@ -38,8 +38,6 @@ constexpr std::string_view game_scale_2x = "2x";
 constexpr std::string_view game_scale_3x = "3x";
 
 // UI scale numeric values and their string representations
-constexpr float ui_scale_large = 2.0f;
-constexpr float ui_scale_medium = 1.5f;
 constexpr float ui_scale_default = 1.0f;
 constexpr std::string_view ui_scale_large_str = "2";
 constexpr std::string_view ui_scale_medium_str = "1.5";

@@ -24,6 +24,9 @@ namespace
 
 using leave = rv_editor_shell::rv_editor_leave;
 
+// Save As field width in font size units.
+constexpr float save_as_field_width_em = 40.0f;
+
 // A buffer's file as the project sees it: relative to the root when inside it.
 std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &name)
 {
@@ -102,7 +105,7 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
 {
     rv_editor_app &app = shell.app;
     ImGui::TextWrapped("%s", rv_editor_text("shell_save.save_as_intro"));
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 40.0f);
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * save_as_field_width_em);
     rv_editor_text_field("##save_as", shell.save_as_path, sizeof(shell.save_as_path), theme,
         { {}, false, false, shell.save_as_error.empty() ? nullptr : shell.save_as_error.c_str() });
     if (!shell.save_as_error.empty()) {

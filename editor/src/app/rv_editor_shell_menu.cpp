@@ -13,6 +13,7 @@
 #include "imgui.h"
 
 #include "font/rv_editor_font.hpp"
+#include "prefs/rv_editor_prefs.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 
@@ -158,8 +159,8 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             float scale;
             const char *text_key;
         } scales[] = { { 1.0f, "shell_menu.ui_scale_1x" },
-            { 1.5f, "shell_menu.ui_scale_15x" },
-            { 2.0f, "shell_menu.ui_scale_2x" } };
+            { ui_scale_medium, "shell_menu.ui_scale_15x" },
+            { ui_scale_large, "shell_menu.ui_scale_2x" } };
         for (const auto &s : scales) {
             const bool fits = rv_editor_shell_scale_fits(shell.window, s.scale);
             const char *why_not = nullptr;

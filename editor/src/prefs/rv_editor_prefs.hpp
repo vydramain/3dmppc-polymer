@@ -26,6 +26,10 @@ const char *rv_editor_game_scale_name(rv_editor_game_scale scale);
 // Parse the scale name into scale; RV_OK on success, RV_ERR_INVAL if name is not recognized.
 int rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scale);
 
+// UI scale multipliers offered by View > UI Scale menu.
+constexpr float ui_scale_medium = 1.5f;
+constexpr float ui_scale_large = 2.0f;
+
 // What the user chose for the view, kept between runs in its own file next to
 // the layout, never in settings.toml or disc.toml.
 struct rv_editor_prefs
