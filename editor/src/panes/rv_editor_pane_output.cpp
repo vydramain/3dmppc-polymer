@@ -29,10 +29,70 @@ namespace rv_editor
 namespace
 {
 
-// Export format codes; do not move to toml (file format dependency).
+// Export format: level codes (Error, Warning, Info).
+constexpr std::string_view export_level_error = "ERR";
+constexpr std::string_view export_level_warning = "WRN";
+constexpr std::string_view export_level_info = "INF";
+
+// Export format: channel markers (stdout/stderr) and separators.
+constexpr std::string_view export_channel_out = " out";
+constexpr std::string_view export_channel_err = " err";
+constexpr std::string_view export_channel_pid = " pid ";
+constexpr std::string_view export_field_separator = " ";
+constexpr std::string_view export_line_end = "\n";
+
+// Log file storage: directory, prefix and extension.
+constexpr std::string_view log_dir_name = "logs";
+constexpr std::string_view log_file_prefix = "log-";
+constexpr std::string_view log_file_ext = ".txt";
+
+// Header: height padding and column table dimensions (4 columns, indexed 0-3).
+constexpr float header_height_padding_px = 4.0f;
+// Column alignment: offset by half a character width for row and border positioning.
+constexpr float half_cell = 0.5f;
+// Header text: centering by available height.
+constexpr float center_factor = 0.5f;
+constexpr size_t columns_count = 4;
+constexpr size_t last_column_index = 3;
+// Header border line: inset from top and bottom edges.
+constexpr float header_border_inset_top_px = 2.0f;
+constexpr float header_border_inset_bottom_px = 3.0f;
+// Column resize handle: offset to center, and width.
+constexpr float border_handle_left_offset_px = 3.0f;
+constexpr float border_handle_width_px = 6.0f;
+// Column sizing: minimum width in character cells.
+constexpr float min_column_width_cells = 4.0f;
+
+// Display: UI strings.
+constexpr std::string_view sources_separator = ", ";
+// Capitalized build source name, from rv_editor_log_source_name with capital=true.
+constexpr std::string_view build_source_capitalized = "Build";
+constexpr std::string_view build_number_separator = " #";
+// Dropped lines flow: horizontal space multiplier in font sizes.
+constexpr float dropped_lines_flow_width_em = 16.0f;
+// Width measurement: sample character for monospace cell width.
+constexpr std::string_view char_width_sample = "0";
+// Message column: array index in view.columns[].
+constexpr size_t message_column_index = 2;
+// Text wrapping: minimum width in character cells.
+constexpr float wrap_width_min_cells = 8.0f;
+
+// UTF-8 byte classification: masks and markers.
+constexpr unsigned char utf8_byte_type_mask = 0xc0;
+constexpr unsigned char utf8_continuation_marker = 0x80;
+
+// Log row highlight: semi-transparent alpha when hovered (ImGuiCol_HeaderHovered in Selectable rows).
+constexpr unsigned header_hovered_alpha = 0x60u;
+
 const char *rv_editor_output_level(rv_editor_log_level level)
 {
-    return level == rv_editor_log_level::error ? "ERR" : level == rv_editor_log_level::warning ? "WRN" : "INF";
+    if (level == rv_editor_log_level::error) {
+        return export_level_error.data();
+    }
+    if (level == rv_editor_log_level::warning) {
+        return export_level_warning.data();
+    }
+    return export_level_info.data();
 }
 
 // Display text for log level in UI table.
@@ -101,19 +161,28 @@ bool rv_editor_output_passes(const rv_editor_output_view &view, const rv_editor_
 // The line as Copy and Export write it, pid and channel named after the source.
 std::string rv_editor_output_text(const rv_editor_log_line &line)
 {
-    std::string channel = line.channel == rv_editor_log_channel::out ? " out"
-        : line.channel == rv_editor_log_channel::err ? " err" : "";
-    return rv_editor_log_stamp(line, true) + " " + rv_editor_output_level(line.level) + " " +
-        rv_editor_log_source_name(line.source) + " pid " + std::to_string(line.pid) + channel + " " + line.text + "\n";
+    std::string channel;
+    if (line.channel == rv_editor_log_channel::out) {
+        channel = export_channel_out;
+    } else if (line.channel == rv_editor_log_channel::err) {
+        channel = export_channel_err;
+    }
+    const std::string stamp = rv_editor_log_stamp(line, true);
+    const std::string level = rv_editor_output_level(line.level);
+    const std::string source = rv_editor_log_source_name(line.source);
+    const std::string head = stamp + export_field_separator.data() + level + export_field_separator.data() + source;
+    const std::string pid_str = std::string(export_channel_pid) + std::to_string(line.pid);
+    return head + pid_str + channel + export_field_separator.data() + line.text + export_line_end.data();
 }
 
 int rv_editor_output_export(rv_editor_app &app, const std::vector<const rv_editor_log_line *> &shown,
     std::string &where)
 {
-    const std::filesystem::path dir = app.project.cache_dir / "logs";
+    const std::filesystem::path dir = app.project.cache_dir / log_dir_name.data();
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
-    const std::filesystem::path path = dir / ("log-" + std::to_string(std::time(nullptr)) + ".txt");
+    std::string filename = std::string(log_file_prefix) + std::to_string(std::time(nullptr)) + log_file_ext.data();
+    const std::filesystem::path path = dir / filename;
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     for (const rv_editor_log_line *line : shown) {
         out << rv_editor_output_text(*line);
@@ -133,7 +202,7 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
 {
     ImDrawList *dl = ImGui::GetWindowDrawList();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
-    const float h = ImGui::GetTextLineHeight() + 4.0f;
+    const float h = ImGui::GetTextLineHeight() + header_height_padding_px;
     const float w = ImGui::GetContentRegionAvail().x;
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h), rv_editor_col(theme.code_base));
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
@@ -141,25 +210,27 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
     const char *names[] = { rv_editor_text("pane_output.col_time"), rv_editor_text("pane_output.col_level"),
         rv_editor_text("pane_output.col_source"), rv_editor_text("pane_output.col_message") };
     ImFont *ui_font = rv_editor_font_ui();
-    const float ty = p0.y + (h - ui_font->LegacySize) * 0.5f;
-    float x = p0.x + cell * 0.5f - view.scroll_x;
-    for (size_t i = 0; i < 4; ++i) {
+    const float ty = p0.y + (h - ui_font->LegacySize) * center_factor;
+    float x = p0.x + cell * half_cell - view.scroll_x;
+    for (size_t i = 0; i < columns_count; ++i) {
         dl->AddText(ui_font, ui_font->LegacySize, ImVec2(x, ty), rv_editor_col(theme.code_text), names[i]);
-        if (i == 3) {
+        if (i == last_column_index) {
             break;
         }
         x += view.columns[i] * cell;
-        const float border = x - cell * 0.5f;
-        dl->AddLine(ImVec2(border, p0.y + 2.0f), ImVec2(border, p0.y + h - 3.0f), rv_editor_col(theme.code_surface));
-        ImGui::SetCursorScreenPos(ImVec2(border - 3.0f, p0.y));
+        const float border = x - cell * half_cell;
+        const ImVec2 line_start(border, p0.y + header_border_inset_top_px);
+        const ImVec2 line_end(border, p0.y + h - header_border_inset_bottom_px);
+        dl->AddLine(line_start, line_end, rv_editor_col(theme.code_surface));
+        ImGui::SetCursorScreenPos(ImVec2(border - border_handle_left_offset_px, p0.y));
         ImGui::PushID(static_cast<int>(i));
-        ImGui::InvisibleButton("##border", ImVec2(6.0f, h));
+        ImGui::InvisibleButton("##border", ImVec2(border_handle_width_px, h));
         ImGui::PopID();
         if (ImGui::IsItemHovered() || ImGui::IsItemActive()) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
         }
         if (ImGui::IsItemActive()) {
-            view.columns[i] = std::max(4.0f, view.columns[i] + ImGui::GetIO().MouseDelta.x / cell);
+            view.columns[i] = std::max(min_column_width_cells, view.columns[i] + ImGui::GetIO().MouseDelta.x / cell);
         }
     }
     dl->PopClipRect();
@@ -190,7 +261,7 @@ std::string rv_editor_output_sources(const rv_editor_output_view &view, bool cap
         if (capital) {
             name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
         }
-        out += (out.empty() ? "" : ", ") + name;
+        out += (out.empty() ? "" : sources_separator.data()) + name;
     }
     return out.empty() ? rv_editor_text("pane_output.sources_none") : out;
 }
@@ -206,8 +277,8 @@ std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id p
         return std::string(rv_editor_text("pane_output.title_prefix")) + view.run_label;
     }
     std::string what = rv_editor_output_sources(view, true);
-    if (what == "Build" && app.build.number() != 0) {
-        what += " #" + std::to_string(app.build.number());
+    if (what == build_source_capitalized && app.build.number() != 0) {
+        what += build_number_separator.data() + std::to_string(app.build.number());
     }
     if (view.level != rv_editor_log_level::info) {
         const bool errors_only = view.level == rv_editor_log_level::error;
@@ -262,7 +333,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             theme);
     }
     if (log.dropped() != 0) {
-        rv_editor_flow(ImGui::GetFontSize() * 16.0f);
+        rv_editor_flow(ImGui::GetFontSize() * dropped_lines_flow_width_em);
         const unsigned long long dropped = log.dropped();
         const std::string msg = rv_editor_text_format("pane_output.info_dropped",
             std::make_format_args(dropped));
@@ -294,34 +365,39 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
 
     // The lines draw in the code font; the header takes its cell width from it.
     rv_editor_font_code_push();
-    const float cell = ImGui::CalcTextSize("0").x;
+    const float cell = ImGui::CalcTextSize(char_width_sample.data()).x;
     rv_editor_output_header(view, cell, theme);
     const float at_level = cell * view.columns[0];
     const float at_source = at_level + cell * view.columns[1];
-    const float at_message = at_source + cell * view.columns[2];
+    const float at_message = at_source + cell * view.columns[message_column_index];
 
     rv_editor_log_begin("##lines", ImVec2(0, 0), theme);
     const float line_h = ImGui::GetTextLineHeight();
     // Less the half cell each row starts in by, and as much again on the right.
-    const float wrap_w = std::max(cell * 8.0f, ImGui::GetContentRegionAvail().x - at_message - cell);
+    const float wrap_w = std::max(cell * wrap_width_min_cells, ImGui::GetContentRegionAvail().x - at_message - cell);
     // A monospace line's rows: its characters over the width, give or take a word
     // carried whole. An estimate for lines out of sight, exact for the rest.
     const auto rows_of = [&](const rv_editor_log_line &line) {
         const size_t chars = static_cast<size_t>(std::count_if(line.text.begin(), line.text.end(),
-            [](char c) { return (static_cast<unsigned char>(c) & 0xc0) != 0x80; }));
+            [](char c) {
+                return (static_cast<unsigned char>(c) & utf8_byte_type_mask) != utf8_continuation_marker;
+            }));
         const float per_row = std::max(1.0f, std::floor(wrap_w / cell));
         return std::max(1.0f, std::ceil(static_cast<float>(chars) / per_row));
     };
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(ImGui::GetStyle().ItemSpacing.x, 0.0f));
-    ImGui::PushStyleColor(ImGuiCol_Header, rv_editor_col(theme.code_surface));
-    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, (rv_editor_col(theme.code_surface) & ~IM_COL32_A_MASK) | (0x60u << IM_COL32_A_SHIFT));
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, rv_editor_col(theme.code_surface));
+    const uint32_t code_surface_col = rv_editor_col(theme.code_surface);
+    ImGui::PushStyleColor(ImGuiCol_Header, code_surface_col);
+    const uint32_t hovered_alpha_channel = header_hovered_alpha << IM_COL32_A_SHIFT;
+    const uint32_t hovered_color = (code_surface_col & ~IM_COL32_A_MASK) | hovered_alpha_channel;
+    ImGui::PushStyleColor(ImGuiCol_HeaderHovered, hovered_color);
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, code_surface_col);
     const auto row = [&](const rv_editor_log_line &line) {
         const float h = view.wrap
             ? std::max(line_h, ImGui::CalcTextSize(line.text.c_str(), nullptr, false, wrap_w).y)
             : line_h;
         const ImVec2 start = ImGui::GetCursorPos();
-        const float x = start.x + cell * 0.5f;
+        const float x = start.x + cell * half_cell;
         ImGui::PushID(static_cast<int>(line.seq));
         if (ImGui::Selectable("##row", picked(line), ImGuiSelectableFlags_AllowOverlap, ImVec2(0.0f, h))) {
             if (ImGui::GetIO().KeyShift && view.picked_from != 0) {
