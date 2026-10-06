@@ -16,6 +16,7 @@
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_manifest_edit.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -49,12 +50,22 @@ void rv_editor_tool_check(rv_editor_tool &tool, const char *name)
     std::error_code ec;
     const std::filesystem::file_status st = std::filesystem::status(tool.path, ec);
     if (tool.path.empty() || ec || !std::filesystem::exists(st)) {
-        tool.problem = std::string(name) + " not found" + (tool.path.empty() ? "" : " at " + tool.path.string());
+        const std::string tool_name = name;
+        const std::string tool_path = tool.path.string();
+        if (tool.path.empty()) {
+            tool.problem = rv_editor_text_format("project.tool_not_found",
+                std::make_format_args(tool_name));
+        } else {
+            tool.problem = rv_editor_text_format("project.tool_not_found_at",
+                std::make_format_args(tool_name, tool_path));
+        }
         return;
     }
     if (!std::filesystem::is_regular_file(st) ||
         (st.permissions() & std::filesystem::perms::owner_exec) == std::filesystem::perms::none) {
-        tool.problem = tool.path.string() + " is not an executable file";
+        const std::string tool_path = tool.path.string();
+        tool.problem = rv_editor_text_format("project.tool_not_executable",
+            std::make_format_args(tool_path));
     }
 }
 
@@ -208,7 +219,7 @@ rv_editor_toolchain rv_editor_toolchain_find()
     rv_editor_tool_check(tc.baker, "mppcbaker");
     rv_editor_tool_check(tc.player, "player");
     if (tc.player.path.empty()) {
-        tc.player.problem = "No player set: File > Settings names a 3dmppc built without devtools";
+        tc.player.problem = rv_editor_text("project.player_not_set_file_settings");
     }
     rv_editor_tool_version(tc.burner);
     rv_editor_tool_version(tc.baker);
@@ -228,7 +239,7 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
     }
     rv_editor_tool_check(tool, exe != nullptr ? exe : "player");
     if (tool.path.empty() && exe == nullptr) {
-        tool.problem = "No player set: name a 3dmppc built without devtools";
+        tool.problem = rv_editor_text("project.player_not_set_name");
     }
     // As rv_editor_toolchain_find: only the burner and the baker are asked for a version.
     if (k == "burner" || k == "baker") {

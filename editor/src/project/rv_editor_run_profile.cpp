@@ -14,6 +14,7 @@
 
 #include "pdklib/rv_manifest/rv_manifest_dialect.hpp"
 #include "project/rv_editor_toml.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -248,50 +249,55 @@ std::filesystem::path rv_editor_run_profile_path(const std::string &path, const 
 std::string rv_editor_run_profile_problem(const rv_editor_run_profile &p, const std::filesystem::path &root)
 {
     if (!rv_editor_run_name_ok(p.name)) {
-        return "The profile name takes letters, digits, '-' and '_' only";
+        return rv_editor_text("run_profile.profile_name_invalid");
     }
     std::error_code ec;
     const std::filesystem::path runtime = rv_editor_run_profile_path(p.runtime, root);
     if (!runtime.empty() && !std::filesystem::is_regular_file(runtime, ec)) {
-        return "Runtime: no file at " + runtime.string();
+        const auto path_str = runtime.string();
+        return rv_editor_text_format("run_profile.runtime_no_file", std::make_format_args(path_str));
     }
     const std::filesystem::path card = rv_editor_run_profile_path(p.memcard, root);
     if (!card.empty() && !std::filesystem::is_directory(card.parent_path(), ec)) {
-        return "Memory card: no directory " + card.parent_path().string();
+        const auto path_str = card.parent_path().string();
+        return rv_editor_text_format("run_profile.memcard_no_directory", std::make_format_args(path_str));
     }
     const std::filesystem::path cwd = rv_editor_run_profile_path(p.cwd, root);
     if (!cwd.empty() && !std::filesystem::is_directory(cwd, ec)) {
-        return "Working directory: no directory " + cwd.string();
+        const auto path_str = cwd.string();
+        return rv_editor_text_format("run_profile.cwd_no_directory", std::make_format_args(path_str));
     }
     for (const std::string &e : p.env) {
         if (e.find('=') == std::string::npos || e.front() == '=') {
-            return "Environment: \"" + e + "\" is not KEY=VALUE";
+            return rv_editor_text_format("run_profile.env_invalid_format", std::make_format_args(e));
         }
     }
     // What the editor or a field of the form already decides.
     constexpr std::array<std::pair<std::string_view, std::string_view>, 12> owned = { {
-        { "--dev", "the editor attaches the development channel itself" },
-        { "--frame-fd", "the editor gives the frame descriptor itself" },
-        { "-m", "use the Memory card field" },
-        { "--memcard", "use the Memory card field" },
-        { "-M", "use Mute" },
-        { "--mute", "use Mute" },
-        { "--paused", "use Start Paused" },
-        { "-F", "use Fixed Step" },
-        { "--fixed-step", "use Fixed Step" },
-        { "-d", "the build gives the disc" },
-        { "--disc", "the build gives the disc" },
-        { "--scale", "the console opens no window here: View > Game Scale scales the Game view" },
+        { "--dev", "run_profile.owned_dev" },
+        { "--frame-fd", "run_profile.owned_frame_fd" },
+        { "-m", "run_profile.owned_memcard" },
+        { "--memcard", "run_profile.owned_memcard" },
+        { "-M", "run_profile.owned_mute" },
+        { "--mute", "run_profile.owned_mute" },
+        { "--paused", "run_profile.owned_paused" },
+        { "-F", "run_profile.owned_fixed_step" },
+        { "--fixed-step", "run_profile.owned_fixed_step" },
+        { "-d", "run_profile.owned_disc" },
+        { "--disc", "run_profile.owned_disc" },
+        { "--scale", "run_profile.owned_scale" },
     } };
     for (const std::string &a : p.args) {
         const std::string_view flag = std::string_view(a).substr(0, a.find('='));
         for (const auto &[name, why] : owned) {
             if (flag == name) {
-                return "Console options: " + a + ": " + std::string(why);
+                const char *why_text = rv_editor_text(why);
+                return rv_editor_text_format("run_profile.console_option_owned",
+                    std::make_format_args(a, why_text));
             }
         }
         if (flag == "-s") {
-            return "Console options: -s: the console opens no window here: View > Game Scale scales the Game view";
+            return rv_editor_text("run_profile.console_option_s");
         }
     }
     return {};
