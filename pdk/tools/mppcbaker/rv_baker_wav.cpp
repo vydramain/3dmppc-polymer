@@ -8,6 +8,30 @@
 
 namespace {
 
+// Bit and byte constants
+constexpr unsigned RV_BITS_PER_BYTE = 8; // bits per byte in little-endian assembly
+constexpr uint8_t RV_BYTE_MASK = 0xFF;   // mask for extracting one byte
+
+// RIFF/WAVE chunk structure: derived from tag and size field
+constexpr size_t RV_TAG_LENGTH = 4;                                          // length of RIFF/WAVE/fmt/data ID strings
+constexpr size_t RV_SIZE_FIELD_BYTES = 4;                                    // size of u32 chunk size field
+constexpr size_t RV_CHUNK_HEADER_SIZE = RV_TAG_LENGTH + RV_SIZE_FIELD_BYTES; // tag + size
+constexpr size_t RV_RIFF_HEADER_SIZE = RV_CHUNK_HEADER_SIZE + RV_TAG_LENGTH; // "RIFF" + size + "WAVE"
+
+// fmt chunk offsets to WAVE PCM format fields
+constexpr size_t RV_FMT_MIN_CHUNK_SIZE = 16;      // minimum fmt subchunk size
+constexpr size_t RV_FMT_CHANNELS_OFF = 2;         // offset to NumChannels field (uint16)
+constexpr size_t RV_FMT_SAMPLE_RATE_OFF = 4;      // offset to SampleRate field (uint32)
+constexpr size_t RV_FMT_BITS_PER_SAMPLE_OFF = 14; // offset to BitsPerSample field (uint16)
+
+// PCM audio parameters: 16-bit stereo at 44100 Hz
+constexpr uint16_t RV_WAV_CHANNELS_STEREO = 2;                                        // stereo channel count
+constexpr size_t RV_BYTES_PER_SAMPLE = 2;                                             // bytes per 16-bit sample
+constexpr size_t RV_STEREO_FRAME_SIZE = RV_WAV_CHANNELS_STEREO * RV_BYTES_PER_SAMPLE; // stereo frame size
+
+// Chunk alignment
+constexpr size_t RV_CHUNK_ALIGN_BOUNDARY = 2; // chunks pad to even boundary
+
 // --- little-endian field readers ---
 //
 // Spelled out byte by byte so the result does not depend on the host's
@@ -15,13 +39,15 @@ namespace {
 
 uint16_t read_le16(const uint8_t *p)
 {
-    return static_cast<uint16_t>(static_cast<unsigned>(p[0]) | (static_cast<unsigned>(p[1]) << 8));
+    return static_cast<uint16_t>(static_cast<unsigned>(p[0]) |
+        (static_cast<unsigned>(p[1]) << RV_BITS_PER_BYTE));
 }
 
 uint32_t read_le32(const uint8_t *p)
 {
-    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) |
-           (static_cast<uint32_t>(p[2]) << 16) | (static_cast<uint32_t>(p[3]) << 24);
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << RV_BITS_PER_BYTE) |
+        (static_cast<uint32_t>(p[2]) << (2 * RV_BITS_PER_BYTE)) |
+        (static_cast<uint32_t>(p[3]) << (3 * RV_BITS_PER_BYTE));
 }
 
 // The fmt chunk fields this tool cares about; everything else in the chunk
@@ -64,8 +90,8 @@ int read_whole_file(const std::string &path, std::vector<uint8_t> *out)
 int16_t downmix_frame(const uint8_t *frame)
 {
     const int32_t left = static_cast<int16_t>(read_le16(frame));
-    const int32_t right = static_cast<int16_t>(read_le16(frame + 2));
-    return static_cast<int16_t>((left + right) / 2);
+    const int32_t right = static_cast<int16_t>(read_le16(frame + RV_BYTES_PER_SAMPLE));
+    return static_cast<int16_t>((left + right) / RV_WAV_CHANNELS_STEREO);
 }
 
 } // namespace
@@ -77,7 +103,8 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
         error->message = "cannot read '" + input + "'";
         return RV_ERR_IO;
     }
-    if (file.size() < 12 || std::memcmp(file.data(), "RIFF", 4) != 0 || std::memcmp(file.data() + 8, "WAVE", 4) != 0) {
+    if (file.size() < RV_RIFF_HEADER_SIZE || std::memcmp(file.data(), "RIFF", RV_TAG_LENGTH) != 0 ||
+        std::memcmp(file.data() + RV_CHUNK_HEADER_SIZE, "WAVE", RV_TAG_LENGTH) != 0) {
         error->message = "'" + input + "' is not a RIFF/WAVE file";
         return RV_ERR_INVAL;
     }
@@ -87,29 +114,29 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
     const uint8_t *data = nullptr;
     size_t data_size = 0;
 
-    size_t pos = 12;
-    while (pos + 8 <= file.size()) {
+    size_t pos = RV_RIFF_HEADER_SIZE;
+    while (pos + RV_CHUNK_HEADER_SIZE <= file.size()) {
         const uint8_t *chunk_id = file.data() + pos;
-        const uint32_t chunk_size = read_le32(file.data() + pos + 4);
-        pos += 8;
+        const uint32_t chunk_size = read_le32(file.data() + pos + RV_TAG_LENGTH);
+        pos += RV_CHUNK_HEADER_SIZE;
         if (chunk_size > file.size() - pos) {
             error->message = "'" + input + "' has a truncated chunk";
             return RV_ERR_INVAL;
         }
-        if (std::memcmp(chunk_id, "fmt ", 4) == 0 && chunk_size >= 16) {
+        if (std::memcmp(chunk_id, "fmt ", RV_TAG_LENGTH) == 0 && chunk_size >= RV_FMT_MIN_CHUNK_SIZE) {
             const uint8_t *p = file.data() + pos;
             fmt.audio_format = read_le16(p);
-            fmt.channels = read_le16(p + 2);
-            fmt.sample_rate = read_le32(p + 4);
-            fmt.bits_per_sample = read_le16(p + 14);
+            fmt.channels = read_le16(p + RV_FMT_CHANNELS_OFF);
+            fmt.sample_rate = read_le32(p + RV_FMT_SAMPLE_RATE_OFF);
+            fmt.bits_per_sample = read_le16(p + RV_FMT_BITS_PER_SAMPLE_OFF);
             have_fmt = true;
-        } else if (std::memcmp(chunk_id, "data", 4) == 0) {
+        } else if (std::memcmp(chunk_id, "data", RV_TAG_LENGTH) == 0) {
             data = file.data() + pos;
             data_size = chunk_size;
         }
         // Anything else (LIST/INFO and the like) is not addressed to us.
         pos += chunk_size;
-        if (chunk_size % 2 == 1) {
+        if (chunk_size % RV_CHUNK_ALIGN_BOUNDARY == 1) {
             pos += 1; // chunks pad to an even boundary
         }
     }
@@ -137,14 +164,14 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
             "'" + input + "' is " + std::to_string(fmt.sample_rate) + " Hz, mppcbaker requires 44100 Hz";
         return RV_ERR_INVAL;
     }
-    if (fmt.channels != 1 && fmt.channels != 2) {
+    if (fmt.channels != 1 && fmt.channels != RV_WAV_CHANNELS_STEREO) {
         error->message =
             "'" + input + "' has " + std::to_string(fmt.channels) + " channels, mppcbaker requires mono or stereo";
         return RV_ERR_INVAL;
     }
 
     if (fmt.channels == 1) {
-        if (data_size % 2 != 0) {
+        if (data_size % RV_BYTES_PER_SAMPLE != 0) {
             error->message = "'" + input + "' data chunk is not a whole number of samples";
             return RV_ERR_INVAL;
         }
@@ -152,16 +179,17 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
         return RV_OK;
     }
 
-    if (data_size % 4 != 0) {
+    if (data_size % RV_STEREO_FRAME_SIZE != 0) {
         error->message = "'" + input + "' data chunk is not a whole number of stereo frames";
         return RV_ERR_INVAL;
     }
-    const size_t frame_count = data_size / 4;
-    out->resize(frame_count * 2);
+    const size_t frame_count = data_size / RV_STEREO_FRAME_SIZE;
+    out->resize(frame_count * RV_BYTES_PER_SAMPLE);
     for (size_t i = 0; i < frame_count; ++i) {
-        const int16_t mono = downmix_frame(data + i * 4);
-        (*out)[i * 2] = static_cast<uint8_t>(mono & 0xFF);
-        (*out)[i * 2 + 1] = static_cast<uint8_t>((mono >> 8) & 0xFF);
+        const int16_t mono = downmix_frame(data + i * RV_STEREO_FRAME_SIZE);
+        (*out)[i * RV_BYTES_PER_SAMPLE] = static_cast<uint8_t>(mono & RV_BYTE_MASK);
+        (*out)[i * RV_BYTES_PER_SAMPLE + 1] =
+            static_cast<uint8_t>((mono >> RV_BITS_PER_BYTE) & RV_BYTE_MASK);
     }
     return RV_OK;
 }
