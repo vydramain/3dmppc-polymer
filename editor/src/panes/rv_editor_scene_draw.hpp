@@ -16,6 +16,15 @@ struct SDL_Renderer;
 namespace rv_editor
 {
 
+struct rv_editor_app;
+struct rv_editor_theme;
+struct rv_editor_view;
+
+// Scene viewport tools: toolbar UI, object manipulation, view framing.
+void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v);
+void rv_editor_scene_frame(rv_editor_app &app, bool all);
+
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):
 // the editor camera's frame, how scene points land on screen, what each object
 // draws as, and what the mouse is over.
