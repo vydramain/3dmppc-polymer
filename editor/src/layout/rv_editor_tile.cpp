@@ -11,6 +11,13 @@ namespace rv_editor
 namespace
 {
 
+// Split ratio default: equal divide of available space.
+constexpr float tile_split_ratio_default = 0.5f;
+// Halve available space when neither branch has a minimum size.
+constexpr int tile_split_denominator = 2;
+// Keep one tab behind when moving pane beside itself within its own leaf.
+constexpr size_t min_tabs_for_leaf_move = 2;
+
 bool rv_editor_tile_is(const rv_editor_layout &layout, uint32_t node, rv_editor_tile_kind kind)
 {
     return node < layout.nodes.size() && layout.nodes[node].kind == kind;
@@ -83,7 +90,7 @@ void rv_editor_tile_place_node(const rv_editor_layout &layout, uint32_t node, rv
     } else if (min_a + min_b > 0) {
         first = avail * min_a / (min_a + min_b);
     } else {
-        first = avail / 2;
+        first = avail / tile_split_denominator;
     }
     const int64_t second = avail - first;
     out.push_back({ node, rect, overflow });
@@ -188,7 +195,7 @@ uint32_t rv_editor_tile_insert(rv_editor_layout &layout, uint32_t leaf, rv_edito
     const bool added_first = dock == rv_editor_tile_dock::left || dock == rv_editor_tile_dock::top;
     layout.nodes[split].split = rv_editor_tile_split{
         across ? rv_editor_axis::x : rv_editor_axis::y,
-        0.5f,
+        tile_split_ratio_default,
         added_first ? added : leaf,
         added_first ? leaf : added,
     };
@@ -242,7 +249,7 @@ int rv_editor_tile_move(rv_editor_layout &layout, rv_editor_pane_id pane, uint32
         return RV_ERR_INVAL;
     }
     // Into its own tab strip changes nothing; beside itself needs a second tab to stay behind.
-    if (from == leaf && (dock == rv_editor_tile_dock::tab || layout.nodes[from].leaf.tabs.size() < 2)) {
+    if (from == leaf && (dock == rv_editor_tile_dock::tab || layout.nodes[from].leaf.tabs.size() < min_tabs_for_leaf_move)) {
         return RV_ERR_INVAL;
     }
 
