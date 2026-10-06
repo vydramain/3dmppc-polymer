@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -39,20 +40,32 @@ constexpr int exit_code_player_build = 2;
 const char *rv_editor_run_state_name(rv_editor_run_state state)
 {
     switch (state) {
-        case rv_editor_run_state::stopped: return "Stopped";
-        case rv_editor_run_state::starting: return "Starting";
-        case rv_editor_run_state::running: return "Running";
-        case rv_editor_run_state::pausing: return "Pausing";
-        case rv_editor_run_state::paused: return "Paused";
-        case rv_editor_run_state::stepping: return "Stepping";
-        case rv_editor_run_state::resuming: return "Resuming";
-        case rv_editor_run_state::stopping: return "Stopping";
-        case rv_editor_run_state::exited: return "Exited";
-        case rv_editor_run_state::crashed: return "Crashed";
-        case rv_editor_run_state::disconnected: return "Disconnected";
-        case rv_editor_run_state::refused: return "Refused";
+    case rv_editor_run_state::stopped:
+        return rv_editor_text("run_state.stopped");
+    case rv_editor_run_state::starting:
+        return rv_editor_text("run_state.starting");
+    case rv_editor_run_state::running:
+        return rv_editor_text("run_state.running");
+    case rv_editor_run_state::pausing:
+        return rv_editor_text("run_state.pausing");
+    case rv_editor_run_state::paused:
+        return rv_editor_text("run_state.paused");
+    case rv_editor_run_state::stepping:
+        return rv_editor_text("run_state.stepping");
+    case rv_editor_run_state::resuming:
+        return rv_editor_text("run_state.resuming");
+    case rv_editor_run_state::stopping:
+        return rv_editor_text("run_state.stopping");
+    case rv_editor_run_state::exited:
+        return rv_editor_text("run_state.exited");
+    case rv_editor_run_state::crashed:
+        return rv_editor_text("run_state.crashed");
+    case rv_editor_run_state::disconnected:
+        return rv_editor_text("run_state.disconnected");
+    case rv_editor_run_state::refused:
+        return rv_editor_text("run_state.refused");
     }
-    return "?";
+    return rv_editor_text("run_state.unknown");
 }
 
 bool rv_editor_session::live() const
