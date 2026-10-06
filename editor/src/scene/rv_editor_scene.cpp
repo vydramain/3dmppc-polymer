@@ -96,11 +96,17 @@ constexpr std::string_view section_header_object = "[[object]]";
 // Default preamble for new scene files.
 constexpr std::string_view scene_preamble = "# A scene: 3dmppc-editor's Scene layout edits it.\n\n";
 
+// Room for fixed-point text of a scene number (coordinate, scale, angle); huge magnitudes or tiny
+// denormals do not fit (to_chars reports value_too_large but code does not check).
+constexpr size_t number_format_buffer_bytes = 64;
+// Buffer for formatting random scene object ID as hexadecimal via to_chars; size for uint32_t.
+constexpr size_t hex_id_buffer_bytes = 16;
+
 // Shortest text that reads back as the same double, never in exponent form (the
 // dialect has none): 1, -0.25, 1.5.
 std::string rv_editor_scene_number(double v)
 {
-    char buf[64];
+    char buf[number_format_buffer_bytes];
     const auto r = std::to_chars(buf, buf + sizeof(buf), v, std::chars_format::fixed);
     return std::string(buf, r.ptr);
 }
@@ -441,7 +447,7 @@ std::string rv_editor_scene_new_id(const rv_editor_scene &scene)
 {
     static std::mt19937 gen{ std::random_device{}() };
     for (;;) {
-        char buf[16];
+        char buf[hex_id_buffer_bytes];
         const auto r = std::to_chars(buf, buf + sizeof(buf), gen() | id_generation_mask, id_hex_base);
         const std::string id(buf, r.ptr);
         if (rv_editor_scene_find(scene, id) < 0) {

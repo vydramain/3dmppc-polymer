@@ -13,6 +13,14 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Time format buffer; sized for "%Y-%m-%d %H:%M:%S" plus null terminator (19 bytes minimum).
+constexpr size_t time_format_buffer_bytes = 32;
+
+} // namespace
+
 const char *rv_editor_check_state_name(rv_editor_check_state state)
 {
     switch (state) {
@@ -172,7 +180,7 @@ std::string rv_editor_wall_clock()
     const std::time_t t = std::time(nullptr);
     std::tm tm{};
     localtime_r(&t, &tm);
-    char buf[32];
+    char buf[time_format_buffer_bytes];
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
     return buf;
 }

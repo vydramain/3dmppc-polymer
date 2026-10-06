@@ -19,6 +19,9 @@ namespace
 constexpr uint32_t rv_editor_watch_mask = IN_CREATE | IN_DELETE | IN_MODIFY | IN_CLOSE_WRITE | IN_MOVED_FROM |
     IN_MOVED_TO | IN_DELETE_SELF | IN_MOVE_SELF | IN_ATTRIB | IN_DONT_FOLLOW | IN_ONLYDIR;
 
+// Room for several inotify_event records, each name up to NAME_MAX (255) bytes plus NUL.
+constexpr size_t inotify_buffer_bytes = 16384;
+
 } // namespace
 
 rv_editor_watch::~rv_editor_watch()
@@ -88,7 +91,7 @@ void rv_editor_watch::poll(std::vector<rv_editor_watch_event> &out, bool &overfl
     if (fd_ < 0) {
         return;
     }
-    alignas(inotify_event) char buf[16384];
+    alignas(inotify_event) char buf[inotify_buffer_bytes];
     bool rewatch = false;
     for (;;) {
         const ssize_t n = ::read(fd_, buf, sizeof(buf));
