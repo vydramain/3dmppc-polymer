@@ -2,7 +2,7 @@
 
 [too_small]
 title = "Display too small"
-required = "Required: 1280 x 720"
+required = "Required: {} x {}"
 current = "Current: {} x {}"
 
 [shell_start_new]

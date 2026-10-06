@@ -66,12 +66,15 @@ static void rv_editor_print_too_small_error(const rv_editor_display_size &displa
         display_size.w_pixels, display_size.h_pixels, window_min_width, window_min_height);
 }
 
-// Draw message: "too_small.title", "too_small.required", "too_small.current" (formatted with width x height).
+// Draw message: "too_small.title", "too_small.required" and "too_small.current" (both formatted with width x height).
 static void rv_editor_draw_too_small_message(const rv_editor_display_size &display_size)
 {
     ImGui::TextUnformatted(rv_editor_text("too_small.title"));
     ImGui::Spacing();
-    ImGui::TextUnformatted(rv_editor_text("too_small.required"));
+    const int min_w = window_min_width;
+    const int min_h = window_min_height;
+    const std::string required = rv_editor_text_format("too_small.required", std::make_format_args(min_w, min_h));
+    ImGui::TextUnformatted(required.c_str());
     const int w = display_size.w_pixels;
     const int h = display_size.h_pixels;
     const std::string current = rv_editor_text_format("too_small.current", std::make_format_args(w, h));
