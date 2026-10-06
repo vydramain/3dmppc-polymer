@@ -164,7 +164,7 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             if (!fits && s.scale != 1.0f) {
                 const int needed_w = static_cast<int>(std::ceil(static_cast<float>(window_min_width) * s.scale));
                 const int needed_h = static_cast<int>(std::ceil(static_cast<float>(window_min_height) * s.scale));
-                why_not_str = rv_editor_text_format(rv_editor_text("shell_menu.scale_needs_display"),
+                why_not_str = rv_editor_text_format("shell_menu.scale_needs_display",
                     std::make_format_args(needed_w, needed_h));
                 why_not = why_not_str.c_str();
             }
@@ -236,10 +236,10 @@ void rv_editor_menu_run(rv_editor_shell &shell)
         can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
     std::string reload_label;
     if (reload_plan.action == rv_editor_change_action::reload_module) {
-        reload_label = rv_editor_text_format(rv_editor_text("shell_menu.reload_module"),
+        reload_label = rv_editor_text_format("shell_menu.reload_module",
             std::make_format_args(reload_plan.name));
     } else if (reload_plan.action == rv_editor_change_action::refresh_texture) {
-        reload_label = rv_editor_text_format(rv_editor_text("shell_menu.refresh_texture"),
+        reload_label = rv_editor_text_format("shell_menu.refresh_texture",
             std::make_format_args(reload_plan.name));
     } else {
         reload_label = rv_editor_text("widgets_status.tooltip_reload");
