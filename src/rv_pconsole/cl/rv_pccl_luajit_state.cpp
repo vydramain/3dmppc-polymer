@@ -20,6 +20,26 @@
 namespace rv_3dmppc
 {
 
+namespace
+{
+// Max length for log_escape to prevent unbounded log lines.
+constexpr std::size_t LOG_LINE_ESCAPE_MAX_LEN = 512;
+
+// Canonical integer parsing: digit character bounds for validation.
+constexpr char CANONICAL_DIGIT_MIN = '0';
+constexpr char CANONICAL_DIGIT_MAX = '9';
+constexpr char CANONICAL_FIRST_DIGIT_MIN = '1';
+
+// Max digits in canonical decimal string: 2^53 has 16 decimal digits.
+constexpr std::size_t CANONICAL_INT_MAX_DIGITS = 16;
+
+// Max absolute value safely representable as int64 in IEEE double (2^53).
+constexpr int64_t MAX_SAFE_INTEGER_IN_DOUBLE = 9007199254740992LL;
+
+// Lua stack index for the key during lua_next traversal (value is at -1).
+constexpr int LUA_KEY_STACK_INDEX = -2;
+} // namespace
+
 // base print() writes to stdout, and stdout is the development channel's answer
 // stream. Routing it here is not a preference: a chunk printing one line there
 // would splice text into a reply the editor is parsing. The stock semantics are
@@ -49,7 +69,7 @@ int rv_pccl_luajit::print_to_log(lua_State *L)
     // Escaped: script text is the one string in this process most likely to
     // carry a newline or an ANSI escape, and a log line a chunk can forge is
     // a log nobody can trust.
-    RV_LOG_INFO("lua", "{}", rv_pdklib::rv_log_escape(line.c_str(), 512));
+    RV_LOG_INFO("lua", "{}", rv_pdklib::rv_log_escape(line.c_str(), LOG_LINE_ESCAPE_MAX_LEN));
     return 0;
 }
 
@@ -77,19 +97,19 @@ bool canonical_int(const std::string &s, int64_t &out)
         return true;
     }
     std::size_t i = (s.size() > 0 && s[0] == '-') ? 1 : 0;
-    if (i >= s.size() || s[i] < '1' || s[i] > '9') {
+    if (i >= s.size() || s[i] < CANONICAL_FIRST_DIGIT_MIN || s[i] > CANONICAL_DIGIT_MAX) {
         return false;
     }
-    if (s.size() - i > 16) {
+    if (s.size() - i > CANONICAL_INT_MAX_DIGITS) {
         return false;
     }
     for (std::size_t j = i + 1; j < s.size(); ++j) {
-        if (s[j] < '0' || s[j] > '9') {
+        if (s[j] < CANONICAL_DIGIT_MIN || s[j] > CANONICAL_DIGIT_MAX) {
             return false;
         }
     }
     out = std::stoll(s);
-    return out >= -9007199254740992LL && out <= 9007199254740992LL;
+    return out >= -MAX_SAFE_INTEGER_IN_DOUBLE && out <= MAX_SAFE_INTEGER_IN_DOUBLE;
 }
 
 // The RV_CL_TYPE_* of the value at `idx`, or -1 for nil - the mapping
@@ -154,14 +174,14 @@ void table_children(lua_State *L, int idx, std::vector<rv_pccl_key> &out)
     lua_pushnil(L);
     while (lua_next(L, idx) != 0) {
         rv_pccl_key k;
-        if (lua_type(L, -2) == LUA_TSTRING) {
+        if (lua_type(L, LUA_KEY_STACK_INDEX) == LUA_TSTRING) {
             std::size_t len = 0;
-            const char *text = lua_tolstring(L, -2, &len);
+            const char *text = lua_tolstring(L, LUA_KEY_STACK_INDEX, &len);
             k.kind = 's';
             k.name.assign(text, len);
-        } else if (lua_type(L, -2) == LUA_TNUMBER) {
-            const double v = lua_tonumber(L, -2);
-            if (v == std::floor(v) && std::fabs(v) <= 9007199254740992.0 /* 2^53 */) {
+        } else if (lua_type(L, LUA_KEY_STACK_INDEX) == LUA_TNUMBER) {
+            const double v = lua_tonumber(L, LUA_KEY_STACK_INDEX);
+            if (v == std::floor(v) && std::fabs(v) <= static_cast<double>(MAX_SAFE_INTEGER_IN_DOUBLE)) {
                 k.kind = 'i';
                 k.name = std::to_string(static_cast<int64_t>(v));
             }
