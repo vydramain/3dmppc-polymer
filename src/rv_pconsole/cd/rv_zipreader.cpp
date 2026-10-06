@@ -83,7 +83,7 @@ bool rv_zipreader::open(const std::string& path, std::string& error) {
         return false;
     }
 
-    if (!parse_directory(error)) {
+    if (parse_directory(error) != RV_OK) {
         entries_.clear();
         by_name_.clear();
         file_.close();
@@ -164,11 +164,13 @@ int rv_zipreader::locate_eocd(std::string &error, std::vector<unsigned char> &ta
     return RV_OK;
 }
 
-bool rv_zipreader::parse_directory(std::string& error) {
+int rv_zipreader::parse_directory(std::string &error)
+{
     std::vector<unsigned char> tail;
     std::size_t eocd_pos = 0;
-    if (locate_eocd(error, tail, eocd_pos) != RV_OK) {
-        return false;
+    int r = locate_eocd(error, tail, eocd_pos);
+    if (r != RV_OK) {
+        return r;
     }
 
     const rv_pdklib::rv_zip_eocd_result validated = rv_pdklib::rv_zip_validate_eocd(
@@ -178,30 +180,32 @@ bool rv_zipreader::parse_directory(std::string& error) {
             break;
         case rv_pdklib::rv_zip_eocd_status::split_archive:
             error = "split archives are not supported";
-            return false;
+            return RV_ERR_INVAL;
         case rv_pdklib::rv_zip_eocd_status::zip64:
             error = "zip64 archives are not supported";
-            return false;
+            return RV_ERR_INVAL;
         case rv_pdklib::rv_zip_eocd_status::directory_outside_file:
             error = "central directory lies outside the file";
-            return false;
+            return RV_ERR_INVAL;
         case rv_pdklib::rv_zip_eocd_status::directory_too_large:
             error = "central directory is implausibly large";
-            return false;
+            return RV_ERR_INVAL;
     }
     const rv_pdklib::rv_zip_eocd_fields& fields = validated.fields;
 
     std::vector<unsigned char> cdir(static_cast<std::size_t>(fields.cd_size));
-    if (read_at(static_cast<int64_t>(fields.cd_offset), cdir.data(), static_cast<int64_t>(fields.cd_size)) != RV_OK) {
+    r = read_at(static_cast<int64_t>(fields.cd_offset), cdir.data(), static_cast<int64_t>(fields.cd_size));
+    if (r != RV_OK) {
         error = "cannot read the central directory (archive is truncated)";
-        return false;
+        return r;
     }
 
     return parse_entries(cdir, fields.entries_total, error);
 }
 
-bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total,
-                                  std::string& error) {
+int rv_zipreader::parse_entries(const std::vector<unsigned char> &cdir, uint16_t entries_total,
+    std::string &error)
+{
     std::size_t p = 0;
     while (p + rv_pdklib::rv_zip_central_header_size <= cdir.size()) {
         const unsigned char* h = cdir.data() + p;
@@ -212,7 +216,7 @@ bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_
             // means the archive's own index is damaged, and guessing where the
             // next record might start is how a parser reads someone else's bytes.
             error = "damaged central directory record";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         const uint16_t method = ch.method;
@@ -228,7 +232,7 @@ bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_
             rv_pdklib::rv_zip_central_header_size + name_len + extra_len + comment_len;
         if (record > cdir.size() - p) {
             error = "central directory record runs past the directory";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         const std::string name(reinterpret_cast<const char*>(h + rv_pdklib::rv_zip_central_header_size), name_len);
@@ -252,18 +256,18 @@ bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_
                 "entry '{}' uses compression method {}; this container is "
                 "store-only (no decompressor on the console)",
                 rv_pdklib::rv_log_escape(name.c_str()), method);
-            return false;
+            return RV_ERR_INVAL;
         }
         if (csize == rv_pdklib::rv_zip_zip64_sentinel32 || usize == rv_pdklib::rv_zip_zip64_sentinel32 ||
             lho == rv_pdklib::rv_zip_zip64_sentinel32) {
             error = std::format("entry '{}' needs zip64, which is not supported",
                                 rv_pdklib::rv_log_escape(name.c_str()));
-            return false;
+            return RV_ERR_INVAL;
         }
         if (csize != usize) {
             error = std::format("entry '{}' is stored but its sizes disagree ({} vs {})",
                                 rv_pdklib::rv_log_escape(name.c_str()), csize, usize);
-            return false;
+            return RV_ERR_INVAL;
         }
         // The local header must at least FIT before its offset is ever seeked to.
         // The data bounds cannot be settled here - they depend on the local
@@ -271,12 +275,12 @@ bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_
         if (static_cast<int64_t>(lho) > file_size_ - static_cast<int64_t>(rv_pdklib::rv_zip_local_header_size)) {
             error =
                 std::format("entry '{}' points outside the archive", rv_pdklib::rv_log_escape(name.c_str()));
-            return false;
+            return RV_ERR_INVAL;
         }
 
         if (entries_.size() >= RV_PCZIP_MAX_ENTRIES) {
             error = "archive declares implausibly many entries";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         if (by_name_.find(name) != by_name_.end()) {
@@ -303,7 +307,7 @@ bool rv_zipreader::parse_entries(const std::vector<unsigned char>& cdir, uint16_
         RV_LOG_WARN("pczip", "archive '{}' declares {} entries but {} were parsed", path_,
                     entries_total, entries_.size());
     }
-    return true;
+    return RV_OK;
 }
 
 const rv_zipentry* rv_zipreader::find(const char* name) const {

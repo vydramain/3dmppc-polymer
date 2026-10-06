@@ -97,9 +97,10 @@ class rv_zipreader {
     // human enumerates to find out why a disc is empty.
     const std::vector<rv_zipentry>& entries() const { return entries_; }
 
-   private:
+private:
     // Parse the central directory into `entries_`/`by_name_`.
-    bool parse_directory(std::string& error);
+    // Returns RV_OK on success, RV_ERR_INVAL on corrupt data, or error codes from nested calls.
+    int parse_directory(std::string &error);
 
     // Locate the End Of Central Directory record inside `tail`, which is the
     // last bytes of the file. Returns RV_OK when found, RV_ERR_INVAL when not.
@@ -110,7 +111,8 @@ class rv_zipreader {
     int locate_eocd(std::string &error, std::vector<unsigned char> &tail, std::size_t &eocd_pos) const;
 
     // Walk the central directory bytes into `entries_`/`by_name_`.
-    bool parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total, std::string& error);
+    // Returns RV_OK on success, RV_ERR_INVAL on corrupt data.
+    int parse_entries(const std::vector<unsigned char> &cdir, uint16_t entries_total, std::string &error);
 
     const rv_zipentry* find(const char* name) const;
 
