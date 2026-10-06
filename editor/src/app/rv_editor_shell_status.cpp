@@ -13,6 +13,17 @@
 namespace rv_editor
 {
 
+namespace
+{
+
+// Status bar fields shown with a project open.
+constexpr int status_fields_project = 4;
+
+// Status bar fields shown without a project.
+constexpr int status_fields_no_project = 2;
+
+} // namespace
+
 rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
 {
     rv_editor_status_text result;
@@ -60,7 +71,7 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     }
 
     // No project: no build or session to speak of, only the way in and the tools.
-    result.shown = app.project.open ? 4 : 2;
+    result.shown = app.project.open ? status_fields_project : status_fields_no_project;
     return result;
 }
 

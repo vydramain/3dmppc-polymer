@@ -35,6 +35,9 @@ constexpr float splitter_demo_initial_left_share = 0.5f;
 // Divisor for calculating half-heights in splitter initialization
 constexpr float splitter_half_divisor = 2.0f;
 
+// Halves the free space to centre the bar.
+constexpr float half_divisor = 2.0f;
+
 struct rv_editor_pane_values
 {
     int selected = 1;
@@ -120,7 +123,7 @@ void rv_editor_catalog_splitters(const rv_editor_theme &t)
     const float bar = static_cast<float>(t.pad_px * t.scale);
     rv_editor_pane_values &v = rv_editor_pane_data;
     if (v.top <= 0.0f) {
-        v.top = (height - bar) / 2.0f;
+        v.top = (height - bar) / half_divisor;
         v.bottom = height - bar - v.top;
     }
     const float min = ImGui::GetFrameHeight() * splitter_min_pane_height_frames;
