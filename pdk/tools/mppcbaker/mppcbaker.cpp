@@ -158,6 +158,24 @@ constexpr size_t RV_BAKER_HEX_RGB_DIGITS = 6;
 // Bits in one hex digit of RRGGBB.
 constexpr int RV_BAKER_HEX_DIGIT_BITS = 4;
 
+// Hex digit value for 'a'-'f' (10-15 mapped from a-f).
+constexpr int RV_BAKER_HEX_DIGIT_OFFSET_AF = 10;
+
+// Bits per byte: used to calculate channel bit shifts in RRGGBB.
+constexpr int RV_BAKER_BITS_PER_BYTE = 8;
+
+// Green channel bit shift in RRGGBB: one byte up = bits_per_byte.
+constexpr int RV_BAKER_GREEN_CHANNEL_SHIFT = RV_BAKER_BITS_PER_BYTE;
+
+// Red channel bit shift in RRGGBB: one byte above green = green + bits_per_byte.
+constexpr int RV_BAKER_RED_CHANNEL_SHIFT = RV_BAKER_GREEN_CHANNEL_SHIFT + RV_BAKER_BITS_PER_BYTE;
+
+// Mask for a single byte: extract lower 8 bits.
+constexpr uint32_t RV_BAKER_BYTE_MASK = 0xFF;
+
+// Positional arguments required after option processing: input and output paths.
+constexpr int RV_BAKER_POSITIONAL_ARGS_REQUIRED = 2;
+
 // Parses RRGGBB, with an optional leading '#', into an 8-bit colour; RV_OK on
 // success, RV_ERR_INVAL if the string is not six hex digits.
 int parse_hex_rgb(std::string_view text, rv_color *out)
@@ -175,15 +193,15 @@ int parse_hex_rgb(std::string_view text, rv_color *out)
         if (std::isdigit(u)) {
             digit = c - '0';
         } else if (std::isxdigit(u)) {
-            digit = std::tolower(u) - 'a' + 10;
+            digit = std::tolower(u) - 'a' + RV_BAKER_HEX_DIGIT_OFFSET_AF;
         } else {
             return RV_ERR_INVAL;
         }
         value = (value << RV_BAKER_HEX_DIGIT_BITS) | static_cast<uint32_t>(digit);
     }
-    out->r = static_cast<uint8_t>((value >> 16) & 0xFF);
-    out->g = static_cast<uint8_t>((value >> 8) & 0xFF);
-    out->b = static_cast<uint8_t>(value & 0xFF);
+    out->r = static_cast<uint8_t>((value >> RV_BAKER_RED_CHANNEL_SHIFT) & RV_BAKER_BYTE_MASK);
+    out->g = static_cast<uint8_t>((value >> RV_BAKER_GREEN_CHANNEL_SHIFT) & RV_BAKER_BYTE_MASK);
+    out->b = static_cast<uint8_t>(value & RV_BAKER_BYTE_MASK);
     return RV_OK;
 }
 
@@ -228,7 +246,7 @@ rv_err parse_args(int argc, char **argv, options *out, baker_error *error)
     }
 
     // optind is where getopt_long left the first non-flag argument: input, output.
-    if (argc - optind != 2) {
+    if (argc - optind != RV_BAKER_POSITIONAL_ARGS_REQUIRED) {
         error->message = "expected exactly one input and one output path";
         error->show_usage = true;
         return RV_ERR_INVAL;
@@ -386,10 +404,18 @@ int run(int argc, char **argv)
 } // namespace
 } // namespace rv_pdktools
 
+namespace
+{
+
+// Argc value for version flag check in main: program name plus one --version flag.
+constexpr int RV_BAKER_ARGC_VERSION_CHECK = 2;
+
+} // namespace
+
 int main(int argc, char **argv)
 {
     // One line a front end can show and compare (the editor's diagnostics).
-    if (argc == 2 && std::string_view(argv[1]) == "--version") {
+    if (argc == RV_BAKER_ARGC_VERSION_CHECK && std::string_view(argv[1]) == "--version") {
         rv_pdklib::rv_fprintf(stdout, "mppcbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
         return 0;
     }
