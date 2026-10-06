@@ -18,6 +18,7 @@
 #include "pdk/rv_err.h"
 
 #include "font/rv_editor_font.hpp"
+#include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -28,20 +29,33 @@ namespace rv_editor
 namespace
 {
 
+// Export format codes; do not move to toml (file format dependency).
 const char *rv_editor_output_level(rv_editor_log_level level)
 {
     return level == rv_editor_log_level::error ? "ERR" : level == rv_editor_log_level::warning ? "WRN" : "INF";
+}
+
+// Display text for log level in UI table.
+const char *rv_editor_output_level_text(rv_editor_log_level level)
+{
+    if (level == rv_editor_log_level::error) {
+        return rv_editor_text("pane_output.level_error");
+    }
+    if (level == rv_editor_log_level::warning) {
+        return rv_editor_text("pane_output.level_warning");
+    }
+    return rv_editor_text("pane_output.level_info");
 }
 
 const char *rv_editor_output_kind(rv_editor_log_source source)
 {
     switch (source) {
     case rv_editor_log_source::build:
-        return "build";
+        return rv_editor_text("pane_output.kind_build");
     case rv_editor_log_source::candidate:
-        return "candidate";
+        return rv_editor_text("pane_output.kind_candidate");
     default:
-        return "session"; // runtime and protocol
+        return rv_editor_text("pane_output.kind_session"); // runtime and protocol
     }
 }
 
@@ -49,14 +63,15 @@ const char *rv_editor_output_kind(rv_editor_log_source source)
 std::string rv_editor_output_origin(const rv_editor_log_line &line)
 {
     if (line.pid == 0) {
-        return "the editor";
+        return rv_editor_text("pane_output.origin_editor");
     }
-    std::string out = "pid " + std::to_string(line.pid) + ", " + rv_editor_output_kind(line.source) + " #" +
-        std::to_string(line.run);
+    const char *kind = rv_editor_output_kind(line.source);
+    std::string out = rv_editor_text_format("pane_output.origin_pid",
+        std::make_format_args(line.pid, kind, line.run));
     if (line.channel == rv_editor_log_channel::out) {
-        out += ", stdout";
+        out += rv_editor_text("pane_output.origin_stdout");
     } else if (line.channel == rv_editor_log_channel::err) {
-        out += ", stderr";
+        out += rv_editor_text("pane_output.origin_stderr");
     }
     return out;
 }
@@ -123,7 +138,8 @@ void rv_editor_output_header(rv_editor_output_view &view, float cell, const rv_e
     dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + h), rv_editor_col(theme.code_base));
     dl->AddLine(ImVec2(p0.x, p0.y + h - 1.0f), ImVec2(p0.x + w, p0.y + h - 1.0f), rv_editor_col(theme.code_surface));
     dl->PushClipRect(p0, ImVec2(p0.x + w, p0.y + h), true);
-    constexpr const char *names[] = { "Time", "Lvl", "Source", "Message" };
+    const char *names[] = { rv_editor_text("pane_output.col_time"), rv_editor_text("pane_output.col_level"),
+        rv_editor_text("pane_output.col_source"), rv_editor_text("pane_output.col_message") };
     ImFont *ui_font = rv_editor_font_ui();
     const float ty = p0.y + (h - ui_font->LegacySize) * 0.5f;
     float x = p0.x + cell * 0.5f - view.scroll_x;
@@ -161,7 +177,9 @@ std::string rv_editor_output_sources(const rv_editor_output_view &view, bool cap
         view.show[static_cast<size_t>(rv_editor_log_source::candidate)] &&
         view.show[static_cast<size_t>(rv_editor_log_source::runtime)];
     if (all_but_protocol) {
-        return view.show[static_cast<size_t>(rv_editor_log_source::protocol)] ? "All + protocol" : "All";
+        const bool with_protocol = view.show[static_cast<size_t>(rv_editor_log_source::protocol)];
+        const char *all_text = with_protocol ? "pane_output.sources_all_protocol" : "pane_output.sources_all";
+        return rv_editor_text(all_text);
     }
     std::string out;
     for (size_t i = 0; i < view.show.size(); ++i) {
@@ -174,27 +192,29 @@ std::string rv_editor_output_sources(const rv_editor_output_view &view, bool cap
         }
         out += (out.empty() ? "" : ", ") + name;
     }
-    return out.empty() ? "None" : out;
+    return out.empty() ? rv_editor_text("pane_output.sources_none") : out;
 }
 
 std::string rv_editor_output_title(const rv_editor_app &app, rv_editor_pane_id pane)
 {
     const auto it = app.outputs.find(pane);
     if (it == app.outputs.end()) {
-        return "Console Output: All";
+        return rv_editor_text("pane_output.title_default");
     }
     const rv_editor_output_view &view = it->second;
     if (view.run_pid != 0) {
-        return "Console Output: " + view.run_label;
+        return std::string(rv_editor_text("pane_output.title_prefix")) + view.run_label;
     }
     std::string what = rv_editor_output_sources(view, true);
     if (what == "Build" && app.build.number() != 0) {
         what += " #" + std::to_string(app.build.number());
     }
     if (view.level != rv_editor_log_level::info) {
-        what += view.level == rv_editor_log_level::error ? ", errors" : ", warnings+";
+        const bool errors_only = view.level == rv_editor_log_level::error;
+        const char *level_text = errors_only ? "pane_output.title_errors" : "pane_output.title_warnings";
+        what += rv_editor_text(level_text);
     }
-    return "Console Output: " + what;
+    return std::string(rv_editor_text("pane_output.title_prefix")) + what;
 }
 
 void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
@@ -231,17 +251,22 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         }
     }
     if (view.run_pid != 0 && run_lines == 0) {
-        rv_editor_status(("No lines from " + view.run_label + " are kept").c_str(), rv_editor_status_kind::idle, theme);
+        const std::string msg = rv_editor_text_format("pane_output.status_no_lines",
+            std::make_format_args(view.run_label));
+        rv_editor_status(msg.c_str(), rv_editor_status_kind::idle, theme);
     }
     if (hidden_errors + hidden_warnings != 0) {
-        const std::string hidden = std::to_string(hidden_errors) + " errors, " + std::to_string(hidden_warnings) +
-            " warnings hidden by the filters";
+        const std::string hidden = rv_editor_text_format("pane_output.status_hidden",
+            std::make_format_args(hidden_errors, hidden_warnings));
         rv_editor_status(hidden.c_str(), hidden_errors != 0 ? rv_editor_status_kind::error : rv_editor_status_kind::warning,
             theme);
     }
     if (log.dropped() != 0) {
         rv_editor_flow(ImGui::GetFontSize() * 16.0f);
-        ImGui::Text("%llu oldest lines dropped", static_cast<unsigned long long>(log.dropped()));
+        const unsigned long long dropped = log.dropped();
+        const std::string msg = rv_editor_text_format("pane_output.info_dropped",
+            std::make_format_args(dropped));
+        ImGui::TextUnformatted(msg.c_str());
     }
     const auto picked = [&view](const rv_editor_log_line &line) {
         return view.picked_from != 0 && line.seq >= std::min(view.picked_from, view.picked_to) &&
@@ -264,7 +289,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         (void)rv_editor_output_export(app, shown, view.exported);
     }
     if (!view.exported.empty()) {
-        rv_editor_path_row("Exported", view.exported, theme);
+        rv_editor_path_row(rv_editor_text("pane_output.label_exported"), view.exported, theme);
     }
 
     // The lines draw in the code font; the header takes its cell width from it.
@@ -319,7 +344,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
             : line.level == rv_editor_log_level::warning                  ? theme.code_yellow
                                                                           : theme.code_blue;
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(level_ink));
-        ImGui::TextUnformatted(rv_editor_output_level(line.level));
+        ImGui::TextUnformatted(rv_editor_output_level_text(line.level));
         ImGui::PopStyleColor();
         ImGui::SameLine(x + at_source);
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_subtext));
