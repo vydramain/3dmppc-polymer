@@ -142,40 +142,49 @@ struct rv_editor_ttf_out {
     }
 };
 
-// One glyph's glyf record: a rectangle contour per horizontal run of lit pixels.
-std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double scale, int16_t bounds[4])
+struct rv_editor_ttf_run {
+    int x0, x1, y0, y1;
+};
+
+// Append horizontal runs from a single row to the runs vector.
+void append_row_runs(const uint8_t bits, int row, int cell_h, double scale, std::vector<rv_editor_ttf_run> &runs)
 {
-    struct run {
-        int x0, x1, y0, y1;
-    };
-    std::vector<run> runs;
+    for (int x = 0; x < cell_width_bits;) {
+        if ((bits & (cell_leftmost_bit >> x)) == 0) {
+            ++x;
+            continue;
+        }
+        const int start = x;
+        while (x < cell_width_bits && (bits & (cell_leftmost_bit >> x)) != 0) {
+            ++x;
+        }
+        // Row 0 is the top of the cell; font y grows upward from the cell's bottom.
+        runs.push_back({ rv_editor_ttf_edge(start, scale),
+            rv_editor_ttf_edge(x, scale),
+            rv_editor_ttf_edge(cell_h - row - 1, scale),
+            rv_editor_ttf_edge(cell_h - row, scale) });
+    }
+}
+
+// Collect horizontal runs of lit pixels from the glyph bitmap.
+std::vector<rv_editor_ttf_run> rv_editor_ttf_runs(const rv_editor_ttf_glyph &g, int cell_h, double scale)
+{
+    std::vector<rv_editor_ttf_run> runs;
     for (int row = 0; g.rows != nullptr && row < cell_h; ++row) {
         const uint8_t bits = g.rows[row];
-        for (int x = 0; x < cell_width_bits;) {
-            if ((bits & (cell_leftmost_bit >> x)) == 0) {
-                ++x;
-                continue;
-            }
-            const int start = x;
-            while (x < cell_width_bits && (bits & (cell_leftmost_bit >> x)) != 0) {
-                ++x;
-            }
-            // Row 0 is the top of the cell; font y grows upward from the cell's bottom.
-            runs.push_back({ rv_editor_ttf_edge(start, scale),
-                rv_editor_ttf_edge(x, scale),
-                rv_editor_ttf_edge(cell_h - row - 1, scale),
-                rv_editor_ttf_edge(cell_h - row, scale) });
-        }
+        append_row_runs(bits, row, cell_h, scale, runs);
     }
-    bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0;
-    if (runs.empty()) {
-        return {};
-    }
+    return runs;
+}
+
+// Calculate bounding box of a non-empty run list.
+void rv_editor_ttf_bounds(const std::vector<rv_editor_ttf_run> &runs, int16_t bounds[4])
+{
     int x_min = runs[0].x0;
     int y_min = runs[0].y0;
     int x_max = runs[0].x1;
     int y_max = runs[0].y1;
-    for (const run &r : runs) {
+    for (const rv_editor_ttf_run &r : runs) {
         x_min = std::min(x_min, r.x0);
         y_min = std::min(y_min, r.y0);
         x_max = std::max(x_max, r.x1);
@@ -185,10 +194,14 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
     bounds[1] = static_cast<int16_t>(y_min);
     bounds[2] = static_cast<int16_t>(x_max);
     bounds[3] = static_cast<int16_t>(y_max);
+}
 
+// Encode runs as a glyf table entry: contours, flags, x/y deltas, padding.
+std::string rv_editor_ttf_encode(const std::vector<rv_editor_ttf_run> &runs, const int16_t bounds[4])
+{
     rv_editor_ttf_out o;
     o.u16(static_cast<uint32_t>(runs.size()));
-    for (int v : { x_min, y_min, x_max, y_max }) {
+    for (int v : { bounds[0], bounds[1], bounds[2], bounds[3] }) {
         o.u16(static_cast<uint16_t>(static_cast<int16_t>(v)));
     }
     for (size_t k = 0; k < runs.size(); ++k) {
@@ -200,14 +213,14 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
     }
     // Clockwise: bottom-left, top-left, top-right, bottom-right.
     int px = 0;
-    for (const run &r : runs) {
+    for (const rv_editor_ttf_run &r : runs) {
         for (int x : { r.x0, r.x0, r.x1, r.x1 }) {
             o.u16(static_cast<uint16_t>(static_cast<int16_t>(x - px)));
             px = x;
         }
     }
     int py = 0;
-    for (const run &r : runs) {
+    for (const rv_editor_ttf_run &r : runs) {
         for (int y : { r.y0, r.y1, r.y1, r.y0 }) {
             o.u16(static_cast<uint16_t>(static_cast<int16_t>(y - py)));
             py = y;
@@ -217,6 +230,18 @@ std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double 
         o.u8(0);
     }
     return o.b;
+}
+
+// One glyph's glyf record: a rectangle contour per horizontal run of lit pixels.
+std::string rv_editor_ttf_glyf(const rv_editor_ttf_glyph &g, int cell_h, double scale, int16_t bounds[4])
+{
+    const auto runs = rv_editor_ttf_runs(g, cell_h, scale);
+    if (runs.empty()) {
+        bounds[0] = bounds[1] = bounds[2] = bounds[3] = 0;
+        return {};
+    }
+    rv_editor_ttf_bounds(runs, bounds);
+    return rv_editor_ttf_encode(runs, bounds);
 }
 
 // A TrueType file of `glyphs` in a source cell_w x cell_h cell drawn at `scale` target pixels per source
