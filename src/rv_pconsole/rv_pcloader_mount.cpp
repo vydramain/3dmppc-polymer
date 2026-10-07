@@ -83,8 +83,9 @@ int64_t open_archive(const char *archive_path, std::unique_ptr<rv_zipreader> &ou
 int64_t read_manifest_text(const rv_zipreader &zip, const char *archive_path, std::string &out_text)
 {
     std::vector<unsigned char> manifest_bytes;
-    std::string why = read_whole_entry(zip, RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
-    if (!why.empty()) {
+    std::string why;
+    const int rc = read_whole_entry(zip, RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes, why);
+    if (rc != RV_OK) {
         RV_LOG_ERR("pcloader",
             "'{}' carries no usable '{}': {}",
             rv_pdklib::rv_log_escape(archive_path),
@@ -175,25 +176,30 @@ int64_t check_lua_entry_asset(const rv_pdklib::rv_manifest &manifest, const rv_z
 namespace rv_pcloader_detail
 {
 
-// Outcome of pulling one whole entry out of the archive, as a sentence fit for
-// a log line. Empty means success.
-std::string read_whole_entry(const rv_zipreader &zip, const char *name, int64_t max_size, std::vector<unsigned char> &out)
+int read_whole_entry(const rv_zipreader &zip,
+    const char *name,
+    int64_t max_size,
+    std::vector<unsigned char> &out,
+    std::string &why)
 {
     const int64_t size = zip.size(name);
     if (size < 0) {
-        return "no such entry in the archive";
+        why = "no such entry in the archive";
+        return RV_ERR_NOENT;
     }
     if (size > max_size) {
-        return std::format("entry is {} bytes, over the {} byte ceiling", size, max_size);
+        why = std::format("entry is {} bytes, over the {} byte ceiling", size, max_size);
+        return RV_ERR_INVAL;
     }
 
     try {
         out.assign(static_cast<std::size_t>(size), 0);
     } catch (const std::bad_alloc &) {
-        return "out of memory";
+        why = "out of memory";
+        return RV_ERR_NOMEM;
     }
     if (size == 0) {
-        return std::string();
+        return RV_OK;
     }
 
     int64_t nread = 0;
@@ -201,20 +207,26 @@ std::string read_whole_entry(const rv_zipreader &zip, const char *name, int64_t 
     case rv_zipread::ok:
         break;
     case rv_zipread::not_found:
-        return "no such entry in the archive";
+        why = "no such entry in the archive";
+        return RV_ERR_NOENT;
     case rv_zipread::short_buffer:
-        return "the entry grew between measuring and reading it";
+        why = "the entry grew between measuring and reading it";
+        return RV_ERR_INVAL;
     case rv_zipread::corrupt:
-        return "the archive's bookkeeping for this entry does not hold up";
+        why = "the archive's bookkeeping for this entry does not hold up";
+        return RV_ERR_INVAL;
     case rv_zipread::crc_mismatch:
-        return "checksum mismatch - the entry is not the bytes that were written";
+        why = "checksum mismatch - the entry is not the bytes that were written";
+        return RV_ERR_INVAL;
     case rv_zipread::io_error:
-        return "the host file failed the read";
+        why = "the host file failed the read";
+        return RV_ERR_IO;
     }
     if (nread != size) {
-        return "short read";
+        why = "short read";
+        return RV_ERR_IO;
     }
-    return std::string();
+    return RV_OK;
 }
 
 } // namespace rv_pcloader_detail

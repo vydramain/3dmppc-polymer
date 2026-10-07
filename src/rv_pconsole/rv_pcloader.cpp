@@ -18,6 +18,23 @@
 namespace rv_3dmppc
 {
 
+namespace
+{
+
+// The directory route already read and pre_dlopen_check-ed these exact bytes
+// in mount_dir(). Re-reading disc.so here would reopen the very race this
+// whole path exists to close: the bytes just verified must be the bytes that
+// get mapped, and an unpacked directory - unlike an archive - can be
+// rewritten by a live burner run at any moment while this session is mounted.
+// Moving the buffer out is a straight reuse, not a second read.
+int take_dir_code(std::vector<unsigned char> &from, std::vector<unsigned char> &to)
+{
+    to = std::move(from);
+    return RV_OK;
+}
+
+} // namespace
+
 rv_pcloader::~rv_pcloader()
 {
     unload();
@@ -43,19 +60,9 @@ int64_t rv_pcloader::bring_up()
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
     std::string why;
-    if (from_directory_) {
-        // The directory route already read and pre_dlopen_check-ed these exact
-        // bytes in mount_dir(). Re-reading disc.so here would reopen the very
-        // race this whole path exists to close: the bytes just verified must
-        // be the bytes that get mapped, and an unpacked directory - unlike an
-        // archive - can be rewritten by a live burner run at any moment while
-        // this session is mounted. Moving the buffer out is a straight reuse,
-        // not a second read.
-        code = std::move(dir_code_);
-    } else {
-        why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
-    }
-    if (!why.empty()) {
+    const int rc = from_directory_ ? take_dir_code(dir_code_, code) :
+                                     read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code, why);
+    if (rc != RV_OK) {
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),

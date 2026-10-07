@@ -43,11 +43,19 @@ inline std::string code_entry_of(const rv_pdklib::rv_manifest &manifest)
     return manifest.budget.pccd.code_entry.empty() ? RV_PCLOADER_DEFAULT_CODE_ENTRY : manifest.budget.pccd.code_entry;
 }
 
-std::string read_whole_entry(const rv_zipreader &zip, const char *name, int64_t max_size, std::vector<unsigned char> &out);
+// Read a whole zip entry, refusing anything over max_size. Returns RV_OK on
+// success, or RV_ERR_NOENT (no entry), RV_ERR_INVAL (oversized/corrupt),
+// RV_ERR_NOMEM (allocation failure), RV_ERR_IO (read error) on failure;
+// reason in `why`.
+int read_whole_entry(const rv_zipreader &zip,
+    const char *name,
+    int64_t max_size,
+    std::vector<unsigned char> &out,
+    std::string &why);
 
-// Same contract as read_whole_entry(), for the directory route: read the
-// WHOLE file at `path`, refusing anything over `max_size` before it becomes
-// an allocation. Empty return means success.
+// Directory route equivalent: read the WHOLE file at `path`, refusing
+// anything over `max_size` before it becomes an allocation. Returns the
+// reason as a string; empty means success.
 std::string read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out);
 
 std::string extract_code(const std::vector<unsigned char> &code, std::string &out_path);
