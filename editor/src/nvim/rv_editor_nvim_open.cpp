@@ -30,6 +30,110 @@ constexpr std::string_view swap_state_resolved = "resolved";
 constexpr std::string_view swap_action_recover = "recover";
 constexpr std::string_view swap_action_discard = "discard";
 
+// Swap state enum for dispatch.
+enum class swap_state {
+    unknown,
+    recoverable,
+    in_use,
+    resolved
+};
+
+// Swap state name to enum lookup table.
+constexpr struct {
+    std::string_view name;
+    swap_state value;
+} swap_state_table[] = {
+    { swap_state_recoverable, swap_state::recoverable },
+    { swap_state_in_use, swap_state::in_use },
+    { swap_state_resolved, swap_state::resolved },
+};
+
+// Parse swap state name via table lookup.
+swap_state parse_swap_state(std::string_view state_str)
+{
+    for (const auto &entry : swap_state_table) {
+        if (state_str == entry.name) {
+            return entry.value;
+        }
+    }
+    return swap_state::unknown;
+}
+
+// A crashed nvim left a swap file: keep the file read-only until the user recovers or discards it.
+void handle_swap_recoverable(std::map<std::string, rv_editor_nvim_swap> &swaps,
+    const std::string &file_str,
+    const rv_editor_mpack *swap,
+    const std::string &state_str,
+    rv_editor_log &log)
+{
+    if (swap == nullptr) {
+        return;
+    }
+    swaps[file_str] = { swap->s, state_str, 0 };
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        file_str + ": a crashed nvim left unsaved text in " + swap->s + "; the file is read-only until Recover or Discard");
+}
+
+// Another nvim is editing the file: open it read-only and name that process.
+void handle_swap_in_use(std::map<std::string, rv_editor_nvim_swap> &swaps,
+    const std::string &file_str,
+    const rv_editor_mpack *pid,
+    const std::string &state_str,
+    rv_editor_log &log)
+{
+    const int64_t pid_val = (pid != nullptr && pid->is(rv_editor_mpack::rv_editor_mpack_type::integer)) ? pid->i : 0;
+    swaps[file_str] = { "", state_str, pid_val };
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        file_str + ": nvim process " + std::to_string(pid_val) + " is editing it; opened read-only");
+}
+
+// The swap file is gone: the file is editable again.
+void handle_swap_resolved(std::map<std::string, rv_editor_nvim_swap> &swaps, const std::string &file_str, rv_editor_log &log)
+{
+    swaps.erase(file_str);
+    log.add(rv_editor_log_source::editor, rv_editor_log_level::info, file_str + ": swap file resolved");
+}
+
+// Handle rv_swap notification: parse state and dispatch to appropriate handler.
+void swap_state_notified(std::map<std::string, rv_editor_nvim_swap> &swaps, const rv_editor_mpack &m, rv_editor_log &log)
+{
+    const rv_editor_mpack *file = m.get(swap_key_file.data());
+    const rv_editor_mpack *state = m.get(swap_key_state.data());
+    if (file == nullptr || state == nullptr) {
+        return;
+    }
+    const std::string file_str = file->s;
+    const std::string state_str = state->s;
+    const swap_state state_enum = parse_swap_state(state_str);
+
+    switch (state_enum) {
+    case swap_state::recoverable:
+        handle_swap_recoverable(swaps, file_str, m.get(swap_key_swap.data()), state_str, log);
+        break;
+    case swap_state::in_use:
+        handle_swap_in_use(swaps, file_str, m.get(swap_key_pid.data()), state_str, log);
+        break;
+    case swap_state::resolved:
+        handle_swap_resolved(swaps, file_str, log);
+        break;
+    case swap_state::unknown:
+        break;
+    }
+}
+
+// Handle rv_open_error notification: log the error.
+void open_error_notified(const rv_editor_mpack &m, rv_editor_log &log)
+{
+    const rv_editor_mpack *file = m.get(open_error_key_file.data());
+    const rv_editor_mpack *msg = m.get(open_error_key_msg.data());
+    if (file == nullptr || msg == nullptr) {
+        return;
+    }
+    log.add(rv_editor_log_source::editor, rv_editor_log_level::error, file->s + ": cannot open: " + msg->s);
+}
+
 // Lua script: locate buffer by path (reuse if loaded, :edit otherwise) and set cursor at line/col
 constexpr std::string_view lua_open_buffer_at_cursor =
     "local win, path, line, col = ...\n"
@@ -95,54 +199,15 @@ void rv_editor_nvim::swap_resolve(int64_t win, const std::string &file, bool rec
 
 bool rv_editor_nvim::swap_notified(const std::string &method, const rv_editor_mpack &params, rv_editor_log &log)
 {
-    if (method == notification_swap && !params.items.empty()) {
-        const rv_editor_mpack &m = params.items[0];
-        const rv_editor_mpack *file = m.get(swap_key_file.data());
-        const rv_editor_mpack *state = m.get(swap_key_state.data());
-        if (file == nullptr || state == nullptr) {
-            return true;
-        }
-        const std::string file_str = file->s;
-        const std::string state_str = state->s;
-        if (state_str == swap_state_recoverable) {
-            const rv_editor_mpack *swap = m.get(swap_key_swap.data());
-            if (swap == nullptr) {
-                return true;
-            }
-            swaps_[file_str] = { swap->s, state_str, 0 };
-            log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::warning,
-                file_str + ": a crashed nvim left unsaved text in " + swap->s +
-                    "; the file is read-only until Recover or Discard");
-            return true;
-        }
-        if (state_str == swap_state_in_use) {
-            const rv_editor_mpack *pid = m.get(swap_key_pid.data());
-            int64_t pid_val = 0;
-            if (pid != nullptr && pid->is(rv_editor_mpack::rv_editor_mpack_type::integer)) {
-                pid_val = pid->i;
-            }
-            swaps_[file_str] = { "", state_str, pid_val };
-            log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::warning,
-                file_str + ": nvim process " + std::to_string(pid_val) + " is editing it; opened read-only");
-            return true;
-        }
-        if (state_str == swap_state_resolved) {
-            swaps_.erase(file_str);
-            log.add(rv_editor_log_source::editor, rv_editor_log_level::info, file_str + ": swap file resolved");
-            return true;
-        }
+    if (params.items.empty()) {
+        return false;
+    }
+    if (method == notification_swap) {
+        swap_state_notified(swaps_, params.items[0], log);
         return true;
     }
-    if (method == notification_open_error && !params.items.empty()) {
-        const rv_editor_mpack &m = params.items[0];
-        const rv_editor_mpack *file = m.get(open_error_key_file.data());
-        const rv_editor_mpack *msg = m.get(open_error_key_msg.data());
-        if (file == nullptr || msg == nullptr) {
-            return true;
-        }
-        log.add(rv_editor_log_source::editor, rv_editor_log_level::error, file->s + ": cannot open: " + msg->s);
+    if (method == notification_open_error) {
+        open_error_notified(params.items[0], log);
         return true;
     }
     return false;
