@@ -111,6 +111,41 @@ void rv_editor_project_group(const char *label, const rv_editor_theme &theme)
     ImGui::Separator();
 }
 
+// Target text: build number if a build succeeded, otherwise nothing was built.
+std::string rv_editor_target_text(const rv_editor_app &app)
+{
+    const auto &built = app.build.last_success();
+    if (!built) {
+        return rv_editor_text("panes.target_nothing_built");
+    }
+    const int build_number = built->number;
+    return rv_editor_text_format("panes.target_build", std::make_format_args(build_number));
+}
+
+// Facts row text: the live session's frame and script revision, or the build a run would use.
+std::string rv_editor_facts_text(const rv_editor_session &s, const rv_editor_app &app, bool debug_preset)
+{
+    if (!s.live()) {
+        return rv_editor_target_text(app);
+    }
+    if (debug_preset) {
+        return std::string();
+    }
+    const int frame_num = s.frame();
+    const int session_num = s.number();
+    const int build_num = s.build_number();
+    std::string result = rv_editor_text_format("panes.facts_live", std::make_format_args(frame_num, session_num, build_num));
+    if (s.facts().lua_budget <= 0) {
+        return result;
+    }
+    const int revision = s.facts().revision;
+    const int first_revision = s.facts().first_revision;
+    const std::string revision_text = (revision != first_revision) ?
+        rv_editor_text_format("panes.script_revision_reloaded", std::make_format_args(revision)) :
+        rv_editor_text_format("panes.script_revision", std::make_format_args(revision));
+    return result + revision_text;
+}
+
 } // namespace
 
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
@@ -247,27 +282,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // Facts/target and the profile button share one row: facts clips rather
     // than wraps, so this row can never split in two.
     const bool debug_preset = app.preset == rv_editor_layout_preset::debug;
-    std::string facts;
-    if (s.live() && !debug_preset) {
-        const int frame_num = s.frame();
-        const int session_num = s.number();
-        const int build_num = s.build_number();
-        facts = rv_editor_text_format("panes.facts_live", std::make_format_args(frame_num, session_num, build_num));
-        if (s.facts().lua_budget > 0) {
-            const int revision = s.facts().revision;
-            const int first_revision = s.facts().first_revision;
-            if (revision != first_revision) {
-                facts += rv_editor_text_format("panes.script_revision_reloaded", std::make_format_args(revision));
-            } else {
-                facts += rv_editor_text_format("panes.script_revision", std::make_format_args(revision));
-            }
-        }
-    } else if (!s.live() && app.build.last_success()) {
-        const int build_number = app.build.last_success()->number;
-        facts = rv_editor_text_format("panes.target_build", std::make_format_args(build_number));
-    } else if (!s.live()) {
-        facts = rv_editor_text("panes.target_nothing_built");
-    }
+    const std::string facts = rv_editor_facts_text(s, app, debug_preset);
     const std::string profile_name = app.run_config.profiles[app.run_config.active].name;
     const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
     const float profile_w = rv_editor_button_width(profile.c_str());
