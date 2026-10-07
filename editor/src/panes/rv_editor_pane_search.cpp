@@ -75,7 +75,6 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_search_view &s = app.project_search;
     rv_editor_shelf_begin("##shelf", theme);
-    rv_editor_flow(ImGui::GetFontSize() * query_field_width_em);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * query_field_width_em);
     if (s.focus) {
         ImGui::SetKeyboardFocusHere();
