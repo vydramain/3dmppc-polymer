@@ -59,12 +59,17 @@ void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *d
 // only shows up as an occasional stuck note.
 int rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
 {
-    if (require_armed) {
+    const auto all_armed = [this, mask]() {
         for (std::size_t i = 0; i < voices_.size(); ++i) {
             if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
-                return RV_ERR_INVAL;
+                return false;
             }
         }
+        return true;
+    };
+
+    if (require_armed && !all_armed()) {
+        return RV_ERR_INVAL;
     }
 
     for (std::size_t i = 0; i < voices_.size(); ++i) {

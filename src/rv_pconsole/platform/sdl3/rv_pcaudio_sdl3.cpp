@@ -34,10 +34,12 @@ int rv_pcaudio_sdl3::open()
 
     stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
     if (!stream_) {
+        RV_LOG_ERR("pcplatform", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
         return RV_ERR_IO;
     }
 
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
+        RV_LOG_ERR("pcplatform", "SDL_ResumeAudioStreamDevice failed: {}", SDL_GetError());
         SDL_DestroyAudioStream(stream_);
         stream_ = nullptr;
         return RV_ERR_IO;
