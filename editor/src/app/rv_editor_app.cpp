@@ -159,89 +159,104 @@ bool rv_editor_app_run_builds(const rv_editor_app &app)
     return app.inputs_changed || app.build.dev_state() != rv_editor_build_state::succeeded || !app.build.last_success();
 }
 
-void rv_editor_app_build(rv_editor_app &app)
+int rv_editor_app_build(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_build(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_build(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::build;
-        return;
+        return RV_ERR_BUSY;
     }
-    rv_editor_app_build_saved(app);
+    return rv_editor_app_build_saved(app);
 }
 
-void rv_editor_app_build_saved(rv_editor_app &app)
+int rv_editor_app_build_saved(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_build(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_build(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        return RV_ERR_BUSY;
     }
     std::string error;
     app.build_first_seq = app.log.revision() + 1;
     app.run_after_build = false;
     app.restart_after_build = false;
     app.restart_after_stop = false;
-    if (app.build.start(app.project, app.tools, app.log, error) != RV_OK) {
+    const int err = app.build.start(app.project, app.tools, app.log, error);
+    if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
-        return;
+        return err;
     }
     rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;
+    return RV_OK;
 }
 
-void rv_editor_app_run(rv_editor_app &app)
+int rv_editor_app_run(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_run(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_run(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        return RV_ERR_BUSY;
     }
     if (app.session.state() == rv_editor_run_state::paused) {
         app.session.resume(app.log);
-        return;
+        return RV_OK;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::run;
-        return;
+        return RV_ERR_BUSY;
     }
-    rv_editor_app_run_saved(app);
+    return rv_editor_app_run_saved(app);
 }
 
-void rv_editor_app_run_saved(rv_editor_app &app)
+int rv_editor_app_run_saved(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_run(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_run(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        return RV_ERR_BUSY;
     }
     app.restart_after_build = false;
     app.restart_after_stop = false;
     if (!rv_editor_app_run_builds(app)) {
-        (void)rv_editor_app_start(app, *app.build.last_success());
-        return;
+        return rv_editor_app_start(app, *app.build.last_success());
     }
-    rv_editor_app_build_saved(app);
+    const int err = rv_editor_app_build_saved(app);
     app.run_after_build = app.build.busy();
+    return err;
 }
 
-void rv_editor_app_profiles_save(rv_editor_app &app)
+int rv_editor_app_profiles_save(rv_editor_app &app)
 {
-    std::string error;
-    if (rv_editor_run_config_save(app.project.root, app.run_config, error) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "run profiles not saved: " + error);
-    }
     app.run_config.error.clear();
     app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
     ++app.run_config_revision;
+    std::string error;
+    const int err = rv_editor_run_config_save(app.project.root, app.run_config, error);
+    if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "run profiles not saved: " + error);
+        return err;
+    }
+    return RV_OK;
 }
 
-void rv_editor_app_run_last(rv_editor_app &app)
+int rv_editor_app_run_last(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_run_last(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_run_last(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        return RV_ERR_BUSY;
     }
     const rv_editor_artifact artifact = *app.build.last_success();
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::warning,
         "running the last successful build, #" + std::to_string(artifact.number) +
             ": its native code with the current scripts, assets and scenes");
-    (void)rv_editor_app_start(app, artifact);
+    return rv_editor_app_start(app, artifact);
 }
 
 void rv_editor_app_pause(rv_editor_app &app)

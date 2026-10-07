@@ -383,8 +383,8 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 void rv_editor_app_scene_first(rv_editor_app &app);
 
 // Writes the profiles to the project, checks the active one again and refills the
-// form; a failed write goes to the log.
-void rv_editor_app_profiles_save(rv_editor_app &app);
+// form. Returns RV_OK on success or RV_ERR_* on save failure.
+int rv_editor_app_profiles_save(rv_editor_app &app);
 
 // Looks for the tools and says what it found.
 void rv_editor_app_init(rv_editor_app &app);
@@ -427,9 +427,10 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app);
 
 // Build and Run ask first when a named buffer is unsaved; the _saved
 // forms go ahead with the files as they are on disk.
-void rv_editor_app_build(rv_editor_app &app);
-void rv_editor_app_build_saved(rv_editor_app &app);
-void rv_editor_app_run_saved(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_build(rv_editor_app &app);
+int rv_editor_app_build_saved(rv_editor_app &app);
+int rv_editor_app_run_saved(rv_editor_app &app);
 // Build and Restart (editor/src/app/rv_editor_app_change.cpp): builds, then restarts
 // the live session (or just starts one) once the build has ended.
 void rv_editor_app_build_restart(rv_editor_app &app);
@@ -463,10 +464,10 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
 void rv_editor_app_release_changed(rv_editor_app &app);
 
 // Runs the latest build, building the saved files first when rv_editor_app_run_builds;
-// on a paused session this resumes it.
-void rv_editor_app_run(rv_editor_app &app);
-// Runs the last successful build after a later build failed.
-void rv_editor_app_run_last(rv_editor_app &app);
+// on a paused session this resumes it. Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_run(rv_editor_app &app);
+// Runs the last successful build after a later build failed. Returns RV_OK or RV_ERR_*.
+int rv_editor_app_run_last(rv_editor_app &app);
 void rv_editor_app_pause(rv_editor_app &app);
 void rv_editor_app_step(rv_editor_app &app);
 void rv_editor_app_stop(rv_editor_app &app);
