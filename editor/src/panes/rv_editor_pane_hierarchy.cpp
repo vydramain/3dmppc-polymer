@@ -44,6 +44,43 @@ void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const s
     }
 }
 
+// Context menu for a scene object: add children, duplicate, delete, reparent
+void rv_editor_hierarchy_node_context_menu(rv_editor_app &app,
+    rv_editor_scene_doc &doc,
+    const rv_editor_scene_object &o,
+    bool read_only)
+{
+    if (!ImGui::BeginPopupContextItem()) {
+        return;
+    }
+    doc.selected = o.id;
+    ImGui::BeginDisabled(read_only);
+    for (std::string_view kind : scene_kinds) {
+        const char *kind_label = rv_editor_scene_kind_label(std::string(kind));
+        const std::string add_label = rv_editor_text_format("pane_hierarchy.add_under", std::make_format_args(kind_label));
+        if (ImGui::MenuItem(add_label.c_str())) {
+            rv_editor_scene_add(doc, kind.data(), o.id);
+        }
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.duplicate"), rv_editor_text("pane_hierarchy.shortcut_duplicate"))) {
+        rv_editor_scene_duplicate(doc, o.id);
+    }
+    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.delete"), rv_editor_text("pane_hierarchy.shortcut_delete"))) {
+        rv_editor_scene_delete(doc, o.id);
+    }
+    ImGui::Separator();
+    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root"))) {
+        rv_editor_hierarchy_move(app, o.id, "", true);
+    }
+    // The other meaning, asked for by name: the numbers stay, the place changes.
+    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root_keep_local"))) {
+        rv_editor_hierarchy_move(app, o.id, "", false);
+    }
+    ImGui::EndDisabled();
+    ImGui::EndPopup();
+}
+
 void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
 {
     rv_editor_scene_doc &doc = *app.scene;
@@ -81,34 +118,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
         }
         ImGui::EndDragDropTarget();
     }
-    if (ImGui::BeginPopupContextItem()) {
-        doc.selected = o.id;
-        ImGui::BeginDisabled(read_only);
-        for (std::string_view kind : scene_kinds) {
-            const char *kind_label = rv_editor_scene_kind_label(std::string(kind));
-            const std::string add_label = rv_editor_text_format("pane_hierarchy.add_under", std::make_format_args(kind_label));
-            if (ImGui::MenuItem(add_label.c_str())) {
-                rv_editor_scene_add(doc, kind.data(), o.id);
-            }
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.duplicate"), rv_editor_text("pane_hierarchy.shortcut_duplicate"))) {
-            rv_editor_scene_duplicate(doc, o.id);
-        }
-        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.delete"), rv_editor_text("pane_hierarchy.shortcut_delete"))) {
-            rv_editor_scene_delete(doc, o.id);
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root"))) {
-            rv_editor_hierarchy_move(app, o.id, "", true);
-        }
-        // The other meaning, asked for by name: the numbers stay, the place changes.
-        if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root_keep_local"))) {
-            rv_editor_hierarchy_move(app, o.id, "", false);
-        }
-        ImGui::EndDisabled();
-        ImGui::EndPopup();
-    }
+    rv_editor_hierarchy_node_context_menu(app, doc, o, read_only);
     if (open) {
         for (const size_t child : children) {
             if (child < app.scene->scene.objects.size()) {
