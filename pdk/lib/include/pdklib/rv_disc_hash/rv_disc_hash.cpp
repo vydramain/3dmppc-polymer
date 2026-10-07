@@ -81,6 +81,10 @@ constexpr uint32_t sha256_k[64] = {
     0xc67178f2,
 };
 
+// ELF note fields are 4-byte aligned per the ELF64 specification.
+constexpr uint64_t elf_note_alignment_boundary = 4;
+constexpr uint64_t elf_note_alignment_mask = elf_note_alignment_boundary - 1;
+
 // Rotation and size constants: FIPS 180-4 reference sections noted below.
 constexpr int word_bits = 32;
 constexpr int big_sigma0_rot_a = 2;
@@ -359,11 +363,11 @@ int find_section(const unsigned char *elf,
             continue;
         }
 
-        if (shdr.sh_type != SHT_NOBITS) {
-            if (!in_bounds(elf_size, shdr.sh_offset, shdr.sh_size)) {
-                error = std::string("Section '") + name + "' data is out of bounds.";
-                return RV_ERR_INVAL;
-            }
+        // NOBITS sections don't occupy bytes in the file; their boundaries aren't checked.
+        const bool data_in_bounds = shdr.sh_type == SHT_NOBITS || in_bounds(elf_size, shdr.sh_offset, shdr.sh_size);
+        if (!data_in_bounds) {
+            error = std::string("Section '") + name + "' data is out of bounds.";
+            return RV_ERR_INVAL;
         }
 
         found = true;
@@ -447,7 +451,7 @@ int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, st
     }
 
     auto align4 = [](uint64_t n) -> uint64_t {
-        return (n + 3) & ~uint64_t(3);
+        return (n + elf_note_alignment_mask) & ~elf_note_alignment_mask;
     };
 
     const uint64_t owner_offset = sh_offset + sizeof(Elf64_Nhdr);
