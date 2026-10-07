@@ -7,7 +7,6 @@
 #include <chrono>
 #include <cstdlib>
 #include <sstream>
-#include <thread>
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
@@ -38,12 +37,6 @@ constexpr size_t read_buffer_size = 16384;
 
 // Frame descriptor number passed to console: must match "--frame-fd" in rv_editor_session.cpp
 constexpr int inherit_fd_number = 3;
-
-// Maximum bytes to read from subprocess output per poll
-constexpr size_t read_output_limit = 65536;
-
-// Milliseconds to sleep between output polls
-constexpr int output_poll_sleep_ms = 5;
 
 // PATH environment variable component separator
 constexpr char path_separator = ':';
@@ -322,15 +315,17 @@ bool rv_editor_process::output_done()
     return true;
 }
 
-void rv_editor_process::stop(bool force)
+int rv_editor_process::stop(bool force)
 {
     if (!running()) {
-        return;
+        return RV_OK;
     }
     const int sig = force ? SIGKILL : SIGTERM;
-    if (::kill(-pid_, sig) != 0) {
-        ::kill(pid_, sig);
+    const bool group_ok = ::kill(-pid_, sig) == 0;
+    if (!group_ok && ::kill(pid_, sig) != 0) {
+        return RV_ERR_IO;
     }
+    return RV_OK;
 }
 
 std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit)
@@ -363,27 +358,6 @@ std::filesystem::path rv_editor_process_find(const char *name)
         }
     }
     return {};
-}
-
-bool rv_editor_process_output(const std::vector<std::string> &argv,
-    const std::filesystem::path &cwd,
-    std::string &out,
-    int seconds)
-{
-    rv_editor_process proc;
-    std::string error;
-    if (proc.start(argv, cwd, error) != RV_OK) {
-        return false;
-    }
-    std::string err;
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
-    while (!proc.poll() && std::chrono::steady_clock::now() < until) {
-        proc.read(out, err, read_output_limit);
-        std::this_thread::sleep_for(std::chrono::milliseconds(output_poll_sleep_ms));
-    }
-    proc.read(out, err, read_output_limit);
-    const rv_editor_process::rv_editor_exit exit = proc.exit_status();
-    return exit.exited && exit.signal == 0 && exit.code == 0;
 }
 
 } // namespace rv_editor

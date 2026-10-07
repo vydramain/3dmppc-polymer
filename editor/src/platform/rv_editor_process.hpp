@@ -103,8 +103,9 @@ public:
         return cut_;
     }
 
-    // SIGTERM, or SIGKILL with `force`, to the child's process group.
-    void stop(bool force);
+    // SIGTERM, or SIGKILL with `force`, to the child's process group; RV_OK on success or when not running,
+    // RV_ERR_IO if signal delivery failed.
+    int stop(bool force);
 
 private:
     void close_fds();
@@ -124,13 +125,6 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit);
 
 // The first executable `name` on PATH, or empty: for the user's own tools (nvim, git).
 std::filesystem::path rv_editor_process_find(const char *name);
-
-// Runs argv to its end, at most `seconds`, and gives its stdout. False when it could
-// not start, did not end in time (it is killed then) or ended other than with exit 0.
-bool rv_editor_process_output(const std::vector<std::string> &argv,
-    const std::filesystem::path &cwd,
-    std::string &out,
-    int seconds);
 
 // Guard process that kills all children on editor exit. Call once from main() before SDL_Init.
 void rv_editor_guard_start();
