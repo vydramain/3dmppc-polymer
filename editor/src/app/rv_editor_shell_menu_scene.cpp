@@ -37,6 +37,30 @@ constexpr std::string_view scene_file_suffix = ".scene.toml";
 // Kinds the Add menu offers, in menu order
 constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
 
+// Add menu label for each node kind; anything else is a group.
+struct rv_editor_kind_label {
+    std::string_view kind;
+    const char *text_id;
+};
+
+constexpr rv_editor_kind_label kind_labels[] = {
+    { kind_mesh, "shell_menu_scene.add_box" },
+    { kind_camera, "shell_menu_scene.add_camera" },
+    { kind_quad, "shell_menu_scene.add_quad" },
+    { kind_billboard, "shell_menu_scene.add_billboard" },
+    { kind_volume, "shell_menu_scene.add_volume" },
+};
+
+const char *rv_editor_kind_text_id(std::string_view kind)
+{
+    for (const auto &kl : kind_labels) {
+        if (kind == kl.kind) {
+            return kl.text_id;
+        }
+    }
+    return "shell_menu_scene.add_group";
+}
+
 struct rv_editor_new_scene_state {
     bool open = false;
     char name[new_scene_name_bytes] = {};
@@ -239,20 +263,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
             app.scene->selected :
             std::string();
         for (std::string_view kind : scene_kinds) {
-            const char *label;
-            if (kind == kind_mesh) {
-                label = rv_editor_text("shell_menu_scene.add_box");
-            } else if (kind == kind_camera) {
-                label = rv_editor_text("shell_menu_scene.add_camera");
-            } else if (kind == kind_quad) {
-                label = rv_editor_text("shell_menu_scene.add_quad");
-            } else if (kind == kind_billboard) {
-                label = rv_editor_text("shell_menu_scene.add_billboard");
-            } else if (kind == kind_volume) {
-                label = rv_editor_text("shell_menu_scene.add_volume");
-            } else {
-                label = rv_editor_text("shell_menu_scene.add_group");
-            }
+            const char *label = rv_editor_text(rv_editor_kind_text_id(kind));
             if (ImGui::MenuItem(label)) {
                 rv_editor_scene_add(*app.scene, kind.data(), parent);
             }
