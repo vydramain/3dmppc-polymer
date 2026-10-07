@@ -255,6 +255,10 @@ void rv_editor_shell_after_save(rv_editor_shell &shell);
 // "Untitled" without a name.
 std::string rv_editor_shell_buffer_label(const rv_editor_app &app, const std::string &name);
 
+// A pane's title with its context (spec 6.1): what it shows, from which session,
+// build or candidate; nothing when the plain kind says it all.
+void rv_editor_shell_title(rv_editor_shell &shell, rv_editor_pane_id pane, rv_editor_pane_kind kind);
+
 // File > Save As for the buffer in the focused code tile.
 void rv_editor_shell_save_as_start(rv_editor_shell &shell);
 
