@@ -113,9 +113,9 @@ static int finish_publish(const fs::path &tmp, const fs::path &dest, std::string
     if (ec) {
         error = "cannot publish '" + dest.string() + "': " + ec.message();
         fs::remove(tmp, ec);
-        return 1;
+        return RV_ERR_IO;
     }
-    return 0;
+    return RV_OK;
 }
 
 // "disc.toml": the only entry whose bytes do not already exist as a file.
@@ -126,7 +126,7 @@ static int publish_text(const fs::path &dest, const std::string &text, std::stri
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
     if (!out) {
         error = "cannot open '" + tmp.string() + "' for writing";
-        return 1;
+        return RV_ERR_IO;
     }
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
     out.close();
@@ -134,7 +134,7 @@ static int publish_text(const fs::path &dest, const std::string &text, std::stri
         error = "short write on '" + tmp.string() + "'";
         std::error_code ec;
         fs::remove(tmp, ec);
-        return 1;
+        return RV_ERR_IO;
     }
 
     return finish_publish(tmp, dest, error);
@@ -153,9 +153,25 @@ static int publish_copy(const fs::path &dest, const fs::path &source, std::strin
     fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
     if (ec) {
         error = "cannot copy '" + source.string() + "' to '" + dest.string() + "': " + ec.message();
-        return 1;
+        return RV_ERR_IO;
     }
 
+    return finish_publish(tmp, dest, error);
+}
+
+// Fallback when symlink is not available on the filesystem.
+static int copy_instead_of_link(const fs::path &dest, const fs::path &source, const fs::path &tmp, std::string &error)
+{
+    std::error_code ec;
+    fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        error = "cannot link or copy '" + source.string() + "' to '" + dest.string() + "': " + ec.message();
+        return RV_ERR_IO;
+    }
+    rv_pdklib::rv_fprintf(stderr,
+        "%s: copied (symlink not available) from %s\n",
+        dest.filename().string().c_str(),
+        source.string().c_str());
     return finish_publish(tmp, dest, error);
 }
 
@@ -170,21 +186,10 @@ static int publish_link(const fs::path &dest, const fs::path &source, std::strin
     std::error_code ec;
     fs::remove(tmp, ec);
     fs::create_symlink(source, tmp, ec);
-    if (!ec) {
-        rv_pdklib::rv_fprintf(stderr, "%s: symlinked to %s\n", dest.filename().string().c_str(), source.string().c_str());
-    } else {
-        ec.clear();
-        fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
-        if (ec) {
-            error = "cannot link or copy '" + source.string() + "' to '" + dest.string() + "': " + ec.message();
-            return 1;
-        }
-        rv_pdklib::rv_fprintf(stderr,
-            "%s: copied (symlink not available) from %s\n",
-            dest.filename().string().c_str(),
-            source.string().c_str());
+    if (ec) {
+        return copy_instead_of_link(dest, source, tmp, error);
     }
-
+    rv_pdklib::rv_fprintf(stderr, "%s: symlinked to %s\n", dest.filename().string().c_str(), source.string().c_str());
     return finish_publish(tmp, dest, error);
 }
 
