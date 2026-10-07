@@ -250,11 +250,14 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     const rv_editor_change_plan reload_plan =
         can_reload ? rv_editor_app_change_for(app, app.code_file) : rv_editor_change_plan{};
     std::string reload_label;
-    if (reload_plan.action == rv_editor_change_action::reload_module) {
+    switch (reload_plan.action) {
+    case rv_editor_change_action::reload_module:
         reload_label = rv_editor_text_format("shell_menu.reload_module", std::make_format_args(reload_plan.name));
-    } else if (reload_plan.action == rv_editor_change_action::refresh_texture) {
+        break;
+    case rv_editor_change_action::refresh_texture:
         reload_label = rv_editor_text_format("shell_menu.refresh_texture", std::make_format_args(reload_plan.name));
-    } else {
+        break;
+    default:
         reload_label = rv_editor_text("widgets_status.tooltip_reload");
     }
     if (rv_editor_menu_item(reload_label.c_str(), rv_editor_text("widgets_status.shortcut_reload"), why_not_reload)) {
