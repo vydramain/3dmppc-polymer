@@ -120,6 +120,65 @@ struct rv_editor_terminal::hooks {
     }
 };
 
+int rv_editor_terminal::ensure_vt_(const rv_editor_theme &theme, std::string &error)
+{
+    if (vt_ != nullptr) {
+        vterm_set_size(vt_, rows_, cols_);
+        return RV_OK;
+    }
+    vt_ = vterm_new(rows_, cols_);
+    if (vt_ == nullptr) {
+        error = "cannot create the terminal emulator";
+        return RV_ERR_NOMEM;
+    }
+    vterm_set_utf8(vt_, 1);
+    vterm_output_set_callback(vt_, &hooks::output, this);
+    screen_ = vterm_obtain_screen(vt_);
+    static const VTermScreenCallbacks callbacks = {
+        .damage = nullptr,
+        .moverect = nullptr,
+        .movecursor = &hooks::movecursor,
+        .settermprop = &hooks::settermprop,
+        .bell = nullptr,
+        .resize = nullptr,
+        .sb_pushline = &hooks::pushline,
+        .sb_popline = nullptr,
+        .sb_clear = &hooks::sb_clear,
+    };
+    vterm_screen_set_callbacks(screen_, &callbacks, this);
+    vterm_screen_enable_altscreen(screen_, 1);
+    // The ANSI colours from the code area's Catppuccin Mocha.
+    const uint32_t palette[ansi_palette_size] = {
+        theme.code_surface,
+        theme.code_red,
+        theme.code_green,
+        theme.code_yellow,
+        theme.code_blue,
+        theme.code_magenta,
+        theme.code_cyan,
+        theme.code_subtext,
+        theme.code_surface,
+        theme.code_red,
+        theme.code_green,
+        theme.code_yellow,
+        theme.code_blue,
+        theme.code_magenta,
+        theme.code_cyan,
+        theme.code_text,
+    };
+    VTermState *state = vterm_obtain_state(vt_);
+    for (int i = 0; i < ansi_palette_size; ++i) {
+        const VTermColor c = rv_editor_vterm_rgb(palette[i]);
+        vterm_state_set_palette_color(state, i, &c);
+    }
+    const VTermColor fg = rv_editor_vterm_rgb(theme.code_text);
+    const VTermColor bg = rv_editor_vterm_rgb(theme.code_base);
+    vterm_screen_set_default_colors(screen_, &fg, &bg);
+    vterm_screen_reset(screen_, 1);
+
+    return RV_OK;
+}
+
 rv_editor_terminal::~rv_editor_terminal()
 {
     pty_.stop();
@@ -136,54 +195,9 @@ int rv_editor_terminal::start(const std::filesystem::path &cwd,
 {
     cols_ = std::max(cols, min_terminal_size);
     rows_ = std::max(rows, min_terminal_size);
-    if (vt_ == nullptr) {
-        vt_ = vterm_new(rows_, cols_);
-        vterm_set_utf8(vt_, 1);
-        vterm_output_set_callback(vt_, &hooks::output, this);
-        screen_ = vterm_obtain_screen(vt_);
-        static const VTermScreenCallbacks callbacks = {
-            .damage = nullptr,
-            .moverect = nullptr,
-            .movecursor = &hooks::movecursor,
-            .settermprop = &hooks::settermprop,
-            .bell = nullptr,
-            .resize = nullptr,
-            .sb_pushline = &hooks::pushline,
-            .sb_popline = nullptr,
-            .sb_clear = &hooks::sb_clear,
-        };
-        vterm_screen_set_callbacks(screen_, &callbacks, this);
-        vterm_screen_enable_altscreen(screen_, 1);
-        // The ANSI colours from the code area's Catppuccin Mocha.
-        const uint32_t palette[ansi_palette_size] = {
-            theme.code_surface,
-            theme.code_red,
-            theme.code_green,
-            theme.code_yellow,
-            theme.code_blue,
-            theme.code_magenta,
-            theme.code_cyan,
-            theme.code_subtext,
-            theme.code_surface,
-            theme.code_red,
-            theme.code_green,
-            theme.code_yellow,
-            theme.code_blue,
-            theme.code_magenta,
-            theme.code_cyan,
-            theme.code_text,
-        };
-        VTermState *state = vterm_obtain_state(vt_);
-        for (int i = 0; i < ansi_palette_size; ++i) {
-            const VTermColor c = rv_editor_vterm_rgb(palette[i]);
-            vterm_state_set_palette_color(state, i, &c);
-        }
-        const VTermColor fg = rv_editor_vterm_rgb(theme.code_text);
-        const VTermColor bg = rv_editor_vterm_rgb(theme.code_base);
-        vterm_screen_set_default_colors(screen_, &fg, &bg);
-        vterm_screen_reset(screen_, 1);
-    } else {
-        vterm_set_size(vt_, rows_, cols_);
+    const int vt_rc = ensure_vt_(theme, error);
+    if (vt_rc != RV_OK) {
+        return vt_rc;
     }
 
     const char *shell = std::getenv(env_shell_name.data());

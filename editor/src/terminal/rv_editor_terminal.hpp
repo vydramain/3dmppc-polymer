@@ -98,6 +98,8 @@ public:
 
 private:
     rv_editor_term_cell convert(const void *cell) const;
+    // Ensure vt_ exists and is sized for cols_/rows_; set up colors from theme if newly created.
+    int ensure_vt_(const rv_editor_theme &theme, std::string &error);
 
     rv_editor_pty pty_;
     VTerm *vt_ = nullptr;
