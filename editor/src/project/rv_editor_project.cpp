@@ -51,6 +51,34 @@ constexpr std::string_view tool_player_key = "player";
 // Command-line arguments for tool version checking.
 constexpr std::string_view tool_version_arg = "--version";
 
+// One table to search for tools by settings key and check them: key, executable name,
+// whether to ask for version (only burner and baker), whether found next to editor.
+struct tool_spec {
+    std::string_view key;
+    std::string_view name;
+    bool ask_version;   // Only the burner and the baker are asked for a version.
+    bool beside_editor; // Console, burner, baker are searched next to the editor.
+    rv_editor_tool rv_editor_toolchain::*member;
+};
+
+constexpr tool_spec tool_specs[] = {
+    { tool_console_key, tool_console_name, false, true, &rv_editor_toolchain::console },
+    { tool_burner_key, tool_burner_name, true, true, &rv_editor_toolchain::burner },
+    { tool_baker_key, tool_baker_name, true, true, &rv_editor_toolchain::baker },
+    { tool_player_key, tool_player_name, false, false, &rv_editor_toolchain::player },
+};
+
+// Find tool specification by key; return nullptr if not found.
+const tool_spec *find_tool_spec(std::string_view key)
+{
+    for (const auto &spec : tool_specs) {
+        if (spec.key == key) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
 // Settings file name and its section for tool configuration.
 constexpr std::string_view settings_file = "settings.toml";
 constexpr std::string_view settings_tools_section = "tools";
@@ -121,6 +149,47 @@ std::filesystem::path rv_editor_self_dir()
     std::error_code ec;
     const std::filesystem::path self = std::filesystem::read_symlink(std::string(proc_self_exe), ec);
     return ec ? std::filesystem::path() : self.parent_path();
+}
+
+// Read [tools] section from settings and apply configurations to toolchain.
+void read_tools_section(rv_editor_toolchain &tc, const rv_pdklib::rv_manifest_tree &tree)
+{
+    for (const auto &section : tree.sections) {
+        if (section.name != settings_tools_section) {
+            continue;
+        }
+        for (const auto &entry : section.entries) {
+            const tool_spec *spec = find_tool_spec(entry.key);
+            if (spec == nullptr) {
+                continue;
+            }
+            if (entry.value.kind != rv_pdklib::rv_manifest_value_kind::string) {
+                continue;
+            }
+            tc.*(spec->member) = { entry.value.str, std::string(tool_origin_settings), "", "" };
+        }
+    }
+}
+
+// Read and parse settings.toml, then configure toolchain from its [tools] section.
+void read_tool_settings(rv_editor_toolchain &tc)
+{
+    const std::filesystem::path config = rv_editor_xdg_dir(xdg_config_var.data(), xdg_config_fallback.data());
+    if (config.empty()) {
+        return;
+    }
+    tc.settings_path = config / std::string(settings_file);
+    std::ifstream in(tc.settings_path, std::ios::binary);
+    if (!in) {
+        return;
+    }
+    std::ostringstream text;
+    text << in.rdbuf();
+    rv_pdklib::rv_manifest_tree tree;
+    if (rv_pdklib::rv_manifest_read_tree(text.str(), tc.settings_path.string(), tree, tc.settings_error) != 0) {
+        return;
+    }
+    read_tools_section(tc, tree);
 }
 
 void rv_editor_tool_check(rv_editor_tool &tool, const char *name)
@@ -266,33 +335,7 @@ rv_editor_toolchain rv_editor_toolchain_find()
     tc.burner = { self.empty() ? "" : self / std::string(tool_burner_name), std::string(tool_origin_next_to_editor), "", "" };
     tc.baker = { self.empty() ? "" : self / std::string(tool_baker_name), std::string(tool_origin_next_to_editor), "", "" };
 
-    const std::filesystem::path config = rv_editor_xdg_dir(xdg_config_var.data(), xdg_config_fallback.data());
-    if (!config.empty()) {
-        tc.settings_path = config / std::string(settings_file);
-        std::ifstream in(tc.settings_path, std::ios::binary);
-        if (in) {
-            std::ostringstream text;
-            text << in.rdbuf();
-            rv_pdklib::rv_manifest_tree tree;
-            if (rv_pdklib::rv_manifest_read_tree(text.str(), tc.settings_path.string(), tree, tc.settings_error) == 0) {
-                for (const auto &section : tree.sections) {
-                    if (section.name != settings_tools_section) {
-                        continue;
-                    }
-                    for (const auto &entry : section.entries) {
-                        rv_editor_tool *tool = entry.key == tool_console_key ? &tc.console :
-                            entry.key == tool_burner_key                     ? &tc.burner :
-                            entry.key == tool_baker_key                      ? &tc.baker :
-                            entry.key == tool_player_key                     ? &tc.player :
-                                                                               nullptr;
-                        if (tool != nullptr && entry.value.kind == rv_pdklib::rv_manifest_value_kind::string) {
-                            *tool = { entry.value.str, std::string(tool_origin_settings), "", "" };
-                        }
-                    }
-                }
-            }
-        }
-    }
+    read_tool_settings(tc);
 
     rv_editor_tool_check(tc.console, tool_console_name.data());
     rv_editor_tool_check(tc.burner, tool_burner_name.data());
@@ -308,28 +351,22 @@ rv_editor_toolchain rv_editor_toolchain_find()
 
 rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path)
 {
-    const std::string k = key;
-    const char *exe = nullptr;
-    if (k == std::string(tool_console_key)) {
-        exe = tool_console_name.data();
-    } else if (k == std::string(tool_burner_key)) {
-        exe = tool_burner_name.data();
-    } else if (k == std::string(tool_baker_key)) {
-        exe = tool_baker_name.data();
-    }
+    const std::string_view k = key;
+    const tool_spec *spec = find_tool_spec(k);
+    const bool has_exe = spec != nullptr && spec->beside_editor;
+    const std::string_view exe_name = has_exe ? spec->name : tool_player_name;
     const std::filesystem::path self = rv_editor_self_dir();
     rv_editor_tool tool;
     if (!override_path.empty()) {
         tool = { override_path, std::string(tool_origin_settings), "", "" };
-    } else if (exe != nullptr && !self.empty()) {
-        tool = { self / exe, std::string(tool_origin_next_to_editor), "", "" };
+    } else if (has_exe && !self.empty()) {
+        tool = { self / std::string(exe_name), std::string(tool_origin_next_to_editor), "", "" };
     }
-    rv_editor_tool_check(tool, exe != nullptr ? exe : tool_player_name.data());
-    if (tool.path.empty() && exe == nullptr) {
+    rv_editor_tool_check(tool, exe_name.data());
+    if (tool.path.empty() && !has_exe) {
         tool.problem = rv_editor_text("project.player_not_set_name");
     }
-    // As rv_editor_toolchain_find: only the burner and the baker are asked for a version.
-    if (k == std::string(tool_burner_key) || k == std::string(tool_baker_key)) {
+    if (has_exe && spec->ask_version) {
         rv_editor_tool_version(tool);
     }
     return tool;
