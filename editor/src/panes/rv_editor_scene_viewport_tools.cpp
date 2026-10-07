@@ -148,12 +148,14 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
         { "scene_tools.view_top", 0.0, top_view_pitch },
         { "scene_tools.view_front", 0.0, 0.0 },
         { "scene_tools.view_right", right_view_yaw, 0.0 } };
-    for (const auto &view : views) {
-        const char *label = rv_editor_text(view.label_id);
-        rv_editor_flow(rv_editor_button_width(label));
+    for (size_t i = 0; i < std::size(views); ++i) {
+        const char *label = rv_editor_text(views[i].label_id);
+        if (i > 0) {
+            rv_editor_flow(rv_editor_button_width(label));
+        }
         if (rv_editor_button(label, theme)) {
-            cam.yaw = view.yaw;
-            cam.pitch = view.pitch;
+            cam.yaw = views[i].yaw;
+            cam.pitch = views[i].pitch;
         }
     }
     const char *no_selection = app.scene->selected.empty() ? rv_editor_text("scene_tools.nothing_selected") : nullptr;
