@@ -67,47 +67,116 @@ size_t rv_editor_key_index(const std::array<const char *, N> &keys, std::string_
     return N;
 }
 
-void rv_editor_candidate_field(rv_editor_candidate &c, const rv_pdklib::rv_manifest_tree_entry &e)
+// Integer keys of a candidate record, by the field's type: counts are cast, flags read as non-zero.
+struct candidate_u32_field {
+    std::string_view key;
+    uint32_t rv_editor_candidate::*ptr;
+};
+constexpr std::array<candidate_u32_field, 2> candidate_u32_fields = { {
+    { key_number, &rv_editor_candidate::number },
+    { key_playtests, &rv_editor_candidate::playtests },
+} };
+
+struct candidate_u64_field {
+    std::string_view key;
+    uint64_t rv_editor_candidate::*ptr;
+};
+constexpr std::array<candidate_u64_field, 1> candidate_u64_fields = { {
+    { key_size, &rv_editor_candidate::size },
+} };
+
+struct candidate_flag_field {
+    std::string_view key;
+    bool rv_editor_candidate::*ptr;
+};
+constexpr std::array<candidate_flag_field, 3> candidate_flag_fields = { {
+    { key_bytes_changed, &rv_editor_candidate::bytes_changed },
+    { key_tree_changed, &rv_editor_candidate::tree_changed },
+    { key_last_run_clean, &rv_editor_candidate::last_run_clean },
+} };
+
+// String keys of a candidate record: text fields are copied; image and decision handled specially.
+struct candidate_text_field {
+    std::string_view key;
+    std::string rv_editor_candidate::*ptr;
+};
+constexpr std::array<candidate_text_field, 11> candidate_text_fields = { {
+    { key_command, &rv_editor_candidate::command },
+    { key_built_at, &rv_editor_candidate::built_at },
+    { key_burner, &rv_editor_candidate::burner },
+    { key_baker, &rv_editor_candidate::baker },
+    { key_sha256, &rv_editor_candidate::sha256 },
+    { key_verified_hash, &rv_editor_candidate::verified_hash },
+    { key_verified_at, &rv_editor_candidate::verified_at },
+    { key_source_revision, &rv_editor_candidate::source_revision },
+    { key_decided_at, &rv_editor_candidate::decided_at },
+    { key_operator, &rv_editor_candidate::operator_name },
+    { key_last_run_end, &rv_editor_candidate::last_run_end },
+} };
+
+void rv_editor_candidate_number_field(rv_editor_candidate &c, const rv_pdklib::rv_manifest_tree_entry &e)
 {
-    const std::string &s = e.value.str;
     const int64_t n = e.value.num;
-    if (e.value.kind == rv_pdklib::rv_manifest_value_kind::integer) {
-        if (e.key == key_number) {
-            c.number = static_cast<uint32_t>(n);
-        } else if (e.key == key_size) {
-            c.size = static_cast<uint64_t>(n);
-        } else if (e.key == key_bytes_changed) {
-            c.bytes_changed = n != 0;
-        } else if (e.key == key_tree_changed) {
-            c.tree_changed = n != 0;
-        } else if (e.key == key_last_run_clean) {
-            c.last_run_clean = n != 0;
-        } else if (e.key == key_playtests) {
-            c.playtests = static_cast<uint32_t>(n);
+    for (const auto &f : candidate_u32_fields) {
+        if (e.key == f.key) {
+            c.*f.ptr = static_cast<uint32_t>(n);
+            return;
         }
-        return;
     }
-    std::string *field = e.key == key_command ? &c.command :
-        e.key == key_built_at                 ? &c.built_at :
-        e.key == key_burner                   ? &c.burner :
-        e.key == key_baker                    ? &c.baker :
-        e.key == key_sha256                   ? &c.sha256 :
-        e.key == key_verified_hash            ? &c.verified_hash :
-        e.key == key_verified_at              ? &c.verified_at :
-        e.key == key_source_revision          ? &c.source_revision :
-        e.key == key_decided_at               ? &c.decided_at :
-        e.key == key_operator                 ? &c.operator_name :
-        e.key == key_last_run_end             ? &c.last_run_end :
-                                                nullptr;
-    if (field != nullptr) {
-        *field = s;
-    } else if (e.key == key_image) {
-        c.image = s;
-    } else if (e.key == key_decision) {
-        const size_t d = rv_editor_key_index(rv_editor_decision_keys, s);
-        c.decision = d < rv_editor_decision_keys.size() ? static_cast<rv_editor_decision>(d) : rv_editor_decision::none;
+    for (const auto &f : candidate_u64_fields) {
+        if (e.key == f.key) {
+            c.*f.ptr = static_cast<uint64_t>(n);
+            return;
+        }
+    }
+    for (const auto &f : candidate_flag_fields) {
+        if (e.key == f.key) {
+            c.*f.ptr = n != 0;
+            return;
+        }
     }
 }
+
+void rv_editor_candidate_text_field(rv_editor_candidate &c, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    const std::string &s = e.value.str;
+    for (const auto &f : candidate_text_fields) {
+        if (e.key == f.key) {
+            c.*f.ptr = s;
+            return;
+        }
+    }
+    if (e.key == key_image) {
+        c.image = s;
+        return;
+    }
+    if (e.key == key_decision) {
+        const size_t d = rv_editor_key_index(rv_editor_decision_keys, s);
+        c.decision = d < rv_editor_decision_keys.size() ? static_cast<rv_editor_decision>(d) : rv_editor_decision::none;
+        return;
+    }
+}
+
+void rv_editor_candidate_field(rv_editor_candidate &c, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    if (e.value.kind == rv_pdklib::rv_manifest_value_kind::integer) {
+        rv_editor_candidate_number_field(c, e);
+        return;
+    }
+    rv_editor_candidate_text_field(c, e);
+}
+
+// String keys of a check result: text fields copied.
+struct check_text_field {
+    std::string_view key;
+    std::string rv_editor_check::*ptr;
+};
+constexpr std::array<check_text_field, 4> check_text_fields = { {
+    { key_note, &rv_editor_check::note },
+    { key_env, &rv_editor_check::env },
+    { key_at, &rv_editor_check::at },
+    { key_hash, &rv_editor_check::hash },
+} };
 
 void rv_editor_check_field(rv_editor_check &check, const rv_pdklib::rv_manifest_tree_entry &e)
 {
@@ -116,14 +185,13 @@ void rv_editor_check_field(rv_editor_check &check, const rv_pdklib::rv_manifest_
         const size_t st = rv_editor_key_index(rv_editor_state_keys, s);
         check.state =
             st < rv_editor_state_keys.size() ? static_cast<rv_editor_check_state>(st) : rv_editor_check_state::not_run;
-    } else if (e.key == key_note) {
-        check.note = s;
-    } else if (e.key == key_env) {
-        check.env = s;
-    } else if (e.key == key_at) {
-        check.at = s;
-    } else if (e.key == key_hash) {
-        check.hash = s;
+        return;
+    }
+    for (const auto &f : check_text_fields) {
+        if (e.key == f.key) {
+            check.*f.ptr = s;
+            return;
+        }
     }
 }
 
