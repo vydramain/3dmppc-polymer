@@ -198,11 +198,15 @@ int rv_pboot_run(int argc, char **argv)
     wants.gamepads = slots.cio != rv_pccio_impl::null;
     wants.audio = slots.ca != rv_pcca_impl::null;
     // --frame-fd: the embedding program shows the frames, so no window opens here.
-    if (args.frame_fd >= 0) {
-        if (!args.dev) {
-            rv_console_print_error("--frame-fd needs --dev: the pad buttons arrive over its channel");
-            return EXIT_CODE_INVALID_ARGS;
-        }
+    const bool frame_fd_set = args.frame_fd >= 0;
+    const bool dev_set = args.dev;
+
+    if (frame_fd_set && !dev_set) {
+        rv_console_print_error("--frame-fd needs --dev: the pad buttons arrive over its channel");
+        return EXIT_CODE_INVALID_ARGS;
+    }
+
+    if (frame_fd_set) {
         wants.window = false;
     }
     platform = rv_pcplatform_make(slots.platform, wants);
@@ -239,12 +243,15 @@ int rv_pboot_run(int argc, char **argv)
         return 1;
     }
 
-    if (args.disc_path != nullptr) {
-        if (loader.bring_up() < 0) {
-            rv_console_print_error(std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
-            return 1;
-        }
+    const bool disc_path_set = args.disc_path != nullptr;
+    const int up = disc_path_set ? loader.bring_up() : RV_OK;
 
+    if (up < 0) {
+        rv_console_print_error(std::format("refusing to boot '{}'", rv_pdklib::rv_log_escape(args.disc_path)));
+        return 1;
+    }
+
+    if (disc_path_set) {
         // The bytes the disc reads through rv_cd come out of the same place its
         // code came out of; that is what makes a disc ONE object rather than a
         // program plus a loose pile of assets - and it holds for both media.

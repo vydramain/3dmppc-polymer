@@ -41,6 +41,43 @@ constexpr rv_pcslots rv_pboot_headless_slots()
     return slots;
 }
 
+// Dispatch for mode preset keys to their corresponding slot fields.
+enum class rv_pboot_slot_key {
+    platform,
+    ca,
+    cv,
+    cio,
+    cl,
+    cd,
+    cm,
+};
+
+struct rv_pboot_slot_key_entry {
+    std::string_view key;
+    rv_pboot_slot_key slot;
+};
+
+constexpr rv_pboot_slot_key_entry rv_pboot_slot_keys[] = {
+    { "platform", rv_pboot_slot_key::platform },
+    { "ca", rv_pboot_slot_key::ca },
+    { "cv", rv_pboot_slot_key::cv },
+    { "cio", rv_pboot_slot_key::cio },
+    { "cl", rv_pboot_slot_key::cl },
+    { "cd", rv_pboot_slot_key::cd },
+    { "cm", rv_pboot_slot_key::cm },
+};
+
+// Returns the slot key for a given key name, or std::nullopt if not found.
+std::optional<rv_pboot_slot_key> rv_pboot_slot_key_of(std::string_view key)
+{
+    for (const auto &entry : rv_pboot_slot_keys) {
+        if (key == entry.key) {
+            return entry.slot;
+        }
+    }
+    return std::nullopt;
+}
+
 // Built-in preset table, compiled in and mandatory: the console always has
 // at least "default" to fall back to, even before any preset FILE exists.
 constexpr rv_pboot_preset RV_PBOOT_BUILTIN_PRESETS[] = {
@@ -170,22 +207,34 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree,
             }
             seen_keys.push_back(entry.key);
 
-            if (entry.key == "platform") {
-                (void)lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
-            } else if (entry.key == "ca") {
-                (void)lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
-            } else if (entry.key == "cv") {
-                (void)lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
-            } else if (entry.key == "cio") {
-                (void)lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
-            } else if (entry.key == "cl") {
-                (void)lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
-            } else if (entry.key == "cd") {
-                (void)lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
-            } else if (entry.key == "cm") {
-                (void)lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
-            } else {
+            const auto slot = rv_pboot_slot_key_of(entry.key);
+            if (!slot) {
                 failer.fail(entry.line, std::format("unknown key '{}'", entry.key));
+                continue;
+            }
+
+            switch (*slot) {
+            case rv_pboot_slot_key::platform:
+                (void)lookup_slot_value(RV_PCSLOTS_PLATFORM, entry, slots.platform, failer);
+                break;
+            case rv_pboot_slot_key::ca:
+                (void)lookup_slot_value(RV_PCSLOTS_CA, entry, slots.ca, failer);
+                break;
+            case rv_pboot_slot_key::cv:
+                (void)lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
+                break;
+            case rv_pboot_slot_key::cio:
+                (void)lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
+                break;
+            case rv_pboot_slot_key::cl:
+                (void)lookup_slot_value(RV_PCSLOTS_CL, entry, slots.cl, failer);
+                break;
+            case rv_pboot_slot_key::cd:
+                (void)lookup_slot_value(RV_PCSLOTS_CD, entry, slots.cd, failer);
+                break;
+            case rv_pboot_slot_key::cm:
+                (void)lookup_slot_value(RV_PCSLOTS_CM, entry, slots.cm, failer);
+                break;
             }
         }
 
