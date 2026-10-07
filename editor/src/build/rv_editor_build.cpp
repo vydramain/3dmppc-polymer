@@ -255,8 +255,9 @@ void rv_editor_build::update(rv_editor_log &log)
     }
 
     const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
+    // The build succeeded: it was not cancelled, and the process exited with code 0, not by a signal.
+    const bool ok = state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0;
     if (!image_.empty()) {
-        const bool ok = state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0;
         state_ = ok                                     ? rv_editor_build_state::succeeded :
             state_ == rv_editor_build_state::cancelling ? rv_editor_build_state::cancelled :
                                                           rv_editor_build_state::failed;
@@ -274,7 +275,7 @@ void rv_editor_build::update(rv_editor_log &log)
         return;
     }
     const std::string label = "build #" + std::to_string(number_);
-    if (state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0) {
+    if (ok) {
         state_ = rv_editor_build_state::succeeded;
         dev_state_ = state_;
         last_success_ = rv_editor_artifact{ dir_, number_ };
