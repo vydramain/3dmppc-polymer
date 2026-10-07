@@ -1,6 +1,7 @@
 #include "ui/rv_editor_sound.hpp"
 
 #include <fstream>
+#include <optional>
 #include <vector>
 
 #include <SDL3/SDL.h>
@@ -20,6 +21,32 @@ constexpr int sound_sample_rate = 44100;
 // Audio file extensions: WAV and raw PCM.
 constexpr std::string_view wav_file_extension = ".wav";
 constexpr std::string_view pcm_file_extension = ".pcm";
+
+// Audio file format: wav or raw PCM.
+enum class rv_editor_audio_type {
+    wav,
+    pcm
+};
+
+// Map file extension to audio type.
+constexpr struct {
+    std::string_view ext;
+    rv_editor_audio_type type;
+} audio_type_map[] = {
+    { wav_file_extension, rv_editor_audio_type::wav },
+    { pcm_file_extension, rv_editor_audio_type::pcm },
+};
+
+// Detect audio format from file extension.
+std::optional<rv_editor_audio_type> rv_editor_audio_type_for(std::string_view ext)
+{
+    for (const auto &entry : audio_type_map) {
+        if (entry.ext == ext) {
+            return entry.type;
+        }
+    }
+    return std::nullopt;
+}
 
 // One sound at a time: the open audio subsystem, its stream, and the file it plays.
 struct rv_editor_sound_state {
@@ -55,6 +82,12 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         rv_editor_sound.audio_ready = true;
     }
 
+    const auto maybe_type = rv_editor_audio_type_for(file.extension().string());
+    if (!maybe_type) {
+        error = rv_editor_text("sound.not_a_sound_file");
+        return RV_ERR_INVAL;
+    }
+
     SDL_AudioSpec spec{};
     uint8_t *wav_buf = nullptr;
     uint32_t wav_len = 0;
@@ -62,14 +95,16 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
     const uint8_t *data = nullptr;
     uint32_t len = 0;
 
-    if (file.extension() == wav_file_extension) {
+    switch (*maybe_type) {
+    case rv_editor_audio_type::wav:
         if (!SDL_LoadWAV(file.string().c_str(), &spec, &wav_buf, &wav_len)) {
             error = SDL_GetError();
             return RV_ERR_INVAL;
         }
         data = wav_buf;
         len = wav_len;
-    } else if (file.extension() == pcm_file_extension) {
+        break;
+    case rv_editor_audio_type::pcm:
         pcm = rv_editor_pcm_read(file, error);
         if (pcm.empty() && !error.empty()) {
             return RV_ERR_IO;
@@ -79,9 +114,7 @@ int rv_editor_sound_play(const std::filesystem::path &file, std::string &error)
         spec.freq = sound_sample_rate;
         data = pcm.data();
         len = static_cast<uint32_t>(pcm.size());
-    } else {
-        error = rv_editor_text("sound.not_a_sound_file");
-        return RV_ERR_INVAL;
+        break;
     }
 
     rv_editor_sound.stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
