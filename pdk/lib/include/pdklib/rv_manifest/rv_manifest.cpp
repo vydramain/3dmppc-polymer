@@ -105,16 +105,16 @@ int rv_manifest_parse(const std::string &text, const std::string &origin, rv_man
 
     if (!failer.empty()) {
         error = failer.report(origin);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     manifest = rv_manifest_bind(tree);
-    return 0;
+    return RV_OK;
 }
 
 int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error)
 {
-    return rv_manifest_parse(text, std::string(), manifest, error) != 0;
+    return rv_manifest_parse(text, std::string(), manifest, error);
 }
 
 int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error)
