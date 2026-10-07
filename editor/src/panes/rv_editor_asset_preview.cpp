@@ -113,6 +113,22 @@ bool rv_editor_asset_belongs_on_disc(std::string_view rel)
     return rel != disc_manifest_file && !rel.ends_with(scene_file_extension);
 }
 
+// Extract fmt chunk: read channels, rate, bits; short chunks are skipped.
+void rv_editor_wav_fmt_chunk(std::ifstream &f, uint32_t chunk_size, uint16_t &channels, uint16_t &bits, uint32_t &rate)
+{
+    if (chunk_size < wav_fmt_chunk_min_size) {
+        // too short to trust: rate stays 0, duration unknown
+        f.seekg(static_cast<std::streamoff>(chunk_size) + (chunk_size & 1u), std::ios::cur);
+        return;
+    }
+    f.seekg(static_cast<std::streamoff>(wav_u16_field_bytes), std::ios::cur);
+    f.read(reinterpret_cast<char *>(&channels), static_cast<std::streamsize>(wav_u16_field_bytes));
+    f.read(reinterpret_cast<char *>(&rate), static_cast<std::streamsize>(wav_u32_field_bytes));
+    f.seekg(wav_byte_rate_block_align_size, std::ios::cur);
+    f.read(reinterpret_cast<char *>(&bits), static_cast<std::streamsize>(wav_u16_field_bytes));
+    f.seekg(static_cast<std::streamoff>(chunk_size) - wav_fmt_chunk_min_size + (chunk_size & 1u), std::ios::cur);
+}
+
 // Seconds a WAV's header promises: its "fmt " chunk gives the rate and
 // frame size, its "data" chunk the byte count. 0 when the file is not a WAV
 // or its "fmt " chunk is too short to trust. Chunks pad to an even size, so
@@ -143,24 +159,17 @@ double rv_editor_wav_seconds(const std::filesystem::path &path)
         if (!f) {
             break;
         }
+        const std::string_view chunk_id(id, wav_riff_chunk_id_bytes);
         const auto pad = static_cast<std::streamoff>(size & 1u);
-        if (std::string(id, wav_riff_chunk_id_bytes) == wav_fmt_chunk_id) {
-            if (size < wav_fmt_chunk_min_size) {
-                f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
-                continue; // too short to trust: rate stays 0, duration unknown
-            }
-            f.seekg(static_cast<std::streamoff>(wav_u16_field_bytes), std::ios::cur);
-            f.read(reinterpret_cast<char *>(&channels), static_cast<std::streamsize>(wav_u16_field_bytes));
-            f.read(reinterpret_cast<char *>(&rate), static_cast<std::streamsize>(wav_u32_field_bytes));
-            f.seekg(wav_byte_rate_block_align_size, std::ios::cur);
-            f.read(reinterpret_cast<char *>(&bits), static_cast<std::streamsize>(wav_u16_field_bytes));
-            f.seekg(static_cast<std::streamoff>(size) - wav_fmt_chunk_min_size + pad, std::ios::cur);
-        } else if (std::string(id, wav_riff_chunk_id_bytes) == wav_data_chunk_id) {
+        if (chunk_id == wav_fmt_chunk_id) {
+            rv_editor_wav_fmt_chunk(f, size, channels, bits, rate);
+            continue;
+        }
+        if (chunk_id == wav_data_chunk_id) {
             data_size = size;
             break;
-        } else {
-            f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
         }
+        f.seekg(static_cast<std::streamoff>(size) + pad, std::ios::cur);
     }
     if (rate == 0 || channels == 0 || bits < wav_min_bits_per_sample) {
         return 0.0;
