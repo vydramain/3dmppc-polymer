@@ -144,6 +144,28 @@ static int rv_burner_build_compile(const rv_burner_options &options,
     return 0;
 }
 
+static bool script_entry_is_planned(const archive_plan &plan, const std::string &entry_name)
+{
+    for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
+        if (plan.items[i].name == entry_name) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static std::string planned_script_names(const archive_plan &plan)
+{
+    std::string result;
+    for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
+        if (!result.empty()) {
+            result += ", ";
+        }
+        result += plan.items[i].name;
+    }
+    return result;
+}
+
 // --- [3/4] assets ---
 //
 // Plans, checks, compiles or copies scripts, bakes textures, and prints step 3.
@@ -194,24 +216,13 @@ static int rv_burner_build_assets(const rv_burner_options &options,
     // the disc burns with a lua machine pointed at a name nothing on the medium
     // answers to, and the failure surfaces on a player's machine as a missing
     // asset instead of here as a typo.
-    if (manifest.budget.pccl.script_memory_size > 0) {
-        bool entry_planned = false;
-        std::string planned;
-        for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
-            if (!planned.empty()) {
-                planned += ", ";
-            }
-            planned += plan.items[i].name;
-            if (plan.items[i].name == manifest.budget.pccl.script_entry) {
-                entry_planned = true;
-            }
-        }
-        if (!entry_planned) {
-            rv_burner_print_error(std::format("[budget.pccl] script_entry '{}' is not among the compiled scripts ({})",
-                manifest.budget.pccl.script_entry,
-                planned));
-            return 1;
-        }
+    const bool entry_ok =
+        manifest.budget.pccl.script_memory_size <= 0 || script_entry_is_planned(plan, manifest.budget.pccl.script_entry);
+    if (!entry_ok) {
+        rv_burner_print_error(std::format("[budget.pccl] script_entry '{}' is not among the compiled scripts ({})",
+            manifest.budget.pccl.script_entry,
+            planned_script_names(plan)));
+        return 1;
     }
 
     // Which of the two a script gets - left as .lua or turned into .luac - is
@@ -386,18 +397,22 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
 
     const fs::path project_dir =
         options.build_dir.empty() ? disc_dir / k_default_build_dir_name : fs::absolute(options.build_dir, ec);
+    if (ec) {
+        rv_burner_print_error(std::format("cannot resolve build directory '{}'", options.build_dir));
+        return 1;
+    }
     const fs::path binary_dir = project_dir / k_binary_subdir;
     const fs::path scripts_dir = project_dir / k_scripts_subdir;
     const fs::path texture_dir = project_dir / k_textures_subdir;
     const fs::path sound_dir = project_dir / k_sounds_subdir;
 
-    fs::create_directories(binary_dir, ec);
-    fs::create_directories(scripts_dir, ec);
-    fs::create_directories(texture_dir, ec);
-    fs::create_directories(sound_dir, ec);
-    if (ec) {
-        rv_burner_print_error(std::format("cannot create build directory '{}'", project_dir.string()));
-        return 1;
+    const std::vector<fs::path> build_dirs{ binary_dir, scripts_dir, texture_dir, sound_dir };
+    for (const auto &dir : build_dirs) {
+        fs::create_directories(dir, ec);
+        if (ec) {
+            rv_burner_print_error(std::format("cannot create build directory '{}'", project_dir.string()));
+            return 1;
+        }
     }
 
     if (rv_burner_build_compile(options,
