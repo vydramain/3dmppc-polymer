@@ -8,6 +8,51 @@
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
+namespace
+{
+// Upload one resource to video memory: allocate, write, free on error.
+// Returns address (>= 0) or error code (< 0).
+int64_t video_asset_upload_(rv_3dmppc::rv_pccv &cv, int64_t size, const rv_texture &tex)
+{
+    const int64_t addr = cv.video_asset_malloc(size);
+    if (addr < 0) {
+        return addr;
+    }
+    const int64_t rc = cv.video_asset_write(addr, &tex);
+    if (rc < 0) {
+        cv.video_asset_free(addr);
+        return rc;
+    }
+    return addr;
+}
+
+// Free video memory if address is valid (0 means no palette).
+void video_asset_release_(rv_3dmppc::rv_pccv &cv, int64_t addr)
+{
+    if (addr == 0) {
+        return;
+    }
+    cv.video_asset_free(addr);
+}
+
+// Upload palette if present, or return 0 if no palette in format.
+// Returns address (> 0), 0 if no palette, or error code (< 0).
+int64_t palette_upload_(rv_3dmppc::rv_pccv &cv, const rv_pdklib::rv_mppctex_header &header, const std::byte *palette)
+{
+    if (header.palette_count <= 0) {
+        return 0;
+    }
+    const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
+    rv_texture pal_tex{};
+    pal_tex.format = RV_TEXFMT_DIRECT15;
+    pal_tex.data = palette;
+    pal_tex.size = static_cast<uint64_t>(palette_bytes);
+    pal_tex.width = static_cast<uint64_t>(header.palette_count);
+    pal_tex.height = 1;
+    return video_asset_upload_(cv, palette_bytes, pal_tex);
+}
+} // anonymous namespace
+
 namespace rv_3dmppc
 {
 
@@ -260,49 +305,22 @@ int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header &header,
     int64_t &tex_addr_out,
     int64_t &pal_addr_out)
 {
-    int64_t pal_addr = 0;
-    if (header.palette_count > 0) {
-        const int64_t palette_bytes = header.palette_count * rv_pdklib::rv_mppctex_palette_entry_bytes;
-        pal_addr = cv_->video_asset_malloc(palette_bytes);
-        if (pal_addr < 0) {
-            return pal_addr;
-        }
-
-        rv_texture pal_tex{};
-        pal_tex.format = RV_TEXFMT_DIRECT15;
-        pal_tex.data = palette;
-        pal_tex.size = static_cast<uint64_t>(palette_bytes);
-        pal_tex.width = static_cast<uint64_t>(header.palette_count);
-        pal_tex.height = 1;
-        const int64_t rc = cv_->video_asset_write(pal_addr, &pal_tex);
-        if (rc < 0) {
-            cv_->video_asset_free(pal_addr);
-            return rc;
-        }
+    const int64_t pal_addr = palette_upload_(*cv_, header, palette);
+    if (pal_addr < 0) {
+        return pal_addr;
     }
 
     const int64_t texel_bytes = rv_pdklib::rv_mppctex_texel_bytes(header);
-    const int64_t tex_addr = cv_->video_asset_malloc(texel_bytes);
-    if (tex_addr < 0) {
-        if (pal_addr != 0) {
-            cv_->video_asset_free(pal_addr);
-        }
-        return tex_addr;
-    }
-
     rv_texture tex{};
     tex.format = header.format;
     tex.data = texels;
     tex.size = static_cast<uint64_t>(texel_bytes);
     tex.width = static_cast<uint64_t>(header.width);
     tex.height = static_cast<uint64_t>(header.height);
-    const int64_t rc = cv_->video_asset_write(tex_addr, &tex);
-    if (rc < 0) {
-        cv_->video_asset_free(tex_addr);
-        if (pal_addr != 0) {
-            cv_->video_asset_free(pal_addr);
-        }
-        return rc;
+    const int64_t tex_addr = video_asset_upload_(*cv_, texel_bytes, tex);
+    if (tex_addr < 0) {
+        video_asset_release_(*cv_, pal_addr);
+        return tex_addr;
     }
 
     tex_addr_out = tex_addr;
@@ -399,6 +417,10 @@ int64_t rv_pccd_fs::texture_resolve_(const char *resname, texture_record *&recor
     int64_t pal_addr = 0;
     const int64_t upload_rc = texture_upload_(header, palette, texels, tex_addr, pal_addr);
     if (upload_rc < 0) {
+        RV_LOG_ERR("pccd",
+            "texture '{}' cannot be made resident: video memory refused it (rv_err {})",
+            rv_pdklib::rv_log_escape(resname),
+            upload_rc);
         return upload_rc;
     }
 
