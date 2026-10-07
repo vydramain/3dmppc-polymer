@@ -75,6 +75,32 @@ constexpr int pins_table_cols = 4;
 // Keys table columns count.
 constexpr int keys_table_cols = 3;
 
+// Value type kind.
+enum class value_kind {
+    boolean,
+    string,
+    table,
+    number,
+    unknown
+};
+
+// Map Lua type names to value kinds.
+constexpr std::array<std::pair<std::string_view, value_kind>, 4> value_kind_map = { { { type_boolean, value_kind::boolean },
+    { type_string, value_kind::string },
+    { type_table, value_kind::table },
+    { type_number, value_kind::number } } };
+
+// Find value kind by type name.
+value_kind find_value_kind(std::string_view type)
+{
+    for (const auto &[type_str, kind] : value_kind_map) {
+        if (type_str == type) {
+            return kind;
+        }
+    }
+    return value_kind::unknown;
+}
+
 } // namespace
 
 void rv_editor_dim(const std::string &text)
@@ -147,21 +173,21 @@ std::string rv_editor_value_text(const rv_editor_answer &a)
     if (field(field_found) != protocol_value_true) {
         return rv_editor_text("pane_observe.value_absent");
     }
-    if (type == type_boolean) {
+    switch (find_value_kind(type)) {
+    case value_kind::boolean:
         return field(field_value) == protocol_value_true ? rv_editor_text("pane_observe.value_true") :
                                                            rv_editor_text("pane_observe.value_false");
-    }
-    if (type == type_string) {
+    case value_kind::string:
         return "\"" + rv_editor_hex_decode(field(field_value)) + "\"";
-    }
-    if (type == type_table) {
+    case value_kind::table: {
         const std::string &count = field(field_count);
         return rv_editor_text_format("pane_observe.value_table", std::make_format_args(count));
     }
-    if (type == type_number) {
+    case value_kind::number:
         return field(field_value);
+    case value_kind::unknown:
+        return type;
     }
-    return type;
 }
 
 // When an answer was true: the frame it saw on a paused machine, otherwise the
@@ -206,15 +232,19 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
         rv_editor_key_row row;
         row.type = entry.substr(colon + 1);
         const std::string key = entry.substr(1, colon - 1);
-        if (entry[0] == protocol_key_type_string) {
+        switch (entry[0]) {
+        case protocol_key_type_string: {
             row.shown = rv_editor_hex_decode(key);
             // The channel splits a request at spaces: such a key cannot be asked for.
             const bool plain = !row.shown.empty() && row.shown.find_first_of(delim_whitespace) == std::string::npos;
             row.name = plain ? row.shown : std::string();
-        } else if (entry[0] == protocol_key_type_index) {
+            break;
+        }
+        case protocol_key_type_index:
             row.shown = "[" + key + "]";
             row.name = key;
-        } else {
+            break;
+        default:
             row.shown = rv_editor_text("pane_observe.value_unknown_key");
         }
         rows.push_back(row);
