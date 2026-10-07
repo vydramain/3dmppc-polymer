@@ -77,20 +77,24 @@ void rv_editor_nvim_draw_grid(const rv_editor_nvim_screen &screen,
     const ImVec2 p0(at.x + grid.cursor_col * cell.x, at.y + grid.cursor_row * cell.y);
     // The shape nvim gives the current mode (guicursor, mode_info_set).
     const rv_editor_nvim_cursor shape = screen.cursor_shape();
-    if (shape.kind == rv_editor_nvim_cursor_kind::vertical) {
+    switch (shape.kind) {
+    case rv_editor_nvim_cursor_kind::vertical: {
         const float w = std::max(cursor_min_dimension_px,
             std::floor(cell.x * static_cast<float>(shape.percent) / cursor_shape_percent_scale));
         dl->AddRectFilled(p0, ImVec2(p0.x + w, p0.y + cell.y), rv_editor_rgb(fg));
         return;
     }
-    if (shape.kind == rv_editor_nvim_cursor_kind::horizontal) {
+    case rv_editor_nvim_cursor_kind::horizontal: {
         const float h = std::max(cursor_min_dimension_px,
             std::floor(cell.y * static_cast<float>(shape.percent) / cursor_shape_percent_scale));
         dl->AddRectFilled(ImVec2(p0.x, p0.y + cell.y - h), ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
         return;
     }
-    dl->AddRectFilled(p0, ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
-    dl->AddText(p0, rv_editor_rgb(bg), under.text.c_str());
+    case rv_editor_nvim_cursor_kind::block:
+        dl->AddRectFilled(p0, ImVec2(p0.x + cell.x, p0.y + cell.y), rv_editor_rgb(fg));
+        dl->AddText(p0, rv_editor_rgb(bg), under.text.c_str());
+        break;
+    }
 }
 
 // Floating grids sorted by zindex, shifted and clipped to tile bounds.

@@ -72,4 +72,17 @@ private:
 // Nesting deeper than 64 levels is refused as malformed.
 ptrdiff_t rv_editor_mpack_read(std::string_view data, rv_editor_mpack &value);
 
+// nvim sends integers as int or ext; anything else reads as 0.
+inline int32_t rv_editor_int(const rv_editor_mpack &v)
+{
+    return v.is(rv_editor_mpack::rv_editor_mpack_type::integer) || v.is(rv_editor_mpack::rv_editor_mpack_type::ext) ?
+        static_cast<int32_t>(v.i) :
+        0;
+}
+
+inline double rv_editor_real_or_int(const rv_editor_mpack &v)
+{
+    return v.is(rv_editor_mpack::rv_editor_mpack_type::real) ? v.d : static_cast<double>(rv_editor_int(v));
+}
+
 } // namespace rv_editor

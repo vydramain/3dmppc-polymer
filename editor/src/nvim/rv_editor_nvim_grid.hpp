@@ -124,6 +124,19 @@ private:
     void grid_line(const rv_editor_mpack &args);
     void grid_scroll(const rv_editor_mpack &args);
     void grid_resize(int32_t id, int32_t w, int32_t h);
+    void on_grid_resize(const rv_editor_mpack &args);
+    void on_grid_clear(const rv_editor_mpack &args);
+    void on_grid_cursor_goto(const rv_editor_mpack &args);
+    void on_grid_destroy(const rv_editor_mpack &args);
+    void on_win_float_pos(const rv_editor_mpack &args);
+    void on_win_pos(const rv_editor_mpack &args);
+    void on_win_hidden(const rv_editor_mpack &args);
+    void on_msg_set_pos(const rv_editor_mpack &args);
+    void on_hl_attr_define(const rv_editor_mpack &args);
+    void on_default_colors_set(const rv_editor_mpack &args);
+    void on_mode_info_set(const rv_editor_mpack &args);
+    void on_mode_change(const rv_editor_mpack &args);
+    void on_flush(const rv_editor_mpack &args);
 
     std::map<int32_t, rv_editor_nvim_grid> grids_;
     std::map<int32_t, rv_editor_nvim_attr> attrs_;
