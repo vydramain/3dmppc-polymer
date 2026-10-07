@@ -92,20 +92,21 @@ void rv_editor_app_init(rv_editor_app &app)
 {
     app.tools = rv_editor_toolchain_find();
     if (!app.tools.settings_error.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.tools.settings_error);
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.tools.settings_error);
     }
     rv_editor_app_tool_note(app, "runtime", app.tools.console);
     rv_editor_app_tool_note(app, "burner", app.tools.burner);
     rv_editor_app_tool_note(app, "baker", app.tools.baker);
 }
 
-bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
+int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
 {
     std::string error;
     rv_editor_project project;
-    if (rv_editor_project_open(target, project, error) != RV_OK) {
+    const int err = rv_editor_project_open(target, project, error);
+    if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
-        return false;
+        return err;
     }
     app.project = std::move(project);
     // Candidates, Observe's pins and findings belong to the project they came from.
@@ -120,7 +121,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     std::vector<std::string> unread;
     app.release.candidates = rv_editor_candidates_load(app.project.cache_dir / std::string(candidates_dir_name), unread);
     for (const std::string &why : unread) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "candidate record not read: " + why);
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "candidate record not read: " + why);
     }
     // Their identity is checked again: the bytes may have changed while no window watched.
     for (rv_editor_candidate &c : app.release.candidates) {
@@ -130,16 +131,16 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     rv_editor_app_scene_first(app);
     app.run_config = rv_editor_run_config_load(app.project.root);
     if (!app.run_config.error.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.run_config.error);
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.run_config.error);
     }
     app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
     ++app.run_config_revision;
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "opened " + app.project.root.string());
     rv_editor_recent_add(app.project.root);
     if (!app.project.manifest_error.empty()) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, app.project.manifest_error);
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.project.manifest_error);
     }
-    return true;
+    return RV_OK;
 }
 
 std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app)

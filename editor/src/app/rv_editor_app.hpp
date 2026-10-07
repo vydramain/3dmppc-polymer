@@ -390,8 +390,8 @@ void rv_editor_app_profiles_save(rv_editor_app &app);
 void rv_editor_app_init(rv_editor_app &app);
 
 // Opens a game directory or its disc.toml. A running session and build keep
-// running on the project they started with until they end.
-bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target);
+// running on the project they started with until they end. RV_OK on success, RV_ERR_* on failure.
+int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target);
 
 // Why each action cannot run now, or nullptr when it can. The text
 // lives until the next change to `app`.

@@ -44,7 +44,7 @@ std::string rv_editor_buffer_label(const rv_editor_app &app, const std::string &
 void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::path &path)
 {
     rv_editor_app &app = shell.app;
-    if (!rv_editor_app_open(app, path)) {
+    if (rv_editor_app_open(app, path) != RV_OK) {
         return;
     }
     std::string project_name;
