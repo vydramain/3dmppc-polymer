@@ -179,6 +179,9 @@ private:
     // to the clock, because the two are the same fact seen twice.
     bool run_hold_paused(run_state &run);
 
+    // Show the pause overlay (build once, present every slice).
+    void run_show_pause();
+
     // One frame of the machine: update, render, present, and the audio of
     // exactly that step.
     void run_frame(rv_de *disc, run_state &run);
