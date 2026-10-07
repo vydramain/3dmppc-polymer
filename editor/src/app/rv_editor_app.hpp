@@ -468,9 +468,10 @@ void rv_editor_app_release_changed(rv_editor_app &app);
 int rv_editor_app_run(rv_editor_app &app);
 // Runs the last successful build after a later build failed. Returns RV_OK or RV_ERR_*.
 int rv_editor_app_run_last(rv_editor_app &app);
-void rv_editor_app_pause(rv_editor_app &app);
-void rv_editor_app_step(rv_editor_app &app);
-void rv_editor_app_stop(rv_editor_app &app);
+// RV_OK or the session's RV_ERR_* code.
+int rv_editor_app_pause(rv_editor_app &app);
+int rv_editor_app_step(rv_editor_app &app);
+int rv_editor_app_stop(rv_editor_app &app);
 void rv_editor_app_reload(rv_editor_app &app);
 
 // Renames or deletes inside the project; RV_OK or RV_ERR_* with the reason in error.

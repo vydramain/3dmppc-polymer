@@ -203,8 +203,7 @@ int rv_editor_app_run(rv_editor_app &app)
         return RV_ERR_BUSY;
     }
     if (app.session.state() == rv_editor_run_state::paused) {
-        app.session.resume(app.log);
-        return RV_OK;
+        return app.session.resume(app.log);
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::run;
@@ -259,19 +258,19 @@ int rv_editor_app_run_last(rv_editor_app &app)
     return rv_editor_app_start(app, artifact);
 }
 
-void rv_editor_app_pause(rv_editor_app &app)
+int rv_editor_app_pause(rv_editor_app &app)
 {
-    app.session.pause(app.log);
+    return app.session.pause(app.log);
 }
 
-void rv_editor_app_step(rv_editor_app &app)
+int rv_editor_app_step(rv_editor_app &app)
 {
-    app.session.step(app.log);
+    return app.session.step(app.log);
 }
 
-void rv_editor_app_stop(rv_editor_app &app)
+int rv_editor_app_stop(rv_editor_app &app)
 {
-    app.session.stop(app.log);
+    return app.session.stop(app.log);
 }
 
 int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error)
