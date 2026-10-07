@@ -191,6 +191,18 @@ void table_children(lua_State *L, int idx, std::vector<rv_pccl_key> &out)
         lua_pop(L, 1); // the value; the key stays for the next lua_next
     }
 }
+
+// Log a path size error for state_get/state_keys.
+void log_state_path_error(const char *func_name, std::size_t path_size, std::size_t min_parts)
+{
+    RV_LOG_ERR("pccl", "{}: path has {} parts, expected {}..{}", func_name, path_size, min_parts, RV_PCCL_STATE_PATH_MAX);
+}
+
+// Log a memory error for state_get/state_keys.
+void log_state_memory_error(const char *func_name)
+{
+    RV_LOG_ERR("pccl", "{}: out of memory reading the path", func_name);
+}
 } // namespace
 
 // RAW walk from the persistent state table, one rawget per segment. No
@@ -245,6 +257,7 @@ int64_t rv_pccl_luajit::state_get(const std::vector<std::string> &path, rv_pccl_
 {
     out = rv_pccl_value{};
     if (path.empty() || path.size() > RV_PCCL_STATE_PATH_MAX) {
+        log_state_path_error("state get", path.size(), 1);
         return RV_ERR_INVAL;
     }
     [[maybe_unused]] const int top = lua_gettop(L_);
@@ -257,6 +270,7 @@ int64_t rv_pccl_luajit::state_get(const std::vector<std::string> &path, rv_pccl_
     if (protected_call_(state_walk_trampoline_, &args) != 0) {
         // The heap is out; `out` is whatever the walk had filled in, so it is
         // reset rather than half-reported.
+        log_state_memory_error("state get");
         out = rv_pccl_value{};
         lua_pop(L_, 1);
         assert(lua_gettop(L_) == top);
@@ -271,6 +285,7 @@ int64_t rv_pccl_luajit::state_keys(const std::vector<std::string> &path, rv_pccl
     target = rv_pccl_value{};
     out.clear();
     if (path.size() > RV_PCCL_STATE_PATH_MAX) {
+        log_state_path_error("state keys", path.size(), 0);
         return RV_ERR_INVAL;
     }
     [[maybe_unused]] const int top = lua_gettop(L_);
@@ -282,6 +297,7 @@ int64_t rv_pccl_luajit::state_keys(const std::vector<std::string> &path, rv_pccl
     args.keys = &out;
 
     if (protected_call_(state_walk_trampoline_, &args) != 0) {
+        log_state_memory_error("state keys");
         target = rv_pccl_value{};
         out.clear();
         lua_pop(L_, 1);
