@@ -190,46 +190,92 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
     }
 }
 
-void rv_editor_session::pause(rv_editor_log &log)
+int rv_editor_session::pause(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::running && proc_.running() && send(std::string(cmd_pause), log) != 0) {
-        state_ = rv_editor_run_state::pausing;
+    const bool can_pause = state_ == rv_editor_run_state::running && proc_.running();
+    if (!can_pause) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "not paused: the runtime is not running",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
+        return RV_ERR_BUSY;
     }
+    const int64_t send_result = send(std::string(cmd_pause), log);
+    if (send_result == 0) {
+        return RV_ERR_IO;
+    }
+    state_ = rv_editor_run_state::pausing;
+    return RV_OK;
 }
 
-void rv_editor_session::resume(rv_editor_log &log)
+int rv_editor_session::resume(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && proc_.running() && send(std::string(cmd_resume), log) != 0) {
-        state_ = rv_editor_run_state::resuming;
+    const bool can_resume = state_ == rv_editor_run_state::paused && proc_.running();
+    if (!can_resume) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "not resumed: the runtime is not paused",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
+        return RV_ERR_BUSY;
     }
+    const int64_t send_result = send(std::string(cmd_resume), log);
+    if (send_result == 0) {
+        return RV_ERR_IO;
+    }
+    state_ = rv_editor_run_state::resuming;
+    return RV_OK;
 }
 
-void rv_editor_session::step(rv_editor_log &log)
+int rv_editor_session::step(rv_editor_log &log)
 {
-    if (state_ == rv_editor_run_state::paused && proc_.running() && send(std::string(cmd_step), log) != 0) {
-        state_ = rv_editor_run_state::stepping;
+    const bool can_step = state_ == rv_editor_run_state::paused && proc_.running();
+    if (!can_step) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "not stepped: the runtime is not paused",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
+        return RV_ERR_BUSY;
     }
+    const int64_t send_result = send(std::string(cmd_step), log);
+    if (send_result == 0) {
+        return RV_ERR_IO;
+    }
+    state_ = rv_editor_run_state::stepping;
+    return RV_OK;
 }
 
-void rv_editor_session::stop(rv_editor_log &log)
+int rv_editor_session::stop(rv_editor_log &log)
 {
     if (!proc_.running() || quit_sent_) {
-        return;
+        return RV_OK;
     }
     quit_sent_ = true;
     stop_sent_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::stopping;
-    if (send(std::string(cmd_quit), log) == 0 && !proc_.stdin_open()) {
+    const int64_t send_result = send(std::string(cmd_quit), log);
+    const bool quit_sent = send_result != 0;
+    const bool stdin_open = proc_.stdin_open();
+    if (!quit_sent && stdin_open) {
+        return RV_ERR_BUSY;
+    }
+    if (!quit_sent) {
         // Nobody reads the channel any more: the process can only be ended. One
         // that only stopped reading shows as hung and gets Force Stop.
-        force_stop(log);
+        return force_stop(log);
     }
+    return RV_OK;
 }
 
-void rv_editor_session::force_stop(rv_editor_log &log)
+int rv_editor_session::force_stop(rv_editor_log &log)
 {
     if (!proc_.running()) {
-        return;
+        return RV_OK;
     }
     forced_ = true;
     log.add(rv_editor_log_source::editor,
@@ -238,7 +284,17 @@ void rv_editor_session::force_stop(rv_editor_log &log)
         rv_editor_log_channel::none,
         proc_.pid(),
         number_);
-    proc_.stop(true);
+    const int stop_result = proc_.stop(true);
+    if (stop_result != RV_OK) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "cannot force-stop runtime pid " + std::to_string(proc_.pid()) + ": the signal was not delivered",
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
+        return stop_result;
+    }
+    return RV_OK;
 }
 
 void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)

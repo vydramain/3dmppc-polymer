@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "log/rv_editor_log.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_version/rv_version.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "platform/rv_editor_shm.hpp"
@@ -117,13 +118,14 @@ public:
         rv_editor_log &log,
         std::string &error);
 
-    void pause(rv_editor_log &log);
-    void resume(rv_editor_log &log);
-    void step(rv_editor_log &log);
-    // `quit`, then waits for the process to end.
-    void stop(rv_editor_log &log);
+    // RV_OK on success; RV_ERR_BUSY if the runtime is not in the right state, RV_ERR_IO if send fails.
+    int pause(rv_editor_log &log);
+    int resume(rv_editor_log &log);
+    int step(rv_editor_log &log);
+    // `quit`, then waits for the process to end. RV_OK on success, RV_ERR_BUSY if send blocked and stdin open.
+    int stop(rv_editor_log &log);
     // SIGKILL to a process this session owns, for one that does not end.
-    void force_stop(rv_editor_log &log);
+    int force_stop(rv_editor_log &log);
     // Asks `request` ("get a b", "keys a"); the answer lands in answers() under the
     // same text. 0 when nothing was sent.
     int64_t query(const std::string &request, rv_editor_log &log);
