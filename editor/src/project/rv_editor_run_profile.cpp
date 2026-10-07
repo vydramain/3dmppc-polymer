@@ -68,6 +68,29 @@ constexpr char section_close = ']';
 constexpr std::string_view key_value_sep = " = ";
 constexpr char line_end = '\n';
 
+// String fields of run profile: paths and workspace configuration.
+struct run_text_field {
+    std::string_view key;
+    std::string rv_editor_run_profile::*ptr;
+};
+constexpr std::array<run_text_field, 3> run_text_fields = { {
+    { key_runtime, &rv_editor_run_profile::runtime },
+    { key_memcard, &rv_editor_run_profile::memcard },
+    { key_cwd, &rv_editor_run_profile::cwd },
+} };
+
+// Flag fields of run profile: console options and launch behavior.
+struct run_flag_field {
+    std::string_view key;
+    bool rv_editor_run_profile::*ptr;
+};
+constexpr std::array<run_flag_field, 4> run_flag_fields = { {
+    { key_mute, &rv_editor_run_profile::mute },
+    { key_paused, &rv_editor_run_profile::paused },
+    { key_fixed_step, &rv_editor_run_profile::fixed_step },
+    { key_reload_on_save, &rv_editor_run_profile::reload_on_save },
+} };
+
 std::filesystem::path rv_editor_run_config_path(const std::filesystem::path &root)
 {
     return root / run_config_dir / run_config_file;
@@ -87,6 +110,41 @@ std::string rv_editor_run_array(const std::vector<std::string> &items)
     return out;
 }
 
+// Text field from TOML string value: runtime, memcard, cwd.
+void rv_editor_run_text_field(rv_editor_run_profile &p, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    const std::string &s = e.value.str;
+    for (const auto &f : run_text_fields) {
+        if (e.key == f.key) {
+            p.*f.ptr = s;
+            return;
+        }
+    }
+}
+
+// Flag field from TOML integer value: mute/paused/fixed_step/reload_on_save.
+void rv_editor_run_flag_field(rv_editor_run_profile &p, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    for (const auto &f : run_flag_fields) {
+        if (e.key == f.key) {
+            p.*f.ptr = e.value.num != 0;
+            return;
+        }
+    }
+}
+
+// Array field from TOML array value: args or env.
+void rv_editor_run_array_field(rv_editor_run_profile &p, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    if (e.key == key_args) {
+        p.args = e.value.arr;
+        return;
+    }
+    if (e.key == key_env) {
+        p.env = e.value.arr;
+    }
+}
+
 // A profile name is a section name: letters, digits, '-' and '_'.
 bool rv_editor_run_name_ok(std::string_view name)
 {
@@ -98,38 +156,15 @@ bool rv_editor_run_name_ok(std::string_view name)
 void rv_editor_run_read_entry(rv_editor_run_profile &p, const rv_pdklib::rv_manifest_tree_entry &e)
 {
     using kind = rv_pdklib::rv_manifest_value_kind;
-    const rv_pdklib::rv_manifest_mvalue &v = e.value;
-    if (v.kind == kind::string) {
-        std::string *field = nullptr;
-        if (e.key == key_runtime) {
-            field = &p.runtime;
-        } else if (e.key == key_memcard) {
-            field = &p.memcard;
-        } else if (e.key == key_cwd) {
-            field = &p.cwd;
-        }
-        if (field != nullptr) {
-            *field = v.str;
-        }
-    } else if (v.kind == kind::integer) {
-        bool *flag = nullptr;
-        if (e.key == key_mute) {
-            flag = &p.mute;
-        } else if (e.key == key_paused) {
-            flag = &p.paused;
-        } else if (e.key == key_fixed_step) {
-            flag = &p.fixed_step;
-        } else if (e.key == key_reload_on_save) {
-            flag = &p.reload_on_save;
-        }
-        if (flag != nullptr) {
-            *flag = v.num != 0;
-        }
-    } else if (e.key == key_args) {
-        p.args = v.arr;
-    } else if (e.key == key_env) {
-        p.env = v.arr;
+    if (e.value.kind == kind::string) {
+        rv_editor_run_text_field(p, e);
+        return;
     }
+    if (e.value.kind == kind::integer) {
+        rv_editor_run_flag_field(p, e);
+        return;
+    }
+    rv_editor_run_array_field(p, e);
 }
 
 } // namespace
