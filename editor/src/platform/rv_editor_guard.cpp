@@ -44,7 +44,7 @@ bool rv_editor_guard_failed = false;
 bool rv_editor_guard_write_error_printed = false;
 
 // Kill process groups: SIGTERM first (build tool stops child jobs), wait, then SIGKILL.
-void rv_editor_kill_groups(const std::set<pid_t> &groups, int exit_code)
+[[noreturn]] void rv_editor_kill_groups(const std::set<pid_t> &groups, int exit_code)
 {
     for (pid_t group : groups) {
         ::kill(-group, SIGTERM);
@@ -56,8 +56,34 @@ void rv_editor_kill_groups(const std::set<pid_t> &groups, int exit_code)
     ::_exit(exit_code);
 }
 
+// Send add or remove command to guard: "a<10-digit-pid>\n" or "r<10-digit-pid>\n".
+void rv_editor_guard_send(char cmd, pid_t group)
+{
+    if (rv_editor_guard_failed || rv_editor_guard_write_fd < 0) {
+        return;
+    }
+
+    char buf[guard_snprintf_buf_size];
+    // Format: %010ld gives 10 digits (guard_record_newline_pos - guard_record_pid_offset)
+    const int len = std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", cmd, static_cast<long>(group), guard_record_end);
+    if (len != guard_record_size) {
+        return;
+    }
+
+    const ssize_t write_result = ::write(rv_editor_guard_write_fd, buf, guard_record_size);
+    if (write_result == guard_record_size) {
+        return;
+    }
+
+    const bool should_print = errno != EPIPE && !rv_editor_guard_write_error_printed;
+    if (should_print) {
+        std::fprintf(stderr, "3dmppc-editor: guard write failed: %s\n", std::strerror(errno));
+        rv_editor_guard_write_error_printed = true;
+    }
+}
+
 // Guard loop: read "a<pid>\n" and "r<pid>\n" records, kill all groups on EOF.
-void rv_editor_guard_loop(int read_fd)
+[[noreturn]] void rv_editor_guard_loop(int read_fd)
 {
     std::set<pid_t> groups;
 
@@ -70,11 +96,13 @@ void rv_editor_guard_loop(int read_fd)
             rv_editor_kill_groups(groups, 0);
         }
 
+        // A signal interrupted the read: try again.
+        const bool interrupted = n < 0 && errno == EINTR;
+        if (interrupted) {
+            continue;
+        }
         // Read error other than EINTR: assume editor crashed, clean up.
         if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
             rv_editor_kill_groups(groups, 1);
         }
 
@@ -90,10 +118,13 @@ void rv_editor_guard_loop(int read_fd)
         }
         const pid_t pid = static_cast<pid_t>(pid_val);
 
-        if (buf[0] == guard_cmd_add) {
+        switch (buf[0]) {
+        case guard_cmd_add:
             groups.insert(pid);
-        } else {
+            break;
+        case guard_cmd_remove:
             groups.erase(pid);
+            break;
         }
     }
 }
@@ -136,7 +167,6 @@ void rv_editor_guard_start()
         std::signal(SIGPIPE, SIG_IGN);
 
         rv_editor_guard_loop(fds[0]);
-        ::_exit(1);
     }
 
     // Editor process: close read end, set close-on-exec on write end.
@@ -155,47 +185,13 @@ void rv_editor_guard_start()
 // Register a process group with the guard.
 void rv_editor_guard_add(pid_t group)
 {
-    if (rv_editor_guard_failed || rv_editor_guard_write_fd < 0) {
-        return;
-    }
-
-    char buf[guard_snprintf_buf_size];
-    // Format: %010ld gives 10 digits (guard_record_newline_pos - guard_record_pid_offset)
-    const int len =
-        std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_add, static_cast<long>(group), guard_record_end);
-    if (len != guard_record_size) {
-        return;
-    }
-
-    if (::write(rv_editor_guard_write_fd, buf, guard_record_size) != guard_record_size) {
-        if (errno != EPIPE && !rv_editor_guard_write_error_printed) {
-            std::fprintf(stderr, "3dmppc-editor: guard write failed: %s\n", std::strerror(errno));
-            rv_editor_guard_write_error_printed = true;
-        }
-    }
+    rv_editor_guard_send(guard_cmd_add, group);
 }
 
 // Unregister a process group from the guard.
 void rv_editor_guard_remove(pid_t group)
 {
-    if (rv_editor_guard_failed || rv_editor_guard_write_fd < 0) {
-        return;
-    }
-
-    char buf[guard_snprintf_buf_size];
-    // Format: %010ld gives 10 digits (guard_record_newline_pos - guard_record_pid_offset)
-    const int len =
-        std::snprintf(buf, guard_snprintf_buf_size, "%c%010ld%c", guard_cmd_remove, static_cast<long>(group), guard_record_end);
-    if (len != guard_record_size) {
-        return;
-    }
-
-    if (::write(rv_editor_guard_write_fd, buf, guard_record_size) != guard_record_size) {
-        if (errno != EPIPE && !rv_editor_guard_write_error_printed) {
-            std::fprintf(stderr, "3dmppc-editor: guard write failed: %s\n", std::strerror(errno));
-            rv_editor_guard_write_error_printed = true;
-        }
-    }
+    rv_editor_guard_send(guard_cmd_remove, group);
 }
 
 } // namespace rv_editor
