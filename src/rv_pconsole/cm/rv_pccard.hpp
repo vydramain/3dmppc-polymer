@@ -11,6 +11,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -99,6 +100,37 @@ private:
     // or RV_ERR_INVAL for a file that exists and cannot be trusted. A missing file yields
     // a freshly formatted RAM image and returns RV_OK.
     int load();
+
+    // Read entire file of `want` bytes into `out`, or return error.
+    int read_full(int64_t want, std::vector<uint8_t> &out, const std::filesystem::path &path);
+
+    // Move old image aside and log the refusal.
+    int set_aside(uint32_t old_version, const std::filesystem::path &path, std::string &aside_path);
+
+    // Load a same-major older-minor compatible image (restamp to current version in RAM).
+    int load_compatible_(uint32_t version,
+        int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        int64_t expected,
+        const std::filesystem::path &path);
+
+    // Load an older-major image (migrate layout to current version, set old file aside, flush).
+    int load_migrate_(uint32_t version,
+        int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        const std::filesystem::path &path);
+
+    // Handle an incompatible image (newer major or same major newer minor).
+    int load_incompatible_(uint32_t version, const std::filesystem::path &path);
+
+    // Load a current-version image (validate geometry and size, read and check slots).
+    int load_current_(int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        int64_t expected,
+        const std::filesystem::path &path);
 
     // Writes image_ out atomically (temp file + fsync + rename). Returns RV_OK or RV_ERR_IO.
     int flush();

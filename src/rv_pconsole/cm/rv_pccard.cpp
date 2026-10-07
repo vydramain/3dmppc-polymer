@@ -74,6 +74,258 @@ void rv_pccard::format_empty()
     }
 }
 
+int rv_pccard::read_full(int64_t want, std::vector<uint8_t> &out, const std::filesystem::path &path)
+{
+    out.assign(static_cast<size_t>(want), 0);
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        RV_LOG_ERR(RV_PCCARD_TAG, "cannot open image '{}' for reading", image_path_);
+        return RV_ERR_IO;
+    }
+    in.read(reinterpret_cast<char *>(out.data()), static_cast<std::streamsize>(want));
+    if (in.gcount() != static_cast<std::streamsize>(want)) {
+        RV_LOG_ERR(RV_PCCARD_TAG, "short read on image '{}'", image_path_);
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+int rv_pccard::set_aside(uint32_t old_version, const std::filesystem::path &path, std::string &aside_path)
+{
+    // Moves the file aside as "<image>.<M.m>" of `old_version`. Shared by the
+    // "cannot know this layout" refusal and the older-major migration below.
+    aside_path = image_path_ + "." + rv_pccard_version_text(old_version);
+    std::error_code aside_ec;
+    if (std::filesystem::exists(aside_path, aside_ec) || aside_ec) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' has version {}, this console speaks {} - refusing "
+            "('{}' already exists)",
+            image_path_,
+            rv_pccard_version_text(old_version),
+            rv_pccard_version_text(RV_PCCARD_VERSION),
+            aside_path);
+        return RV_ERR_INVAL;
+    }
+    std::filesystem::rename(path, aside_path, aside_ec);
+    if (aside_ec) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' has version {}, this console speaks {} - refusing "
+            "(could not set it aside as '{}': {})",
+            image_path_,
+            rv_pccard_version_text(old_version),
+            rv_pccard_version_text(RV_PCCARD_VERSION),
+            aside_path,
+            aside_ec.message());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+int rv_pccard::load_compatible_(uint32_t version,
+    int64_t file_slots,
+    int64_t file_slot_size,
+    uintmax_t on_disk,
+    int64_t expected,
+    const std::filesystem::path &path)
+{
+    // Same major, older minor: this console's layout can still read it. The
+    // header is restamped to this console's version in RAM; it only reaches
+    // disk on the next actual write.
+    if (file_slots != slot_count_ || file_slot_size != slot_size_) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' holds {}x{} byte slots, this console has {}x{} - refusing",
+            image_path_,
+            file_slots,
+            file_slot_size,
+            slot_count_,
+            slot_size_);
+        return RV_ERR_INVAL;
+    }
+    if (on_disk != static_cast<uintmax_t>(expected)) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' is {} byte(s), expected {} - refusing to touch it",
+            image_path_,
+            static_cast<int64_t>(on_disk),
+            expected);
+        return RV_ERR_INVAL;
+    }
+    std::vector<uint8_t> buffer;
+    const int ec_read = read_full(expected, buffer, path);
+    if (ec_read != RV_OK) {
+        return ec_read;
+    }
+    for (int64_t i = 0; i < slot_count_; ++i) {
+        const int64_t length = get_i64(buffer.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY);
+        if (length < -1 || length > slot_size_) {
+            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) - corrupt", image_path_, i, length);
+            return RV_ERR_INVAL;
+        }
+    }
+    put_u32(buffer.data() + HEADER_OFFSET_VERSION, RV_PCCARD_VERSION);
+    image_ = std::move(buffer);
+    RV_LOG_INFO(RV_PCCARD_TAG,
+        "card image '{}' was version {}, restamped to {} ({} slot(s) of {} byte(s))",
+        image_path_,
+        rv_pccard_version_text(version),
+        rv_pccard_version_text(RV_PCCARD_VERSION),
+        slot_count_,
+        slot_size_);
+    return RV_OK;
+}
+
+int rv_pccard::load_migrate_(uint32_t version,
+    int64_t file_slots,
+    int64_t file_slot_size,
+    uintmax_t on_disk,
+    const std::filesystem::path &path)
+{
+    // Older major: sanity-check the old header's own geometry before
+    // trusting it for a read size (see rv_pccard_version.cpp for the
+    // migration itself).
+    if (file_slots <= 0 || file_slot_size <= 0 || file_slots > RV_PCCARD_MAX_IMAGE_BYTES / RV_PCCARD_LENGTH_ENTRY ||
+        file_slot_size > (RV_PCCARD_MAX_IMAGE_BYTES - RV_PCCARD_HEADER_SIZE) / file_slots) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' claims {}x{} byte slots - corrupt, refusing",
+            image_path_,
+            file_slots,
+            file_slot_size);
+        return RV_ERR_INVAL;
+    }
+    const int64_t old_payload_offset = RV_PCCARD_HEADER_SIZE + file_slots * RV_PCCARD_LENGTH_ENTRY;
+    const int64_t old_expected = old_payload_offset + file_slots * file_slot_size;
+    if (on_disk != static_cast<uintmax_t>(old_expected)) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' is {} byte(s), expected {} for its own {}x{} geometry - "
+            "corrupt, refusing",
+            image_path_,
+            static_cast<int64_t>(on_disk),
+            old_expected,
+            file_slots,
+            file_slot_size);
+        return RV_ERR_INVAL;
+    }
+    std::vector<uint8_t> old_buffer;
+    const int ec_read = read_full(old_expected, old_buffer, path);
+    if (ec_read != RV_OK) {
+        return ec_read;
+    }
+
+    std::string migrate_error;
+    std::vector<std::string> dropped;
+    std::vector<uint8_t> migrated = rv_pccard_migrate(old_buffer,
+        file_slots,
+        file_slot_size,
+        old_payload_offset,
+        slot_count_,
+        slot_size_,
+        payload_offset_,
+        RV_PCCARD_VERSION,
+        migrate_error,
+        dropped);
+    if (!migrate_error.empty()) {
+        RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' {} - refusing", image_path_, migrate_error);
+        return RV_ERR_INVAL;
+    }
+
+    std::string aside_path;
+    const int ec_aside = set_aside(version, path, aside_path);
+    if (ec_aside != RV_OK) {
+        return ec_aside;
+    }
+    image_ = std::move(migrated);
+    const int ec_flush = flush();
+    if (ec_flush != RV_OK) {
+        // Aside already happened; a crash between here and the next save
+        // must not leave the card missing entirely, only unwritten - retry
+        // the write, do not fall back to refusing after the old file is gone.
+        RV_LOG_ERR(RV_PCCARD_TAG, "migrated '{}' but could not write the new image - retry the save", image_path_);
+        return ec_flush;
+    }
+    for (const auto &line : dropped) {
+        RV_LOG_WARN(RV_PCCARD_TAG, "migrating '{}': {}", aside_path, line);
+    }
+    RV_LOG_INFO(RV_PCCARD_TAG,
+        "migrated '{}' from version {} to {}: {} slot(s) of {} byte(s), {} dropped, "
+        "old image kept as '{}'",
+        image_path_,
+        rv_pccard_version_text(version),
+        rv_pccard_version_text(RV_PCCARD_VERSION),
+        slot_count_,
+        slot_size_,
+        dropped.size(),
+        aside_path);
+    return RV_OK;
+}
+
+int rv_pccard::load_incompatible_(uint32_t version, const std::filesystem::path &path)
+{
+    // Newer major, or same major with a newer minor: this console cannot
+    // know that layout. Set the old file aside by name and start empty
+    // rather than refuse to boot; a failed rename keeps the refusal so
+    // nothing is silently overwritten.
+    std::string aside_path;
+    const int ec_aside = set_aside(version, path, aside_path);
+    if (ec_aside != RV_OK) {
+        return ec_aside;
+    }
+    RV_LOG_INFO(RV_PCCARD_TAG,
+        "image '{}' has version {}, this console speaks {} - set aside as '{}', "
+        "card starts empty",
+        image_path_,
+        rv_pccard_version_text(version),
+        rv_pccard_version_text(RV_PCCARD_VERSION),
+        aside_path);
+    format_empty();
+    return RV_OK;
+}
+
+int rv_pccard::load_current_(int64_t file_slots,
+    int64_t file_slot_size,
+    uintmax_t on_disk,
+    int64_t expected,
+    const std::filesystem::path &path)
+{
+    if (on_disk != static_cast<uintmax_t>(expected)) {
+        // Truncated, padded, or written by a console with a different geometry.
+        // Either way these bytes are somebody's saves: refuse the medium rather
+        // than reformat it. A card that answers RV_ERR_IO is recoverable by
+        // moving the file aside; one that was silently reformatted is not.
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' is {} byte(s), expected {} - refusing to touch it",
+            image_path_,
+            static_cast<int64_t>(on_disk),
+            expected);
+        return RV_ERR_INVAL;
+    }
+    if (file_slots != slot_count_ || file_slot_size != slot_size_) {
+        RV_LOG_ERR(RV_PCCARD_TAG,
+            "image '{}' holds {}x{} byte slots, this console has {}x{} - refusing",
+            image_path_,
+            file_slots,
+            file_slot_size,
+            slot_count_,
+            slot_size_);
+        return RV_ERR_INVAL;
+    }
+
+    std::vector<uint8_t> buffer;
+    const int ec_read = read_full(expected, buffer, path);
+    if (ec_read != RV_OK) {
+        return ec_read;
+    }
+    for (int64_t i = 0; i < slot_count_; ++i) {
+        const int64_t length = get_i64(buffer.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY);
+        if (length < -1 || length > slot_size_) {
+            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) - corrupt", image_path_, i, length);
+            return RV_ERR_INVAL;
+        }
+    }
+
+    image_ = std::move(buffer);
+    RV_LOG_INFO(RV_PCCARD_TAG, "card image '{}' loaded ({} slot(s) of {} byte(s))", image_path_, slot_count_, slot_size_);
+    return RV_OK;
+}
+
 int rv_pccard::load()
 {
     const int64_t expected = payload_offset_ + slot_count_ * slot_size_;
@@ -116,53 +368,8 @@ int rv_pccard::load()
         return RV_ERR_INVAL;
     }
 
-    auto read_full = [&](int64_t want, std::vector<uint8_t> &out) -> int {
-        out.assign(static_cast<size_t>(want), 0);
-        std::ifstream in(path, std::ios::binary);
-        if (!in) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "cannot open image '{}' for reading", image_path_);
-            return RV_ERR_IO;
-        }
-        in.read(reinterpret_cast<char *>(out.data()), static_cast<std::streamsize>(want));
-        if (in.gcount() != static_cast<std::streamsize>(want)) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "short read on image '{}'", image_path_);
-            return RV_ERR_IO;
-        }
-        return RV_OK;
-    };
-
-    // Moves the file aside as "<image>.<M.m>" of `old_version`. Shared by the
-    // "cannot know this layout" refusal and the older-major migration below.
-    auto set_aside = [&](uint32_t old_version, std::string &aside_path) -> int {
-        aside_path = image_path_ + "." + rv_pccard_version_text(old_version);
-        std::error_code aside_ec;
-        if (std::filesystem::exists(aside_path, aside_ec) || aside_ec) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' has version {}, this console speaks {} - refusing "
-                "('{}' already exists)",
-                image_path_,
-                rv_pccard_version_text(old_version),
-                rv_pccard_version_text(RV_PCCARD_VERSION),
-                aside_path);
-            return RV_ERR_INVAL;
-        }
-        std::filesystem::rename(path, aside_path, aside_ec);
-        if (aside_ec) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' has version {}, this console speaks {} - refusing "
-                "(could not set it aside as '{}': {})",
-                image_path_,
-                rv_pccard_version_text(old_version),
-                rv_pccard_version_text(RV_PCCARD_VERSION),
-                aside_path,
-                aside_ec.message());
-            return RV_ERR_IO;
-        }
-        return RV_OK;
-    };
-
     std::vector<uint8_t> header;
-    int ec_read = read_full(RV_PCCARD_HEADER_SIZE, header);
+    int ec_read = read_full(RV_PCCARD_HEADER_SIZE, header, path);
     if (ec_read != RV_OK) {
         return ec_read;
     }
@@ -174,193 +381,19 @@ int rv_pccard::load()
     const int64_t file_slots = get_i64(header.data() + HEADER_OFFSET_SLOT_COUNT);
     const int64_t file_slot_size = get_i64(header.data() + HEADER_OFFSET_SLOT_SIZE);
 
-    if (version != RV_PCCARD_VERSION &&
-        rv_pccard_classify_version(version, RV_PCCARD_VERSION) == rv_pccard_version_case::compatible) {
-        // Same major, older minor: this console's layout can still read it. The
-        // header is restamped to this console's version in RAM; it only reaches
-        // disk on the next actual write.
-        if (file_slots != slot_count_ || file_slot_size != slot_size_) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' holds {}x{} byte slots, this console has {}x{} - refusing",
-                image_path_,
-                file_slots,
-                file_slot_size,
-                slot_count_,
-                slot_size_);
-            return RV_ERR_INVAL;
-        }
-        if (on_disk != static_cast<uintmax_t>(expected)) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' is {} byte(s), expected {} - refusing to touch it",
-                image_path_,
-                static_cast<int64_t>(on_disk),
-                expected);
-            return RV_ERR_INVAL;
-        }
-        std::vector<uint8_t> buffer;
-        ec_read = read_full(expected, buffer);
-        if (ec_read != RV_OK) {
-            return ec_read;
-        }
-        for (int64_t i = 0; i < slot_count_; ++i) {
-            const int64_t length = get_i64(buffer.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY);
-            if (length < -1 || length > slot_size_) {
-                RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) - corrupt", image_path_, i, length);
-                return RV_ERR_INVAL;
-            }
-        }
-        put_u32(buffer.data() + HEADER_OFFSET_VERSION, RV_PCCARD_VERSION);
-        image_ = std::move(buffer);
-        RV_LOG_INFO(RV_PCCARD_TAG,
-            "card image '{}' was version {}, restamped to {} ({} slot(s) of {} byte(s))",
-            image_path_,
-            rv_pccard_version_text(version),
-            rv_pccard_version_text(RV_PCCARD_VERSION),
-            slot_count_,
-            slot_size_);
-        return RV_OK;
+    if (version == RV_PCCARD_VERSION) {
+        return load_current_(file_slots, file_slot_size, on_disk, expected, path);
     }
 
-    if (version != RV_PCCARD_VERSION &&
-        rv_pccard_classify_version(version, RV_PCCARD_VERSION) == rv_pccard_version_case::migrate) {
-        // Older major: sanity-check the old header's own geometry before
-        // trusting it for a read size (see rv_pccard_version.cpp for the
-        // migration itself).
-        if (file_slots <= 0 || file_slot_size <= 0 || file_slots > RV_PCCARD_MAX_IMAGE_BYTES / RV_PCCARD_LENGTH_ENTRY ||
-            file_slot_size > (RV_PCCARD_MAX_IMAGE_BYTES - RV_PCCARD_HEADER_SIZE) / file_slots) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' claims {}x{} byte slots - corrupt, refusing",
-                image_path_,
-                file_slots,
-                file_slot_size);
-            return RV_ERR_INVAL;
-        }
-        const int64_t old_payload_offset = RV_PCCARD_HEADER_SIZE + file_slots * RV_PCCARD_LENGTH_ENTRY;
-        const int64_t old_expected = old_payload_offset + file_slots * file_slot_size;
-        if (on_disk != static_cast<uintmax_t>(old_expected)) {
-            RV_LOG_ERR(RV_PCCARD_TAG,
-                "image '{}' is {} byte(s), expected {} for its own {}x{} geometry - "
-                "corrupt, refusing",
-                image_path_,
-                static_cast<int64_t>(on_disk),
-                old_expected,
-                file_slots,
-                file_slot_size);
-            return RV_ERR_INVAL;
-        }
-        std::vector<uint8_t> old_buffer;
-        ec_read = read_full(old_expected, old_buffer);
-        if (ec_read != RV_OK) {
-            return ec_read;
-        }
-
-        std::string migrate_error;
-        std::vector<std::string> dropped;
-        std::vector<uint8_t> migrated = rv_pccard_migrate(old_buffer,
-            file_slots,
-            file_slot_size,
-            old_payload_offset,
-            slot_count_,
-            slot_size_,
-            payload_offset_,
-            RV_PCCARD_VERSION,
-            migrate_error,
-            dropped);
-        if (!migrate_error.empty()) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' {} - refusing", image_path_, migrate_error);
-            return RV_ERR_INVAL;
-        }
-
-        std::string aside_path;
-        const int ec_aside = set_aside(version, aside_path);
-        if (ec_aside != RV_OK) {
-            return ec_aside;
-        }
-        image_ = std::move(migrated);
-        const int ec_flush = flush();
-        if (ec_flush != RV_OK) {
-            // Aside already happened; a crash between here and the next save
-            // must not leave the card missing entirely, only unwritten - retry
-            // the write, do not fall back to refusing after the old file is gone.
-            RV_LOG_ERR(RV_PCCARD_TAG, "migrated '{}' but could not write the new image - retry the save", image_path_);
-            return ec_flush;
-        }
-        for (const auto &line : dropped) {
-            RV_LOG_WARN(RV_PCCARD_TAG, "migrating '{}': {}", aside_path, line);
-        }
-        RV_LOG_INFO(RV_PCCARD_TAG,
-            "migrated '{}' from version {} to {}: {} slot(s) of {} byte(s), {} dropped, "
-            "old image kept as '{}'",
-            image_path_,
-            rv_pccard_version_text(version),
-            rv_pccard_version_text(RV_PCCARD_VERSION),
-            slot_count_,
-            slot_size_,
-            dropped.size(),
-            aside_path);
-        return RV_OK;
+    switch (rv_pccard_classify_version(version, RV_PCCARD_VERSION)) {
+    case rv_pccard_version_case::compatible:
+        return load_compatible_(version, file_slots, file_slot_size, on_disk, expected, path);
+    case rv_pccard_version_case::migrate:
+        return load_migrate_(version, file_slots, file_slot_size, on_disk, path);
+    case rv_pccard_version_case::incompatible:
+        return load_incompatible_(version, path);
     }
-
-    if (version != RV_PCCARD_VERSION) {
-        // Newer major, or same major with a newer minor: this console cannot
-        // know that layout. Set the old file aside by name and start empty
-        // rather than refuse to boot; a failed rename keeps the refusal so
-        // nothing is silently overwritten.
-        std::string aside_path;
-        const int ec_aside = set_aside(version, aside_path);
-        if (ec_aside != RV_OK) {
-            return ec_aside;
-        }
-        RV_LOG_INFO(RV_PCCARD_TAG,
-            "image '{}' has version {}, this console speaks {} - set aside as '{}', "
-            "card starts empty",
-            image_path_,
-            rv_pccard_version_text(version),
-            rv_pccard_version_text(RV_PCCARD_VERSION),
-            aside_path);
-        format_empty();
-        return RV_OK;
-    }
-
-    if (on_disk != static_cast<uintmax_t>(expected)) {
-        // Truncated, padded, or written by a console with a different geometry.
-        // Either way these bytes are somebody's saves: refuse the medium rather
-        // than reformat it. A card that answers RV_ERR_IO is recoverable by
-        // moving the file aside; one that was silently reformatted is not.
-        RV_LOG_ERR(RV_PCCARD_TAG,
-            "image '{}' is {} byte(s), expected {} - refusing to touch it",
-            image_path_,
-            static_cast<int64_t>(on_disk),
-            expected);
-        return RV_ERR_INVAL;
-    }
-    if (file_slots != slot_count_ || file_slot_size != slot_size_) {
-        RV_LOG_ERR(RV_PCCARD_TAG,
-            "image '{}' holds {}x{} byte slots, this console has {}x{} - refusing",
-            image_path_,
-            file_slots,
-            file_slot_size,
-            slot_count_,
-            slot_size_);
-        return RV_ERR_INVAL;
-    }
-
-    std::vector<uint8_t> buffer;
-    ec_read = read_full(expected, buffer);
-    if (ec_read != RV_OK) {
-        return ec_read;
-    }
-    for (int64_t i = 0; i < slot_count_; ++i) {
-        const int64_t length = get_i64(buffer.data() + RV_PCCARD_HEADER_SIZE + i * RV_PCCARD_LENGTH_ENTRY);
-        if (length < -1 || length > slot_size_) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "image '{}' slot {} claims {} byte(s) - corrupt", image_path_, i, length);
-            return RV_ERR_INVAL;
-        }
-    }
-
-    image_ = std::move(buffer);
-    RV_LOG_INFO(RV_PCCARD_TAG, "card image '{}' loaded ({} slot(s) of {} byte(s))", image_path_, slot_count_, slot_size_);
-    return RV_OK;
+    return RV_ERR_INVAL; // every case returns above
 }
 
 } // namespace rv_3dmppc
