@@ -54,6 +54,32 @@ constexpr float status_text_offset = 2.0f;
 constexpr int grid_half_extent = 10;
 constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw, pitch, distance
 
+// The gizmo axis under the mouse for the active tool; -1 when none.
+int rv_editor_tool_axis(rv_editor_scene_tool tool,
+    const rv_editor_scene_doc &doc,
+    const rv_editor_view &v,
+    const ImVec2 &mouse,
+    double gizmo,
+    int at)
+{
+    switch (tool) {
+    case rv_editor_scene_tool::move:
+        return rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo);
+    case rv_editor_scene_tool::select:
+        return -1;
+    case rv_editor_scene_tool::rotate:
+    case rv_editor_scene_tool::scale: {
+        ImVec2 so;
+        const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
+        if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold) {
+            return 0;
+        }
+        return -1;
+    }
+    }
+    return -1;
+}
+
 } // namespace
 
 void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
@@ -178,15 +204,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         const int at = rv_editor_scene_find(doc.scene, doc.selected);
         int axis = -1;
         if (at >= 0 && !read_only && !cam.seeking) {
-            if (cam.tool == rv_editor_scene_tool::move) {
-                axis = rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo);
-            } else if (cam.tool != rv_editor_scene_tool::select) {
-                ImVec2 so;
-                const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
-                if (v.point(o, so) && std::hypot(mouse.x - so.x, mouse.y - so.y) < gizmo_click_threshold) {
-                    axis = 0;
-                }
-            }
+            axis = rv_editor_tool_axis(cam.tool, doc, v, mouse, gizmo, at);
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && axis >= 0) {
             rv_editor_scene_step(doc);

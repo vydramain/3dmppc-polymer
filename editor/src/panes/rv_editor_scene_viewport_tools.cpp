@@ -64,7 +64,8 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
     rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
     const ImVec2 total(ImGui::GetMousePos().x - ui.gizmo_from[0], ImGui::GetMousePos().y - ui.gizmo_from[1]);
     const rv_editor_scene_camera &cam = ui.camera;
-    if (cam.tool == rv_editor_scene_tool::move) {
+    switch (cam.tool) {
+    case rv_editor_scene_tool::move: {
         // Pixels along the axis as the screen shows it, into scene units, into the parent's space.
         const vec3 origin = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
         vec3 axis{ 0, 0, 0 };
@@ -91,7 +92,9 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
                 c = rv_editor_snap(c, cam.snap_step);
             }
         }
-    } else if (cam.tool == rv_editor_scene_tool::rotate) {
+        break;
+    }
+    case rv_editor_scene_tool::rotate:
         o.rotation = ui.gizmo_before_rotation;
         o.rotation[1] += total.x * rotation_speed_factor;
         o.rotation[0] += total.y * rotation_speed_factor;
@@ -99,7 +102,8 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
             o.rotation[0] = rv_editor_snap(o.rotation[0], rotation_snap_degrees);
             o.rotation[1] = rv_editor_snap(o.rotation[1], rotation_snap_degrees);
         }
-    } else if (cam.tool == rv_editor_scene_tool::scale) {
+        break;
+    case rv_editor_scene_tool::scale: {
         const double f = std::exp(-total.y * scale_sensitivity);
         o.scale = mul(ui.gizmo_before_scale, f);
         if (cam.snap) {
@@ -107,6 +111,10 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
                 c = std::max(scale_min, rv_editor_snap(c, scale_snap_step));
             }
         }
+        break;
+    }
+    case rv_editor_scene_tool::select:
+        break;
     }
 }
 
