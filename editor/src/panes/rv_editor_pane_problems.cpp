@@ -80,14 +80,11 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
         what = rv_editor_text_format("pane_problems.idle_servers", std::make_format_args(lsp_errors, lsp_warnings));
     } else {
         const char *build_word = b.busy() ? rv_editor_text("pane_problems.building") : rv_editor_text("pane_problems.build");
-        std::string build_ref;
         const size_t build_number = b.number();
-        if (b.image().empty()) {
-            build_ref = rv_editor_text_format("pane_problems.build_number", std::make_format_args(build_number));
-        } else {
-            const std::string image_name = b.image().filename().string();
-            build_ref = rv_editor_text_format("pane_problems.build_image", std::make_format_args(image_name));
-        }
+        const std::string image_name = b.image().filename().string();
+        const std::string build_ref = b.image().empty() ?
+            rv_editor_text_format("pane_problems.build_number", std::make_format_args(build_number)) :
+            rv_editor_text_format("pane_problems.build_image", std::make_format_args(image_name));
         const size_t build_warnings = build_total - build_errors;
         what = rv_editor_text_format("pane_problems.build_status",
             std::make_format_args(build_word, build_ref, build_errors, build_warnings));

@@ -5,6 +5,7 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -35,6 +36,26 @@ constexpr std::string_view pcm_extension = ".pcm";
 
 // Path escape indicator: relative path goes outside project root.
 constexpr std::string_view path_escape_indicator = "..";
+
+// Tab kind by file extension; other files open no tab.
+constexpr struct {
+    std::string_view ext;
+    rv_editor_scene_tab_kind kind;
+} tab_kinds[] = {
+    { png_extension, rv_editor_scene_tab_kind::picture },
+    { wav_extension, rv_editor_scene_tab_kind::sound },
+    { pcm_extension, rv_editor_scene_tab_kind::sound },
+};
+
+std::optional<rv_editor_scene_tab_kind> rv_editor_scene_tab_kind_for(std::string_view ext)
+{
+    for (const auto &entry : tab_kinds) {
+        if (entry.ext == ext) {
+            return entry.kind;
+        }
+    }
+    return std::nullopt;
+}
 
 // The last failed play, kept until the front tab moves to a different file.
 struct rv_editor_scene_sound_error {
@@ -81,11 +102,9 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     const bool playing_this = rv_editor_sound_playing() && rv_editor_sound_path() == tab.path;
     if (rv_editor_button(rv_editor_text("pane_scene_tabs.button_play"), theme)) {
         std::string error;
-        if (rv_editor_sound_play(tab.path, error) == RV_OK) {
-            rv_editor_scene_sound_last_error = {};
-        } else {
-            rv_editor_scene_sound_last_error = { tab.path, error };
-        }
+        const bool play_ok = rv_editor_sound_play(tab.path, error) == RV_OK;
+        rv_editor_scene_sound_last_error =
+            play_ok ? rv_editor_scene_sound_error{} : rv_editor_scene_sound_error{ tab.path, error };
     }
     ImGui::SameLine();
     const rv_editor_state stop_state{ rv_editor_look::live,
@@ -125,14 +144,11 @@ void rv_editor_scene_tab_close(rv_editor_app &app, size_t at)
 void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::path &path)
 {
     const std::string ext = path.extension().string();
-    rv_editor_scene_tab_kind kind;
-    if (ext == png_extension) {
-        kind = rv_editor_scene_tab_kind::picture;
-    } else if (ext == wav_extension || ext == pcm_extension) {
-        kind = rv_editor_scene_tab_kind::sound;
-    } else {
+    const auto maybe_kind = rv_editor_scene_tab_kind_for(ext);
+    if (!maybe_kind) {
         return;
     }
+    const rv_editor_scene_tab_kind kind = *maybe_kind;
     rv_editor_scene_tabs &st = app.scene_tabs;
     for (size_t i = 0; i < st.tabs.size(); ++i) {
         if (st.tabs[i].path == path) {
