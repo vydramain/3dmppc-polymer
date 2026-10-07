@@ -134,15 +134,15 @@ int rv_pccard::flush()
     //     one a crash can resurrect the old name pointing at nothing.
     const std::filesystem::path target(image_path_);
     std::filesystem::path dir = target.parent_path();
-    if (!dir.empty()) {
-        std::error_code ec;
-        std::filesystem::create_directories(dir, ec);
-        if (ec) {
-            RV_LOG_ERR(RV_PCCARD_TAG, "cannot create '{}': {}", dir.string(), ec.message());
-            return RV_ERR_IO;
-        }
-    } else {
+    if (dir.empty()) {
         dir = std::filesystem::path(".");
+    }
+
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) {
+        RV_LOG_ERR(RV_PCCARD_TAG, "cannot create '{}': {}", dir.string(), ec.message());
+        return RV_ERR_IO;
     }
 
     const std::string tmp_path = image_path_ + ".tmp" + std::to_string(static_cast<long long>(::getpid()));
