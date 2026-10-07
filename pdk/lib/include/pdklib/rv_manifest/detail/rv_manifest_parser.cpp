@@ -172,9 +172,7 @@ int rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
 {
     const int start = get().line; // '['
     for (;;) {
-        while (at(tk::NEWLINE)) {
-            get();
-        }
+        skip_newlines();
         if (at(tk::END_OF_FILE)) {
             return failer_.fail(start, "unterminated array — no closing ']' before end of file");
         }
@@ -188,41 +186,68 @@ int rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
         if (at(tk::COMMA)) {
             return failer_.fail(peek().line, "empty element in array — expected a value");
         }
-        // The first element decides: strings, or numbers; never both.
-        const bool number = at(tk::INTEGER) || at(tk::REAL);
-        if (!number && !at(tk::STRING)) {
-            return failer_.fail(peek().line, "array elements must be quoted strings or numbers");
+        const int element_rc = parse_array_element(out);
+        if (element_rc != RV_OK) {
+            return element_rc;
         }
-        const bool first = out.arr.empty() && out.nums.empty();
-        if (first && number) {
-            out.kind = rv_manifest_value_kind::numbers;
+        bool closed = false;
+        const int separator_rc = parse_array_separator(start, closed);
+        if (separator_rc != RV_OK) {
+            return separator_rc;
         }
-        if (number != (out.kind == rv_manifest_value_kind::numbers)) {
-            return failer_.fail(peek().line, "an array holds strings or numbers, not both");
-        }
-        if (number) {
-            const rv_manifest_token &t = get();
-            out.nums.push_back(t.kind == tk::REAL ? t.real : static_cast<double>(t.num));
-        } else {
-            out.arr.push_back(get().text);
-        }
-
-        while (at(tk::NEWLINE)) {
-            get();
-        }
-        if (at(tk::COMMA)) {
-            get();
-            continue;
-        }
-        if (at(tk::RBRACKET)) {
-            get();
+        if (closed) {
             return RV_OK;
         }
-        if (at(tk::END_OF_FILE)) {
-            return failer_.fail(start, "unterminated array — no closing ']' before end of file");
-        }
-        return failer_.fail(peek().line, "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
     }
+}
+
+void rv_manifest_parser::skip_newlines()
+{
+    while (at(tk::NEWLINE)) {
+        get();
+    }
+}
+
+// The first element decides: strings, or numbers; never both.
+int rv_manifest_parser::parse_array_element(rv_manifest_mvalue &out)
+{
+    const bool number = at(tk::INTEGER) || at(tk::REAL);
+    if (!number && !at(tk::STRING)) {
+        return failer_.fail(peek().line, "array elements must be quoted strings or numbers");
+    }
+    const bool first = out.arr.empty() && out.nums.empty();
+    if (first && number) {
+        out.kind = rv_manifest_value_kind::numbers;
+    }
+    if (number != (out.kind == rv_manifest_value_kind::numbers)) {
+        return failer_.fail(peek().line, "an array holds strings or numbers, not both");
+    }
+    if (number) {
+        const rv_manifest_token &t = get();
+        out.nums.push_back(t.kind == tk::REAL ? t.real : static_cast<double>(t.num));
+    } else {
+        out.arr.push_back(get().text);
+    }
+    return RV_OK;
+}
+
+int rv_manifest_parser::parse_array_separator(int array_start, bool &closed)
+{
+    skip_newlines();
+    if (at(tk::COMMA)) {
+        get();
+        closed = false;
+        return RV_OK;
+    }
+    if (at(tk::RBRACKET)) {
+        get();
+        closed = true;
+        return RV_OK;
+    }
+    if (at(tk::END_OF_FILE)) {
+        return failer_.fail(array_start, "unterminated array — no closing ']' before end of file");
+    }
+    return failer_.fail(peek().line, "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
 }
 
 int rv_manifest_parser::expect_line_end(const char *what)

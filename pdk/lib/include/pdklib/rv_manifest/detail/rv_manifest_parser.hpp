@@ -48,6 +48,13 @@ private:
     int parse_array(rv_manifest_mvalue &out);
     int expect_line_end(const char *what);
 
+    // Newlines between array items carry no meaning.
+    void skip_newlines();
+    // One value of an array; the first decides strings or numbers.
+    int parse_array_element(rv_manifest_mvalue &out);
+    // After an item: ',' continues, ']' closes (closed = true), anything else is a diagnostic.
+    int parse_array_separator(int array_start, bool &closed);
+
     // --- recovery -------------------------------------------------------------
 
     // Drops lines until one looks like a statement again. Without this an
