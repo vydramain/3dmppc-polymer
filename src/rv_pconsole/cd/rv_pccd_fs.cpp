@@ -325,35 +325,11 @@ int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind,
         return RV_ERR_INVAL;
     }
 
-    if (kind == RV_CD_RESOURCE_TEXTURE) {
-        // No video attached is the same situation as no medium mounted: a
-        // legal machine state, not a caller error, so it answers the way
-        // asset_open answers an unmounted drive - nothing can be made
-        // resident yet.
-        if (cv_ == nullptr) {
-            return RV_ERR_INVAL;
-        }
-
-        std::string key(resname);
-        if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
-            texture_out = &textures_[static_cast<size_t>(it->second)];
-            return RV_OK;
-        }
-        return texture_resolve_(resname, texture_out);
-    }
-
-    if (kind == RV_CD_RESOURCE_AUDIO) {
-        // Same reasoning as cv_ above, for the sound side of the machine.
-        if (ca_ == nullptr) {
-            return RV_ERR_INVAL;
-        }
-
-        std::string key(resname);
-        if (auto it = audio_by_name_.find(key); it != audio_by_name_.end()) {
-            audio_out = &audios_[static_cast<size_t>(it->second)];
-            return RV_OK;
-        }
-        return audio_resolve_(resname, audio_out);
+    switch (kind) {
+    case RV_CD_RESOURCE_TEXTURE:
+        return resident_texture_(resname, texture_out);
+    case RV_CD_RESOURCE_AUDIO:
+        return resident_audio_(resname, audio_out);
     }
 
     // Neither kind this contract knows about: the same malformed-argument
@@ -361,6 +337,41 @@ int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind,
     // A third kind adds its own branch here, not a rewrite of the five
     // callers below.
     return RV_ERR_INVAL;
+}
+
+int64_t rv_pccd_fs::resident_texture_(const char *resname, texture_record *&texture_out)
+{
+    // No video attached is the same situation as no medium mounted: a
+    // legal machine state, not a caller error, so it answers the way
+    // asset_open answers an unmounted drive - nothing can be made
+    // resident yet.
+    if (cv_ == nullptr) {
+        return RV_ERR_INVAL;
+    }
+
+    const std::string key(resname);
+    const auto it = tex_by_name_.find(key);
+    if (it != tex_by_name_.end()) {
+        texture_out = &textures_[static_cast<size_t>(it->second)];
+        return RV_OK;
+    }
+    return texture_resolve_(resname, texture_out);
+}
+
+int64_t rv_pccd_fs::resident_audio_(const char *resname, audio_record *&audio_out)
+{
+    // Same reasoning as cv_ above, for the sound side of the machine.
+    if (ca_ == nullptr) {
+        return RV_ERR_INVAL;
+    }
+
+    const std::string key(resname);
+    const auto it = audio_by_name_.find(key);
+    if (it != audio_by_name_.end()) {
+        audio_out = &audios_[static_cast<size_t>(it->second)];
+        return RV_OK;
+    }
+    return audio_resolve_(resname, audio_out);
 }
 
 // Cache-miss half of resource_resolve_() for TEXTURE: this is where a disc's

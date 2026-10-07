@@ -206,6 +206,14 @@ private:
     int64_t
     resource_resolve_(rv_cd_resource_kind kind, const char *resname, texture_record *&texture_out, audio_record *&audio_out);
 
+    // Cache-hit half of resource_resolve_() for TEXTURE: a resident name answers from
+    // textures_, a new one goes to texture_resolve_().
+    int64_t resident_texture_(const char *resname, texture_record *&texture_out);
+
+    // The same for AUDIO: a resident name answers from audios_, a new one goes to
+    // audio_resolve_().
+    int64_t resident_audio_(const char *resname, audio_record *&audio_out);
+
     // Cache miss half of resource_resolve_() for TEXTURE: read, decode and
     // upload `resname`, then remember it in `textures_`. Same
     // success/failure contract as resource_resolve_() itself.
