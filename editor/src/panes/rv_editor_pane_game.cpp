@@ -254,6 +254,40 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
     return true;
 }
 
+// Status line: select text and style by session state with guards for special cases.
+std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const rv_editor_session &s, const rv_editor_app &app)
+{
+    // Order matters: a stalled or stopping console says so before any other state.
+    if (s.state() == rv_editor_run_state::disconnected) {
+        return { rv_editor_text("pane_game.console_disconnected"), rv_editor_game_line::warn };
+    }
+    if (s.state() == rv_editor_run_state::stopping && s.hung()) {
+        return { rv_editor_text("pane_game.not_stopping"), rv_editor_game_line::warn };
+    }
+    if (s.state() == rv_editor_run_state::stopping) {
+        return { rv_editor_text("pane_game.state_stopping"), rv_editor_game_line::normal };
+    }
+    if (s.uncertain()) {
+        return { rv_editor_text("pane_game.timeout"), rv_editor_game_line::warn };
+    }
+
+    // Primary state dispatch.
+    switch (s.state()) {
+    case rv_editor_run_state::paused:
+        return { rv_editor_text("pane_game.state_paused"), rv_editor_game_line::normal };
+    case rv_editor_run_state::pausing:
+    case rv_editor_run_state::stepping:
+    case rv_editor_run_state::resuming:
+    case rv_editor_run_state::starting:
+        return { rv_editor_run_state_name(s.state()), rv_editor_game_line::normal };
+    case rv_editor_run_state::running:
+        return { app.game_captured ? rv_editor_text("pane_game.playing_keyboard") : rv_editor_text("pane_game.click_to_play"),
+            rv_editor_game_line::normal };
+    default:
+        return { rv_editor_run_state_name(s.state()), rv_editor_game_line::normal };
+    }
+}
+
 // Burn's tile: the shelf's Run Candidate and, once a candidate's image runs, its
 // own frame. The unpacked development build never stands in for it (README),
 // whether stopped or a development session is live.
@@ -412,34 +446,9 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         }
 
         // A console that stopped answering leaves a frame that is no longer the game's.
-        const char *state = nullptr;
-        rv_editor_game_line line = rv_editor_game_line::normal;
-
+        const auto [state, line] = rv_editor_game_state_status(s, app);
         if (s.state() == rv_editor_run_state::disconnected) {
-            state = rv_editor_text("pane_game.console_disconnected");
-            line = rv_editor_game_line::warn;
             app.game_captured = false;
-        } else if (s.state() == rv_editor_run_state::stopping && s.hung()) {
-            state = rv_editor_text("pane_game.not_stopping");
-            line = rv_editor_game_line::warn;
-        } else if (s.state() == rv_editor_run_state::stopping) {
-            state = rv_editor_text("pane_game.state_stopping");
-        } else if (s.uncertain()) {
-            state = rv_editor_text("pane_game.timeout");
-            line = rv_editor_game_line::warn;
-        } else if (s.state() == rv_editor_run_state::paused) {
-            state = rv_editor_text("pane_game.state_paused");
-        } else if (s.state() == rv_editor_run_state::pausing || s.state() == rv_editor_run_state::stepping ||
-            s.state() == rv_editor_run_state::resuming || s.state() == rv_editor_run_state::starting) {
-            state = rv_editor_run_state_name(s.state());
-        } else if (s.state() == rv_editor_run_state::running) {
-            if (app.game_captured) {
-                state = rv_editor_text("pane_game.playing_keyboard");
-            } else {
-                state = rv_editor_text("pane_game.click_to_play");
-            }
-        } else {
-            state = rv_editor_run_state_name(s.state());
         }
 
         const auto frame = s.frame();
