@@ -82,6 +82,25 @@ bool rv_editor_tile_drop_zone(const rv_editor_layout &layout,
     return true;
 }
 
+// The button let go over a drop zone: the dragged pane moves there.
+void rv_editor_tile_drop(rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of)
+{
+    rv_editor_tile_drag &drag = ws.drag;
+
+    if (!drag.dragging) {
+        return;
+    }
+
+    const ImVec2 pos = ImGui::GetMousePos();
+    const uint32_t target = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
+    rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
+    if (target == rv_editor_tile_none || !rv_editor_tile_drop_zone(ws.layout, target, rect_of[target], pos, dock)) {
+        return;
+    }
+
+    (void)rv_editor_tile_move(ws.layout, drag.pane, target, dock);
+}
+
 } // namespace
 
 void rv_editor_tile_drag_header(rv_editor_workspace &ws, uint32_t leaf, bool title_pressed)
@@ -124,14 +143,7 @@ void rv_editor_tile_drag_update(rv_editor_workspace &ws,
     }
 
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        if (drag.dragging) {
-            const ImVec2 pos = ImGui::GetMousePos();
-            const uint32_t target = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
-            rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
-            if (target != rv_editor_tile_none && rv_editor_tile_drop_zone(ws.layout, target, rect_of[target], pos, dock)) {
-                (void)rv_editor_tile_move(ws.layout, drag.pane, target, dock);
-            }
-        }
+        rv_editor_tile_drop(ws, rect_of);
         drag = rv_editor_tile_drag{};
         return;
     }
@@ -161,14 +173,21 @@ void rv_editor_tile_drag_update(rv_editor_workspace &ws,
     const rv_editor_rect &r = rect_of[target];
     ImVec2 pmin(static_cast<float>(r.x), static_cast<float>(r.y));
     ImVec2 pmax(static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h));
-    if (dock == rv_editor_tile_dock::left) {
+    switch (dock) {
+    case rv_editor_tile_dock::left:
         pmax.x = pmin.x + static_cast<float>(r.w) * dock_preview_split_ratio;
-    } else if (dock == rv_editor_tile_dock::right) {
+        break;
+    case rv_editor_tile_dock::right:
         pmin.x = pmax.x - static_cast<float>(r.w) * dock_preview_split_ratio;
-    } else if (dock == rv_editor_tile_dock::top) {
+        break;
+    case rv_editor_tile_dock::top:
         pmax.y = pmin.y + static_cast<float>(r.h) * dock_preview_split_ratio;
-    } else if (dock == rv_editor_tile_dock::bottom) {
+        break;
+    case rv_editor_tile_dock::bottom:
         pmin.y = pmax.y - static_cast<float>(r.h) * dock_preview_split_ratio;
+        break;
+    default:
+        break;
     }
     const ImU32 fill = (rv_editor_col(theme.selection) & ~IM_COL32_A_MASK) | dock_preview_alpha_bits;
     ImGui::GetForegroundDrawList()->AddRectFilled(pmin, pmax, fill);
