@@ -299,6 +299,24 @@ void rv_editor_other_edges(std::vector<std::pair<vec3, vec3>> &e, const std::fun
     e.emplace_back(v[3], v[0]);
 }
 
+namespace
+{
+
+struct rv_editor_edge_builder {
+    std::string_view kind;
+    void (*builder)(std::vector<std::pair<vec3, vec3>> &, const std::function<vec3(double, double, double)> &);
+};
+
+constexpr rv_editor_edge_builder edge_builders[] = {
+    { kind_camera, rv_editor_camera_edges },
+    { kind_group, rv_editor_group_edges },
+    { kind_quad, rv_editor_quad_edges },
+    { kind_billboard, rv_editor_billboard_edges },
+    { kind_volume, rv_editor_volume_edges },
+};
+
+} // namespace
+
 std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
@@ -314,19 +332,15 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
             e.emplace_back(tri.p[1], tri.p[2]);
             e.emplace_back(tri.p[2], tri.p[0]);
         }
-    } else if (kind == kind_camera) {
-        rv_editor_camera_edges(e, p);
-    } else if (kind == kind_group) {
-        rv_editor_group_edges(e, p);
-    } else if (kind == kind_quad) {
-        rv_editor_quad_edges(e, p);
-    } else if (kind == kind_billboard) {
-        rv_editor_billboard_edges(e, p);
-    } else if (kind == kind_volume) {
-        rv_editor_volume_edges(e, p);
-    } else {
-        rv_editor_other_edges(e, p);
+        return e;
     }
+    for (const auto &builder : edge_builders) {
+        if (kind == builder.kind) {
+            builder.builder(e, p);
+            return e;
+        }
+    }
+    rv_editor_other_edges(e, p);
     return e;
 }
 

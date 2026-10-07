@@ -115,9 +115,11 @@ const rv_pdklib::rv_obj_mesh *rv_editor_mesh_load(const std::filesystem::path &p
     std::ostringstream bytes;
     bytes << in.rdbuf();
     const std::string text = bytes.str();
-    entry.ok = in && rv_pdklib::rv_obj_parse(text.data(), text.size(), entry.mesh) == RV_OK;
-    if (!entry.ok) {
-        entry.error = path.filename().string() + ": does not parse";
+    const bool read = static_cast<bool>(in);
+    const bool parsed = read && rv_pdklib::rv_obj_parse(text.data(), text.size(), entry.mesh) == RV_OK;
+    entry.ok = parsed;
+    if (!parsed) {
+        entry.error = path.filename().string() + (read ? ": does not parse" : ": cannot read");
     }
     auto &slot = rv_editor_mesh_cache[key] = std::move(entry);
     if (!slot.ok) {
