@@ -21,6 +21,8 @@ constexpr auto shutdown_wait_timeout = std::chrono::seconds(4);
 constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
 // Cache subdirectory holding release candidates and their logs.
 constexpr std::string_view candidates_dir_name = "candidates";
+// Default memory card file name in the state directory.
+constexpr std::string_view default_memcard_name = "memcard.mppccard";
 
 void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_editor_tool &tool)
 {
@@ -31,10 +33,79 @@ void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_edit
     app.log.add(rv_editor_log_source::editor, level, std::string(name) + ": " + detail);
 }
 
+// Resets session state from the previous run.
+void rv_editor_app_session_reset(rv_editor_app &app, const rv_editor_artifact &artifact)
+{
+    app.build.prune(artifact.dir);
+    // A new console starts with every key up: no capture carries over.
+    app.game_captured = false;
+    app.marks.clear();
+    app.session_first_seq = app.log.revision() + 1;
+    app.observe.read_frame = -1;
+}
+
+// Launch parameters for a runtime session.
+struct rv_editor_launch {
+    std::filesystem::path console;
+    std::filesystem::path disc_dir;
+    std::filesystem::path memcard;
+    std::filesystem::path cwd;
+    uint32_t number;
+    std::vector<std::string> args;
+    std::vector<std::string> env;
+    std::string profile;
+};
+
+// Prepares launch parameters from app state, artifact and optional card path.
+rv_editor_launch
+rv_editor_app_launch_params(const rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
+{
+    rv_editor_launch launch;
+    const rv_editor_run_profile none;
+    // A development run follows the active profile; a candidate, with its own card, does not.
+    const rv_editor_run_profile &profile = card.empty() ? app.run_config.profiles[app.run_config.active] : none;
+
+    const std::filesystem::path runtime = rv_editor_run_profile_path(profile.runtime, app.project.root);
+    const std::filesystem::path own_card = rv_editor_run_profile_path(profile.memcard, app.project.root);
+    const std::filesystem::path profile_cwd = rv_editor_run_profile_path(profile.cwd, app.project.root);
+
+    launch.console = runtime.empty() ? app.tools.console.path : runtime;
+    launch.disc_dir = artifact.dir;
+    launch.memcard = !card.empty() ? card :
+        !own_card.empty()          ? own_card :
+                                     app.project.state_dir / std::string(default_memcard_name);
+    launch.cwd = profile_cwd.empty() ? app.project.root : profile_cwd;
+    launch.number = artifact.number;
+    launch.args = rv_editor_run_profile_args(profile);
+    launch.env = profile.env;
+    launch.profile = card.empty() ? profile.name : "the candidate's own";
+
+    return launch;
+}
+
+// Reads the build map from the artifact directory.
+void rv_editor_app_build_map_load(rv_editor_app &app, const rv_editor_artifact &artifact)
+{
+    const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
+    app.build_map = rv_editor_build_map_read(map_path);
+    if (app.build_map.empty()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            map_path.string() + ": no map; reload targets fall back to the entry script");
+    }
+}
+
 } // namespace
 
 int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
 {
+    // Precondition: state directory must be known.
+    if (app.project.state_dir.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: no state directory");
+        return RV_ERR_NOENT;
+    }
+
+    // Ensure state directory exists.
     std::error_code ec;
     std::filesystem::create_directories(app.project.state_dir, ec);
     if (ec) {
@@ -43,47 +114,41 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
             app.project.state_dir.string() + ": " + ec.message());
         return RV_ERR_IO;
     }
-    app.build.prune(artifact.dir);
-    // A new console starts with every key up: no capture carries over.
-    app.game_captured = false;
-    app.marks.clear();
-    app.session_first_seq = app.log.revision() + 1;
-    app.observe.read_frame = -1;
-    // A development run follows the active profile; a candidate, with its own card, does not.
-    const rv_editor_run_profile none;
-    const rv_editor_run_profile &profile = card.empty() ? app.run_config.profiles[app.run_config.active] : none;
-    const std::filesystem::path runtime = rv_editor_run_profile_path(profile.runtime, app.project.root);
-    const std::filesystem::path own_card = rv_editor_run_profile_path(profile.memcard, app.project.root);
-    const std::filesystem::path cwd = rv_editor_run_profile_path(profile.cwd, app.project.root);
-    app.session_profile = card.empty() ? profile.name : "the candidate's own";
+
+    // Reset session state from previous run.
+    rv_editor_app_session_reset(app, artifact);
+
+    // Prepare launch parameters.
+    const rv_editor_launch params = rv_editor_app_launch_params(app, artifact, card);
+    app.session_profile = params.profile;
+
+    // Log profile info when running from development (not candidate) card.
     if (card.empty()) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::info,
-            "run profile " + profile.name + ": build #" + std::to_string(artifact.number));
+            "run profile " + params.profile + ": build #" + std::to_string(artifact.number));
     }
+
+    // Start the runtime session.
     std::string error;
-    const int err = app.session.start(runtime.empty() ? app.tools.console.path : runtime,
-        artifact.dir,
-        !card.empty()         ? card :
-            !own_card.empty() ? own_card :
-                                app.project.state_dir / "memcard.mppccard",
-        cwd.empty() ? app.project.root : cwd,
-        artifact.number,
-        rv_editor_run_profile_args(profile),
-        profile.env,
+    const int err = app.session.start(params.console,
+        params.disc_dir,
+        params.memcard,
+        params.cwd,
+        params.number,
+        params.args,
+        params.env,
         app.log,
         error);
+
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
         return err;
     }
-    const std::filesystem::path map_path = rv_editor_build_map_path(artifact.dir);
-    app.build_map = rv_editor_build_map_read(map_path);
-    if (app.build_map.empty()) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            map_path.string() + ": no map; reload targets fall back to the entry script");
-    }
+
+    // Load build map.
+    rv_editor_app_build_map_load(app, artifact);
+
     rv_editor_app_attach_session_log(app);
     return RV_OK;
 }
