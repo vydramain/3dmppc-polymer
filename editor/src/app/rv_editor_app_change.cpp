@@ -23,6 +23,38 @@ namespace
 // Quiet time after the last file change before a reload.
 constexpr auto reload_delay = std::chrono::milliseconds(300);
 
+// Build for Build and Restart completed: stop the live session or start the new one.
+void rv_editor_app_build_restart_built(rv_editor_app &app)
+{
+    if (!app.restart_after_build) {
+        return;
+    }
+    app.restart_after_build = false;
+    const bool built = app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success();
+    if (!built) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            std::string("the game was not restarted: the build ") + rv_editor_build_state_name(app.build.dev_state()));
+        return;
+    }
+    if (app.session.live()) {
+        app.restart_after_stop = true;
+        app.session.stop(app.log);
+        return;
+    }
+    (void)rv_editor_app_start(app, *app.build.last_success());
+}
+
+// Restart the game after the session stopped.
+void rv_editor_app_build_restart_stopped(rv_editor_app &app)
+{
+    if (!app.restart_after_stop || app.session.live()) {
+        return;
+    }
+    app.restart_after_stop = false;
+    (void)rv_editor_app_start(app, *app.build.last_success());
+}
+
 // Sends the reload for `file`'s plan (reload_module: that module; otherwise the
 // entry); an empty `file` always means the entry. The caller has already gated.
 void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &file)
@@ -99,48 +131,38 @@ void rv_editor_app_reload_queue_update(rv_editor_app &app)
     rv_editor_app_reload_send(app, file);
 }
 
-void rv_editor_app_build_restart(rv_editor_app &app)
+int rv_editor_app_build_restart(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_build(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_build(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        return RV_ERR_BUSY;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::build_restart;
-        return;
+        return RV_ERR_BUSY;
     }
-    rv_editor_app_build_restart_saved(app);
+    return rv_editor_app_build_restart_saved(app);
 }
 
-void rv_editor_app_build_restart_saved(rv_editor_app &app)
+int rv_editor_app_build_restart_saved(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_build(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_build(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        return RV_ERR_BUSY;
     }
-    rv_editor_app_build_saved(app);
+    const int err = rv_editor_app_build_saved(app);
     app.restart_after_build = app.build.busy();
+    return err;
 }
 
 void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended)
 {
-    if (build_ended && app.restart_after_build) {
-        app.restart_after_build = false;
-        if (app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success()) {
-            if (app.session.live()) {
-                app.restart_after_stop = true;
-                app.session.stop(app.log);
-            } else {
-                (void)rv_editor_app_start(app, *app.build.last_success());
-            }
-        } else {
-            app.log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::warning,
-                std::string("the game was not restarted: the build ") + rv_editor_build_state_name(app.build.dev_state()));
-        }
+    if (build_ended) {
+        rv_editor_app_build_restart_built(app);
     }
-    if (app.restart_after_stop && !app.session.live()) {
-        app.restart_after_stop = false;
-        (void)rv_editor_app_start(app, *app.build.last_success());
-    }
+    rv_editor_app_build_restart_stopped(app);
 }
 
 } // namespace rv_editor

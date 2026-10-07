@@ -433,8 +433,9 @@ int rv_editor_app_build_saved(rv_editor_app &app);
 int rv_editor_app_run_saved(rv_editor_app &app);
 // Build and Restart (editor/src/app/rv_editor_app_change.cpp): builds, then restarts
 // the live session (or just starts one) once the build has ended.
-void rv_editor_app_build_restart(rv_editor_app &app);
-void rv_editor_app_build_restart_saved(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_build_restart(rv_editor_app &app);
+int rv_editor_app_build_restart_saved(rv_editor_app &app);
 // Called from rv_editor_app_update with whether a build just ended.
 void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended);
 // Run would build first: nothing succeeded yet, the last build did not, or an input changed.
