@@ -96,6 +96,27 @@ void rv_3dmppc::rv_pconsole::cmd_service()
     }
 }
 
+void rv_3dmppc::rv_pconsole::cmd_send_scenes()
+{
+    // Which scenes has the disc opened? rv_pccd_fs is the only drive that
+    // tracks this (see its scene_names_); the cast is null for rv_pccd_null,
+    // meaning nothing was ever opened. A release console never runs this
+    // file, so only a developer session ever sends `event=scene`.
+    auto *fs = dynamic_cast<rv_pccd_fs *>(cd_.get());
+    if (fs == nullptr) {
+        return;
+    }
+    const std::vector<std::string> &scenes = fs->scene_names();
+    const uint64_t generation = fs->scene_generation();
+    if (generation != cmd_scene_generation) {
+        cmd_scene_sent = 0;
+        cmd_scene_generation = generation;
+    }
+    for (; cmd_scene_sent < scenes.size(); ++cmd_scene_sent) {
+        cmd_->reply(std::format("0 event=scene name={}", rv_pccmd_hex(scenes[cmd_scene_sent])));
+    }
+}
+
 void rv_3dmppc::rv_pconsole::cmd_after_frame()
 {
     if (!cmd_) {
@@ -118,20 +139,7 @@ void rv_3dmppc::rv_pconsole::cmd_after_frame()
         cmd_->reply(std::format("0 event=frame frame={} slot={}", frames_ + 1, slot));
     }
 
-    // Which scenes has the disc opened? rv_pccd_fs is the only drive that
-    // tracks this (see its scene_names_); the cast is null for rv_pccd_null,
-    // meaning nothing was ever opened. A release console never runs this
-    // file, so only a developer session ever sends `event=scene`.
-    if (auto *fs = dynamic_cast<rv_pccd_fs *>(cd_.get())) {
-        const std::vector<std::string> &scenes = fs->scene_names();
-        if (const uint64_t generation = fs->scene_generation(); generation != cmd_scene_generation) {
-            cmd_scene_sent = 0;
-            cmd_scene_generation = generation;
-        }
-        for (; cmd_scene_sent < scenes.size(); ++cmd_scene_sent) {
-            cmd_->reply(std::format("0 event=scene name={}", rv_pccmd_hex(scenes[cmd_scene_sent])));
-        }
-    }
+    cmd_send_scenes();
 
     // Did a game hook fail this frame? rv_pccl counts every failed call, so
     // comparing that count is how the console finds out without the disc having
@@ -378,6 +386,48 @@ void rv_3dmppc::rv_pconsole::cmd_reload_module(const rv_pccmdreq &req)
     cmd_->reply(std::format("{} ok module={} hash={:016x} lua_used={}", req.id, rv_pccmd_hex(name), report.hash, script.used));
 }
 
+void rv_3dmppc::rv_pconsole::cmd_asset_from_bytes(const rv_pccmdreq &req, const std::string &key)
+{
+    // The bytes travel with the request, so the medium's own content is
+    // never read for them; the name still has to be a real entry, as
+    // the no-payload path checks below.
+    if (cd_->asset_open(key.c_str()) < 0) {
+        cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false, "the mounted medium has no entry by that name"));
+        return;
+    }
+    rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
+    const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()), kind);
+    if (rc == RV_PCCD_REFRESH_UNSUPPORTED) {
+        // Same token a refused reload uses; the contract has no separate
+        // one for "this drive never learned to refresh from bytes".
+        cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false, "this drive cannot refresh an asset from bytes"));
+        return;
+    }
+    if (rc == RV_PCCD_UNSUPPORTED_KIND) {
+        cmd_->reply(rv_pccmd_err(req.id,
+            "unsupported_kind",
+            RV_ERR_INVAL,
+            false,
+            "a sound is resident under that name; its bytes change only across a restart"));
+        return;
+    }
+    if (rc == RV_PCCD_NOT_RESIDENT) {
+        cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
+        return;
+    }
+    if (rc < 0) {
+        cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not refresh that asset"));
+        return;
+    }
+    const int64_t width = cd_->resource_width(kind, key.c_str());
+    const int64_t height = cd_->resource_height(kind, key.c_str());
+    cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
+        req.id,
+        rv_pccmd_hex(key),
+        width < 0 ? 0 : width,
+        height < 0 ? 0 : height));
+}
+
 void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
 {
     const std::string_view name = req.arg(0);
@@ -388,44 +438,7 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     }
     const std::string key(name);
     if (req.has_payload) {
-        // The bytes travel with the request, so the medium's own content is
-        // never read for them; the name still has to be a real entry, as
-        // the no-payload path checks below.
-        if (cd_->asset_open(key.c_str()) < 0) {
-            cmd_->reply(rv_pccmd_err(req.id, "no_asset", RV_ERR_NOENT, false, "the mounted medium has no entry by that name"));
-            return;
-        }
-        rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
-        const int64_t rc = cd_->asset_refresh(key.c_str(), req.payload.data(), static_cast<int64_t>(req.payload.size()), kind);
-        if (rc == RV_PCCD_REFRESH_UNSUPPORTED) {
-            // Same token a refused reload uses; the contract has no separate
-            // one for "this drive never learned to refresh from bytes".
-            cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false, "this drive cannot refresh an asset from bytes"));
-            return;
-        }
-        if (rc == RV_PCCD_UNSUPPORTED_KIND) {
-            cmd_->reply(rv_pccmd_err(req.id,
-                "unsupported_kind",
-                RV_ERR_INVAL,
-                false,
-                "a sound is resident under that name; its bytes change only across a restart"));
-            return;
-        }
-        if (rc == RV_PCCD_NOT_RESIDENT) {
-            cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
-            return;
-        }
-        if (rc < 0) {
-            cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not refresh that asset"));
-            return;
-        }
-        const int64_t width = cd_->resource_width(kind, key.c_str());
-        const int64_t height = cd_->resource_height(kind, key.c_str());
-        cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
-            req.id,
-            rv_pccmd_hex(key),
-            width < 0 ? 0 : width,
-            height < 0 ? 0 : height));
+        cmd_asset_from_bytes(req, key);
         return;
     }
 
