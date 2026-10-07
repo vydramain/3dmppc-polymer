@@ -194,7 +194,7 @@ void rv_editor_nvim_rpc::request(const std::string &method, const std::string &a
     pending_[id] = std::move(reply);
 }
 
-void rv_editor_nvim_rpc::notify(const std::string &method, const std::string &args)
+int rv_editor_nvim_rpc::notify(const std::string &method, const std::string &args)
 {
     std::string out;
     rv_editor_mpack_writer w(out);
@@ -202,6 +202,46 @@ void rv_editor_nvim_rpc::notify(const std::string &method, const std::string &ar
     w.integer(msgpack_rpc_notification_type);
     w.string(method);
     out += args;
+    return proc_.write(out);
+}
+
+void rv_editor_nvim_rpc::handle_response(const rv_editor_mpack &m)
+{
+    if (m.items.size() != msgpack_rpc_response_size) {
+        return;
+    }
+    const auto it = pending_.find(static_cast<uint32_t>(m.items[msgpack_message_id_idx].i));
+    if (it == pending_.end()) {
+        return;
+    }
+    rv_editor_nvim_reply reply = std::move(it->second);
+    pending_.erase(it);
+    if (reply) {
+        reply(m.items[msgpack_response_error_idx], m.items[msgpack_response_result_idx]);
+    }
+}
+
+void rv_editor_nvim_rpc::handle_notification(const rv_editor_mpack &m, const rv_editor_nvim_notify &on_notify)
+{
+    if (m.items.size() != msgpack_rpc_notification_size) {
+        return;
+    }
+    on_notify(m.items[msgpack_notification_method_idx].s, m.items[msgpack_notification_params_idx]);
+}
+
+void rv_editor_nvim_rpc::handle_request(const rv_editor_mpack &m)
+{
+    if (m.items.size() != msgpack_rpc_request_size) {
+        return;
+    }
+    // nvim asking the UI something: this client answers nothing.
+    std::string out;
+    rv_editor_mpack_writer w(out);
+    w.array(msgpack_rpc_response_size);
+    w.integer(msgpack_rpc_response_type);
+    w.integer(m.items[msgpack_message_id_idx].i);
+    w.string(unsupported_request_error);
+    w.nil();
     (void)proc_.write(out);
 }
 
@@ -226,27 +266,19 @@ bool rv_editor_nvim_rpc::poll(const rv_editor_nvim_notify &on_notify, std::strin
             continue;
         }
         const int64_t kind = m.items[msgpack_message_type_idx].i;
-        if (kind == msgpack_rpc_response_type && m.items.size() == msgpack_rpc_response_size) {
-            const auto it = pending_.find(static_cast<uint32_t>(m.items[msgpack_message_id_idx].i));
-            if (it != pending_.end()) {
-                rv_editor_nvim_reply reply = std::move(it->second);
-                pending_.erase(it);
-                if (reply) {
-                    reply(m.items[msgpack_response_error_idx], m.items[msgpack_response_result_idx]);
-                }
-            }
-        } else if (kind == msgpack_rpc_notification_type && m.items.size() == msgpack_rpc_notification_size) {
-            on_notify(m.items[msgpack_notification_method_idx].s, m.items[msgpack_notification_params_idx]);
-        } else if (kind == msgpack_rpc_request_type && m.items.size() == msgpack_rpc_request_size) {
-            // nvim asking the UI something: this client answers nothing.
-            std::string out;
-            rv_editor_mpack_writer w(out);
-            w.array(msgpack_rpc_response_size);
-            w.integer(msgpack_rpc_response_type);
-            w.integer(m.items[msgpack_message_id_idx].i);
-            w.string(unsupported_request_error);
-            w.nil();
-            (void)proc_.write(out);
+        switch (kind) {
+        case msgpack_rpc_response_type:
+            handle_response(m);
+            break;
+        case msgpack_rpc_notification_type:
+            handle_notification(m, on_notify);
+            break;
+        case msgpack_rpc_request_type:
+            handle_request(m);
+            break;
+        default:
+            // msgpack-RPC has only these three message types; anything else is not for this client.
+            break;
         }
     }
 

@@ -43,7 +43,8 @@ public:
     // Sends `method(args...)`; `args` must be one encoded msgpack array.
     // `reply` runs on the UI thread in poll(); it may be empty.
     void request(const std::string &method, const std::string &args, rv_editor_nvim_reply reply = {});
-    void notify(const std::string &method, const std::string &args);
+    // Returns RV_OK or RV_ERR_* (RV_ERR_IO if write fails).
+    int notify(const std::string &method, const std::string &args);
 
     // Handles what arrived: responses to their callbacks, notifications to
     // `on_notify`. Returns false once nvim has ended; `why` then says how.
@@ -54,6 +55,9 @@ public:
 
 private:
     void reader();
+    void handle_response(const rv_editor_mpack &m);
+    void handle_notification(const rv_editor_mpack &m, const rv_editor_nvim_notify &on_notify);
+    void handle_request(const rv_editor_mpack &m);
 
     rv_editor_process proc_;
     std::thread thread_;
