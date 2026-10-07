@@ -99,6 +99,22 @@ bool parse_u63(std::string_view text, int64_t &out)
     return true;
 }
 
+// Predicate: request claims a payload (has trailing "bytes <n>")
+bool claims_payload(const rv_pccmdreq &req)
+{
+    if (req.args.size() < RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE) {
+        return false;
+    }
+    return req.args[req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE] == RV_PCCMDCHAN_PAYLOAD_ARG_KEYWORD;
+}
+
+// An error closes the channel: the reason goes to the console log first.
+#define FAIL_LOG_CLOSE(chan, reason)                        \
+    do {                                                    \
+        RV_LOG_ERR("pccmd", "command channel: {}", reason); \
+        (chan)->close(reason);                              \
+    } while (0)
+
 } // namespace
 
 rv_pccmdchan_stdio::rv_pccmdchan_stdio()
@@ -115,11 +131,20 @@ rv_pccmdchan_stdio::rv_pccmdchan_stdio()
 
     in_flags_ = ::fcntl(STDIN_FILENO, F_GETFL);
     out_flags_ = ::fcntl(STDOUT_FILENO, F_GETFL);
-    if (in_flags_ < 0 || out_flags_ < 0 || ::fcntl(STDIN_FILENO, F_SETFL, in_flags_ | O_NONBLOCK) < 0 ||
-        ::fcntl(STDOUT_FILENO, F_SETFL, out_flags_ | O_NONBLOCK) < 0) {
+
+    const auto down = [this] {
         RV_LOG_ERR("pccmd", "cannot put stdin/stdout into non-blocking mode; dev channel is down");
         connected_ = false;
         reason_ = "stdin/stdout cannot be made non-blocking";
+    };
+    if (in_flags_ < 0 || out_flags_ < 0) {
+        down();
+        return;
+    }
+    const int in_set_result = ::fcntl(STDIN_FILENO, F_SETFL, in_flags_ | O_NONBLOCK);
+    const int out_set_result = ::fcntl(STDOUT_FILENO, F_SETFL, out_flags_ | O_NONBLOCK);
+    if (in_set_result < 0 || out_set_result < 0) {
+        down();
         return;
     }
     RV_LOG_INFO("pccmd", "development channel open on stdin/stdout (protocol {})", rv_pdklib::rv_version_str);
@@ -180,7 +205,7 @@ void rv_pccmdchan_stdio::pump_in()
     while (connected_ && taken < RV_PCCMDCHAN_READ_PER_TICK) {
         const std::size_t old_size = in_.size();
         if (old_size + RV_PCCMDCHAN_READ_CHUNK > static_cast<std::size_t>(RV_PCCMDCHAN_IN_MAX)) {
-            close("input backlog exceeded the ceiling");
+            FAIL_LOG_CLOSE(this, "input backlog exceeded the ceiling");
             return;
         }
         in_.resize(old_size + RV_PCCMDCHAN_READ_CHUNK);
@@ -207,7 +232,7 @@ void rv_pccmdchan_stdio::pump_in()
         if (errno == EAGAIN || errno == EWOULDBLOCK) {
             return;
         }
-        close("read on stdin failed");
+        FAIL_LOG_CLOSE(this, "read on stdin failed");
         return;
     }
 }
@@ -227,15 +252,10 @@ void rv_pccmdchan_stdio::pump_out()
         if (put < 0 && (err == EAGAIN || err == EWOULDBLOCK)) {
             return; // a slow reader is not an error; the queue waits its turn
         }
-        std::string msg;
-        if (put < 0 && err == EPIPE) {
-            msg = "write on stdout failed (the client stopped reading)";
-        } else if (put < 0) {
-            msg = std::string("write on stdout failed: ") + std::strerror(err);
-        } else { // put == 0
-            msg = "write on stdout failed";
-        }
-        close(msg.c_str());
+        const std::string reason = (put < 0 && err == EPIPE) ? "write on stdout failed (the client stopped reading)" :
+            (put < 0)                                        ? std::string("write on stdout failed: ") + std::strerror(err) :
+                                                               "write on stdout failed";
+        FAIL_LOG_CLOSE(this, reason.c_str());
         return;
     }
 }
@@ -246,7 +266,7 @@ void rv_pccmdchan_stdio::reply(std::string_view line)
         return;
     }
     if (out_.size() + line.size() + 1 > static_cast<std::size_t>(RV_PCCMDCHAN_OUT_MAX)) {
-        close("answer queue overflowed (the client is not reading)");
+        FAIL_LOG_CLOSE(this, "answer queue overflowed (the client is not reading)");
         return;
     }
     out_.append(line);
@@ -274,7 +294,7 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
     if (found == base + end) {
         scanned_ = end;
         if (available() > static_cast<std::size_t>(RV_PCCMDCHAN_HEADER_MAX)) {
-            close("request line exceeded the header ceiling");
+            FAIL_LOG_CLOSE(this, "request line exceeded the header ceiling");
         }
         return false;
     }
@@ -289,7 +309,7 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
     if (line_end - line_begin > static_cast<std::size_t>(RV_PCCMDCHAN_HEADER_MAX)) {
         // consumed_/scanned_ are already past this line, so it is dropped, not
         // rescanned forever, even though it is refused rather than parsed.
-        close("request line exceeded the header ceiling");
+        FAIL_LOG_CLOSE(this, "request line exceeded the header ceiling");
         return false;
     }
     std::string_view line(base + line_begin, line_end - line_begin);
@@ -318,26 +338,28 @@ bool rv_pccmdchan_stdio::take_header(rv_pccmdreq &out)
     // A trailing `bytes <n>` is the channel's business, not the verb's: only the
     // channel can know where the next header starts, so it strips the pair here
     // and gathers the bytes itself.
-    if (req.args.size() >= RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE &&
-        req.args[req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE] == RV_PCCMDCHAN_PAYLOAD_ARG_KEYWORD) {
-        int64_t size = 0;
-        if (!parse_u63(req.args.back(), size) || size > RV_PCCMDCHAN_PAYLOAD_MAX) {
-            // Fatal to the framing: the sender is about to write a number of
-            // bytes we do not know, and guessing would turn them into commands.
-            reply(std::to_string(req.id) +
-                " err error=payload_size effects=0 msg=" + rv_pccmd_hex("payload size is not a number within the ceiling"));
-            close("payload size could not be framed");
-            return false;
-        }
-        req.args.resize(req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE);
-        req.has_payload = true;
-        need_ = static_cast<std::size_t>(size);
-        pending_ = std::move(req);
-        pending_error_ = std::move(id_error); // empty unless the id was refused
-        phase_ = phase::payload;
-        payload_started_ = std::chrono::steady_clock::now();
-        payload_progress_ = payload_started_;
-        return take_payload(out);
+    if (claims_payload(req)) {
+        auto start_payload = [this, &req, &id_error, &out] {
+            int64_t size = 0;
+            if (!parse_u63(req.args.back(), size) || size > RV_PCCMDCHAN_PAYLOAD_MAX) {
+                // Fatal to the framing: the sender is about to write a number of
+                // bytes we do not know, and guessing would turn them into commands.
+                reply(std::to_string(req.id) +
+                    " err error=payload_size effects=0 msg=" + rv_pccmd_hex("payload size is not a number within the ceiling"));
+                FAIL_LOG_CLOSE(this, "payload size could not be framed");
+                return false;
+            }
+            req.args.resize(req.args.size() - RV_PCCMDCHAN_PAYLOAD_ARG_PAIR_SIZE);
+            req.has_payload = true;
+            need_ = static_cast<std::size_t>(size);
+            pending_ = std::move(req);
+            pending_error_ = std::move(id_error); // empty unless the id was refused
+            phase_ = phase::payload;
+            payload_started_ = std::chrono::steady_clock::now();
+            payload_progress_ = payload_started_;
+            return take_payload(out);
+        };
+        return start_payload();
     }
 
     if (!id_error.empty()) {
@@ -379,7 +401,7 @@ bool rv_pccmdchan_stdio::take_payload(rv_pccmdreq &out)
         reply(std::to_string(pending_.id) +
             " err error=payload_timeout effects=0 msg=" + rv_pccmd_hex("payload did not arrive in time"));
         pending_error_.clear(); // the channel is going down; the id refusal is moot
-        close("payload transfer timed out");
+        FAIL_LOG_CLOSE(this, "payload transfer timed out");
     }
     return false;
 }
@@ -418,7 +440,7 @@ bool rv_pccmdchan_stdio::next_request(rv_pccmdreq &out)
             // script's tail to the command parser.
             reply(std::to_string(pending_.id) +
                 " err error=payload_timeout effects=0 msg=" + rv_pccmd_hex("the client closed the channel mid-payload"));
-            close("the client closed the channel mid-payload");
+            FAIL_LOG_CLOSE(this, "the client closed the channel mid-payload");
         } else if (available() == 0) {
             close("end of input (the client closed the channel)");
         }
