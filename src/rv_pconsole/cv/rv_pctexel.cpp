@@ -71,24 +71,27 @@ int64_t rv_pctexel::wrap(int64_t coord, int64_t size, rv_texture_mapping_type ma
         return 0;
     }
 
-    if (mapping == RV_TEXWRAP_TILE) {
+    switch (mapping) {
+    case RV_TEXWRAP_TILE:
         if (is_pow2(size)) {
             return coord & (size - 1);
         }
         return ((coord % size) + size) % size;
-    }
-
     // CLAMP, and STRETCH — which the rasterizer has already rescaled onto the
     // primitive's bounding box, so the only coordinates left outside are the
     // rounding slack at the last row/column. Clamping is what keeps the edge
     // texel from wrapping around to the opposite edge there.
-    if (coord < 0) {
-        return 0;
+    case RV_TEXWRAP_CLAMP:
+    case RV_TEXWRAP_STRETCH:
+    default:
+        if (coord < 0) {
+            return 0;
+        }
+        if (coord >= size) {
+            return size - 1;
+        }
+        return coord;
     }
-    if (coord >= size) {
-        return size - 1;
-    }
-    return coord;
 }
 
 rv_pctexel_sample rv_pctexel::sample(const rv_pctexview &view, int64_t u, int64_t v, rv_texture_mapping_type mapping)

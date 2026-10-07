@@ -339,7 +339,7 @@ const rv_zipentry *rv_zipreader::find(const char *name) const
 int64_t rv_zipreader::size(const char *name) const
 {
     const rv_zipentry *entry = find(name);
-    return entry == nullptr ? -1 : entry->size;
+    return entry == nullptr ? RV_ERR_NOENT : entry->size;
 }
 
 rv_zipread rv_zipreader::read(const char *name, void *baddr, int64_t cap, int64_t &nread) const
