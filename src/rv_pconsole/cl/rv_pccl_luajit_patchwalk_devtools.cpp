@@ -40,6 +40,40 @@ bool first_visit(patch_ctx &ctx, int n_idx)
     return true;
 }
 
+// Prepare and pair new metatable with old if available, otherwise with nil
+int pair_metatable_(patch_ctx &ctx, bool paired, int o_idx, int depth)
+{
+    lua_State *L = ctx.L;
+    const int mt_n_idx = lua_gettop(L);
+    const bool has_mt_o = paired && lua_getmetatable(L, o_idx); // pushes mt_o on success
+    if (!has_mt_o) {
+        lua_pushnil(L);
+    }
+    const int err = patch_pair(ctx, lua_gettop(L), mt_n_idx, depth + 1);
+    lua_pop(L, 1); // mt_o or nil
+    if (err != RV_OK) {
+        lua_pop(L, 1); // mt_n
+        return err;
+    }
+    lua_pop(L, 1); // mt_n
+    return RV_OK;
+}
+
+// Prepare and pair new field value with old if available, otherwise with nil
+int pair_field_(patch_ctx &ctx, bool paired, int o_idx, int key_idx, int val_idx, int depth)
+{
+    lua_State *L = ctx.L;
+    if (paired) {
+        lua_pushvalue(L, key_idx);
+        lua_rawget(L, o_idx); // oc = o[key], or nil if absent
+    } else {
+        lua_pushnil(L);
+    }
+    const int err = patch_pair(ctx, lua_gettop(L), val_idx, depth + 1);
+    lua_pop(L, 1); // oc or nil
+    return err;
+}
+
 // Is `idx` a table Pass 2 must treat as an opaque leaf: an old table already
 // claimed by a pair, or one of the live tables built in patch_trampoline_ -
 // neither is safe to count against the node budget or walk into.
@@ -89,10 +123,15 @@ int reach_count_function(patch_ctx &ctx, int n_idx, int depth)
         }
         const int up_idx = lua_gettop(L);
         int err = RV_OK;
-        if (lua_istable(L, up_idx)) {
+        switch (lua_type(L, up_idx)) {
+        case LUA_TTABLE:
             err = patch_reach(ctx, up_idx, depth + 1);
-        } else if (lua_isfunction(L, up_idx) && !lua_iscfunction(L, up_idx)) {
-            err = reach_count_function(ctx, up_idx, depth + 1);
+            break;
+        case LUA_TFUNCTION:
+            if (!lua_iscfunction(L, up_idx)) {
+                err = reach_count_function(ctx, up_idx, depth + 1);
+            }
+            break;
         }
         lua_pop(L, 1); // the upvalue value
         if (err != RV_OK) {
@@ -160,19 +199,10 @@ int patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth)
     }
 
     if (lua_getmetatable(L, n_idx)) { // pushes mt_n (always a table)
-        const int mt_n_idx = lua_gettop(L);
-        if (paired && lua_getmetatable(L, o_idx)) {
-            // pushes mt_o
-        } else {
-            lua_pushnil(L);
-        }
-        const int err = patch_pair(ctx, lua_gettop(L), mt_n_idx, depth + 1);
-        lua_pop(L, 1); // mt_o or nil
+        const int err = pair_metatable_(ctx, paired, o_idx, depth);
         if (err != RV_OK) {
-            lua_pop(L, 1); // mt_n
             return err;
         }
-        lua_pop(L, 1); // mt_n
     }
 
     lua_pushnil(L);
@@ -181,14 +211,7 @@ int patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth)
         const int key_idx = lua_gettop(L) - 1;
         const int val_idx = lua_gettop(L);
         if (lua_istable(L, val_idx)) {
-            if (paired) {
-                lua_pushvalue(L, key_idx);
-                lua_rawget(L, o_idx); // oc = o[key], or nil if absent
-            } else {
-                lua_pushnil(L);
-            }
-            const int err = patch_pair(ctx, lua_gettop(L), val_idx, depth + 1);
-            lua_pop(L, 1); // oc or nil
+            const int err = pair_field_(ctx, paired, o_idx, key_idx, val_idx, depth);
             if (err != RV_OK) {
                 lua_pop(L, 2); // value, key
                 return err;
@@ -245,13 +268,16 @@ int patch_reach(patch_ctx &ctx, int n_idx, int depth)
     while (lua_next(L, n_idx) != 0) {
         // [key, value]
         const int val_idx = lua_gettop(L);
-        const bool is_table = lua_istable(L, val_idx);
-        const bool is_lua_fn = lua_isfunction(L, val_idx) && !lua_iscfunction(L, val_idx);
         int err = RV_OK;
-        if (is_table) {
+        switch (lua_type(L, val_idx)) {
+        case LUA_TTABLE:
             err = patch_reach(ctx, val_idx, depth + 1);
-        } else if (is_lua_fn) {
-            err = reach_count_function(ctx, val_idx, depth + 1);
+            break;
+        case LUA_TFUNCTION:
+            if (!lua_iscfunction(L, val_idx)) {
+                err = reach_count_function(ctx, val_idx, depth + 1);
+            }
+            break;
         }
         lua_pop(L, 1); // value; key stays for lua_next
         if (err != RV_OK) {
