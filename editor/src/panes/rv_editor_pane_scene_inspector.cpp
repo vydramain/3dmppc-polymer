@@ -24,6 +24,48 @@ namespace
 // Field labels end this many font sizes in.
 constexpr float label_column_em = 6.0f;
 
+// An edited field after its widget: Escape or an empty press takes the step back, otherwise the new value goes in.
+template <typename T>
+void rv_editor_edit_settle(bool changed,
+    const T &value,
+    T &target,
+    const T &before,
+    const char *label,
+    rv_editor_scene_doc &doc,
+    rv_editor_scene_ui &ui)
+{
+    const bool mine = ui.editing == label;
+    // ImGui lets go of the field on Escape itself, so the key is also caught as it does.
+    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
+    // A press that changed nothing, or Escape: the step taken at the press goes again.
+    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
+    if (mine && !ui.cancelled && (escaped || idle)) {
+        ui.cancelled = escaped;
+        if (!doc.undo.empty()) {
+            doc.undo.pop_back();
+        }
+        if (!escaped) {
+            ui.editing.clear();
+        }
+    }
+    // Taken back: the old values hold until the button is let go.
+    const bool taken_back = mine && ui.cancelled;
+    if (taken_back) {
+        target = before;
+    }
+    const bool released = !ImGui::IsItemActive();
+    if (taken_back && released) {
+        ui.cancelled = false;
+        ui.editing.clear();
+    }
+    if (taken_back) {
+        return;
+    }
+    if (changed) {
+        target = value;
+    }
+}
+
 // Largest tint channel value.
 constexpr int tint_channel_max = 255;
 
@@ -94,32 +136,7 @@ void rv_editor_inspector_vec(rv_editor_app &app,
         ui.before = doc.scene.objects[static_cast<size_t>(at)].*field;
     }
     rv_editor_vec3 &target = doc.scene.objects[static_cast<size_t>(at)].*field;
-    const bool mine = ui.editing == label;
-    // ImGui lets go of the field on Escape itself, so the key is also caught as it does.
-    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
-    // A press that changed nothing, or Escape: the step taken at the press goes again.
-    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
-    if (mine && !ui.cancelled && (escaped || idle)) {
-        ui.cancelled = escaped;
-        if (!doc.undo.empty()) {
-            doc.undo.pop_back();
-        }
-        if (!escaped) {
-            ui.editing.clear();
-        }
-    }
-    // Taken back: the old values hold until the button is let go.
-    if (mine && ui.cancelled) {
-        target = ui.before;
-        if (!ImGui::IsItemActive()) {
-            ui.cancelled = false;
-            ui.editing.clear();
-        }
-        return;
-    }
-    if (changed) {
-        target = value;
-    }
+    rv_editor_edit_settle(changed, value, target, ui.before, label, doc, ui);
 }
 
 // A fixed-size numeric array dragged or typed (uv, tint), the same undo and
@@ -160,29 +177,7 @@ void rv_editor_inspector_array(rv_editor_app &app,
         before = doc.scene.objects[static_cast<size_t>(at)].*field;
     }
     Arr &target = doc.scene.objects[static_cast<size_t>(at)].*field;
-    const bool mine = ui.editing == label;
-    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
-    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
-    if (mine && !ui.cancelled && (escaped || idle)) {
-        ui.cancelled = escaped;
-        if (!doc.undo.empty()) {
-            doc.undo.pop_back();
-        }
-        if (!escaped) {
-            ui.editing.clear();
-        }
-    }
-    if (mine && ui.cancelled) {
-        target = before;
-        if (!ImGui::IsItemActive()) {
-            ui.cancelled = false;
-            ui.editing.clear();
-        }
-        return;
-    }
-    if (changed) {
-        target = value;
-    }
+    rv_editor_edit_settle(changed, value, target, before, label, doc, ui);
 }
 
 // A single number dragged or typed (tess), clamped to stay above zero.
@@ -211,29 +206,7 @@ void rv_editor_inspector_tess(rv_editor_app &app,
         before = doc.scene.objects[static_cast<size_t>(at)].*field;
     }
     double &target = doc.scene.objects[static_cast<size_t>(at)].*field;
-    const bool mine = ui.editing == label;
-    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape) && (ImGui::IsItemActive() || ImGui::IsItemDeactivated());
-    const bool idle = ImGui::IsItemDeactivated() && !ImGui::IsItemDeactivatedAfterEdit();
-    if (mine && !ui.cancelled && (escaped || idle)) {
-        ui.cancelled = escaped;
-        if (!doc.undo.empty()) {
-            doc.undo.pop_back();
-        }
-        if (!escaped) {
-            ui.editing.clear();
-        }
-    }
-    if (mine && ui.cancelled) {
-        target = before;
-        if (!ImGui::IsItemActive()) {
-            ui.cancelled = false;
-            ui.editing.clear();
-        }
-        return;
-    }
-    if (changed) {
-        target = std::max(value, lo);
-    }
+    rv_editor_edit_settle(changed, std::max(value, lo), target, before, label, doc, ui);
 }
 
 // A text value committed as a whole, never letter by letter.
