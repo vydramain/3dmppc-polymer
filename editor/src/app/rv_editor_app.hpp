@@ -362,7 +362,8 @@ bool rv_editor_app_scene_dirty(const rv_editor_app &app);
 std::string rv_editor_app_scene_name(const rv_editor_app &app);
 // If the open scene is unsaved: does nothing when path is that same scene, else
 // leaves it open and sets scene_error naming both, refusing to open path.
-void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
+// RV_OK when opened or already open; RV_ERR_BUSY when an unsaved scene refuses; the load's RV_ERR_* otherwise.
+int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
 
@@ -380,7 +381,8 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
 // Saves the scene if dirty. RV_OK when already saved or successfully saved; RV_ERR_* on save failure.
 int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // The project's first scene, or none; called when a project opens.
-void rv_editor_app_scene_first(rv_editor_app &app);
+// RV_OK when there is none; otherwise rv_editor_app_scene_open's code.
+int rv_editor_app_scene_first(rv_editor_app &app);
 
 // Writes the profiles to the project, checks the active one again and refills the
 // form. Returns RV_OK on success or RV_ERR_* on save failure.

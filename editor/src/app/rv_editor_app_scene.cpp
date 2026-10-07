@@ -18,6 +18,20 @@ namespace rv_editor
 namespace
 {
 
+// Compares two paths: weakly_canonical both, fallback to lexically_normal on error.
+bool rv_editor_same_path(const std::filesystem::path &a, const std::filesystem::path &b)
+{
+    std::error_code ec_a;
+    std::error_code ec_b;
+    std::filesystem::path canonical_a = std::filesystem::weakly_canonical(a, ec_a);
+    std::filesystem::path canonical_b = std::filesystem::weakly_canonical(b, ec_b);
+    if (ec_a || ec_b) {
+        canonical_a = a.lexically_normal();
+        canonical_b = b.lexically_normal();
+    }
+    return canonical_a == canonical_b;
+}
+
 // Suffix for scene file names.
 constexpr std::string_view scene_suffix = ".scene.toml";
 
@@ -87,20 +101,13 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app)
     return app.scene == nullptr ? std::string() : rv_editor_scene_label(app, app.scene->scene.path);
 }
 
-void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path)
+int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path)
 {
-    if (rv_editor_app_scene_dirty(app)) {
-        std::error_code ec_a;
-        std::error_code ec_b;
-        std::filesystem::path current = std::filesystem::weakly_canonical(app.scene->scene.path, ec_a);
-        std::filesystem::path other = std::filesystem::weakly_canonical(path, ec_b);
-        if (ec_a || ec_b) {
-            current = app.scene->scene.path.lexically_normal();
-            other = path.lexically_normal();
-        }
-        if (current == other) {
-            return; // already open, with its edits
-        }
+    const bool dirty = rv_editor_app_scene_dirty(app);
+    if (dirty && rv_editor_same_path(app.scene->scene.path, path)) {
+        return RV_OK; // already open, with its edits
+    }
+    if (dirty) {
         const std::string current_label = rv_editor_app_scene_name(app);
         const std::string other_label = rv_editor_scene_label(app, path);
         app.scene_error = current_label +
@@ -108,14 +115,15 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
             "before opening " +
             other_label;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, app.scene_error);
-        return;
+        return RV_ERR_BUSY;
     }
     rv_editor_scene scene;
     std::string error;
-    if (rv_editor_scene_load(path, scene, error) != RV_OK) {
+    const int load_code = rv_editor_scene_load(path, scene, error);
+    if (load_code != RV_OK) {
         app.scene_error = error;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not opened: " + error);
-        return;
+        return load_code;
     }
     auto doc = std::make_unique<rv_editor_scene_doc>();
     doc->scene = std::move(scene);
@@ -125,6 +133,7 @@ void rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &p
         rv_editor_log_level::info,
         "scene opened: " + rv_editor_app_scene_name(app) +
             (app.scene->scene.read_only.empty() ? "" : " (read-only: " + app.scene->scene.read_only + ")"));
+    return RV_OK;
 }
 
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app)
@@ -223,14 +232,15 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
     return RV_OK;
 }
 
-void rv_editor_app_scene_first(rv_editor_app &app)
+int rv_editor_app_scene_first(rv_editor_app &app)
 {
     app.scene.reset();
     app.scene_error.clear();
     const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
-    if (!files.empty()) {
-        rv_editor_app_scene_open(app, files.front());
+    if (files.empty()) {
+        return RV_OK;
     }
+    return rv_editor_app_scene_open(app, files.front());
 }
 
 } // namespace rv_editor
