@@ -54,9 +54,11 @@ int read_whole_entry(const rv_zipreader &zip,
     std::string &why);
 
 // Directory route equivalent: read the WHOLE file at `path`, refusing
-// anything over `max_size` before it becomes an allocation. Returns the
-// reason as a string; empty means success.
-std::string read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out);
+// anything over `max_size` before it becomes an allocation. Returns RV_OK on
+// success, or RV_ERR_NOENT (no file), RV_ERR_INVAL (oversized),
+// RV_ERR_NOMEM (allocation failure), RV_ERR_IO (read error) on failure;
+// reason in `why`.
+int read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out, std::string &why);
 
 std::string extract_code(const std::vector<unsigned char> &code, std::string &out_path);
 

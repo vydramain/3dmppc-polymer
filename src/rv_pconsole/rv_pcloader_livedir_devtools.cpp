@@ -47,39 +47,45 @@ namespace rv_pcloader_detail
 // Same contract as read_whole_entry() above, off a plain file instead of a
 // zip entry - the directory route's counterpart, so mount_dir() can share
 // every check downstream of "here are the bytes" with mount().
-std::string read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out)
+int read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out, std::string &why)
 {
     std::error_code ec;
     if (!std::filesystem::is_regular_file(path, ec)) {
-        return "no such file";
+        why = "no such file";
+        return RV_ERR_NOENT;
     }
 
     const uintmax_t raw_size = std::filesystem::file_size(path, ec);
     if (ec) {
-        return std::format("cannot measure the file: {}", ec.message());
+        why = std::format("cannot measure the file: {}", ec.message());
+        return RV_ERR_IO;
     }
     const int64_t size = static_cast<int64_t>(raw_size);
     if (size > max_size) {
-        return std::format("file is {} bytes, over the {} byte ceiling", size, max_size);
+        why = std::format("file is {} bytes, over the {} byte ceiling", size, max_size);
+        return RV_ERR_INVAL;
     }
 
     try {
         out.assign(static_cast<std::size_t>(size), 0);
     } catch (const std::bad_alloc &) {
-        return "out of memory";
+        why = "out of memory";
+        return RV_ERR_NOMEM;
     }
     if (size == 0) {
-        return std::string();
+        return RV_OK;
     }
 
     std::ifstream in(path, std::ios::binary);
     if (!in) {
-        return "cannot open the file";
+        why = "cannot open the file";
+        return RV_ERR_IO;
     }
     if (!in.read(reinterpret_cast<char *>(out.data()), size)) {
-        return "short read";
+        why = "short read";
+        return RV_ERR_IO;
     }
-    return std::string();
+    return RV_OK;
 }
 
 } // namespace rv_pcloader_detail
@@ -90,8 +96,9 @@ std::string read_whole_file(const std::filesystem::path &path, int64_t max_size,
 int64_t rv_pcloader::read_dir_manifest_(const std::filesystem::path &root, const char *dir_path)
 {
     std::vector<unsigned char> manifest_bytes;
-    const std::string why = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes);
-    if (!why.empty()) {
+    std::string why;
+    const int rc = read_whole_file(root / RV_PCLOADER_MANIFEST_ENTRY, RV_PCLOADER_MANIFEST_MAX_SIZE, manifest_bytes, why);
+    if (rc != RV_OK) {
         RV_LOG_ERR("pcloader",
             "'{}' carries no usable '{}': {}",
             rv_pdklib::rv_log_escape(dir_path),
@@ -182,8 +189,9 @@ int64_t rv_pcloader::mount_dir(const char *dir_path)
     // dir_code_'s comment in rv_pcloader.hpp for why a second read from the
     // path is not an option for a directory disc.
     std::vector<unsigned char> code_bytes;
-    const std::string why = read_whole_file(root / code_entry, RV_PCLOADER_CODE_MAX_SIZE, code_bytes);
-    if (!why.empty()) {
+    std::string why;
+    const int rc = read_whole_file(root / code_entry, RV_PCLOADER_CODE_MAX_SIZE, code_bytes, why);
+    if (rc != RV_OK) {
         RV_LOG_ERR("pcloader",
             "disc '{}' names its code entry '{}', which is unusable: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
