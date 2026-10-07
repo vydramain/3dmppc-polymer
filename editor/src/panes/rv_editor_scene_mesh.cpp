@@ -103,11 +103,13 @@ const rv_pdklib::rv_obj_mesh *rv_editor_mesh_load(const std::filesystem::path &p
         return nullptr;
     }
     auto it = rv_editor_mesh_cache.find(key);
-    if (it != rv_editor_mesh_cache.end() && it->second.mtime == mtime) {
-        if (!it->second.ok) {
-            set_error(error, it->second.error);
-        }
-        return it->second.ok ? &it->second.mesh : nullptr;
+    const bool cached = it != rv_editor_mesh_cache.end() && it->second.mtime == mtime;
+    if (cached && !it->second.ok) {
+        set_error(error, it->second.error);
+        return nullptr;
+    }
+    if (cached) {
+        return &it->second.mesh;
     }
     rv_editor_mesh_cache_entry entry;
     entry.mtime = mtime;
