@@ -294,25 +294,35 @@ void rv_editor_tile_apply(rv_editor_workspace &ws,
         }
     }
 
-    if (a.what == rv_editor_tile_action::op::split) {
+    switch (a.what) {
+    case rv_editor_tile_action::op::split: {
         // A code tile splits into another code tile, a second nvim window on its
         // file; any other tile into an empty one to choose a kind for.
         const rv_editor_tile_leaf &from = ws.layout.nodes[a.leaf].leaf;
         const bool code = !from.tabs.empty() && ws.panes.panes[from.tabs[from.active]].kind == rv_editor_pane_kind::code;
         rv_editor_pane_id id = rv_editor_pane_add(ws.panes, code ? rv_editor_pane_kind::code : rv_editor_pane_kind::empty);
         rv_editor_tile_insert(ws.layout, a.leaf, id, a.dock);
-    } else if (a.what == rv_editor_tile_action::op::set_kind) {
+        break;
+    }
+    case rv_editor_tile_action::op::set_kind:
         (void)rv_editor_pane_set_kind(ws.panes, a.pane, a.kind);
-    } else if (a.what == rv_editor_tile_action::op::maximize) {
+        break;
+    case rv_editor_tile_action::op::maximize:
         (void)rv_editor_tile_toggle_maximize(ws.layout, a.leaf);
-    } else if (a.what == rv_editor_tile_action::op::close) {
+        break;
+    case rv_editor_tile_action::op::close:
         (void)rv_editor_tile_remove(ws.layout, a.pane);
-    } else if (a.what == rv_editor_tile_action::op::close_leaf) {
+        break;
+    case rv_editor_tile_action::op::close_leaf: {
         // A copy: removing the last pane frees the leaf the list lives in.
         const std::vector<rv_editor_pane_id> tabs = ws.layout.nodes[a.leaf].leaf.tabs;
         for (const rv_editor_pane_id pane : tabs) {
             (void)rv_editor_tile_remove(ws.layout, pane);
         }
+        break;
+    }
+    default:
+        break;
     }
 
     // Update focused_leaf if it is no longer valid.
@@ -390,40 +400,35 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws,
     rv_editor_tile_action action;
     for (const auto &place : places) {
         const auto &node = ws.layout.nodes[place.node];
-        if (node.kind == rv_editor_tile_kind::split) {
+        switch (node.kind) {
+        case rv_editor_tile_kind::split: {
             const auto &sp = node.split;
             const auto &a = rect_of[sp.first];
             const auto &b = rect_of[sp.second];
-            float fa = 0.0f;
-            float fb = 0.0f;
-            float length = 0.0f;
-            float min_a = 0.0f;
-            float min_b = 0.0f;
-
-            if (sp.axis == rv_editor_axis::x) {
-                fa = static_cast<float>(a.w);
-                fb = static_cast<float>(b.w);
-                length = static_cast<float>(place.rect.h);
-                min_a = static_cast<float>(rv_editor_tile_min_size(ws.layout, sp.first, m, pane_min).w);
-                min_b = static_cast<float>(rv_editor_tile_min_size(ws.layout, sp.second, m, pane_min).w);
-                ImGui::SetCursorScreenPos(ImVec2(a.x + a.w, place.rect.y));
-            } else {
-                fa = static_cast<float>(a.h);
-                fb = static_cast<float>(b.h);
-                length = static_cast<float>(place.rect.w);
-                min_a = static_cast<float>(rv_editor_tile_min_size(ws.layout, sp.first, m, pane_min).h);
-                min_b = static_cast<float>(rv_editor_tile_min_size(ws.layout, sp.second, m, pane_min).h);
-                ImGui::SetCursorScreenPos(ImVec2(place.rect.x, a.y + a.h));
-            }
-
+            // x: the handle stands between columns, widths change.
+            const bool across = sp.axis == rv_editor_axis::x;
+            const rv_editor_size min_a_size = rv_editor_tile_min_size(ws.layout, sp.first, m, pane_min);
+            const rv_editor_size min_b_size = rv_editor_tile_min_size(ws.layout, sp.second, m, pane_min);
+            float fa = static_cast<float>(across ? a.w : a.h);
+            float fb = static_cast<float>(across ? b.w : b.h);
+            const float length = static_cast<float>(across ? place.rect.h : place.rect.w);
+            const float min_a = static_cast<float>(across ? min_a_size.w : min_a_size.h);
+            const float min_b = static_cast<float>(across ? min_b_size.w : min_b_size.h);
+            const ImVec2 cursor = across ? ImVec2(a.x + a.w, place.rect.y) : ImVec2(place.rect.x, a.y + a.h);
+            ImGui::SetCursorScreenPos(cursor);
             char id[split_id_buf_size];
             std::snprintf(id, sizeof(id), "##split%u", place.node);
             if (rv_editor_splitter(id, sp.axis, length, &fa, &fb, min_a, min_b, theme) && fa + fb > 0) {
                 (void)rv_editor_tile_set_ratio(ws.layout, place.node, fa / (fa + fb));
                 ws.dragged = true;
             }
-        } else if (node.kind == rv_editor_tile_kind::leaf) {
+            break;
+        }
+        case rv_editor_tile_kind::leaf:
             draw_leaf(ws, place.node, place.rect, theme, draw_pane, context, action);
+            break;
+        case rv_editor_tile_kind::free:
+            break;
         }
     }
 
