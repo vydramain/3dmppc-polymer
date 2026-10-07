@@ -114,14 +114,14 @@ bool rv_editor_app_texture_bake_busy(const rv_editor_app &app, std::string *name
     return true;
 }
 
-void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png)
+int rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png)
 {
     rv_editor_texture_bake &bake = app.texture_bake;
     if (bake.proc != nullptr) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
             "texture " + name + " not baked: another bake is already running");
-        return;
+        return RV_ERR_BUSY;
     }
     bake.name = name;
     bake.png = png;
@@ -134,7 +134,7 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
         bake.ok = false;
         bake.message = "texture " + name + " not baked: " + staging.string() + ": " + ec.message();
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
-        return;
+        return RV_ERR_IO;
     }
     const std::vector<std::string> argv = { app.tools.burner.path.string(),
         std::string(burner_cmd_bake),
@@ -149,12 +149,13 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
     bake.err_partial.clear();
     bake.err_all.clear();
     std::string error;
-    if (bake.proc->start(argv, app.project.root, error) != RV_OK) {
+    const int start_err = bake.proc->start(argv, app.project.root, error);
+    if (start_err != RV_OK) {
         bake.proc.reset();
         bake.ok = false;
         bake.message = "texture " + name + " not baked: " + error;
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
-        return;
+        return start_err;
     }
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
@@ -162,6 +163,7 @@ void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &nam
         rv_editor_log_channel::none,
         bake.proc->pid(),
         bake.build_number);
+    return RV_OK;
 }
 
 void rv_editor_app_texture_bake_update(rv_editor_app &app)

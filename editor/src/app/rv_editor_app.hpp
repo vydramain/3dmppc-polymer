@@ -420,8 +420,9 @@ void rv_editor_app_reload_queue_update(rv_editor_app &app);
 // async. True while one runs; when `name` is not null it receives what it bakes.
 bool rv_editor_app_texture_bake_busy(const rv_editor_app &app, std::string *name = nullptr);
 // Starts baking `name` (the texture's disc name) from `png` into staging; logs and
-// does nothing if a bake is already running.
-void rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png);
+// does nothing if a bake is already running. RV_OK on success, RV_ERR_BUSY if a bake is running, RV_ERR_IO on filesystem
+// failure, or the start error code.
+int rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png);
 // Once a frame: drains the running bake, reports its outcome, and on success sends
 // the baked bytes over the session's reload slot (dropped, not sent, if the session
 // ended or another reload is in flight).
