@@ -36,6 +36,39 @@ constexpr std::string_view entry_kind_module = "module";
 constexpr std::string_view entry_kind_texture = "texture";
 constexpr std::string_view entry_kind_sound = "sound";
 
+// Entry kind enum for dispatch.
+enum class rv_editor_entry_kind {
+    unknown,
+    code,
+    entry,
+    module,
+    texture,
+    sound
+};
+
+// Entry kind name to enum lookup table.
+constexpr struct {
+    std::string_view name;
+    rv_editor_entry_kind value;
+} entry_kind_table[] = {
+    { entry_kind_code, rv_editor_entry_kind::code },
+    { entry_kind_entry, rv_editor_entry_kind::entry },
+    { entry_kind_module, rv_editor_entry_kind::module },
+    { entry_kind_texture, rv_editor_entry_kind::texture },
+    { entry_kind_sound, rv_editor_entry_kind::sound },
+};
+
+// Parse entry kind via table lookup.
+rv_editor_entry_kind parse_entry_kind(std::string_view kind)
+{
+    for (const auto &entry : entry_kind_table) {
+        if (kind == entry.name) {
+            return entry.value;
+        }
+    }
+    return rv_editor_entry_kind::unknown;
+}
+
 bool rv_editor_change_is_cpp(const std::filesystem::path &path)
 {
     static const std::array exts =
@@ -57,6 +90,46 @@ rv_editor_change_plan
 rv_editor_change_plan_of(rv_editor_change_action action, std::string name, std::string parameter, std::string reason)
 {
     return { action, std::move(name), std::move(parameter), std::move(reason) };
+}
+
+// Determine change plan for a map entry by its kind.
+rv_editor_change_plan rv_editor_change_plan_for_entry(const rv_editor_map_entry &entry)
+{
+    const rv_editor_entry_kind kind = parse_entry_kind(entry.kind);
+    switch (kind) {
+    case rv_editor_entry_kind::code:
+        return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
+            "",
+            "",
+            rv_editor_text("change.save_and_rebuild"));
+    case rv_editor_entry_kind::entry: {
+        const auto args = std::make_format_args(entry.name);
+        const auto reason = rv_editor_text_format("change.reload_entry_script", args);
+        return rv_editor_change_plan_of(rv_editor_change_action::reload_entry, entry.name, "", reason);
+    }
+    case rv_editor_entry_kind::module: {
+        const auto args = std::make_format_args(entry.parameter);
+        const auto reason = rv_editor_text_format("change.reload_module", args);
+        return rv_editor_change_plan_of(rv_editor_change_action::reload_module, entry.parameter, "", reason);
+    }
+    case rv_editor_entry_kind::texture: {
+        const auto args = std::make_format_args(entry.name);
+        const auto reason = rv_editor_text_format("change.refresh_texture", args);
+        return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name, entry.parameter, reason);
+    }
+    case rv_editor_entry_kind::sound: {
+        const auto args = std::make_format_args(entry.name);
+        const auto reason = rv_editor_text_format("change.sound_restart_required", args);
+        return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "", reason);
+    }
+    case rv_editor_entry_kind::unknown:
+        break;
+    }
+    // "file", or any kind this editor does not know: only a restart picks it up.
+    return rv_editor_change_plan_of(rv_editor_change_action::restart_required,
+        entry.name,
+        "",
+        rv_editor_text("change.file_reload_not_supported"));
 }
 
 } // namespace
@@ -95,38 +168,7 @@ rv_editor_change_plan rv_editor_change_plan_for(const std::filesystem::path &roo
 
     const auto found = map.find(rel.generic_string());
     if (found != map.end()) {
-        const rv_editor_map_entry &entry = found->second;
-        if (entry.kind == entry_kind_code) {
-            return rv_editor_change_plan_of(rv_editor_change_action::build_restart,
-                "",
-                "",
-                rv_editor_text("change.save_and_rebuild"));
-        }
-        if (entry.kind == entry_kind_entry) {
-            const auto args = std::make_format_args(entry.name);
-            const auto reason = rv_editor_text_format("change.reload_entry_script", args);
-            return rv_editor_change_plan_of(rv_editor_change_action::reload_entry, entry.name, "", reason);
-        }
-        if (entry.kind == entry_kind_module) {
-            const auto args = std::make_format_args(entry.parameter);
-            const auto reason = rv_editor_text_format("change.reload_module", args);
-            return rv_editor_change_plan_of(rv_editor_change_action::reload_module, entry.parameter, "", reason);
-        }
-        if (entry.kind == entry_kind_texture) {
-            const auto args = std::make_format_args(entry.name);
-            const auto reason = rv_editor_text_format("change.refresh_texture", args);
-            return rv_editor_change_plan_of(rv_editor_change_action::refresh_texture, entry.name, entry.parameter, reason);
-        }
-        if (entry.kind == entry_kind_sound) {
-            const auto args = std::make_format_args(entry.name);
-            const auto reason = rv_editor_text_format("change.sound_restart_required", args);
-            return rv_editor_change_plan_of(rv_editor_change_action::restart_required, entry.name, "", reason);
-        }
-        // kind == "file"
-        return rv_editor_change_plan_of(rv_editor_change_action::restart_required,
-            entry.name,
-            "",
-            rv_editor_text("change.file_reload_not_supported"));
+        return rv_editor_change_plan_for_entry(found->second);
     }
 
     if (rv_editor_change_is_cpp(changed_norm)) {
