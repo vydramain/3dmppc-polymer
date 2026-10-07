@@ -157,6 +157,42 @@ void rv_editor_scene_subtree(const rv_editor_scene &scene, const std::string &id
     }
 }
 
+// Decompose transform; fail if it would need shear.
+int rv_editor_scene_decompose_keep_transform(const rv_editor_affine &transform, rv_editor_scene_object &moved, std::string &why)
+{
+    if (rv_editor_decompose(transform, moved) != RV_OK) {
+        why = rv_editor_text("scene_edit.keeping_would_need_shear");
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// Local transform that keeps the object's world placement under its new parent;
+// refused when that parent cannot be inverted or the result would need shear.
+int rv_editor_scene_reparent_keep_world(const rv_editor_scene &scene,
+    const std::string &parent,
+    int at,
+    rv_editor_scene_object &moved,
+    std::string &why)
+{
+    const rv_editor_affine world = rv_editor_scene_world(scene, at);
+    const int p = rv_editor_scene_find(scene, parent);
+
+    if (p < 0) {
+        return rv_editor_scene_decompose_keep_transform(world, moved, why);
+    }
+
+    bool ok = false;
+    const rv_editor_affine parent_inverse = rv_editor_affine_inverse(rv_editor_scene_world(scene, p), ok);
+    if (!ok) {
+        why = rv_editor_text("scene_edit.new_parent_scale_zero");
+        return RV_ERR_INVAL;
+    }
+
+    const rv_editor_affine local = rv_editor_affine_mul(parent_inverse, world);
+    return rv_editor_scene_decompose_keep_transform(local, moved, why);
+}
+
 } // namespace
 
 rv_editor_affine rv_editor_affine_mul(const rv_editor_affine &a, const rv_editor_affine &b)
@@ -349,22 +385,9 @@ int rv_editor_scene_reparent(rv_editor_scene_doc &doc,
         return RV_ERR_INVAL;
     }
     rv_editor_scene_object moved = doc.scene.objects[static_cast<size_t>(at)];
-    if (keep_world) {
-        const rv_editor_affine world = rv_editor_scene_world(doc.scene, at);
-        rv_editor_affine local = world;
-        const int p = rv_editor_scene_find(doc.scene, parent);
-        if (p >= 0) {
-            bool ok = false;
-            local = rv_editor_affine_mul(rv_editor_affine_inverse(rv_editor_scene_world(doc.scene, p), ok), world);
-            if (!ok) {
-                why = rv_editor_text("scene_edit.new_parent_scale_zero");
-                return RV_ERR_INVAL;
-            }
-        }
-        if (rv_editor_decompose(local, moved) != RV_OK) {
-            why = rv_editor_text("scene_edit.keeping_would_need_shear");
-            return RV_ERR_INVAL;
-        }
+    const int kept = keep_world ? rv_editor_scene_reparent_keep_world(doc.scene, parent, at, moved, why) : RV_OK;
+    if (kept != RV_OK) {
+        return kept;
     }
     moved.parent = parent;
     rv_editor_scene_step(doc);
