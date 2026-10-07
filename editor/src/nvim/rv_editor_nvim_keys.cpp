@@ -79,6 +79,18 @@ void rv_editor_utf8_append(std::string &out, uint32_t cp)
     }
 }
 
+// A-Z and 0-9 as nvim spells them; 0 for any other key.
+char rv_editor_key_char(ImGuiKey key)
+{
+    if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
+        return static_cast<char>('a' + (key - ImGuiKey_A));
+    }
+    if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
+        return static_cast<char>('0' + (key - ImGuiKey_0));
+    }
+    return 0;
+}
+
 // Key name in nvim_input notation, or nullptr for keys typed as text.
 const char *rv_editor_nvim_key(ImGuiKey key)
 {
@@ -151,30 +163,32 @@ std::string rv_editor_nvim_keys()
     if (io.KeySuper) {
         mods += nvim_mod_super;
     }
+    const std::string shift_mod = io.KeyShift ? nvim_mod_shift : "";
     for (int k = ImGuiKey_NamedKey_BEGIN; k < ImGuiKey_NamedKey_END; ++k) {
         const ImGuiKey key = static_cast<ImGuiKey>(k);
         if (!ImGui::IsKeyPressed(key, true)) {
             continue;
         }
-        if (const char *name = rv_editor_nvim_key(key)) {
-            keys += "<" + std::string(io.KeyShift ? nvim_mod_shift : "") + mods + name + ">";
+        const char *name = rv_editor_nvim_key(key);
+        if (name != nullptr) {
+            keys += "<" + shift_mod + mods + name + ">";
             continue;
         }
         // Letters and digits with Ctrl or Alt arrive as keys, not as text.
-        if ((io.KeyCtrl || io.KeyAlt) && !(io.KeyCtrl && key == ImGuiKey_B)) {
-            char ch = 0;
-            if (key >= ImGuiKey_A && key <= ImGuiKey_Z) {
-                ch = static_cast<char>('a' + (key - ImGuiKey_A));
-            } else if (key >= ImGuiKey_0 && key <= ImGuiKey_9) {
-                ch = static_cast<char>('0' + (key - ImGuiKey_0));
-            } else if (key == ImGuiKey_Space) {
-                keys += "<" + std::string(io.KeyShift ? nvim_mod_shift : "") + mods + nvim_key_space + ">";
-                continue;
-            }
-            if (ch != 0) {
-                keys += "<" + std::string(io.KeyShift ? nvim_mod_shift : "") + mods + std::string(1, ch) + ">";
-            }
+        const bool has_ctrl_or_alt = io.KeyCtrl || io.KeyAlt;
+        const bool is_ctrl_b = io.KeyCtrl && key == ImGuiKey_B;
+        if (!has_ctrl_or_alt || is_ctrl_b) {
+            continue;
         }
+        if (key == ImGuiKey_Space) {
+            keys += "<" + shift_mod + mods + nvim_key_space + ">";
+            continue;
+        }
+        const char ch = rv_editor_key_char(key);
+        if (ch == 0) {
+            continue;
+        }
+        keys += "<" + shift_mod + mods + std::string(1, ch) + ">";
     }
     // Typed text, Cyrillic included, as UTF-8; "<" is spelled out.
     if (!io.KeyCtrl && !io.KeyAlt) {
