@@ -115,9 +115,9 @@ const char *rv_editor_project_disc_section(std::string_view rel);
 // RV_OK on success, error code from rv_editor_manifest_add_pattern on failure. disc.toml is untouched on failure.
 int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error);
 
-// Opens `target`, a directory or its disc.toml. False with the reason when it
-// is neither a directory with disc.toml nor a disc.toml.
-bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error);
+// Opens `target`, a directory or its disc.toml. RV_OK on success; RV_ERR_NOENT when the directory
+// or disc.toml does not exist, RV_ERR_INVAL when target is a file but not disc.toml.
+int rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error);
 
 // Re-reads disc.toml after it changed on disk.
 void rv_editor_project_reload_manifest(rv_editor_project &project);

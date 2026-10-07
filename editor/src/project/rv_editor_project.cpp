@@ -335,25 +335,25 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
     return tool;
 }
 
-bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error)
+int rv_editor_project_open(const std::filesystem::path &target, rv_editor_project &project, std::string &error)
 {
     std::error_code ec;
     std::filesystem::path root = target;
     if (std::filesystem::is_regular_file(target, ec)) {
         if (target.filename() != std::string(manifest_file)) {
             error = target.string() + " is not a " + std::string(manifest_file);
-            return false;
+            return RV_ERR_INVAL;
         }
         root = target.parent_path();
     }
     root = std::filesystem::canonical(root.empty() ? std::filesystem::path(current_dir) : root, ec);
     if (ec || !std::filesystem::is_directory(root, ec)) {
         error = target.string() + ": no such directory";
-        return false;
+        return RV_ERR_NOENT;
     }
     if (!std::filesystem::is_regular_file(root / std::string(manifest_file), ec)) {
         error = root.string() + " holds no " + std::string(manifest_file);
-        return false;
+        return RV_ERR_NOENT;
     }
 
     rv_editor_project p;
@@ -367,7 +367,7 @@ bool rv_editor_project_open(const std::filesystem::path &target, rv_editor_proje
     p.state_dir = state.empty() ? state : state / hash;
     rv_editor_project_reload_manifest(p);
     project = std::move(p);
-    return true;
+    return RV_OK;
 }
 
 void rv_editor_project_reload_manifest(rv_editor_project &project)

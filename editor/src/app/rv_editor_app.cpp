@@ -103,7 +103,7 @@ bool rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
 {
     std::string error;
     rv_editor_project project;
-    if (!rv_editor_project_open(target, project, error)) {
+    if (rv_editor_project_open(target, project, error) != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot open: " + error);
         return false;
     }
