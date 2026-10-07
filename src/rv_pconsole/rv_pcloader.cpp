@@ -54,14 +54,14 @@ int64_t rv_pcloader::bring_up()
         code = std::move(dir_code_);
     } else {
         why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
-        if (!why.empty()) {
-            RV_LOG_ERR("pcloader",
-                "disc '{}' names its code entry '{}', which is unusable: {}",
-                rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-                rv_pdklib::rv_log_escape(code_entry.c_str()),
-                why);
-            return RV_ERR_NOENT;
-        }
+    }
+    if (!why.empty()) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names its code entry '{}', which is unusable: {}",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(code_entry.c_str()),
+            why);
+        return RV_ERR_NOENT;
     }
 
     why = extract_code(code, temp_path_);
@@ -180,16 +180,15 @@ void rv_pcloader::shutdown_disc_()
 
 void rv_pcloader::unload()
 {
-    if (disc_ != nullptr) {
-        // rv_de.h: the hook runs after the last frame and NOT for a disc that
-        // refused to start. The facade is still valid at this point - that is
-        // precisely why it runs before destroy and before dlclose.
-        if (initialized_) {
-            shutdown_disc_();
-        }
-        if (destroy_ != nullptr) {
-            destroy_(disc_);
-        }
+    // rv_de.h: the hook runs after the last frame and NOT for a disc that
+    // refused to start. The facade is still valid at this point - that is
+    // precisely why it runs before destroy and before dlclose.
+    const bool loaded = disc_ != nullptr;
+    if (loaded && initialized_) {
+        shutdown_disc_();
+    }
+    if (loaded && destroy_ != nullptr) {
+        destroy_(disc_);
     }
     disc_ = nullptr;
     destroy_ = nullptr;
