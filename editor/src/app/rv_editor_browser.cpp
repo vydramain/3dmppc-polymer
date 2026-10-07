@@ -8,6 +8,8 @@
 #include <cstring>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
@@ -39,10 +41,10 @@ void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir
     b.path[sizeof(b.path) - 1] = '\0';
 }
 
-void rv_editor_browser_list(rv_editor_browser &b)
+int rv_editor_browser_list(rv_editor_browser &b)
 {
     if (b.listed == b.dir && !b.listed.empty()) {
-        return;
+        return RV_OK;
     }
     b.listed = b.dir;
     b.entries.clear();
@@ -59,12 +61,14 @@ void rv_editor_browser_list(rv_editor_browser &b)
             b.entries.push_back({ name, is_dir });
         }
     }
-    if (ec) {
-        b.error = b.dir.string() + ": " + ec.message();
-    }
     std::sort(b.entries.begin(), b.entries.end(), [](const auto &l, const auto &r) {
         return l.dir != r.dir ? l.dir : l.name < r.name;
     });
+    if (ec) {
+        b.error = b.dir.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 bool rv_editor_is_executable(const std::filesystem::path &p)
