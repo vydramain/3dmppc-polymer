@@ -142,10 +142,12 @@ const char *rv_editor_app_why_not_play(const rv_editor_app &app)
     return nullptr;
 }
 
-void rv_editor_app_play_candidate(rv_editor_app &app)
+int rv_editor_app_play_candidate(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_play(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_play(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        return RV_ERR_BUSY;
     }
     rv_editor_release &r = app.release;
     rv_editor_candidate &c = r.candidates[r.selected];
@@ -156,15 +158,17 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
     card.replace_extension(std::string(player_card_extension));
     auto player = std::make_unique<rv_editor_process>();
     std::string error;
-    if (player->start({ app.tools.player.path.string(), std::string(memcard_flag), card.string(), c.image.string() },
+    const int err =
+        player->start({ app.tools.player.path.string(), std::string(memcard_flag), card.string(), c.image.string() },
             c.image.parent_path(),
-            error) != RV_OK) {
+            error);
+    if (err != RV_OK) {
         rv_editor_check_set(c,
             rv_editor_check_player,
             rv_editor_check_state::failed,
             "the player did not start: " + error,
             app.tools.player.path.string());
-        return;
+        return err;
     }
     r.player = std::move(player);
     r.player_candidate = static_cast<int>(r.selected);
@@ -184,6 +188,7 @@ void rv_editor_app_play_candidate(rv_editor_app &app)
         rv_editor_log_channel::none,
         r.player->pid(),
         c.number);
+    return RV_OK;
 }
 
 void rv_editor_app_stop_player(rv_editor_app &app)

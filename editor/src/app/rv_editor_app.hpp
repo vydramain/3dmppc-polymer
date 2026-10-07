@@ -451,17 +451,21 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
 
 // Release (editor/src/app/rv_editor_app_release.cpp): Build Candidate writes a new
 // numbered image; Run Candidate runs the one shown on the development console.
-void rv_editor_app_build_candidate(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_build_candidate(rv_editor_app &app);
 const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app);
-void rv_editor_app_run_candidate(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_run_candidate(rv_editor_app &app);
 // Player (editor/src/app/rv_editor_app_player.cpp): Run in Player plays the shown
 // candidate in the player's own window; Stop Player is the operator's act.
 const char *rv_editor_app_why_not_play(const rv_editor_app &app);
-void rv_editor_app_play_candidate(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_play_candidate(rv_editor_app &app);
 void rv_editor_app_stop_player(rv_editor_app &app);
 bool rv_editor_app_player_running(const rv_editor_app &app);
 void rv_editor_app_player_update(rv_editor_app &app);
-void rv_editor_app_export_report(rv_editor_app &app);
+// Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_export_report(rv_editor_app &app);
 // Once a frame: a finished candidate build, hashes, the playtest's end.
 void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
 // A project file changed: every candidate's sources now differ from the tree.

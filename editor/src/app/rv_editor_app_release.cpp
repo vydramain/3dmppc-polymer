@@ -117,10 +117,12 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
 
 } // namespace
 
-void rv_editor_app_build_candidate(rv_editor_app &app)
+int rv_editor_app_build_candidate(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_build(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_build(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
+        return RV_ERR_BUSY;
     }
     rv_editor_release &r = app.release;
     const std::filesystem::path dir = rv_editor_candidates_dir(app);
@@ -130,16 +132,18 @@ void rv_editor_app_build_candidate(rv_editor_app &app)
     std::string error;
     r.build_first_seq = app.log.revision() + 1;
     app.build_first_seq = r.build_first_seq;
-    if (app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext))) !=
-        RV_OK) {
+    const int err =
+        app.build.start(app.project, app.tools, app.log, error, dir / (std::to_string(number) + std::string(disc_image_ext)));
+    if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build a candidate: " + error);
-        return;
+        return err;
     }
     r.building = true;
     r.building_number = number;
     r.tree_changed_during = false;
     g_build_ended = false;
     g_revision.start(app.project.root);
+    return RV_OK;
 }
 
 const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
@@ -164,10 +168,12 @@ const char *rv_editor_app_why_not_run_candidate(const rv_editor_app &app)
     return nullptr;
 }
 
-void rv_editor_app_run_candidate(rv_editor_app &app)
+int rv_editor_app_run_candidate(rv_editor_app &app)
 {
-    if (rv_editor_app_why_not_run_candidate(app) != nullptr) {
-        return;
+    const char *why = rv_editor_app_why_not_run_candidate(app);
+    if (why != nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not run: ") + why);
+        return RV_ERR_BUSY;
     }
     rv_editor_release &r = app.release;
     rv_editor_candidate &c = r.candidates[r.selected];
@@ -177,8 +183,9 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
     std::filesystem::path card = c.image;
     card.replace_extension(memory_card_ext);
     r.playtest_first_seq = app.log.revision() + 1;
-    if (rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card) != RV_OK) {
-        return;
+    const int err = rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card);
+    if (err != RV_OK) {
+        return err;
     }
     r.playing = static_cast<int>(r.selected);
     rv_editor_check_set(c,
@@ -186,6 +193,7 @@ void rv_editor_app_run_candidate(rv_editor_app &app)
         rv_editor_check_state::running,
         "session #" + std::to_string(app.session.number()),
         app.tools.console.path.string());
+    return RV_OK;
 }
 
 void rv_editor_app_release_update(rv_editor_app &app, bool build_ended)
@@ -268,11 +276,12 @@ void rv_editor_app_release_changed(rv_editor_app &app)
     app.release.tree_changed_during = app.release.building;
 }
 
-void rv_editor_app_export_report(rv_editor_app &app)
+int rv_editor_app_export_report(rv_editor_app &app)
 {
     rv_editor_release &r = app.release;
     if (r.candidates.empty()) {
-        return;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "no release report: there is no candidate");
+        return RV_ERR_NOENT;
     }
     rv_editor_candidate &c = r.candidates[r.selected];
     std::string t = "3dmppc-editor release report\nwritten: " + rv_editor_wall_clock() + "\n\n";
@@ -317,11 +326,13 @@ void rv_editor_app_export_report(rv_editor_app &app)
     out.close();
     if (!out) {
         r.error = "cannot write " + path.string();
-        return;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, r.error);
+        return RV_ERR_IO;
     }
     r.error.clear();
     r.report = path.string();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "release report written: " + path.string());
+    return RV_OK;
 }
 
 } // namespace rv_editor
