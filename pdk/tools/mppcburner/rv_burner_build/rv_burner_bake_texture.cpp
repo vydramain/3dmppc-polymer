@@ -1,5 +1,6 @@
 #include "rv_burner_build_runner.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <filesystem>
 #include <format>
@@ -9,6 +10,7 @@
 
 #include "rv_burner_assets/rv_burner_bake.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_burner_print.hpp"
 
@@ -35,7 +37,7 @@ static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
     const fs::path canonical_source = fs::weakly_canonical(candidate, ec);
     if (ec) {
         error = std::format("'{}' does not exist", source);
-        return 1;
+        return RV_ERR_NOENT;
     }
 
     // Payload dirs are never read from or written to here; only the plan's
@@ -43,22 +45,24 @@ static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
     // is enough.
     const fs::path scratch = fs::temp_directory_path(ec);
     archive_plan plan;
-    if (plan_archive(manifest, disc_dir, scratch, scratch, scratch, plan, error) != 0) {
-        return 1;
+    if (plan_archive(manifest, disc_dir, scratch, scratch, scratch, plan, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
 
-    for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
-        const archive_item &item = plan.items[i];
+    const auto first = plan.items.begin() + static_cast<std::ptrdiff_t>(plan.first_texture);
+    const auto last = first + static_cast<std::ptrdiff_t>(plan.texture_count);
+    const auto found = std::find_if(first, last, [&](const archive_item &item) {
         std::error_code item_ec;
         const fs::path item_canonical = fs::weakly_canonical(disc_dir / item.source, item_ec);
-        if (!item_ec && item_canonical == canonical_source) {
-            out = item;
-            return 0;
-        }
+        return !item_ec && item_canonical == canonical_source;
+    });
+    if (found == last) {
+        error = std::format("'{}' is not in [textures]", source);
+        return RV_ERR_NOENT;
     }
 
-    error = std::format("'{}' is not in [textures]", source);
-    return 1;
+    out = *found;
+    return RV_OK;
 }
 
 } // namespace rv_pdktools
@@ -71,24 +75,25 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
     const fs::path disc_dir = fs::weakly_canonical(fs::path(options.operand), ec);
     if (ec || !fs::is_directory(disc_dir, ec)) {
         rv_burner_print_error(std::format("'{}' is not a directory", options.operand));
-        return 1;
+        return RV_ERR_NOENT;
     }
 
     rv_pdklib::rv_manifest manifest;
-    if (rv_burner_build_manifest(disc_dir, manifest, error) != 0) {
-        return 1;
+    if (rv_burner_build_manifest(disc_dir, manifest, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
 
     archive_item item;
-    if (rv_burner_bake_texture_select(manifest, disc_dir, options.bake_source, item, error) != 0) {
+    const int select_rv = rv_burner_bake_texture_select(manifest, disc_dir, options.bake_source, item, error);
+    if (select_rv != RV_OK) {
         rv_burner_print_error(error);
-        return 1;
+        return select_rv;
     }
 
     const fs::path output_path = fs::absolute(fs::path(options.output), ec);
     if (ec) {
         rv_burner_print_error(std::format("cannot resolve output path '{}'", options.output));
-        return 1;
+        return RV_ERR_IO;
     }
     // Baked beside the final path and renamed into place only once mppcbaker
     // and the budget check both passed, so a refusal never leaves a partial
@@ -100,10 +105,10 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
     plan.items.push_back(item);
     plan.texture_count = 1;
 
-    if (bake_textures(options.baker, manifest, disc_dir, plan, error) != 0) {
+    if (bake_textures(options.baker, manifest, disc_dir, plan, error) != RV_OK) {
         fs::remove(temp_path, ec);
         rv_burner_print_error(error);
-        return 1;
+        return RV_ERR_IO;
     }
 
     fs::rename(temp_path, output_path, ec);
@@ -111,9 +116,9 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
         const std::string rename_error = ec.message();
         fs::remove(temp_path, ec);
         rv_burner_print_error(std::format("cannot write '{}': {}", output_path.string(), rename_error));
-        return 1;
+        return RV_ERR_IO;
     }
 
     std::cout << item.name << "\n";
-    return 0;
+    return RV_OK;
 }

@@ -61,7 +61,7 @@ int rv_burner_build_run(const rv_burner_options &options);
 /// stdout. Progress and diagnostics go to stderr.
 ///
 /// @param options  the parsed command line
-/// @return a process exit code: 0 on success, 1 on any refusal
+/// @return RV_OK on success; otherwise the RV_ERR_* kind of the refusal, which main passes on as the exit status
 int rv_burner_bake_texture_run(const rv_burner_options &options);
 
 } // namespace rv_pdktools
