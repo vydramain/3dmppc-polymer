@@ -51,7 +51,7 @@ std::string cmake_project_text(const rv_pdklib::rv_manifest &manifest,
 /// @param absolute_includes  extra include directories, already checked
 /// @param absolute_sources   the disc's .cpp files, absolute
 /// @param error              set on any write failure
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success, RV_ERR_IO when a file cannot be written
 int create_cmakelists(const rv_burner_options &options,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &project_dir,
@@ -69,7 +69,7 @@ int create_cmakelists(const rv_burner_options &options,
 /// @param project_dir  directory holding the generated CMakeLists.txt
 /// @param error        set with a one-line summary; the child's own output goes
 ///                     to stderr
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success, RV_ERR_IO when cmake fails to configure
 int configure_cmake(const std::filesystem::path &binary_dir, const std::filesystem::path &project_dir, std::string &error);
 
 } // namespace rv_pdktools

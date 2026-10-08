@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_common/rv_burner_process.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 
@@ -160,12 +161,12 @@ int rv_pdktools::create_cmakelists(const rv_burner_options &options,
         std::ofstream out(cmakelists_path, std::ios::binary | std::ios::trunc);
         if (!out) {
             error = "cannot write '" + cmakelists_path.string() + "'";
-            return 1;
+            return RV_ERR_IO;
         }
         out.write(project_text.data(), static_cast<std::streamsize>(project_text.size()));
         if (!out) {
             error = "short write on '" + cmakelists_path.string() + "'";
-            return 1;
+            return RV_ERR_IO;
         }
     }
 
@@ -184,16 +185,16 @@ int rv_pdktools::create_cmakelists(const rv_burner_options &options,
         std::ofstream out(version_unit_path, std::ios::binary | std::ios::trunc);
         if (!out) {
             error = "cannot write '" + version_unit_path.string() + "'";
-            return 1;
+            return RV_ERR_IO;
         }
         out.write(version_unit_text.data(), static_cast<std::streamsize>(version_unit_text.size()));
         if (!out) {
             error = "short write on '" + version_unit_path.string() + "'";
-            return 1;
+            return RV_ERR_IO;
         }
     }
 
-    return 0;
+    return RV_OK;
 }
 
 int rv_pdktools::configure_cmake(const fs::path &binary_dir, const fs::path &project_dir, std::string &error)
@@ -210,8 +211,8 @@ int rv_pdktools::configure_cmake(const fs::path &binary_dir, const fs::path &pro
         dump_child_output(child_output);
         error = "cmake failed to configure the generated disc project (exit " + std::to_string(status) +
             "). cmake and ninja are run-time dependencies of mppcburner.";
-        return 1;
+        return RV_ERR_IO;
     }
 
-    return 0;
+    return RV_OK;
 }
