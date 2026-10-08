@@ -114,11 +114,8 @@ rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
         RV_LOG_ERR("pcca", "failed to reserve {} byte(s) of sound RAM", conf.sound_memory_size);
     }
 
-    if (clamp_voice_count(conf_.voice_count) != conf_.voice_count) {
-        RV_LOG_WARN("pcca",
-            "conf asks for {} voices, the mask fits {}",
-            conf_.voice_count,
-            clamp_voice_count(conf_.voice_count));
+    if (mixer_.voice_count() != conf_.voice_count) {
+        RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count, mixer_.voice_count());
     }
 
     mixer_.set_muted(conf_.mute);
@@ -245,14 +242,10 @@ int64_t rv_pcca_sw::voice_setup(const rv_voice_conf *conf)
     }
 
     const rv_pcca_meta *meta = sram_.region_meta(conf->sample_address);
+    // The address is real, so this is not RV_ERR_INVAL - the disc reserved a
+    // region and armed a voice at it before uploading anything. The voice arms
+    // and plays nothing.
     const int64_t frames = meta && meta->written ? meta->frames : 0;
-    if (frames <= 0) {
-        // The address is real, so this is not RV_ERR_INVAL - the disc reserved
-        // a region and armed a voice at it before uploading anything. The voice
-        // arms and plays nothing.
-        RV_LOG_WARN("pcca", "voice setup on empty region {}", conf->sample_address);
-    }
-
     mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames, conf->sample_address);
     return RV_OK;
 }
