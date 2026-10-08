@@ -93,6 +93,8 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
     rv_editor_theme_apply(theme, ImGui::GetStyle());
 
     if (rv_editor_fonts_build_for_too_small(io, 1.0f) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: cannot build the fonts for the too-small notice; reporting it here instead\n");
+        rv_editor_print_too_small_error(display_size);
         ImGui::DestroyContext();
         return;
     }
