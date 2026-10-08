@@ -220,8 +220,9 @@ private:
 
     // Recomputes the disc code checksum and compares it against version_info;
     // on a match, also sets code_hash_ (see its comment for why only then).
+    // Returns RV_OK on match, RV_ERR_INVAL on hash compute failure or mismatch.
     // A member (unlike its sibling stages) because it writes code_hash_.
-    bool checksum_matches_(std::vector<unsigned char> &buffer, const char *info_entry, const rv_mppc_note_desc &version_info);
+    int checksum_verify_(std::vector<unsigned char> &buffer, const char *info_entry, const rv_mppc_note_desc &version_info);
 
     // Filled by pre_dlopen_check_bytes once the checksum has been recomputed
     // and found to match the note - so a non-empty value also means "these

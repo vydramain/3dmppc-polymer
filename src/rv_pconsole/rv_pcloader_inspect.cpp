@@ -316,8 +316,8 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip, const char *info_entry)
 // disc code checksum is recomputed over the very buffer the ELF above was
 // parsed from, and compared against what the burner stamped into the note. A
 // mismatch means the code was altered after burning - refuse it before
-// dlopen ever sees the file.
-bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
+// dlopen ever sees the file. Returns RV_OK on match, RV_ERR_INVAL on error.
+int rv_pcloader::checksum_verify_(std::vector<unsigned char> &buffer,
     const char *info_entry,
     const rv_mppc_note_desc &version_info)
 {
@@ -325,7 +325,7 @@ bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
     std::string hash_error;
     if (rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(), computed_checksum, hash_error) != RV_OK) {
         RV_LOG_ERR("pcloader", "cannot checksum code entry '{}': {}", rv_pdklib::rv_log_escape(info_entry), hash_error);
-        return false;
+        return RV_ERR_INVAL;
     }
 
     static_assert(sizeof(version_info.magic) == rv_pdklib::RV_DISC_HASH_BYTES);
@@ -336,14 +336,14 @@ bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
             rv_pdklib::rv_log_escape(info_entry),
             bytes_to_hex(reinterpret_cast<const unsigned char *>(version_info.magic), sizeof(version_info.magic)),
             bytes_to_hex(computed_checksum, sizeof(computed_checksum)));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Kept only now, after the comparison passed: a checksum that did not match
     // is not this disc's checksum, and reporting it would invite a client to
     // compare against a number that was refused.
     code_hash_ = bytes_to_hex(computed_checksum, sizeof(computed_checksum));
-    return true;
+    return RV_OK;
 }
 
 // The core of pre_dlopen_check(): ELF header, PT_NOTE walk, version and
@@ -380,7 +380,8 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer, 
         return RV_ERR_INVAL;
     }
 
-    if (!checksum_matches_(buffer, info_entry, version_info)) {
+    const int checksum_rc = checksum_verify_(buffer, info_entry, version_info);
+    if (checksum_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
 
