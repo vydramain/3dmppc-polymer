@@ -65,9 +65,9 @@ script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.
 
-Running `./build/pconsole/3dmppc` with no disc gives you the built-in **service test** — a
-diagnostics screen that exercises every subsystem and explains itself on screen.
-It is how you tell a broken console from a broken disc.
+Running `./build/pconsole/3dmppc` with no disc gives you the built-in **default disc for
+checking the console** — a diagnostics screen that exercises every subsystem and
+explains itself on screen. It is how you tell a broken console from a broken disc.
 
 ---
 
@@ -658,14 +658,14 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   | `rv_3dmppc` | `src/` | the console, and nothing else |
   | `rv_pdktools` | `pdk/tools` | the authoring tools |
   | the disc's own id | each packaged disc | `example_cpp::rv_dmain`, `mygame::rv_dmain`, … |
-  | `rv_service` | `src/rv_dmain` | the built-in service test — a disc, but a linked-in one |
+  | `rv_service` | `src/rv_dmain` | the built-in default disc for checking the console — a disc, but a linked-in one |
 
   A packaged disc needs no prefix and cannot collide with anything: it is built
   with `-fvisibility=hidden` and loaded with `RTLD_LOCAL`, so nothing but its
   two `extern "C"` entry points exists outside it, and two discs may pick the
-  same namespace without ever meeting. The built-in service test is the
-  exception — it is linked into the console binary and shares its symbols, so it
-  takes the project prefix.
+  same namespace without ever meeting. The built-in default disc for checking the
+  console is the exception — it is linked into the console binary and shares its
+  symbols, so it takes the project prefix.
 
   Headers always qualify explicitly (`rv_pdk::rv_cv`); a `using namespace rv_pdk;`
   is allowed only inside a `.cpp`, where it cannot leak into anyone else.

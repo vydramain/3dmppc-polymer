@@ -45,7 +45,7 @@ repository.
 
 - **`../src/`** — the console runtime (game-agnostic). Loads discs; never names
   one.
-- **`../src/rv_dmain/`** — the built-in **service test**. It is a disc, but a
-  linked-in one: a diagnostics screen, not a game.
+- **`../src/rv_dmain/`** — the built-in **default disc for checking the console**.
+  It is a disc, but a linked-in one: a diagnostics screen, not a game.
 - **`../pdk/`, `../pdklib/`** — the contract a disc is written against, and the
   disc-side conveniences built on it. A disc links these and nothing else.
