@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -52,14 +53,16 @@ public:
     int start(const std::filesystem::path &cwd, int cols, int rows, const rv_editor_theme &theme, std::string &error);
     bool running() const
     {
-        return pty_.running();
+        return pty_->running();
     }
     // How the shell ended ("exit code 0"), empty while it runs.
     std::string ended() const;
+    // Hands the shell's pty over to be stopped; the terminal keeps an idle one.
+    std::unique_ptr<rv_editor_pty> release_pty();
 
     // Once a frame: what the shell wrote goes through the emulator, and keys
-    // queued for it are written.
-    void update();
+    // queued for it are written. RV_OK, or RV_ERR_IO with the reason in `error` when the shell's output could not be read.
+    int update(std::string &error);
     void resize(int cols, int rows);
     int cols() const
     {
@@ -101,7 +104,7 @@ private:
     // Ensure vt_ exists and is sized for cols_/rows_; set up colors from theme if newly created.
     int ensure_vt_(const rv_editor_theme &theme, std::string &error);
 
-    rv_editor_pty pty_;
+    std::unique_ptr<rv_editor_pty> pty_ = std::make_unique<rv_editor_pty>();
     VTerm *vt_ = nullptr;
     VTermScreen *screen_ = nullptr;
     std::deque<rv_editor_term_line> scrollback_;

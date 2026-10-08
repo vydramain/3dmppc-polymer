@@ -133,6 +133,20 @@ constexpr std::optional<rv_editor_pane_kind> rv_editor_page_pane[] = { std::null
     rv_editor_pane_kind::help,
     rv_editor_pane_kind::manual };
 static_assert(std::size(rv_editor_page_pane) == static_cast<size_t>(rv_editor_start_page::manual) + 1);
+
+// A closed tile's shell is hung up here and ended by the frame steps; nothing waits.
+void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &view)
+{
+    if (view.term == nullptr) {
+        return;
+    }
+    std::unique_ptr<rv_editor_pty> pty = view.term->release_pty();
+    std::string error;
+    if (pty->begin_stop(error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+    }
+    app.stopping_ptys.push_back(std::move(pty));
+}
 } // namespace
 void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 {
@@ -278,11 +292,16 @@ void rv_editor_shell_update(rv_editor_shell &shell)
 
     // A Terminal tile that left every workspace's tree, or became another kind,
     // ends its shell.
-    std::erase_if(shell.app.terminals, [&shell](const auto &entry) {
-        const rv_editor_pane_id pane = entry.first;
-        return pane >= shell.ws.panes.panes.size() || shell.ws.panes.panes[pane].kind != rv_editor_pane_kind::terminal ||
-            !rv_editor_shell_pane_kept(shell, pane);
-    });
+    for (auto it = shell.app.terminals.begin(); it != shell.app.terminals.end();) {
+        const rv_editor_pane_id pane = it->first;
+        if (pane < shell.ws.panes.panes.size() && shell.ws.panes.panes[pane].kind == rv_editor_pane_kind::terminal &&
+            rv_editor_shell_pane_kept(shell, pane)) {
+            ++it;
+            continue;
+        }
+        rv_editor_shell_stop_terminal(shell.app, it->second);
+        it = shell.app.terminals.erase(it);
+    }
 
     // Files the user opened go to a code tile once its window exists. A binary
     // one opens as text only on the user's word: nvim would show it as noise.

@@ -14,10 +14,28 @@ namespace
 void rv_editor_app_update_terminals(rv_editor_app &app)
 {
     for (auto &[pane, view] : app.terminals) {
-        if (view.term != nullptr) {
-            view.term->update();
+        if (view.term == nullptr) {
+            continue;
+        }
+        std::string error;
+        if (view.term->update(error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
         }
     }
+}
+
+// Shells of closed tiles go on ending, one step a frame; the ended ones leave the list.
+void rv_editor_app_update_stopping(rv_editor_app &app)
+{
+    for (std::unique_ptr<rv_editor_pty> &pty : app.stopping_ptys) {
+        std::string error;
+        if (pty->stop_step(error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+        }
+    }
+    std::erase_if(app.stopping_ptys, [](const std::unique_ptr<rv_editor_pty> &pty) {
+        return !pty->stopping();
+    });
 }
 
 // What changed on disk: nvim, candidates, reload queue and disc.toml follow it.
@@ -100,6 +118,7 @@ void rv_editor_app_update(rv_editor_app &app)
     app.files.update(app.log);
     app.nvim.update(app.log);
     rv_editor_app_update_terminals(app);
+    rv_editor_app_update_stopping(app);
     rv_editor_app_update_changed_files(app);
     const bool was_busy = app.build.busy();
     std::string build_error;

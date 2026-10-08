@@ -78,7 +78,7 @@ struct rv_editor_terminal::hooks {
     // What the emulator answers the shell (cursor reports, key sequences).
     static void output(const char *s, size_t len, void *user)
     {
-        (void)static_cast<rv_editor_terminal *>(user)->pty_.write(std::string_view(s, len));
+        (void)static_cast<rv_editor_terminal *>(user)->pty_->write(std::string_view(s, len));
     }
 
     static int pushline(int cols, const VTermScreenCell *cells, void *user)
@@ -181,7 +181,7 @@ int rv_editor_terminal::ensure_vt_(const rv_editor_theme &theme, std::string &er
 
 rv_editor_terminal::~rv_editor_terminal()
 {
-    pty_.stop();
+    // pty_ hangs its shell up without waiting; the process guard ends it at editor exit.
     if (vt_ != nullptr) {
         vterm_free(vt_);
     }
@@ -202,27 +202,40 @@ int rv_editor_terminal::start(const std::filesystem::path &cwd,
 
     const char *shell = std::getenv(env_shell_name.data());
     const std::string program = shell != nullptr && shell[0] == path_root_indicator ? shell : std::string(default_shell_path);
-    return pty_.start({ program }, cwd, cols_, rows_, error);
+    return pty_->start({ program }, cwd, cols_, rows_, error);
 }
 
 std::string rv_editor_terminal::ended() const
 {
-    return running() ? std::string() : rv_editor_exit_text(pty_.exit_status());
+    return running() ? std::string() : rv_editor_exit_text(pty_->exit_status());
 }
 
-void rv_editor_terminal::update()
+std::unique_ptr<rv_editor_pty> rv_editor_terminal::release_pty()
+{
+    std::unique_ptr<rv_editor_pty> idle = std::make_unique<rv_editor_pty>();
+    pty_.swap(idle);
+    return idle;
+}
+
+int rv_editor_terminal::update(std::string &error)
 {
     if (vt_ == nullptr) {
-        return;
+        return RV_OK;
     }
     std::string bytes;
-    pty_.read(bytes, pty_read_buffer_size);
+    const int read_rc = pty_->read(bytes, pty_read_buffer_size, error);
     if (!bytes.empty()) {
         vterm_input_write(vt_, bytes.data(), bytes.size());
         vterm_screen_flush_damage(screen_);
     }
-    pty_.flush();
-    pty_.poll();
+    pty_->flush();
+    std::string poll_error;
+    const int poll_rc = pty_->poll(poll_error);
+    if (poll_rc != RV_OK) {
+        error = read_rc != RV_OK ? error + "; " + poll_error : poll_error;
+        return poll_rc;
+    }
+    return read_rc;
 }
 
 void rv_editor_terminal::resize(int cols, int rows)
@@ -235,7 +248,7 @@ void rv_editor_terminal::resize(int cols, int rows)
     cols_ = cols;
     rows_ = rows;
     vterm_set_size(vt_, rows_, cols_);
-    pty_.resize(cols_, rows_);
+    pty_->resize(cols_, rows_);
 }
 
 void rv_editor_terminal::text(uint32_t codepoint, VTermModifier mod)

@@ -5,13 +5,10 @@
 
 #include <algorithm>
 #include <cerrno>
-#include <cstdio>
 #include <chrono>
 #include <csignal>
-#include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <fstream>
 #include <spawn.h>
 #include <string_view>
 #include <sys/ioctl.h>
@@ -20,6 +17,7 @@
 #include <unistd.h>
 
 #include "pdk/rv_err.h"
+#include "platform/rv_editor_pty_session.hpp"
 
 extern char **environ;
 
@@ -46,21 +44,11 @@ constexpr size_t pty_name_buffer_size = 128;
 // Read buffer size for one read() from PTY per pass
 constexpr size_t pty_read_buffer_size = 16384;
 
-// Graceful shutdown timeout before SIGKILL
+// Time a shell has to exit after the hang-up, before SIGKILL: long enough for a shell
+// to act on HUP, short enough not to hold a frame or the editor's exit.
 constexpr int graceful_shutdown_timeout_ms = 500;
-// Sleep interval during graceful shutdown
+// Sleep between polls of a shell at the editor's exit (stop_now); no frame runs then.
 constexpr int shutdown_poll_sleep_ms = 5;
-
-// Procfs root directory containing process information
-constexpr std::string_view proc_root_path = "/proc";
-// Procfs stat file with process state
-constexpr std::string_view proc_stat_file = "stat";
-// Digit characters for matching PID directory names
-constexpr std::string_view pid_digit_chars = "0123456789";
-// Expected number of fields parsed from /proc/[pid]/stat after closing paren
-constexpr int proc_stat_field_count = 4;
-// Radix for parsing PID as decimal number
-constexpr int decimal_radix = 10;
 
 winsize rv_editor_winsize(int cols, int rows)
 {
@@ -96,48 +84,48 @@ bool rv_editor_reap(pid_t pid, int &status, bool wait)
     }
 }
 
-// Every process of session `sid` (Linux: /proc/<pid>/stat), so a job the shell
-// sent to the background leaves with it. Throws nothing: stop() runs it from a
-// destructor, while /proc changes under it.
-std::vector<pid_t> rv_editor_session_members(pid_t sid)
+// The leader directly, then its session: a /proc failure does not keep the leader from the signal.
+int rv_editor_signal_pty(pid_t leader, int sig, std::string &error)
 {
-    std::vector<pid_t> out;
-    std::error_code ec;
-    for (std::filesystem::directory_iterator it(proc_root_path, ec), end; !ec && it != end; it.increment(ec)) {
-        const std::string name = it->path().filename().string();
-        if (name.empty() || name.find_first_not_of(pid_digit_chars) != std::string::npos) {
-            continue;
-        }
-        std::ifstream stat(it->path() / proc_stat_file);
-        std::string line;
-        std::getline(stat, line);
-        // pid (comm) state ppid pgrp session ...; comm may hold spaces and ')'.
-        const size_t close = line.rfind(')');
-        char state = 0;
-        long ppid = 0;
-        long pgrp = 0;
-        long session = 0;
-        if (close != std::string::npos &&
-            std::sscanf(line.c_str() + close + 1, " %c %ld %ld %ld", &state, &ppid, &pgrp, &session) == proc_stat_field_count &&
-            session == sid) {
-            out.push_back(static_cast<pid_t>(std::strtol(name.c_str(), nullptr, decimal_radix)));
-        }
+    int rc = RV_OK;
+    if (::kill(leader, sig) != 0 && errno != ESRCH) {
+        error = std::string("signal: ") + std::strerror(errno);
+        rc = RV_ERR_IO;
     }
-    return out;
+    std::string session_error;
+    if (rv_editor_signal_session(leader, sig, session_error) != RV_OK) {
+        rv_editor_add_reason(error, session_error);
+        rc = RV_ERR_IO;
+    }
+    return rc;
 }
 
-void rv_editor_signal_session(pid_t sid, int sig)
+// Ends a fresh child: its leader SIGKILLed, then its session, then the leader reaped into
+// `status`. `reaped` is false when the leader kill failed: the child is still running.
+int rv_editor_kill_reap(pid_t pid, int &status, bool &reaped, std::string &error)
 {
-    for (const pid_t pid : rv_editor_session_members(sid)) {
-        ::kill(pid, sig);
+    reaped = false;
+    if (::kill(pid, SIGKILL) != 0) {
+        error = std::string("kill: ") + std::strerror(errno);
+        return RV_ERR_IO;
     }
+    const int rc = rv_editor_signal_session(pid, SIGKILL, error);
+    rv_editor_reap(pid, status, true);
+    reaped = true;
+    return rc;
 }
 
 } // namespace
 
 rv_editor_pty::~rv_editor_pty()
 {
-    stop();
+    // Nothing waits in a destructor. A shell that ignores the hang-up is ended by the
+    // process guard once the editor exits.
+    std::string error;
+    begin_stop(error);
+    if (master_ >= 0) {
+        ::close(master_);
+    }
 }
 
 int rv_editor_pty::start(const std::vector<std::string> &argv,
@@ -150,8 +138,12 @@ int rv_editor_pty::start(const std::vector<std::string> &argv,
         error = argv.empty() ? "nothing to run" : "already running";
         return RV_ERR_INVAL;
     }
-    stop();
+    if (master_ >= 0) {
+        ::close(master_);
+        master_ = -1;
+    }
     pending_.clear();
+    stopping_ = false;
     exit_ = {};
     pid_ = -1;
 
@@ -217,20 +209,47 @@ int rv_editor_pty::start(const std::vector<std::string> &argv,
     pid_ = pid;
     std::string guard_error;
     if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
-    }
-    master_ = master;
-    const int flags = ::fcntl(master_, F_GETFL);
-    if (flags < 0 || ::fcntl(master_, F_SETFL, flags | O_NONBLOCK) < 0) {
-        // A blocking terminal would stall the UI thread: this child is not kept.
-        error = std::string("fcntl: ") + std::strerror(errno);
-        stop();
+        // The guard refused: the child is killed here. If the kill fails, the child stays and the error says so.
+        int status = 0;
+        bool reaped = false;
+        std::string kill_error;
+        const int kill_rc = rv_editor_kill_reap(pid, status, reaped, kill_error);
+        pid_ = -1;
+        ::close(master);
+        error = "process guard: " + guard_error;
+        if (kill_rc != RV_OK) {
+            rv_editor_add_reason(error, kill_error);
+        }
         return RV_ERR_IO;
     }
+    const int flags = ::fcntl(master, F_GETFL);
+    if (flags < 0 || ::fcntl(master, F_SETFL, flags | O_NONBLOCK) < 0) {
+        // A blocking terminal would stall the UI thread: this child is not kept.
+        error = std::string("fcntl: ") + std::strerror(errno);
+        int status = 0;
+        bool reaped = false;
+        std::string kill_error;
+        const int kill_rc = rv_editor_kill_reap(pid, status, reaped, kill_error);
+        // A reaped leader's pid may be reused, so the guard forgets the group. Otherwise
+        // the guard keeps it and ends the session at the editor's exit.
+        if (reaped) {
+            std::string remove_error;
+            if (rv_editor_guard_remove(pid, remove_error) != RV_OK) {
+                rv_editor_add_reason(error, "process guard: " + remove_error);
+            }
+        }
+        if (kill_rc != RV_OK) {
+            rv_editor_add_reason(error, kill_error);
+        }
+        pid_ = -1;
+        ::close(master);
+        return RV_ERR_IO;
+    }
+    master_ = master;
     return RV_OK;
 }
 
-bool rv_editor_pty::read(std::string &out, size_t limit)
+int rv_editor_pty::read(std::string &out, size_t limit, std::string &error)
 {
     char buf[pty_read_buffer_size];
     size_t taken = 0;
@@ -248,11 +267,17 @@ bool rv_editor_pty::read(std::string &out, size_t limit)
             break;
         }
         // EIO (Linux) or end of file: no process holds the terminal's other side.
+        const int cause = n < 0 ? errno : 0;
         ::close(master_);
         master_ = -1;
         pending_.clear();
+        if (n == 0 || cause == EIO) {
+            return RV_OK;
+        }
+        error = std::string("read: ") + std::strerror(cause);
+        return RV_ERR_IO;
     }
-    return master_ >= 0;
+    return RV_OK;
 }
 
 int rv_editor_pty::write(std::string_view bytes)
@@ -297,19 +322,8 @@ void rv_editor_pty::resize(int cols, int rows)
     }
 }
 
-bool rv_editor_pty::poll()
+int rv_editor_pty::record_exit(int status, std::string &error)
 {
-    if (pid_ <= 0 || exit_.exited) {
-        return exit_.exited;
-    }
-    int status = 0;
-    if (!rv_editor_reap(pid_, status, false)) {
-        return false;
-    }
-    std::string guard_error;
-    if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
-    }
     exit_.exited = true;
     if (WIFEXITED(status)) {
         exit_.code = WEXITSTATUS(status);
@@ -318,31 +332,128 @@ bool rv_editor_pty::poll()
     }
     // The session ends with its shell, jobs left in the background too. Only now:
     // once nothing holds the session, its id may name another process's.
-    rv_editor_signal_session(pid_, SIGKILL);
-    return true;
+    std::string guard_error;
+    const int guard_rc = rv_editor_guard_remove(pid_, guard_error);
+    std::string kill_error;
+    const int kill_rc = rv_editor_signal_session(pid_, SIGKILL, kill_error);
+    if (guard_rc != RV_OK) {
+        rv_editor_add_reason(error, "process guard: " + guard_error);
+    }
+    if (kill_rc != RV_OK) {
+        rv_editor_add_reason(error, kill_error);
+    }
+    return guard_rc != RV_OK || kill_rc != RV_OK ? RV_ERR_IO : RV_OK;
 }
 
-void rv_editor_pty::stop()
+int rv_editor_pty::poll(std::string &error)
 {
-    if (running()) {
-        // The child leads its session, whose id is its pid: a hang-up for all of
-        // it, as closing a terminal window gives; SIGKILL after graceful timeout.
-        rv_editor_signal_session(pid_, SIGHUP);
-        rv_editor_signal_session(pid_, SIGCONT);
-        const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(graceful_shutdown_timeout_ms);
-        while (!poll() && std::chrono::steady_clock::now() < until) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(shutdown_poll_sleep_ms));
-        }
-        if (!exit_.exited) {
-            rv_editor_signal_session(pid_, SIGKILL);
-            int status = 0;
-            rv_editor_reap(pid_, status, true);
-            std::string guard_error;
-            if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
-                std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+    if (pid_ <= 0 || exit_.exited) {
+        return RV_OK;
+    }
+    int status = 0;
+    if (!rv_editor_reap(pid_, status, false)) {
+        return RV_OK;
+    }
+    return record_exit(status, error);
+}
+
+int rv_editor_pty::begin_stop(std::string &error)
+{
+    if (!running() || stopping_) {
+        return RV_OK;
+    }
+    stopping_ = true;
+    stop_failure_reported_ = false;
+    kill_sent_ = false;
+    stop_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(graceful_shutdown_timeout_ms);
+    // The child leads its session, whose id is its pid: a hang-up for all of it.
+    std::string cont_error;
+    const int hup_rc = rv_editor_signal_pty(pid_, SIGHUP, error);
+    const int cont_rc = rv_editor_signal_pty(pid_, SIGCONT, cont_error);
+    if (cont_rc != RV_OK) {
+        rv_editor_add_reason(error, cont_error);
+    }
+    return hup_rc == RV_OK && cont_rc == RV_OK ? RV_OK : RV_ERR_IO;
+}
+
+int rv_editor_pty::stop_step(std::string &error)
+{
+    if (!stopping_) {
+        return RV_OK;
+    }
+    int rc = poll(error);
+    if (running() && !kill_sent_ && std::chrono::steady_clock::now() >= stop_until_) {
+        // The shell ignored the hang-up: SIGKILL to the leader, then its session. Retried
+        // next frame until the leader kill goes through.
+        if (::kill(pid_, SIGKILL) == 0) {
+            kill_sent_ = true;
+            std::string kill_error;
+            if (rv_editor_signal_session(pid_, SIGKILL, kill_error) != RV_OK) {
+                rv_editor_add_reason(error, kill_error);
+                rc = RV_ERR_IO;
             }
-            exit_.exited = true;
-            exit_.signal = SIGKILL;
+        } else {
+            rv_editor_add_reason(error, std::string("kill: ") + std::strerror(errno));
+            rc = RV_ERR_IO;
+        }
+    }
+    if (!running()) {
+        if (master_ >= 0) {
+            ::close(master_);
+            master_ = -1;
+        }
+        pending_.clear();
+        stopping_ = false;
+    }
+    if (rc == RV_OK || stop_failure_reported_) {
+        return RV_OK;
+    }
+    // The failure persists until the stop ends: reported once, not on every frame.
+    stop_failure_reported_ = true;
+    return rc;
+}
+
+int rv_editor_pty::stop_now(std::string &error)
+{
+    int rc = begin_stop(error);
+    // The editor's exit: no frame steps a stop here, so the wait is a short sleep.
+    while (running() && std::chrono::steady_clock::now() < stop_until_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(shutdown_poll_sleep_ms));
+        std::string poll_error;
+        if (poll(poll_error) != RV_OK) {
+            rv_editor_add_reason(error, poll_error);
+            rc = RV_ERR_IO;
+        }
+    }
+    if (running()) {
+        // Past the deadline: SIGKILL, then a reap that does not wait. A child not reaped
+        // yet stays with the process guard, which ends it at the editor's exit.
+        if (::kill(pid_, SIGKILL) != 0) {
+            rv_editor_add_reason(error, std::string("kill: ") + std::strerror(errno));
+            rc = RV_ERR_IO;
+        }
+        std::string kill_error;
+        if (rv_editor_signal_session(pid_, SIGKILL, kill_error) != RV_OK) {
+            rv_editor_add_reason(error, kill_error);
+            rc = RV_ERR_IO;
+        }
+        int status = 0;
+        pid_t r = -1;
+        do {
+            r = ::waitpid(pid_, &status, WNOHANG);
+        } while (r < 0 && errno == EINTR);
+        if (r < 0) {
+            rv_editor_add_reason(error, std::string("reap: ") + std::strerror(errno));
+            rc = RV_ERR_IO;
+        } else if (r == pid_) {
+            std::string exit_error;
+            if (record_exit(status, exit_error) != RV_OK) {
+                rv_editor_add_reason(error, exit_error);
+                rc = RV_ERR_IO;
+            }
+        } else {
+            rv_editor_add_reason(error, "not reaped after SIGKILL; left to the process guard");
+            rc = RV_ERR_IO;
         }
     }
     if (master_ >= 0) {
@@ -350,6 +461,9 @@ void rv_editor_pty::stop()
         master_ = -1;
     }
     pending_.clear();
+    // Still running (not reaped): stays stopping, so the destructor does not hang up again.
+    stopping_ = running();
+    return rc;
 }
 
 } // namespace rv_editor

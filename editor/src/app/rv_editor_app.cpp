@@ -389,7 +389,28 @@ void rv_editor_app_shutdown(rv_editor_app &app)
             "runtime output not read at shutdown: " + session_error);
     }
     app.nvim.stop();
-    app.terminals.clear(); // each shell hangs up and is reaped
+    // Every shell ends before the editor does: a background job that ignores the hang-up
+    // would outlive the editor, as the guard only signals its own group. All are hung up
+    // first, so the waits overlap and the exit takes one deadline, not one per shell.
+    for (auto &entry : app.terminals) {
+        if (entry.second.term != nullptr) {
+            app.stopping_ptys.push_back(entry.second.term->release_pty());
+        }
+    }
+    for (std::unique_ptr<rv_editor_pty> &pty : app.stopping_ptys) {
+        std::string error;
+        if (pty->begin_stop(error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+        }
+    }
+    for (std::unique_ptr<rv_editor_pty> &pty : app.stopping_ptys) {
+        std::string error;
+        if (pty->stop_now(error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "terminal: " + error);
+        }
+    }
+    app.terminals.clear();     // idle terminals now
+    app.stopping_ptys.clear(); // ended above
 }
 
 } // namespace rv_editor

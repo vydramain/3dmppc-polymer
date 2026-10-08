@@ -275,6 +275,8 @@ struct rv_editor_app {
     std::set<std::filesystem::path> open_as_text;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
     std::map<rv_editor_pane_id, rv_editor_terminal_view> terminals;
+    // Shells of closed tiles, hung up and stepped each frame until they have ended.
+    std::vector<std::unique_ptr<rv_editor_pty>> stopping_ptys;
     rv_editor_nvim nvim;
     // A code tile had the keyboard this frame: ImGui's own keyboard navigation
     // stays off the next one, so arrows and Tab reach nvim.
