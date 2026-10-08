@@ -174,7 +174,16 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     }
     std::string out;
     std::string err;
-    bake.proc->read(out, err, read_chunk_bytes);
+    std::string read_error;
+    const int read_err = bake.proc->read(out, err, read_chunk_bytes, read_error);
+    if (read_err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "baker output not read: " + read_error,
+            rv_editor_log_channel::none,
+            bake.proc->pid(),
+            bake.build_number);
+    }
     app.log.add_stream(rv_editor_log_source::build,
         bake.out_partial,
         out,
@@ -193,7 +202,16 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
     }
     out.clear();
     err.clear();
-    bake.proc->read(out, err, read_chunk_bytes);
+    read_error.clear();
+    const int last_read_err = bake.proc->read(out, err, read_chunk_bytes, read_error);
+    if (last_read_err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "baker output not read: " + read_error,
+            rv_editor_log_channel::none,
+            bake.proc->pid(),
+            bake.build_number);
+    }
     app.log.add_stream(rv_editor_log_source::build,
         bake.out_partial,
         out,

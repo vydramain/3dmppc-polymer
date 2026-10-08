@@ -51,8 +51,9 @@ public:
         const std::filesystem::path &image = {});
     // Stops the burner and everything it started.
     void cancel();
-    // Once a frame: moves output into the log and notices the end.
-    void update(rv_editor_log &log);
+    // Once a frame: moves output into the log and notices the end. RV_ERR_IO: a read or
+    // the kill failed, the reason is in `error`; the rest of the frame still runs.
+    int update(rv_editor_log &log, std::string &error);
 
     rv_editor_build_state state() const
     {
@@ -112,6 +113,8 @@ private:
     std::string out_partial_;
     std::string err_partial_;
     std::chrono::steady_clock::time_point cancel_at_{};
+    // The SIGKILL failure of this cancel is reported once, not every frame.
+    bool kill_failure_reported_ = false;
 };
 
 } // namespace rv_editor

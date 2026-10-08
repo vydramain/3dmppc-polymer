@@ -374,10 +374,20 @@ void rv_editor_app_shutdown(rv_editor_app &app)
     app.build.cancel();
     const auto until = std::chrono::steady_clock::now() + shutdown_wait_timeout;
     while (app.build.busy() && std::chrono::steady_clock::now() < until) {
-        app.build.update(app.log);
+        std::string build_error;
+        const int build_result = app.build.update(app.log, build_error);
+        if (build_result != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "burner: " + build_error);
+        }
         std::this_thread::sleep_for(shutdown_poll_interval);
     }
-    app.session.shutdown(app.log);
+    std::string session_error;
+    const int session_result = app.session.shutdown(app.log, session_error);
+    if (session_result != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "runtime output not read at shutdown: " + session_error);
+    }
     app.nvim.stop();
     app.terminals.clear(); // each shell hangs up and is reaped
 }

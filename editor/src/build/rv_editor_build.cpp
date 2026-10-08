@@ -214,33 +214,52 @@ void rv_editor_build::cancel()
     }
     state_ = rv_editor_build_state::cancelling;
     cancel_at_ = std::chrono::steady_clock::now();
+    kill_failure_reported_ = false;
+    // A failed SIGTERM is not reported: update() escalates to SIGKILL after the grace and reports a failure of that one.
     proc_.stop(false);
 }
 
-void rv_editor_build::update(rv_editor_log &log)
+int rv_editor_build::update(rv_editor_log &log, std::string &error)
 {
     if (!busy()) {
-        return;
+        return RV_OK;
     }
     std::string out;
     std::string err;
     const rv_editor_log_source source = image_.empty() ? rv_editor_log_source::build : rv_editor_log_source::candidate;
     const int64_t pid = proc_.pid();
     const uint32_t run = image_.empty() ? number_ : rv_editor_image_number(image_);
-    proc_.read(out, err, read_chunk_bytes);
+    // The first failure is the one reported: a later one must not hide why the first happened.
+    int result = RV_OK;
+    const auto note = [&result, &error](int rc, const std::string &why) {
+        if (result == RV_OK && rc != RV_OK) {
+            result = rc;
+            error = why;
+        }
+    };
+    std::string read_error;
+    const int read_result = proc_.read(out, err, read_chunk_bytes, read_error);
+    note(read_result, read_error);
     log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
     log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
 
     if (state_ == rv_editor_build_state::cancelling && std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
-        proc_.stop(true);
+        const int stop_result = proc_.stop(true);
+        // RV_ERR_ALREADY: the burner has already ended, nothing to kill.
+        if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY && !kill_failure_reported_) {
+            kill_failure_reported_ = true;
+            note(stop_result, "burner not killed after cancel");
+        }
     }
     if (!proc_.poll() || !proc_.output_done()) {
-        return;
+        return result;
     }
     // Whatever the pipes still held when output completed.
     out.clear();
     err.clear();
-    proc_.read(out, err, read_chunk_bytes);
+    std::string tail_error;
+    const int tail_result = proc_.read(out, err, read_chunk_bytes, tail_error);
+    note(tail_result, tail_error);
     log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
     log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
     log.flush_stream(source, out_partial_, rv_editor_log_channel::out, pid, run);
@@ -272,7 +291,7 @@ void rv_editor_build::update(rv_editor_log &log)
             rv_editor_log_channel::none,
             pid,
             run);
-        return;
+        return result;
     }
     const std::string label = "build #" + std::to_string(number_);
     if (ok) {
@@ -285,7 +304,7 @@ void rv_editor_build::update(rv_editor_log &log)
             rv_editor_log_channel::none,
             pid,
             run);
-        return;
+        return result;
     }
 
     // A partial output is never a disc: it goes.
@@ -300,7 +319,7 @@ void rv_editor_build::update(rv_editor_log &log)
             rv_editor_log_channel::none,
             pid,
             run);
-        return;
+        return result;
     }
     state_ = rv_editor_build_state::failed;
     dev_state_ = state_;
@@ -310,6 +329,7 @@ void rv_editor_build::update(rv_editor_log &log)
         rv_editor_log_channel::none,
         pid,
         run);
+    return result;
 }
 
 void rv_editor_build::prune(const std::filesystem::path &in_use)

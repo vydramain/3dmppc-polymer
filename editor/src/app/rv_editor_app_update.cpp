@@ -102,8 +102,16 @@ void rv_editor_app_update(rv_editor_app &app)
     rv_editor_app_update_terminals(app);
     rv_editor_app_update_changed_files(app);
     const bool was_busy = app.build.busy();
-    app.build.update(app.log);
-    app.session.update(app.log);
+    std::string build_error;
+    const int build_result = app.build.update(app.log, build_error);
+    if (build_result != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "burner: " + build_error);
+    }
+    std::string session_error;
+    const int session_result = app.session.update(app.log, session_error);
+    if (session_result != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "runtime output not read: " + session_error);
+    }
     const bool build_ended = was_busy && !app.build.busy();
     rv_editor_app_update_build_ended(app, build_ended);
     rv_editor_app_update_problems(app);

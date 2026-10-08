@@ -4,7 +4,6 @@
 
 #include <cstdio>
 #include <limits>
-#include <thread>
 #include <vector>
 
 #include "pdk/rv_err.h"
@@ -34,9 +33,6 @@ constexpr int fd_frame_descriptor = 3;
 constexpr size_t hex_buffer_size = std::numeric_limits<uint64_t>::digits / 4 + 1; // 16 hex digits + NUL
 constexpr size_t read_buffer_size = 1 << 20;
 constexpr auto channel_lost_timeout = std::chrono::milliseconds(500);
-constexpr auto shutdown_timeout = std::chrono::seconds(2);
-constexpr auto shutdown_grace_timeout = std::chrono::milliseconds(2500);
-constexpr auto shutdown_poll_interval = std::chrono::milliseconds(20);
 constexpr int exit_code_player_build = 2;
 
 } // namespace
@@ -275,7 +271,7 @@ int rv_editor_session::stop(rv_editor_log &log)
 int rv_editor_session::force_stop(rv_editor_log &log)
 {
     if (!proc_.running()) {
-        return RV_OK;
+        return RV_ERR_ALREADY;
     }
     forced_ = true;
     log.add(rv_editor_log_source::editor,
@@ -309,17 +305,17 @@ void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
     }
 }
 
-void rv_editor_session::update(rv_editor_log &log)
+int rv_editor_session::update(rv_editor_log &log, std::string &error)
 {
     // A live session keeps reading every frame, exited console or not: finish()
     // runs once, only when the console's output is complete (output_done()).
     if (!live()) {
-        return;
+        return RV_OK;
     }
 
     std::string out;
     std::string err;
-    proc_.read(out, err, read_buffer_size);
+    const int read_result = proc_.read(out, err, read_buffer_size, error);
     proc_.flush();
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(), number_);
     if (!out.empty()) {
@@ -407,16 +403,23 @@ void rv_editor_session::update(rv_editor_log &log)
         }
     }
 
+    // The first failure wins: finish's reason is kept only when the read above was fine.
     if (proc_.poll() && proc_.output_done()) {
-        finish(log);
+        std::string finish_error;
+        const int finish_result = finish(log, finish_error);
+        if (read_result == RV_OK && finish_result != RV_OK) {
+            error = finish_error;
+            return finish_result;
+        }
     }
+    return read_result;
 }
 
-void rv_editor_session::finish(rv_editor_log &log)
+int rv_editor_session::finish(rv_editor_log &log, std::string &error)
 {
     std::string out;
     std::string err;
-    proc_.read(out, err, read_buffer_size);
+    const int read_result = proc_.read(out, err, read_buffer_size, error);
     log.add_stream(rv_editor_log_source::runtime, err_partial_, err, rv_editor_log_channel::err, proc_.pid(), number_);
     log.flush_stream(rv_editor_log_source::runtime, err_partial_, rv_editor_log_channel::err, proc_.pid(), number_);
     trace(out, log);
@@ -467,32 +470,7 @@ void rv_editor_session::finish(rv_editor_log &log)
         rv_editor_log_channel::none,
         proc_.pid(),
         number_);
-}
-
-void rv_editor_session::shutdown(rv_editor_log &log)
-{
-    if (!live()) {
-        return;
-    }
-    stop(log);
-    const auto until = std::chrono::steady_clock::now() + shutdown_timeout;
-    while (live() && proc_.running() && std::chrono::steady_clock::now() < until) {
-        update(log);
-        std::this_thread::sleep_for(shutdown_poll_interval);
-    }
-    if (proc_.running()) {
-        force_stop(log);
-    }
-    // Bounded even when a grandchild keeps a pipe open past output_done()'s grace:
-    // shutdown never hangs.
-    const auto grace_until = std::chrono::steady_clock::now() + shutdown_grace_timeout;
-    while (live() && std::chrono::steady_clock::now() < grace_until) {
-        update(log);
-        std::this_thread::sleep_for(shutdown_poll_interval);
-    }
-    if (live()) {
-        finish(log);
-    }
+    return read_result;
 }
 
 } // namespace rv_editor

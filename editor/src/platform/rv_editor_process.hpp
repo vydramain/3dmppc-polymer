@@ -49,7 +49,7 @@ public:
     {
         return pid_;
     }
-    // False once the child's stdout reached end of file.
+    // False once the child's stdout reached end of file or a read failure reported by read().
     bool stdout_open() const
     {
         return out_ >= 0;
@@ -75,9 +75,10 @@ public:
         return exit_;
     }
 
-    // Appends whatever the pipes hold now, at most `limit` bytes each. Returns
-    // false once both pipes reached end of file.
-    bool read(std::string &out, std::string &err, size_t limit);
+    // Appends whatever the pipes hold now, at most `limit` bytes each. RV_OK - no read
+    // failed; the rest waits for the next call. RV_ERR_IO - a read failed, the reason is
+    // in `error`, that pipe is closed. End of output is still output_done().
+    int read(std::string &out, std::string &err, size_t limit, std::string &error);
 
     // What stdin may hold unwritten: past it the child is not reading.
     static constexpr size_t input_max = 1 << 20;
@@ -92,8 +93,9 @@ public:
     // Reaps the child when it has ended. Returns true when it is (now) ended.
     bool poll();
 
-    // True once both pipes reached end of file, or once the 2 s grace after the
-    // child exited has passed: past this point no more of its output is coming.
+    // True once both pipes are closed (end of file or a read failure reported by read()),
+    // or once the 2 s grace after the child exited has passed: past this point no more
+    // of its output is coming.
     // When the grace ends first, closes the pipes itself and remembers the cut.
     // Only meaningful after poll() returned true.
     bool output_done();
@@ -103,7 +105,8 @@ public:
         return cut_;
     }
 
-    // SIGTERM, or SIGKILL with `force`, to the child's process group; RV_OK on success or when not running,
+    // SIGTERM, or SIGKILL with `force`, to the child's process group. RV_OK on success,
+    // RV_ERR_ALREADY when the leader is already reaped (the group is not signalled),
     // RV_ERR_IO if signal delivery failed.
     int stop(bool force);
 

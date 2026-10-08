@@ -227,12 +227,21 @@ void rv_editor_tool_version(rv_editor_tool &tool)
     }
     std::string out;
     std::string err;
+    std::string read_error;
+    int read_rc = RV_OK;
     const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(process_version_timeout_sec);
-    while (!proc.poll() && std::chrono::steady_clock::now() < until) {
-        proc.read(out, err, process_read_buf_size);
+    while (read_rc == RV_OK && !proc.poll() && std::chrono::steady_clock::now() < until) {
+        read_rc = proc.read(out, err, process_read_buf_size, read_error);
         std::this_thread::sleep_for(std::chrono::milliseconds(process_version_poll_ms));
     }
-    proc.read(out, err, process_read_buf_size);
+    if (read_rc == RV_OK) {
+        read_rc = proc.read(out, err, process_read_buf_size, read_error);
+    }
+    // A failed read is the tool's version outcome: the reason, not a parse of partial output.
+    if (read_rc != RV_OK) {
+        tool.version = "version not read: " + read_error;
+        return;
+    }
     const rv_editor_process::rv_editor_exit exit = proc.exit_status();
     if (!exit.exited || exit.signal != 0 || exit.code != 0 || out.empty()) {
         tool.version = "no version: " + std::string(tool_version_arg) + " is not understood";
@@ -292,12 +301,23 @@ bool rv_editor_revision_job::poll()
         return true;
     }
     std::string err;
-    proc_->read(out_, err, process_read_large_buf_size);
+    std::string read_error;
+    // A failed read ends the job with its reason; the child is reaped by the process destructor.
+    const auto read_failed = [this, &read_error]() {
+        proc_.reset();
+        text_ = "unknown: " + read_error;
+        return true;
+    };
+    if (proc_->read(out_, err, process_read_large_buf_size, read_error) != RV_OK) {
+        return read_failed();
+    }
     const bool ended = proc_->poll();
     if (!ended && std::chrono::steady_clock::now() < until_) {
         return false;
     }
-    proc_->read(out_, err, process_read_large_buf_size);
+    if (proc_->read(out_, err, process_read_large_buf_size, read_error) != RV_OK) {
+        return read_failed();
+    }
     const rv_editor_process::rv_editor_exit exit = proc_->exit_status();
     const bool ok = exit.exited && exit.signal == 0 && exit.code == 0;
     proc_.reset();

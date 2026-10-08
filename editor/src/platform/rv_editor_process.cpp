@@ -57,8 +57,9 @@ int rv_editor_pipe(int fds[2])
     return ::pipe2(fds, O_CLOEXEC) == 0 ? RV_OK : RV_ERR_IO;
 }
 
-// Drains one non-blocking pipe. Closes it at end of file.
-void rv_editor_drain(int &fd, std::string &into, size_t limit)
+// Drains one non-blocking pipe. Closes it at end of file or on a read error.
+// EAGAIN is not an error: the child has not written yet.
+int rv_editor_drain(int &fd, std::string &into, size_t limit, std::string &error)
 {
     char buf[read_buffer_size];
     size_t taken = 0;
@@ -72,10 +73,24 @@ void rv_editor_drain(int &fd, std::string &into, size_t limit)
         if (n < 0 && errno == EINTR) {
             continue;
         }
+        if (n < 0 && errno != EAGAIN) {
+            error = std::string("read: ") + std::strerror(errno);
+            rv_editor_close(fd);
+            return RV_ERR_IO;
+        }
         if (n == 0) {
             rv_editor_close(fd);
         }
-        return;
+        return RV_OK;
+    }
+    return RV_OK;
+}
+
+// Kills a child's group and reaps the child: start() keeps no child it cannot guard.
+void rv_editor_kill_reap(pid_t pid)
+{
+    ::kill(-pid, SIGKILL);
+    while (::waitpid(pid, nullptr, 0) < 0 && errno == EINTR) {
     }
 }
 
@@ -88,10 +103,9 @@ rv_editor_process::~rv_editor_process()
         int status = 0;
         while (::waitpid(pid_, &status, 0) < 0 && errno == EINTR) {
         }
+        // A failed remove has nowhere to go here: a dead guard refuses the next start().
         std::string guard_error;
-        if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
-            std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
-        }
+        rv_editor_guard_remove(pid_, guard_error);
     }
     close_fds();
 }
@@ -202,24 +216,26 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     }
 
     pid_ = pid;
-    std::string guard_error;
-    if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
-    }
     in_ = in[1];
     out_ = out[0];
     err_ = err[0];
+    std::string guard_error;
+    if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
+        error = "process guard: " + guard_error;
+        rv_editor_kill_reap(pid);
+        pid_ = -1;
+        close_fds();
+        return RV_ERR_IO;
+    }
     for (int fd : { in_, out_, err_ }) {
         const int flags = ::fcntl(fd, F_GETFL);
         if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
             // A blocking pipe would stall the UI thread: this child is not kept.
             error = std::string("fcntl: ") + std::strerror(errno);
-            stop(true);
-            while (::waitpid(pid_, nullptr, 0) < 0 && errno == EINTR) {
-            }
-            std::string guard_error;
-            if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
-                std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+            rv_editor_kill_reap(pid);
+            std::string remove_error;
+            if (rv_editor_guard_remove(pid, remove_error) != RV_OK) {
+                error += "; process guard: " + remove_error;
             }
             pid_ = -1;
             close_fds();
@@ -229,11 +245,19 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     return RV_OK;
 }
 
-bool rv_editor_process::read(std::string &out, std::string &err, size_t limit)
+int rv_editor_process::read(std::string &out, std::string &err, size_t limit, std::string &error)
 {
-    rv_editor_drain(out_, out, limit);
-    rv_editor_drain(err_, err, limit);
-    return out_ >= 0 || err_ >= 0;
+    std::string err_error;
+    const int out_rc = rv_editor_drain(out_, out, limit, error);
+    const int err_rc = rv_editor_drain(err_, err, limit, err_error);
+    if (out_rc != RV_OK) {
+        return out_rc;
+    }
+    if (err_rc != RV_OK) {
+        error = err_error;
+        return err_rc;
+    }
+    return RV_OK;
 }
 
 int rv_editor_process::write(std::string_view bytes)
@@ -319,7 +343,7 @@ bool rv_editor_process::output_done()
 int rv_editor_process::stop(bool force)
 {
     if (!running()) {
-        return RV_OK;
+        return RV_ERR_ALREADY;
     }
     const int sig = force ? SIGKILL : SIGTERM;
     const bool group_ok = ::kill(-pid_, sig) == 0;

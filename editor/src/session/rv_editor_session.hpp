@@ -150,11 +150,13 @@ public:
     }
 
     // Once a frame: reads the channel and the log, notices timeouts and the end.
-    void update(rv_editor_log &log);
+    // RV_ERR_IO: a read failed, the reason is in `error`; the rest of the frame still runs.
+    int update(rv_editor_log &log, std::string &error);
 
     // Ends the session for good before the editor exits: quit, a short wait,
     // then kill. Leaves no orphan.
-    void shutdown(rv_editor_log &log);
+    // RV_ERR_IO: a read failed during the end; the first reason is in `error`.
+    int shutdown(rv_editor_log &log, std::string &error);
 
     rv_editor_run_state state() const
     {
@@ -287,7 +289,8 @@ private:
     void trace(std::string_view bytes, rv_editor_log &log);
     void handle(const rv_editor_devmsg &msg, rv_editor_log &log);
     void handle_mode(std::string_view mode);
-    void finish(rv_editor_log &log);
+    // Returns the result of its read; the end is recorded either way.
+    int finish(rv_editor_log &log, std::string &error);
 
     rv_editor_process proc_;
     rv_editor_frame_memory frame_mem_;

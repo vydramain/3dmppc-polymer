@@ -198,7 +198,18 @@ void rv_editor_app_stop_player(rv_editor_app &app)
         return;
     }
     // The first ask is a polite SIGTERM; asked again, it is killed.
-    r.player->stop(r.player_stopped);
+    const int stop_err = r.player->stop(r.player_stopped);
+    if (stop_err != RV_OK && stop_err != RV_ERR_ALREADY) {
+        // Still marked, so the next ask goes to SIGKILL.
+        r.player_stopped = true;
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "player stop failed: signal not delivered, code " + std::to_string(stop_err),
+            rv_editor_log_channel::none,
+            r.player->pid(),
+            rv_editor_player_run(r));
+        return;
+    }
     r.player_stopped = true;
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::warning,
@@ -224,7 +235,16 @@ void rv_editor_app_player_update(rv_editor_app &app)
     // runs once, only when the player's output is complete (output_done()).
     std::string out;
     std::string err;
-    r.player->read(out, err, read_chunk_bytes);
+    std::string read_error;
+    const int read_err = r.player->read(out, err, read_chunk_bytes, read_error);
+    if (read_err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "player output not read: " + read_error,
+            rv_editor_log_channel::none,
+            r.player->pid(),
+            rv_editor_player_run(r));
+    }
     rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
     if (r.player->poll() && r.player->output_done()) {
