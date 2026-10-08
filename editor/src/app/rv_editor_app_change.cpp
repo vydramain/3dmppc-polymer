@@ -67,18 +67,23 @@ void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &
 {
     // A new reload supersedes the last bake's outcome in the status row.
     app.texture_bake.message.clear();
-    if (!file.empty()) {
-        const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
-        if (plan.action == rv_editor_change_action::refresh_texture) {
-            rv_editor_app_texture_bake_start(app, plan.name, file);
-            return;
-        }
-        if (plan.action == rv_editor_change_action::reload_module) {
-            app.session.reload(app.log, plan.name);
-            return;
-        }
+    const rv_editor_change_plan plan = file.empty() ? rv_editor_change_plan() : rv_editor_app_change_for(app, file);
+    if (plan.action == rv_editor_change_action::refresh_texture) {
+        rv_editor_app_texture_bake_start(app, plan.name, file);
+        return;
     }
-    app.session.reload(app.log);
+    const bool by_module = plan.action == rv_editor_change_action::reload_module;
+    const std::string module = by_module ? plan.name : std::string();
+    std::string error;
+    const int reload_result = app.session.reload(app.log, error, module);
+    if (reload_result != RV_OK) {
+        // Busy is a refusal to retry later (not ready, a reload in flight): a warning.
+        const rv_editor_log_level level =
+            reload_result == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+        const std::string what =
+            module.empty() ? std::string("cannot reload the entry: ") : "cannot reload module " + module + ": ";
+        app.log.add(rv_editor_log_source::editor, level, what + error);
+    }
 }
 
 } // namespace

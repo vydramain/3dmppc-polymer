@@ -143,7 +143,9 @@ public:
     int query(const std::string &request, rv_editor_log &log, std::string &error);
     // Empty `module`: `reload entry`, the entry script again. Otherwise `reload module
     // <module>`, that required module again, both off the drive the disc runs from.
-    void reload(rv_editor_log &log, const std::string &module = std::string());
+    // RV_OK on success; RV_ERR_BUSY when the runtime is not ready or a reload is in flight,
+    // RV_ERR_IO when send fails. The reason is in error; nothing is logged.
+    int reload(rv_editor_log &log, std::string &error, const std::string &module = std::string());
     // `asset <name> bytes <n>`: sends a baked texture's bytes in one process write,
     // sharing reload()'s in-flight slot. Same preconditions as reload(). Refuses
     // (logged, nothing sent) bytes over the console's payload ceiling or over

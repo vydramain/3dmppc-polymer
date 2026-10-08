@@ -171,20 +171,25 @@ int rv_editor_session::query(const std::string &request, rv_editor_log &log, std
     return RV_OK;
 }
 
-void rv_editor_session::reload(rv_editor_log &log, const std::string &module)
+int rv_editor_session::reload(rv_editor_log &log, std::string &error, const std::string &module)
 {
-    if (!handshake_done_ || !proc_.running() || quit_sent_ || reloading_) {
-        return;
+    const bool can_reload = handshake_done_ && proc_.running() && !quit_sent_;
+    if (!can_reload) {
+        error = "the runtime is not ready for requests";
+        return RV_ERR_BUSY;
+    }
+    if (reloading_) {
+        error = "a reload is already in flight";
+        return RV_ERR_BUSY;
     }
     const std::string verb = module.empty() ? std::string(reload_entry_verb) : std::string(reload_module_prefix) + module;
     int64_t id = 0;
-    std::string error;
     if (send(verb, log, id, error) != RV_OK) {
-        log_send_failure(verb, error, log);
-        return;
+        return RV_ERR_IO;
     }
     reloading_ = true;
     reload_id_ = id;
+    return RV_OK;
 }
 
 void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes)
