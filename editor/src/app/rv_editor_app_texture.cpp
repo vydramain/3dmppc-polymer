@@ -98,7 +98,13 @@ void rv_editor_texture_bake_finish(rv_editor_app &app)
             "texture " + name + " baked but not sent: " + out.string() + " could not be read");
         return;
     }
-    app.session.reload_asset(app.log, name, bytes);
+    std::string error;
+    const int sent = app.session.reload_asset(app.log, name, bytes, error);
+    if (sent != RV_OK) {
+        // Busy is a refusal to retry later (not ready, a reload in flight): a warning.
+        const rv_editor_log_level level = sent == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+        app.log.add(rv_editor_log_source::editor, level, "texture " + name + " baked but not sent: " + error);
+    }
 }
 
 } // namespace

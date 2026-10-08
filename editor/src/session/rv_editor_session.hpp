@@ -147,10 +147,11 @@ public:
     // RV_ERR_IO when send fails. The reason is in error; nothing is logged.
     int reload(rv_editor_log &log, std::string &error, const std::string &module = std::string());
     // `asset <name> bytes <n>`: sends a baked texture's bytes in one process write,
-    // sharing reload()'s in-flight slot. Same preconditions as reload(). Refuses
-    // (logged, nothing sent) bytes over the console's payload ceiling or over
-    // rv_editor_process::input_max once the header is added.
-    void reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes);
+    // sharing reload()'s in-flight slot. RV_OK on success; RV_ERR_BUSY when the runtime is not
+    // ready or a reload is in flight; RV_ERR_INVAL for bytes over the console's payload ceiling or
+    // over rv_editor_process::input_max once the header is added; RV_ERR_IO when send fails.
+    // The reason is in error; nothing is logged.
+    int reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes, std::string &error);
     // A fresh status, for the facts. RV_OK on success; RV_ERR_BUSY when the runtime is
     // not ready for requests, RV_ERR_IO when send fails. The reason is in error; the caller logs it.
     int refresh(rv_editor_log &log, std::string &error);

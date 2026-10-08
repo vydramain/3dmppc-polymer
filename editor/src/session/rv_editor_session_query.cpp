@@ -192,42 +192,40 @@ int rv_editor_session::reload(rv_editor_log &log, std::string &error, const std:
     return RV_OK;
 }
 
-void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes)
+int rv_editor_session::reload_asset(rv_editor_log &log,
+    const std::string &name,
+    const std::vector<unsigned char> &bytes,
+    std::string &error)
 {
-    if (!handshake_done_ || !proc_.running() || quit_sent_ || reloading_) {
-        return;
+    const bool can_reload = handshake_done_ && proc_.running() && !quit_sent_;
+    if (!can_reload) {
+        error = "the runtime is not ready for requests";
+        return RV_ERR_BUSY;
+    }
+    if (reloading_) {
+        error = "a reload is already in flight";
+        return RV_ERR_BUSY;
     }
     if (bytes.size() > asset_payload_max) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "cannot send asset '" + name + "': " + std::to_string(bytes.size()) +
-                " bytes over the console's payload ceiling of " + std::to_string(asset_payload_max),
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
-        return;
+        error =
+            std::to_string(bytes.size()) + " bytes over the console's payload ceiling of " + std::to_string(asset_payload_max);
+        return RV_ERR_INVAL;
     }
     const std::string verb =
         std::string(asset_verb_prefix) + name + std::string(asset_bytes_token) + std::to_string(bytes.size());
     const size_t header_size = std::to_string(next_id_).size() + 1 + verb.size() + 1;
     if (header_size + bytes.size() > rv_editor_process::input_max) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "cannot send asset '" + name + "': " + std::to_string(header_size + bytes.size()) +
-                " bytes over the runtime's input limit of " + std::to_string(rv_editor_process::input_max),
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
-        return;
+        error = std::to_string(header_size + bytes.size()) + " bytes over the runtime's input limit of " +
+            std::to_string(rv_editor_process::input_max);
+        return RV_ERR_INVAL;
     }
     int64_t id = 0;
-    std::string error;
     if (send(verb, log, id, error, std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size())) != RV_OK) {
-        log_send_failure(verb, error, log);
-        return;
+        return RV_ERR_IO;
     }
     reloading_ = true;
     reload_id_ = id;
+    return RV_OK;
 }
 
 int rv_editor_session::refresh(rv_editor_log &log, std::string &error)
