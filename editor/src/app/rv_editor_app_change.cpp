@@ -42,7 +42,7 @@ void rv_editor_app_build_restart_built(rv_editor_app &app)
         app.session.stop(app.log);
         return;
     }
-    (void)rv_editor_app_start(app, *app.build.last_success());
+    (void)rv_editor_app_run_session(app, *app.build.last_success());
 }
 
 // Restart the game after the session stopped.
@@ -52,7 +52,7 @@ void rv_editor_app_build_restart_stopped(rv_editor_app &app)
         return;
     }
     app.restart_after_stop = false;
-    (void)rv_editor_app_start(app, *app.build.last_success());
+    (void)rv_editor_app_run_session(app, *app.build.last_success());
 }
 
 // Sends the reload for `file`'s plan (reload_module: that module; otherwise the

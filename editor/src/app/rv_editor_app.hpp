@@ -344,7 +344,7 @@ struct rv_editor_app {
     rv_editor_scene_ui scene_ui;
     rv_editor_assets_ui assets_ui;
     rv_editor_scene_tabs scene_tabs;
-    // The started build's map (rv_editor_build_map_read), read at rv_editor_app_start;
+    // The started build's map (rv_editor_build_map_read), read at rv_editor_app_run_session;
     // empty once the session is not live.
     std::map<std::string, rv_editor_map_entry> build_map;
     // The file the last-used Code tile shows; the window sets this.
@@ -447,9 +447,9 @@ void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended);
 bool rv_editor_app_run_builds(const rv_editor_app &app);
 // Buffers with a file name and unsaved changes: what a build would miss.
 std::vector<int64_t> rv_editor_app_unsaved(const rv_editor_app &app);
-// Starts a console on `artifact` with memory card `card` (empty: the project's).
-// Returns RV_OK on success, RV_ERR_IO if runtime process or storage failed.
-int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
+// Runs a session on `artifact` with memory card `card` (empty: the project's): state directory,
+// launch, runtime start, build map, session log. Returns RV_OK on success or RV_ERR_* on failure.
+int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card = {});
 
 // Release (editor/src/app/rv_editor_app_release.cpp): Build Candidate writes a new
 // numbered image; Run Candidate runs the one shown on the development console.

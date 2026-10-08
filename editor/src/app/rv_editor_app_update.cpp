@@ -82,7 +82,7 @@ void rv_editor_app_update_build_ended(rv_editor_app &app, bool build_ended)
             std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));
         return;
     }
-    (void)rv_editor_app_start(app, *app.build.last_success());
+    (void)rv_editor_app_run_session(app, *app.build.last_success());
 }
 
 // Detects if a line is from the last build's output or a candidate being built.

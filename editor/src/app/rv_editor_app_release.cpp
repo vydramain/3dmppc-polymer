@@ -183,7 +183,7 @@ int rv_editor_app_run_candidate(rv_editor_app &app)
     std::filesystem::path card = c.image;
     card.replace_extension(memory_card_ext);
     r.playtest_first_seq = app.log.revision() + 1;
-    const int err = rv_editor_app_start(app, rv_editor_artifact{ c.image, c.number }, card);
+    const int err = rv_editor_app_run_session(app, rv_editor_artifact{ c.image, c.number }, card);
     if (err != RV_OK) {
         return err;
     }
