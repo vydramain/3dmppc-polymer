@@ -28,7 +28,8 @@ int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::r
 // Each phase lives in its own directory and knows nothing about the others; what
 // they share sits in rv_burner_common/. This function is the only place the
 // order is written down, and the only place that prints the ladder - a phase
-// reports by returning 0 or 1 and setting an error string, never by printing.
+// reports by returning RV_OK or an RV_ERR_* kind and setting an error string, and does not print:
+// the wrappers in rv_burner_build_runner.cpp print the reason before they return the same code.
 
 /// Burn a disc directory into one .mppcdisc image.
 ///
@@ -41,7 +42,8 @@ int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::r
 /// needs to look at.
 ///
 /// @param options  the parsed command line
-/// @return a process exit code: 0 on success, 1 on any refusal
+/// @return RV_OK on success; otherwise the RV_ERR_* kind of the refusal, which main passes on as the exit status.
+///         The shell sees a negative code modulo 256 (RV_ERR_INVAL, -1, reads as 255).
 int rv_burner_build_run(const rv_burner_options &options);
 
 // --- one texture ---

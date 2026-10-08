@@ -80,8 +80,9 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
     }
 
     rv_pdklib::rv_manifest manifest;
-    if (rv_burner_build_manifest(disc_dir, manifest, error) != RV_OK) {
-        return RV_ERR_INVAL;
+    const int manifest_err = rv_burner_build_manifest(disc_dir, manifest, error);
+    if (manifest_err != RV_OK) {
+        return manifest_err;
     }
 
     archive_item item;
