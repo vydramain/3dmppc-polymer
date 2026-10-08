@@ -45,8 +45,11 @@ void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log
     root_.dir = true;
     root_.expanded = true;
     std::string error;
-    watching_ = watch_.start(root_.path, error) == RV_OK;
+    const int started = watch_.start(root_.path, error);
+    // A partial watch at the limit still reports changes; overflow re-reads the tree.
+    watching_ = started == RV_OK || started == RV_ERR_NOMEM;
     if (!watching_) {
+        watch_.stop();
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::warning,
             "files are not watched, Refresh shows changes: " + error);
@@ -165,14 +168,54 @@ void rv_editor_files::update(rv_editor_log &log)
     if (!is_open() || !watching_) {
         return;
     }
+    std::vector<char> raw;
+    std::string error;
+    const int read_rc = watch_.read_events(raw, error);
+    if (read_rc != RV_OK) {
+        watch_.stop();
+        watching_ = false;
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "files are not watched, Refresh shows changes: " + error);
+        return;
+    }
     std::vector<rv_editor_watch::rv_editor_watch_event> events;
+    watch_.translate(raw, events);
     bool overflowed = false;
-    watch_.poll(events, overflowed);
+    bool restart = false;
     for (const auto &ev : events) {
+        if (ev.lost) {
+            overflowed = true;
+            continue;
+        }
+        if (ev.directory && ev.removed) {
+            restart = true;
+        }
+        if (ev.appeared) {
+            const int rc = watch_.watch_tree(ev.path, error);
+            if (rc == RV_ERR_NOMEM) {
+                overflowed = true;
+            } else if (rc == RV_ERR_IO) {
+                log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "new folder is not watched: " + error);
+            }
+        }
         stale_.insert(ev.path.parent_path());
         if (!ev.directory) {
             changed.push_back(ev.path);
         }
+    }
+    if (restart) {
+        // A moved or deleted directory leaves watches on paths that no longer exist.
+        watch_.stop();
+        const int rc = watch_.start(root_.path, error);
+        watching_ = rc == RV_OK || rc == RV_ERR_NOMEM;
+        if (!watching_) {
+            watch_.stop();
+            log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                "files are not watched, Refresh shows changes: " + error);
+        }
+        overflowed = true;
     }
     if (overflowed) {
         log.add(rv_editor_log_source::editor,

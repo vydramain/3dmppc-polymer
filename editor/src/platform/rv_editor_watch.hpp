@@ -15,6 +15,8 @@ namespace rv_editor
 // `skip` (the burner's .mppcburn/, .git/) are not watched, symlinked
 // directories are never entered, so a link loop cannot run the watcher away,
 // and at most `watch_max` directories are watched.
+// Operations return RV_OK or an RV code with the reason in `error`; restarting
+// is stop() followed by start(), done by the caller.
 class rv_editor_watch
 {
 public:
@@ -24,6 +26,8 @@ public:
         std::filesystem::path path; // the file or directory that changed
         bool directory = false;
         bool removed = false; // gone (deleted or moved away)
+        bool appeared = false; // directory created or moved in: the caller calls watch_tree() on it
+        bool lost = false;     // the kernel dropped events: re-read everything, path is empty
     };
 
     rv_editor_watch() = default;
@@ -31,24 +35,27 @@ public:
     rv_editor_watch &operator=(const rv_editor_watch &) = delete;
     ~rv_editor_watch();
 
-    // Watches `root` and every directory under it. Returns RV_OK or RV_ERR_IO;
-    // reason in error.
+    // Opens the inotify descriptor and watches `root` and every directory under it.
+    // RV_ERR_INVAL if already started. RV_ERR_NOMEM: the watch limit ran out, the part reached so far stays watched.
+    // Restart is stop() then start(), done by the caller.
     int start(const std::filesystem::path &root, std::string &error);
+    // Drops every watch and closes the descriptor.
     void stop();
+    // Watches `dir` and everything under it; RV_ERR_NOENT when `dir` is already gone.
+    int watch_tree(const std::filesystem::path &dir, std::string &error);
 
-    // Appends what changed since the last call; never blocks. `overflowed` turns
-    // true when the kernel dropped events or the watch limit was reached: the
-    // caller should re-read everything it shows. A directory moved or deleted
-    // turns it true as well: every watch is set up again, so none keeps a path
-    // that no longer exists.
-    void poll(std::vector<rv_editor_watch_event> &out, bool &overflowed);
+    // Appends the raw inotify records that are queued now; never blocks.
+    int read_events(std::vector<char> &raw, std::string &error);
+    // Turns raw records into events; never fails.
+    void translate(const std::vector<char> &raw, std::vector<rv_editor_watch_event> &out);
 
     static bool skipped(const std::string &name);
 
 private:
-    void add_tree(const std::filesystem::path &dir, bool &overflowed);
+    int watch_dir(const std::filesystem::path &dir, std::string &error);
+    int add_tree(const std::filesystem::path &dir, std::string &error);
+    static int subdirs(const std::filesystem::path &dir, std::vector<std::filesystem::path> &out, std::string &error);
 
-    std::filesystem::path root_;
     int fd_ = -1;
     std::unordered_map<int, std::filesystem::path> dirs_;
 };
