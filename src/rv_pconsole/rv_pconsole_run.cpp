@@ -356,7 +356,13 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     // the loop rather than inside it, so a dump costs nothing per frame. The
     // pause overlay is deliberately not what lands here - it was composed into a
     // copy, so this is what the DISC drew.
-    cv_->dump_last_frame(params_.dump_frame_path);
+    if (!params_.dump_frame_path.empty()) {
+        std::string dump_error;
+        const int dumped = cv_->dump_last_frame(params_.dump_frame_path, dump_error);
+        if (dumped != RV_OK) {
+            RV_LOG_ERR("pconsole", "frame not written: {}", dump_error);
+        }
+    }
 
     // Best effort, bounded: the last answer should reach a client that is still
     // there, and a client that is gone must not hold the shutdown open.

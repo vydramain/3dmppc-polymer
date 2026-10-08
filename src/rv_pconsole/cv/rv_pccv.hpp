@@ -55,9 +55,10 @@ public:
     // it to the platform window; the GPU never learns whether anyone looked.
     virtual const uint32_t *last_frame() const = 0;
 
-    // Write the most recently flushed frame to `path` as a binary PPM. No-op
-    // when `path` is empty or nothing was ever flushed.
-    virtual void dump_last_frame(const std::string &path) const = 0;
+    // Write the most recently flushed frame to `path` as a binary PPM. RV_OK on success; RV_ERR_NOENT when nothing was
+    // flushed; RV_ERR_INVAL for an empty `path`; RV_ERR_IO when the file cannot be written. `error` holds the cause.
+    // The caller asks only when a path is set.
+    virtual int dump_last_frame(const std::string &path, std::string &error) const = 0;
 
 protected:
     rv_pccv() = default;

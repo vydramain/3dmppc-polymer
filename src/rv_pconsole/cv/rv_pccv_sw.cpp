@@ -1,7 +1,10 @@
 #include "rv_pconsole/cv/rv_pccv_sw.hpp"
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
+#include <format>
 #include <limits>
 
 #include "pdk/cv/rv_cv.h"
@@ -34,6 +37,64 @@ constexpr int RV_PCCV_ARGB8888_RED_SHIFT = 16;  // bits 16-23: red channel
 constexpr int RV_PCCV_ARGB8888_GREEN_SHIFT = 8; // bits 8-15: green channel
 constexpr uint32_t RV_PCCV_ARGB8888_CHANNEL_MASK = 0xFF;
 constexpr int RV_PCCV_PPM_RGB_BYTES = 3;
+
+// The dump steps. Each returns RV_OK or RV_ERR_IO, and on failure `error` names
+// the step and the errno cause.
+int dump_open(const std::string &path, std::FILE *&file, std::string &error)
+{
+    file = std::fopen(path.c_str(), "wb");
+    if (file == nullptr) {
+        error = std::format("cannot open '{}': {}", rv_pdklib::rv_log_escape(path.c_str()), std::strerror(errno));
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+int dump_header(std::FILE *file, int64_t width, int64_t height, std::string &error)
+{
+    errno = 0; // a failure may not set errno; strerror must not name an older cause
+    if (std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(width), static_cast<long long>(height)) < 0) {
+        error = std::format("cannot write the header: {}", std::strerror(errno));
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+int dump_pixels(std::FILE *file, const uint32_t *argb, int64_t pixels, std::string &error)
+{
+    for (int64_t i = 0; i < pixels; ++i) {
+        const uint32_t c = argb[i];
+        const unsigned char rgb[RV_PCCV_PPM_RGB_BYTES] = { static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_RED_SHIFT) &
+                                                               RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_GREEN_SHIFT) & RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>(c & RV_PCCV_ARGB8888_CHANNEL_MASK) };
+        errno = 0;
+        if (std::fwrite(rgb, 1, sizeof(rgb), file) != sizeof(rgb)) {
+            error = std::format("cannot write pixel {}: {}", i, std::strerror(errno));
+            return RV_ERR_IO;
+        }
+    }
+    return RV_OK;
+}
+
+int dump_frame(std::FILE *file, int64_t width, int64_t height, const uint32_t *argb, std::string &error)
+{
+    if (dump_header(file, width, height, error) != RV_OK) {
+        return RV_ERR_IO;
+    }
+    return dump_pixels(file, argb, width * height, error);
+}
+
+// fclose is where buffered bytes reach the disk, so its failure is a lost frame.
+int dump_close(std::FILE *file, std::string &error)
+{
+    errno = 0;
+    if (std::fclose(file) != 0) {
+        error = std::format("cannot close the file: {}", std::strerror(errno));
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
 
 } // namespace
 
@@ -398,34 +459,34 @@ int64_t rv_pccv_sw::frame_flush()
 // diffed without a screen capture, which is the difference between "looks
 // right to me" and a repeatable check. Deliberately the LAST frame rather
 // than the first - an animated disc has usually settled by then.
-void rv_pccv_sw::dump_last_frame(const std::string &path) const
+int rv_pccv_sw::dump_last_frame(const std::string &path, std::string &error) const
 {
-    if (path.empty() || !last_frame_) {
-        return;
+    if (path.empty()) {
+        error = "no frame dump path";
+        return RV_ERR_INVAL;
+    }
+    if (!last_frame_) {
+        error = "no frame has been flushed yet";
+        return RV_ERR_NOENT;
     }
 
-    std::FILE *file = std::fopen(path.c_str(), "wb");
-    if (!file) {
-        RV_LOG_ERR("pccv", "cannot open frame dump '{}'", path);
-        return;
+    std::FILE *file = nullptr;
+    if (dump_open(path, file, error) != RV_OK) {
+        return RV_ERR_IO;
     }
 
-    std::fprintf(file,
-        "P6\n%lld %lld\n255\n",
-        static_cast<long long>(conf_.screen_width),
-        static_cast<long long>(conf_.screen_height));
-
-    const int64_t pixels = conf_.screen_width * conf_.screen_height;
-    for (int64_t i = 0; i < pixels; ++i) {
-        const uint32_t c = last_frame_[i];
-        const unsigned char rgb[RV_PCCV_PPM_RGB_BYTES] = { static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_RED_SHIFT) &
-                                                               RV_PCCV_ARGB8888_CHANNEL_MASK),
-            static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_GREEN_SHIFT) & RV_PCCV_ARGB8888_CHANNEL_MASK),
-            static_cast<unsigned char>(c & RV_PCCV_ARGB8888_CHANNEL_MASK) };
-        std::fwrite(rgb, 1, sizeof(rgb), file);
+    // A failed write is the cause to report; the file is closed either way.
+    const int written = dump_frame(file, conf_.screen_width, conf_.screen_height, last_frame_, error);
+    if (written != RV_OK) {
+        std::fclose(file);
+        return written;
     }
-    std::fclose(file);
-    RV_LOG_INFO("pccv", "frame written to '{}'", path);
+
+    if (dump_close(file, error) != RV_OK) {
+        return RV_ERR_IO;
+    }
+    RV_LOG_INFO("pccv", "frame written to '{}'", rv_pdklib::rv_log_escape(path.c_str()));
+    return RV_OK;
 }
 
 } // namespace rv_3dmppc

@@ -56,7 +56,7 @@ public:
         return nullptr;
     }
 
-    void dump_last_frame(const std::string &path) const override;
+    int dump_last_frame(const std::string &path, std::string &error) const override;
 
 private:
     rv_pccv_conf conf_;

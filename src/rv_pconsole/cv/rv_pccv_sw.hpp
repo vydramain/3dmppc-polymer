@@ -88,8 +88,8 @@ public:
     // Write the most recently flushed frame to `path` as a binary PPM. A
     // developer convenience: it makes "what did the console actually draw" a
     // file that can be diffed, instead of a screen capture that cannot.
-    // No-op when `path` is empty or nothing was ever flushed.
-    void dump_last_frame(const std::string &path) const override;
+    // Result and `error` as in rv_pccv::dump_last_frame.
+    int dump_last_frame(const std::string &path, std::string &error) const override;
 
     // The most recently flushed frame: screen_width * screen_height pixels of
     // 0xAARRGGBB, row-major; nullptr before the first flush. Borrowed, valid
