@@ -32,6 +32,8 @@ void rv_editor_app_tool_note(rv_editor_app &app, const char *name, const rv_edit
 
 } // namespace
 
+// void: nothing here can fail with an RV code. A missing or broken tool or settings file
+// is a warning in app.log, and the editor goes on with the defaults.
 void rv_editor_app_init(rv_editor_app &app)
 {
     app.tools = rv_editor_toolchain_find();
