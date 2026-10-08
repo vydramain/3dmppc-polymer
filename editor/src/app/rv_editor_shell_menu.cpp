@@ -272,7 +272,7 @@ void rv_editor_menu_run(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu.force_stop"),
             nullptr,
             app.session.live() ? nullptr : rv_editor_text("shell_menu.why_no_runtime"))) {
-        app.session.force_stop(app.log);
+        rv_editor_app_force_stop(app);
     }
     ImGui::Separator();
     if (rv_editor_menu_item(rv_editor_text("shell_menu.run_config"),

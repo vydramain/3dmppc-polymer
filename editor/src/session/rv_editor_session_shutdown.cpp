@@ -23,7 +23,6 @@ int rv_editor_session::shutdown(rv_editor_log &log, std::string &error)
     if (!live()) {
         return RV_OK;
     }
-    stop(log);
     // A failed read does not cut the waits short; the first reason is kept.
     int result = RV_OK;
     const auto keep_first = [&result, &error](int step, const std::string &step_error) {
@@ -32,6 +31,12 @@ int rv_editor_session::shutdown(rv_editor_log &log, std::string &error)
             error = step_error;
         }
     };
+    // ALREADY: a stop is under way or the runtime is gone, nothing to report.
+    std::string stop_error;
+    const int stop_result = stop(log, stop_error);
+    if (stop_result != RV_ERR_ALREADY) {
+        keep_first(stop_result, stop_error);
+    }
     const auto until = std::chrono::steady_clock::now() + shutdown_timeout;
     while (live() && proc_.running() && std::chrono::steady_clock::now() < until) {
         std::string step_error;
@@ -40,7 +45,9 @@ int rv_editor_session::shutdown(rv_editor_log &log, std::string &error)
         std::this_thread::sleep_for(shutdown_poll_interval);
     }
     if (proc_.running()) {
-        force_stop(log);
+        std::string force_error;
+        const int force_result = force_stop(log, force_error);
+        keep_first(force_result, force_error);
     }
     // Bounded even when a grandchild keeps a pipe open past output_done()'s grace:
     // shutdown never hangs.

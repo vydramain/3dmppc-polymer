@@ -39,7 +39,13 @@ void rv_editor_app_build_restart_built(rv_editor_app &app)
     }
     if (app.session.live()) {
         app.restart_after_stop = true;
-        app.session.stop(app.log);
+        std::string error;
+        // RV_ERR_ALREADY: a stop is under way or the runtime is gone; the restart goes on.
+        const int stop_result = app.session.stop(app.log, error);
+        if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY) {
+            app.restart_after_stop = false;
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot stop the runtime: " + error);
+        }
         return;
     }
     (void)rv_editor_app_run_session(app, *app.build.last_success());

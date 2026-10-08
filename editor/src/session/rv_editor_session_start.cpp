@@ -137,9 +137,10 @@ int rv_editor_session::handshake(rv_editor_log &log, std::string &error)
     }
     error = "cannot send status to the runtime: " + send_error;
     // Left live on purpose: finish() reaps the killed process once its output ends.
-    const int stop_result = force_stop(log);
+    std::string stop_error;
+    const int stop_result = force_stop(log, stop_error);
     if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY) {
-        error += "; the runtime was not stopped";
+        error += "; the runtime was not stopped: " + stop_error;
     }
     return RV_ERR_IO;
 }

@@ -284,7 +284,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
             theme,
             { rv_editor_look::live, why_not_stop_release })) {
         if (session_live) {
-            app.session.stop(app.log);
+            rv_editor_app_stop(app);
         }
         rv_editor_app_stop_player(app);
     }
@@ -332,7 +332,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     // a gap standing in when neither applies, so the strip's height stays fixed.
     if (app.session.hung()) {
         if (rv_editor_button(rv_editor_text("pane_candidate.force_stop_button"), theme)) {
-            app.session.force_stop(app.log);
+            rv_editor_app_force_stop(app);
         }
     } else if (app.build.busy()) {
         if (rv_editor_button(rv_editor_text("pane_candidate.cancel_build_button"), theme)) {

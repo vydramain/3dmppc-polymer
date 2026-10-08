@@ -299,7 +299,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // and only then the reload badge, the least urgent of the three.
     if (s.hung() || s.state() == rv_editor_run_state::disconnected) {
         if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme)) {
-            app.session.force_stop(app.log);
+            rv_editor_app_force_stop(app);
         }
         ImGui::SameLine();
         const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");

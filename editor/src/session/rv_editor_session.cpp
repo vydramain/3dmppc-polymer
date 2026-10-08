@@ -148,35 +148,46 @@ int rv_editor_session::step(rv_editor_log &log, std::string &error)
     return RV_OK;
 }
 
-int rv_editor_session::stop(rv_editor_log &log)
+int rv_editor_session::stop(rv_editor_log &log, std::string &error)
 {
-    if (!proc_.running() || quit_sent_) {
-        return RV_OK;
+    if (!proc_.running()) {
+        error = "runtime already stopped";
+        return RV_ERR_ALREADY;
+    }
+    if (quit_sent_) {
+        error = "stop already requested; Force Stop is offered if the runtime does not end";
+        return RV_ERR_ALREADY;
     }
     quit_sent_ = true;
     stop_sent_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::stopping;
     int64_t quit_id = 0;
-    std::string quit_error;
-    const bool quit_sent = send(std::string(cmd_quit), log, quit_id, quit_error) == RV_OK;
-    if (!quit_sent) {
-        log_send_failure(cmd_quit, quit_error, log);
+    if (send(std::string(cmd_quit), log, quit_id, error) == RV_OK) {
+        return RV_OK;
     }
-    const bool stdin_open = proc_.stdin_open();
-    if (!quit_sent && stdin_open) {
+    if (proc_.stdin_open()) {
         return RV_ERR_BUSY;
     }
-    if (!quit_sent) {
-        // Nobody reads the channel any more: the process can only be ended. One
-        // that only stopped reading shows as hung and gets Force Stop.
-        return force_stop(log);
+    // Nobody reads the channel any more: the process can only be ended. One
+    // that only stopped reading shows as hung and gets Force Stop.
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        "quit not delivered: " + error + "; force-stopping",
+        rv_editor_log_channel::none,
+        proc_.pid(),
+        number_);
+    std::string force_error;
+    const int force_result = force_stop(log, force_error);
+    if (force_result != RV_OK) {
+        error += "; " + force_error;
     }
-    return RV_OK;
+    return force_result;
 }
 
-int rv_editor_session::force_stop(rv_editor_log &log)
+int rv_editor_session::force_stop(rv_editor_log &log, std::string &error)
 {
     if (!proc_.running()) {
+        error = "runtime already stopped";
         return RV_ERR_ALREADY;
     }
     forced_ = true;
@@ -188,15 +199,23 @@ int rv_editor_session::force_stop(rv_editor_log &log)
         number_);
     const int stop_result = proc_.stop(true);
     if (stop_result != RV_OK) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "cannot force-stop runtime pid " + std::to_string(proc_.pid()) + ": the signal was not delivered",
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
+        error = "pid " + std::to_string(proc_.pid()) + ": the signal was not delivered";
         return stop_result;
     }
     return RV_OK;
+}
+
+void rv_editor_session::force_stop_logged(rv_editor_log &log)
+{
+    std::string error;
+    if (force_stop(log, error) != RV_OK) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "cannot force-stop runtime: " + error,
+            rv_editor_log_channel::none,
+            proc_.pid(),
+            number_);
+    }
 }
 
 void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
@@ -290,7 +309,7 @@ int rv_editor_session::update(rv_editor_log &log, std::string &error)
                     rv_editor_log_channel::none,
                     proc_.pid(),
                     number_);
-                force_stop(log);
+                force_stop_logged(log);
                 break;
             }
             uncertain_ = true;
@@ -314,7 +333,7 @@ int rv_editor_session::update(rv_editor_log &log, std::string &error)
         }
 
         if (state_ == rv_editor_run_state::refused && hung()) {
-            force_stop(log);
+            force_stop_logged(log);
         }
     }
 

@@ -245,9 +245,34 @@ int rv_editor_app_step(rv_editor_app &app)
     return err;
 }
 
+// Logs a stop operation's outcome: ALREADY is a warning, a refusal an error with `prefix`.
+// A refused stop also cancels a Run queued behind it.
+static void report_stop(rv_editor_app &app, int code, const std::string &error, const std::string &prefix)
+{
+    if (code == RV_ERR_ALREADY) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, error);
+        return;
+    }
+    if (code != RV_OK) {
+        app.run_after_stop = false;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, prefix + error);
+    }
+}
+
 int rv_editor_app_stop(rv_editor_app &app)
 {
-    return app.session.stop(app.log);
+    std::string error;
+    const int err = app.session.stop(app.log, error);
+    report_stop(app, err, error, "cannot stop the runtime: ");
+    return err;
+}
+
+int rv_editor_app_force_stop(rv_editor_app &app)
+{
+    std::string error;
+    const int err = app.session.force_stop(app.log, error);
+    report_stop(app, err, error, "cannot force-stop the runtime: ");
+    return err;
 }
 
 int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error)
@@ -298,7 +323,7 @@ void rv_editor_app_shutdown(rv_editor_app &app)
     if (session_result != RV_OK) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
-            "runtime output not read at shutdown: " + session_error);
+            "runtime did not end cleanly at shutdown: " + session_error);
     }
     app.nvim.stop();
     // Every shell ends before the editor does: a background job that ignores the hang-up

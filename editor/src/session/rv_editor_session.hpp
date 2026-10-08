@@ -129,10 +129,14 @@ public:
     int pause(rv_editor_log &log, std::string &error);
     int resume(rv_editor_log &log, std::string &error);
     int step(rv_editor_log &log, std::string &error);
-    // `quit`, then waits for the process to end. RV_OK on success, RV_ERR_BUSY if send blocked and stdin open.
-    int stop(rv_editor_log &log);
-    // SIGKILL to a process this session owns, for one that does not end.
-    int force_stop(rv_editor_log &log);
+    // `quit`, then waits for the process to end. RV_OK on success; RV_ERR_ALREADY when the
+    // runtime is gone or a stop was already requested; RV_ERR_BUSY if send blocked and stdin
+    // open. A refusal's reason is in error. A quit not delivered before a force-stop is logged
+    // with the force-stop event.
+    int stop(rv_editor_log &log, std::string &error);
+    // SIGKILL to a process this session owns, for one that does not end. RV_ERR_ALREADY when
+    // the runtime is gone; otherwise the failure's code with the reason in error.
+    int force_stop(rv_editor_log &log, std::string &error);
     // Asks `request` ("get a b", "keys a"); the answer lands in answers() under the
     // same text. 0 when nothing was sent.
     int64_t query(const std::string &request, rv_editor_log &log);
@@ -293,6 +297,8 @@ private:
         std::string_view payload = std::string_view());
     // Logs a refused send once per run of refusals: a closed input every time, a full one on its first refusal.
     void log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log);
+    // force_stop with no caller to return the reason to: the reason is logged as an error.
+    void force_stop_logged(rv_editor_log &log);
     void note_facts(const rv_editor_devmsg &msg);
     // A `get`, `keys` or `reload` answer; false for any other request.
     bool handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log);

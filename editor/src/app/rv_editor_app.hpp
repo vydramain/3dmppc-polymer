@@ -482,6 +482,8 @@ int rv_editor_app_run_last(rv_editor_app &app);
 int rv_editor_app_pause(rv_editor_app &app);
 int rv_editor_app_step(rv_editor_app &app);
 int rv_editor_app_stop(rv_editor_app &app);
+// Force Stop: SIGKILL to the runtime; logs the outcome (warning when there is nothing to stop).
+int rv_editor_app_force_stop(rv_editor_app &app);
 void rv_editor_app_reload(rv_editor_app &app);
 
 // Renames or deletes inside the project; RV_OK or RV_ERR_* with the reason in error.
