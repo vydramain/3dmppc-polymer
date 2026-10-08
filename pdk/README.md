@@ -264,7 +264,9 @@ test uniformly with `if (rc < 0) { ... }`.
 Codes: `RV_ERR_INVAL` (malformed call — a disc bug), `RV_ERR_NOMEM` (a pool the
 controller manages is exhausted), `RV_ERR_BUSY` (resource occupied, retry may
 work), `RV_ERR_NOENT` (the named thing does not exist — a content problem, not a
-coding one), `RV_ERR_IO` (the device failed to carry out a well-formed call).
+coding one), `RV_ERR_IO` (the device failed to carry out a well-formed call),
+`RV_ERR_PENDING` (the call waits for an outside decision; nothing was
+done yet), `RV_ERR_ALREADY` (the call's goal already holds; nothing was done).
 Values are ABI: existing codes never change, new ones are appended.
 
 **`enum` vs `#define`.** The contract states a constant one of two ways, and the
