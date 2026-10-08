@@ -179,8 +179,8 @@ int rv_pboot_run(int argc, char **argv)
 
     // What the machine is going to be. A disc declares its requirements in
     // its manifest and those numbers are the machine it gets; the built-in
-    // service test carries no manifest, so it runs on the reference
-    // specification.
+    // default disc for checking the console carries no manifest, so it runs on
+    // the reference specification.
     const rv_pdklib::rv_manifest_budget *budget = nullptr;
     bool medium_live = false;
     if (rv_pboot_budget_select(args, loader, budget, medium_live) < 0) {
@@ -267,7 +267,7 @@ int rv_pboot_run(int argc, char **argv)
         return static_cast<int>(console->disc_run(loader.disc()) < 0 ? 1 : 0);
     }
 
-    // No disc in the machine: the built-in service test of the hardware. It
+    // No disc in the machine: the built-in default disc for checking the console. It
     // is how the console is checked without a game, and it is not a game
     // itself. `service` is a disc's namespace, not the machine's, and this
     // is the only line in the console that names a disc.

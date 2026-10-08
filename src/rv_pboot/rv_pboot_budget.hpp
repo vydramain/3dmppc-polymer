@@ -2,8 +2,8 @@
 //
 // A disc declares what it needs in its manifest [budget], and that declaration
 // is what it gets: the numbers become the machine it runs on. The built-in
-// service test carries no manifest, so its requirements live here instead:
-// the reference console's own answers, copied verbatim from
+// default disc for checking the console carries no manifest, so its requirements
+// live here instead: the reference console's own answers, copied verbatim from
 // rv_manifest_budget's defaults (pdklib/rv_manifest/rv_manifest.hpp).
 //
 // This is not a ceiling on what other discs may ask for. What a disc may ask
