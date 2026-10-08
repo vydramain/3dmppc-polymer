@@ -84,12 +84,15 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
     // allocate, and the port count is session-stable.
     prev_buttons_.assign(static_cast<std::size_t>(iport_count_), 0ULL);
 
-    build_texture();
-    build_idx4_texture();
-    build_font();
-    probe_drive();
-    load_save();
-    build_beep();
+    // A refused step is kept as its code and the setup goes on: the screen shows
+    // the gap, the disc does not stop.
+    texture_result_ = build_texture();
+    idx4_result_ = build_idx4_texture();
+    font_result_ = build_font();
+    drive_result_ = probe_drive();
+    save_result_ = load_save();
+    beep_result_ = build_beep();
+    setup_done_ = true;
 
     return RV_OK;
 }
