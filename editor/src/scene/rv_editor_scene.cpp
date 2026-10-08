@@ -210,6 +210,117 @@ int rv_editor_scene_tess_of(const rv_pdklib::rv_manifest_mvalue &v, double &out)
     return RV_OK;
 }
 
+struct object_string_field {
+    std::string_view key;
+    std::string rv_editor_scene_object::*ptr;
+};
+// Text fields of an object, by the key that holds them.
+constexpr std::array<object_string_field, 6> object_string_fields = { {
+    { object_id_key, &rv_editor_scene_object::id },
+    { object_name_key, &rv_editor_scene_object::name },
+    { object_parent_key, &rv_editor_scene_object::parent },
+    { object_kind_key, &rv_editor_scene_object::kind },
+    { object_mesh_key, &rv_editor_scene_object::mesh },
+    { object_texture_key, &rv_editor_scene_object::texture },
+} };
+
+struct object_vec3_field {
+    std::string_view key;
+    rv_editor_vec3 rv_editor_scene_object::*ptr;
+};
+// Vector fields of an object, by the key that holds them.
+constexpr std::array<object_vec3_field, 3> object_vec3_fields = { {
+    { object_position_key, &rv_editor_scene_object::position },
+    { object_rotation_key, &rv_editor_scene_object::rotation },
+    { object_scale_key, &rv_editor_scene_object::scale },
+} };
+
+// The row of a field table that holds `key`, or null.
+template <typename field, size_t count>
+const field *find_object_field(const std::array<field, count> &table, std::string_view key)
+{
+    for (const auto &f : table) {
+        if (key == f.key) {
+            return &f;
+        }
+    }
+    return nullptr;
+}
+
+// A known key of an unexpected shape is kept as it was, not overwritten.
+void rv_editor_scene_entry_invalid(rv_editor_scene &s,
+    rv_editor_scene_object &o,
+    const rv_pdklib::rv_manifest_tree_entry &e,
+    const std::string &reason)
+{
+    o.extra.push_back(e);
+    s.read_only = "object '" + o.id + "': " + reason;
+}
+
+void rv_editor_scene_object_text(rv_editor_scene &s,
+    rv_editor_scene_object &o,
+    const rv_pdklib::rv_manifest_tree_entry &e,
+    const object_string_field &f)
+{
+    if (e.value.kind != kind::string) {
+        rv_editor_scene_entry_invalid(s, o, e, "'" + e.key + "' is not what this editor writes");
+        return;
+    }
+    o.*f.ptr = e.value.str;
+}
+
+void rv_editor_scene_object_vec3(rv_editor_scene &s,
+    rv_editor_scene_object &o,
+    const rv_pdklib::rv_manifest_tree_entry &e,
+    const object_vec3_field &f)
+{
+    if (rv_editor_scene_vec_of(e.value, o.*f.ptr) != RV_OK) {
+        rv_editor_scene_entry_invalid(s, o, e, "'" + e.key + "' is not what this editor writes");
+    }
+}
+
+void rv_editor_scene_entry_checked(rv_editor_scene &s,
+    rv_editor_scene_object &o,
+    const rv_pdklib::rv_manifest_tree_entry &e,
+    int rc,
+    const char *reason)
+{
+    if (rc != RV_OK) {
+        rv_editor_scene_entry_invalid(s, o, e, reason);
+    }
+}
+
+// One [[object]] entry: a known field, a checked value, or kept untouched in extra.
+void rv_editor_scene_object_entry(rv_editor_scene &s, rv_editor_scene_object &o, const rv_pdklib::rv_manifest_tree_entry &e)
+{
+    const auto *text = find_object_field(object_string_fields, e.key);
+    if (text != nullptr) {
+        rv_editor_scene_object_text(s, o, e, *text);
+        return;
+    }
+    const auto *vec = find_object_field(object_vec3_fields, e.key);
+    if (vec != nullptr) {
+        rv_editor_scene_object_vec3(s, o, e, *vec);
+        return;
+    }
+    if (e.key == object_uv_key) {
+        const int uv_rc = rv_editor_scene_uv_of(e.value, o.uv);
+        rv_editor_scene_entry_checked(s, o, e, uv_rc, "'uv' must be four numbers");
+        return;
+    }
+    if (e.key == object_tint_key) {
+        const int tint_rc = rv_editor_scene_tint_of(e.value, o.tint);
+        rv_editor_scene_entry_checked(s, o, e, tint_rc, "'tint' must be three integers from 0 to 255");
+        return;
+    }
+    if (e.key == object_tess_key) {
+        const int tess_rc = rv_editor_scene_tess_of(e.value, o.tess);
+        rv_editor_scene_entry_checked(s, o, e, tess_rc, "'tess' must be a number greater than zero");
+        return;
+    }
+    o.extra.push_back(e);
+}
+
 } // namespace
 
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error)
@@ -251,44 +362,7 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
         }
         rv_editor_scene_object o;
         for (const auto &e : section.entries) {
-            std::string *field = e.key == object_id_key ? &o.id :
-                e.key == object_name_key                ? &o.name :
-                e.key == object_parent_key              ? &o.parent :
-                e.key == object_kind_key                ? &o.kind :
-                e.key == object_mesh_key                ? &o.mesh :
-                e.key == object_texture_key             ? &o.texture :
-                                                          nullptr;
-            rv_editor_vec3 *vec = e.key == object_position_key ? &o.position :
-                e.key == object_rotation_key                   ? &o.rotation :
-                e.key == object_scale_key                      ? &o.scale :
-                                                                 nullptr;
-            // A known key of an unexpected shape is kept as it was, not overwritten.
-            if (field != nullptr && e.value.kind == kind::string) {
-                *field = e.value.str;
-            } else if (field != nullptr || vec != nullptr) {
-                if (vec != nullptr && rv_editor_scene_vec_of(e.value, *vec) == RV_OK) {
-                    continue;
-                }
-                o.extra.push_back(e);
-                s.read_only = "object '" + o.id + "': '" + e.key + "' is not what this editor writes";
-            } else if (e.key == object_uv_key) {
-                if (rv_editor_scene_uv_of(e.value, o.uv) != RV_OK) {
-                    o.extra.push_back(e);
-                    s.read_only = "object '" + o.id + "': 'uv' must be four numbers";
-                }
-            } else if (e.key == object_tint_key) {
-                if (rv_editor_scene_tint_of(e.value, o.tint) != RV_OK) {
-                    o.extra.push_back(e);
-                    s.read_only = "object '" + o.id + "': 'tint' must be three integers from 0 to 255";
-                }
-            } else if (e.key == object_tess_key) {
-                if (rv_editor_scene_tess_of(e.value, o.tess) != RV_OK) {
-                    o.extra.push_back(e);
-                    s.read_only = "object '" + o.id + "': 'tess' must be a number greater than zero";
-                }
-            } else {
-                o.extra.push_back(e);
-            }
+            rv_editor_scene_object_entry(s, o, e);
         }
         s.objects.push_back(std::move(o));
     }
