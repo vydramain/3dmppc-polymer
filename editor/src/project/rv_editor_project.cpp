@@ -8,7 +8,6 @@
 #include <fstream>
 #include <sstream>
 #include <system_error>
-#include <thread>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
@@ -47,9 +46,6 @@ constexpr std::string_view tool_console_key = "console";
 constexpr std::string_view tool_burner_key = "burner";
 constexpr std::string_view tool_baker_key = "baker";
 constexpr std::string_view tool_player_key = "player";
-
-// Command-line arguments for tool version checking.
-constexpr std::string_view tool_version_arg = "--version";
 
 // One table to search for tools by settings key and check them: key, executable name,
 // whether to ask for version (only burner and baker), whether found next to editor.
@@ -124,10 +120,7 @@ constexpr std::string_view git_current_dir = ".";
 constexpr std::string_view current_dir = ".";
 
 // Process I/O and timeout configuration for subprocess operations.
-constexpr size_t process_read_buf_size = 4096;
 constexpr size_t process_read_large_buf_size = 65536;
-constexpr int process_version_poll_ms = 5;
-constexpr int process_version_timeout_sec = 1;
 constexpr int process_launch_timeout_sec = 3;
 
 // Stable across runs and builds, unlike std::hash: the directory name must
@@ -166,7 +159,7 @@ void read_tools_section(rv_editor_toolchain &tc, const rv_pdklib::rv_manifest_tr
             if (entry.value.kind != rv_pdklib::rv_manifest_value_kind::string) {
                 continue;
             }
-            tc.*(spec->member) = { entry.value.str, std::string(tool_origin_settings), "", "" };
+            tc.*(spec->member) = { entry.value.str, std::string(tool_origin_settings), "", "", {} };
         }
     }
 }
@@ -213,41 +206,18 @@ void rv_editor_tool_check(rv_editor_tool &tool, const char *name)
     }
 }
 
-// The first line `tool --version` prints, waiting at most a second for it.
-void rv_editor_tool_version(rv_editor_tool &tool)
+// Starts the tool's version check. Its outcome goes to tool.version, as the synchronous check
+// did: a refusal there, unless the tool has a problem already (then no version is asked).
+void rv_editor_tool_version_begin(rv_editor_tool &tool)
 {
     if (!tool.problem.empty()) {
         return;
     }
-    rv_editor_process proc;
     std::string error;
-    if (proc.start({ tool.path.string(), std::string(tool_version_arg) }, {}, error) != RV_OK) {
-        tool.version = error;
-        return;
+    const int rc = rv_editor_tool_version_start(tool, error);
+    if (rc != RV_OK) {
+        tool.version = "no version: " + error;
     }
-    std::string out;
-    std::string err;
-    std::string read_error;
-    int read_rc = RV_OK;
-    const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(process_version_timeout_sec);
-    while (read_rc == RV_OK && !proc.poll() && std::chrono::steady_clock::now() < until) {
-        read_rc = proc.read(out, err, process_read_buf_size, read_error);
-        std::this_thread::sleep_for(std::chrono::milliseconds(process_version_poll_ms));
-    }
-    if (read_rc == RV_OK) {
-        read_rc = proc.read(out, err, process_read_buf_size, read_error);
-    }
-    // A failed read is the tool's version outcome: the reason, not a parse of partial output.
-    if (read_rc != RV_OK) {
-        tool.version = "version not read: " + read_error;
-        return;
-    }
-    const rv_editor_process::rv_editor_exit exit = proc.exit_status();
-    if (!exit.exited || exit.signal != 0 || exit.code != 0 || out.empty()) {
-        tool.version = "no version: " + std::string(tool_version_arg) + " is not understood";
-        return;
-    }
-    tool.version = out.substr(0, out.find('\n'));
 }
 
 } // namespace
@@ -347,13 +317,47 @@ bool rv_editor_revision_job::poll()
     return true;
 }
 
+int rv_editor_tool_version_start(rv_editor_tool &tool, std::string &error)
+{
+    if (!tool.problem.empty()) {
+        error = tool.problem;
+        return RV_ERR_INVAL;
+    }
+    if (tool.path.empty()) {
+        error = "no path to ask for a version";
+        return RV_ERR_NOENT;
+    }
+    return tool.version_check.start(tool.path, error);
+}
+
+int rv_editor_tool_version_poll(rv_editor_tool &tool, std::string &error)
+{
+    const int rc = tool.version_check.poll(error);
+    if (rc != RV_OK) {
+        tool.version = "no version: " + error;
+        return rc;
+    }
+    if (!tool.version_check.running()) {
+        tool.version = tool.version_check.version();
+    }
+    return RV_OK;
+}
+
 rv_editor_toolchain rv_editor_toolchain_find()
 {
     rv_editor_toolchain tc;
     const std::filesystem::path self = rv_editor_self_dir();
-    tc.console = { self.empty() ? "" : self / std::string(tool_console_name), std::string(tool_origin_next_to_editor), "", "" };
-    tc.burner = { self.empty() ? "" : self / std::string(tool_burner_name), std::string(tool_origin_next_to_editor), "", "" };
-    tc.baker = { self.empty() ? "" : self / std::string(tool_baker_name), std::string(tool_origin_next_to_editor), "", "" };
+    tc.console = { self.empty() ? "" : self / std::string(tool_console_name),
+        std::string(tool_origin_next_to_editor),
+        "",
+        "",
+        {} };
+    tc.burner = { self.empty() ? "" : self / std::string(tool_burner_name),
+        std::string(tool_origin_next_to_editor),
+        "",
+        "",
+        {} };
+    tc.baker = { self.empty() ? "" : self / std::string(tool_baker_name), std::string(tool_origin_next_to_editor), "", "", {} };
 
     read_tool_settings(tc);
 
@@ -364,8 +368,8 @@ rv_editor_toolchain rv_editor_toolchain_find()
     if (tc.player.path.empty()) {
         tc.player.problem = rv_editor_text("project.player_not_set_file_settings");
     }
-    rv_editor_tool_version(tc.burner);
-    rv_editor_tool_version(tc.baker);
+    rv_editor_tool_version_begin(tc.burner);
+    rv_editor_tool_version_begin(tc.baker);
     return tc;
 }
 
@@ -378,16 +382,16 @@ rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path
     const std::filesystem::path self = rv_editor_self_dir();
     rv_editor_tool tool;
     if (!override_path.empty()) {
-        tool = { override_path, std::string(tool_origin_settings), "", "" };
+        tool = { override_path, std::string(tool_origin_settings), "", "", {} };
     } else if (has_exe && !self.empty()) {
-        tool = { self / std::string(exe_name), std::string(tool_origin_next_to_editor), "", "" };
+        tool = { self / std::string(exe_name), std::string(tool_origin_next_to_editor), "", "", {} };
     }
     rv_editor_tool_check(tool, exe_name.data());
     if (tool.path.empty() && !has_exe) {
         tool.problem = rv_editor_text("project.player_not_set_name");
     }
     if (has_exe && spec->ask_version) {
-        rv_editor_tool_version(tool);
+        rv_editor_tool_version_begin(tool);
     }
     return tool;
 }

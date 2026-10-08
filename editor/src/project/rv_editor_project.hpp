@@ -1,6 +1,7 @@
 #pragma once
 
 #include "platform/rv_editor_process.hpp"
+#include "project/rv_editor_version_job.hpp"
 
 #include <chrono>
 #include <filesystem>
@@ -26,7 +27,9 @@ struct rv_editor_tool {
     std::filesystem::path path;
     std::string origin;  // "settings.toml" or "next to the editor"
     std::string problem; // why it cannot be used; empty when it can
-    std::string version; // its `--version` line, for the diagnostics
+    std::string version; // its `--version` line, for the diagnostics; empty while version_check runs
+    // Background `--version` check, started by rv_editor_tool_version_start; running() until it ends.
+    rv_editor_version_job version_check;
 };
 
 // The console and the authoring tools. Each is looked for next to the editor's
@@ -47,13 +50,24 @@ struct rv_editor_toolchain {
     std::string settings_error; // settings.toml exists and does not parse
 };
 
-// Looks the tools up again and asks the burner and the baker for their version,
+// Looks the tools up again and starts the burner's and the baker's version checks,
 // so a replaced executable drops what was known about the old one.
 rv_editor_toolchain rv_editor_toolchain_find();
 
 // Settings' Check: the tool `key` ("console", "burner", "baker", "player") at
 // `override_path`, or where it is found automatically when that is empty.
+// Starts the version check of the burner and the baker, as rv_editor_toolchain_find does.
 rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path);
+
+// Starts the tool's version check in the background, never waiting for it. RV_ERR_INVAL with
+// tool.problem as the reason when the tool cannot be used, RV_ERR_NOENT when it has no path;
+// otherwise the check's own code. Writes nothing to tool.
+int rv_editor_tool_version_start(rv_editor_tool &tool, std::string &error);
+
+// One step of a check started by rv_editor_tool_version_start; call while version_check.running().
+// RV_OK while it runs and when it ends with tool.version set. When it ends without a version,
+// tool.version becomes "no version: <reason>" and the code is returned with the reason in error.
+int rv_editor_tool_version_poll(rv_editor_tool &tool, std::string &error);
 
 // The sources' version for a candidate record: "git <commit>", then
 // " + uncommitted changes" when the project's files differ from it; else why unknown.

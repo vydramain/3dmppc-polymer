@@ -95,10 +95,23 @@ void rv_editor_settings_status(const rv_editor_tool &tool, const rv_editor_theme
     rv_editor_status(ready.c_str(), rv_editor_status_kind::ok, theme);
 }
 
+// A Check's version check runs behind the frame; the page polls it until it ends.
+void rv_editor_settings_poll_check(rv_editor_shell &shell, size_t i)
+{
+    std::optional<rv_editor_tool> &checked = shell.settings_checks[i];
+    if (!checked || !checked->version_check.running()) {
+        return;
+    }
+    std::string error;
+    // A failure's reason lands in checked->version, which the status line shows.
+    (void)rv_editor_tool_version_poll(*checked, error);
+}
+
 void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, const rv_editor_theme &theme)
 {
     const rv_editor_settings_row &row = rv_editor_settings_rows[i];
     const rv_editor_tool &tool = shell.app.tools.*row.tool;
+    rv_editor_settings_poll_check(shell, i);
     ImGui::PushID(static_cast<int>(i));
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
     ImGui::TextUnformatted(rv_editor_text(row.label_text_id));

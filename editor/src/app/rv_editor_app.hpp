@@ -210,6 +210,8 @@ struct rv_editor_release {
     uint64_t build_first_seq = 0;
     bool tree_changed_during = false;
     std::string building_revision;   // the sources' version when that build started
+    std::string building_burner;     // the tools' versions when that build started,
+    std::string building_baker;      // so Apply during a build cannot blank the record
     std::string last_failure;        // the newest candidate build did not make one
     int playing = -1;                // the candidate the session runs, or -1
     uint64_t playtest_first_seq = 0; // the first log line of that playtest

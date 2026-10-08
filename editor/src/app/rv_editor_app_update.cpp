@@ -111,6 +111,22 @@ void rv_editor_app_update_problems(rv_editor_app &app)
     }
 }
 
+// A tool's `--version` check runs behind the frame; each frame polls it, and it logs the end once.
+void rv_editor_app_update_tool_version(rv_editor_app &app, rv_editor_tool &tool, const std::string &name)
+{
+    if (!tool.version_check.running()) {
+        return;
+    }
+    std::string error;
+    if (rv_editor_tool_version_poll(tool, error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, name + ": " + error);
+        return;
+    }
+    if (!tool.version_check.running()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, name + " version: " + tool.version);
+    }
+}
+
 } // namespace
 
 void rv_editor_app_update(rv_editor_app &app)
@@ -125,6 +141,8 @@ void rv_editor_app_update(rv_editor_app &app)
     app.nvim.update(app.log);
     rv_editor_app_update_terminals(app);
     rv_editor_app_update_stopping(app);
+    rv_editor_app_update_tool_version(app, app.tools.burner, "burner");
+    rv_editor_app_update_tool_version(app, app.tools.baker, "baker");
     rv_editor_app_update_changed_files(app);
     const bool was_busy = app.build.busy();
     std::string build_error;

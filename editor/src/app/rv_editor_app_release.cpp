@@ -98,8 +98,8 @@ void rv_editor_candidate_finish_build(rv_editor_app &app)
     c.command = app.tools.burner.path.string() + " build " + app.project.root.string() + " -o " + c.image.string() +
         " --baker " + app.tools.baker.path.string();
     c.built_at = rv_editor_wall_clock();
-    c.burner = app.tools.burner.version;
-    c.baker = app.tools.baker.version;
+    c.burner = r.building_burner;
+    c.baker = r.building_baker;
     c.tree_changed = r.tree_changed_during;
     c.source_revision = r.building_revision;
     c.checks = rv_editor_checks_make();
@@ -124,6 +124,13 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, std::string("not built: ") + why);
         return RV_ERR_BUSY;
     }
+    // A candidate records the tools' versions; a check still running would leave them empty.
+    if (app.tools.burner.version_check.running() || app.tools.baker.version_check.running()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "not built: tool versions are still being checked");
+        return RV_ERR_BUSY;
+    }
     rv_editor_release &r = app.release;
     const std::filesystem::path dir = rv_editor_candidates_dir(app);
     std::error_code ec;
@@ -140,6 +147,9 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     }
     r.building = true;
     r.building_number = number;
+    // No check runs here (refused above), so the versions are final.
+    r.building_burner = app.tools.burner.version;
+    r.building_baker = app.tools.baker.version;
     r.tree_changed_during = false;
     g_build_ended = false;
     g_revision.start(app.project.root);
