@@ -189,8 +189,15 @@ private:
     // Wait, however this run decides to wait.
     void run_pace(run_state &run);
 
-    // The last hook, the frame dump, the audio summary and the last answer.
+    // The audio summary and the last hook, after the last frame.
     void run_finish(rv_de *disc, const run_state &run);
+
+    // Write the last frame the machine produced to the requested path. Called only
+    // when a dump was asked for; a refusal is logged with its cause and returned.
+    int run_dump_frame();
+
+    // The last answer to a client that is still there. Bounded, best effort.
+    void run_release_channel();
 
     // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
     // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
@@ -240,9 +247,10 @@ public:
     // disc lives inside the rv_de hooks and never owns a loop of its own.
     //
     // Returns RV_OK when the run ends normally (the disc asked to stop, the
-    // frame budget ran out, or the user powered the machine off), or a negative
-    // rv_err if the disc refused to initialize. A display that would not come
-    // up is a warning, not a stop.
+    // frame budget ran out, or the user powered the machine off), a negative
+    // rv_err if the disc refused to initialize, or the rv_err of a requested
+    // frame dump that failed. A display that would not come up is a warning,
+    // not a stop.
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into

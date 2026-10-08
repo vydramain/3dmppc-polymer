@@ -351,19 +351,24 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     if (loader_ == nullptr || loader_->disc() != disc) {
         disc->disc_shutdown(disc->self);
     }
+}
 
-    // Devkit: hand the last frame the machine produced to disk, if asked. After
-    // the loop rather than inside it, so a dump costs nothing per frame. The
-    // pause overlay is deliberately not what lands here - it was composed into a
-    // copy, so this is what the DISC drew.
-    if (!params_.dump_frame_path.empty()) {
-        std::string dump_error;
-        const int dumped = cv_->dump_last_frame(params_.dump_frame_path, dump_error);
-        if (dumped != RV_OK) {
-            RV_LOG_ERR("pconsole", "frame not written: {}", dump_error);
-        }
+int rv_pconsole::run_dump_frame()
+{
+    // Devkit: hand the last frame the machine produced to disk. The pause overlay
+    // is never what lands here - it was composed into a copy, so this is what the
+    // DISC drew.
+    std::string dump_error;
+    const int dumped = cv_->dump_last_frame(params_.dump_frame_path, dump_error);
+    if (dumped != RV_OK) {
+        RV_LOG_ERR("pconsole", "frame not written: {}", dump_error);
+        return dumped;
     }
+    return RV_OK;
+}
 
+void rv_pconsole::run_release_channel()
+{
     // Best effort, bounded: the last answer should reach a client that is still
     // there, and a client that is gone must not hold the shutdown open.
     if (cmd_) {
@@ -425,6 +430,13 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     }
 
     run_finish(disc, run);
+    // The dump is asked after the shutdown hook, the answer after the dump; a
+    // refused dump is returned only once the answer has gone out.
+    const int dumped = params_.dump_frame_path.empty() ? RV_OK : run_dump_frame();
+    run_release_channel();
+    if (dumped != RV_OK) {
+        return dumped;
+    }
     return RV_OK;
 }
 
