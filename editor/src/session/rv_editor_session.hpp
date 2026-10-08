@@ -138,8 +138,9 @@ public:
     // the runtime is gone; otherwise the failure's code with the reason in error.
     int force_stop(rv_editor_log &log, std::string &error);
     // Asks `request` ("get a b", "keys a"); the answer lands in answers() under the
-    // same text. 0 when nothing was sent.
-    int64_t query(const std::string &request, rv_editor_log &log);
+    // same text. RV_OK on success; RV_ERR_BUSY when the runtime is not ready for
+    // requests, RV_ERR_IO when send fails. The reason is in error; nothing is logged.
+    int query(const std::string &request, rv_editor_log &log, std::string &error);
     // Empty `module`: `reload entry`, the entry script again. Otherwise `reload module
     // <module>`, that required module again, both off the drive the disc runs from.
     void reload(rv_editor_log &log, const std::string &module = std::string());
@@ -148,8 +149,9 @@ public:
     // (logged, nothing sent) bytes over the console's payload ceiling or over
     // rv_editor_process::input_max once the header is added.
     void reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes);
-    // A fresh status, for the facts.
-    void refresh(rv_editor_log &log);
+    // A fresh status, for the facts. RV_OK on success; RV_ERR_BUSY when the runtime is
+    // not ready for requests, RV_ERR_IO when send fails. The reason is in error; the caller logs it.
+    int refresh(rv_editor_log &log, std::string &error);
     // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
     // what the Game tile's keyboard holds.
     void pad(uint64_t buttons, rv_editor_log &log);

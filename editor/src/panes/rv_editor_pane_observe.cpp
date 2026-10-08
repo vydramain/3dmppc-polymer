@@ -252,13 +252,38 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
     return rows;
 }
 
+// Writes a refused query or refresh: a busy runtime is a warning, any other refusal an error.
+void rv_editor_observe_refusal(rv_editor_app &app, int rv, const std::string &prefix, const std::string &error)
+{
+    const rv_editor_log_level level = rv == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+    app.log.add(rv_editor_log_source::editor,
+        level,
+        prefix + error,
+        rv_editor_log_channel::none,
+        app.session.pid(),
+        app.session.number());
+}
+
+// RV_OK when the session sent the request; otherwise its code, and the refusal is written.
+int rv_editor_observe_query(rv_editor_app &app, const std::string &request)
+{
+    std::string error;
+    const int rv = app.session.query(request, app.log, error);
+    if (rv != RV_OK) {
+        rv_editor_observe_refusal(app, rv, "cannot query '" + request + "': ", error);
+    }
+    return rv;
+}
+
 void rv_editor_observe_read(rv_editor_app &app)
 {
     rv_editor_observe &o = app.observe;
-    app.session.query(rv_editor_request(request_verb_keys, o.path), app.log);
-    for (const std::string &pin : o.pins) {
-        app.session.query(std::string(verb_get) + pin, app.log);
+    // Stops at the first refusal: the rest would be refused the same way.
+    int rv = rv_editor_observe_query(app, rv_editor_request(request_verb_keys, o.path));
+    for (auto p = o.pins.begin(); rv == RV_OK && p != o.pins.end(); ++p) {
+        rv = rv_editor_observe_query(app, std::string(verb_get) + *p);
     }
+    // Also after a refusal: a paused pane reads only when read_frame differs, so no retry every frame.
     o.read_frame = app.session.frame();
 }
 
@@ -333,8 +358,15 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
     const auto body = [&]() {
         rv_editor_observe_facts(s);
         if (rv_editor_button(rv_editor_text("pane_observe.refresh"), theme)) {
-            s.refresh(app.log);
-            rv_editor_observe_read(app);
+            std::string error;
+            const int rv = s.refresh(app.log, error);
+            if (rv != RV_OK) {
+                rv_editor_observe_refusal(app, rv, "cannot refresh the runtime status: ", error);
+                // The paused read below would ask again this frame and be refused the same way.
+                o.read_frame = s.frame();
+            } else {
+                rv_editor_observe_read(app);
+            }
         }
         if (s.facts().lua_budget <= 0) {
             rv_editor_dim(rv_editor_text("pane_observe.no_lua_machine"));
@@ -444,7 +476,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                 const char *tooltip = pinned ? rv_editor_text("pane_observe.already_pinned") : nullptr;
                 if (rv_editor_button(rv_editor_text("pane_observe.pin"), theme, { rv_editor_look::live, tooltip })) {
                     o.pins.push_back(pin);
-                    app.session.query(std::string(verb_get) + pin, app.log);
+                    rv_editor_observe_query(app, std::string(verb_get) + pin);
                 }
             }
             ImGui::PopID();

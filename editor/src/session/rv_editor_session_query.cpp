@@ -157,17 +157,18 @@ void rv_editor_session::log_send_failure(std::string_view verb, const std::strin
         number_);
 }
 
-int64_t rv_editor_session::query(const std::string &request, rv_editor_log &log)
+int rv_editor_session::query(const std::string &request, rv_editor_log &log, std::string &error)
 {
-    if (!handshake_done_ || !proc_.running() || quit_sent_) {
-        return 0;
+    const bool can_query = handshake_done_ && proc_.running() && !quit_sent_;
+    if (!can_query) {
+        error = "the runtime is not ready for requests";
+        return RV_ERR_BUSY;
     }
     int64_t id = 0;
-    std::string error;
     if (send(request, log, id, error) != RV_OK) {
-        log_send_failure(request, error, log);
+        return RV_ERR_IO;
     }
-    return id;
+    return RV_OK;
 }
 
 void rv_editor_session::reload(rv_editor_log &log, const std::string &module)
@@ -224,16 +225,18 @@ void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name
     reload_id_ = id;
 }
 
-void rv_editor_session::refresh(rv_editor_log &log)
+int rv_editor_session::refresh(rv_editor_log &log, std::string &error)
 {
-    if (!handshake_done_ || !proc_.running() || quit_sent_) {
-        return;
+    const bool can_refresh = handshake_done_ && proc_.running() && !quit_sent_;
+    if (!can_refresh) {
+        error = "the runtime is not ready for requests";
+        return RV_ERR_BUSY;
     }
     int64_t id = 0;
-    std::string error;
     if (send(std::string(cmd_status), log, id, error) != RV_OK) {
-        log_send_failure(cmd_status, error, log);
+        return RV_ERR_IO;
     }
+    return RV_OK;
 }
 
 void rv_editor_session::note_facts(const rv_editor_devmsg &msg)
