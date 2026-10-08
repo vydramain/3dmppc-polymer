@@ -85,6 +85,10 @@ void rv_editor_settings_status(const rv_editor_tool &tool, const rv_editor_theme
         rv_editor_status(tool.problem.c_str(), rv_editor_status_kind::error, theme);
         return;
     }
+    if (tool.version_check.running()) {
+        rv_editor_status(rv_editor_text("shell_settings.status_checking_version"), rv_editor_status_kind::busy, theme);
+        return;
+    }
     std::string ready;
     if (tool.version.empty()) {
         ready = rv_editor_text("shell_settings.status_ready");

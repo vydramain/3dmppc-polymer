@@ -375,7 +375,8 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         }
         const std::string origin = t.origin;
         const std::string origin_text = rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
-        rv_editor_wrapped(t.version.empty() ? origin_text : t.version + ", " + origin_text);
+        const std::string version = t.version_check.running() ? rv_editor_text("panes.tool_checking_version") : t.version;
+        rv_editor_wrapped(version.empty() ? origin_text : version + ", " + origin_text);
         ImGui::PushID(i);
         rv_editor_path_row(rv_editor_text("panes.path_label"), t.path.string(), theme);
         ImGui::PopID();
