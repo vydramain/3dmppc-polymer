@@ -25,7 +25,7 @@ namespace rv_pdktools
 /// is the name `require` takes). Written only after a build that succeeded,
 /// through a temporary file and a rename.
 ///
-/// @return 0 on success, 1 with the reason in @p error
+/// @return RV_OK on success; RV_ERR_IO when the map cannot be written, with the reason in @p error
 int write_map(const std::filesystem::path &path,
     const rv_pdklib::rv_manifest &manifest,
     const std::vector<std::string> &sources,

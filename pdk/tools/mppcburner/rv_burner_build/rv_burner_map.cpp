@@ -3,6 +3,7 @@
 #include <fstream>
 #include <system_error>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "pdklib/rv_version/rv_version.hpp"
 
@@ -45,13 +46,13 @@ int rv_pdktools::write_map(const std::filesystem::path &path,
         out << text;
         if (!out) {
             error = "cannot write the map '" + tmp.string() + "'";
-            return 1;
+            return RV_ERR_IO;
         }
     }
     std::filesystem::rename(tmp, path, ec);
     if (ec) {
         error = "cannot write the map '" + path.string() + "': " + ec.message();
-        return 1;
+        return RV_ERR_IO;
     }
-    return 0;
+    return RV_OK;
 }
