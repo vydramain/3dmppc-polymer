@@ -130,19 +130,18 @@ int rv_editor_app_start(rv_editor_app &app, const rv_editor_artifact &artifact, 
     }
 
     // Start the runtime session.
+    const rv_editor_session_launch
+        launch = { params.console, params.disc_dir, params.memcard, params.cwd, params.number, params.args, params.env };
     std::string error;
-    const int err = app.session.start(params.console,
-        params.disc_dir,
-        params.memcard,
-        params.cwd,
-        params.number,
-        params.args,
-        params.env,
-        app.log,
-        error);
+    const int err = app.session.start(launch, app.log, error);
 
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
+        // A console this start ran, after a failed handshake, keeps its output in the session log;
+        // BUSY means another session is running and its log must stay as it is.
+        if (err != RV_ERR_BUSY && app.session.live()) {
+            rv_editor_app_attach_session_log(app);
+        }
         return err;
     }
 

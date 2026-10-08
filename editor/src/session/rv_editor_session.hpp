@@ -93,6 +93,18 @@ enum class rv_editor_reload_kind {
     texture,
 };
 
+// What start() runs: the console, its disc and card, the working directory, the
+// build number, `options` (before the disc) and `env` (over the editor's environment).
+struct rv_editor_session_launch {
+    std::filesystem::path console;
+    std::filesystem::path disc_dir;
+    std::filesystem::path memcard;
+    std::filesystem::path cwd;
+    uint32_t build_number = 0;
+    std::vector<std::string> options;
+    std::vector<std::string> env;
+};
+
 // One runtime session: `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
@@ -106,17 +118,11 @@ public:
     // RV_PCCMDCHAN_PAYLOAD_MAX): sending more is refused there before it is tried.
     static constexpr size_t asset_payload_max = 4 << 20;
 
-    // RV_OK on success; RV_ERR_* on failure with the reason in error.
-    // `options` go before the disc, `env` over the editor's environment (a run profile).
-    int start(const std::filesystem::path &console,
-        const std::filesystem::path &disc_dir,
-        const std::filesystem::path &memcard,
-        const std::filesystem::path &cwd,
-        uint32_t build_number,
-        const std::vector<std::string> &options,
-        const std::vector<std::string> &env,
-        rv_editor_log &log,
-        std::string &error);
+    // RV_OK on success; RV_ERR_* on failure with the reason in error. Writes the
+    // "runtime started" line; a failed handshake also logs from send() and force_stop().
+    // After RV_ERR_IO live() stays true until finish() reaps the killed process; a
+    // start before that is RV_ERR_BUSY.
+    int start(const rv_editor_session_launch &launch, rv_editor_log &log, std::string &error);
 
     // RV_OK on success; RV_ERR_BUSY if the runtime is not in the right state, RV_ERR_IO if send fails.
     int pause(rv_editor_log &log);
@@ -291,6 +297,10 @@ private:
     void handle_mode(std::string_view mode);
     // Returns the result of its read; the end is recorded either way.
     int finish(rv_editor_log &log, std::string &error);
+    // The steps of start(): spawn and handshake give the reason in error; reset_state cannot fail.
+    int spawn(const std::vector<std::string> &argv, const rv_editor_session_launch &launch, std::string &error);
+    void reset_state(const rv_editor_session_launch &launch);
+    int handshake(rv_editor_log &log, std::string &error);
 
     rv_editor_process proc_;
     rv_editor_frame_memory frame_mem_;

@@ -25,11 +25,6 @@ constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
 constexpr std::string_view pad_prefix = "pad 0 ";
 constexpr std::string_view protocol_frame_event = "0 event=frame ";
 
-constexpr std::string_view flag_dev = "--dev";
-constexpr std::string_view flag_frame_fd = "--frame-fd";
-constexpr std::string_view flag_memcard = "--memcard";
-
-constexpr int fd_frame_descriptor = 3;
 constexpr size_t hex_buffer_size = std::numeric_limits<uint64_t>::digits / 4 + 1; // 16 hex digits + NUL
 constexpr size_t read_buffer_size = 1 << 20;
 constexpr auto channel_lost_timeout = std::chrono::milliseconds(500);
@@ -76,84 +71,6 @@ bool rv_editor_session::live() const
 bool rv_editor_session::hung() const
 {
     return proc_.running() && quit_sent_ && std::chrono::steady_clock::now() - stop_sent_ > rv_editor_stop_grace;
-}
-
-int rv_editor_session::start(const std::filesystem::path &console,
-    const std::filesystem::path &disc_dir,
-    const std::filesystem::path &memcard,
-    const std::filesystem::path &cwd,
-    uint32_t build_number,
-    const std::vector<std::string> &options,
-    const std::vector<std::string> &env,
-    rv_editor_log &log,
-    std::string &error)
-{
-    if (live()) {
-        error = "a runtime is already running in this window";
-        return RV_ERR_BUSY;
-    }
-    const int err_frame = frame_mem_.create(error);
-    if (err_frame != RV_OK) {
-        return err_frame;
-    }
-    // The console writes its frames into frame_mem_, handed over as the frame descriptor.
-    std::vector<std::string> argv = { console.string(),
-        std::string(flag_dev),
-        std::string(flag_frame_fd),
-        std::to_string(fd_frame_descriptor),
-        std::string(flag_memcard),
-        memcard.string() };
-    argv.insert(argv.end(), options.begin(), options.end());
-    argv.push_back(disc_dir.string());
-    const int err_proc = proc_.start(argv, cwd, error, frame_mem_.fd(), env);
-    if (err_proc != RV_OK) {
-        return err_proc;
-    }
-
-    parser_ = {};
-    pending_.clear();
-    next_id_ = 1;
-    frame_ = 0;
-    pad_sent_ = 0;
-    uncertain_ = false;
-    quit_sent_ = false;
-    forced_ = false;
-    input_full_ = false;
-    handshake_done_ = false;
-    channel_open_ = true;
-    build_number_ = build_number;
-    ++number_;
-    reloading_ = false;
-    reload_id_ = 0;
-    reload_result_.clear();
-    facts_ = {};
-    answers_.clear();
-    scenes_read_.clear();
-    started_wall_ = std::chrono::system_clock::now();
-    ended_wall_ = {};
-    disc_dir_ = disc_dir;
-    console_ = console;
-    last_confirmed_ = {};
-    in_flight_.clear();
-    end_reason_.clear();
-    refusal_.clear();
-    eof_at_ = {};
-    err_partial_.clear();
-    out_partial_.clear();
-    started_ = std::chrono::steady_clock::now();
-    state_ = rv_editor_run_state::starting;
-    active_ = true;
-    log.add(rv_editor_log_source::editor,
-        rv_editor_log_level::info,
-        "runtime started, pid " + std::to_string(proc_.pid()) + ": " + console.string() + " " + std::string(flag_dev) + " " +
-            std::string(flag_frame_fd) + " " + std::to_string(fd_frame_descriptor) + " " + std::string(flag_memcard) + " " +
-            memcard.string() + " " + disc_dir.string(),
-        rv_editor_log_channel::none,
-        proc_.pid(),
-        number_);
-    // Nothing is enabled until this answers.
-    send(std::string(cmd_status), log);
-    return RV_OK;
 }
 
 void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
