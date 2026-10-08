@@ -389,8 +389,18 @@ void rv_editor_shell_game_input(rv_editor_shell &shell)
             buttons = rv_editor_game_keys();
         }
     }
-    // Only a change is sent; one the runtime cannot take yet goes again next frame.
-    app.session.pad(buttons, app.log);
+    // Only a change is sent; a refused one is tried again next frame, its warning once per run of refusals.
+    if (!app.session.pad_pending(buttons)) {
+        shell.pad_refusal_reported = false;
+        return;
+    }
+    std::string error;
+    const int pad_result = app.session.pad(buttons, app.log, error);
+    const bool refused = pad_result != RV_OK;
+    if (refused && !shell.pad_refusal_reported) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "cannot send the pad state: " + error);
+    }
+    shell.pad_refusal_reported = refused;
 }
 
 } // namespace rv_editor

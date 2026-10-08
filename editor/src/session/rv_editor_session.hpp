@@ -155,9 +155,13 @@ public:
     // A fresh status, for the facts. RV_OK on success; RV_ERR_BUSY when the runtime is
     // not ready for requests, RV_ERR_IO when send fails. The reason is in error; the caller logs it.
     int refresh(rv_editor_log &log, std::string &error);
-    // `pad 0 <hex>` when `buttons` (rv_isource bits) differ from the last sent:
-    // what the Game tile's keyboard holds.
-    void pad(uint64_t buttons, rv_editor_log &log);
+    // `pad 0 <hex>` for `buttons` (rv_isource bits): what the Game tile's keyboard holds.
+    // RV_OK on success; RV_ERR_BUSY when the runtime is not ready for requests, RV_ERR_ALREADY
+    // when `buttons` is the state already sent, RV_ERR_IO when send fails. The reason is in
+    // error; nothing is logged.
+    int pad(uint64_t buttons, rv_editor_log &log, std::string &error);
+    // True when pad(buttons) would send: the runtime is ready and `buttons` differs from the last sent.
+    bool pad_pending(uint64_t buttons) const;
 
     // The frames the console writes (--frame-fd); the Game tile reads them.
     rv_editor_frame_memory &frame_memory()

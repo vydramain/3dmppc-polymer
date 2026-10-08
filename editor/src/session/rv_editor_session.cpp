@@ -218,21 +218,31 @@ void rv_editor_session::force_stop_logged(rv_editor_log &log)
     }
 }
 
-void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
+bool rv_editor_session::pad_pending(uint64_t buttons) const
 {
-    if (!handshake_done_ || !proc_.running() || quit_sent_ || buttons == pad_sent_) {
-        return;
+    return handshake_done_ && proc_.running() && !quit_sent_ && buttons != pad_sent_;
+}
+
+int rv_editor_session::pad(uint64_t buttons, rv_editor_log &log, std::string &error)
+{
+    const bool can_pad = handshake_done_ && proc_.running() && !quit_sent_;
+    if (!can_pad) {
+        error = "the runtime is not ready for requests";
+        return RV_ERR_BUSY;
+    }
+    if (buttons == pad_sent_) {
+        error = "the pad state is already sent";
+        return RV_ERR_ALREADY;
     }
     char hex[hex_buffer_size];
     std::snprintf(hex, sizeof(hex), "%llx", static_cast<unsigned long long>(buttons));
     const std::string verb = std::string(pad_prefix) + hex;
     int64_t id = 0;
-    std::string error;
     if (send(verb, log, id, error) != RV_OK) {
-        log_send_failure(verb, error, log);
-        return;
+        return RV_ERR_IO;
     }
     pad_sent_ = buttons;
+    return RV_OK;
 }
 
 int rv_editor_session::update(rv_editor_log &log, std::string &error)

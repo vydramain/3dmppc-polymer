@@ -68,6 +68,9 @@ struct rv_editor_shell {
     rv_editor_app app;
     SDL_Window *window = nullptr;
     SDL_Renderer *renderer = nullptr; // the Game tile's texture lives on it
+    // A refused pad is retried every frame, so its warning is logged once per run of refusals.
+    // Cleared by a frame with nothing to send (pad_pending false) and by the next pad that is sent.
+    bool pad_refusal_reported = false;
 
     // A code tile with unsaved changes waiting for Save, Discard or Cancel.
     rv_editor_pane_id closing = rv_editor_tile_none;

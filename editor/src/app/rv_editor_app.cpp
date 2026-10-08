@@ -62,7 +62,14 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.scene_tabs = {};
     // Another project takes the keyboard back from the game.
     app.game_captured = false;
-    app.session.pad(0, app.log);
+    if (app.session.pad_pending(0)) {
+        std::string pad_error;
+        if (app.session.pad(0, app.log, pad_error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                "cannot release the game's pad: " + pad_error);
+        }
+    }
     std::string files_error;
     const int files_rc = app.files.open(app.project.root, files_error);
     if (files_rc != RV_OK) {
