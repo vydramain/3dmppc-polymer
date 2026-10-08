@@ -117,7 +117,7 @@ int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::pat
     if (status != 0) {
         dump_child_output(child_output);
         error = "compiling the disc failed (exit " + std::to_string(status) + ")";
-        return 1;
+        return RV_ERR_IO;
     }
 
     // --- confirm the module exists ---
@@ -131,7 +131,7 @@ int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::pat
     if (!fs::is_regular_file(disc_module, ec)) {
         dump_child_output(child_output);
         error = "the build reported success but produced no '" + disc_module.string() + "'";
-        return 1;
+        return RV_ERR_NOENT;
     }
 
     // --- stamp the disc code checksum ---
@@ -139,9 +139,10 @@ int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::pat
     // Right after the module is linked and before anything archives it: this
     // is the one place a checksum over the finished .text/.rodata/.data can be
     // computed and then written back into the same file.
-    if (stamp_checksum(disc_module, error) != RV_OK) {
-        return 1;
+    const int stamp_err = stamp_checksum(disc_module, error);
+    if (stamp_err != RV_OK) {
+        return stamp_err;
     }
 
-    return 0;
+    return RV_OK;
 }

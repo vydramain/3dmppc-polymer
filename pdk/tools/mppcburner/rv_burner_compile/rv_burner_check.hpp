@@ -28,7 +28,8 @@ namespace rv_pdktools
 /// @param absolute_includes  receives the accepted include directories
 /// @param absolute_sources   receives @p sources joined to @p disc_dir
 /// @param error              set with a fragment the caller prefixes
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success; RV_ERR_INVAL for an include directory outside the disc,
+///         RV_ERR_IO if one cannot be resolved
 int check_sources_outside_disc(const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::vector<std::string> &sources,

@@ -18,7 +18,8 @@ namespace rv_pdktools
 /// @param options     parsed command line; only `jobs` is read here
 /// @param binary_dir  cmake binary directory to build in
 /// @param error       set with this tool's one-line summary on failure
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success; RV_ERR_IO if the build fails, RV_ERR_NOENT if it
+///         produced no module, otherwise the code from stamping the checksum
 int compile_sources(const rv_burner_options &options, const std::filesystem::path &binary_dir, std::string &error);
 
 } // namespace rv_pdktools
