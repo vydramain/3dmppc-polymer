@@ -51,42 +51,58 @@ int64_t voices_mask(int64_t count)
 
 } // namespace
 
-rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget)
+int rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error)
 {
-    rv_pcbudget_cost cost;
+    int64_t total = 0;
 
     // sram_ (rv_pcpool<rv_pcca_meta>): the pool region is exactly sound_memory_size
     // bytes.
-    if (rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size) != RV_OK) {
-        return cost;
+    const int region_rc = rv_pcbudget_add(total, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, error);
+    if (region_rc != RV_OK) {
+        return region_rc;
     }
 
     // sram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
     int64_t sram_blocks_bytes = 0;
-    if (rv_pcbudget_mul(cost,
-            "budget.pcca.sound_memory_size",
-            rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
-            rv_pcpool<rv_pcca_meta>::block_bytes(),
-            sram_blocks_bytes) != RV_OK ||
-        rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes) != RV_OK) {
-        return cost;
+    const int sram_blocks_mul_rc = rv_pcbudget_mul("budget.pcca.sound_memory_size",
+        rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
+        rv_pcpool<rv_pcca_meta>::block_bytes(),
+        sram_blocks_bytes,
+        error);
+    if (sram_blocks_mul_rc != RV_OK) {
+        return sram_blocks_mul_rc;
+    }
+
+    const int sram_blocks_add_rc = rv_pcbudget_add(total, "budget.pcca.sound_memory_size", sram_blocks_bytes, error);
+    if (sram_blocks_add_rc != RV_OK) {
+        return sram_blocks_add_rc;
     }
 
     // mixer_ (rv_pcmixer): one rv_pcvoice per voice, plus its fixed render
     // accumulator (RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS int32_t).
     int64_t voices_bytes = 0;
     const int64_t accumulator_bytes = RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
-    if (rv_pcbudget_mul(cost,
-            "budget.pcca.voice_count",
-            budget.pcca.voice_count,
-            static_cast<int64_t>(sizeof(rv_pcvoice)),
-            voices_bytes) != RV_OK ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", voices_bytes) != RV_OK ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", accumulator_bytes) != RV_OK) {
-        return cost;
+    const int voices_mul_rc = rv_pcbudget_mul("budget.pcca.voice_count",
+        budget.pcca.voice_count,
+        static_cast<int64_t>(sizeof(rv_pcvoice)),
+        voices_bytes,
+        error);
+    if (voices_mul_rc != RV_OK) {
+        return voices_mul_rc;
     }
 
-    return cost;
+    const int voices_add_rc = rv_pcbudget_add(total, "budget.pcca.voice_count", voices_bytes, error);
+    if (voices_add_rc != RV_OK) {
+        return voices_add_rc;
+    }
+
+    const int accumulator_add_rc = rv_pcbudget_add(total, "budget.pcca.voice_count", accumulator_bytes, error);
+    if (accumulator_add_rc != RV_OK) {
+        return accumulator_add_rc;
+    }
+
+    bytes = total;
+    return RV_OK;
 }
 
 rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)

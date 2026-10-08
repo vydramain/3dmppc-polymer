@@ -1,6 +1,8 @@
 #include "rv_pboot_check.hpp"
 
+#include <algorithm>
 #include <cstdint>
+#include <string>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -34,38 +36,49 @@ int bad_field(const char *field, int64_t value, bool active)
     return RV_OK;
 }
 
+// One [budget] field to check; `active` marks a subsystem that must declare it positive.
+struct field_check {
+    const char *field;
+    int64_t value;
+    bool active;
+};
+
 // Find the row in `table` whose impl matches `impl`, call its evaluate(),
-// report a refusal with the slot and implementation, and fold the cost into
-// `total`. Returns RV_OK or RV_ERR_INVAL.
+// report a refusal with the slot and implementation, and fold its bytes into
+// `total`. Returns RV_OK, or the code the refusing step returned (`error` set).
 template <typename Table, typename Impl>
-int64_t evaluate_slot(const Table &table,
+int evaluate_slot(const Table &table,
     Impl impl,
     const char *slot,
     const rv_pdklib::rv_manifest_budget &budget,
-    rv_pcbudget_cost &total)
+    int64_t &total,
+    std::string &error)
 {
-    for (const auto &row : table) {
-        if (row.impl != impl) {
-            continue;
-        }
-
-        const rv_pcbudget_cost cost = row.evaluate(budget);
-        if (!cost.reason.empty()) {
-            RV_LOG_ERR("pccheck", "{}={} refuses this budget: {}", slot, row.name, cost.reason);
-            return RV_ERR_INVAL;
-        }
-
-        RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, cost.bytes);
-        if (rv_pcbudget_add(total, slot, cost.bytes) != RV_OK) {
-            RV_LOG_ERR("pccheck", "{}={}: {}", slot, row.name, total.reason);
-            return RV_ERR_INVAL;
-        }
-        return RV_OK;
+    const auto found = std::ranges::find_if(table, [impl](const auto &row) {
+        return row.impl == impl;
+    });
+    // Every rv_pcslots field is one of that table's enumerators, so this never fires.
+    if (found == std::ranges::end(table)) {
+        RV_LOG_ERR("pccheck", "{}: no implementation row matches this slot", slot);
+        return RV_ERR_INVAL;
     }
 
-    // Every rv_pcslots field is one of that table's enumerators - there is no
-    // impl a row does not name.
-    return RV_ERR_INVAL;
+    const auto &row = *found;
+    int64_t bytes = 0;
+    const int eval_rc = row.evaluate(budget, bytes, error);
+    if (eval_rc != RV_OK) {
+        RV_LOG_ERR("pccheck", "{}={} refuses this budget: {}", slot, row.name, error);
+        return eval_rc;
+    }
+
+    RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, bytes);
+    const int add_rc = rv_pcbudget_add(total, slot, bytes, error);
+    if (add_rc != RV_OK) {
+        RV_LOG_ERR("pccheck", "{}={}: {}", slot, row.name, error);
+        return add_rc;
+    }
+
+    return RV_OK;
 }
 
 } // namespace
@@ -74,28 +87,35 @@ int64_t evaluate_slot(const Table &table,
 // backend); what those units cost in host bytes is entirely up to the
 // concrete slot classes `slots` names, evaluated below before any of them
 // exists.
-int64_t
-rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
+int rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget,
+    const rv_pcslots &slots,
+    const rv_pboot_mode_info &machine)
 {
     // Sanity of the declared numbers, identical for every mode and backend:
     // the rasterizer's own memory (cv.*) is required whether cv=null or not
     // (nothing here looks at display bounds), pccio has no on/off switch, and
     // pcca is always active - a run with no audio device still declares (and
     // is charged for) the sound RAM and voices its disc asked for.
-    if (bad_field("budget.pcca.voice_count", budget.pcca.voice_count, true) != RV_OK ||
-        bad_field("budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, true) != RV_OK ||
-        bad_field("budget.pccv.screen_width", budget.pccv.screen_width, true) != RV_OK ||
-        bad_field("budget.pccv.screen_height", budget.pccv.screen_height, true) != RV_OK ||
-        bad_field("budget.pccv.texture_max_width", budget.pccv.texture_max_width, true) != RV_OK ||
-        bad_field("budget.pccv.texture_max_height", budget.pccv.texture_max_height, true) != RV_OK ||
-        bad_field("budget.pccv.video_memory_size", budget.pccv.video_memory_size, true) != RV_OK ||
-        bad_field("budget.pccv.frame_capacity", budget.pccv.frame_capacity, true) != RV_OK ||
-        bad_field("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count, true) != RV_OK ||
-        bad_field("budget.pccio.iport_count", budget.pccio.iport_count, true) != RV_OK ||
-        bad_field("budget.pccm.card_slots", budget.pccm.card_slots, true) != RV_OK ||
-        bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true) != RV_OK ||
-        bad_field("budget.pccl.script_memory_size", budget.pccl.script_memory_size, false) != RV_OK) {
-        return RV_ERR_INVAL;
+    const field_check checks[] = {
+        { "budget.pcca.voice_count", budget.pcca.voice_count, true },
+        { "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, true },
+        { "budget.pccv.screen_width", budget.pccv.screen_width, true },
+        { "budget.pccv.screen_height", budget.pccv.screen_height, true },
+        { "budget.pccv.texture_max_width", budget.pccv.texture_max_width, true },
+        { "budget.pccv.texture_max_height", budget.pccv.texture_max_height, true },
+        { "budget.pccv.video_memory_size", budget.pccv.video_memory_size, true },
+        { "budget.pccv.frame_capacity", budget.pccv.frame_capacity, true },
+        { "budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count, true },
+        { "budget.pccio.iport_count", budget.pccio.iport_count, true },
+        { "budget.pccm.card_slots", budget.pccm.card_slots, true },
+        { "budget.pccm.card_slot_size", budget.pccm.card_slot_size, true },
+        { "budget.pccl.script_memory_size", budget.pccl.script_memory_size, false },
+    };
+    for (const field_check &check : checks) {
+        const int check_rc = bad_field(check.field, check.value, check.active);
+        if (check_rc != RV_OK) {
+            return check_rc;
+        }
     }
 
     // voice_count is never silently reduced: either the mask can name every
@@ -107,30 +127,52 @@ rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget, const rv_pcsl
             "(a voice mask carries bits 0..62)",
             budget.pcca.voice_count,
             RV_PCCA_MAX_VOICES);
-        return RV_ERR_INVAL;
+        return RV_ERR_NOMEM;
     }
 
     // Every field above is now known non-negative (and positive where
     // required), so every evaluate() below may assume that too.
-    rv_pcbudget_cost total;
-    int64_t rc = RV_OK;
-    if ((rc = evaluate_slot(RV_PCSLOTS_CA, slots.ca, "ca", budget, total)) < 0 ||
-        (rc = evaluate_slot(RV_PCSLOTS_CV, slots.cv, "cv", budget, total)) < 0 ||
-        (rc = evaluate_slot(RV_PCSLOTS_CIO, slots.cio, "cio", budget, total)) < 0 ||
-        (rc = evaluate_slot(RV_PCSLOTS_CL, slots.cl, "cl", budget, total)) < 0 ||
-        (rc = evaluate_slot(RV_PCSLOTS_CD, slots.cd, "cd", budget, total)) < 0 ||
-        (rc = evaluate_slot(RV_PCSLOTS_CM, slots.cm, "cm", budget, total)) < 0) {
-        return rc;
+    int64_t total = 0;
+    std::string error;
+
+    const int ca_rc = evaluate_slot(RV_PCSLOTS_CA, slots.ca, "ca", budget, total, error);
+    if (ca_rc != RV_OK) {
+        return ca_rc;
+    }
+
+    const int cv_rc = evaluate_slot(RV_PCSLOTS_CV, slots.cv, "cv", budget, total, error);
+    if (cv_rc != RV_OK) {
+        return cv_rc;
+    }
+
+    const int cio_rc = evaluate_slot(RV_PCSLOTS_CIO, slots.cio, "cio", budget, total, error);
+    if (cio_rc != RV_OK) {
+        return cio_rc;
+    }
+
+    const int cl_rc = evaluate_slot(RV_PCSLOTS_CL, slots.cl, "cl", budget, total, error);
+    if (cl_rc != RV_OK) {
+        return cl_rc;
+    }
+
+    const int cd_rc = evaluate_slot(RV_PCSLOTS_CD, slots.cd, "cd", budget, total, error);
+    if (cd_rc != RV_OK) {
+        return cd_rc;
+    }
+
+    const int cm_rc = evaluate_slot(RV_PCSLOTS_CM, slots.cm, "cm", budget, total, error);
+    if (cm_rc != RV_OK) {
+        return cm_rc;
     }
 
     // Compare against what the machine actually has.
     if (machine.ram_available < 0) {
-        RV_LOG_ERR("pccheck", "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
+        RV_LOG_ERR("pccheck", "machine RAM unknown, cannot show disc's {} byte(s) fit", total);
         return RV_ERR_INVAL;
     }
 
-    if (total.bytes > machine.ram_available) {
-        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes, machine.ram_available);
+    if (total > machine.ram_available) {
+        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total, machine.ram_available);
         return RV_ERR_INVAL;
     }
 

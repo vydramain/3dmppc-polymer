@@ -298,7 +298,7 @@ public:
     // The peak host bytes this class allocates for `budget`:
     // budget_ (script_memory_size), the lua_Alloc ceiling this class enforces
     // on the VM's own heap.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     // A VM that failed to come up is the only FALSE: the console refuses to
     // boot on that, so no contract method below is ever reached with L_ null

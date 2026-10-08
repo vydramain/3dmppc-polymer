@@ -56,9 +56,10 @@ int64_t palette_upload_(rv_3dmppc::rv_pccv &cv, const rv_pdklib::rv_mppctex_head
 namespace rv_3dmppc
 {
 
-rv_pcbudget_cost rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/)
+int rv_pccd_fs::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes, std::string & /*error*/)
 {
-    return {};
+    bytes = 0;
+    return RV_OK;
 }
 
 rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf &conf)

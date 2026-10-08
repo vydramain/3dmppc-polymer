@@ -62,7 +62,7 @@ public:
     // (screen_width * screen_height * bytes-per-pixel) + otable_ (bucket
     // links plus one next_ link per primitive up to frame_capacity) +
     // primitives_.reserve(frame_capacity).
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     // --- hardware geometry: straight out of the configuration ---
 

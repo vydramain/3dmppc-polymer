@@ -58,10 +58,10 @@ public:
 
     // The peak host bytes this class allocates for `budget`: sram_
     // (sound_memory_size) + the pool's block bookkeeping + mixer_'s voices
-    // (one rv_pcvoice each) and its fixed render accumulator. Never fails -
-    // every field it reads was already validated as non-negative by
-    // rv_pboot_check_budget() before it calls any evaluate().
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    // (one rv_pcvoice each) and its fixed render accumulator. Overflow fails
+    // with RV_ERR_INVAL and `error` set; every field it reads was already
+    // validated as non-negative by rv_pboot_check_budget() before any evaluate().
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t voice_count() override;
 

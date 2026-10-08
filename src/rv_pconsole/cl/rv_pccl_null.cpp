@@ -6,9 +6,10 @@
 namespace rv_3dmppc
 {
 
-rv_pcbudget_cost rv_pccl_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/)
+int rv_pccl_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes, std::string & /*error*/)
 {
-    return {};
+    bytes = 0;
+    return RV_OK;
 }
 
 rv_pccl_null::rv_pccl_null()
