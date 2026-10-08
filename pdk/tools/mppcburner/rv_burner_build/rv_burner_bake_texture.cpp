@@ -106,10 +106,11 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
     plan.items.push_back(item);
     plan.texture_count = 1;
 
-    if (bake_textures(options.baker, manifest, disc_dir, plan, error) != RV_OK) {
+    const int bake_err = bake_textures(options.baker, manifest, disc_dir, plan, error);
+    if (bake_err != RV_OK) {
         fs::remove(temp_path, ec);
         rv_burner_print_error(error);
-        return RV_ERR_IO;
+        return bake_err;
     }
 
     fs::rename(temp_path, output_path, ec);

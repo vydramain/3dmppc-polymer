@@ -41,7 +41,7 @@ namespace rv_pdktools
 /// @param disc_dir    absolute disc directory the sources are relative to
 /// @param plan        the planned archive; only its texture range is touched
 /// @param error       set with the refusal, naming the file and the numbers
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set
 int bake_textures(const std::string &baker_hint,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
@@ -58,7 +58,7 @@ int bake_textures(const std::string &baker_hint,
 /// @param disc_dir    absolute disc directory the sources are relative to
 /// @param plan        the planned archive; only its sound range is touched
 /// @param error       set with the refusal, naming the file
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success; else the RV_ERR_* of the refusing step, `error` set
 int bake_sounds(const std::string &baker_hint,
     const std::filesystem::path &disc_dir,
     const archive_plan &plan,

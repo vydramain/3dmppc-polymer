@@ -86,13 +86,11 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
     const archive_plan &plan,
     std::string &error)
 {
-    if (plan.texture_count == 0) {
-        return 0;
-    }
-
+    // An empty texture range needs no baker, and the loop below then does nothing.
     std::string baker;
-    if (find_baker(baker_hint, baker, error) != RV_OK) {
-        return 1;
+    const int baker_err = plan.texture_count == 0 ? RV_OK : find_baker(baker_hint, baker, error);
+    if (baker_err != RV_OK) {
+        return baker_err;
     }
 
     // One format for the whole manifest, so the spelling mppcbaker is given is
@@ -114,14 +112,15 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
         if (status != 0) {
             dump_child_output(child_output);
             error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
-            return 1;
+            return RV_ERR_IO;
         }
 
         // --- read back what it produced ---
 
         rv_pdklib::rv_mppctex_header header;
-        if (read_mppctex_header(item.payload, header, error) != RV_OK) {
-            return 1;
+        const int read_err = read_mppctex_header(item.payload, header, error);
+        if (read_err != RV_OK) {
+            return read_err;
         }
 
         // --- one texture against the machine's limits ---
@@ -130,11 +129,11 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
             error = "texture '" + item.source + "' is " + std::to_string(header.width) + "x" + std::to_string(header.height) +
                 ", over the budget of " + std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
                 std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
-            return 1;
+            return RV_ERR_INVAL;
         }
     }
 
-    return 0;
+    return RV_OK;
 }
 
 int rv_pdktools::bake_sounds(const std::string &baker_hint,
@@ -142,13 +141,11 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
     const archive_plan &plan,
     std::string &error)
 {
-    if (plan.sound_count == 0) {
-        return 0;
-    }
-
+    // An empty sound range needs no baker, and the loop below then does nothing.
     std::string baker;
-    if (find_baker(baker_hint, baker, error) != RV_OK) {
-        return 1;
+    const int baker_err = plan.sound_count == 0 ? RV_OK : find_baker(baker_hint, baker, error);
+    if (baker_err != RV_OK) {
+        return baker_err;
     }
 
     for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
@@ -162,13 +159,14 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
         if (status != 0) {
             dump_child_output(child_output);
             error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
-            return 1;
+            return RV_ERR_IO;
         }
 
-        if (check_pcm_size(item.payload, error) != RV_OK) {
-            return 1;
+        const int pcm_err = check_pcm_size(item.payload, error);
+        if (pcm_err != RV_OK) {
+            return pcm_err;
         }
     }
 
-    return 0;
+    return RV_OK;
 }
