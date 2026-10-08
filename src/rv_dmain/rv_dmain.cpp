@@ -211,7 +211,7 @@ void rv_dmain::disc_shutdown()
 
 const char *rv_dmain::disc_title() const
 {
-    return "rv_dmain - service test";
+    return "rv_dmain - default disc for checking the console";
 }
 
 } // namespace rv_service

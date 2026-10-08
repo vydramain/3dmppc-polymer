@@ -1,7 +1,7 @@
-// The skeleton disc, grown into the console's SERVICE TEST. It is still not a
-// game: it is the smallest thing that touches every subsystem the machine
-// claims to have, so a broken one shows up on screen or in the speakers rather
-// than staying buried in a log.
+// The skeleton disc, grown into the built-in default disc for checking the
+// console. It is still not a game: it is the smallest thing that touches every
+// subsystem the machine claims to have, so a broken one shows up on screen or
+// in the speakers rather than staying buried in a log.
 //
 //   rv_cv  — a spinning textured cube, plus three sprites showing the wrap
 //            modes and the cut-out transparency rule
