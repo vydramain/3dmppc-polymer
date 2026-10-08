@@ -101,6 +101,7 @@ void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
     quit_sent_ = false;
     forced_ = false;
     input_full_ = false;
+    send_failure_reported_ = false;
     handshake_done_ = false;
     channel_open_ = true;
     build_number_ = launch.build_number;

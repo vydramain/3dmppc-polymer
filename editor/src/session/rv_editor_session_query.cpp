@@ -114,13 +114,19 @@ int rv_editor_session::send(const std::string &verb,
     wire.append(payload);
     if (proc_.write(wire) != RV_OK) {
         id = 0;
-        error = proc_.stdin_open() ? "the runtime is not reading its input (" +
-                std::to_string(rv_editor_process::input_max / bytes_per_kib) + " KiB waiting)" :
-                                     "the runtime's input is closed";
+        const bool open = proc_.stdin_open();
+        // Channel state, not a log line: the next send that gets through says the runtime reads again.
+        if (open) {
+            input_full_ = true;
+        }
+        error = open ? "the runtime is not reading its input (" + std::to_string(rv_editor_process::input_max / bytes_per_kib) +
+                " KiB waiting)" :
+                       "the runtime's input is closed";
         return RV_ERR_IO;
     }
     if (input_full_) {
         input_full_ = false;
+        send_failure_reported_ = false;
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::info,
             "the runtime reads its input again",
@@ -141,13 +147,14 @@ int rv_editor_session::send(const std::string &verb,
 
 void rv_editor_session::log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log)
 {
-    // Said once: pad keeps the newest state and tries again every frame; send() clears input_full_ when one gets through.
+    // A full input is reported once per run of refusals: pad retries every frame, so repeats would flood the log.
+    // A closed input is reported every time. send() clears send_failure_reported_ when one gets through.
     const bool open = proc_.stdin_open();
     if (open) {
-        if (input_full_) {
+        if (send_failure_reported_) {
             return;
         }
-        input_full_ = true;
+        send_failure_reported_ = true;
     }
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::error,

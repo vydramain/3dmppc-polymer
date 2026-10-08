@@ -335,7 +335,8 @@ private:
     bool forced_ = false;
     bool handshake_done_ = false;
     bool channel_open_ = false;
-    bool input_full_ = false; // said once: the runtime stopped reading its input
+    bool input_full_ = false; // the runtime stopped reading its input: set by a refused open-input send, cleared by a sent one
+    bool send_failure_reported_ = false; // the current run of refusals to a full input is logged; cleared with input_full_
     uint32_t build_number_ = 0;
     uint32_t number_ = 0;
     bool reloading_ = false;
