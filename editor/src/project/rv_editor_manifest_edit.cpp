@@ -152,6 +152,47 @@ bool rv_manifest_edit_blank_or_comment(const std::string &text, size_t start, si
     return i == end || text[i] == '#';
 }
 
+// Find section by name in tree, or nullptr.
+const rv_pdklib::rv_manifest_tree_section *find_section(const rv_pdklib::rv_manifest_tree &tree, std::string_view section)
+{
+    for (const auto &s : tree.sections) {
+        if (!s.poisoned && !s.array && s.name == section) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+// Find "files" entry in section, or nullptr.
+const rv_pdklib::rv_manifest_tree_entry *find_files_entry(const rv_pdklib::rv_manifest_tree_section &sec)
+{
+    for (const auto &e : sec.entries) {
+        if (e.key == manifest_key_files) {
+            return &e;
+        }
+    }
+    return nullptr;
+}
+
+// Add section with files array containing one element.
+void add_section(std::string &text, std::string_view section, const std::string &quoted, const std::string &eol)
+{
+    text += eol + "[" + std::string(section) + "]" + eol + "files = [" + quoted + "]" + eol;
+}
+
+// Insert files entry into existing section after its header.
+void insert_files_entry(std::string &text,
+    const rv_pdklib::rv_manifest_tree_section &sec,
+    const std::string &quoted,
+    const std::string &eol)
+{
+    const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
+    const size_t after_header = static_cast<size_t>(sec.line) + 1;
+    const size_t insert_at = after_header < starts.size() ? starts[after_header] : text.size();
+    const bool need_nl = insert_at == text.size() && !text.empty() && text.back() != '\n';
+    text.insert(insert_at, (need_nl ? eol : std::string()) + "files = [" + quoted + "]" + eol);
+}
+
 // Appends `pattern` (already quoted) to an existing files array spanning
 // [open, close] in `text`. Rewrites `text` in place.
 void rv_manifest_edit_append_element(std::string &text,
@@ -218,6 +259,27 @@ void rv_manifest_edit_append_element(std::string &text,
     }
 }
 
+// Write text, verify by reloading, restore original on failure.
+int write_checked(const std::filesystem::path &manifest,
+    const std::string &original,
+    const std::string &text,
+    std::string &error)
+{
+    const int write_code = rv_editor_file_replace(manifest, text, error);
+    if (write_code != RV_OK) {
+        return write_code;
+    }
+    rv_pdklib::rv_manifest check;
+    std::string load_error;
+    if (rv_pdklib::rv_manifest_load(manifest.string(), check, load_error) == 0) {
+        return RV_OK;
+    }
+    std::string restore_error;
+    const int restore_code = rv_editor_file_replace(manifest, original, restore_error);
+    error = restore_code != RV_OK ? load_error + "; the original could not be restored either: " + restore_error : load_error;
+    return RV_ERR_INVAL;
+}
+
 } // namespace
 
 int rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
@@ -244,63 +306,39 @@ int rv_editor_manifest_add_pattern(const std::filesystem::path &manifest,
     const std::string eol = rv_manifest_edit_eol(original);
     std::string text = original;
 
-    const rv_pdklib::rv_manifest_tree_section *sec = nullptr;
-    for (const auto &s : tree.sections) {
-        if (!s.poisoned && !s.array && s.name == section) {
-            sec = &s;
-            break;
-        }
-    }
-
+    const auto *sec = find_section(tree, section);
     if (sec == nullptr) {
-        text += eol + "[" + std::string(section) + "]" + eol + "files = [" + quoted + "]" + eol;
-    } else {
-        const rv_pdklib::rv_manifest_tree_entry *files = nullptr;
-        for (const auto &e : sec->entries) {
-            if (e.key == manifest_key_files) {
-                files = &e;
-                break;
-            }
-        }
-        if (files == nullptr) {
-            const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
-            const size_t after_header = static_cast<size_t>(sec->line) + 1;
-            const size_t insert_at = after_header < starts.size() ? starts[after_header] : text.size();
-            const bool need_nl = insert_at == text.size() && !text.empty() && text.back() != '\n';
-            text.insert(insert_at, (need_nl ? eol : std::string()) + "files = [" + quoted + "]" + eol);
-        } else if (files->value.kind != rv_pdklib::rv_manifest_value_kind::array) {
-            error = manifest.string() + ": '" + std::string(section) + ".files' is not an array";
-            return RV_ERR_INVAL;
-        } else {
-            for (const std::string &existing : files->value.arr) {
-                if (existing == pattern) {
-                    return RV_OK; // already present, nothing to do
-                }
-            }
-            const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
-            const size_t open = text.find('[', starts[static_cast<size_t>(files->value.line)]);
-            const size_t close = open == std::string::npos ? std::string::npos : rv_manifest_edit_array_close(text, open);
-            if (open == std::string::npos || close == std::string::npos) {
-                error = manifest.string() + ": could not locate '" + std::string(section) + ".files' in the text";
-                return RV_ERR_INVAL;
-            }
-            rv_manifest_edit_append_element(text, open, close, files->value.arr.empty(), quoted, eol);
-        }
+        add_section(text, section, quoted, eol);
+        return write_checked(manifest, original, text, error);
     }
 
-    const int write_code = rv_editor_file_replace(manifest, text, error);
-    if (write_code != RV_OK) {
-        return write_code;
+    const auto *files = find_files_entry(*sec);
+    if (files == nullptr) {
+        insert_files_entry(text, *sec, quoted, eol);
+        return write_checked(manifest, original, text, error);
     }
-    rv_pdklib::rv_manifest check;
-    std::string load_error;
-    if (rv_pdklib::rv_manifest_load(manifest.string(), check, load_error) != 0) {
-        std::string restore_error;
-        (void)rv_editor_file_replace(manifest, original, restore_error);
-        error = load_error;
+
+    if (files->value.kind != rv_pdklib::rv_manifest_value_kind::array) {
+        error = manifest.string() + ": '" + std::string(section) + ".files' is not an array";
         return RV_ERR_INVAL;
     }
-    return RV_OK;
+
+    for (const std::string &existing : files->value.arr) {
+        if (existing == pattern) {
+            return RV_OK;
+        }
+    }
+
+    const std::vector<size_t> starts = rv_manifest_edit_line_starts(text);
+    const size_t open = text.find('[', starts[static_cast<size_t>(files->value.line)]);
+    const size_t close = open == std::string::npos ? std::string::npos : rv_manifest_edit_array_close(text, open);
+    if (open == std::string::npos || close == std::string::npos) {
+        error = manifest.string() + ": could not locate '" + std::string(section) + ".files' in the text";
+        return RV_ERR_INVAL;
+    }
+
+    rv_manifest_edit_append_element(text, open, close, files->value.arr.empty(), quoted, eol);
+    return write_checked(manifest, original, text, error);
 }
 
 } // namespace rv_editor
