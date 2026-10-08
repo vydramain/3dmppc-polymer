@@ -129,11 +129,13 @@ void rv_editor_session::reset_state(const rv_editor_session_launch &launch)
 
 int rv_editor_session::handshake(rv_editor_log &log, std::string &error)
 {
-    // Nothing is enabled until this answers; send() logs why a write failed.
-    if (send(std::string(cmd_status), log) != 0) {
+    // Nothing is enabled until this answers.
+    int64_t id = 0;
+    std::string send_error;
+    if (send(std::string(cmd_status), log, id, send_error) == RV_OK) {
         return RV_OK;
     }
-    error = "cannot send status to the runtime";
+    error = "cannot send status to the runtime: " + send_error;
     // Left live on purpose: finish() reaps the killed process once its output ends.
     const int stop_result = force_stop(log);
     if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY) {

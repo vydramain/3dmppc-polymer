@@ -119,15 +119,16 @@ public:
     static constexpr size_t asset_payload_max = 4 << 20;
 
     // RV_OK on success; RV_ERR_* on failure with the reason in error. Writes the
-    // "runtime started" line; a failed handshake also logs from send() and force_stop().
+    // "runtime started" line; a failed handshake also logs from force_stop().
     // After RV_ERR_IO live() stays true until finish() reaps the killed process; a
     // start before that is RV_ERR_BUSY.
     int start(const rv_editor_session_launch &launch, rv_editor_log &log, std::string &error);
 
     // RV_OK on success; RV_ERR_BUSY if the runtime is not in the right state, RV_ERR_IO if send fails.
-    int pause(rv_editor_log &log);
-    int resume(rv_editor_log &log);
-    int step(rv_editor_log &log);
+    // The reason of a refusal is in error; the caller logs it.
+    int pause(rv_editor_log &log, std::string &error);
+    int resume(rv_editor_log &log, std::string &error);
+    int step(rv_editor_log &log, std::string &error);
     // `quit`, then waits for the process to end. RV_OK on success, RV_ERR_BUSY if send blocked and stdin open.
     int stop(rv_editor_log &log);
     // SIGKILL to a process this session owns, for one that does not end.
@@ -282,9 +283,16 @@ private:
         int64_t frame = 0;    // the frame reported last when it was sent
     };
 
+    // RV_OK and the request's number in id; RV_ERR_IO and the reason in error, nothing logged.
     // `payload`, when not empty, follows the header line in the same process write
     // (README.md, "A request carries bytes..."); the log line shows the header only.
-    int64_t send(const std::string &verb, rv_editor_log &log, std::string_view payload = std::string_view());
+    int send(const std::string &verb,
+        rv_editor_log &log,
+        int64_t &id,
+        std::string &error,
+        std::string_view payload = std::string_view());
+    // Logs a refused send once per run of refusals: a closed input every time, a full one on its first refusal.
+    void log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log);
     void note_facts(const rv_editor_devmsg &msg);
     // A `get`, `keys` or `reload` answer; false for any other request.
     bool handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log);

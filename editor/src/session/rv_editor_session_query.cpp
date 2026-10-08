@@ -101,33 +101,23 @@ bool rv_editor_parse_reload_verb(const std::string &verb, rv_editor_reload_kind 
 
 } // namespace
 
-int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log, std::string_view payload)
+int rv_editor_session::send(const std::string &verb,
+    rv_editor_log &log,
+    int64_t &id,
+    std::string &error,
+    std::string_view payload)
 {
-    const int64_t id = next_id_++;
+    id = next_id_++;
     const std::string line =
         std::to_string(id) + std::string(1, protocol_space_separator) + verb + std::string(1, protocol_newline_terminator);
     std::string wire = line;
     wire.append(payload);
     if (proc_.write(wire) != RV_OK) {
-        if (!proc_.stdin_open()) {
-            log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::error,
-                "cannot send '" + verb + "': the runtime's input is closed",
-                rv_editor_log_channel::none,
-                proc_.pid(),
-                number_);
-        } else if (!input_full_) {
-            // Said once; pad keeps the newest state and tries again every frame.
-            input_full_ = true;
-            log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::error,
-                "cannot send '" + verb + "': the runtime is not reading its input (" +
-                    std::to_string(rv_editor_process::input_max / bytes_per_kib) + " KiB waiting)",
-                rv_editor_log_channel::none,
-                proc_.pid(),
-                number_);
-        }
-        return 0;
+        id = 0;
+        error = proc_.stdin_open() ? "the runtime is not reading its input (" +
+                std::to_string(rv_editor_process::input_max / bytes_per_kib) + " KiB waiting)" :
+                                     "the runtime's input is closed";
+        return RV_ERR_IO;
     }
     if (input_full_) {
         input_full_ = false;
@@ -146,7 +136,25 @@ int64_t rv_editor_session::send(const std::string &verb, rv_editor_log &log, std
         rv_editor_log_channel::none,
         proc_.pid(),
         number_);
-    return id;
+    return RV_OK;
+}
+
+void rv_editor_session::log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log)
+{
+    // Said once: pad keeps the newest state and tries again every frame; send() clears input_full_ when one gets through.
+    const bool open = proc_.stdin_open();
+    if (open) {
+        if (input_full_) {
+            return;
+        }
+        input_full_ = true;
+    }
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::error,
+        "cannot send '" + std::string(verb) + "': " + error,
+        rv_editor_log_channel::none,
+        proc_.pid(),
+        number_);
 }
 
 int64_t rv_editor_session::query(const std::string &request, rv_editor_log &log)
@@ -154,7 +162,12 @@ int64_t rv_editor_session::query(const std::string &request, rv_editor_log &log)
     if (!handshake_done_ || !proc_.running() || quit_sent_) {
         return 0;
     }
-    return send(request, log);
+    int64_t id = 0;
+    std::string error;
+    if (send(request, log, id, error) != RV_OK) {
+        log_send_failure(request, error, log);
+    }
+    return id;
 }
 
 void rv_editor_session::reload(rv_editor_log &log, const std::string &module)
@@ -163,11 +176,14 @@ void rv_editor_session::reload(rv_editor_log &log, const std::string &module)
         return;
     }
     const std::string verb = module.empty() ? std::string(reload_entry_verb) : std::string(reload_module_prefix) + module;
-    const int64_t id = send(verb, log);
-    if (id != 0) {
-        reloading_ = true;
-        reload_id_ = id;
+    int64_t id = 0;
+    std::string error;
+    if (send(verb, log, id, error) != RV_OK) {
+        log_send_failure(verb, error, log);
+        return;
     }
+    reloading_ = true;
+    reload_id_ = id;
 }
 
 void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name, const std::vector<unsigned char> &bytes)
@@ -198,17 +214,25 @@ void rv_editor_session::reload_asset(rv_editor_log &log, const std::string &name
             number_);
         return;
     }
-    const int64_t id = send(verb, log, std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size()));
-    if (id != 0) {
-        reloading_ = true;
-        reload_id_ = id;
+    int64_t id = 0;
+    std::string error;
+    if (send(verb, log, id, error, std::string_view(reinterpret_cast<const char *>(bytes.data()), bytes.size())) != RV_OK) {
+        log_send_failure(verb, error, log);
+        return;
     }
+    reloading_ = true;
+    reload_id_ = id;
 }
 
 void rv_editor_session::refresh(rv_editor_log &log)
 {
-    if (handshake_done_ && proc_.running() && !quit_sent_) {
-        send(std::string(cmd_status), log);
+    if (!handshake_done_ || !proc_.running() || quit_sent_) {
+        return;
+    }
+    int64_t id = 0;
+    std::string error;
+    if (send(std::string(cmd_status), log, id, error) != RV_OK) {
+        log_send_failure(cmd_status, error, log);
     }
 }
 
@@ -273,7 +297,11 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
             reload_result_ = result;
         }
         if (proc_.running()) {
-            send(std::string(cmd_status), log);
+            int64_t status_id = 0;
+            std::string status_error;
+            if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
+                log_send_failure(cmd_status, status_error, log);
+            }
         }
         return true;
     }

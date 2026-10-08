@@ -103,60 +103,45 @@ void rv_editor_session::trace(std::string_view bytes, rv_editor_log &log)
     }
 }
 
-int rv_editor_session::pause(rv_editor_log &log)
+int rv_editor_session::pause(rv_editor_log &log, std::string &error)
 {
     const bool can_pause = state_ == rv_editor_run_state::running && proc_.running();
     if (!can_pause) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "not paused: the runtime is not running",
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
+        error = "the runtime is not running";
         return RV_ERR_BUSY;
     }
-    const int64_t send_result = send(std::string(cmd_pause), log);
-    if (send_result == 0) {
+    int64_t id = 0;
+    if (send(std::string(cmd_pause), log, id, error) != RV_OK) {
         return RV_ERR_IO;
     }
     state_ = rv_editor_run_state::pausing;
     return RV_OK;
 }
 
-int rv_editor_session::resume(rv_editor_log &log)
+int rv_editor_session::resume(rv_editor_log &log, std::string &error)
 {
     const bool can_resume = state_ == rv_editor_run_state::paused && proc_.running();
     if (!can_resume) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "not resumed: the runtime is not paused",
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
+        error = "the runtime is not paused";
         return RV_ERR_BUSY;
     }
-    const int64_t send_result = send(std::string(cmd_resume), log);
-    if (send_result == 0) {
+    int64_t id = 0;
+    if (send(std::string(cmd_resume), log, id, error) != RV_OK) {
         return RV_ERR_IO;
     }
     state_ = rv_editor_run_state::resuming;
     return RV_OK;
 }
 
-int rv_editor_session::step(rv_editor_log &log)
+int rv_editor_session::step(rv_editor_log &log, std::string &error)
 {
     const bool can_step = state_ == rv_editor_run_state::paused && proc_.running();
     if (!can_step) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "not stepped: the runtime is not paused",
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
+        error = "the runtime is not paused";
         return RV_ERR_BUSY;
     }
-    const int64_t send_result = send(std::string(cmd_step), log);
-    if (send_result == 0) {
+    int64_t id = 0;
+    if (send(std::string(cmd_step), log, id, error) != RV_OK) {
         return RV_ERR_IO;
     }
     state_ = rv_editor_run_state::stepping;
@@ -171,8 +156,12 @@ int rv_editor_session::stop(rv_editor_log &log)
     quit_sent_ = true;
     stop_sent_ = std::chrono::steady_clock::now();
     state_ = rv_editor_run_state::stopping;
-    const int64_t send_result = send(std::string(cmd_quit), log);
-    const bool quit_sent = send_result != 0;
+    int64_t quit_id = 0;
+    std::string quit_error;
+    const bool quit_sent = send(std::string(cmd_quit), log, quit_id, quit_error) == RV_OK;
+    if (!quit_sent) {
+        log_send_failure(cmd_quit, quit_error, log);
+    }
     const bool stdin_open = proc_.stdin_open();
     if (!quit_sent && stdin_open) {
         return RV_ERR_BUSY;
@@ -217,9 +206,14 @@ void rv_editor_session::pad(uint64_t buttons, rv_editor_log &log)
     }
     char hex[hex_buffer_size];
     std::snprintf(hex, sizeof(hex), "%llx", static_cast<unsigned long long>(buttons));
-    if (send(std::string(pad_prefix) + hex, log) != 0) {
-        pad_sent_ = buttons;
+    const std::string verb = std::string(pad_prefix) + hex;
+    int64_t id = 0;
+    std::string error;
+    if (send(verb, log, id, error) != RV_OK) {
+        log_send_failure(verb, error, log);
+        return;
     }
+    pad_sent_ = buttons;
 }
 
 int rv_editor_session::update(rv_editor_log &log, std::string &error)
@@ -312,7 +306,11 @@ int rv_editor_session::update(rv_editor_log &log, std::string &error)
                 number_);
         }
         if (ask_status && channel_open_) {
-            send(std::string(cmd_status), log);
+            int64_t status_id = 0;
+            std::string status_error;
+            if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
+                log_send_failure(cmd_status, status_error, log);
+            }
         }
 
         if (state_ == rv_editor_run_state::refused && hung()) {

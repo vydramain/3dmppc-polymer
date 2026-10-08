@@ -108,7 +108,11 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             number_);
         // What the machine does now is whatever it says it does.
         if (state_ != rv_editor_run_state::stopping && proc_.running()) {
-            send(std::string(cmd_status), log);
+            int64_t status_id = 0;
+            std::string status_error;
+            if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
+                log_send_failure(cmd_status, status_error, log);
+            }
         }
         return;
     }
@@ -131,7 +135,11 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                 quit_sent_ = true;
                 stop_sent_ = std::chrono::steady_clock::now();
                 if (proc_.running()) {
-                    send(std::string(cmd_quit), log);
+                    int64_t quit_id = 0;
+                    std::string quit_error;
+                    if (send(std::string(cmd_quit), log, quit_id, quit_error) != RV_OK) {
+                        log_send_failure(cmd_quit, quit_error, log);
+                    }
                 }
                 return;
             }
@@ -157,7 +165,11 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
         if (mode != devproto_mode_paused && mode != devproto_mode_running) {
             // An answer that does not say where the machine is: ask.
             if (proc_.running()) {
-                send(std::string(cmd_status), log);
+                int64_t status_id = 0;
+                std::string status_error;
+                if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
+                    log_send_failure(cmd_status, status_error, log);
+                }
             }
             return;
         }

@@ -165,7 +165,12 @@ int rv_editor_app_run(rv_editor_app &app)
         return RV_ERR_BUSY;
     }
     if (app.session.state() == rv_editor_run_state::paused) {
-        return app.session.resume(app.log);
+        std::string error;
+        const int err = app.session.resume(app.log, error);
+        if (err != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "cannot resume: " + error);
+        }
+        return err;
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::run;
@@ -222,12 +227,22 @@ int rv_editor_app_run_last(rv_editor_app &app)
 
 int rv_editor_app_pause(rv_editor_app &app)
 {
-    return app.session.pause(app.log);
+    std::string error;
+    const int err = app.session.pause(app.log, error);
+    if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "cannot pause: " + error);
+    }
+    return err;
 }
 
 int rv_editor_app_step(rv_editor_app &app)
 {
-    return app.session.step(app.log);
+    std::string error;
+    const int err = app.session.step(app.log, error);
+    if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "cannot step: " + error);
+    }
+    return err;
 }
 
 int rv_editor_app_stop(rv_editor_app &app)
