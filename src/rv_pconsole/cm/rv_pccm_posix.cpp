@@ -17,25 +17,32 @@ rv_pcbudget_cost rv_pccm_posix::evaluate(const rv_pdklib::rv_manifest_budget &bu
     // slot payloads themselves.
     int64_t card_payload_bytes = 0;
     int64_t card_table_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccm.card_slots * card_slot_size", budget.pccm.card_slots,
-            budget.pccm.card_slot_size, card_payload_bytes) ||
-        rv_pcbudget_mul(cost, "budget.pccm.card_slots", budget.pccm.card_slots,
-            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES, card_table_bytes)) {
+    if (rv_pcbudget_mul(cost,
+            "budget.pccm.card_slots * card_slot_size",
+            budget.pccm.card_slots,
+            budget.pccm.card_slot_size,
+            card_payload_bytes) != RV_OK ||
+        rv_pcbudget_mul(cost,
+            "budget.pccm.card_slots",
+            budget.pccm.card_slots,
+            rv_pccard::RV_PCCARD_LENGTH_ENTRY_BYTES,
+            card_table_bytes) != RV_OK) {
         return cost;
     }
 
-    if (rv_pcbudget_add(cost, "budget.pccm.card_slots", card_table_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccm.card_slots * card_slot_size", card_payload_bytes)) {
+    if (rv_pcbudget_add(cost, "budget.pccm.card_slots", card_table_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccm.card_slots * card_slot_size", card_payload_bytes) != RV_OK) {
         return cost;
     }
 
     // rv_pccard refuses at construction to hold an image above its own
     // ceiling; refuse it here by name instead, before any disc code loads.
     if (cost.bytes > rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES) {
-        cost.reason = std::format(
-            "'budget.pccm.card_slots' ({}) * 'budget.pccm.card_slot_size' ({}) needs a {} "
-            "byte(s) card image, over the {} byte(s) this console's memory card can hold",
-            budget.pccm.card_slots, budget.pccm.card_slot_size, cost.bytes,
+        cost.reason = std::format("'budget.pccm.card_slots' ({}) * 'budget.pccm.card_slot_size' ({}) needs a {} "
+                                  "byte(s) card image, over the {} byte(s) this console's memory card can hold",
+            budget.pccm.card_slots,
+            budget.pccm.card_slot_size,
+            cost.bytes,
             rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES);
         return cost;
     }
@@ -116,11 +123,8 @@ int64_t rv_pccm_posix::card_write(int64_t slot, const void *data, int64_t data_s
         return RV_ERR_INVAL;
     }
     // Atomicity lives one layer down, in rv_pccard::flush: when this returns
-    // false the slot still holds its previous bytes, in RAM and on disk alike.
-    if (!card_.slot_write(slot, data, data_size)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
+    // an error the slot still holds its previous bytes, in RAM and on disk alike.
+    return card_.slot_write(slot, data, data_size);
 }
 
 int64_t rv_pccm_posix::card_erase(int64_t slot)
@@ -128,10 +132,7 @@ int64_t rv_pccm_posix::card_erase(int64_t slot)
     if (!slot_in_range(slot)) {
         return RV_ERR_INVAL;
     }
-    if (!card_.slot_erase(slot)) {
-        return RV_ERR_IO;
-    }
-    return RV_OK;
+    return card_.slot_erase(slot);
 }
 
 } // namespace rv_3dmppc

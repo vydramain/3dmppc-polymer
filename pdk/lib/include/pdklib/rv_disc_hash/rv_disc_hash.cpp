@@ -4,6 +4,7 @@
 #include <cstring>
 #include <elf.h>
 
+#include "pdk/rv_err.h"
 #include "pdk/de/rv_dv.h"
 
 namespace rv_pdklib
@@ -80,11 +81,44 @@ constexpr uint32_t sha256_k[64] = {
     0xc67178f2,
 };
 
-// This is a cyclic rotation of a 32-bit number to the right by n bits (rotr = rotate right).
-// Bits that fall off the right side come back in on the left.
+// ELF note fields are 4-byte aligned per the ELF64 specification.
+constexpr uint64_t elf_note_alignment_boundary = 4;
+constexpr uint64_t elf_note_alignment_mask = elf_note_alignment_boundary - 1;
+
+// Rotation and size constants: FIPS 180-4 reference sections noted below.
+constexpr int word_bits = 32;
+constexpr int big_sigma0_rot_a = 2;
+constexpr int big_sigma0_rot_b = 13;
+constexpr int big_sigma0_rot_c = 22;
+constexpr int big_sigma1_rot_a = 6;
+constexpr int big_sigma1_rot_b = 11;
+constexpr int big_sigma1_rot_c = 25;
+constexpr int sigma0_rot_a = 7;
+constexpr int sigma0_rot_b = 18;
+constexpr int sigma0_rot_c = 3;
+constexpr int sigma1_rot_a = 17;
+constexpr int sigma1_rot_b = 19;
+constexpr int sigma1_rot_c = 10;
+constexpr int block_size = 64;
+constexpr int message_schedule_initial = 16;
+constexpr int message_schedule_full = 64;
+constexpr int w_schedule_lag_2 = 2;
+constexpr int w_schedule_lag_7 = 7;
+constexpr int w_schedule_lag_15 = 15;
+constexpr int w_schedule_lag_16 = 16;
+constexpr int big_endian_shift_1 = 24;
+constexpr int big_endian_shift_2 = 16;
+constexpr int big_endian_shift_3 = 8;
+constexpr int hash_state_words = 8;
+constexpr int bytes_per_word = 4;
+constexpr int hash_length_bytes = 8;
+constexpr int bits_per_byte = 8;
+constexpr int hash_digest_bytes = 32;
+constexpr int hash_padding_boundary = 56;
+
 inline uint32_t rotr(uint32_t x, uint32_t n)
 {
-    return (x >> n) | (x << (32 - n));
+    return (x >> n) | (x << (word_bits - n));
 }
 
 // This is the initial state of SHA-256.
@@ -100,34 +134,31 @@ inline uint32_t rotr(uint32_t x, uint32_t n)
 // - buf[64]          - buffer for the next block.
 //                      Not initialised: the needed bytes are filled in before processing.
 struct sha256_ctx {
-    uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-        0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+    uint32_t h[8] = { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
     unsigned char buf[64];
     size_t buf_len = 0;
     uint64_t total_len = 0;
 };
-
-// This function processes one 64-byte block and updates the accumulated SHA-256 state.
-//
-// - ctx - the computation state, passed by reference: the function modifies its h[8].
-// - p - a pointer to 64 bytes of input data, which the function only reads.
 void sha256_block(sha256_ctx &ctx, const unsigned char *p)
 {
-    uint32_t w[64];
+    uint32_t w[message_schedule_full];
     // Turns 64 bytes into 16 uint32_t numbers.
-    for (int i = 0; i < 16; ++i) {
-        w[i] = (uint32_t(p[i * 4]) << 24) | (uint32_t(p[i * 4 + 1]) << 16) |
-            (uint32_t(p[i * 4 + 2]) << 8) | uint32_t(p[i * 4 + 3]);
+    for (int i = 0; i < message_schedule_initial; ++i) {
+        w[i] = (uint32_t(p[i * bytes_per_word]) << big_endian_shift_1) |
+            (uint32_t(p[i * bytes_per_word + 1]) << big_endian_shift_2) |
+            (uint32_t(p[i * bytes_per_word + 2]) << big_endian_shift_3) | uint32_t(p[i * bytes_per_word + 3]);
     }
 
     // The second loop fills w[16] ... w[63] from the previous elements,
     // using rotations, XOR (^) and addition:
     // The result is 64 words - one for each round.
     // All of them depend on the original block.
-    for (int i = 16; i < 64; ++i) {
-        uint32_t s0 = rotr(w[i - 15], 7) ^ rotr(w[i - 15], 18) ^ (w[i - 15] >> 3);
-        uint32_t s1 = rotr(w[i - 2], 17) ^ rotr(w[i - 2], 19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    for (int i = message_schedule_initial; i < message_schedule_full; ++i) {
+        uint32_t s0 = rotr(w[i - w_schedule_lag_15], sigma0_rot_a) ^ rotr(w[i - w_schedule_lag_15], sigma0_rot_b) ^
+            (w[i - w_schedule_lag_15] >> sigma0_rot_c);
+        uint32_t s1 = rotr(w[i - w_schedule_lag_2], sigma1_rot_a) ^ rotr(w[i - w_schedule_lag_2], sigma1_rot_b) ^
+            (w[i - w_schedule_lag_2] >> sigma1_rot_c);
+        w[i] = w[i - w_schedule_lag_16] + s0 + w[i - w_schedule_lag_7] + s1;
     }
 
     uint32_t a = ctx.h[0];
@@ -140,11 +171,11 @@ void sha256_block(sha256_ctx &ctx, const unsigned char *p)
     uint32_t h = ctx.h[7];
 
     // Performs 64 rounds of mixing
-    for (int i = 0; i < 64; ++i) {
-        uint32_t s1 = rotr(e, 6) ^ rotr(e, 11) ^ rotr(e, 25);
+    for (int i = 0; i < message_schedule_full; ++i) {
+        uint32_t s1 = rotr(e, big_sigma1_rot_a) ^ rotr(e, big_sigma1_rot_b) ^ rotr(e, big_sigma1_rot_c);
         uint32_t ch = (e & f) ^ (~e & g);
         uint32_t t1 = h + s1 + ch + sha256_k[i] + w[i];
-        uint32_t s0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
+        uint32_t s0 = rotr(a, big_sigma0_rot_a) ^ rotr(a, big_sigma0_rot_b) ^ rotr(a, big_sigma0_rot_c);
         uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
         uint32_t t2 = s0 + maj;
         h = g;
@@ -174,7 +205,7 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
 {
     ctx.total_len += len;
     while (len > 0) {
-        size_t take = 64 - ctx.buf_len;
+        size_t take = block_size - ctx.buf_len;
         if (take > len) {
             take = len;
         }
@@ -182,7 +213,7 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
         ctx.buf_len += take;
         data += take;
         len -= take;
-        if (ctx.buf_len == 64) {
+        if (ctx.buf_len == block_size) {
             sha256_block(ctx, ctx.buf);
             ctx.buf_len = 0;
         }
@@ -191,12 +222,12 @@ void sha256_update(sha256_ctx &ctx, const unsigned char *data, size_t len)
 
 // Finalises the SHA-256 computation: pads the remaining data, processes
 // the closing blocks and writes the full 32-byte hash into digest.
-void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
+void sha256_final(sha256_ctx &ctx, unsigned char digest[hash_digest_bytes])
 {
     // Length of the original data in bits, before the padding added below.
-    uint64_t bit_len = ctx.total_len * 8;
+    uint64_t bit_len = ctx.total_len * bits_per_byte;
     {
-        // The buffer has between 0 and 63 not-yet-processed bytes left.
+        // The buffer has between 0 and (block_size - 1) not-yet-processed bytes left.
         size_t buf_len = ctx.buf_len;
 
         // 0x80 = 10000000: the mandatory 1 bit followed by the first seven zero bits
@@ -205,20 +236,21 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
 
         // The last 8 bytes of the block are reserved for the length of the original data.
         // If there is no room for it, finish the current block with zeros and process it.
-        if (buf_len > 56) {
-            std::memset(ctx.buf + buf_len, 0, 64 - buf_len);
+        if (buf_len > hash_padding_boundary) {
+            std::memset(ctx.buf + buf_len, 0, block_size - buf_len);
             sha256_block(ctx, ctx.buf);
 
             // The next block is assembled from the start of the same buffer.
             buf_len = 0;
         }
 
-        // Fill the free bytes up to the length field with zeros (indices up to 55 inclusive).
-        std::memset(ctx.buf + buf_len, 0, 56 - buf_len);
+        // Fill the free bytes up to the length field with zeros (indices up to padding_boundary - 1 inclusive).
+        std::memset(ctx.buf + buf_len, 0, hash_padding_boundary - buf_len);
 
-        // Write the length in bits into bytes 56-63, big-endian (most significant byte first).
-        for (int i = 0; i < 8; ++i) {
-            ctx.buf[56 + i] = static_cast<unsigned char>(bit_len >> (56 - 8 * i));
+        // Write the length in bits into bytes (padding_boundary) to (block_size - 1), big-endian.
+        for (int i = 0; i < hash_length_bytes; ++i) {
+            const int shift_amount = hash_length_bytes * bits_per_byte - bits_per_byte * (i + 1);
+            ctx.buf[hash_padding_boundary + i] = static_cast<unsigned char>(bit_len >> shift_amount);
         }
 
         // After processing the last block, ctx.h holds the final hash state.
@@ -227,11 +259,11 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[32])
 
     // Write the eight 32-bit state words into 32 bytes of digest:
     // each word big-endian (most significant byte first).
-    for (int i = 0; i < 8; ++i) {
-        digest[i * 4] = static_cast<unsigned char>(ctx.h[i] >> 24);
-        digest[i * 4 + 1] = static_cast<unsigned char>(ctx.h[i] >> 16);
-        digest[i * 4 + 2] = static_cast<unsigned char>(ctx.h[i] >> 8);
-        digest[i * 4 + 3] = static_cast<unsigned char>(ctx.h[i]);
+    for (int i = 0; i < hash_state_words; ++i) {
+        digest[i * bytes_per_word] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_1);
+        digest[i * bytes_per_word + 1] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_2);
+        digest[i * bytes_per_word + 2] = static_cast<unsigned char>(ctx.h[i] >> big_endian_shift_3);
+        digest[i * bytes_per_word + 3] = static_cast<unsigned char>(ctx.h[i]);
     }
 }
 
@@ -245,10 +277,9 @@ bool in_bounds(std::size_t elf_size, uint64_t off, uint64_t len)
     return len <= elf_size - off;
 }
 
-// Finds a section by name. Returns true and fills `sh` on success (including
+// Finds a section by name. Returns RV_OK and fills `sh` on success (including
 // "not found", which reports offset=0/size=0 via `found=false`).
-bool find_section(
-    const unsigned char *elf,
+int find_section(const unsigned char *elf,
     std::size_t elf_size,
     const char *name,
     bool &found,
@@ -261,7 +292,7 @@ bool find_section(
 
     if (elf_size < sizeof(Elf64_Ehdr)) {
         error = "ELF image is smaller than an ELF64 header.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     Elf64_Ehdr ehdr;
@@ -269,43 +300,41 @@ bool find_section(
 
     if (std::memcmp(ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
         error = "Missing ELF magic.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_ident[EI_CLASS] != ELFCLASS64) {
         error = "Only ELFCLASS64 is supported.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) {
         error = "Only little-endian ELF is supported.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (ehdr.e_shentsize != sizeof(Elf64_Shdr)) {
         error = "Unexpected e_shentsize.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_shnum == 0) {
         error = "ELF image has no section headers.";
-        return false;
+        return RV_ERR_INVAL;
     }
-    if (!in_bounds(elf_size, ehdr.e_shoff,
-            uint64_t(ehdr.e_shnum) * sizeof(Elf64_Shdr))) {
+    if (!in_bounds(elf_size, ehdr.e_shoff, uint64_t(ehdr.e_shnum) * sizeof(Elf64_Shdr))) {
         error = "Section header table is out of bounds.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (ehdr.e_shstrndx == SHN_UNDEF || ehdr.e_shstrndx >= ehdr.e_shnum) {
         error = "Invalid section header string table index.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const unsigned char *shtab = elf + ehdr.e_shoff;
 
     Elf64_Shdr strtab_shdr;
-    std::memcpy(&strtab_shdr, shtab + uint64_t(ehdr.e_shstrndx) * sizeof(Elf64_Shdr),
-        sizeof(strtab_shdr));
+    std::memcpy(&strtab_shdr, shtab + uint64_t(ehdr.e_shstrndx) * sizeof(Elf64_Shdr), sizeof(strtab_shdr));
     if (!in_bounds(elf_size, strtab_shdr.sh_offset, strtab_shdr.sh_size)) {
         error = "Section header string table is out of bounds.";
-        return false;
+        return RV_ERR_INVAL;
     }
     const char *strtab = reinterpret_cast<const char *>(elf + strtab_shdr.sh_offset);
     uint64_t strtab_size = strtab_shdr.sh_size;
@@ -316,7 +345,7 @@ bool find_section(
 
         if (shdr.sh_name >= strtab_size) {
             error = "Section name offset is out of bounds.";
-            return false;
+            return RV_ERR_INVAL;
         }
         // Find the NUL terminator within the string table, do not run past it.
         uint64_t max_len = strtab_size - shdr.sh_name;
@@ -327,50 +356,45 @@ bool find_section(
         }
         if (candidate_len == max_len) {
             error = "Section name is not NUL-terminated within the string table.";
-            return false;
+            return RV_ERR_INVAL;
         }
 
         if (std::strcmp(candidate, name) != 0) {
             continue;
         }
 
-        if (shdr.sh_type != SHT_NOBITS) {
-            if (!in_bounds(elf_size, shdr.sh_offset, shdr.sh_size)) {
-                error = std::string("Section '") + name + "' data is out of bounds.";
-                return false;
-            }
+        // NOBITS sections don't occupy bytes in the file; their boundaries aren't checked.
+        const bool data_in_bounds = shdr.sh_type == SHT_NOBITS || in_bounds(elf_size, shdr.sh_offset, shdr.sh_size);
+        if (!data_in_bounds) {
+            error = std::string("Section '") + name + "' data is out of bounds.";
+            return RV_ERR_INVAL;
         }
 
         found = true;
         sh_offset = shdr.sh_offset;
         sh_size = shdr.sh_size;
         sh_type = shdr.sh_type;
-        return true;
+        return RV_OK;
     }
 
-    return true; // not found is not an error: contributes size 0.
+    return RV_OK; // not found is not an error: contributes size 0.
 }
 
-bool feed_section(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    const char *name,
-    sha256_ctx &ctx,
-    std::string &error)
+int feed_section(const unsigned char *elf, std::size_t elf_size, const char *name, sha256_ctx &ctx, std::string &error)
 {
     bool found = false;
     uint64_t sh_offset = 0;
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (!find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error)) {
-        return false;
+    if (find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
 
     uint64_t size = found ? sh_size : 0;
-    unsigned char size_le[8];
-    for (int i = 0; i < 8; ++i) {
-        size_le[i] = static_cast<unsigned char>(size >> (8 * i));
+    unsigned char size_le[hash_length_bytes];
+    for (int i = 0; i < hash_length_bytes; ++i) {
+        size_le[i] = static_cast<unsigned char>(size >> (bits_per_byte * i));
     }
     sha256_update(ctx, size_le, sizeof(size_le));
 
@@ -378,38 +402,33 @@ bool feed_section(
         sha256_update(ctx, elf + sh_offset, sh_size);
     }
 
-    return true;
+    return RV_OK;
 }
 
 } // namespace
 
-bool rv_disc_hash_magic_offset(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    std::size_t &magic_offset,
-    std::string &error)
+int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, std::size_t &magic_offset, std::string &error)
 {
     bool found = false;
     uint64_t sh_offset = 0;
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (!find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset,
-            sh_size, sh_type, error)) {
-        return false;
+    if (find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
+        return RV_ERR_INVAL;
     }
     if (!found) {
         error = "ELF image has no " RV_MPPC_SECTION_NAME_DEF " section.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (sh_type == SHT_NOBITS) {
         error = "Version note section has no file contents.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (sh_size < sizeof(Elf64_Nhdr)) {
         error = "Version note section is smaller than an ELF note header.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     Elf64_Nhdr nhdr;
@@ -420,19 +439,19 @@ bool rv_disc_hash_magic_offset(
 
     if (nhdr.n_namesz != RV_DISC_HASH_OWNER_SIZE) {
         error = "Version note owner size does not match RV_MPPC_NOTE_OWNER_DEF.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (nhdr.n_descsz != RV_DISC_HASH_DESC_SIZE) {
         error = "Version note descriptor size does not match rv_mppc_note_desc.";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (nhdr.n_type != RV_MPPC_NOTE_TYPE) {
         error = "Version note type does not match RV_MPPC_NOTE_TYPE.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     auto align4 = [](uint64_t n) -> uint64_t {
-        return (n + 3) & ~uint64_t(3);
+        return (n + elf_note_alignment_mask) & ~elf_note_alignment_mask;
     };
 
     const uint64_t owner_offset = sh_offset + sizeof(Elf64_Nhdr);
@@ -441,25 +460,23 @@ bool rv_disc_hash_magic_offset(
     const uint64_t aligned_desc_size = align4(nhdr.n_descsz);
     const uint64_t note_end = desc_offset + aligned_desc_size;
 
-    if (!in_bounds(elf_size, owner_offset, aligned_owner_size) ||
-        !in_bounds(elf_size, desc_offset, aligned_desc_size) ||
+    if (!in_bounds(elf_size, owner_offset, aligned_owner_size) || !in_bounds(elf_size, desc_offset, aligned_desc_size) ||
         note_end > sh_offset + sh_size) {
         error = "Version note extends outside its section.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (std::memcmp(elf + owner_offset, RV_MPPC_NOTE_OWNER_DEF, RV_DISC_HASH_OWNER_SIZE) != 0) {
         error = "Version note owner does not match RV_MPPC_NOTE_OWNER_DEF.";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // magic is at descriptor offset 0 (rv_mppc_note_desc's first field).
     magic_offset = static_cast<std::size_t>(desc_offset);
-    return true;
+    return RV_OK;
 }
 
-bool rv_disc_hash_compute(
-    const unsigned char *elf,
+int rv_disc_hash_compute(const unsigned char *elf,
     std::size_t elf_size,
     unsigned char out[RV_DISC_HASH_BYTES],
     std::string &error)
@@ -468,15 +485,15 @@ bool rv_disc_hash_compute(
 
     static const char *const sections[] = { ".text", ".rodata", ".data" };
     for (const char *name : sections) {
-        if (!feed_section(elf, elf_size, name, ctx, error)) {
-            return false;
+        if (feed_section(elf, elf_size, name, ctx, error) != RV_OK) {
+            return RV_ERR_INVAL;
         }
     }
 
-    unsigned char digest[32];
+    unsigned char digest[hash_digest_bytes];
     sha256_final(ctx, digest);
     std::memcpy(out, digest, RV_DISC_HASH_BYTES);
-    return true;
+    return RV_OK;
 }
 
 } // namespace rv_pdklib

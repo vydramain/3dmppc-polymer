@@ -54,8 +54,7 @@ public:
     // this voice is still reading from a region.
     //
     // Arming does not make a sound: nothing is audible until play().
-    void setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-        int64_t addr);
+    void setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr);
 
     // Key-on. Rewinds the read head and restarts the envelope from silence, so
     // re-triggering a sounding voice is a legal retrigger rather than a click.

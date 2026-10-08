@@ -6,7 +6,25 @@
 
 #include "pdk/rv_err.h"
 
-namespace {
+namespace
+{
+
+// --- quantization constants --------------------------------------------------
+
+// Divisor for rounding to nearest in weighted mean: (value + weight / ROUNDING_DIVISOR) / weight.
+// Ensures symmetrical rounding rather than truncation.
+constexpr int ROUNDING_DIVISOR = 2;
+
+// Minimum number of distinct colors a box must have to be splittable in median cut.
+// A single-color box cannot be subdivided.
+constexpr int MIN_SPLITTABLE_BOX_SIZE = 2;
+
+// Factor for median detection: accumulated count reaches median when acc * MEDIAN_HALF_FACTOR >= total.
+// Finds the pixel-count median (not color count) for split point in median cut.
+constexpr int MEDIAN_HALF_FACTOR = 2;
+
+// When median is not found in loop: split after the next element (i+1), cutting the remaining box.
+constexpr int SPLIT_AFTER_NEXT_ELEMENT = 2;
 
 // --- median cut ---------------------------------------------------------------
 
@@ -111,9 +129,9 @@ rv_err gen_color5(const box &b, const std::vector<color_bin> &bins, rv_color5 *o
     }
 
     // + weight/2 rounds to nearest; integer division alone always truncates down.
-    *out = rv_color5{ static_cast<uint8_t>((sr + weight / 2) / weight),
-        static_cast<uint8_t>((sg + weight / 2) / weight),
-        static_cast<uint8_t>((sb + weight / 2) / weight) };
+    *out = rv_color5{ static_cast<uint8_t>((sr + weight / ROUNDING_DIVISOR) / weight),
+        static_cast<uint8_t>((sg + weight / ROUNDING_DIVISOR) / weight),
+        static_cast<uint8_t>((sb + weight / ROUNDING_DIVISOR) / weight) };
 
     return RV_OK;
 }
@@ -131,7 +149,7 @@ bool pick_box(const std::vector<box> &bs, const std::vector<color_bin> &bins, si
     int best_span = 0;
     uint64_t best_pop = 0;
     for (size_t i = 0; i < bs.size(); ++i) {
-        if (bs[i].end - bs[i].begin < 2) {
+        if (bs[i].end - bs[i].begin < MIN_SPLITTABLE_BOX_SIZE) {
             continue; // a single colour cannot be split further
         }
         const int span = widest_axis(bins, bs[i]).span;
@@ -225,11 +243,11 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
         size_t split = b.begin + 1;
         for (size_t i = b.begin; i + 1 < b.end; ++i) {
             acc += bins[i].count;
-            if (acc * 2 >= total) {
+            if (acc * MEDIAN_HALF_FACTOR >= total) {
                 split = i + 1;
                 break;
             }
-            split = i + 2;
+            split = i + SPLIT_AFTER_NEXT_ELEMENT;
         }
         split = std::clamp(split, b.begin + 1, b.end - 1);
 
@@ -302,9 +320,9 @@ void refine(const std::vector<color_bin> &bins, std::vector<rv_color5> &palette,
                 continue; // an orphaned entry is left where it is, not moved
             }
             // + weight/2 rounds to nearest; plain integer division truncates down.
-            palette[i] = rv_color5{ static_cast<uint8_t>((sr[i] + weight[i] / 2) / weight[i]),
-                static_cast<uint8_t>((sg[i] + weight[i] / 2) / weight[i]),
-                static_cast<uint8_t>((sb[i] + weight[i] / 2) / weight[i]) };
+            palette[i] = rv_color5{ static_cast<uint8_t>((sr[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]),
+                static_cast<uint8_t>((sg[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]),
+                static_cast<uint8_t>((sb[i] + weight[i] / ROUNDING_DIVISOR) / weight[i]) };
         }
     }
 }

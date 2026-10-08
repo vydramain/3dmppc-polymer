@@ -21,8 +21,7 @@ namespace rv_3dmppc
 int64_t rv_pboot_disc_mount(const char *disc_path, bool dev, rv_pcloader &loader, bool &medium_live)
 {
     std::error_code ec;
-    const bool is_directory = disc_path != nullptr &&
-        std::filesystem::is_directory(std::filesystem::path(disc_path), ec);
+    const bool is_directory = disc_path != nullptr && std::filesystem::is_directory(std::filesystem::path(disc_path), ec);
 
     // The build carries mount_dir(), but the owner's rule is that a loose
     // directory is a --dev privilege on top of that, not a substitute for it:

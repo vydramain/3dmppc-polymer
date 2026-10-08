@@ -44,19 +44,39 @@ constexpr auto RV_PCONSOLE_AUDIO_STALL = std::chrono::milliseconds(250);
 // long enough that a paused console is not a core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
+// Poll interval while waiting for audio drain; brief enough to stay responsive
+// to platform events without busy-looping.
+constexpr auto RV_PCONSOLE_AUDIO_POLL_INTERVAL = std::chrono::milliseconds(1);
+
 using rv_pcclock = std::chrono::steady_clock;
+
+// Belt and braces: a player build never declares the --dev field that could
+// set this true (rv_pboot_args.hpp), so the null factory is unreachable from
+// here in practice - but an unchecked null would be a crash, not a refusal.
+std::unique_ptr<rv_pccmdchan> pconsole_make_dev_cmd()
+{
+    auto cmd = rv_pccmdchan_make();
+    if (!cmd) {
+        RV_LOG_ERR("pconsole",
+            "development runtime unavailable: this console was built without it "
+            "(-D3DMPPC_DEVTOOLS=ON)");
+        return nullptr;
+    }
+    RV_LOG_INFO("pconsole", "development runtime armed");
+    return cmd;
+}
 
 } // namespace
 
 const char *rv_pconsole::pacing_name(pacing mode)
 {
     switch (mode) {
-        case pacing::none:
-            return "nothing (fixed step)";
-        case pacing::audio:
-            return "audio output";
-        case pacing::clock:
-            return "steady clock";
+    case pacing::none:
+        return "nothing (fixed step)";
+    case pacing::audio:
+        return "audio output";
+    case pacing::clock:
+        return "steady clock";
     }
     return "?";
 }
@@ -72,17 +92,17 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     // opens nothing and answers RV_OK; a window that was wanted and refused
     // to come up is a WARNING, not a stop - the disc runs unpresented instead
     // of not running at all.
-    const int64_t opened = platform_.window().open(
-        disc->disc_title(disc->self), cv_->screen_width(), cv_->screen_height(), params_.scale);
+    const int64_t opened =
+        platform_.window().open(disc->disc_title(disc->self), cv_->screen_width(), cv_->screen_height(), params_.scale);
     if (0 > opened) {
-        RV_LOG_WARN("pconsole", "display did not come up for '{}', continuing without presentation",
+        RV_LOG_WARN("pconsole",
+            "display did not come up for '{}', continuing without presentation",
             disc->disc_title(disc->self));
     }
 
     const int64_t dir = disc->disc_initialize(disc->self, reinterpret_cast<rv_pdko *>(this));
     if (0 > dir) {
-        RV_LOG_ERR("pconsole",
-            "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}", dir);
+        RV_LOG_ERR("pconsole", "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}", dir);
         return RV_ERR_INVAL;
     }
 
@@ -95,7 +115,7 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
         loader_->notify_initialized(disc);
     }
 
-    run.target_fps = params_.target_fps ? params_.target_fps : 60;
+    run.target_fps = params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS;
     run.frame_budget = std::chrono::duration<double>{ 1.0 / static_cast<double>(run.target_fps) };
 
     // One timeline. Frame N is exactly N/target_fps of machine time in every
@@ -107,35 +127,22 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
 
     // Not fixed for the run: a stall of the audio device switches this to clock
     // pacing mid-run (see run_pace).
-    run.mode = params_.fixed_step
-        ? pacing::none
-        : (platform_.audio().available() ? pacing::audio : pacing::clock);
-    run.queue_target = RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES *
-        (RV_PCCA_PCM_RATE / static_cast<int64_t>(run.target_fps));
-    run.deadline =
-        rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
+    run.mode = params_.fixed_step ? pacing::none : (platform_.audio().available() ? pacing::audio : pacing::clock);
+    run.queue_target = RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES * (RV_PCCA_PCM_RATE / static_cast<int64_t>(run.target_fps));
+    run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
 
-    RV_LOG_INFO("pconsole", "running mppcdisc '{}' ({}, dt 1/{} s, paced by {})",
+    RV_LOG_INFO("pconsole",
+        "running mppcdisc '{}' ({}, dt 1/{} s, paced by {})",
         disc->disc_title(disc->self),
-        platform_.window().presenting() ? "presented" : "unpresented", run.target_fps,
+        platform_.window().presenting() ? "presented" : "unpresented",
+        run.target_fps,
         pacing_name(run.mode));
 
     // The channel opens AFTER disc_initialize: a run that refused to start must
     // not have put stdin into non-blocking mode and announced a protocol on
     // stdout.
     if (params_.dev) {
-        // Belt and braces: a player build never declares the --dev field that
-        // could set this true (rv_pboot_args.hpp), so the null factory is
-        // unreachable from here in practice - but an unchecked null would be
-        // a crash, not a refusal.
-        cmd_ = rv_pccmdchan_make();
-        if (!cmd_) {
-            RV_LOG_ERR("pconsole",
-                "development runtime unavailable: this console was built without it "
-                "(-D3DMPPC_DEVTOOLS=ON)");
-        } else {
-            RV_LOG_INFO("pconsole", "development runtime armed");
-        }
+        cmd_ = pconsole_make_dev_cmd();
     }
 
     // Independent of the channel: --paused is about the loop, and the Pause key
@@ -144,7 +151,8 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     // controllable first moment, not a debugger attached before initialisation.
     paused_ = params_.loop_paused;
     if (paused_) {
-        RV_LOG_INFO("pconsole", "stopped before frame 0; lift it with the pause key{}",
+        RV_LOG_INFO("pconsole",
+            "stopped before frame 0; lift it with the pause key{}",
             cmd_ ? " or a resume/step request" : "");
     }
 
@@ -171,8 +179,7 @@ void rv_pconsole::run_pause_key()
         return;
     }
     paused_ = !paused_;
-    RV_LOG_INFO("pconsole", "{} by the pause key at frame {}", paused_ ? "stopped" : "running again",
-        frames_);
+    RV_LOG_INFO("pconsole", "{} by the pause key at frame {}", paused_ ? "stopped" : "running again", frames_);
     cmd_note_pause();
 }
 
@@ -189,9 +196,24 @@ bool rv_pconsole::run_cmd_channel()
     if (!quit_by_command_) {
         return false;
     }
-    RV_LOG_INFO("pconsole", "shutdown requested over the development channel after {} frame(s)",
-        frames_);
+    RV_LOG_INFO("pconsole", "shutdown requested over the development channel after {} frame(s)", frames_);
     return true;
+}
+
+void rv_pconsole::run_show_pause()
+{
+    // Built once per pause, not once per slice: the picture cannot change
+    // while no frame is running. A headless run builds nothing at all -
+    // there would be nowhere to put it - and an embedded one keeps the
+    // disc's last frame, since its host shows the pause.
+    if (!platform_.window().presenting() || platform_.window().embedded()) {
+        return;
+    }
+    if (!pause_overlay_valid_) {
+        rv_pcpause_overlay_build(pause_overlay_, cv_->last_frame(), cv_->screen_width(), cv_->screen_height());
+        pause_overlay_valid_ = true;
+    }
+    platform_.window().present(pause_overlay_.data());
 }
 
 bool rv_pconsole::run_hold_paused(run_state &run)
@@ -202,17 +224,7 @@ bool rv_pconsole::run_hold_paused(run_state &run)
     // and the quit check in the loop runs first every time, so Ctrl+C and the
     // close button are never trapped behind a pause.
     if (paused_ && step_reply_id_ < 0) {
-        // Built once per pause, not once per slice: the picture cannot change
-        // while no frame is running. A headless run builds nothing at all -
-        // there would be nowhere to put it.
-        if (platform_.window().presenting()) {
-            if (!pause_overlay_valid_) {
-                rv_pcpause_overlay_build(pause_overlay_, cv_->last_frame(), cv_->screen_width(),
-                    cv_->screen_height());
-                pause_overlay_valid_ = true;
-            }
-            platform_.window().present(pause_overlay_.data());
-        }
+        run_show_pause();
         std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
         run.left_pause = true;
         return true;
@@ -226,8 +238,7 @@ bool rv_pconsole::run_hold_paused(run_state &run)
         // the past, and run_pace would read that as "we are behind" and run a
         // burst of frames as fast as it could to catch up - a visible jump,
         // which is exactly what a pause must not cause.
-        run.deadline =
-            rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
+        run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
         run.left_pause = false;
     }
     return false;
@@ -258,8 +269,7 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
         return;
     }
     run.audio_paced_ever = true;
-    if (frames_ >= RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES &&
-        platform_.audio().queued_frames() == 0) {
+    if (frames_ >= RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES && platform_.audio().queued_frames() == 0) {
         ++run.audio_underruns;
     }
     platform_.audio().write(pcm_.data(), samples);
@@ -277,15 +287,14 @@ void rv_pconsole::run_pace(run_state &run)
 
     if (run.mode == pacing::clock) {
         const rv_pcclock::time_point after = rv_pcclock::now();
-        if (after < run.deadline) {
+        const bool behind = after >= run.deadline;
+        if (!behind) {
             std::this_thread::sleep_until(run.deadline);
-            run.deadline += std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
-        } else {
-            // Fell behind: re-base instead of letting missed deadlines pile up
-            // into a burst of zero-length frames.
-            run.deadline =
-                after + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
         }
+        // Fell behind: re-base instead of letting missed deadlines pile up
+        // into a burst of zero-length frames.
+        const auto base = behind ? after : run.deadline;
+        run.deadline = base + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
         return;
     }
 
@@ -299,17 +308,19 @@ void rv_pconsole::run_pace(run_state &run)
         if (platform_.quit_requested()) {
             break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        std::this_thread::sleep_for(RV_PCONSOLE_AUDIO_POLL_INTERVAL);
         const int64_t queued_now = platform_.audio().queued_frames();
         if (queued_now < last_queued) {
             stall_since = rv_pcclock::now();
             last_queued = queued_now;
-        } else if (rv_pcclock::now() - stall_since >= RV_PCONSOLE_AUDIO_STALL) {
-            RV_LOG_WARN("pconsole",
-                "audio output stopped draining, pacing by the steady clock from now on");
-            stalled = true;
-            break;
+            continue;
         }
+        if (rv_pcclock::now() - stall_since < RV_PCONSOLE_AUDIO_STALL) {
+            continue;
+        }
+        RV_LOG_WARN("pconsole", "audio output stopped draining, pacing by the steady clock from now on");
+        stalled = true;
+        break;
     }
     if (stalled) {
         // Switch pacing for every following frame; the run itself keeps going -
@@ -317,8 +328,7 @@ void rv_pconsole::run_pace(run_state &run)
         // check is what ends the run if the stall was actually a closed window
         // or a signal.
         run.mode = pacing::clock;
-        run.deadline =
-            rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
+        run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
     }
 }
 
@@ -327,7 +337,9 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     if (run.audio_paced_ever) {
         RV_LOG_INFO("pconsole",
             "audio output: {} frame(s) written, {} underrun(s), peak queue {} frame(s)",
-            run.audio_written, run.audio_underruns, run.audio_peak_queued);
+            run.audio_written,
+            run.audio_underruns,
+            run.audio_peak_queued);
     }
 
     // The last hook, after the last frame. For a LOADED disc it is deliberately
@@ -349,7 +361,7 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     // Best effort, bounded: the last answer should reach a client that is still
     // there, and a client that is gone must not hold the shutdown open.
     if (cmd_) {
-        cmd_->drain(std::chrono::milliseconds(50));
+        cmd_->drain(RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT);
     }
 }
 
@@ -373,8 +385,7 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         // never the disc's decision. Ahead of the pause below so that a stopped
         // console is still killable the ordinary way.
         if (platform_.quit_requested()) {
-            RV_LOG_INFO("pconsole",
-                "shutdown requested (window closed or SIGINT/SIGTERM) after {} frame(s)", frames_);
+            RV_LOG_INFO("pconsole", "shutdown requested (window closed or SIGINT/SIGTERM) after {} frame(s)", frames_);
             break;
         }
 

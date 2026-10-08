@@ -22,6 +22,14 @@
 namespace rv_3dmppc
 {
 
+// Frame rate when the disc does not specify target_fps; used by both
+// rv_pconsole.cpp and rv_pconsole_run.cpp to compute the default timeline.
+constexpr uint64_t RV_PCONSOLE_DEFAULT_TARGET_FPS = 60;
+
+// Bounded, best-effort wait at shutdown for the dev command channel: the last answer
+// reaches a client still listening, and a client that is gone cannot hold the shutdown open.
+constexpr auto RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT = std::chrono::milliseconds(50);
+
 // Composition root. This is the single place where the concrete
 // machine is assembled - the platform it is served by, the six controllers,
 // and the geometry they were built from. Nothing below constructs a
@@ -121,7 +129,11 @@ private:
     // How the next frame's START TIME is decided. The frame's DURATION is
     // always 1/target_fps and never varies with the wall clock or the audio
     // device; pacing only decides when that frame runs.
-    enum class pacing { none, audio, clock };
+    enum class pacing {
+        none,
+        audio,
+        clock
+    };
 
     // One run's bookkeeping. A struct handed between the steps below rather
     // than a row of members: none of it outlives disc_run, and as members a
@@ -167,6 +179,9 @@ private:
     // to the clock, because the two are the same fact seen twice.
     bool run_hold_paused(run_state &run);
 
+    // Show the pause overlay (build once, present every slice).
+    void run_show_pause();
+
     // One frame of the machine: update, render, present, and the audio of
     // exactly that step.
     void run_frame(rv_de *disc, run_state &run);
@@ -186,6 +201,8 @@ private:
     // What the console owes the channel once the frame is over: the answer to
     // a step, and a game hook that failed this frame.
     void cmd_after_frame();
+    // Announce each scene the disc opened since the client last heard; a new scene generation starts the list over.
+    void cmd_send_scenes();
     // The Pause KEY moved the machine. The client did not ask, so it hears
     // about it as an event.
     void cmd_note_pause();
@@ -196,6 +213,8 @@ private:
     void cmd_get(const rv_pccmdreq &req);
     void cmd_keys(const rv_pccmdreq &req);
     void cmd_asset(const rv_pccmdreq &req);
+    // An asset request that carries its bytes: refresh the resident texture from them, not from the medium.
+    void cmd_asset_from_bytes(const rv_pccmdreq &req, const std::string &key);
 
 public:
     rv_pconsole(const rv_pconsole_conf &conf, rv_pcplatform &platform, rv_pcloader *loader);

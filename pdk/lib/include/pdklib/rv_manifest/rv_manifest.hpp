@@ -137,6 +137,10 @@ struct rv_manifest {
     // [textures] - globs baked through mppcbaker on the way in
     rv_manifest_textures textures_files;
 
+    // [sounds] - WAV globs baked into headerless S16LE mono 44100 "<name>.pcm"
+    // by mppcbaker on the way in; no format key yet, there is only one output.
+    std::vector<std::string> sounds_files;
+
     // [budget]
     rv_manifest_budget budget;
 };
@@ -147,20 +151,13 @@ struct rv_manifest {
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
 // between a fixed typo and an afternoon.
-int rv_manifest_parse(const std::string &text,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error);
 
 // Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
-int rv_manifest_parse(const std::string &text,
-    const std::string &origin,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, const std::string &origin, rv_manifest &manifest, std::string &error);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-int rv_manifest_load(const std::string &path,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.
@@ -168,8 +165,8 @@ std::string rv_manifest_render(const rv_manifest &manifest);
 
 // Check the manifest describes a disc that can be burned at all: non-empty id,
 // an id that is a safe filename, a known texture format, and a [budget] that
-// is present with every field positive. Returns true when sound, otherwise
-// fills `error`.
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error);
+// is present with every field positive. Returns RV_OK when sound, otherwise
+// fills `error` and returns RV_ERR_INVAL.
+int rv_manifest_validate(const rv_manifest &manifest, std::string &error);
 
 } // namespace rv_pdklib

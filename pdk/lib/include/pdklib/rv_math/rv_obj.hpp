@@ -5,9 +5,11 @@
 #include <cstdint>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_math/rv_math.hpp"
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
 // A Wavefront .obj reader that takes BYTES, never a path.
 //
@@ -47,32 +49,51 @@ struct rv_obj_mesh {
     std::vector<rv_obj_triangle> triangles;
 };
 
-namespace rv_obj_detail {
+namespace rv_obj_detail
+{
 
-inline bool is_blank(char c) { return c == ' ' || c == '\t' || c == '\r'; }
+inline bool is_blank(char c)
+{
+    return c == ' ' || c == '\t' || c == '\r';
+}
 
-inline void skip_blanks(const char*& p, const char* end) {
-    while (p < end && is_blank(*p)) ++p;
+inline void skip_blanks(const char *&p, const char *end)
+{
+    while (p < end && is_blank(*p)) {
+        ++p;
+    }
 }
 
 // std::from_chars accepts neither leading blanks nor a leading '+', both of which
-// occur in the wild, so they are eaten here first.
-inline bool parse_float(const char*& p, const char* end, float& out) {
+// occur in the wild, so they are eaten here first. Returns RV_OK on success,
+// RV_ERR_INVAL if the input cannot be parsed as a float.
+inline int parse_float(const char *&p, const char *end, float &out)
+{
     skip_blanks(p, end);
-    if (p < end && *p == '+') ++p;
+    if (p < end && *p == '+') {
+        ++p;
+    }
     const std::from_chars_result result = std::from_chars(p, end, out);
-    if (result.ec != std::errc{}) return false;
+    if (result.ec != std::errc{}) {
+        return RV_ERR_INVAL;
+    }
     p = result.ptr;
-    return true;
+    return RV_OK;
 }
 
-inline bool parse_int(const char*& p, const char* end, int& out) {
+// Returns RV_OK on success, RV_ERR_INVAL if the input cannot be parsed as an int.
+inline int parse_int(const char *&p, const char *end, int &out)
+{
     skip_blanks(p, end);
-    if (p < end && *p == '+') ++p;
+    if (p < end && *p == '+') {
+        ++p;
+    }
     const std::from_chars_result result = std::from_chars(p, end, out);
-    if (result.ec != std::errc{}) return false;
+    if (result.ec != std::errc{}) {
+        return RV_ERR_INVAL;
+    }
     p = result.ptr;
-    return true;
+    return RV_OK;
 }
 
 // THEOREM: .obj index resolution. A POSITIVE index is 1-based and absolute; a
@@ -80,104 +101,159 @@ inline bool parse_int(const char*& p, const char* end, int& out) {
 // (-1 is the vertex declared immediately above), which is what lets generators
 // emit self-contained blocks that can be concatenated. Zero is not a valid index
 // in the format. Both forms are normalised to a zero-based offset here, so
-// nothing downstream ever sees the file's numbering.
-inline bool resolve_index(int raw, std::size_t count, int32_t& out) {
+// nothing downstream ever sees the file's numbering. Returns RV_OK on success,
+// RV_ERR_INVAL if the index is out of range.
+inline int resolve_index(int raw, std::size_t count, int32_t &out)
+{
     if (raw > 0) {
-        if (static_cast<std::size_t>(raw) > count) return false;
+        if (static_cast<std::size_t>(raw) > count) {
+            return RV_ERR_INVAL;
+        }
         out = static_cast<int32_t>(raw - 1);
-        return true;
+        return RV_OK;
     }
     if (raw < 0) {
         const long long offset = static_cast<long long>(count) + raw;
-        if (offset < 0) return false;
+        if (offset < 0) {
+            return RV_ERR_INVAL;
+        }
         out = static_cast<int32_t>(offset);
-        return true;
+        return RV_OK;
     }
-    return false;
+    return RV_ERR_INVAL;
 }
 
 // One "i", "i/j", "i//k" or "i/j/k" reference. Missing channels stay -1.
-inline bool parse_corner(const char*& p, const char* end, const rv_obj_mesh& mesh,
-                         rv_obj_index& out) {
-    out = rv_obj_index{-1, -1, -1};
+// Returns RV_OK on success, RV_ERR_INVAL if any index is invalid.
+inline int parse_corner(const char *&p, const char *end, const rv_obj_mesh &mesh, rv_obj_index &out)
+{
+    out = rv_obj_index{ -1, -1, -1 };
 
     int raw = 0;
-    if (!parse_int(p, end, raw)) return false;
-    if (!resolve_index(raw, mesh.positions.size(), out.position)) return false;
-
-    if (p >= end || *p != '/') return true;
-    ++p;
-    if (p < end && *p != '/') {
-        if (!parse_int(p, end, raw)) return false;
-        if (!resolve_index(raw, mesh.uvs.size(), out.uv)) return false;
+    if (parse_int(p, end, raw) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (resolve_index(raw, mesh.positions.size(), out.position) != RV_OK) {
+        return RV_ERR_INVAL;
     }
 
-    if (p >= end || *p != '/') return true;
+    if (p >= end || *p != '/') {
+        return RV_OK;
+    }
     ++p;
-    if (!parse_int(p, end, raw)) return false;
-    if (!resolve_index(raw, mesh.normals.size(), out.normal)) return false;
-    return true;
+    if (p < end && *p != '/') {
+        if (parse_int(p, end, raw) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+        if (resolve_index(raw, mesh.uvs.size(), out.uv) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+    }
+
+    if (p >= end || *p != '/') {
+        return RV_OK;
+    }
+    ++p;
+    if (parse_int(p, end, raw) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (resolve_index(raw, mesh.normals.size(), out.normal) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
 }
 
-}  // namespace rv_obj_detail
+} // namespace rv_obj_detail
 
 // Parse `size` bytes of .obj text into `out`. The buffer need not be
 // NUL-terminated and is only read.
 //
-// Returns false on malformed geometry (an unparsable number, an index naming a
-// vertex that does not exist, a face with fewer than three corners). `out` then
-// holds whatever was parsed up to the failure and must not be drawn — a disc
-// treats this like any other content error and refuses to run.
-inline bool rv_obj_parse(const void* data, std::size_t size, rv_obj_mesh& out) {
+// Returns RV_OK on success. Returns RV_ERR_INVAL on malformed geometry
+// (an unparsable number, an index naming a vertex that does not exist, a face
+// with fewer than three corners). `out` then holds whatever was parsed up to
+// the failure and must not be drawn — a disc treats this like any other
+// content error and refuses to run.
+inline int rv_obj_parse(const void *data, std::size_t size, rv_obj_mesh &out)
+{
     out = rv_obj_mesh{};
-    if (data == nullptr && size != 0) return false;
+    if (data == nullptr && size != 0) {
+        return RV_ERR_INVAL;
+    }
 
-    const char* p = static_cast<const char*>(data);
-    const char* const end = p + size;
+    const char *p = static_cast<const char *>(data);
+    const char *const end = p + size;
     std::vector<rv_obj_index> corners;
 
     while (p < end) {
-        const char* line_end = p;
-        while (line_end < end && *line_end != '\n') ++line_end;
+        const char *line_end = p;
+        while (line_end < end && *line_end != '\n') {
+            ++line_end;
+        }
 
-        const char* cursor = p;
-        const char* const stop = line_end;
+        const char *cursor = p;
+        const char *const stop = line_end;
         p = (line_end < end) ? line_end + 1 : end;
 
         rv_obj_detail::skip_blanks(cursor, stop);
-        if (cursor >= stop || *cursor == '#') continue;
+        if (cursor >= stop || *cursor == '#') {
+            continue;
+        }
 
-        const char* keyword = cursor;
-        while (cursor < stop && !rv_obj_detail::is_blank(*cursor)) ++cursor;
+        const char *keyword = cursor;
+        while (cursor < stop && !rv_obj_detail::is_blank(*cursor)) {
+            ++cursor;
+        }
         const std::size_t keyword_size = static_cast<std::size_t>(cursor - keyword);
 
         if (keyword_size == 1 && keyword[0] == 'v') {
             rv_vec3 position{};
-            if (!rv_obj_detail::parse_float(cursor, stop, position.x)) return false;
-            if (!rv_obj_detail::parse_float(cursor, stop, position.y)) return false;
-            if (!rv_obj_detail::parse_float(cursor, stop, position.z)) return false;
-            out.positions.push_back(position);  // a trailing w is ignored
+            if (rv_obj_detail::parse_float(cursor, stop, position.x) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            if (rv_obj_detail::parse_float(cursor, stop, position.y) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            if (rv_obj_detail::parse_float(cursor, stop, position.z) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            out.positions.push_back(position); // a trailing w is ignored
         } else if (keyword_size == 2 && keyword[0] == 'v' && keyword[1] == 't') {
             rv_vec2 uv{};
-            if (!rv_obj_detail::parse_float(cursor, stop, uv.x)) return false;
-            if (!rv_obj_detail::parse_float(cursor, stop, uv.y)) return false;
-            out.uvs.push_back(uv);  // a trailing w is ignored
+            if (rv_obj_detail::parse_float(cursor, stop, uv.x) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            if (rv_obj_detail::parse_float(cursor, stop, uv.y) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            out.uvs.push_back(uv); // a trailing w is ignored
         } else if (keyword_size == 2 && keyword[0] == 'v' && keyword[1] == 'n') {
             rv_vec3 normal{};
-            if (!rv_obj_detail::parse_float(cursor, stop, normal.x)) return false;
-            if (!rv_obj_detail::parse_float(cursor, stop, normal.y)) return false;
-            if (!rv_obj_detail::parse_float(cursor, stop, normal.z)) return false;
+            if (rv_obj_detail::parse_float(cursor, stop, normal.x) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            if (rv_obj_detail::parse_float(cursor, stop, normal.y) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            if (rv_obj_detail::parse_float(cursor, stop, normal.z) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
             out.normals.push_back(normal);
         } else if (keyword_size == 1 && keyword[0] == 'f') {
             corners.clear();
             for (;;) {
                 rv_obj_detail::skip_blanks(cursor, stop);
-                if (cursor >= stop) break;
+                if (cursor >= stop) {
+                    break;
+                }
                 rv_obj_index corner{};
-                if (!rv_obj_detail::parse_corner(cursor, stop, out, corner)) return false;
+                if (rv_obj_detail::parse_corner(cursor, stop, out, corner) != RV_OK) {
+                    return RV_ERR_INVAL;
+                }
                 corners.push_back(corner);
             }
-            if (corners.size() < 3) return false;
+            if (corners.size() < 3) {
+                return RV_ERR_INVAL;
+            }
 
             // THEOREM: fan triangulation. An n-gon becomes n-2 triangles all
             // sharing corner 0: (0,1,2), (0,2,3), ... The winding of every
@@ -196,24 +272,29 @@ inline bool rv_obj_parse(const void* data, std::size_t size, rv_obj_mesh& out) {
         }
         // Any other keyword (o, g, s, usemtl, mtllib, ...) is skipped whole.
     }
-    return true;
+    return RV_OK;
 }
 
 // Accessors that turn a corner into values, answering the "channel absent" case
 // with a caller-supplied default instead of an out-of-range read.
-inline rv_vec3 rv_obj_position(const rv_obj_mesh& mesh, rv_obj_index corner) {
+inline rv_vec3 rv_obj_position(const rv_obj_mesh &mesh, rv_obj_index corner)
+{
     if (corner.position < 0 || static_cast<std::size_t>(corner.position) >= mesh.positions.size()) {
-        return rv_vec3{0.0f, 0.0f, 0.0f};
+        return rv_vec3{ 0.0f, 0.0f, 0.0f };
     }
     return mesh.positions[static_cast<std::size_t>(corner.position)];
 }
 
-inline rv_vec2 rv_obj_uv(const rv_obj_mesh& mesh, rv_obj_index corner, rv_vec2 fallback) {
-    if (corner.uv < 0 || static_cast<std::size_t>(corner.uv) >= mesh.uvs.size()) return fallback;
+inline rv_vec2 rv_obj_uv(const rv_obj_mesh &mesh, rv_obj_index corner, rv_vec2 fallback)
+{
+    if (corner.uv < 0 || static_cast<std::size_t>(corner.uv) >= mesh.uvs.size()) {
+        return fallback;
+    }
     return mesh.uvs[static_cast<std::size_t>(corner.uv)];
 }
 
-inline rv_vec3 rv_obj_normal(const rv_obj_mesh& mesh, rv_obj_index corner, rv_vec3 fallback) {
+inline rv_vec3 rv_obj_normal(const rv_obj_mesh &mesh, rv_obj_index corner, rv_vec3 fallback)
+{
     if (corner.normal < 0 || static_cast<std::size_t>(corner.normal) >= mesh.normals.size()) {
         return fallback;
     }
@@ -223,11 +304,12 @@ inline rv_vec3 rv_obj_normal(const rv_obj_mesh& mesh, rv_obj_index corner, rv_ve
 // The geometric normal of a triangle, for files that carry no vn. Left-handed
 // cross of two edges, so it points the way a face wound counter-clockwise when
 // seen from outside faces.
-inline rv_vec3 rv_obj_face_normal(const rv_obj_mesh& mesh, const rv_obj_triangle& triangle) {
+inline rv_vec3 rv_obj_face_normal(const rv_obj_mesh &mesh, const rv_obj_triangle &triangle)
+{
     const rv_vec3 a = rv_obj_position(mesh, triangle.corner[0]);
     const rv_vec3 b = rv_obj_position(mesh, triangle.corner[1]);
     const rv_vec3 c = rv_obj_position(mesh, triangle.corner[2]);
     return rv_normalize(rv_cross(b - a, c - a));
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

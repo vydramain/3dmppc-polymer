@@ -19,8 +19,7 @@ namespace rv_3dmppc
 class rv_pcwindow_sdl3 final : public rv_pcwindow
 {
 public:
-    int64_t open(const char *title, int64_t screen_width, int64_t screen_height,
-        uint64_t scale) override;
+    int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale) override;
     bool presenting() const override;
     void present(const uint32_t *argb) override;
     bool close_requested() const override;
@@ -80,8 +79,7 @@ public:
     uint64_t abilities(uint32_t id) const override;
     rv_istate state(uint32_t id) const override;
     int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
-    int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right,
-        uint16_t duration_ms) override;
+    int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) override;
 
     ~rv_pcgamepads_sdl3() override;
 
@@ -112,10 +110,10 @@ public:
 
     ~rv_pcaudio_sdl3() override;
 
-    // Opens SDL_INIT_AUDIO's default playback device stream. Returns whether a
-    // device is now streaming; the caller (rv_pcplatform_sdl3::make) logs the
-    // failure with SDL_GetError().
-    bool open();
+    // Opens SDL_INIT_AUDIO's default playback device stream. Returns RV_OK if
+    // streaming, RV_ERR_IO if device failed; the caller (rv_pcplatform_sdl3::make)
+    // logs the failure with SDL_GetError().
+    int open();
 
 private:
     SDL_AudioStream *stream_ = nullptr;

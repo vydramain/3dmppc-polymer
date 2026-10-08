@@ -44,7 +44,10 @@ public:
 
     int64_t ohaptic(int64_t port, rv_oheffect effect) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 
 private:
     // True when `port` names one of the console's fixed slots. Out of range is

@@ -13,7 +13,7 @@ in both modes).
 
 ---
 
-## `mppcbaker` — PNG → `.mppcbaker`
+## `mppcbaker` — PNG → `.mppctex`, WAV → `.pcm`
 
 The console does not decode image formats and never will. A disc hands
 `rv_cv::video_asset_write()` **finished texels**, exactly as it would on real
@@ -21,7 +21,7 @@ devkit hardware. So turning a picture into texels is a build-step job, and
 `mppcbaker` is what does it.
 
 ```
-mppcbaker <input.png> <output.mppcbaker> --format idx4|idx8|direct15
+mppcbaker <input.png> <output.mppctex> --format idx4|idx8|direct15
         [--transparent-key RRGGBB]
 ```
 
@@ -41,18 +41,38 @@ Any error gets a readable message on `stderr` and exit code `1`.
 
 ```sh
 # sprite with alpha, 16 colors
-mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppcbaker --format idx4
+mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppctex --format idx4
 
 # sprite without alpha, where the hole is marked with hot pink
-mppcbaker assets/hud.png build/hud.mppcbaker --format idx8 --transparent-key FF00FF
+mppcbaker assets/hud.png build/hud.mppctex --format idx8 --transparent-key FF00FF
 
 # opaque background, full color
-mppcbaker assets/sky.png build/sky.mppcbaker --format direct15
+mppcbaker assets/sky.png build/sky.mppctex --format direct15
 ```
 
 ---
 
-## `.mppcbaker` file layout
+## WAV → `.pcm`
+
+The console does not decode sound formats either. A disc hands
+`rv_ca::sound_asset_write()` **raw samples**, so turning a WAV into those
+samples is the same kind of build-step job as a texture.
+
+```
+mppcbaker <input.wav> <output.pcm>
+```
+
+The input must already be RIFF/WAVE, PCM, 16-bit, 44100 Hz, mono or stereo;
+anything else (another rate, another bit depth, float, more than two
+channels) is refused. Stereo is downmixed to mono by averaging the two
+channels. The output is headerless S16LE mono at 44100 Hz, nothing else -
+exactly what `sound_asset_write` expects, and no `--format` applies to it.
+
+Any error gets a readable message on `stderr` and exit code `1`.
+
+---
+
+## `.mppctex` file layout
 
 Everything is little-endian. The file is a header, then the palette, then the
 texels; both the palette and the texels are stored **exactly in the form they
@@ -64,7 +84,7 @@ anything.
 | Offset | Size | Field | Value |
 | --- | --- | --- | --- |
 | `0` | 4 | `magic` | ASCII `"MPTX"` |
-| `4` | 2 | `version` | `1` |
+| `4` | 2 | `version` | the PDK version packed (`rv_pdklib::rv_mppctex_version`) |
 | `6` | 2 | `format` | an `rv_texfmt` value: `4`, `8` or `15` |
 | `8` | 2 | `width` | texels per row |
 | `10` | 2 | `height` | rows |
@@ -183,13 +203,14 @@ warning on `stderr` (this is not an error — the exit code stays `0`).
 
 ---
 
-## How a disc reads `.mppcbaker`
+## How a disc reads `.mppctex`
 
 Texels and palette are already in their final form in the file, so the loader is
 a read, a header check and two `video_asset_write` calls.
 
 1. Read the whole file into main memory (`rv_cd`).
-2. Check `magic == "MPTX"` and `version == 1`; otherwise fail, do not guess.
+2. Check `magic == "MPTX"` and `version` is `rv_version_compatible` with this
+   PDK (same major, minor at most the console's); otherwise fail, do not guess.
 3. Parse the header: `format`, `width`, `height`, `palette_count`.
 4. Compute the offsets:
    - palette: `16`, length `palette_count * 2` bytes;

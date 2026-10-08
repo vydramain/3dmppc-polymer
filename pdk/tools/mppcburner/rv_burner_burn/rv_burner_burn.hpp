@@ -32,8 +32,7 @@ namespace rv_pdktools
 /// @param burned_size  receives the size of the finished image, in bytes
 /// @param error        set on any I/O failure; a partial image is removed
 /// @return 0 on success, 1 on refusal
-int burn_archive(
-    const std::filesystem::path &output_path,
+int burn_archive(const std::filesystem::path &output_path,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_module,
     const archive_plan &plan,
@@ -64,8 +63,7 @@ int burn_archive(
 ///                     source instead of compiled bytecode
 /// @param error        set on any I/O failure
 /// @return 0 on success, 1 on refusal
-int burn_directory(
-    const std::filesystem::path &output_dir,
+int burn_directory(const std::filesystem::path &output_dir,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_module,
     const archive_plan &plan,

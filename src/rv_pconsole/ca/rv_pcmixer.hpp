@@ -60,14 +60,13 @@ public:
 
     // Load `conf` into every voice named by `mask`. `data` / `frames` describe
     // the sound-RAM region conf.sample_address resolves to.
-    void setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-        int64_t addr);
+    void setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr);
 
-    // Start / stop every voice in `mask`. Returns false when some voice in the
-    // mask was never armed - in which case NOTHING is started or stopped, so a
-    // malformed call cannot leave half the mask sounding.
-    bool play(int64_t mask);
-    bool stop(int64_t mask);
+    // Start / stop every voice in `mask`. Returns RV_OK on success or RV_ERR_INVAL
+    // when some voice in the mask was never armed - in which case NOTHING is started
+    // or stopped, so a malformed call cannot leave half the mask sounding.
+    int play(int64_t mask);
+    int stop(int64_t mask);
 
     // Is every voice in `mask` armed? The same question play() asks before it
     // acts, for the caller that must validate a call it is not going to run
@@ -106,7 +105,7 @@ public:
     void disarm_region_locked(int64_t addr);
 
 private:
-    bool for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)());
+    int for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)());
 
     mutable std::mutex lock_;
     std::vector<rv_pcvoice> voices_;

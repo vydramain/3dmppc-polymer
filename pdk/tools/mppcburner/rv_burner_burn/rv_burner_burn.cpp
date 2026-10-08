@@ -5,6 +5,7 @@
 #include <string>
 #include <system_error>
 
+#include "pdk/rv_err.h"
 #include "rv_burner_zip/rv_burner_zipwrite.hpp"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
@@ -26,8 +27,7 @@ static constexpr const char *k_default_entry_module = "disc.so";
 
 } // namespace rv_pdktools
 
-int rv_pdktools::burn_archive(
-    const fs::path &output_path,
+int rv_pdktools::burn_archive(const fs::path &output_path,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
     const archive_plan &plan,
@@ -46,7 +46,7 @@ int rv_pdktools::burn_archive(
     // --- the manifest ---
 
     const std::string manifest_text = rv_pdklib::rv_manifest_render(manifest);
-    if (!writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error)) {
+    if (writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error) != RV_OK) {
         return 1;
     }
 
@@ -56,9 +56,10 @@ int rv_pdktools::burn_archive(
     // means the conventional name. The file compiled to disk is always
     // disc_module - only the name it gets inside the archive changes.
 
-    const std::string entry_module = manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
+    const std::string entry_module =
+        manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
-    if (!writer.add_file(entry_module, disc_module.string(), error)) {
+    if (writer.add_file(entry_module, disc_module.string(), error) != RV_OK) {
         return 1;
     }
     rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
@@ -66,14 +67,14 @@ int rv_pdktools::burn_archive(
     // --- everything the plan named ---
 
     for (const archive_item &item : plan.items) {
-        if (!writer.add_file(item.name, item.payload, error)) {
+        if (writer.add_file(item.name, item.payload, error) != RV_OK) {
             return 1;
         }
     }
 
     // Not optional: an archive without a central directory is not an archive,
     // and no reader will open it.
-    if (!writer.finish(error)) {
+    if (writer.finish(error) != RV_OK) {
         return 1;
     }
 
@@ -112,9 +113,9 @@ static int finish_publish(const fs::path &tmp, const fs::path &dest, std::string
     if (ec) {
         error = "cannot publish '" + dest.string() + "': " + ec.message();
         fs::remove(tmp, ec);
-        return 1;
+        return RV_ERR_IO;
     }
-    return 0;
+    return RV_OK;
 }
 
 // "disc.toml": the only entry whose bytes do not already exist as a file.
@@ -125,7 +126,7 @@ static int publish_text(const fs::path &dest, const std::string &text, std::stri
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
     if (!out) {
         error = "cannot open '" + tmp.string() + "' for writing";
-        return 1;
+        return RV_ERR_IO;
     }
     out.write(text.data(), static_cast<std::streamsize>(text.size()));
     out.close();
@@ -133,15 +134,16 @@ static int publish_text(const fs::path &dest, const std::string &text, std::stri
         error = "short write on '" + tmp.string() + "'";
         std::error_code ec;
         fs::remove(tmp, ec);
-        return 1;
+        return RV_ERR_IO;
     }
 
     return finish_publish(tmp, dest, error);
 }
 
-// A finished product: disc.so and a baked .mppctex. Nothing points back at
-// these once written, so a copy is the honest relationship - a symlink to a
-// PNG would not even be the right BYTES for a baked texture.
+// A finished product: disc.so, a baked .mppctex, or a baked .pcm. Nothing
+// points back at these once written, so a copy is the honest relationship -
+// a symlink to a PNG (or a WAV) would not even be the right BYTES for a
+// baked texture (or sound).
 static int publish_copy(const fs::path &dest, const fs::path &source, std::string &error)
 {
     const fs::path tmp = temp_sibling(dest);
@@ -151,9 +153,25 @@ static int publish_copy(const fs::path &dest, const fs::path &source, std::strin
     fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
     if (ec) {
         error = "cannot copy '" + source.string() + "' to '" + dest.string() + "': " + ec.message();
-        return 1;
+        return RV_ERR_IO;
     }
 
+    return finish_publish(tmp, dest, error);
+}
+
+// Fallback when symlink is not available on the filesystem.
+static int copy_instead_of_link(const fs::path &dest, const fs::path &source, const fs::path &tmp, std::string &error)
+{
+    std::error_code ec;
+    fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
+    if (ec) {
+        error = "cannot link or copy '" + source.string() + "' to '" + dest.string() + "': " + ec.message();
+        return RV_ERR_IO;
+    }
+    rv_pdklib::rv_fprintf(stderr,
+        "%s: copied (symlink not available) from %s\n",
+        dest.filename().string().c_str(),
+        source.string().c_str());
     return finish_publish(tmp, dest, error);
 }
 
@@ -168,28 +186,16 @@ static int publish_link(const fs::path &dest, const fs::path &source, std::strin
     std::error_code ec;
     fs::remove(tmp, ec);
     fs::create_symlink(source, tmp, ec);
-    if (!ec) {
-        rv_pdklib::rv_fprintf(stderr, "%s: symlinked to %s\n",
-            dest.filename().string().c_str(), source.string().c_str());
-    } else {
-        ec.clear();
-        fs::copy_file(source, tmp, fs::copy_options::overwrite_existing, ec);
-        if (ec) {
-            error = "cannot link or copy '" + source.string() + "' to '" + dest.string() + "': " +
-                ec.message();
-            return 1;
-        }
-        rv_pdklib::rv_fprintf(stderr, "%s: copied (symlink not available) from %s\n",
-            dest.filename().string().c_str(), source.string().c_str());
+    if (ec) {
+        return copy_instead_of_link(dest, source, tmp, error);
     }
-
+    rv_pdklib::rv_fprintf(stderr, "%s: symlinked to %s\n", dest.filename().string().c_str(), source.string().c_str());
     return finish_publish(tmp, dest, error);
 }
 
 } // namespace rv_pdktools
 
-int rv_pdktools::burn_directory(
-    const fs::path &output_dir,
+int rv_pdktools::burn_directory(const fs::path &output_dir,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
     const archive_plan &plan,
@@ -211,7 +217,8 @@ int rv_pdktools::burn_directory(
 
     // --- the module ---
 
-    const std::string entry_module = manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
+    const std::string entry_module =
+        manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
     if (publish_copy(output_dir / entry_module, disc_module, error) != 0) {
         return 1;
@@ -220,18 +227,20 @@ int rv_pdktools::burn_directory(
 
     // --- everything the plan named ---
     //
-    // Textures are finished products and are copied; everything else (copied
-    // assets and, for an unpacked build, scripts) is the developer's own file
-    // and is symlinked so an edit stays visible.
+    // Textures and sounds are finished products (baked from a source the
+    // player never sees, in a work directory that goes away after the
+    // build) and are copied; everything else (copied assets and, for an
+    // unpacked build, scripts) is the developer's own file and is
+    // symlinked so an edit stays visible.
 
     for (std::size_t i = 0; i < plan.items.size(); ++i) {
         const archive_item &item = plan.items[i];
         const bool is_texture = i >= plan.first_texture && i < plan.first_texture + plan.texture_count;
+        const bool is_sound = i >= plan.first_sound && i < plan.first_sound + plan.sound_count;
         const fs::path dest = output_dir / item.name;
 
-        const int rc = is_texture
-            ? publish_copy(dest, item.payload, error)
-            : publish_link(dest, item.payload, error);
+        const int rc =
+            (is_texture || is_sound) ? publish_copy(dest, item.payload, error) : publish_link(dest, item.payload, error);
         if (rc != 0) {
             return 1;
         }

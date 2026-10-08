@@ -16,6 +16,12 @@
 namespace
 {
 
+// Minimum number of arguments for the get command (the verb "get" and at least one key).
+constexpr int MIN_GET_ARGS = 2;
+
+// Hex encoding: two hex digits per byte.
+constexpr int64_t HEX_CHARS_PER_BYTE = 2;
+
 // A quarter of the answer queue, so one `keys` listing never crowds out the
 // answers already queued around it.
 constexpr int64_t RV_PCCMD_KEYS_LIST_MAX = rv_3dmppc::RV_PCCMDCHAN_OUT_MAX / 4;
@@ -46,12 +52,15 @@ const char *rv_pccmd_type_name(int64_t type)
 
 void rv_3dmppc::rv_pconsole::cmd_get(const rv_pccmdreq &req)
 {
-    if (req.args.size() < 2) {
+    if (req.args.size() < MIN_GET_ARGS) {
         cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false, "get needs a key"));
         return;
     }
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id,
+            "protocol",
+            RV_ERR_INVAL,
+            false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -64,8 +73,8 @@ void rv_3dmppc::rv_pconsole::cmd_get(const rv_pccmdreq &req)
         // that has run its script heap out, the read cannot be performed at
         // all. Answered, not fatal - `gc` is the next thing to try, and the
         // client has to be able to reach it.
-        cmd_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
-            "the script heap is exhausted; the key could not be interned. try gc"));
+        cmd_->reply(
+            rv_pccmd_err(req.id, "nomem", rc, false, "the script heap is exhausted; the key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
@@ -89,18 +98,21 @@ void rv_3dmppc::rv_pconsole::cmd_get(const rv_pccmdreq &req)
         // ceiling would pass a hex-only check and then overflow the queue by
         // the length of this prefix, which is the same defect one step smaller.
         const std::string prefix = std::format("{} ok found=1 type=string value=", req.id);
-        const int64_t line_size =
-            static_cast<int64_t>(prefix.size()) + static_cast<int64_t>(value.bytes.size()) * 2 + 1;
+        const int64_t hex_bytes_size = static_cast<int64_t>(value.bytes.size()) * HEX_CHARS_PER_BYTE;
+        const int64_t line_size = static_cast<int64_t>(prefix.size()) + hex_bytes_size + 1;
         if (line_size > RV_PCCMDCHAN_OUT_MAX) {
-            cmd_->reply(rv_pccmd_err(req.id, "answer_size", RV_ERR_INVAL, false,
+            cmd_->reply(rv_pccmd_err(req.id,
+                "answer_size",
+                RV_ERR_INVAL,
+                false,
                 std::format("value is {} bytes; its hex answer does not fit one reply (ceiling {} bytes)",
-                    value.bytes.size(), RV_PCCMDCHAN_OUT_MAX)));
+                    value.bytes.size(),
+                    RV_PCCMDCHAN_OUT_MAX)));
             return;
         }
         // Hex, not text: a stored string may hold a NUL or bytes that are not
         // valid UTF-8, and the protocol promises to hand back what is there.
-        cmd_->reply(std::format("{} ok found=1 type=string value={}", req.id,
-            rv_pccmd_hex(value.bytes)));
+        cmd_->reply(std::format("{} ok found=1 type=string value={}", req.id, rv_pccmd_hex(value.bytes)));
         return;
     }
     case RV_CL_TYPE_TABLE:
@@ -125,7 +137,10 @@ void rv_3dmppc::rv_pconsole::cmd_get(const rv_pccmdreq &req)
 void rv_3dmppc::rv_pconsole::cmd_keys(const rv_pccmdreq &req)
 {
     if (req.args.size() - 1 > RV_PCCL_STATE_PATH_MAX) {
-        cmd_->reply(rv_pccmd_err(req.id, "protocol", RV_ERR_INVAL, false,
+        cmd_->reply(rv_pccmd_err(req.id,
+            "protocol",
+            RV_ERR_INVAL,
+            false,
             std::format("a path has at most {} segments", RV_PCCL_STATE_PATH_MAX)));
         return;
     }
@@ -135,8 +150,8 @@ void rv_3dmppc::rv_pconsole::cmd_keys(const rv_pccmdreq &req)
     std::vector<rv_pccl_key> keys;
     const int64_t rc = cl_->state_keys(path, target, keys);
     if (rc == RV_ERR_NOMEM) {
-        cmd_->reply(rv_pccmd_err(req.id, "nomem", rc, false,
-            "the script heap is exhausted; a key could not be interned. try gc"));
+        cmd_->reply(
+            rv_pccmd_err(req.id, "nomem", rc, false, "the script heap is exhausted; a key could not be interned. try gc"));
         return;
     }
     if (rc < 0) {
@@ -144,8 +159,11 @@ void rv_3dmppc::rv_pconsole::cmd_keys(const rv_pccmdreq &req)
         return;
     }
 
-    const std::string prefix = std::format("{} ok found={} type={} count={} shown=", req.id,
-        target.type < 0 ? 0 : 1, rv_pccmd_type_name(target.type), target.count);
+    const std::string prefix = std::format("{} ok found={} type={} count={} shown=",
+        req.id,
+        target.type < 0 ? 0 : 1,
+        rv_pccmd_type_name(target.type),
+        target.count);
     // The whole line counts: the prefix, the widest `shown` it can print, " keys=" and the list.
     const std::size_t fixed = prefix.size() + std::to_string(keys.size()).size() + std::string_view(" keys=").size();
     std::string list;

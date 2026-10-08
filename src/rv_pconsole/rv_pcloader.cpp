@@ -18,6 +18,23 @@
 namespace rv_3dmppc
 {
 
+namespace
+{
+
+// The directory route already read and pre_dlopen_check-ed these exact bytes
+// in mount_dir(). Re-reading disc.so here would reopen the very race this
+// whole path exists to close: the bytes just verified must be the bytes that
+// get mapped, and an unpacked directory - unlike an archive - can be
+// rewritten by a live burner run at any moment while this session is mounted.
+// Moving the buffer out is a straight reuse, not a second read.
+int take_dir_code(std::vector<unsigned char> &from, std::vector<unsigned char> &to)
+{
+    to = std::move(from);
+    return RV_OK;
+}
+
+} // namespace
+
 rv_pcloader::~rv_pcloader()
 {
     unload();
@@ -33,8 +50,7 @@ void rv_pcloader::notify_initialized(const rv_de *disc)
 int64_t rv_pcloader::bring_up()
 {
     if (zip_ == nullptr && !from_directory_) {
-        RV_LOG_ERR("pcloader",
-            "bring_up() called with no disc mounted; call mount() first");
+        RV_LOG_ERR("pcloader", "bring_up() called with no disc mounted; call mount() first");
         return RV_ERR_INVAL;
     }
 
@@ -44,30 +60,23 @@ int64_t rv_pcloader::bring_up()
     // needs an inode of its own before it can be anything but bytes in a zip.
     std::vector<unsigned char> code;
     std::string why;
-    if (from_directory_) {
-        // The directory route already read and pre_dlopen_check-ed these exact
-        // bytes in mount_dir(). Re-reading disc.so here would reopen the very
-        // race this whole path exists to close: the bytes just verified must
-        // be the bytes that get mapped, and an unpacked directory - unlike an
-        // archive - can be rewritten by a live burner run at any moment while
-        // this session is mounted. Moving the buffer out is a straight reuse,
-        // not a second read.
-        code = std::move(dir_code_);
-    } else {
-        why = read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code);
-        if (!why.empty()) {
-            RV_LOG_ERR("pcloader",
-                "disc '{}' names its code entry '{}', which is unusable: {}",
-                rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-                rv_pdklib::rv_log_escape(code_entry.c_str()), why);
-            return RV_ERR_NOENT;
-        }
+    const int rc = from_directory_ ? take_dir_code(dir_code_, code) :
+                                     read_whole_entry(*zip_, code_entry.c_str(), RV_PCLOADER_CODE_MAX_SIZE, code, why);
+    if (rc != RV_OK) {
+        RV_LOG_ERR("pcloader",
+            "disc '{}' names its code entry '{}', which is unusable: {}",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            rv_pdklib::rv_log_escape(code_entry.c_str()),
+            why);
+        return RV_ERR_NOENT;
     }
 
-    why = extract_code(code, temp_path_);
-    if (!why.empty()) {
-        RV_LOG_ERR("pcloader", "cannot stage the code of disc '{}' for loading: {}",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()), why);
+    const int staged = extract_code(code, temp_path_, why);
+    if (staged != RV_OK) {
+        RV_LOG_ERR("pcloader",
+            "cannot stage the code of disc '{}' for loading: {}",
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            why);
         unload();
         return RV_ERR_IO;
     }
@@ -82,10 +91,10 @@ int64_t rv_pcloader::bring_up()
     handle_ = ::dlopen(temp_path_.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (handle_ == nullptr) {
         const char *dl_error = ::dlerror();
-        RV_LOG_ERR(
-            "pcloader", "dlopen of disc '{}' failed: {}",
+        RV_LOG_ERR("pcloader",
+            "dlopen of disc '{}' failed: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
-            rv_pdklib::rv_log_escape(dl_error != nullptr ? dl_error : "no reason given", 160));
+            rv_pdklib::rv_log_escape(dl_error != nullptr ? dl_error : "no reason given", RV_PCLOADER_SYSTEM_ERROR_MAX_LEN));
         unload();
         return RV_ERR_IO;
     }
@@ -94,10 +103,8 @@ int64_t rv_pcloader::bring_up()
     // is not half-loadable, it is a leak with a vtable - and the only code that
     // may destroy the object is the code that made it (pdk/de/rv_dv.h).
     ::dlerror(); // clear any stale error before the lookups
-    auto create = reinterpret_cast<rv_mppc_disc_create_fn>(
-        ::dlsym(handle_, RV_MPPC_DISC_ENTRY_CREATE));
-    auto destroy = reinterpret_cast<rv_mppc_disc_destroy_fn>(
-        ::dlsym(handle_, RV_MPPC_DISC_ENTRY_DESTROY));
+    auto create = reinterpret_cast<rv_mppc_disc_create_fn>(::dlsym(handle_, RV_MPPC_DISC_ENTRY_CREATE));
+    auto destroy = reinterpret_cast<rv_mppc_disc_destroy_fn>(::dlsym(handle_, RV_MPPC_DISC_ENTRY_DESTROY));
     if (create == nullptr || destroy == nullptr) {
         RV_LOG_ERR("pcloader",
             "disc '{}' exports no {}(); it was not built with "
@@ -124,7 +131,8 @@ int64_t rv_pcloader::bring_up()
     if (disc == nullptr) {
         RV_LOG_ERR("pcloader",
             "disc '{}' returned no object from {}(); refusing the disc",
-            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()), RV_MPPC_DISC_ENTRY_CREATE);
+            rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
+            RV_MPPC_DISC_ENTRY_CREATE);
         unload();
         return RV_ERR_INVAL;
     }
@@ -132,12 +140,13 @@ int64_t rv_pcloader::bring_up()
     disc_ = disc;
     destroy_ = destroy;
 
-    RV_LOG_INFO(
-        "pcloader", "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
+    RV_LOG_INFO("pcloader",
+        "loaded disc '{}' ('{}') from '{}' at 3dmppc version {}.{}",
         rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
         rv_pdklib::rv_log_escape(manifest_.disc_title.c_str()),
         rv_pdklib::rv_log_escape(from_directory_ ? dir_path_.c_str() : zip_->path().c_str()),
-        (int)RV_MPPC_VER_MAJOR, (int)RV_MPPC_VER_MINOR);
+        (int)RV_MPPC_VER_MAJOR,
+        (int)RV_MPPC_VER_MINOR);
     return RV_OK;
 }
 
@@ -170,23 +179,23 @@ void rv_pcloader::shutdown_disc_()
     try {
         disc_->disc_shutdown(disc_->self);
     } catch (...) {
-        RV_LOG_ERR("pcloader", "disc_shutdown() of '{}' threw; tearing down anyway",
+        RV_LOG_ERR("pcloader",
+            "disc_shutdown() of '{}' threw; tearing down anyway",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()));
     }
 }
 
 void rv_pcloader::unload()
 {
-    if (disc_ != nullptr) {
-        // rv_de.h: the hook runs after the last frame and NOT for a disc that
-        // refused to start. The facade is still valid at this point - that is
-        // precisely why it runs before destroy and before dlclose.
-        if (initialized_) {
-            shutdown_disc_();
-        }
-        if (destroy_ != nullptr) {
-            destroy_(disc_);
-        }
+    // rv_de.h: the hook runs after the last frame and NOT for a disc that
+    // refused to start. The facade is still valid at this point - that is
+    // precisely why it runs before destroy and before dlclose.
+    const bool loaded = disc_ != nullptr;
+    if (loaded && initialized_) {
+        shutdown_disc_();
+    }
+    if (loaded && destroy_ != nullptr) {
+        destroy_(disc_);
     }
     disc_ = nullptr;
     destroy_ = nullptr;
@@ -202,8 +211,7 @@ void rv_pcloader::unload()
         // Removing it is not tidiness: it is an executable copy of somebody's
         // game sitting in a world-readable directory.
         if (::unlink(temp_path_.c_str()) != 0 && errno != ENOENT) {
-            RV_LOG_WARN("pcloader", "could not remove the staging file '{}': {}",
-                temp_path_, std::strerror(errno));
+            RV_LOG_WARN("pcloader", "could not remove the staging file '{}': {}", temp_path_, std::strerror(errno));
         }
         temp_path_.clear();
     }

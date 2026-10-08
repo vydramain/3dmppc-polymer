@@ -25,6 +25,10 @@
 namespace rv_3dmppc
 {
 
+// Exit code for invalid command-line argument or configuration: same as getopt's
+// unrecognized option error. Returned when bad input makes boot impossible.
+constexpr int EXIT_CODE_INVALID_ARGS = 2;
+
 // Taken from argv[0] rather than written down, so the prefix keeps matching
 // getopt's after the binary is renamed.
 inline const char *rv_console_progname()
@@ -58,6 +62,11 @@ struct rv_pboot_args {
     // --dev is not a name its getopt table carries (rv_pboot_args_cmd.hpp).
     bool dev = false;
 
+    // --frame-fd: the descriptor of the shared memory an embedding program shows
+    // the frames from (rv_pconsole/platform/rv_pcframe.hpp); -1 when absent.
+    // Like --dev, a player build never sets it.
+    int64_t frame_fd = -1;
+
     // Start with the frame loop STOPPED, before frame 0, so the first
     // controllable moment comes before the disc has drawn anything.
     //
@@ -86,9 +95,9 @@ struct rv_pboot_args {
     const char *disc_path = nullptr;
 };
 
-// Parse argv into `out`. Returns true on success. Returns false when the
-// caller must return `exit_code` immediately (2 for a bad command line)
+// Parse argv into `out`. Returns RV_OK on success. Returns RV_ERR_INVAL
+// when the caller must return `exit_code` immediately (2 for a bad command line)
 // without doing anything else: no disc, no SDL, nothing.
-bool rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &out, int &exit_code);
+int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &out, int &exit_code);
 
 } // namespace rv_3dmppc

@@ -26,6 +26,12 @@ struct lua_Debug;
 namespace rv_3dmppc
 {
 
+// Maximum length of a message to escape for safe logging (chunks, gate).
+constexpr int kLogMessageMaxLen = 256;
+
+// Buffer size for asset file names (reload_devtools, require).
+constexpr std::size_t kAssetNameMaxLen = 256;
+
 // The lua machine. Only ever built when the disc declared a lua machine
 // (rv_pccl_conf.hpp: script_memory_size > 0) - a factory upstream guarantees
 // that before this class exists at all, so every method below can assume a
@@ -136,8 +142,8 @@ private:
     int64_t revision_ = 0;    // successful entry reloads
     uint64_t entry_hash_ = 0; // FNV-1a of the bytes the entry is running
 
-    int64_t error_seq_ = 0;     // failed hook calls, ever; the console watches it
-    std::string error_text_;    // the last one, for status
+    int64_t error_seq_ = 0;  // failed hook calls, ever; the console watches it
+    std::string error_text_; // the last one, for status
 
     // lua_Alloc for this machine: a realloc that refuses to push used_ past
     // budget_. `ud` is the rv_pccl_luajit the state was created with (lua_newstate).
@@ -193,8 +199,8 @@ private:
     // environment its creator already has. False for a module
     // (reload_module_bytes_): a module keeps the real globals table it
     // always had and has no state of its own to reach.
-    int64_t raise_(const void *bytecode, int64_t size, const char *name, int &ref_out,
-        rv_pccl_reload_report &report, bool is_entry);
+    int64_t
+    raise_(const void *bytecode, int64_t size, const char *name, int &ref_out, rv_pccl_reload_report &report, bool is_entry);
 
     // Builds the shape the console remembers from whatever `state` actually
     // holds right now - see the definition for the boot/reload split
@@ -246,8 +252,7 @@ private:
     const char *phase_of(const char *phase) const;
 
     // Shared by both entry reload forms once the bytes are in hand.
-    int64_t reload_entry_bytes_(const void *bytecode, int64_t size, const char *name,
-        rv_pccl_reload_report &report);
+    int64_t reload_entry_bytes_(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report);
 
     // Turns a require() module name into the asset name require_ would read:
     // 0 ok (out filled), 1 not a module name, 2 the entry is neither .lua nor .luac.
@@ -257,12 +262,10 @@ private:
     // flight, a name that is not a module, a module nobody has required. On
     // success `asset` holds the asset name and `ref_out` a registry ref to the
     // running module table, which the caller releases.
-    int64_t module_find_(const char *name, char *asset, std::size_t cap, int &ref_out,
-        rv_pccl_reload_report &report);
+    int64_t module_find_(const char *name, char *asset, std::size_t cap, int &ref_out, rv_pccl_reload_report &report);
 
     // Shared by both module reload forms once the bytes are in hand.
-    int64_t reload_module_bytes_(const char *name, const void *bytecode, int64_t size,
-        rv_pccl_reload_report &report);
+    int64_t reload_module_bytes_(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report);
 
     // Updates the tables `old_ref` holds to carry `new_ref`'s contents in
     // place, instead of swapping the reference - anything already holding a
@@ -279,11 +282,11 @@ private:
     // Builds the console<->script vocabulary: opens ffi, feeds it
     // rv_pdk_cdef, and turns rv_pdk_consts into the global `pdk` table (see
     // rv_pccl_luajit.cpp for the whole recipe and why it is not inlined in
-    // the constructor). Returns false on ANY failure - a bad cdef, a symbol
-    // the build never exported - and touches nothing that survives that: the
-    // constructor closes L_ down on a false return, same as a failed
+    // the constructor). Returns RV_OK on success, RV_ERR_INVAL on any failure
+    // (a bad cdef, a symbol the build never exported) - and touches nothing that
+    // survives that: the constructor closes L_ down on error, same as a failed
     // lua_newstate.
-    bool bootstrap_pdk();
+    int bootstrap_pdk();
 
 public:
     rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd);
@@ -323,15 +326,12 @@ public:
 
     int64_t script_call(int64_t handle, const char *fname, int64_t argc, int64_t retc) override;
 
-    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
-        rv_pccl_reload_report &report) override;
+    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
-    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
-        rv_pccl_reload_report &report) override;
+    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report) override;
     int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const std::vector<std::string> &path, rv_pccl_value &out) override;
-    int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
-        std::vector<rv_pccl_key> &out) override;
+    int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target, std::vector<rv_pccl_key> &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;
 };

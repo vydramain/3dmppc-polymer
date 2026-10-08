@@ -24,6 +24,10 @@ constexpr int64_t RV_PCCD_NOT_RESIDENT = 1;
 // the answer can say "restart" instead of "nothing to refresh".
 constexpr int64_t RV_PCCD_UNSUPPORTED_KIND = 2;
 
+// asset_refresh result meaning this drive has no bytes-refresh path at all;
+// the base class's default body returns it.
+constexpr int64_t RV_PCCD_REFRESH_UNSUPPORTED = 3;
+
 class rv_pccd
 {
 public:
@@ -69,6 +73,18 @@ public:
     // negative rv_err when the refresh failed and the old copy stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) = 0;
+
+    // asset_reload's twin for bytes the request carried, not the medium: same
+    // result codes plus RV_PCCD_REFRESH_UNSUPPORTED, and works on a fixed
+    // medium too. The base body refuses unconditionally.
+    virtual int64_t asset_refresh(const char *resname, const void *bytes, int64_t nbytes, rv_cd_resource_kind &kind_out)
+    {
+        (void)resname;
+        (void)bytes;
+        (void)nbytes;
+        (void)kind_out;
+        return RV_PCCD_REFRESH_UNSUPPORTED;
+    }
 
     // Where a resident texture uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s

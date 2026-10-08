@@ -16,9 +16,9 @@ static_assert(rv_3dmppc::RV_PCCA_PCM_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
 static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
     "the mixer's channel count and the platform's PCM sink must agree");
 
-
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
-    rv_3dmppc::rv_pcplatform &platform, rv_3dmppc::rv_pcloader *loader)
+    rv_3dmppc::rv_pcplatform &platform,
+    rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , platform_(platform)
     , ca_(rv_pcca_make(conf.slots.ca, conf.ca))
@@ -29,7 +29,8 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
-          (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : 60) + 1) *
+          (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS) +
+              1) *
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {

@@ -6,7 +6,8 @@ title = "mppcdisc example"
 sources = ["src/*.cpp"]
 
 [assets]
-files = ["assets/*.txt"]
+# The scene is copied verbatim: the disc reads and draws it (src/example-cpp.cpp).
+files = ["assets/*.txt", "scenes/*.scene.toml"]
 
 [textures]
 files = ["assets/*.png"]

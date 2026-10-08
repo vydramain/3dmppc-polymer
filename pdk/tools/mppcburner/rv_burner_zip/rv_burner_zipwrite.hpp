@@ -17,15 +17,17 @@
 #include <string>
 #include <vector>
 
-namespace rv_pdktools {
+namespace rv_pdktools
+{
 
-class rv_zipwriter {
-   public:
-    explicit rv_zipwriter(const std::string& path);
+class rv_zipwriter
+{
+public:
+    explicit rv_zipwriter(const std::string &path);
     ~rv_zipwriter();
 
-    rv_zipwriter(const rv_zipwriter&) = delete;
-    rv_zipwriter& operator=(const rv_zipwriter&) = delete;
+    rv_zipwriter(const rv_zipwriter &) = delete;
+    rv_zipwriter &operator=(const rv_zipwriter &) = delete;
 
     // True when the output file opened. Check before adding anything.
     bool ok() const;
@@ -34,25 +36,28 @@ class rv_zipwriter {
     // that means a FLAT name with no path separators, because rv_cd resolves a
     // resource by name and its contract forbids separators outright.
     //
-    // Returns false and sets `error` on an I/O failure or a duplicate name.
-    bool add(const std::string& name, const void* data, std::size_t size, std::string& error);
+    // Returns RV_OK on success, RV_ERR_IO on write failure, RV_ERR_INVAL on a
+    // duplicate or invalid name. Sets `error` on failure.
+    int add(const std::string &name, const void *data, std::size_t size, std::string &error);
 
-    // Same, reading the bytes from a file on disk.
-    bool add_file(const std::string& name, const std::string& source_path, std::string& error);
+    // Same, reading the bytes from a file on disk. Returns RV_OK on success,
+    // RV_ERR_IO on read or write failure, RV_ERR_INVAL on a duplicate or
+    // invalid name. Sets `error` on failure.
+    int add_file(const std::string &name, const std::string &source_path, std::string &error);
 
     // Write the central directory and close. MUST be called: an archive without
-    // it is not an archive, and no reader will open it. Returns false on I/O
-    // failure, in which case the partial file is removed rather than left
-    // looking like a disc.
-    bool finish(std::string& error);
+    // it is not an archive, and no reader will open it. Returns RV_OK on
+    // success, RV_ERR_IO or RV_ERR_INVAL on failure. Removes the partial file
+    // on I/O error. Sets `error` on failure.
+    int finish(std::string &error);
 
     // Names added so far, in order — the burner prints them and checks for the
     // flat-name collisions the console could not diagnose.
-    const std::vector<std::string>& entries() const;
+    const std::vector<std::string> &entries() const;
 
-   private:
+private:
     struct rv_zipwriter_impl;
-    rv_zipwriter_impl* impl_;
+    rv_zipwriter_impl *impl_;
 };
 
-}  // namespace rv_pdktools
+} // namespace rv_pdktools

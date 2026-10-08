@@ -25,6 +25,13 @@ namespace
 constexpr std::string_view RV_PCONSOLE_PAUSE_LABEL = "CONSOLE PAUSED";
 constexpr int RV_PCONSOLE_PAUSE_LABEL_SCALE = 2;
 
+// Glyph rendering constants.
+constexpr uint8_t GLYPH_ROW_BIT_MSB = 0x80u;           // High bit mask for checking glyph row pixels
+constexpr uint32_t OPAQUE_BLACK = 0xFF000000u;         // Opaque black for pause overlay background
+constexpr uint32_t HALF_BRIGHTNESS_MASK = 0x007F7F7Fu; // Mask for half brightness after >>1
+constexpr uint32_t OPAQUE_WHITE = 0xFFFFFFFFu;         // Opaque white for pause label text
+constexpr int CENTER_DIVISOR = 2;                      // Divisor for centering text horizontally and vertically
+
 // One line of pdklib's bitmap font, straight into an ARGB buffer.
 //
 // Only the DATA is borrowed from pdklib, not its text drawer: that one paints
@@ -36,8 +43,7 @@ constexpr int RV_PCONSOLE_PAUSE_LABEL_SCALE = 2;
 // One set texel of a glyph, magnified: `scale` by `scale` pixels of one colour.
 // Clipped rather than assumed to fit - the label is sized for 320x240 and a
 // disc may declare a smaller screen.
-void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0, int scale,
-    uint32_t argb)
+void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0, int scale, uint32_t argb)
 {
     for (int sy = 0; sy < scale; ++sy) {
         for (int sx = 0; sx < scale; ++sx) {
@@ -50,18 +56,25 @@ void blit_texel(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_
     }
 }
 
-void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t x0, int64_t y0,
-    std::string_view text, int scale, uint32_t argb)
+void rv_pcpause_blit_text(uint32_t *dst,
+    int64_t width,
+    int64_t height,
+    int64_t x0,
+    int64_t y0,
+    std::string_view text,
+    int scale,
+    uint32_t argb)
 {
     int64_t pen = x0;
     for (const char c : text) {
-        const int glyph = (c >= 32 && c <= 126) ? c - 32 : rv_pdklib::rv_font_notdef_index;
+        const int glyph = (c >= rv_pdklib::rv_font_first_code && c <= rv_pdklib::rv_font_last_code) ?
+            c - rv_pdklib::rv_font_first_code :
+            rv_pdklib::rv_font_notdef_index;
         const uint8_t *rows = &rv_pdklib::rv_font_bits[glyph * rv_pdklib::rv_font_cell_height];
         for (int row = 0; row < rv_pdklib::rv_font_cell_height; ++row) {
             for (int column = 0; column < rv_pdklib::rv_font_ink_width; ++column) {
-                if ((rows[row] & (0x80u >> column)) != 0) {
-                    blit_texel(dst, width, height, pen + column * scale, y0 + row * scale, scale,
-                        argb);
+                if ((rows[row] & (GLYPH_ROW_BIT_MSB >> column)) != 0) {
+                    blit_texel(dst, width, height, pen + column * scale, y0 + row * scale, scale, argb);
                 }
             }
         }
@@ -78,17 +91,16 @@ void rv_pcpause_blit_text(uint32_t *dst, int64_t width, int64_t height, int64_t 
 // pause destructive - the text would end up in --dump-frame, and a second pause
 // would print over the first - and the disc's last frame has to stay exactly
 // what the disc drew.
-void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame,
-    int64_t width, int64_t height)
+void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame, int64_t width, int64_t height)
 {
     const std::size_t pixels = static_cast<std::size_t>(width * height);
-    out.assign(pixels, 0xFF000000u);
+    out.assign(pixels, OPAQUE_BLACK);
     if (frame != nullptr) {
         for (std::size_t i = 0; i < pixels; ++i) {
             // Halved, not blacked out. The developer still needs to see WHAT is
             // on screen when they stopped it; the dimming is what keeps white
             // text readable over a bright frame.
-            out[i] = 0xFF000000u | ((frame[i] >> 1) & 0x007F7F7Fu);
+            out[i] = OPAQUE_BLACK | ((frame[i] >> 1) & HALF_BRIGHTNESS_MASK);
         }
     }
 
@@ -96,12 +108,17 @@ void rv_pcpause_overlay_build(std::vector<uint32_t> &out, const uint32_t *frame,
     // carries blank width that must come off before centring - otherwise the
     // line sits a few pixels left of centre.
     const int scale = RV_PCONSOLE_PAUSE_LABEL_SCALE;
-    const int64_t text_width =
-        static_cast<int64_t>(RV_PCONSOLE_PAUSE_LABEL.size()) * rv_pdklib::rv_font_cell_width * scale -
+    const int64_t text_width = static_cast<int64_t>(RV_PCONSOLE_PAUSE_LABEL.size()) * rv_pdklib::rv_font_cell_width * scale -
         (rv_pdklib::rv_font_cell_width - rv_pdklib::rv_font_ink_width) * scale;
     const int64_t text_height = rv_pdklib::rv_font_ink_height * scale;
-    rv_pcpause_blit_text(out.data(), width, height, (width - text_width) / 2,
-        (height - text_height) / 2, RV_PCONSOLE_PAUSE_LABEL, scale, 0xFFFFFFFFu);
+    rv_pcpause_blit_text(out.data(),
+        width,
+        height,
+        (width - text_width) / CENTER_DIVISOR,
+        (height - text_height) / CENTER_DIVISOR,
+        RV_PCONSOLE_PAUSE_LABEL,
+        scale,
+        OPAQUE_WHITE);
 }
 
 } // namespace rv_3dmppc

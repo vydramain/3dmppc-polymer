@@ -16,8 +16,7 @@ rv_pcbudget_cost rv_pcca_null::evaluate(const rv_pdklib::rv_manifest_budget & /*
 rv_pcca_null::rv_pcca_null(const rv_pcca_conf &conf)
     : conf_(conf)
 {
-    RV_LOG_INFO("pcca", "audio off ({} voice(s), {} byte(s) declared, no-op)", conf_.voice_count,
-        conf_.sound_memory_size);
+    RV_LOG_INFO("pcca", "audio off ({} voice(s), {} byte(s) declared, no-op)", conf_.voice_count, conf_.sound_memory_size);
 }
 
 int64_t rv_pcca_null::voice_count()
@@ -77,7 +76,7 @@ void rv_pcca_null::advance(int16_t *out, int64_t frames)
     if (!out || frames <= 0) {
         return;
     }
-    std::fill(out, out + 2 * frames, static_cast<int16_t>(0));
+    std::fill(out, out + RV_PCCA_PCM_CHANNELS * frames, static_cast<int16_t>(0));
 }
 
 } // namespace rv_3dmppc

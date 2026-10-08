@@ -4,7 +4,8 @@
 
 #include "pdklib/rv_math/rv_math.hpp"
 
-namespace rv_pdklib {
+namespace rv_pdklib
+{
 
 // The camera half of a disc's transform chain: a VIEW matrix (where the eye is)
 // and a PROJECTION matrix (what the lens does). Both follow the conventions fixed
@@ -44,7 +45,8 @@ namespace rv_pdklib {
 // Degenerate input (eye == target, or `up` parallel to the aim) yields a
 // zero-length axis and a collapsed matrix. That mirrors rv_normalize: a disc has
 // nowhere to report an error to mid-frame, and a collapsed frame is visible.
-inline rv_mat4 rv_look_at(rv_vec3 eye, rv_vec3 target, rv_vec3 up) {
+inline rv_mat4 rv_look_at(rv_vec3 eye, rv_vec3 target, rv_vec3 up)
+{
     const rv_vec3 forward = rv_normalize(target - eye);
     const rv_vec3 right = rv_normalize(rv_cross(up, forward));
     const rv_vec3 upward = rv_cross(forward, right);
@@ -84,8 +86,8 @@ inline rv_mat4 rv_look_at(rv_vec3 eye, rv_vec3 target, rv_vec3 up) {
 // near must be > 0 and far > near — a zero or negative near plane is what makes
 // the projection singular, and the near-plane rejection in rv_xform.hpp exists
 // precisely because points can sit on the wrong side of it.
-inline rv_mat4 rv_perspective(float fov_y_radians, float aspect, float near_plane,
-                              float far_plane) {
+inline rv_mat4 rv_perspective(float fov_y_radians, float aspect, float near_plane, float far_plane)
+{
     const float focal = 1.0f / std::tan(fov_y_radians * 0.5f);
     const float range = far_plane - near_plane;
 
@@ -94,7 +96,7 @@ inline rv_mat4 rv_perspective(float fov_y_radians, float aspect, float near_plan
     r.m[1][1] = focal;
     r.m[2][2] = far_plane / range;
     r.m[2][3] = -(near_plane * far_plane) / range;
-    r.m[3][2] = 1.0f;  // w := z_view — left-handed: +z is IN FRONT of the eye
+    r.m[3][2] = 1.0f; // w := z_view — left-handed: +z is IN FRONT of the eye
     return r;
 }
 
@@ -112,8 +114,9 @@ struct rv_camera {
     float far_plane;
 };
 
-inline rv_camera rv_camera_make(rv_vec3 eye, rv_vec3 target, rv_vec3 up, float fov_y_radians,
-                                float aspect, float near_plane, float far_plane) {
+inline rv_camera
+rv_camera_make(rv_vec3 eye, rv_vec3 target, rv_vec3 up, float fov_y_radians, float aspect, float near_plane, float far_plane)
+{
     rv_camera camera{};
     camera.view = rv_look_at(eye, target, up);
     camera.projection = rv_perspective(fov_y_radians, aspect, near_plane, far_plane);
@@ -124,19 +127,22 @@ inline rv_camera rv_camera_make(rv_vec3 eye, rv_vec3 target, rv_vec3 up, float f
 
 // projection * view — the half of the chain that is constant for the whole frame.
 // Multiply a model matrix in from the RIGHT to get an mvp: it is applied first.
-inline rv_mat4 rv_camera_view_projection(const rv_camera& camera) {
+inline rv_mat4 rv_camera_view_projection(const rv_camera &camera)
+{
     return rv_mat4_mul(camera.projection, camera.view);
 }
 
-inline rv_mat4 rv_camera_mvp(const rv_camera& camera, const rv_mat4& model) {
+inline rv_mat4 rv_camera_mvp(const rv_camera &camera, const rv_mat4 &model)
+{
     return rv_mat4_mul(rv_camera_view_projection(camera), model);
 }
 
 // One world point through one combined matrix, into clip space. The w of the
 // result is NOT 1 and must not be dropped: the near test and the divide both
 // live on it.
-inline rv_vec4 rv_world_to_clip(const rv_mat4& mvp, rv_vec3 world) {
+inline rv_vec4 rv_world_to_clip(const rv_mat4 &mvp, rv_vec3 world)
+{
     return rv_mat4_mul_vec4(mvp, rv_point4(world));
 }
 
-}  // namespace rv_pdklib
+} // namespace rv_pdklib

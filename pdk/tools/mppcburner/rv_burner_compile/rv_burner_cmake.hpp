@@ -36,8 +36,7 @@ namespace rv_pdktools
 /// @param absolute_includes  extra include directories, already checked
 /// @param absolute_sources   the disc's .cpp files, absolute
 /// @return the complete text of a CMakeLists.txt
-std::string cmake_project_text(
-    const rv_pdklib::rv_manifest &manifest,
+std::string cmake_project_text(const rv_pdklib::rv_manifest &manifest,
     const std::string &pdk_dir,
     const std::string &pdklib_dir,
     const std::vector<std::string> &absolute_includes,
@@ -53,8 +52,7 @@ std::string cmake_project_text(
 /// @param absolute_sources   the disc's .cpp files, absolute
 /// @param error              set on any write failure
 /// @return 0 on success, 1 on refusal
-int create_cmakelists(
-    const rv_burner_options &options,
+int create_cmakelists(const rv_burner_options &options,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &project_dir,
     const std::vector<std::string> &absolute_includes,
@@ -72,9 +70,6 @@ int create_cmakelists(
 /// @param error        set with a one-line summary; the child's own output goes
 ///                     to stderr
 /// @return 0 on success, 1 on refusal
-int configure_cmake(
-    const std::filesystem::path &binary_dir,
-    const std::filesystem::path &project_dir,
-    std::string &error);
+int configure_cmake(const std::filesystem::path &binary_dir, const std::filesystem::path &project_dir, std::string &error);
 
 } // namespace rv_pdktools

@@ -10,11 +10,10 @@ namespace rv_pdklib
 inline constexpr std::size_t RV_DISC_HASH_BYTES = 8;
 
 // Compute the disc code checksum over the ELF64 image in `elf` (`elf_size`
-// bytes) and write RV_DISC_HASH_BYTES bytes into `out`. Returns true on
-// success; on failure returns false and fills `error` with one sentence.
+// bytes) and write RV_DISC_HASH_BYTES bytes into `out`. Returns RV_OK on
+// success; on failure returns RV_ERR_INVAL and fills `error` with one sentence.
 // Never reads outside [elf, elf + elf_size).
-bool rv_disc_hash_compute(
-    const unsigned char *elf,
+int rv_disc_hash_compute(const unsigned char *elf,
     std::size_t elf_size,
     unsigned char out[RV_DISC_HASH_BYTES],
     std::string &error);
@@ -23,11 +22,7 @@ bool rv_disc_hash_compute(
 // burner writes the checksum and where a reader would find it. Locates the
 // section named RV_MPPC_SECTION_NAME_DEF (".note.rv_mppc_ver"), parses the
 // Elf64_Nhdr inside it, and checks the note's owner and descriptor size.
-// Returns true and sets `magic_offset`, or false with a one-sentence `error`.
-bool rv_disc_hash_magic_offset(
-    const unsigned char *elf,
-    std::size_t elf_size,
-    std::size_t &magic_offset,
-    std::string &error);
+// Returns RV_OK and sets `magic_offset`, or RV_ERR_INVAL with a one-sentence `error`.
+int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, std::size_t &magic_offset, std::string &error);
 
 } // namespace rv_pdklib

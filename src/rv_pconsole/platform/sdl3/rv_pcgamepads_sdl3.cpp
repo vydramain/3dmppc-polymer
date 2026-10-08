@@ -32,14 +32,12 @@ rv_iaxes stick_axes(float raw_x, float raw_y)
     }
 
     const float clamped = magnitude > 1.0f ? 1.0f : magnitude;
-    const float scaled = (clamped - RV_PCGAMEPADS_SDL3_STICK_DEADZONE) /
-        (1.0f - RV_PCGAMEPADS_SDL3_STICK_DEADZONE);
+    const float scaled = (clamped - RV_PCGAMEPADS_SDL3_STICK_DEADZONE) / (1.0f - RV_PCGAMEPADS_SDL3_STICK_DEADZONE);
     const float k = scaled / magnitude;
     return { raw_x * k, raw_y * k };
 }
 
-uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uint64_t west,
-    uint64_t east, uint64_t move)
+uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uint64_t west, uint64_t east, uint64_t move)
 {
     if (axes.x == 0.0f && axes.y == 0.0f) {
         return 0;
@@ -59,12 +57,12 @@ uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uin
 // single point where SDL's conventions are allowed to exist (the caller).
 float axis_norm(int16_t raw)
 {
-    return static_cast<float>(raw) / 32767.0f;
+    return static_cast<float>(raw) / static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
 }
 
 float trigger_norm(int16_t raw)
 {
-    const float v = static_cast<float>(raw) / 32767.0f;
+    const float v = static_cast<float>(raw) / static_cast<float>(SDL_JOYSTICK_AXIS_MAX);
     return v < 0.0f ? 0.0f : v;
 }
 
@@ -143,14 +141,12 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     }
 
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_LEFTX)) {
-        pad_abilities |= RV_ISOURCE_LEFT_STICK_MOVE | RV_ISOURCE_LEFT_STICK_DPAD_NORTH |
-            RV_ISOURCE_LEFT_STICK_DPAD_SOUTH | RV_ISOURCE_LEFT_STICK_DPAD_WEST |
-            RV_ISOURCE_LEFT_STICK_DPAD_EAST;
+        pad_abilities |= RV_ISOURCE_LEFT_STICK_MOVE | RV_ISOURCE_LEFT_STICK_DPAD_NORTH | RV_ISOURCE_LEFT_STICK_DPAD_SOUTH |
+            RV_ISOURCE_LEFT_STICK_DPAD_WEST | RV_ISOURCE_LEFT_STICK_DPAD_EAST;
     }
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)) {
-        pad_abilities |= RV_ISOURCE_RIGHT_STICK_MOVE | RV_ISOURCE_RIGHT_STICK_DPAD_NORTH |
-            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH | RV_ISOURCE_RIGHT_STICK_DPAD_WEST |
-            RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
+        pad_abilities |= RV_ISOURCE_RIGHT_STICK_MOVE | RV_ISOURCE_RIGHT_STICK_DPAD_NORTH | RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH |
+            RV_ISOURCE_RIGHT_STICK_DPAD_WEST | RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
     }
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER)) {
         pad_abilities |= RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL | RV_ISOURCE_LEFT_TRIGGER_FULL_PULL;
@@ -162,8 +158,7 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     rv_pcpad_sdl3 entry;
     entry.pad = pad;
     entry.abilities = pad_abilities;
-    RV_LOG_INFO("pcplatform", "gamepad '{}' connected (id {})", SDL_GetGamepadName(pad),
-        joystick_id);
+    RV_LOG_INFO("pcplatform", "gamepad '{}' connected (id {})", SDL_GetGamepadName(pad), joystick_id);
     pads_.emplace(joystick_id, entry);
     connected_.push_back(joystick_id);
     ++generation_;
@@ -235,16 +230,21 @@ void rv_pcgamepads_sdl3::poll_all()
         state.right_stick = stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)),
             -axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY)));
 
-        state.buttons |= stick_direction_bits(state.left_stick, RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
-            RV_ISOURCE_LEFT_STICK_DPAD_SOUTH, RV_ISOURCE_LEFT_STICK_DPAD_WEST,
-            RV_ISOURCE_LEFT_STICK_DPAD_EAST, RV_ISOURCE_LEFT_STICK_MOVE);
-        state.buttons |= stick_direction_bits(state.right_stick, RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
-            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH, RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
-            RV_ISOURCE_RIGHT_STICK_DPAD_EAST, RV_ISOURCE_RIGHT_STICK_MOVE);
+        state.buttons |= stick_direction_bits(state.left_stick,
+            RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
+            RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_LEFT_STICK_DPAD_WEST,
+            RV_ISOURCE_LEFT_STICK_DPAD_EAST,
+            RV_ISOURCE_LEFT_STICK_MOVE);
+        state.buttons |= stick_direction_bits(state.right_stick,
+            RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
+            RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
+            RV_ISOURCE_RIGHT_STICK_DPAD_EAST,
+            RV_ISOURCE_RIGHT_STICK_MOVE);
 
         state.left_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER));
-        state.right_trigger =
-            trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
+        state.right_trigger = trigger_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
 
         if (state.left_trigger > RV_PCGAMEPADS_SDL3_TRIGGER_SOFT) {
             state.buttons |= RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL;
@@ -265,8 +265,7 @@ void rv_pcgamepads_sdl3::poll_all()
     }
 }
 
-int64_t rv_pcgamepads_sdl3::rumble(uint32_t id, uint16_t left, uint16_t right,
-    uint16_t duration_ms)
+int64_t rv_pcgamepads_sdl3::rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms)
 {
     const auto it = pads_.find(id);
     if (it == pads_.end() || !it->second.pad) {
@@ -276,16 +275,14 @@ int64_t rv_pcgamepads_sdl3::rumble(uint32_t id, uint16_t left, uint16_t right,
     return SDL_RumbleGamepad(it->second.pad, left, right, duration_ms) ? RV_OK : RV_ERR_IO;
 }
 
-int64_t rv_pcgamepads_sdl3::rumble_triggers(uint32_t id, uint16_t left, uint16_t right,
-    uint16_t duration_ms)
+int64_t rv_pcgamepads_sdl3::rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms)
 {
     const auto it = pads_.find(id);
     if (it == pads_.end() || !it->second.pad) {
         return RV_ERR_INVAL;
     }
 
-    return SDL_RumbleGamepadTriggers(it->second.pad, left, right, duration_ms) ? RV_OK
-                                                                                : RV_ERR_IO;
+    return SDL_RumbleGamepadTriggers(it->second.pad, left, right, duration_ms) ? RV_OK : RV_ERR_IO;
 }
 
 } // namespace rv_3dmppc

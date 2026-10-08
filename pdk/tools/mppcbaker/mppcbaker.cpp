@@ -13,11 +13,13 @@
 #include "pdk/cv/rv_texel.h"
 #include "pdk/cv/rv_texture.h"
 #include "pdk/cv/rv_vertex.h"
+#include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 #include "rv_baker_encode.hpp"
+#include "rv_baker_wav.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -101,13 +103,37 @@ void rv_baker_print_usage(std::FILE *out)
     rv_pdklib::rv_fprintf(out,
         "usage: mppcbaker <input.png> <output.mppctex> --format %s\n"
         "                [--transparent-key RRGGBB]\n"
+        "       mppcbaker <input.wav> <output.pcm>\n"
         "\n"
         "  --format            texel encoding (rv_texfmt): 4-bit or 8-bit palette\n"
         "                      index, or 15-bit direct colour.\n"
         "  --transparent-key   source colour (hex, e.g. FF00FF) to encode as the\n"
         "                      fully transparent value 0000h. PNG alpha < 128 is\n"
-        "                      treated as transparent as well, always.\n",
+        "                      treated as transparent as well, always.\n"
+        "\n"
+        "A .wav input is baked to headerless S16LE mono at 44100 Hz, the shape the\n"
+        "console plays; it must already be PCM 16-bit 44100 Hz mono or stereo, and\n"
+        "takes no --format.\n"
+        "\n"
+        "mppcbaker --version prints one line, `mppcbaker <major>.<minor>`.\n",
         format_texfmt_names("|").c_str());
+}
+
+// True when `path` ends in ".wav", case-insensitively: the one thing that picks
+// the WAV path over the PNG one.
+bool has_wav_extension(const std::string &path)
+{
+    constexpr std::string_view suffix = ".wav";
+    if (path.size() < suffix.size()) {
+        return false;
+    }
+    const std::string_view tail = std::string_view(path).substr(path.size() - suffix.size());
+    for (size_t i = 0; i < suffix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(tail[i])) != suffix[i]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // The ONE place a failure becomes something the user sees and a code the shell
@@ -132,14 +158,33 @@ constexpr size_t RV_BAKER_HEX_RGB_DIGITS = 6;
 // Bits in one hex digit of RRGGBB.
 constexpr int RV_BAKER_HEX_DIGIT_BITS = 4;
 
-// Parses RRGGBB, with an optional leading '#', into an 8-bit colour.
-bool parse_hex_rgb(std::string_view text, rv_color *out)
+// Hex digit value for 'a'-'f' (10-15 mapped from a-f).
+constexpr int RV_BAKER_HEX_DIGIT_OFFSET_AF = 10;
+
+// Bits per byte: used to calculate channel bit shifts in RRGGBB.
+constexpr int RV_BAKER_BITS_PER_BYTE = 8;
+
+// Green channel bit shift in RRGGBB: one byte up = bits_per_byte.
+constexpr int RV_BAKER_GREEN_CHANNEL_SHIFT = RV_BAKER_BITS_PER_BYTE;
+
+// Red channel bit shift in RRGGBB: one byte above green = green + bits_per_byte.
+constexpr int RV_BAKER_RED_CHANNEL_SHIFT = RV_BAKER_GREEN_CHANNEL_SHIFT + RV_BAKER_BITS_PER_BYTE;
+
+// Mask for a single byte: extract lower 8 bits.
+constexpr uint32_t RV_BAKER_BYTE_MASK = 0xFF;
+
+// Positional arguments required after option processing: input and output paths.
+constexpr int RV_BAKER_POSITIONAL_ARGS_REQUIRED = 2;
+
+// Parses RRGGBB, with an optional leading '#', into an 8-bit colour; RV_OK on
+// success, RV_ERR_INVAL if the string is not six hex digits.
+int parse_hex_rgb(std::string_view text, rv_color *out)
 {
     if (!text.empty() && text.front() == '#') {
         text.remove_prefix(1);
     }
     if (text.size() != RV_BAKER_HEX_RGB_DIGITS) {
-        return false;
+        return RV_ERR_INVAL;
     }
     uint32_t value = 0;
     for (const char c : text) {
@@ -148,16 +193,16 @@ bool parse_hex_rgb(std::string_view text, rv_color *out)
         if (std::isdigit(u)) {
             digit = c - '0';
         } else if (std::isxdigit(u)) {
-            digit = std::tolower(u) - 'a' + 10;
+            digit = std::tolower(u) - 'a' + RV_BAKER_HEX_DIGIT_OFFSET_AF;
         } else {
-            return false;
+            return RV_ERR_INVAL;
         }
         value = (value << RV_BAKER_HEX_DIGIT_BITS) | static_cast<uint32_t>(digit);
     }
-    out->r = static_cast<uint8_t>((value >> 16) & 0xFF);
-    out->g = static_cast<uint8_t>((value >> 8) & 0xFF);
-    out->b = static_cast<uint8_t>(value & 0xFF);
-    return true;
+    out->r = static_cast<uint8_t>((value >> RV_BAKER_RED_CHANNEL_SHIFT) & RV_BAKER_BYTE_MASK);
+    out->g = static_cast<uint8_t>((value >> RV_BAKER_GREEN_CHANNEL_SHIFT) & RV_BAKER_BYTE_MASK);
+    out->b = static_cast<uint8_t>(value & RV_BAKER_BYTE_MASK);
+    return RV_OK;
 }
 
 // Fills `out` from argv. RV_ERR_INVAL is a command line that cannot be obeyed;
@@ -186,7 +231,7 @@ rv_err parse_args(int argc, char **argv, options *out, baker_error *error)
         }
         case 'k': {
             rv_color key;
-            if (!parse_hex_rgb(optarg, &key)) {
+            if (parse_hex_rgb(optarg, &key) != RV_OK) {
                 error->message = "'" + std::string(optarg) + "' is not six hex digits (e.g. FF00FF)";
                 return RV_ERR_INVAL;
             }
@@ -201,17 +246,25 @@ rv_err parse_args(int argc, char **argv, options *out, baker_error *error)
     }
 
     // optind is where getopt_long left the first non-flag argument: input, output.
-    if (argc - optind != 2) {
+    if (argc - optind != RV_BAKER_POSITIONAL_ARGS_REQUIRED) {
         error->message = "expected exactly one input and one output path";
         error->show_usage = true;
         return RV_ERR_INVAL;
+    }
+    out->input = argv[optind];
+    out->output = argv[optind + 1];
+
+    if (has_wav_extension(out->input)) {
+        if (out->format.has_value() || out->key.has_value()) {
+            error->message = "'--format'/'--transparent-key' do not apply to a WAV input";
+            return RV_ERR_INVAL;
+        }
+        return RV_OK;
     }
     if (!out->format.has_value()) {
         error->message = "--format is required (" + format_texfmt_names(", ") + ")";
         return RV_ERR_INVAL;
     }
-    out->input = argv[optind];
-    out->output = argv[optind + 1];
     return RV_OK;
 }
 
@@ -235,8 +288,7 @@ rv_err load_source(const options &opt, source_image *out, baker_error *error)
     int width = 0;
     int height = 0;
     int source_channels = 0;
-    const stbi_pixels pixels(
-        stbi_load(opt.input.c_str(), &width, &height, &source_channels, RV_BAKER_SOURCE_CHANNELS));
+    const stbi_pixels pixels(stbi_load(opt.input.c_str(), &width, &height, &source_channels, RV_BAKER_SOURCE_CHANNELS));
     if (pixels == nullptr) {
         const char *reason = stbi_failure_reason();
         error->message = "cannot read '" + opt.input + "': " + (reason != nullptr ? reason : "unknown");
@@ -308,6 +360,22 @@ int run(int argc, char **argv)
         return RV_BAKER_EXIT_SUCCESS;
     }
 
+    if (has_wav_extension(opt.input)) {
+        std::vector<uint8_t> pcm;
+        if (load_wav_pcm(opt.input, &pcm, &error) != RV_OK) {
+            return report(error);
+        }
+        if (write_file(opt.output, pcm, &error) != RV_OK) {
+            return report(error);
+        }
+        std::printf("mppcbaker: %s -> %s (%zu samples, %zu bytes)\n",
+            opt.input.c_str(),
+            opt.output.c_str(),
+            pcm.size() / sizeof(int16_t),
+            pcm.size());
+        return RV_BAKER_EXIT_SUCCESS;
+    }
+
     source_image src;
     if (load_source(opt, &src, &error) != RV_OK) {
         return report(error);
@@ -335,7 +403,20 @@ int run(int argc, char **argv)
 } // namespace
 } // namespace rv_pdktools
 
+namespace
+{
+
+// Argc value for version flag check in main: program name plus one --version flag.
+constexpr int RV_BAKER_ARGC_VERSION_CHECK = 2;
+
+} // namespace
+
 int main(int argc, char **argv)
 {
+    // One line a front end can show and compare (the editor's diagnostics).
+    if (argc == RV_BAKER_ARGC_VERSION_CHECK && std::string_view(argv[1]) == "--version") {
+        rv_pdklib::rv_fprintf(stdout, "mppcbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        return 0;
+    }
     return rv_pdktools::run(argc, argv);
 }

@@ -22,6 +22,12 @@
 namespace rv_3dmppc
 {
 
+// Texel format constants shared across the cv module.
+// IDX4: two 4-bit indices per byte.
+constexpr int RV_PCTEXEL_IDX4_TEXELS_PER_BYTE = 2;
+// DIRECT15: 2 bytes per texel.
+constexpr int RV_PCTEXEL_DIRECT15_BYTES_PER_TEXEL = 2;
+
 // A read-only view of one uploaded texture, plus its palette when the format is
 // an indexed one. Everything the sampler needs and nothing it does not: no
 // address, no pool, no ownership.
@@ -56,8 +62,7 @@ public:
     // Fetch the texel at (u, v). Coordinates outside the texture are resolved by
     // `mapping`; STRETCH arrives here already rescaled by the rasterizer and is
     // therefore treated as CLAMP.
-    static rv_pctexel_sample sample(const rv_pctexview &view, int64_t u, int64_t v,
-        rv_texture_mapping_type mapping);
+    static rv_pctexel_sample sample(const rv_pctexview &view, int64_t u, int64_t v, rv_texture_mapping_type mapping);
 
     // Bring one axis coordinate into [0, size). `size` must be positive (a valid
     // view guarantees it). Exposed because the rasterizer's STRETCH path wants

@@ -18,8 +18,7 @@ namespace
 class rv_pcwindow_null final : public rv_pcwindow
 {
 public:
-    int64_t open(const char * /*title*/, int64_t /*screen_width*/, int64_t /*screen_height*/,
-        uint64_t /*scale*/) override
+    int64_t open(const char * /*title*/, int64_t /*screen_width*/, int64_t /*screen_height*/, uint64_t /*scale*/) override
     {
         return RV_OK;
     }
@@ -84,14 +83,12 @@ public:
         return rv_istate{};
     }
 
-    int64_t rumble(uint32_t /*id*/, uint16_t /*left*/, uint16_t /*right*/,
-        uint16_t /*duration_ms*/) override
+    int64_t rumble(uint32_t /*id*/, uint16_t /*left*/, uint16_t /*right*/, uint16_t /*duration_ms*/) override
     {
         return RV_ERR_INVAL;
     }
 
-    int64_t rumble_triggers(uint32_t /*id*/, uint16_t /*left*/, uint16_t /*right*/,
-        uint16_t /*duration_ms*/) override
+    int64_t rumble_triggers(uint32_t /*id*/, uint16_t /*left*/, uint16_t /*right*/, uint16_t /*duration_ms*/) override
     {
         return RV_ERR_INVAL;
     }

@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "pdk/rv_err.h"
+
 namespace rv_3dmppc
 {
 
@@ -41,8 +43,7 @@ void rv_pcmixer::set_muted(bool muted)
     muted_ = muted;
 }
 
-void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-    int64_t addr)
+void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr)
 {
     std::lock_guard<std::mutex> guard(lock_);
     for (std::size_t i = 0; i < voices_.size(); ++i) {
@@ -56,14 +57,19 @@ void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *d
 // moves, so a call naming one unarmed voice out of eight leaves all eight
 // exactly as they were. Half-applied hardware commands are the kind of bug that
 // only shows up as an occasional stuck note.
-bool rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
+int rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
 {
-    if (require_armed) {
+    const auto all_armed = [this, mask]() {
         for (std::size_t i = 0; i < voices_.size(); ++i) {
             if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
                 return false;
             }
         }
+        return true;
+    };
+
+    if (require_armed && !all_armed()) {
+        return RV_ERR_INVAL;
     }
 
     for (std::size_t i = 0; i < voices_.size(); ++i) {
@@ -71,16 +77,16 @@ bool rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvo
             (voices_[i].*action)();
         }
     }
-    return true;
+    return RV_OK;
 }
 
-bool rv_pcmixer::play(int64_t mask)
+int rv_pcmixer::play(int64_t mask)
 {
     std::lock_guard<std::mutex> guard(lock_);
     return for_each_locked(mask, true, &rv_pcvoice::play);
 }
 
-bool rv_pcmixer::stop(int64_t mask)
+int rv_pcmixer::stop(int64_t mask)
 {
     std::lock_guard<std::mutex> guard(lock_);
     return for_each_locked(mask, true, &rv_pcvoice::stop);
@@ -161,8 +167,7 @@ void rv_pcmixer::render(int16_t *out, int64_t frames)
         const int64_t block = std::min(RV_PCMIXER_BLOCK_FRAMES, frames - done);
         const std::size_t values = static_cast<std::size_t>(block * RV_PCMIXER_CHANNELS);
 
-        std::fill(accumulator_.begin(), accumulator_.begin() + static_cast<std::ptrdiff_t>(values),
-            0);
+        std::fill(accumulator_.begin(), accumulator_.begin() + static_cast<std::ptrdiff_t>(values), 0);
         for (rv_pcvoice &voice : voices_) {
             voice.mix(accumulator_.data(), block);
         }

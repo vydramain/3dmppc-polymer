@@ -42,17 +42,17 @@ namespace rv_3dmppc
 // Ceilings. Every one of them exists because the far end of this channel may be
 // a program with a bug: a header that never ends, a payload size typed by hand,
 // a reader that stopped reading. None of them may become an unbounded buffer.
-constexpr int64_t RV_PCCMDCHAN_HEADER_MAX = 4096;          // one request line
-constexpr int64_t RV_PCCMDCHAN_PAYLOAD_MAX = 4 << 20;      // one script
-constexpr int64_t RV_PCCMDCHAN_OUT_MAX = 256 * 1024;       // answers not yet taken
-constexpr int64_t RV_PCCMDCHAN_REQS_PER_TICK = 32;         // the CALLER honours this one
+constexpr int64_t RV_PCCMDCHAN_HEADER_MAX = 4096;     // one request line
+constexpr int64_t RV_PCCMDCHAN_PAYLOAD_MAX = 4 << 20; // one script
+constexpr int64_t RV_PCCMDCHAN_OUT_MAX = 256 * 1024;  // answers not yet taken
+constexpr int64_t RV_PCCMDCHAN_REQS_PER_TICK = 32;    // the CALLER honours this one
 // One DIAGNOSTIC string inside an answer, before hex doubles it. A lua error
 // message and an attach() refusal reason are written by the disc, so their
 // length is the disc's choice: a 140 KB reason hexed to 280 KB used to overrun
 // the answer queue and close the channel, which loses the very sentence that
 // explained why. Bounded here, truncation announced in the text, and the number
 // leaves the rest of the queue room for the answers already in it.
-constexpr int64_t RV_PCCMDCHAN_MSG_MAX = 4096;             // one diagnostic string
+constexpr int64_t RV_PCCMDCHAN_MSG_MAX = 4096; // one diagnostic string
 // Comfortably above HEADER_MAX + PAYLOAD_MAX so one legal request plus its
 // payload never trips it, but still a bound: a sender that outruns the
 // console must hit this instead of growing the backlog without limit.

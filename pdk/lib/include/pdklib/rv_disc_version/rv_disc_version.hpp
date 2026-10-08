@@ -23,8 +23,7 @@ struct rv_mppc_note {
 // payload, with no alignment holes between the fields.
 static_assert(sizeof(RV_MPPC_NOTE_OWNER_DEF) % 4 == 0,
     "note owner length must be a multiple of 4; pad the string or fix the reader walk");
-static_assert(sizeof(rv_mppc_note) ==
-    12 + sizeof(RV_MPPC_NOTE_OWNER_DEF) + sizeof(rv_mppc_note_desc));
+static_assert(sizeof(rv_mppc_note) == 12 + sizeof(RV_MPPC_NOTE_OWNER_DEF) + sizeof(rv_mppc_note_desc));
 
 } // namespace rv_pdklib
 
@@ -32,13 +31,10 @@ static_assert(sizeof(rv_mppc_note) ==
 // the burner generates — a game's own sources know nothing about the version.
 // The major/minor values come from the PDK headers the disc is built against, so
 // what lands in the note is "the PDK version this disc was compiled against".
-#define RV_MPPC_DISC_VERSION_DEF                                              \
-    __attribute__((section(RV_MPPC_SECTION_NAME_DEF), used, retain)) alignas( \
-        4) static const rv_pdklib::rv_mppc_note rv_mppc_disc_version_note = { \
-        sizeof(RV_MPPC_NOTE_OWNER_DEF),                                       \
-        sizeof(rv_mppc_note_desc),                                            \
-        RV_MPPC_NOTE_TYPE,                                                    \
-        RV_MPPC_NOTE_OWNER_DEF,                                               \
-        { RV_MPPC_NOTE_MAGIC_DEF, static_cast<uint32_t>(RV_MPPC_VER_MAJOR),   \
-            static_cast<uint32_t>(RV_MPPC_VER_MINOR) }                        \
-    }
+#define RV_MPPC_DISC_VERSION_DEF                                                                              \
+    __attribute__((section(RV_MPPC_SECTION_NAME_DEF), used, retain)) alignas(                                 \
+        4) static const rv_pdklib::rv_mppc_note rv_mppc_disc_version_note = { sizeof(RV_MPPC_NOTE_OWNER_DEF), \
+        sizeof(rv_mppc_note_desc),                                                                            \
+        RV_MPPC_NOTE_TYPE,                                                                                    \
+        RV_MPPC_NOTE_OWNER_DEF,                                                                               \
+        { RV_MPPC_NOTE_MAGIC_DEF, static_cast<uint32_t>(RV_MPPC_VER_MAJOR), static_cast<uint32_t>(RV_MPPC_VER_MINOR) } }

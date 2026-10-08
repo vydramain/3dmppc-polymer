@@ -4,6 +4,8 @@
 
 #include <getopt.h>
 
+#include "pdk/rv_err.h"
+
 #include <charconv>
 #include <cstddef>
 #include <format>
@@ -23,18 +25,22 @@ namespace
 
 // Strict non-negative decimal. Anything else, empty, a sign, letters, trailing
 // junk, a value too large for the type, is a bad argument, not a zero.
-bool parse_u64(const char* text, uint64_t& out) {
-    if (text == nullptr || text[0] == '\0' || text[0] == '+' || text[0] == '-') return false;
-    const char* end = text + std::string_view(text).size();
+int parse_u64(const char *text, uint64_t &out)
+{
+    if (text == nullptr || text[0] == '\0' || text[0] == '+' || text[0] == '-') {
+        return RV_ERR_INVAL;
+    }
+    const char *end = text + std::string_view(text).size();
     auto [ptr, ec] = std::from_chars(text, end, out);
-    return ec == std::errc() && ptr == end;
+    return (ec == std::errc() && ptr == end) ? RV_OK : RV_ERR_INVAL;
 }
 
 // Joins a table's `.name` column as "a or b" (two rows) or "a, b or c"
 // (three or more): the same shape --mode_<slot> error messages use, just
 // without the ", available: " prefix.
 template <typename Table>
-std::string join_names_or(const Table &table) {
+std::string join_names_or(const Table &table)
+{
     std::string result;
     const std::size_t n = std::size(table);
     std::size_t i = 0;
@@ -48,36 +54,41 @@ std::string join_names_or(const Table &table) {
     return result;
 }
 
+// Separator between last preset and wrapped line: replaced with newline +
+// indent + 'and ' to rewrap the help text across multiple lines.
+constexpr std::string_view preset_and_sep = " and ";
+
 // Every bad argument ends the same way: name it, print the usage, exit 2.
 // Written once because it was written five times, and the fifth copy is where
 // one of them stops matching the others.
-bool refuse(const std::string &what, int &exit_code) {
+int refuse(const std::string &what, int &exit_code)
+{
     rv_3dmppc::rv_console_print_error(what);
     rv_3dmppc::rv_console_print_usage(stderr);
-    exit_code = 2;
-    return false;
+    exit_code = EXIT_CODE_INVALID_ARGS;
+    return RV_ERR_INVAL;
 }
 
 // A numeric option, refused by its own name. `floor` is the smallest value the
 // option accepts, so --scale can reject 0 without a second check at the call.
-bool option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code) {
-    if (!parse_u64(text, out) || out < floor) {
-        return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)),
-            exit_code);
+int option_u64(const char *name, const char *text, uint64_t floor, uint64_t &out, int &exit_code)
+{
+    if (parse_u64(text, out) != RV_OK || out < floor) {
+        return refuse(std::format("bad value for --{}: '{}'", name, rv_pdklib::rv_log_escape(text)), exit_code);
     }
-    return true;
+    return RV_OK;
 }
 
-}  // namespace
+} // namespace
 
 void rv_console_print_usage(std::FILE *stream)
 {
     // The sentence wraps after the first preset, same as the literal help
     // text used to: rewrap " and " onto its own indented line.
     std::string presets = rv_pboot_builtin_presets_summary();
-    const std::size_t and_pos = presets.rfind(" and ");
+    const std::size_t and_pos = presets.rfind(preset_and_sep);
     if (and_pos != std::string::npos) {
-        presets.replace(and_pos, 5, "\n                       and ");
+        presets.replace(and_pos, preset_and_sep.size(), "\n                       and ");
     }
     const std::string platform_list = join_names_or(RV_PCSLOTS_PLATFORM);
     const std::string ca_list = join_names_or(RV_PCSLOTS_CA);
@@ -139,17 +150,26 @@ void rv_console_print_usage(std::FILE *stream)
         "                       %s.\n"
         "      --mode_cm=IMPL   Override the cm slot of the preset. IMPL is\n"
         "                       %s.\n",
-        RV_PBOOT_ARGS_CMD_USAGE, presets.c_str(), platform_list.c_str(), ca_list.c_str(),
-        cv_list.c_str(), cio_list.c_str(), cl_list.c_str(), cd_list.c_str(), cm_list.c_str());
+        RV_PBOOT_ARGS_CMD_USAGE,
+        presets.c_str(),
+        platform_list.c_str(),
+        ca_list.c_str(),
+        cv_list.c_str(),
+        cio_list.c_str(),
+        cl_list.c_str(),
+        cd_list.c_str(),
+        cm_list.c_str());
 }
 
-namespace {
+namespace
+{
 
 // Which medium this run mounts, decided after getopt has taken every flag it
 // recognises. Its own function because it is its own question - the loop above
 // only collects strings - and because the two ways of getting it wrong each
 // need a sentence.
-bool rv_pboot_args_disc(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
+int rv_pboot_args_disc(int argc, char **argv, rv_pboot_args &args, int &exit_code)
+{
     // getopt_long has left optind on the first thing that was not a flag. One
     // positional argument is expected - the disc - and more than one is a typo
     // worth refusing rather than silently ignoring.
@@ -166,97 +186,111 @@ bool rv_pboot_args_disc(int argc, char** argv, rv_pboot_args& args, int& exit_co
     if (optind + 1 < argc) {
         return refuse(std::format("expected at most one disc path, got {}", argc - optind), exit_code);
     }
-    return true;
+    return RV_OK;
 }
 
-}  // namespace
+} // namespace
 
-bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_code) {
+int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_code)
+{
     // There is no game's name here. The console mounts whatever medium it is
     // pointed at and boots the disc it is handed on the command line; with
     // nothing at all it runs the built-in skeleton against an empty drive.
-    static struct option long_opts[] = {{"fixed-step", no_argument, 0, 'F'},
-                                        {"scale", required_argument, 0, 's'},
-                                        {"frames", required_argument, 0, 'n'},
-                                        {"disc", required_argument, 0, 'd'},
-                                        {"memcard", required_argument, 0, 'm'},
-                                        {"mute", no_argument, 0, 'M'},
-                                        {"dump-frame", required_argument, 0, 'D'},
-                                        {"mode", required_argument, 0, 'o'},
-                                        {"mode_platform", required_argument, 0, 'p'},
-                                        {"mode_ca", required_argument, 0, 'a'},
-                                        {"mode_cv", required_argument, 0, 'v'},
-                                        {"mode_cio", required_argument, 0, 'i'},
-                                        {"mode_cl", required_argument, 0, 'l'},
-                                        {"mode_cd", required_argument, 0, 'c'},
-                                        {"mode_cm", required_argument, 0, 'k'},
-                                        {"paused", no_argument, 0, 'Y'},
-                                        // Last, because a player build fills it with the
-                                        // terminator and getopt_long stops reading there.
-                                        RV_PBOOT_ARGS_CMD_OPT,
-                                        {0, 0, 0, 0}};
+    static struct option long_opts[] = { { "fixed-step", no_argument, 0, 'F' },
+        { "scale", required_argument, 0, 's' },
+        { "frames", required_argument, 0, 'n' },
+        { "disc", required_argument, 0, 'd' },
+        { "memcard", required_argument, 0, 'm' },
+        { "mute", no_argument, 0, 'M' },
+        { "dump-frame", required_argument, 0, 'D' },
+        { "mode", required_argument, 0, 'o' },
+        { "mode_platform", required_argument, 0, 'p' },
+        { "mode_ca", required_argument, 0, 'a' },
+        { "mode_cv", required_argument, 0, 'v' },
+        { "mode_cio", required_argument, 0, 'i' },
+        { "mode_cl", required_argument, 0, 'l' },
+        { "mode_cd", required_argument, 0, 'c' },
+        { "mode_cm", required_argument, 0, 'k' },
+        { "paused", no_argument, 0, 'Y' },
+        // Last, because a player build fills them with
+        // terminators and getopt_long stops reading there.
+        RV_PBOOT_ARGS_CMD_OPTS[0],
+        RV_PBOOT_ARGS_CMD_OPTS[1],
+        { 0, 0, 0, 0 } };
 
     int c;
     while ((c = getopt_long(argc, argv, "FMs:n:d:m:D:", long_opts, NULL)) != -1) {
         switch (c) {
-            case 'F':
-                args.fixed_step = true;
-                break;
-            case 'M':
-                args.mute = true;
-                break;
-            case 'E':
-                args.dev = true;
-                break;
-            case 'Y':
-                args.loop_paused = true;
-                break;
-            case 'p':
-                args.mode_platform = optarg;
-                break;
-            case 'a':
-                args.mode_ca = optarg;
-                break;
-            case 'v':
-                args.mode_cv = optarg;
-                break;
-            case 'i':
-                args.mode_cio = optarg;
-                break;
-            case 'l':
-                args.mode_cl = optarg;
-                break;
-            case 'c':
-                args.mode_cd = optarg;
-                break;
-            case 'k':
-                args.mode_cm = optarg;
-                break;
-            case 's':
-                if (!option_u64("scale", optarg, 1, args.scale, exit_code)) return false;
-                break;
-            case 'n':
-                if (!option_u64("frames", optarg, 0, args.max_frames, exit_code)) return false;
-                break;
-            case 'd':
-                args.medium_path = optarg;
-                break;
-            case 'm':
-                args.memcard_path = optarg;
-                break;
-            case 'D':
-                args.dump_frame_path = optarg;
-                break;
-            case 'o':
-                args.mode = optarg;
-                break;
-            case '?':
-                // getopt has already named the offending option on stderr.
-                rv_3dmppc::rv_console_print_usage(stderr);
-                exit_code = 2;
-                return false;
-            default:
-                break;
+        case 'F':
+            args.fixed_step = true;
+            break;
+        case 'M':
+            args.mute = true;
+            break;
+        case 'E':
+            args.dev = true;
+            break;
+        case 'G': {
+            uint64_t fd = 0;
+            if (option_u64("frame-fd", optarg, 0, fd, exit_code) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            args.frame_fd = static_cast<int64_t>(fd);
+            break;
+        }
+        case 'Y':
+            args.loop_paused = true;
+            break;
+        case 'p':
+            args.mode_platform = optarg;
+            break;
+        case 'a':
+            args.mode_ca = optarg;
+            break;
+        case 'v':
+            args.mode_cv = optarg;
+            break;
+        case 'i':
+            args.mode_cio = optarg;
+            break;
+        case 'l':
+            args.mode_cl = optarg;
+            break;
+        case 'c':
+            args.mode_cd = optarg;
+            break;
+        case 'k':
+            args.mode_cm = optarg;
+            break;
+        case 's':
+            if (option_u64("scale", optarg, 1, args.scale, exit_code) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            break;
+        case 'n':
+            if (option_u64("frames", optarg, 0, args.max_frames, exit_code) != RV_OK) {
+                return RV_ERR_INVAL;
+            }
+            break;
+        case 'd':
+            args.medium_path = optarg;
+            break;
+        case 'm':
+            args.memcard_path = optarg;
+            break;
+        case 'D':
+            args.dump_frame_path = optarg;
+            break;
+        case 'o':
+            args.mode = optarg;
+            break;
+        case '?':
+            // getopt has already named the offending option on stderr.
+            rv_3dmppc::rv_console_print_usage(stderr);
+            exit_code = EXIT_CODE_INVALID_ARGS;
+            return RV_ERR_INVAL;
+        default:
+            break;
         }
     }
 
@@ -272,4 +306,4 @@ bool rv_pboot_args_parse(int argc, char** argv, rv_pboot_args& args, int& exit_c
     return rv_pboot_args_disc(argc, argv, args, exit_code);
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

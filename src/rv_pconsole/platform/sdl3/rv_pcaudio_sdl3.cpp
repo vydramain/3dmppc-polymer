@@ -5,6 +5,7 @@
 // thread.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace rv_3dmppc
@@ -17,7 +18,7 @@ rv_pcaudio_sdl3::~rv_pcaudio_sdl3()
     }
 }
 
-bool rv_pcaudio_sdl3::open()
+int rv_pcaudio_sdl3::open()
 {
     // The console's own format, stated once. SDL_OpenAudioDeviceStream binds a
     // converting stream to the device, so whatever rate and layout the
@@ -31,21 +32,21 @@ bool rv_pcaudio_sdl3::open()
     spec.channels = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS);
     spec.freq = static_cast<int>(RV_PCPLATFORM_PCM_RATE);
 
-    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr,
-        nullptr);
+    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
     if (!stream_) {
-        return false;
+        RV_LOG_ERR("pcplatform", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
+        return RV_ERR_IO;
     }
 
     if (!SDL_ResumeAudioStreamDevice(stream_)) {
+        RV_LOG_ERR("pcplatform", "SDL_ResumeAudioStreamDevice failed: {}", SDL_GetError());
         SDL_DestroyAudioStream(stream_);
         stream_ = nullptr;
-        return false;
+        return RV_ERR_IO;
     }
 
-    RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE,
-        RV_PCPLATFORM_PCM_CHANNELS);
-    return true;
+    RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE, RV_PCPLATFORM_PCM_CHANNELS);
+    return RV_OK;
 }
 
 bool rv_pcaudio_sdl3::available() const
@@ -60,8 +61,7 @@ int64_t rv_pcaudio_sdl3::queued_frames() const
     }
 
     const int queued_bytes = SDL_GetAudioStreamQueued(stream_);
-    const int frame_bytes =
-        static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
+    const int frame_bytes = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
     return queued_bytes / frame_bytes;
 }
 
@@ -72,8 +72,7 @@ void rv_pcaudio_sdl3::write(const int16_t *interleaved, int64_t frames)
     }
 
     const int bytes =
-        static_cast<int>(frames) * static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) *
-        static_cast<int>(sizeof(int16_t));
+        static_cast<int>(frames) * static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
     if (!SDL_PutAudioStreamData(stream_, interleaved, bytes) && !warned_once_) {
         // Losing one write is not worth spinning over; the caller writes
         // again next frame. Warned once rather than every frame: a failing

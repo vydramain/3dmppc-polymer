@@ -9,9 +9,9 @@
 namespace rv_3dmppc
 {
 
-// The last row before the table's terminator, on purpose: a player build fills
-// it WITH the terminator, so getopt_long stops there and never learns the name.
-extern const struct option RV_PBOOT_ARGS_CMD_OPT;
+// The last rows before the table's terminator, on purpose: a player build fills
+// them WITH terminators, so getopt_long stops there and never learns the names.
+extern const struct option RV_PBOOT_ARGS_CMD_OPTS[2];
 
 // Printed where --dev belongs among the options; empty in a player build.
 extern const char *const RV_PBOOT_ARGS_CMD_USAGE;

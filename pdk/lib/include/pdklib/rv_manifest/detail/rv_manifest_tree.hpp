@@ -13,23 +13,25 @@ namespace rv_pdklib
 // of rv_manifest — nothing at this level knows the structure exists.
 
 struct rv_manifest_tree_entry {
-	std::string key;
-	int line = 0; // the key's line; entry.value.line is the value's
-	rv_manifest_mvalue value;
+    std::string key;
+    int line = 0; // the key's line; entry.value.line is the value's
+    rv_manifest_mvalue value;
 };
 
 struct rv_manifest_tree_section {
-	std::string name;
-	int line = 0;
-	// The header was broken, or these entries appeared before any header. The
-	// parser has already reported it; semantic analysis skips the section so one
-	// mistake is not counted twice.
-	bool poisoned = false;
-	std::vector<rv_manifest_tree_entry> entries;
+    std::string name;
+    int line = 0;
+    // The header was broken, or these entries appeared before any header. The
+    // parser has already reported it; semantic analysis skips the section so one
+    // mistake is not counted twice.
+    bool poisoned = false;
+    // Opened by [[name]]: one table of an array of them, each [[name]] a new one.
+    bool array = false;
+    std::vector<rv_manifest_tree_entry> entries;
 };
 
 struct rv_manifest_tree {
-	std::vector<rv_manifest_tree_section> sections;
+    std::vector<rv_manifest_tree_section> sections;
 };
 
 } // namespace rv_pdklib

@@ -20,8 +20,7 @@ namespace
 // The only bits frame_configure() accepts today. Anything else is a disc built
 // against a newer contract than this console implements, and the contract says
 // that is RV_ERR_INVAL rather than "ignore what you do not understand".
-constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS =
-    static_cast<uint64_t>(RV_PIPELINE_BUFFER_CONFIG_TYPE_Z);
+constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS = static_cast<uint64_t>(RV_PIPELINE_BUFFER_CONFIG_TYPE_Z);
 
 // The value the depth page is cleared to: the FARTHEST representable key, so
 // the first primitive to touch a pixel always passes the test
@@ -31,6 +30,11 @@ constexpr uint64_t RV_PCCV_CONFIG_KNOWN_BITS =
 // primitive must still be able to write a pixel.
 constexpr int32_t RV_PCCV_DEPTH_FARTHEST = std::numeric_limits<int32_t>::min();
 
+constexpr int RV_PCCV_ARGB8888_RED_SHIFT = 16;  // bits 16-23: red channel
+constexpr int RV_PCCV_ARGB8888_GREEN_SHIFT = 8; // bits 8-15: green channel
+constexpr uint32_t RV_PCCV_ARGB8888_CHANNEL_MASK = 0xFF;
+constexpr int RV_PCCV_PPM_RGB_BYTES = 3;
+
 } // namespace
 
 rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget)
@@ -38,28 +42,35 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     rv_pcbudget_cost cost;
 
     // vram_ (rv_pcvram pool): exactly video_memory_size bytes.
-    if (rv_pcbudget_add(cost, "budget.pccv.video_memory_size", budget.pccv.video_memory_size)) {
+    if (rv_pcbudget_add(cost, "budget.pccv.video_memory_size", budget.pccv.video_memory_size) != RV_OK) {
         return cost;
     }
 
     // vram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
     int64_t vram_blocks_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccv.video_memory_size",
+    if (rv_pcbudget_mul(cost,
+            "budget.pccv.video_memory_size",
             rv_pcpool<rv_pcvram_meta>::max_blocks(budget.pccv.video_memory_size, rv_pcvram::RV_PCVRAM_ALIGN),
-            rv_pcpool<rv_pcvram_meta>::block_bytes(), vram_blocks_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.video_memory_size", vram_blocks_bytes)) {
+            rv_pcpool<rv_pcvram_meta>::block_bytes(),
+            vram_blocks_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.video_memory_size", vram_blocks_bytes) != RV_OK) {
         return cost;
     }
 
     // fbuf_ (rv_pcfbuf): width * height * bytes-per-pixel.
     int64_t pixels = 0;
     int64_t fbuf_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height", budget.pccv.screen_width,
-            budget.pccv.screen_height, pixels) ||
-        rv_pcbudget_mul(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel", pixels,
-            rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL, fbuf_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel",
-            fbuf_bytes)) {
+    if (rv_pcbudget_mul(cost,
+            "budget.pccv.screen_width * screen_height",
+            budget.pccv.screen_width,
+            budget.pccv.screen_height,
+            pixels) != RV_OK ||
+        rv_pcbudget_mul(cost,
+            "budget.pccv.screen_width * screen_height * bytes_per_pixel",
+            pixels,
+            rv_pcfbuf::RV_PCFBUF_BYTES_PER_PIXEL,
+            fbuf_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.screen_width * screen_height * bytes_per_pixel", fbuf_bytes) != RV_OK) {
         return cost;
     }
 
@@ -67,20 +78,29 @@ rv_pcbudget_cost rv_pccv_sw::evaluate(const rv_pdklib::rv_manifest_budget &budge
     // primitive up to frame_capacity.
     int64_t otable_bucket_bytes = 0;
     int64_t otable_next_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count,
-            rv_pcotable::RV_PCOTABLE_BYTES_PER_BUCKET, otable_bucket_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.ot_bucket_count", otable_bucket_bytes) ||
-        rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
-            rv_pcotable::RV_PCOTABLE_BYTES_PER_PRIMITIVE, otable_next_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", otable_next_bytes)) {
+    if (rv_pcbudget_mul(cost,
+            "budget.pccv.ot_bucket_count",
+            budget.pccv.ot_bucket_count,
+            rv_pcotable::RV_PCOTABLE_BYTES_PER_BUCKET,
+            otable_bucket_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.ot_bucket_count", otable_bucket_bytes) != RV_OK ||
+        rv_pcbudget_mul(cost,
+            "budget.pccv.frame_capacity",
+            budget.pccv.frame_capacity,
+            rv_pcotable::RV_PCOTABLE_BYTES_PER_PRIMITIVE,
+            otable_next_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", otable_next_bytes) != RV_OK) {
         return cost;
     }
 
     // primitives_ (primitives_.reserve(frame_capacity)): frame_capacity * sizeof(rv_primitive).
     int64_t primitives_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccv.frame_capacity", budget.pccv.frame_capacity,
-            static_cast<int64_t>(sizeof(rv_primitive)), primitives_bytes) ||
-        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", primitives_bytes)) {
+    if (rv_pcbudget_mul(cost,
+            "budget.pccv.frame_capacity",
+            budget.pccv.frame_capacity,
+            static_cast<int64_t>(sizeof(rv_primitive)),
+            primitives_bytes) != RV_OK ||
+        rv_pcbudget_add(cost, "budget.pccv.frame_capacity", primitives_bytes) != RV_OK) {
         return cost;
     }
 
@@ -169,10 +189,8 @@ int64_t rv_pccv_sw::video_asset_write(int64_t addr, const rv_texture *texture_pt
     // The limits are int64 configuration and the dimensions are unsigned data;
     // widen the limit into the data's domain (a non-positive limit means "no
     // texture is acceptable") so the comparison never mixes signedness.
-    const uint64_t max_width =
-        conf_.texture_max_width > 0 ? static_cast<uint64_t>(conf_.texture_max_width) : 0;
-    const uint64_t max_height =
-        conf_.texture_max_height > 0 ? static_cast<uint64_t>(conf_.texture_max_height) : 0;
+    const uint64_t max_width = conf_.texture_max_width > 0 ? static_cast<uint64_t>(conf_.texture_max_width) : 0;
+    const uint64_t max_height = conf_.texture_max_height > 0 ? static_cast<uint64_t>(conf_.texture_max_height) : 0;
 
     if (texture.width > max_width || texture.height > max_height) {
         return RV_ERR_INVAL;
@@ -190,13 +208,13 @@ int64_t rv_pccv_sw::video_asset_write(int64_t addr, const rv_texture *texture_pt
     switch (texture.format) {
     case RV_TEXFMT_IDX4:
         // Rows stay byte-aligned, so an odd width costs a padding nibble.
-        needed = ((texture.width + 1) / 2) * texture.height;
+        needed = ((texture.width + 1) / RV_PCTEXEL_IDX4_TEXELS_PER_BYTE) * texture.height;
         break;
     case RV_TEXFMT_IDX8:
         needed = texels;
         break;
     case RV_TEXFMT_DIRECT15:
-        needed = texels * 2;
+        needed = texels * RV_PCTEXEL_DIRECT15_BYTES_PER_TEXEL;
         break;
     }
     if (texture.size < needed) {
@@ -288,11 +306,10 @@ int64_t rv_pccv_sw::frame_put(const rv_primitive *primitive_ptr)
 
     case RV_PRIMITIVE_POLYGON: {
         const rv_polygon &polygon = primitive.data.polygon;
-        if (polygon.vertex_count != 3 && polygon.vertex_count != 4) {
+        if (polygon.vertex_count != RV_PCRASTER_TRIANGLE_VERTICES && polygon.vertex_count != RV_PCRASTER_QUAD_VERTICES) {
             return RV_ERR_INVAL;
         }
-        const int64_t fill =
-            check_fill(polygon.fill_mode, polygon.addr_texture, polygon.addr_palette);
+        const int64_t fill = check_fill(polygon.fill_mode, polygon.addr_texture, polygon.addr_palette);
         if (fill < 0) {
             return fill;
         }
@@ -301,8 +318,7 @@ int64_t rv_pccv_sw::frame_put(const rv_primitive *primitive_ptr)
 
     case RV_PRIMITIVE_SPRITE: {
         const rv_sprite &sprite = primitive.data.sprite;
-        const int64_t fill =
-            check_fill(sprite.fill_mode, sprite.addr_texture, sprite.addr_palette);
+        const int64_t fill = check_fill(sprite.fill_mode, sprite.addr_texture, sprite.addr_palette);
         if (fill < 0) {
             return fill;
         }
@@ -327,8 +343,7 @@ int64_t rv_pccv_sw::frame_put(const rv_primitive *primitive_ptr)
     return RV_OK;
 }
 
-void rv_pccv_sw::texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
-    int64_t &addr_palette)
+void rv_pccv_sw::texture_addresses(const rv_primitive &primitive, int64_t &addr_texture, int64_t &addr_palette)
 {
     addr_texture = 0;
     addr_palette = 0;
@@ -465,15 +480,18 @@ void rv_pccv_sw::dump_last_frame(const std::string &path) const
         return;
     }
 
-    std::fprintf(file, "P6\n%lld %lld\n255\n", static_cast<long long>(conf_.screen_width),
+    std::fprintf(file,
+        "P6\n%lld %lld\n255\n",
+        static_cast<long long>(conf_.screen_width),
         static_cast<long long>(conf_.screen_height));
 
     const int64_t pixels = conf_.screen_width * conf_.screen_height;
     for (int64_t i = 0; i < pixels; ++i) {
         const uint32_t c = last_frame_[i];
-        const unsigned char rgb[3] = { static_cast<unsigned char>((c >> 16) & 0xFF),
-            static_cast<unsigned char>((c >> 8) & 0xFF),
-            static_cast<unsigned char>(c & 0xFF) };
+        const unsigned char rgb[RV_PCCV_PPM_RGB_BYTES] = { static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_RED_SHIFT) &
+                                                               RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>((c >> RV_PCCV_ARGB8888_GREEN_SHIFT) & RV_PCCV_ARGB8888_CHANNEL_MASK),
+            static_cast<unsigned char>(c & RV_PCCV_ARGB8888_CHANNEL_MASK) };
         std::fwrite(rgb, 1, sizeof(rgb), file);
     }
     std::fclose(file);

@@ -21,25 +21,28 @@ constexpr int64_t RV_PCCA_MAX_VOICES = 63;
 // A field must be strictly positive when its subsystem is `active`. A
 // negative value is malformed regardless - an unset (zero) field of a
 // switched-off subsystem is the only value this passes without `active`.
-bool bad_field(const char *field, int64_t value, bool active)
+int bad_field(const char *field, int64_t value, bool active)
 {
     if (value < 0) {
         RV_LOG_ERR("pccheck", "'{}' is negative ({})", field, value);
-        return true;
+        return RV_ERR_INVAL;
     }
     if (active && value == 0) {
         RV_LOG_ERR("pccheck", "'{}' must be positive, this subsystem is on", field);
-        return true;
+        return RV_ERR_INVAL;
     }
-    return false;
+    return RV_OK;
 }
 
 // Find the row in `table` whose impl matches `impl`, call its evaluate(),
 // report a refusal with the slot and implementation, and fold the cost into
 // `total`. Returns RV_OK or RV_ERR_INVAL.
 template <typename Table, typename Impl>
-int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
-    const rv_pdklib::rv_manifest_budget &budget, rv_pcbudget_cost &total)
+int64_t evaluate_slot(const Table &table,
+    Impl impl,
+    const char *slot,
+    const rv_pdklib::rv_manifest_budget &budget,
+    rv_pcbudget_cost &total)
 {
     for (const auto &row : table) {
         if (row.impl != impl) {
@@ -53,7 +56,7 @@ int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
         }
 
         RV_LOG_INFO("pccheck", "{}={}: {} byte(s)", slot, row.name, cost.bytes);
-        if (rv_pcbudget_add(total, slot, cost.bytes)) {
+        if (rv_pcbudget_add(total, slot, cost.bytes) != RV_OK) {
             RV_LOG_ERR("pccheck", "{}={}: {}", slot, row.name, total.reason);
             return RV_ERR_INVAL;
         }
@@ -71,29 +74,27 @@ int64_t evaluate_slot(const Table &table, Impl impl, const char *slot,
 // backend); what those units cost in host bytes is entirely up to the
 // concrete slot classes `slots` names, evaluated below before any of them
 // exists.
-int64_t rv_pboot_check_budget(
-    const rv_pdklib::rv_manifest_budget &budget,
-    const rv_pcslots &slots,
-    const rv_pboot_mode_info &machine)
+int64_t
+rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
 {
     // Sanity of the declared numbers, identical for every mode and backend:
     // the rasterizer's own memory (cv.*) is required whether cv=null or not
     // (nothing here looks at display bounds), pccio has no on/off switch, and
     // pcca is always active - a run with no audio device still declares (and
     // is charged for) the sound RAM and voices its disc asked for.
-    if (bad_field("budget.pcca.voice_count", budget.pcca.voice_count, true) ||
-        bad_field("budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, true) ||
-        bad_field("budget.pccv.screen_width", budget.pccv.screen_width, true) ||
-        bad_field("budget.pccv.screen_height", budget.pccv.screen_height, true) ||
-        bad_field("budget.pccv.texture_max_width", budget.pccv.texture_max_width, true) ||
-        bad_field("budget.pccv.texture_max_height", budget.pccv.texture_max_height, true) ||
-        bad_field("budget.pccv.video_memory_size", budget.pccv.video_memory_size, true) ||
-        bad_field("budget.pccv.frame_capacity", budget.pccv.frame_capacity, true) ||
-        bad_field("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count, true) ||
-        bad_field("budget.pccio.iport_count", budget.pccio.iport_count, true) ||
-        bad_field("budget.pccm.card_slots", budget.pccm.card_slots, true) ||
-        bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true) ||
-        bad_field("budget.pccl.script_memory_size", budget.pccl.script_memory_size, false)) {
+    if (bad_field("budget.pcca.voice_count", budget.pcca.voice_count, true) != RV_OK ||
+        bad_field("budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, true) != RV_OK ||
+        bad_field("budget.pccv.screen_width", budget.pccv.screen_width, true) != RV_OK ||
+        bad_field("budget.pccv.screen_height", budget.pccv.screen_height, true) != RV_OK ||
+        bad_field("budget.pccv.texture_max_width", budget.pccv.texture_max_width, true) != RV_OK ||
+        bad_field("budget.pccv.texture_max_height", budget.pccv.texture_max_height, true) != RV_OK ||
+        bad_field("budget.pccv.video_memory_size", budget.pccv.video_memory_size, true) != RV_OK ||
+        bad_field("budget.pccv.frame_capacity", budget.pccv.frame_capacity, true) != RV_OK ||
+        bad_field("budget.pccv.ot_bucket_count", budget.pccv.ot_bucket_count, true) != RV_OK ||
+        bad_field("budget.pccio.iport_count", budget.pccio.iport_count, true) != RV_OK ||
+        bad_field("budget.pccm.card_slots", budget.pccm.card_slots, true) != RV_OK ||
+        bad_field("budget.pccm.card_slot_size", budget.pccm.card_slot_size, true) != RV_OK ||
+        bad_field("budget.pccl.script_memory_size", budget.pccl.script_memory_size, false) != RV_OK) {
         return RV_ERR_INVAL;
     }
 
@@ -104,7 +105,8 @@ int64_t rv_pboot_check_budget(
         RV_LOG_ERR("pccheck",
             "'budget.pcca.voice_count' asks for {}, over the {} this console can name "
             "(a voice mask carries bits 0..62)",
-            budget.pcca.voice_count, RV_PCCA_MAX_VOICES);
+            budget.pcca.voice_count,
+            RV_PCCA_MAX_VOICES);
         return RV_ERR_INVAL;
     }
 
@@ -123,14 +125,12 @@ int64_t rv_pboot_check_budget(
 
     // Compare against what the machine actually has.
     if (machine.ram_available < 0) {
-        RV_LOG_ERR("pccheck",
-            "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
+        RV_LOG_ERR("pccheck", "machine RAM unknown, cannot show disc's {} byte(s) fit", total.bytes);
         return RV_ERR_INVAL;
     }
 
     if (total.bytes > machine.ram_available) {
-        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes,
-            machine.ram_available);
+        RV_LOG_ERR("pccheck", "disc needs {} byte(s) of RAM, this machine has {}", total.bytes, machine.ram_available);
         return RV_ERR_INVAL;
     }
 

@@ -1,22 +1,27 @@
 #include "rv_pconsole/cv/rv_pcotable.hpp"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 rv_pcotable::rv_pcotable(int64_t bucket_count, int32_t depth_min, int32_t depth_max)
-    : bucket_count_(bucket_count > 0 ? bucket_count : 1),
-      depth_min_(depth_min),
-      depth_max_(depth_max > depth_min ? depth_max : depth_min),
-      head_(static_cast<size_t>(bucket_count_), -1),
-      tail_(static_cast<size_t>(bucket_count_), -1) {}
+    : bucket_count_(bucket_count > 0 ? bucket_count : 1)
+    , depth_min_(depth_min)
+    , depth_max_(depth_max > depth_min ? depth_max : depth_min)
+    , head_(static_cast<size_t>(bucket_count_), -1)
+    , tail_(static_cast<size_t>(bucket_count_), -1)
+{
+}
 
-void rv_pcotable::reset() {
+void rv_pcotable::reset()
+{
     for (size_t i = 0; i < head_.size(); ++i) {
         head_[i] = -1;
         tail_[i] = -1;
     }
 }
 
-int64_t rv_pcotable::bucket_of(int32_t depth) const {
+int64_t rv_pcotable::bucket_of(int32_t depth) const
+{
     // THEOREM: linear quantization with SATURATION — bucket =
     // floor((depth - depth_min) * bucket_count / (depth_max - depth_min + 1)),
     // with everything below depth_min pinned to bucket 0 and everything above
@@ -48,7 +53,8 @@ int64_t rv_pcotable::bucket_of(int32_t depth) const {
     return bucket;
 }
 
-void rv_pcotable::insert(int32_t depth, int32_t primitive_index) {
+void rv_pcotable::insert(int32_t depth, int32_t primitive_index)
+{
     if (primitive_index < 0) {
         return;
     }
@@ -74,4 +80,4 @@ void rv_pcotable::insert(int32_t depth, int32_t primitive_index) {
     tail_[bucket] = primitive_index;
 }
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

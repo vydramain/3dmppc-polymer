@@ -28,7 +28,8 @@
 //     three-call dance and the same "any of these can fail" handling
 //     regardless of which asset or which game - the asset's NAME and what
 //     the bytes mean once read are the only things that differ disc to
-//     disc, and those stay the caller's.
+//     disc, and those stay the caller's. read_asset() returns RV_OK, or the
+//     failing call's rv_err code (RV_ERR_INVAL without a drive).
 //
 //   - the screen's size, taken once where it is already being checked.
 //     Every disc that lays anything out asks for it, and it cannot change
@@ -72,102 +73,101 @@
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
 
-#define RV_MPPC_DISC_CPP_DEF(class_name)                                           \
-    class class_name                                                               \
-    {                                                                              \
-    public:                                                                        \
-        int64_t disc_initialize(rv_pdko *pdk)                                      \
-        {                                                                          \
-            pdk_ = pdk;                                                            \
-            rv_cv *cv = rv_pdko_cv(pdk_);                                          \
-            rv_cio *cio = rv_pdko_cio(pdk_);                                       \
-            if (!cv || !cio) {                                                     \
-                return RV_ERR_INVAL;                                               \
-            }                                                                      \
-            if (rv_cv_screen_width(cv) < 64 || rv_cv_screen_height(cv) < 64) {     \
-                return RV_ERR_INVAL;                                               \
-            }                                                                      \
-            if (rv_cv_frame_capacity(cv) < 8) {                                    \
-                return RV_ERR_INVAL;                                               \
-            }                                                                      \
-            if (rv_cio_iport_count(cio) < 1) {                                     \
-                return RV_ERR_INVAL;                                               \
-            }                                                                      \
-            screen_width_ = rv_cv_screen_width(cv);                                \
-            screen_height_ = rv_cv_screen_height(cv);                              \
-            return RV_OK;                                                          \
-        }                                                                          \
-        void frame_update(float dt)                                                \
-        {                                                                          \
-            (void)dt;                                                              \
-            const uint64_t now = rv_cio_iport_state(rv_pdko_cio(pdk_), 0).buttons; \
-            if ((now & ~prev_buttons_) & RV_ISOURCE_MENU_BTTN_MENU) {              \
-                release_ = true;                                                   \
-            }                                                                      \
-            prev_buttons_ = now;                                                   \
-        }                                                                          \
-        bool disc_release() const                                                  \
-        {                                                                          \
-            return release_;                                                       \
-        }                                                                          \
-                                                                                   \
-    protected:                                                                     \
-        bool read_asset(const char *name, std::vector<uint8_t> &out)               \
-        {                                                                          \
-            rv_cd *cd = rv_pdko_cd(pdk_);                                          \
-            if (!cd) {                                                             \
-                return false;                                                      \
-            }                                                                      \
-            const int64_t handle = rv_cd_asset_open(cd, name);                     \
-            if (handle < 0) {                                                      \
-                return false;                                                      \
-            }                                                                      \
-            const int64_t size = rv_cd_asset_size(cd, handle);                     \
-            if (size < 0) {                                                        \
-                return false;                                                      \
-            }                                                                      \
-            out.assign(static_cast<std::size_t>(size), 0);                         \
-            const int64_t read = rv_cd_asset_read(cd, handle, out.data(), size);   \
-            if (read < 0) {                                                        \
-                return false;                                                      \
-            }                                                                      \
-            out.resize(static_cast<std::size_t>(read));                            \
-            return true;                                                           \
-        }                                                                          \
-                                                                                   \
-        void frame_begin(rv_color background)                                      \
-        {                                                                          \
-            rv_cv_frame_configure(rv_pdko_cv(pdk_), 0, background);                \
-        }                                                                          \
-        void frame_end()                                                           \
-        {                                                                          \
-            rv_cv_frame_flush(rv_pdko_cv(pdk_));                                   \
-        }                                                                          \
-        bool texture_resident(const char *name, int64_t &addr, int64_t &palette)   \
-        {                                                                          \
-            rv_cd *cd = rv_pdko_cd(pdk_);                                          \
-            addr = rv_cd_resource_addr(cd, RV_CD_RESOURCE_TEXTURE, name);          \
-            if (addr < 0) {                                                        \
-                return false;                                                      \
-            }                                                                      \
-            palette = rv_cd_resource_palette_addr(cd, RV_CD_RESOURCE_TEXTURE,      \
-                name);                                                             \
-            return true;                                                           \
-        }                                                                          \
-        void draw_sprite(const rv_sprite &sprite, int32_t depth)                   \
-        {                                                                          \
-            rv_primitive primitive = {};                                           \
-            primitive.type = RV_PRIMITIVE_SPRITE;                                  \
-            primitive.depth = depth;                                               \
-            primitive.data.sprite = sprite;                                        \
-            rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);                         \
-        }                                                                          \
-                                                                                   \
-        rv_pdko *pdk_ = nullptr;                                                   \
-        int64_t screen_width_ = 0;                                                 \
-        int64_t screen_height_ = 0;                                                \
-                                                                                   \
-    private:                                                                       \
-        uint64_t prev_buttons_ = 0;                                                \
-        bool release_ = false;                                                     \
+#define RV_MPPC_DISC_CPP_DEF(class_name)                                             \
+    class class_name                                                                 \
+    {                                                                                \
+    public:                                                                          \
+        int64_t disc_initialize(rv_pdko *pdk)                                        \
+        {                                                                            \
+            pdk_ = pdk;                                                              \
+            rv_cv *cv = rv_pdko_cv(pdk_);                                            \
+            rv_cio *cio = rv_pdko_cio(pdk_);                                         \
+            if (!cv || !cio) {                                                       \
+                return RV_ERR_INVAL;                                                 \
+            }                                                                        \
+            if (rv_cv_screen_width(cv) < 64 || rv_cv_screen_height(cv) < 64) {       \
+                return RV_ERR_INVAL;                                                 \
+            }                                                                        \
+            if (rv_cv_frame_capacity(cv) < 8) {                                      \
+                return RV_ERR_INVAL;                                                 \
+            }                                                                        \
+            if (rv_cio_iport_count(cio) < 1) {                                       \
+                return RV_ERR_INVAL;                                                 \
+            }                                                                        \
+            screen_width_ = rv_cv_screen_width(cv);                                  \
+            screen_height_ = rv_cv_screen_height(cv);                                \
+            return RV_OK;                                                            \
+        }                                                                            \
+        void frame_update(float dt)                                                  \
+        {                                                                            \
+            (void)dt;                                                                \
+            const uint64_t now = rv_cio_iport_state(rv_pdko_cio(pdk_), 0).buttons;   \
+            if ((now & ~prev_buttons_) & RV_ISOURCE_MENU_BTTN_MENU) {                \
+                release_ = true;                                                     \
+            }                                                                        \
+            prev_buttons_ = now;                                                     \
+        }                                                                            \
+        bool disc_release() const                                                    \
+        {                                                                            \
+            return release_;                                                         \
+        }                                                                            \
+                                                                                     \
+    protected:                                                                       \
+        int read_asset(const char *name, std::vector<uint8_t> &out)                  \
+        {                                                                            \
+            rv_cd *cd = rv_pdko_cd(pdk_);                                            \
+            if (!cd) {                                                               \
+                return RV_ERR_INVAL;                                                 \
+            }                                                                        \
+            const int64_t handle = rv_cd_asset_open(cd, name);                       \
+            if (handle < 0) {                                                        \
+                return static_cast<int>(handle);                                     \
+            }                                                                        \
+            const int64_t size = rv_cd_asset_size(cd, handle);                       \
+            if (size < 0) {                                                          \
+                return static_cast<int>(size);                                       \
+            }                                                                        \
+            out.assign(static_cast<std::size_t>(size), 0);                           \
+            const int64_t read = rv_cd_asset_read(cd, handle, out.data(), size);     \
+            if (read < 0) {                                                          \
+                return static_cast<int>(read);                                       \
+            }                                                                        \
+            out.resize(static_cast<std::size_t>(read));                              \
+            return RV_OK;                                                            \
+        }                                                                            \
+                                                                                     \
+        void frame_begin(rv_color background)                                        \
+        {                                                                            \
+            rv_cv_frame_configure(rv_pdko_cv(pdk_), 0, background);                  \
+        }                                                                            \
+        void frame_end()                                                             \
+        {                                                                            \
+            rv_cv_frame_flush(rv_pdko_cv(pdk_));                                     \
+        }                                                                            \
+        bool texture_resident(const char *name, int64_t &addr, int64_t &palette)     \
+        {                                                                            \
+            rv_cd *cd = rv_pdko_cd(pdk_);                                            \
+            addr = rv_cd_resource_addr(cd, RV_CD_RESOURCE_TEXTURE, name);            \
+            if (addr < 0) {                                                          \
+                return false;                                                        \
+            }                                                                        \
+            palette = rv_cd_resource_palette_addr(cd, RV_CD_RESOURCE_TEXTURE, name); \
+            return true;                                                             \
+        }                                                                            \
+        void draw_sprite(const rv_sprite &sprite, int32_t depth)                     \
+        {                                                                            \
+            rv_primitive primitive = {};                                             \
+            primitive.type = RV_PRIMITIVE_SPRITE;                                    \
+            primitive.depth = depth;                                                 \
+            primitive.data.sprite = sprite;                                          \
+            rv_cv_frame_put(rv_pdko_cv(pdk_), &primitive);                           \
+        }                                                                            \
+                                                                                     \
+        rv_pdko *pdk_ = nullptr;                                                     \
+        int64_t screen_width_ = 0;                                                   \
+        int64_t screen_height_ = 0;                                                  \
+                                                                                     \
+    private:                                                                         \
+        uint64_t prev_buttons_ = 0;                                                  \
+        bool release_ = false;                                                       \
     };

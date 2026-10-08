@@ -53,8 +53,7 @@ public:
     // Create the window for a screen_width x screen_height frame magnified by
     // `scale`. RV_OK when a window now exists or none was wanted; RV_ERR_IO
     // when one was wanted and could not be made.
-    virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height,
-        uint64_t scale) = 0;
+    virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale) = 0;
 
     // True while present() reaches a surface.
     virtual bool presenting() const = 0;
@@ -63,6 +62,13 @@ public:
     // 0xAARRGGBB, row-major, in the geometry given to open(). No-op when
     // !presenting().
     virtual void present(const uint32_t *argb) = 0;
+
+    // True when another program shows the frames and says itself that the
+    // machine is paused (--frame-fd): a pause then presents nothing over them.
+    virtual bool embedded() const
+    {
+        return false;
+    }
 
     // Sticky: the user asked to close the window.
     virtual bool close_requested() const = 0;
@@ -131,8 +137,7 @@ public:
     // for `duration_ms`. RV_OK; RV_ERR_INVAL for an unknown id; RV_ERR_IO when
     // the device refused.
     virtual int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
-    virtual int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right,
-        uint16_t duration_ms) = 0;
+    virtual int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
 
 protected:
     rv_pcgamepads() = default;

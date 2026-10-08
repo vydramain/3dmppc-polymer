@@ -13,6 +13,14 @@
 namespace rv_3dmppc
 {
 
+namespace
+{
+
+constexpr int64_t BYTES_PER_KIB = 1024; // bytes in kibibyte
+constexpr size_t PROCFS_LINE_MAX = 256; // bytes, line buffer for /proc/meminfo
+
+} // namespace
+
 int64_t rv_pboot_mode_available_ram()
 {
     std::FILE *file = std::fopen("/proc/meminfo", "r");
@@ -21,9 +29,9 @@ int64_t rv_pboot_mode_available_ram()
         return -1;
     }
 
-    char line[256];
+    char line[PROCFS_LINE_MAX];
     long long kib = -1;
-    while (std::fgets(line, sizeof(line), file) != nullptr) {
+    while (std::fgets(line, static_cast<int>(sizeof(line)), file) != nullptr) {
         if (std::sscanf(line, "MemAvailable: %lld kB", &kib) == 1) {
             break;
         }
@@ -37,12 +45,12 @@ int64_t rv_pboot_mode_available_ram()
 
     // Guard the kB -> bytes multiply against wrapping int64_t on a garbage
     // value rather than silently returning a wrong (wrapped) byte count.
-    if (kib > std::numeric_limits<int64_t>::max() / 1024) {
+    if (kib > std::numeric_limits<int64_t>::max() / BYTES_PER_KIB) {
         RV_LOG_WARN("pcmachine", "MemAvailable value {} kB is out of range", kib);
         return -1;
     }
 
-    return static_cast<int64_t>(kib) * 1024;
+    return static_cast<int64_t>(kib) * BYTES_PER_KIB;
 }
 
 int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out)
@@ -51,8 +59,7 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
     // lacks MADV_POPULATE_WRITE: it is a hard requirement of the vmem the
     // memory stages below reserve.
     if (rv_pcvmem_probe_populate_write() < 0) {
-        rv_console_print_error(
-            "this console requires a Linux kernel that implements MADV_POPULATE_WRITE");
+        rv_console_print_error("this console requires a Linux kernel that implements MADV_POPULATE_WRITE");
         return RV_ERR_INVAL;
     }
 
@@ -74,13 +81,18 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
     return RV_OK;
 }
 
-void rv_pboot_mode_report(
-    const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
+void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
 {
-    RV_LOG_INFO("main", "mode '{}' requested: platform={} ca={} cv={} cio={} cl={} cd={} cm={}",
-        args.mode, rv_pcslots_name(slots.platform), rv_pcslots_name(slots.ca),
-        rv_pcslots_name(slots.cv), rv_pcslots_name(slots.cio), rv_pcslots_name(slots.cl),
-        rv_pcslots_name(slots.cd), rv_pcslots_name(slots.cm));
+    RV_LOG_INFO("main",
+        "mode '{}' requested: platform={} ca={} cv={} cio={} cl={} cd={} cm={}",
+        args.mode,
+        rv_pcslots_name(slots.platform),
+        rv_pcslots_name(slots.ca),
+        rv_pcslots_name(slots.cv),
+        rv_pcslots_name(slots.cio),
+        rv_pcslots_name(slots.cl),
+        rv_pcslots_name(slots.cd),
+        rv_pcslots_name(slots.cm));
     RV_LOG_INFO("main", "ram available: {}", machine.ram_available);
 }
 

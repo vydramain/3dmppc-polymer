@@ -19,10 +19,12 @@ namespace rv_3dmppc
 namespace
 {
 
+constexpr int64_t DEFAULT_PAGE_SIZE = 4096; // bytes, fallback when sysconf(_SC_PAGESIZE) fails
+
 int64_t page_size()
 {
     static const int64_t size = sysconf(_SC_PAGESIZE);
-    return size > 0 ? size : 4096;
+    return size > 0 ? size : DEFAULT_PAGE_SIZE;
 }
 
 int64_t round_up_to_page(int64_t bytes)
@@ -41,8 +43,7 @@ rv_pcvmem::rv_pcvmem(int64_t reserve_bytes)
     }
 
     const int64_t rounded = round_up_to_page(reserve_bytes);
-    void *mapping = mmap(nullptr, static_cast<size_t>(rounded), PROT_NONE,
-        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *mapping = mmap(nullptr, static_cast<size_t>(rounded), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mapping == MAP_FAILED) {
         RV_LOG_ERR("pcvmem", "mmap of {} bytes failed: {}", rounded, strerror(errno));
         valid_ = false;
@@ -102,8 +103,7 @@ int64_t rv_pcvmem::ensure(int64_t bytes)
     }
 
     if (madvise(region, static_cast<size_t>(delta), MADV_POPULATE_WRITE) != 0) {
-        RV_LOG_ERR("pcvmem", "madvise(POPULATE_WRITE) of {} bytes failed: {}", delta,
-            strerror(errno));
+        RV_LOG_ERR("pcvmem", "madvise(POPULATE_WRITE) of {} bytes failed: {}", delta, strerror(errno));
         // Undo the mprotect so nothing new is handed out on failure.
         mprotect(region, static_cast<size_t>(delta), PROT_NONE);
         return RV_ERR_NOMEM;
@@ -116,15 +116,13 @@ int64_t rv_pcvmem::ensure(int64_t bytes)
 int64_t rv_pcvmem_probe_populate_write()
 {
     const int64_t page = page_size();
-    void *mapping = mmap(
-        nullptr, static_cast<size_t>(page), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    void *mapping = mmap(nullptr, static_cast<size_t>(page), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (mapping == MAP_FAILED) {
         RV_LOG_ERR("pcvmem", "probe mmap failed: {}", strerror(errno));
         return RV_ERR_NOMEM;
     }
 
-    const int64_t result =
-        madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0 ? RV_OK : RV_ERR_NOENT;
+    const int64_t result = madvise(mapping, static_cast<size_t>(page), MADV_POPULATE_WRITE) == 0 ? RV_OK : RV_ERR_NOENT;
     munmap(mapping, static_cast<size_t>(page));
     return result;
 }

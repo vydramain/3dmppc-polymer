@@ -12,6 +12,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdklib/rv_disc_hash/rv_disc_hash.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_version/rv_version.hpp"
 #include "rv_pconsole/cd/rv_zipreader.hpp"
 #include "rv_pconsole/rv_pcloader_detail.hpp"
 
@@ -29,59 +30,65 @@ constexpr uint64_t align_elf_note_field_size(uint64_t size)
     return (size + 3ull) & ~3ull;
 }
 
+// Hex encoding constants for bytes_to_hex.
+constexpr std::size_t HEX_CHARS_PER_BYTE = 2; // Two hex digits represent one byte
+constexpr int HIGH_NIBBLE_SHIFT = 4;          // Bit shift to extract high nibble
+constexpr uint8_t NIBBLE_MASK = 0x0f;         // Mask to extract low nibble
+
 // Local hex formatting for a log line only - pdklib ships raw bytes, not text.
 std::string bytes_to_hex(const unsigned char *bytes, std::size_t n)
 {
     static const char *const digits = "0123456789abcdef";
     std::string out;
-    out.reserve(n * 2);
+    out.reserve(n * HEX_CHARS_PER_BYTE);
     for (std::size_t i = 0; i < n; ++i) {
-        out.push_back(digits[bytes[i] >> 4]);
-        out.push_back(digits[bytes[i] & 0x0f]);
+        out.push_back(digits[bytes[i] >> HIGH_NIBBLE_SHIFT]);
+        out.push_back(digits[bytes[i] & NIBBLE_MASK]);
     }
     return out;
 }
 
 template <typename O>
-bool pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out)
+int pod_peek(std::vector<unsigned char> &buf, int64_t off_start, int64_t off_end, O &out)
 {
     static_assert(std::is_trivially_copyable_v<O>);
 
     if (off_start < 0 || off_start > (int64_t)buf.size() - (int64_t)sizeof(O)) {
-        return false;
+        return RV_ERR_INVAL;
     }
     if (off_end < off_start || off_end > (int64_t)buf.size()) {
-        return false;
+        return RV_ERR_INVAL;
     }
 
     std::memcpy(&out, buf.data() + off_start, sizeof(O));
-    return true;
+    return RV_OK;
 }
 
 // ELF64 header: magic, class/byte order, e_type/e_machine, program-header
 // stride. Each check legalises exactly the fields the next step relies on;
 // until a check has passed, the fields it covers are just bytes. Fills
-// out_ehdr on success.
-bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
-    const char *origin, Elf64_Ehdr &out_ehdr)
+// out_ehdr and returns RV_OK on success, RV_ERR_INVAL on any failed check.
+int elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry, const char *origin, Elf64_Ehdr &out_ehdr)
 {
     const int64_t size = static_cast<int64_t>(buffer.size());
     if (size <= 0) {
         RV_LOG_ERR("pcloader",
             "code entry '{}' in '{}' is missing or empty; there is no binary "
             "to version-check",
-            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(origin));
-        return false;
+            rv_pdklib::rv_log_escape(info_entry),
+            rv_pdklib::rv_log_escape(origin));
+        return RV_ERR_INVAL;
     }
 
     // The ELF header lives at offset 0 by definition - elf(5), "ELF header
     // (Ehdr)".
-    if (!pod_peek(buffer, 0, sizeof(out_ehdr), out_ehdr)) {
+    if (pod_peek(buffer, 0, sizeof(out_ehdr), out_ehdr) != RV_OK) {
         RV_LOG_ERR("pcloader",
             "code entry '{}' is only {} bytes - smaller than an ELF64 header; "
             "not a loadable binary",
-            rv_pdklib::rv_log_escape(info_entry), size);
-        return false;
+            rv_pdklib::rv_log_escape(info_entry),
+            size);
+        return RV_ERR_INVAL;
     }
 
     if (memcmp(out_ehdr.e_ident, ELFMAG, SELFMAG) != 0) {
@@ -89,7 +96,7 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
             "code entry '{}' does not start with the ELF magic; it is not an "
             "ELF object at all",
             rv_pdklib::rv_log_escape(info_entry));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Single-byte fields, so they are readable regardless of byte order - and
@@ -99,17 +106,20 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
         RV_LOG_ERR("pcloader",
             "code entry '{}' is not a 64-bit little-endian ELF (class {}, "
             "data {}); this console only runs ELF64 LE discs",
-            rv_pdklib::rv_log_escape(info_entry), (int)out_ehdr.e_ident[EI_CLASS],
+            rv_pdklib::rv_log_escape(info_entry),
+            (int)out_ehdr.e_ident[EI_CLASS],
             (int)out_ehdr.e_ident[EI_DATA]);
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (out_ehdr.e_type != ET_DYN || out_ehdr.e_machine != EM_X86_64) {
         RV_LOG_ERR("pcloader",
             "code entry '{}' is not an x86-64 shared object (e_type {}, "
             "e_machine {}); it cannot run on this console",
-            rv_pdklib::rv_log_escape(info_entry), out_ehdr.e_type, out_ehdr.e_machine);
-        return false;
+            rv_pdklib::rv_log_escape(info_entry),
+            out_ehdr.e_type,
+            out_ehdr.e_machine);
+        return RV_ERR_INVAL;
     }
 
     // The program-header walk steps by e_phentsize; if the file declares a
@@ -119,25 +129,31 @@ bool elf_header_ok(std::vector<unsigned char> &buffer, const char *info_entry,
         RV_LOG_ERR("pcloader",
             "code entry '{}' declares {}-byte program headers, elf(5) says {}; "
             "its segment table cannot be walked",
-            rv_pdklib::rv_log_escape(info_entry), out_ehdr.e_phentsize, sizeof(Elf64_Phdr));
-        return false;
+            rv_pdklib::rv_log_escape(info_entry),
+            out_ehdr.e_phentsize,
+            sizeof(Elf64_Phdr));
+        return RV_ERR_INVAL;
     }
 
-    return true;
+    return RV_OK;
 }
 
 // Walks ehdr's program headers for the first PT_NOTE segment. found stays
 // false (RV_OK) when none exists; a bounds violation returns RV_ERR_INVAL
 // immediately, already logged.
-int64_t find_note_segment(std::vector<unsigned char> &buffer, const Elf64_Ehdr &ehdr,
-    uint64_t &segment_offset, uint64_t &segment_end, bool &found)
+int64_t find_note_segment(std::vector<unsigned char> &buffer,
+    const Elf64_Ehdr &ehdr,
+    uint64_t &segment_offset,
+    uint64_t &segment_end,
+    bool &found)
 {
     found = false;
     Elf64_Phdr potential_note;
     for (int i = 0; i < ehdr.e_phnum; ++i) {
-        if (!pod_peek(buffer, ehdr.e_phoff + i * ehdr.e_phentsize,
+        if (pod_peek(buffer,
+                ehdr.e_phoff + i * ehdr.e_phentsize,
                 (ehdr.e_phoff + i * ehdr.e_phentsize) + sizeof(potential_note),
-                potential_note)) {
+                potential_note) != RV_OK) {
             RV_LOG_WARN("pcloader", "can not to peek elf64_phdr from disc.so ");
             continue;
         }
@@ -165,8 +181,11 @@ int64_t find_note_segment(std::vector<unsigned char> &buffer, const Elf64_Ehdr &
 // Walks the notes inside [segment_offset, segment_end) for the RV_MPPC note
 // and fills version_info. found stays false (RV_OK) when no matching note is
 // present; only an unreadable note header returns RV_ERR_INVAL.
-int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offset,
-    uint64_t segment_end, rv_mppc_note_desc &version_info, bool &found)
+int64_t read_mppc_note(std::vector<unsigned char> &buffer,
+    uint64_t segment_offset,
+    uint64_t segment_end,
+    rv_mppc_note_desc &version_info,
+    bool &found)
 {
     found = false;
 
@@ -192,7 +211,7 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
 
         const uint64_t note_header_end = note_offset + sizeof(note);
 
-        if (!pod_peek(buffer, note_offset, note_header_end, note)) {
+        if (pod_peek(buffer, note_offset, note_header_end, note) != RV_OK) {
             RV_LOG_ERR("pcloader", "cannot read ELF note header from mppcdisc");
             return RV_ERR_INVAL;
         }
@@ -210,9 +229,8 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
             break;
         }
 
-        const bool header_matches = owner_size == expected_owner_size &&
-            desc_size == expected_desc_size &&
-            note.n_type == RV_MPPC_NOTE_TYPE;
+        const bool header_matches =
+            owner_size == expected_owner_size && desc_size == expected_desc_size && note.n_type == RV_MPPC_NOTE_TYPE;
 
         if (!header_matches) {
             // .so files carry notes from the toolchain (e.g. .note.gnu.build-id,
@@ -232,7 +250,7 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
             continue;
         }
 
-        if (!pod_peek(buffer, desc_offset, note_end, version_info)) {
+        if (pod_peek(buffer, desc_offset, note_end, version_info) != RV_OK) {
             RV_LOG_WARN("pcloader", "cannot read version descriptor from ELF note");
             continue;
         }
@@ -247,12 +265,12 @@ int64_t read_mppc_note(std::vector<unsigned char> &buffer, uint64_t segment_offs
 // Compares version_info against this console's RV_MPPC_VER_MAJOR/MINOR.
 bool version_compatible(const rv_mppc_note_desc &version_info)
 {
-    if (RV_MPPC_VER_MAJOR != version_info.version_major ||
-        RV_MPPC_VER_MINOR < version_info.version_minor) {
+    if (!rv_pdklib::rv_version_compatible(version_info.version_major, version_info.version_minor)) {
         RV_LOG_ERR("pcloader",
-            "disc version are incompatible to currect console version: "
+            "disc version is incompatible with the current console version: "
             "disc version is: {}.{}; ",
-            version_info.version_major, version_info.version_minor);
+            version_info.version_major,
+            version_info.version_minor);
         return false;
     }
     return true;
@@ -260,18 +278,17 @@ bool version_compatible(const rv_mppc_note_desc &version_info)
 
 } // namespace
 
-int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
-    const char *info_entry)
+int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip, const char *info_entry)
 {
     int64_t size = zip->size(info_entry);
     if (size <= 0) {
         // TODO(rv_log_escape): 22 calls in this file. The console is its only
         // caller, so it does not belong in pdklib - find it a console-side home.
-        RV_LOG_ERR(
-            "pcloader",
+        RV_LOG_ERR("pcloader",
             "code entry '{}' in '{}' is missing or empty; there is no binary "
             "to version-check",
-            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()));
+            rv_pdklib::rv_log_escape(info_entry),
+            rv_pdklib::rv_log_escape(zip->path().c_str()));
         return RV_ERR_INVAL;
     }
 
@@ -281,12 +298,14 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
     std::vector<unsigned char> buffer(size);
     rv_zipread zipread = zip->read(info_entry, buffer.data(), size, nread);
     if (zipread != rv_3dmppc::rv_zipread::ok || nread != size) {
-        RV_LOG_ERR(
-            "pcloader",
+        RV_LOG_ERR("pcloader",
             "cannot read code entry '{}' from '{}' (zip verdict {}, {} of {} "
             "bytes); refusing a disc whose code cannot be inspected",
-            rv_pdklib::rv_log_escape(info_entry), rv_pdklib::rv_log_escape(zip->path().c_str()),
-            static_cast<int>(zipread), nread, size);
+            rv_pdklib::rv_log_escape(info_entry),
+            rv_pdklib::rv_log_escape(zip->path().c_str()),
+            static_cast<int>(zipread),
+            nread,
+            size);
         return RV_ERR_INVAL;
     }
 
@@ -297,38 +316,34 @@ int64_t rv_pcloader::pre_dlopen_check(rv_zipreader *zip,
 // disc code checksum is recomputed over the very buffer the ELF above was
 // parsed from, and compared against what the burner stamped into the note. A
 // mismatch means the code was altered after burning - refuse it before
-// dlopen ever sees the file.
-bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
-    const char *info_entry, const rv_mppc_note_desc &version_info)
+// dlopen ever sees the file. Returns RV_OK on match, RV_ERR_INVAL on error.
+int rv_pcloader::checksum_verify_(std::vector<unsigned char> &buffer,
+    const char *info_entry,
+    const rv_mppc_note_desc &version_info)
 {
     unsigned char computed_checksum[rv_pdklib::RV_DISC_HASH_BYTES];
     std::string hash_error;
-    if (!rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(),
-            computed_checksum, hash_error)) {
-        RV_LOG_ERR("pcloader",
-            "cannot checksum code entry '{}': {}",
-            rv_pdklib::rv_log_escape(info_entry), hash_error);
-        return false;
+    if (rv_pdklib::rv_disc_hash_compute(buffer.data(), buffer.size(), computed_checksum, hash_error) != RV_OK) {
+        RV_LOG_ERR("pcloader", "cannot checksum code entry '{}': {}", rv_pdklib::rv_log_escape(info_entry), hash_error);
+        return RV_ERR_INVAL;
     }
 
     static_assert(sizeof(version_info.magic) == rv_pdklib::RV_DISC_HASH_BYTES);
-    if (std::memcmp(computed_checksum, version_info.magic,
-            rv_pdklib::RV_DISC_HASH_BYTES) != 0) {
+    if (std::memcmp(computed_checksum, version_info.magic, rv_pdklib::RV_DISC_HASH_BYTES) != 0) {
         RV_LOG_ERR("pcloader",
             "code entry '{}' checksum mismatch: expected {}, got {}; the disc "
             "code was altered after burning",
             rv_pdklib::rv_log_escape(info_entry),
-            bytes_to_hex(reinterpret_cast<const unsigned char *>(version_info.magic),
-                sizeof(version_info.magic)),
+            bytes_to_hex(reinterpret_cast<const unsigned char *>(version_info.magic), sizeof(version_info.magic)),
             bytes_to_hex(computed_checksum, sizeof(computed_checksum)));
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // Kept only now, after the comparison passed: a checksum that did not match
     // is not this disc's checksum, and reporting it would invite a client to
     // compare against a number that was refused.
     code_hash_ = bytes_to_hex(computed_checksum, sizeof(computed_checksum));
-    return true;
+    return RV_OK;
 }
 
 // The core of pre_dlopen_check(): ELF header, PT_NOTE walk, version and
@@ -336,19 +351,17 @@ bool rv_pcloader::checksum_matches_(std::vector<unsigned char> &buffer,
 // directory the bytes came from, for the log lines only - this function never
 // reads anything itself, which is what lets mount() (via the wrapper above)
 // and mount_dir() share it verbatim.
-int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
-    const char *info_entry, const char *origin)
+int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer, const char *info_entry, const char *origin)
 {
     Elf64_Ehdr mppcdisc_ehdr;
-    if (!elf_header_ok(buffer, info_entry, origin, mppcdisc_ehdr)) {
+    if (elf_header_ok(buffer, info_entry, origin, mppcdisc_ehdr) != RV_OK) {
         return RV_ERR_INVAL;
     }
 
     uint64_t segment_offset = 0;
     uint64_t segment_end = 0;
     bool note_segment_found = false;
-    if (const int64_t rc = find_note_segment(buffer, mppcdisc_ehdr, segment_offset,
-            segment_end, note_segment_found);
+    if (const int64_t rc = find_note_segment(buffer, mppcdisc_ehdr, segment_offset, segment_end, note_segment_found);
         rc != RV_OK) {
         return rc;
     }
@@ -356,8 +369,7 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
     rv_mppc_note_desc version_info;
     bool version_info_found_flag = false;
     if (note_segment_found) {
-        if (const int64_t rc = read_mppc_note(buffer, segment_offset, segment_end,
-                version_info, version_info_found_flag);
+        if (const int64_t rc = read_mppc_note(buffer, segment_offset, segment_end, version_info, version_info_found_flag);
             rc != RV_OK) {
             return rc;
         }
@@ -368,7 +380,8 @@ int64_t rv_pcloader::pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
         return RV_ERR_INVAL;
     }
 
-    if (!checksum_matches_(buffer, info_entry, version_info)) {
+    const int checksum_rc = checksum_verify_(buffer, info_entry, version_info);
+    if (checksum_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
 

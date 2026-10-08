@@ -135,8 +135,7 @@ inline uint16_t rv_pcraster::pack_rgb555_dithered(rv_color color, int64_t x, int
     // Truncation and not rounding: the threshold above was chosen against the
     // bits `>> 3` drops, so rounding on top of it would cancel half the dither.
     return rv_pdklib::rv_texel_pack(
-        rv_pdklib::rv_texel_truncate(rv_color{ static_cast<uint8_t>(r), static_cast<uint8_t>(g),
-            static_cast<uint8_t>(b) }));
+        rv_pdklib::rv_texel_truncate(rv_color{ static_cast<uint8_t>(r), static_cast<uint8_t>(g), static_cast<uint8_t>(b) }));
 }
 
 // One quantizer for every pixel, samples included - a texel takes the

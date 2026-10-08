@@ -3,6 +3,7 @@
 #include <string>
 #include <utility>
 
+#include "pdk/rv_err.h"
 #include "rv_manifest_token.hpp"
 #include "rv_manifest_tree.hpp"
 #include "rv_manifest_value.hpp"
@@ -29,19 +30,18 @@ rv_manifest_tree rv_manifest_parser::run()
             continue;
         }
         if (at(tk::LBRACKET)) {
-            if (!parse_section()) {
+            if (parse_section() != RV_OK) {
                 recover();
             }
             continue;
         }
         if (at(tk::IDENT)) {
-            if (!parse_assignment()) {
+            if (parse_assignment() != RV_OK) {
                 recover();
             }
             continue;
         }
-        failer_.fail(peek().line,
-            "expected a section header or 'key = value', found " + rv_manifest_token_spelling(peek()));
+        failer_.fail(peek().line, "expected a section header or 'key = value', found " + rv_manifest_token_spelling(peek()));
         recover();
     }
     return std::move(tree_);
@@ -72,26 +72,37 @@ bool rv_manifest_parser::at(rv_manifest_token_kind kind) const
 
 // --- grammar ------------------------------------------------------------------
 
-bool rv_manifest_parser::parse_section()
+int rv_manifest_parser::parse_section()
 {
     const int line = peek().line;
     get(); // '['
+    // [[name]] opens one more table of an array of them.
+    const bool array = at(tk::LBRACKET);
+    if (array) {
+        get();
+    }
+    const std::string open = array ? "[[" : "[";
     if (!at(tk::IDENT)) {
         open_section(std::string(), line, true);
         return failer_.fail(line,
-            at(tk::RBRACKET) ? "empty section header" : "expected a section name after '['");
+            at(tk::RBRACKET) ? std::string("empty section header") : "expected a section name after '" + open + "'");
     }
     std::string name = get().text;
-    if (!at(tk::RBRACKET)) {
+    const bool closed = at(tk::RBRACKET) && (!array || tokens_[pos_ + 1].kind == tk::RBRACKET);
+    if (!closed) {
         open_section(name, line, true);
-        return failer_.fail(line, "section header '[" + name + "' is missing its closing ']'");
+        return failer_.fail(line, "section header '" + open + name + "' is missing its closing " + (array ? "']]'" : "']'"));
     }
     get(); // ']'
+    if (array) {
+        get(); // ']'
+    }
     open_section(std::move(name), line, false);
+    current_section().array = array;
     return expect_line_end("section header");
 }
 
-bool rv_manifest_parser::parse_assignment()
+int rv_manifest_parser::parse_assignment()
 {
     const std::string key = peek().text;
     const int line = get().line;
@@ -109,14 +120,14 @@ bool rv_manifest_parser::parse_assignment()
     rv_manifest_tree_entry entry;
     entry.key = key;
     entry.line = line;
-    if (!parse_value(entry.value)) {
-        return false;
+    if (parse_value(entry.value) != RV_OK) {
+        return RV_ERR_INVAL;
     }
     current_section().entries.push_back(std::move(entry));
     return expect_line_end("value");
 }
 
-bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
+int rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
 {
     const rv_manifest_token &token = peek();
     out.line = token.line;
@@ -124,11 +135,15 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
     case tk::STRING:
         out.kind = rv_manifest_value_kind::string;
         out.str = get().text;
-        return true;
+        return RV_OK;
     case tk::INTEGER:
         out.kind = rv_manifest_value_kind::integer;
         out.num = get().num;
-        return true;
+        return RV_OK;
+    case tk::REAL:
+        out.kind = rv_manifest_value_kind::real;
+        out.real = get().real;
+        return RV_OK;
     case tk::LBRACKET:
         out.kind = rv_manifest_value_kind::array;
         return parse_array(out);
@@ -140,75 +155,111 @@ bool rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
     case tk::IDENT:
         if (token.text == "true" || token.text == "false") {
             return failer_.fail(token.line,
-                "booleans are not supported — this manifest holds strings, "
-                "integers and arrays of strings only");
+                "booleans are not supported — this dialect holds strings, numbers and "
+                "arrays of either");
         }
         break;
     default:
         break;
     }
     return failer_.fail(token.line,
-        "unsupported value " + rv_manifest_token_spelling(token) +
-            " — expected a quoted string, an integer or an array of quoted strings");
+        "unsupported value " + rv_manifest_token_spelling(token) + " — expected a quoted string, a number or an array");
 }
 
 // Newlines inside the brackets are skipped, which is the whole of the
 // multi-line array support: both shapes parse to the same value.
-bool rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
+int rv_manifest_parser::parse_array(rv_manifest_mvalue &out)
 {
     const int start = get().line; // '['
     for (;;) {
-        while (at(tk::NEWLINE)) {
-            get();
-        }
+        skip_newlines();
         if (at(tk::END_OF_FILE)) {
             return failer_.fail(start, "unterminated array — no closing ']' before end of file");
         }
         if (at(tk::RBRACKET)) {
             get();
-            return true;
+            return RV_OK;
         }
         if (at(tk::INVALID)) {
             return failer_.fail(peek().line, peek().text);
         }
         if (at(tk::COMMA)) {
-            return failer_.fail(peek().line, "empty element in array — expected a quoted string");
+            return failer_.fail(peek().line, "empty element in array — expected a value");
         }
-        if (!at(tk::STRING)) {
-            return failer_.fail(peek().line, "array elements must be quoted strings");
+        const int element_rc = parse_array_element(out);
+        if (element_rc != RV_OK) {
+            return element_rc;
         }
-        out.arr.push_back(get().text);
-
-        while (at(tk::NEWLINE)) {
-            get();
+        bool closed = false;
+        const int separator_rc = parse_array_separator(start, closed);
+        if (separator_rc != RV_OK) {
+            return separator_rc;
         }
-        if (at(tk::COMMA)) {
-            get();
-            continue;
+        if (closed) {
+            return RV_OK;
         }
-        if (at(tk::RBRACKET)) {
-            get();
-            return true;
-        }
-        if (at(tk::END_OF_FILE)) {
-            return failer_.fail(start, "unterminated array — no closing ']' before end of file");
-        }
-        return failer_.fail(peek().line,
-            "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
     }
 }
 
-bool rv_manifest_parser::expect_line_end(const char *what)
+void rv_manifest_parser::skip_newlines()
+{
+    while (at(tk::NEWLINE)) {
+        get();
+    }
+}
+
+// The first element decides: strings, or numbers; never both.
+int rv_manifest_parser::parse_array_element(rv_manifest_mvalue &out)
+{
+    const bool number = at(tk::INTEGER) || at(tk::REAL);
+    if (!number && !at(tk::STRING)) {
+        return failer_.fail(peek().line, "array elements must be quoted strings or numbers");
+    }
+    const bool first = out.arr.empty() && out.nums.empty();
+    if (first && number) {
+        out.kind = rv_manifest_value_kind::numbers;
+    }
+    if (number != (out.kind == rv_manifest_value_kind::numbers)) {
+        return failer_.fail(peek().line, "an array holds strings or numbers, not both");
+    }
+    if (number) {
+        const rv_manifest_token &t = get();
+        out.nums.push_back(t.kind == tk::REAL ? t.real : static_cast<double>(t.num));
+    } else {
+        out.arr.push_back(get().text);
+    }
+    return RV_OK;
+}
+
+int rv_manifest_parser::parse_array_separator(int array_start, bool &closed)
+{
+    skip_newlines();
+    if (at(tk::COMMA)) {
+        get();
+        closed = false;
+        return RV_OK;
+    }
+    if (at(tk::RBRACKET)) {
+        get();
+        closed = true;
+        return RV_OK;
+    }
+    if (at(tk::END_OF_FILE)) {
+        return failer_.fail(array_start, "unterminated array — no closing ']' before end of file");
+    }
+    return failer_.fail(peek().line, "expected ',' or ']' in array, found " + rv_manifest_token_spelling(peek()));
+}
+
+int rv_manifest_parser::expect_line_end(const char *what)
 {
     if (at(tk::END_OF_FILE)) {
-        return true;
+        return RV_OK;
     }
     if (at(tk::NEWLINE)) {
         get();
-        return true;
+        return RV_OK;
     }
-    return failer_.fail(peek().line,
-        std::string("unexpected text after ") + what + " — one " + what + " per line");
+    return failer_.fail(peek().line, std::string("unexpected text after ") + what + " — one " + what + " per line");
 }
 
 // --- recovery -----------------------------------------------------------------

@@ -91,10 +91,34 @@ never names a game, and a game never sees a console header. A disc target links
 fails to compile rather than being caught in review. See
 [`pdk/README.md`](pdk/README.md) for why the contract is shaped this way.
 
-The console and the tools build with **two separate commands** on purpose. The
-console is firmware — it loads a disc and runs it. It must never look like the
-thing that *compiles* one, and a player's machine needs neither the tools nor
-the compiler they drive.
+The player console and the tools build separately on purpose. The console is
+firmware — it loads a disc and runs it. It must never look like the thing that
+*compiles* one, and a player's machine needs neither the tools nor the compiler
+they drive. The development console is the one build that brings them along;
+see below.
+
+---
+
+## Two builds: the player console and the development kit
+
+| Build | Command | What lands in `pconsole/` |
+| --- | --- | --- |
+| player | `cmake -S . -B build -G Ninja && cmake --build build` | `3dmppc` |
+| development kit | `cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev` | `3dmppc` (development), `mppcbaker`, `mppcburner`, `3dmppc-editor` |
+
+```
+build-dev/pconsole/
+    3dmppc          the development console: --dev, loose disc directories, reload
+    mppcbaker       bakes a PNG into a console texture
+    mppcburner      compiles a disc directory and burns a .mppcdisc
+    3dmppc-editor   the editor
+```
+
+The tools and the editor stay separate CMake projects (`pdk/tools/`,
+`editor/`) in the development kit too: the console's build configures each in
+its own subdirectory of `build-dev/` and collects only their binaries, so
+nothing from `src/` reaches them. Both still build on their own with their own
+command. The player build contains the console alone.
 
 ---
 
@@ -127,6 +151,7 @@ the compiler they drive.
 | `--mute` | silence the output stage; voices still play as far as the disc can tell |
 | `--dump-frame PATH` | write the last rendered frame as a binary PPM (no window needed) |
 | `--dev` | attach the development command channel to stdin/stdout; what the console *can* do is set by its build, this only says where to speak |
+| `--frame-fd N` | with `--dev`, development build only: open no window, write each finished frame into the shared memory object on descriptor N (layout in `src/rv_pconsole/platform/rv_pcframe.hpp`), announce it as `0 event=frame frame=<n> slot=<k>`, and take port 0's keyboard buttons from `pad` |
 | `--paused` | start with the frame loop stopped, before frame 0. Lift it with the **Pause** key, or with a resume/step request when `--dev` is given; a mode that offers neither is refused |
 
 Timing: every frame advances the machine by exactly 1/60 s and the SPU renders the audio of that same step, in every mode. Only when the next frame runs differs: with a usable audio device the output queue paces the loop; without one, or once it stalls for 250 ms, the steady clock does; `--fixed-step` does not wait at all and does not feed the audio device.
@@ -147,6 +172,10 @@ stdout — stdout is reserved for the development channel's protocol lines
 The console can be driven while it runs: stopped at a frame boundary, stepped
 one frame at a time, inspected, and - the point of the whole thing - handed
 replacement Lua for the disc's entry script without losing the game's state.
+
+It is the console of the development kit:
+`cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev`
+puts it in `build-dev/pconsole/3dmppc`, next to the tools and the editor.
 
 **The build decides what this console can do; `--dev` only decides where the
 channel is attached.** `-D3DMPPC_DEVTOOLS=ON` puts the dev sources in the
@@ -230,7 +259,10 @@ not for a contract call, and carries no `rv_err`.
 
 The console echoes your id back on the answer. Zero is not yours to send: the
 console tags with `0` the events it raises on its own, so a request numbered
-zero would be answered indistinguishably from one of those.
+zero would be answered indistinguishably from one of those. A development
+build sends `0 event=scene name=<hex>` once for every resource ending in
+`.scene.toml` the disc's own code opens through the drive; a new medium
+starts that list over, and a player build never sends it.
 
 A request carries bytes by ending its header with `bytes <n>`: exactly `n`
 bytes follow the newline with no terminator, and the next header starts right
@@ -247,9 +279,11 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
 | `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND) is refused with `unsupported_kind` (directory medium only) |
+| `asset <name> bytes <n>` | the next `n` bytes are the new content of `<name>` - a baked `.mppctex` for a texture; same answers as `asset <name>`, and works on any medium. Bytes that are not a valid texture are refused with `asset`, and the last good copy stays resident |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
 | `gc` | full collection, then report the heap |
+| `pad 0 <hex>` | with `--frame-fd`: the buttons (rv_isource bits) port 0's keyboard holds from now on |
 | `quit` | shut down by the ordinary path |
 
 `entry` selects the chunk the manifest names; `module <name>` selects a module
@@ -274,16 +308,20 @@ notification at all. The
 answer carries the texture's size because a RESIZED texture is the one case
 the client's own layout has to follow — the game does not have to hear about
 it at all, since it asks the drive for the address and the size every draw.
+`asset <name> bytes <n>` carries the new bytes with the request instead of
+reading them off the medium, so it needs no live directory - only the name
+still has to be an entry on whatever is mounted.
 
 ### A session
 
 ```sh
-mppcburner build mppcdiscs/example-lua --unpacked build/example-lua.discdir --baker …
-3dmppc --dev --paused build/example-lua.discdir
+build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
+    --baker build-dev/pconsole/mppcbaker
+build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
 ```
 
 ```
-1 status                    -> 1 ok protocol=1 frame=0 mode=paused entry_revision=0 …
+1 status                    -> 1 ok protocol=1.0 frame=0 mode=paused entry_revision=0 …
 2 step                      -> 2 ok completed=1 frame=1 mode=paused
 3 get frame_count           -> 3 ok found=1 type=number value=1
                                … edit scripts/example-lua.lua in your editor …
@@ -389,7 +427,7 @@ reshaping at all.
 | --- | --- | --- |
 | entry Lua chunk | no — `reload entry` | the client, by asking; `entry_revision` counts the successful ones |
 | a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
-| an existing texture's bytes | no — `asset <name>` | the client, by asking; the drive refreshes it |
+| an existing texture's bytes | no — `asset <name>` or `asset <name> bytes <n>` | the client, by asking or by sending the new bytes; the drive refreshes it |
 | an existing sound's bytes | **yes**, once it is resident | the client: `asset` on it answers `err unsupported_kind`. A voice is already reading that block, and moving the bytes under its read head is not something the drive can undo |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
@@ -474,7 +512,7 @@ whoever wrote the script:
 mygame/
   disc.toml        the manifest: what to compile, what to bake, what to copy
   src/*.cpp        the game — implements rv_de, exports itself with RV_MPPC_DISC_ENTRY_DEF
-  assets/          PNGs get baked into texels; everything else is copied in
+  assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
 ```
 
 Start by copying [`mppcdiscs/example-cpp/`](mppcdiscs/example-cpp/) — it is the smallest
@@ -494,12 +532,19 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-files = ["assets/*.pcm"]
+files = ["scenes/*.scene.toml"]
 
 [textures]
 files = ["assets/*.png"]
 format = "idx8"
+
+[sounds]
+files = ["assets/*.wav"]
 ```
+
+`[sounds]` is optional, like `[textures]`: each listed WAV is baked by
+`mppcbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
+44100 Hz samples - and put on the disc beside the textures.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
@@ -513,10 +558,17 @@ each number is what it is.
 ```sh
 mppcburner build mygame -o mygame.mppcdisc [--baker PATH] [--pdk PATH] [--pdklib PATH]
 mppcburner inspect mygame.mppcdisc
+mppcburner bake-texture mygame assets/hero.png -o hero.mppctex [--baker PATH]
 ```
 
 `inspect` prints the manifest and the entry list to **stdout** (so it pipes into
 `grep` cleanly) and diagnostics to stderr.
+
+`bake-texture` bakes one `[textures]` source into a standalone `.mppctex`, the
+way `build`'s own plan would - same format and the same `[budget]` size check.
+It writes `-o` only once baking succeeds, so a refusal never leaves a partial
+file, and prints the entry's disc name (what `--map` would call it) as the
+only line on stdout.
 
 The burner refuses rather than shipping something broken: a texture larger than
 the console allows, assets that overflow the virtual VRAM, or two assets whose
@@ -560,6 +612,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
+| [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
 | [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
@@ -626,6 +679,29 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 ## Requirements
 
 SDL3 and LuaJIT (both used from the system if installed, otherwise built from
-source on the first configure), CMake 3.24+, Ninja, and a C++23 compiler. The
-tools additionally shells out to `cmake` and `ninja` at run time to compile a
-disc, and downloads `stb_image.h` into its own build directory.
+source on the first configure), CMake 3.24+, Ninja, Clang with C++23, `git`
+and `make` (LuaJIT builds with its own Makefile). The tools additionally shell
+out to `cmake` and `ninja` at run time to compile a disc, and download
+`stb_image.h` into their own build directory.
+
+Arch ships `sdl3` as a package, so it is used as is. Debian, Ubuntu 24.04 and
+Linux Mint 22 do not, so SDL is built from source, once for the console and
+once more for the editor. That build stops at configure without the X11
+extension headers, and without the audio and udev headers it quietly produces
+an SDL with no sound and no gamepad hotplug:
+
+```sh
+# Debian / Ubuntu / Mint
+sudo apt install clang cmake ninja-build git make pkg-config \
+    libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+    libxss-dev libxtst-dev \
+    libasound2-dev libpulse-dev libpipewire-0.3-dev libudev-dev \
+    libwayland-dev libxkbcommon-dev libdecor-0-dev
+
+# Arch
+sudo pacman -S clang cmake ninja git make sdl3 luajit
+```
+
+Configure fails with `Couldn't find dependency package for XSCRNSAVER` (or
+`XTEST`) when `libxss-dev` (or `libxtst-dev`) is missing. After installing
+packages, delete the build directory: SDL caches what it did not find.

@@ -8,7 +8,8 @@
 #include "pdklib/rv_textures/rv_texel_pack.hpp"
 #include "rv_baker_quantize.hpp"
 
-namespace {
+namespace
+{
 
 // --- the file format ----------------------------------------------------------
 
@@ -26,6 +27,14 @@ constexpr size_t RV_BAKER_PALETTE_SIZE_IDX8 = 256;
 // (width + 1) / 2.
 constexpr int RV_BAKER_IDX4_NIBBLE_BITS = 4;
 constexpr uint8_t RV_BAKER_IDX4_NIBBLE_MASK = 0x0F;
+constexpr int RV_BAKER_IDX4_TEXELS_PER_BYTE = 2; // two 4-bit texels pack into one byte
+
+// Little-endian encoding of multi-byte values
+constexpr uint8_t RV_BAKER_BYTE_MASK = 0xFF; // mask for extracting one byte
+constexpr int RV_BAKER_BITS_PER_BYTE = 8;    // bits per byte
+
+// DIRECT15 texture format
+constexpr int RV_BAKER_BYTES_PER_TEXEL_DIRECT15 = 2; // 16-bit colour = 2 bytes
 
 // Reserved slot - index 0 is the hole whenever the image has one.
 // Transparency in an indexed format lives in the PALETTE (rv_texture.h:
@@ -55,7 +64,6 @@ using rv_pdklib::rv_texel_unpack;
 // pixel there and the picture's shadows turn into holes. rv_texel_opaque is that
 // fix, applied wherever an opaque colour becomes a 16-bit word.
 
-
 // Every colour the console can express: three channels of five bits. 32768
 // counters is small enough to histogram by direct indexing, which is why this
 // tool needs no hash map and has no ordering ambiguity to resolve.
@@ -66,17 +74,16 @@ constexpr size_t RV_BAKER_COLOR5_CODES = 1u << 15;
 // Appends one little-endian uint16, the only multi-byte shape the format uses.
 void put_u16(std::vector<uint8_t> &out, uint16_t v)
 {
-    out.push_back(static_cast<uint8_t>(v & 0xFF));
-    out.push_back(static_cast<uint8_t>(v >> 8));
+    out.push_back(static_cast<uint8_t>(v & RV_BAKER_BYTE_MASK));
+    out.push_back(static_cast<uint8_t>(v >> RV_BAKER_BITS_PER_BYTE));
 }
 
 // DIRECT15 carries no palette: a texel is the colour itself.
 void encode_direct15(const source_image &src, std::vector<uint8_t> *out)
 {
-    out->reserve(out->size() + src.pixels.size() * 2);
+    out->reserve(out->size() + src.pixels.size() * RV_BAKER_BYTES_PER_TEXEL_DIRECT15);
     for (const src_pixel &s : src.pixels) {
-        put_u16(*out,
-            s.transparent ? RV_TEXEL_TRANSPARENT : rv_texel_opaque(rv_texel_pack(s.color)));
+        put_u16(*out, s.transparent ? RV_TEXEL_TRANSPARENT : rv_texel_opaque(rv_texel_pack(s.color)));
     }
 }
 
@@ -100,18 +107,18 @@ void histogram(const source_image &src, std::vector<color_bin> *out)
 }
 
 // IDX4 rows, two texels to a byte - see RV_BAKER_IDX4_NIBBLE_BITS.
-void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
-    std::vector<uint8_t> *out)
+void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices, std::vector<uint8_t> *out)
 {
     const size_t width = static_cast<size_t>(src.width);
     // The +1 is what pads an odd width so every row still starts on a byte.
-    const size_t stride = (width + 1) / 2;
+    const size_t stride = (width + 1) / RV_BAKER_IDX4_TEXELS_PER_BYTE;
     out->reserve(out->size() + stride * static_cast<size_t>(src.height));
     for (int y = 0; y < src.height; ++y) {
         const size_t row = static_cast<size_t>(y) * width;
-        for (size_t x = 0; x < width; x += 2) {
+        for (size_t x = 0; x < width; x += RV_BAKER_IDX4_TEXELS_PER_BYTE) {
             const uint8_t low = static_cast<uint8_t>(indices[row + x] & RV_BAKER_IDX4_NIBBLE_MASK);
-            const uint8_t high = (x + 1 < width) ? static_cast<uint8_t>(indices[row + x + 1] & RV_BAKER_IDX4_NIBBLE_MASK) : uint8_t{ 0 };
+            const uint8_t high =
+                (x + 1 < width) ? static_cast<uint8_t>(indices[row + x + 1] & RV_BAKER_IDX4_NIBBLE_MASK) : uint8_t{ 0 };
             out->push_back(static_cast<uint8_t>(low | (high << RV_BAKER_IDX4_NIBBLE_BITS)));
         }
     }
@@ -119,8 +126,7 @@ void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices,
 
 // Header, palette and indices for IDX4/IDX8. RV_ERR_INVAL is an image with
 // nothing to put in a palette.
-rv_err encode_indexed(const options &opt, const source_image &src, std::vector<uint8_t> *out,
-    baker_error *error)
+rv_err encode_indexed(const options &opt, const source_image &src, std::vector<uint8_t> *out, baker_error *error)
 {
     const size_t palette_size = (*opt.format == RV_TEXFMT_IDX4) ? RV_BAKER_PALETTE_SIZE_IDX4 : RV_BAKER_PALETTE_SIZE_IDX8;
     // One slot spent on RV_BAKER_HOLE_INDEX, and only when the image needs a hole.
@@ -136,7 +142,8 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
     }
     if (bins.size() > color_slots) {
         rv_pdklib::rv_fprintf(stderr,
-            "mppcbaker: note: %zu distinct colours reduced to %zu palette entries\n", bins.size(),
+            "mppcbaker: note: %zu distinct colours reduced to %zu palette entries\n",
+            bins.size(),
             color_slots);
     }
 
@@ -152,8 +159,7 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
         indices[i] = static_cast<uint8_t>(nearest(palette, src.pixels[i].color) + reserved);
     }
 
-    rv_pdklib::rv_mppctex_write_header(*opt.format, src.width, src.height,
-        static_cast<uint16_t>(palette_size), out);
+    rv_pdklib::rv_mppctex_write_header(*opt.format, src.width, src.height, static_cast<uint16_t>(palette_size), out);
 
     // Full length always; the unused tail is 0000h, so an index that should
     // never be sampled draws nothing rather than a wrong colour.
@@ -179,8 +185,7 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
 
 // The whole .mppctex, in memory. The format decides which encoder runs; both
 // produce a complete file, header included.
-rv_err encode_texture(const options &opt, const source_image &src, std::vector<uint8_t> *out,
-    baker_error *error)
+rv_err encode_texture(const options &opt, const source_image &src, std::vector<uint8_t> *out, baker_error *error)
 {
     if (*opt.format == RV_TEXFMT_DIRECT15) {
         rv_pdklib::rv_mppctex_write_header(*opt.format, src.width, src.height, 0, out);

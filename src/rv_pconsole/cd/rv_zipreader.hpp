@@ -31,7 +31,8 @@
 #include <unordered_map>
 #include <vector>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
 // One entry, as described by the central directory. `size` is both the stored
 // and the uncompressed size, because the two are equal by construction for
@@ -48,75 +49,91 @@ struct rv_zipentry {
 // what makes a corrupt disc diagnosable from a log line.
 enum class rv_zipread : int {
     ok = 0,
-    not_found,     // no entry by that name
-    short_buffer,  // the caller's buffer is smaller than the entry
-    corrupt,       // the archive's own bookkeeping does not hold up
-    crc_mismatch,  // the bytes are there but are not the bytes that were written
-    io_error,      // the host file failed a well-formed request
+    not_found,    // no entry by that name
+    short_buffer, // the caller's buffer is smaller than the entry
+    corrupt,      // the archive's own bookkeeping does not hold up
+    crc_mismatch, // the bytes are there but are not the bytes that were written
+    io_error,     // the host file failed a well-formed request
 };
 
 // A mounted archive. The file stays OPEN for the object's whole life and is read
 // on demand: a disc is mounted for the length of a game, and slurping it into
 // RAM up front would mean holding every model and texture resident at once for
 // the sake of the few that are in use.
-class rv_zipreader {
-   public:
+class rv_zipreader
+{
+public:
     rv_zipreader() = default;
     ~rv_zipreader() = default;
 
-    rv_zipreader(const rv_zipreader&) = delete;
-    rv_zipreader& operator=(const rv_zipreader&) = delete;
+    rv_zipreader(const rv_zipreader &) = delete;
+    rv_zipreader &operator=(const rv_zipreader &) = delete;
 
-    // Open `path` and parse its central directory. Returns false and fills
-    // `error` with a human-readable reason on any failure — a missing file, a
-    // file that is not a zip, a truncated one, a compressed one, or one whose
-    // fields point outside itself. A failed open leaves the object closed and
-    // empty; it is never half-usable.
-    bool open(const std::string& path, std::string& error);
+    // Open `path` and parse its central directory. Returns RV_OK on success or
+    // RV_ERR_IO (file cannot be opened or measured), RV_ERR_INVAL (bad data), or
+    // parse_directory's code on failure. Fills `error` with a human-readable reason
+    // on any failure — a missing file, a file that is not a zip, a truncated one, a
+    // compressed one, or one whose fields point outside itself. A failed open leaves
+    // the object closed and empty; it is never half-usable.
+    int open(const std::string &path, std::string &error);
 
     // True once open() has succeeded.
-    bool ok() const { return ok_; }
+    bool ok() const
+    {
+        return ok_;
+    }
 
     // Path the archive was opened from (empty when never opened).
-    const std::string& path() const { return path_; }
+    const std::string &path() const
+    {
+        return path_;
+    }
 
-    bool has(const char* name) const { return find(name) != nullptr; }
+    bool has(const char *name) const
+    {
+        return find(name) != nullptr;
+    }
 
     // Size in bytes of `name`, or -1 when there is no such entry.
-    int64_t size(const char* name) const;
+    int64_t size(const char *name) const;
 
     // Copy the WHOLE entry into `baddr` (capacity `cap` bytes) and verify its
     // CRC32. `nread` receives the byte count on success and 0 otherwise. The
     // reader never allocates the destination and never writes past `cap`; on any
     // failure the region it may have touched is zeroed, so a caller cannot
     // mistake half an entry for a whole one.
-    rv_zipread read(const char* name, void* baddr, int64_t cap, int64_t& nread) const;
+    rv_zipread read(const char *name, void *baddr, int64_t cap, int64_t &nread) const;
 
     // Every entry, in central-directory order. The loader enumerates to find the
     // service entries, the medium enumerates to build the asset namespace, and a
     // human enumerates to find out why a disc is empty.
-    const std::vector<rv_zipentry>& entries() const { return entries_; }
+    const std::vector<rv_zipentry> &entries() const
+    {
+        return entries_;
+    }
 
-   private:
+private:
     // Parse the central directory into `entries_`/`by_name_`.
-    bool parse_directory(std::string& error);
+    // Returns RV_OK on success, RV_ERR_INVAL on corrupt data, or error codes from nested calls.
+    int parse_directory(std::string &error);
 
     // Locate the End Of Central Directory record inside `tail`, which is the
-    // last bytes of the file. Returns false when there is none.
-    static bool find_eocd(const std::vector<unsigned char>& tail, std::size_t& pos);
+    // last bytes of the file. Returns RV_OK when found, RV_ERR_INVAL when not.
+    static int find_eocd(const std::vector<unsigned char> &tail, std::size_t &pos);
 
     // Read the file's tail and locate the EOCD record within it. `tail` and
-    // `eocd_pos` are filled on success.
-    bool locate_eocd(std::string& error, std::vector<unsigned char>& tail, std::size_t& eocd_pos) const;
+    // `eocd_pos` are filled on success. Returns RV_OK on success, error codes otherwise.
+    int locate_eocd(std::string &error, std::vector<unsigned char> &tail, std::size_t &eocd_pos) const;
 
     // Walk the central directory bytes into `entries_`/`by_name_`.
-    bool parse_entries(const std::vector<unsigned char>& cdir, uint16_t entries_total, std::string& error);
+    // Returns RV_OK on success, RV_ERR_INVAL on corrupt data.
+    int parse_entries(const std::vector<unsigned char> &cdir, uint16_t entries_total, std::string &error);
 
-    const rv_zipentry* find(const char* name) const;
+    const rv_zipentry *find(const char *name) const;
 
-    // Seek + read exactly `count` bytes at `offset`. False on any short read;
-    // the caller has already bounds-checked `offset`/`count` against file_size_.
-    bool read_at(int64_t offset, void* dst, int64_t count) const;
+    // Seek + read exactly `count` bytes at `offset`. Returns RV_OK on success,
+    // RV_ERR_IO on any short read; the caller has already bounds-checked `offset`/`count` against file_size_.
+    int read_at(int64_t offset, void *dst, int64_t count) const;
 
     // The archive is read through a const interface (the medium is const), but
     // reading moves a file position: the stream is mutable state behind a
@@ -130,4 +147,4 @@ class rv_zipreader {
     bool ok_ = false;
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

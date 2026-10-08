@@ -18,8 +18,7 @@ namespace rv_pdktools
 // RV_MPPC_DISC_VERSION_DEF, which stamps the ABI version the disc was built
 // against into the module. The long name is deliberate: it shares a directory
 // with the author's own sources and must not collide with any of them.
-static constexpr const char *k_version_unit_name =
-    "custom_version_plus_hash_for_evade_collisions.cpp";
+static constexpr const char *k_version_unit_name = "custom_version_plus_hash_for_evade_collisions.cpp";
 
 // --- quoting ---
 
@@ -48,8 +47,7 @@ static std::string cmake_quote(const std::string &text)
 // output is meant to be READ: `--keep-build` leaves it for a developer to run
 // `ninja -v` in. Raw string literals keep each block looking like the cmake it
 // produces; the loops between them are where the manifest's own lists arrive.
-std::string rv_pdktools::cmake_project_text(
-    const rv_pdklib::rv_manifest &manifest,
+std::string rv_pdktools::cmake_project_text(const rv_pdklib::rv_manifest &manifest,
     const std::string &pdk_dir,
     const std::string &pdklib_dir,
     const std::vector<std::string> &absolute_includes,
@@ -145,8 +143,7 @@ target_include_directories(disc PRIVATE
     return text;
 }
 
-int rv_pdktools::create_cmakelists(
-    const rv_burner_options &options,
+int rv_pdktools::create_cmakelists(const rv_burner_options &options,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &project_dir,
     const std::vector<std::string> &absolute_includes,
@@ -156,12 +153,8 @@ int rv_pdktools::create_cmakelists(
     // --- CMakeLists.txt ---
 
     const fs::path cmakelists_path = project_dir / "CMakeLists.txt";
-    const std::string project_text = cmake_project_text(
-        manifest,
-        options.pdk_dir,
-        options.pdklib_dir,
-        absolute_includes,
-        absolute_sources);
+    const std::string project_text =
+        cmake_project_text(manifest, options.pdk_dir, options.pdklib_dir, absolute_includes, absolute_sources);
 
     {
         std::ofstream out(cmakelists_path, std::ios::binary | std::ios::trunc);
@@ -182,12 +175,10 @@ int rv_pdktools::create_cmakelists(
     // land inside the generated project where the disc's own include path
     // applies.
     const fs::path version_unit_path = project_dir / k_version_unit_name;
-    const std::string version_unit_text{
-        "#include \"pdk/de/rv_dv.h\"\n"
-        "#include \"pdklib/rv_disc_version/rv_disc_version.hpp\"\n"
-        "\n"
-        "RV_MPPC_DISC_VERSION_DEF;"
-    };
+    const std::string version_unit_text{ "#include \"pdk/de/rv_dv.h\"\n"
+                                         "#include \"pdklib/rv_disc_version/rv_disc_version.hpp\"\n"
+                                         "\n"
+                                         "RV_MPPC_DISC_VERSION_DEF;" };
 
     {
         std::ofstream out(version_unit_path, std::ios::binary | std::ios::trunc);
@@ -205,21 +196,19 @@ int rv_pdktools::create_cmakelists(
     return 0;
 }
 
-int rv_pdktools::configure_cmake(
-    const fs::path &binary_dir,
-    const fs::path &project_dir,
-    std::string &error)
+int rv_pdktools::configure_cmake(const fs::path &binary_dir, const fs::path &project_dir, std::string &error)
 {
-    const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) +
-        " -B " + shell_quote(binary_dir.string()) +
-        " -DCMAKE_BUILD_TYPE=RelWithDebInfo";
+    // -DCMAKE_EXPORT_COMPILE_COMMANDS=ON: the standard cmake way to get a
+    // compile_commands.json for clangd. rv_burner_build_runner.cpp copies it
+    // out of binary_dir before this build tree is deleted.
+    const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) + " -B " +
+        shell_quote(binary_dir.string()) + " -DCMAKE_BUILD_TYPE=RelWithDebInfo" + " -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
 
     std::string child_output;
     const int status = run_capture(configure, child_output);
     if (status != 0) {
         dump_child_output(child_output);
-        error = "cmake failed to configure the generated disc project (exit " +
-            std::to_string(status) +
+        error = "cmake failed to configure the generated disc project (exit " + std::to_string(status) +
             "). cmake and ninja are run-time dependencies of mppcburner.";
         return 1;
     }

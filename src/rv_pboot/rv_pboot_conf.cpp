@@ -5,8 +5,7 @@
 namespace rv_3dmppc
 {
 
-void rv_pboot_conf_build(
-    const rv_pdklib::rv_manifest_budget &budget,
+void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget,
     const rv_pboot_args &args,
     const rv_pcslots &slots,
     rv_pconsole_conf &conf)
@@ -35,8 +34,7 @@ void rv_pboot_conf_build(
     conf.ca.mute = args.mute;
     conf.cd.medium_path = args.medium_path;
     // No --memcard: the card next to the binary, never in the start directory.
-    conf.cm.image_path =
-        args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
+    conf.cm.image_path = args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
     conf.slots = slots;
 }
 

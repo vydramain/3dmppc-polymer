@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_textures/rv_texfmt_name.hpp"
 
 #include "detail/rv_manifest_binder.hpp"
@@ -63,8 +64,7 @@ static std::string quote(const std::string &s)
 // manifest with thirty globs stays readable in a diff.
 constexpr std::size_t RV_MANIFEST_ARRAY_WRAP_COLUMN = 80;
 
-static void render_array(std::ostringstream &out, const std::string &key,
-    const std::vector<std::string> &values)
+static void render_array(std::ostringstream &out, const std::string &key, const std::vector<std::string> &values)
 {
     std::string one_line = key + " = [";
     for (std::size_t i = 0; i < values.size(); ++i) {
@@ -87,10 +87,7 @@ static void render_array(std::ostringstream &out, const std::string &key,
 // The front of the pipeline, in the order of the stages. Each one hands the next
 // a whole product and its complaints to one failer; only the binder is allowed
 // to know what rv_manifest looks like.
-int rv_manifest_parse(const std::string &text,
-    const std::string &origin,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_parse(const std::string &text, const std::string &origin, rv_manifest &manifest, std::string &error)
 {
     rv_manifest_failer failer;
 
@@ -108,23 +105,19 @@ int rv_manifest_parse(const std::string &text,
 
     if (!failer.empty()) {
         error = failer.report(origin);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     manifest = rv_manifest_bind(tree);
-    return 0;
+    return RV_OK;
 }
 
-int rv_manifest_parse(const std::string &text,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error)
 {
-    return rv_manifest_parse(text, std::string(), manifest, error) != 0;
+    return rv_manifest_parse(text, std::string(), manifest, error);
 }
 
-int rv_manifest_load(const std::string &path,
-    rv_manifest &manifest,
-    std::string &error)
+int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error)
 {
     std::ifstream in(path, std::ios::binary);
     if (!in) {
@@ -172,12 +165,18 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     // A manifest that reached rendering has been through the binder, so the
     // format is one of the enumerators; the empty string is what a corrupted
     // one would render as, and it fails to parse back rather than lying.
-    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(
-        manifest.textures_files.format);
+    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
 
     out << "\n[textures]\n";
     render_array(out, "files", manifest.textures_files.files);
     out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
+
+    // Unlike [textures], [sounds] is optional: a disc with no sound assets
+    // states nothing and the section is left off the rendered copy entirely.
+    if (!manifest.sounds_files.empty()) {
+        out << "\n[sounds]\n";
+        render_array(out, "files", manifest.sounds_files);
+    }
 
     const rv_manifest_budget &budget = manifest.budget;
 
@@ -213,75 +212,73 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 
 // One name the drive will be asked for verbatim. Empty passes: it means the
 // key was not written, and each caller decides what that absence means.
-static bool safe_entry_name(const std::string &entry, const char *what, std::string &error)
+static int safe_entry_name(const std::string &entry, const char *what, std::string &error)
 {
     if (entry.empty()) {
-        return true;
+        return RV_OK;
     }
-    if (entry.front() == '/' || entry.find("..") != std::string::npos ||
-        entry.find('/') != std::string::npos || entry.find('\\') != std::string::npos) {
-        error = std::string(what) + " '" + entry +
-            "' is not a safe entry name - it must not be a path";
-        return false;
+    if (entry.front() == '/' || entry.find("..") != std::string::npos || entry.find('/') != std::string::npos ||
+        entry.find('\\') != std::string::npos) {
+        error = std::string(what) + " '" + entry + "' is not a safe entry name - it must not be a path";
+        return RV_ERR_INVAL;
     }
     for (char c : entry) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_' && c != '.') {
-            error = std::string(what) + " '" + entry +
-                "' is not a safe entry name - use letters, digits, '-', '_' and '.' only";
-            return false;
+            error =
+                std::string(what) + " '" + entry + "' is not a safe entry name - use letters, digits, '-', '_' and '.' only";
+            return RV_ERR_INVAL;
         }
     }
-    return true;
+    return RV_OK;
 }
 
 // The id is not decoration: it becomes the name of the burned file and of
 // the directory the console unpacks into, so it is checked as a FILENAME
 // before anything else touches it. A '/' would escape the output directory,
 // ".." would climb out of it, and a leading '.' would hide the result.
-static bool validate_disc_id(const rv_manifest &manifest, std::string &error)
+static int validate_disc_id(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.disc_id.empty()) {
         error = "[disc] id is empty - the disc needs a short machine name";
-        return false;
+        return RV_ERR_INVAL;
     }
     for (char c : manifest.disc_id) {
         const unsigned char u = static_cast<unsigned char>(c);
         if (std::isalnum(u) == 0 && c != '-' && c != '_') {
-            error = "[disc] id '" + manifest.disc_id +
-                "' is not a safe filename - use letters, digits, '-' and '_' only";
-            return false;
+            error = "[disc] id '" + manifest.disc_id + "' is not a safe filename - use letters, digits, '-' and '_' only";
+            return RV_ERR_INVAL;
         }
     }
     if (manifest.disc_id.front() == '.') { // unreachable through the loop above, kept as a guard
         error = "[disc] id must not start with '.'";
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 // The rest of what a disc cannot be built without. Everything NOT listed
 // here has a reference value and may be left unsaid; these five have none,
 // because no answer the tool could invent would be the author's.
-static bool validate_required_sections(const rv_manifest &manifest, std::string &error)
+static int validate_required_sections(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.disc_title.empty()) {
         error = "[disc] title is empty - the disc needs a human title for the window and logs";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (manifest.build_sources.empty()) {
         error = "[build] sources is empty - a disc is built from its own code";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (manifest.assets_files.empty()) {
         error = "[assets] files is empty - state the files the disc carries";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (manifest.textures_files.files.empty()) {
         error = "[textures] files is empty - state the images the disc carries";
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 // pccd.code_entry and pccl.script_entry both name something the drive is
@@ -289,10 +286,21 @@ static bool validate_required_sections(const rv_manifest &manifest, std::string 
 // - an empty value is legal and means "use the conventional name", but
 // anything that IS given must be a bare name: no path to climb out of the
 // medium with.
-static bool validate_entry_names(const rv_manifest &manifest, std::string &error)
+static int validate_entry_names(const rv_manifest &manifest, std::string &error)
 {
-    return safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error) &&
-        safe_entry_name(manifest.budget.pccl.script_entry, "[budget.pccl] script_entry", error);
+    int code;
+
+    code = safe_entry_name(manifest.budget.pccd.code_entry, "[budget.pccd] code_entry", error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = safe_entry_name(manifest.budget.pccl.script_entry, "[budget.pccl] script_entry", error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    return RV_OK;
 }
 
 // By the time a manifest reaches here the binder has already turned the
@@ -300,10 +308,10 @@ static bool validate_entry_names(const rv_manifest &manifest, std::string &error
 // value-initialised zero. So this catches both a typo and a missing `format`
 // line - but it can no longer quote what the author actually typed, because
 // that string does not survive binding.
-static bool validate_texture_format(const rv_manifest &manifest, std::string &error)
+static int validate_texture_format(const rv_manifest &manifest, std::string &error)
 {
     if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) != nullptr) {
-        return true;
+        return RV_OK;
     }
     std::string known;
     for (const rv_pdklib::rv_texfmt_name &row : rv_pdklib::rv_texfmt_names) {
@@ -313,7 +321,7 @@ static bool validate_texture_format(const rv_manifest &manifest, std::string &er
         known += row.text;
     }
     error = std::format("[textures] format is missing or unknown - expected one of {}", known);
-    return false;
+    return RV_ERR_INVAL;
 }
 
 // Every resource the machine has to supply. A zero here is not a value the
@@ -321,7 +329,7 @@ static bool validate_texture_format(const rv_manifest &manifest, std::string &er
 // filled: absent means the reference machine, not zero. So a zero or a
 // negative can only be something the author typed, and that is the only
 // thing left to refuse.
-static bool validate_budget_positive(const rv_manifest &manifest, std::string &error)
+static int validate_budget_positive(const rv_manifest &manifest, std::string &error)
 {
     struct budget_field {
         const char *name;
@@ -345,10 +353,10 @@ static bool validate_budget_positive(const rv_manifest &manifest, std::string &e
     for (const budget_field &b : budgets) {
         if (b.value <= 0) {
             error = std::format("{} must be positive, got {}", b.name, b.value);
-            return false;
+            return RV_ERR_INVAL;
         }
     }
-    return true;
+    return RV_OK;
 }
 
 // pccl is deliberately NOT in the budget table. Every other subsystem is
@@ -356,14 +364,14 @@ static bool validate_budget_positive(const rv_manifest &manifest, std::string &e
 // that carries scripts, so an absent section is a legal statement rather
 // than a missing one. Only a negative is nonsense - nobody asks for less
 // than no memory.
-static bool validate_pccl_memory(const rv_manifest &manifest, std::string &error)
+static int validate_pccl_memory(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.budget.pccl.script_memory_size < 0) {
         error = std::format("[budget.pccl] script_memory_size must not be negative, got {}",
             manifest.budget.pccl.script_memory_size);
-        return false;
+        return RV_ERR_INVAL;
     }
-    return true;
+    return RV_OK;
 }
 
 // A lua disc is declared by THREE statements that mean nothing apart:
@@ -371,14 +379,14 @@ static bool validate_pccl_memory(const rv_manifest &manifest, std::string &error
 // starts. All three, or none of them - a disc is a lua disc or a C++ disc,
 // and there is no state between the two. Any partial declaration is a
 // manifest that describes a machine nobody can build.
-static bool validate_lua_disc_consistency(const rv_manifest &manifest, std::string &error)
+static int validate_lua_disc_consistency(const rv_manifest &manifest, std::string &error)
 {
     const bool has_scripts = !manifest.scripts_sources.empty();
     const bool has_memory = manifest.budget.pccl.script_memory_size > 0;
     const bool has_entry = !manifest.budget.pccl.script_entry.empty();
 
     if (has_scripts == has_memory && has_memory == has_entry) {
-        return true;
+        return RV_OK;
     }
 
     std::string stated;
@@ -394,25 +402,56 @@ static bool validate_lua_disc_consistency(const rv_manifest &manifest, std::stri
     note(has_memory, "[budget.pccl] script_memory_size");
     note(has_entry, "[budget.pccl] script_entry");
 
-    error = std::format(
-        "a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
-        "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
-        "State the rest, or drop them all and burn a C++ disc",
-        stated, missing);
-    return false;
+    error = std::format("a lua disc states all three of [scripts] sources, [budget.pccl] script_memory_size "
+                        "and [budget.pccl] script_entry; this manifest states {} and leaves out {}. "
+                        "State the rest, or drop them all and burn a C++ disc",
+        stated,
+        missing);
+    return RV_ERR_INVAL;
 }
 
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error)
+int rv_manifest_validate(const rv_manifest &manifest, std::string &error)
 {
     error.clear();
 
-    return validate_disc_id(manifest, error) &&
-        validate_required_sections(manifest, error) &&
-        validate_entry_names(manifest, error) &&
-        validate_texture_format(manifest, error) &&
-        validate_budget_positive(manifest, error) &&
-        validate_pccl_memory(manifest, error) &&
-        validate_lua_disc_consistency(manifest, error);
+    int code;
+
+    code = validate_disc_id(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_required_sections(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_entry_names(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_texture_format(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_budget_positive(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_pccl_memory(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_lua_disc_consistency(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    return RV_OK;
 }
 
 } // namespace rv_pdklib

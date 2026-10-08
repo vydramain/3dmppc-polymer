@@ -1,7 +1,7 @@
 # stb_image
 
 Single-header image decoder. Used by `pdk/tools/mppcbaker` to read the artist's
-PNG before quantizing it into console texels.
+PNG before quantizing it into console texels, and by `editor/` to read its icons.
 
 | | |
 | --- | --- |
