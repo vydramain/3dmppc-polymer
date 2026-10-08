@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "pdk/cv/rv_texel.h"
@@ -12,7 +13,9 @@ struct color_bin {
     uint32_t count = 0; // how many source pixels carry this exact colour
 };
 
-std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want);
+// RV_ERR_INVAL with the reason in `error` when the palette cannot be built in full.
+// On failure `palette` may hold a partial result; the caller must not use it.
+int median_cut(std::vector<color_bin> bins, size_t want, std::vector<rv_color5> &palette, std::string &error);
 
 size_t nearest(const std::vector<rv_color5> &palette, const rv_color5 &c);
 

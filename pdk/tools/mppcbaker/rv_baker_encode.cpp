@@ -125,7 +125,7 @@ void pack_nibbles(const source_image &src, const std::vector<uint8_t> &indices, 
 }
 
 // Header, palette and indices for IDX4/IDX8. RV_ERR_INVAL is an image with
-// nothing to put in a palette.
+// nothing to put in a palette, or a palette median_cut could not build in full.
 rv_err encode_indexed(const options &opt, const source_image &src, std::vector<uint8_t> *out, baker_error *error)
 {
     const size_t palette_size = (*opt.format == RV_TEXFMT_IDX4) ? RV_BAKER_PALETTE_SIZE_IDX4 : RV_BAKER_PALETTE_SIZE_IDX8;
@@ -147,7 +147,11 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
             color_slots);
     }
 
-    std::vector<rv_color5> palette = median_cut(bins, color_slots);
+    std::vector<rv_color5> palette;
+    const int quantized = median_cut(bins, color_slots, palette, error->message);
+    if (quantized != RV_OK) {
+        return static_cast<rv_err>(quantized);
+    }
     refine(bins, palette, RV_BAKER_LLOYD_PASSES);
 
     // After refinement, so the indices match the palette actually written.

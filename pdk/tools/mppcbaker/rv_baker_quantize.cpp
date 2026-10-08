@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <string>
 
 #include "pdk/rv_err.h"
 
@@ -212,11 +213,10 @@ uint32_t distance2(const rv_color5 &a, const rv_color5 &b)
 // Its weakness is that boxes are axis-aligned, so a colour ramp lying diagonally
 // in the cube is cut clumsily; refine() below repairs that. pngquant's
 // libimagequant pairs the two algorithms the same way.
-std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
+int median_cut(std::vector<color_bin> bins, size_t want, std::vector<rv_color5> &palette, std::string &error)
 {
-    std::vector<rv_color5> palette;
     if (bins.empty() || want == 0) {
-        return palette;
+        return RV_OK;
     }
 
     std::vector<box> boxes{ box{ 0, bins.size() } };
@@ -258,12 +258,15 @@ std::vector<rv_color5> median_cut(std::vector<color_bin> bins, size_t want)
 
     for (const box &b : boxes) {
         rv_color5 color5 = {};
-        if (gen_color5(b, bins, &color5) != RV_OK) {
-            continue;
+        const rv_err status = gen_color5(b, bins, &color5);
+        if (status != RV_OK) {
+            // A short palette would bake silently wrong, so the bake fails instead.
+            error = "internal error: a box with no pixels while building the palette";
+            return RV_ERR_INVAL;
         }
         palette.push_back(color5);
     }
-    return palette;
+    return RV_OK;
 }
 
 // Index of the palette entry closest to c. A linear scan is enough: the palette
