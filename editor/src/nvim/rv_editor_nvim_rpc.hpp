@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -31,14 +32,27 @@ public:
 
     ~rv_editor_nvim_rpc();
 
-    // argv[0] is the nvim executable. Returns RV_OK or RV_ERR_* with the reason in error.
+    // argv[0] is the nvim executable. Returns RV_OK or RV_ERR_* with the reason in error;
+    // RV_ERR_BUSY while a stop runs.
     int start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error);
-    // Ends nvim: closes its input, waits a moment, then kills it.
-    void stop();
     bool running() const
     {
         return proc_.running();
     }
+
+    // Ending nvim, as rv_editor_pty does. begin_stop closes its input and sets a deadline,
+    // then returns. stop_step runs once a frame while stopping() and never waits: it reaps,
+    // SIGKILLs past the deadline and joins the reader once that has ended. stop_now, for the
+    // editor's exit only, waits at most the deadline, then the SIGKILL reap wait, then joins
+    // the reader (it leaves once quit_ is set). RV_ERR_ALREADY, or RV_ERR_IO with the reason
+    // in `error`.
+    int begin_stop(std::string &error);
+    bool stopping() const
+    {
+        return stopping_;
+    }
+    int stop_step(std::string &error);
+    int stop_now(std::string &error);
 
     // Sends `method(args...)`; `args` must be one encoded msgpack array.
     // `reply` runs on the UI thread in poll(); it may be empty.
@@ -55,6 +69,9 @@ public:
 
 private:
     void reader();
+    // SIGKILL to the process group; sets the reap deadline. RV_OK, or RV_ERR_IO with the reason.
+    int send_kill(std::string &error);
+    void wait_for_exit();
     void handle_response(const rv_editor_mpack &m);
     void handle_notification(const rv_editor_mpack &m, const rv_editor_nvim_notify &on_notify);
     void handle_request(const rv_editor_mpack &m);
@@ -67,9 +84,14 @@ private:
     std::string stderr_;
     bool quit_ = false;
     bool eof_ = false;
+    bool reader_done_ = false; // reader() has returned, so its thread may be joined
     std::string broken_; // the stream stopped being msgpack
     uint32_t next_id_ = 1;
     std::map<uint32_t, rv_editor_nvim_reply> pending_;
+    bool stopping_ = false;
+    bool stop_failure_reported_ = false; // a failing stop step is reported once per stop
+    bool kill_sent_ = false;             // SIGKILL past the deadline is sent once per stop
+    std::chrono::steady_clock::time_point stop_until_{};
 };
 
 } // namespace rv_editor

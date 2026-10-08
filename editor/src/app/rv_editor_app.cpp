@@ -332,7 +332,12 @@ void rv_editor_app_shutdown(rv_editor_app &app)
             rv_editor_log_level::error,
             "runtime did not end cleanly at shutdown: " + session_error);
     }
-    app.nvim.stop();
+    std::string nvim_error;
+    if (app.nvim.stop(nvim_error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "code editor did not end cleanly at shutdown: " + nvim_error);
+    }
     // Every shell ends before the editor does: a background job that ignores the hang-up
     // would outlive the editor, as the guard only signals its own group. All are hung up
     // first, so the waits overlap and the exit takes one deadline, not one per shell.

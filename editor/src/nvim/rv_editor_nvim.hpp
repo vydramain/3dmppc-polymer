@@ -72,16 +72,22 @@ public:
 
     // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success.
     // RV_ERR_ALREADY if running, RV_ERR_BUSY if it has just ended and update() has
-    // not yet reported why, the earlier failure again if `problem` is set (only
-    // "Start again" clears it). RV_ERR_NOENT if nvim not found, RV_ERR_IO if startup
-    // failed; reason in `problem` and in `error` (only the code tiles lose).
+    // not yet reported why, or while it is still stopping; the earlier failure again if
+    // `problem` is set (only "Start again" clears it). RV_ERR_NOENT if nvim not found,
+    // RV_ERR_IO if startup failed; reason in `problem` and in `error` (only the code tiles lose).
     int start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error);
     bool running() const
     {
         return started_ && rpc_.running();
     }
+    // nvim is being ended after it ended on its own or was asked to: update() steps the stop.
+    bool stopping() const
+    {
+        return rpc_.stopping();
+    }
 
     // Once a frame: applies redraws and answers. Returns false the frame nvim ends.
+    // While a stop runs, a frame only steps it.
     void update(rv_editor_log &log);
 
     // The window that shows code pane `pane`, created on first use; 0 until nvim
@@ -176,8 +182,10 @@ public:
     }
     // Ends nvim after the user answered for its modified buffers: what was
     // saved is saved, the rest is dropped with its swap files (`:qa!`). A crash
-    // of the editor instead leaves the swap files for `:recover`.
-    void stop();
+    // of the editor instead leaves the swap files for `:recover`. Waits at most
+    // the stop deadline, then the SIGKILL reap wait, then the reader's exit.
+    // RV_OK, or RV_ERR_IO with the reason in `error`.
+    int stop(std::string &error);
 
 private:
     void attach();

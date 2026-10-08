@@ -4,6 +4,7 @@
 
 #include <cerrno>
 #include <chrono>
+#include <cstring>
 #include <poll.h>
 #include <unistd.h>
 
@@ -47,9 +48,12 @@ constexpr size_t poll_stderr_fd_idx = 1;
 // I/O buffer size for reading nvim output in chunks
 constexpr size_t read_chunk_size = 65536;
 
-// nvim shutdown parameters
+// nvim shutdown: the deadline to leave after its input closed, and the poll step of
+// stop_now at the editor's exit (no frame runs then).
 constexpr int nvim_shutdown_timeout_sec = 2;
 constexpr int nvim_shutdown_poll_ms = 10;
+// After SIGKILL: how long nvim may take to exit, polled by waitpid, before it counts as not ended.
+constexpr int nvim_kill_reap_ms = 500;
 
 // Error message for unsupported RPC requests
 constexpr std::string_view unsupported_request_error = "not supported by 3dmppc-editor";
@@ -58,46 +62,142 @@ constexpr std::string_view unsupported_request_error = "not supported by 3dmppc-
 
 rv_editor_nvim_rpc::~rv_editor_nvim_rpc()
 {
-    stop();
+    // Nothing to report to in a destructor; a child still running is killed by its process.
+    std::string error;
+    stop_now(error);
 }
 
 int rv_editor_nvim_rpc::start(const std::vector<std::string> &argv, const std::filesystem::path &cwd, std::string &error)
 {
-    stop();
+    if (stopping_) {
+        error = "nvim is still stopping";
+        return RV_ERR_BUSY;
+    }
+    if (thread_.joinable()) {
+        error = "nvim is already running";
+        return RV_ERR_ALREADY;
+    }
     const int err = proc_.start(argv, cwd, error);
     if (err != RV_OK) {
         return err;
     }
     quit_ = false;
     eof_ = false;
+    reader_done_ = false;
     broken_.clear();
     queue_.clear();
     pending_.clear();
     thread_ = std::thread([this] {
         reader();
+        const std::lock_guard<std::mutex> lock(mutex_);
+        reader_done_ = true;
     });
     return RV_OK;
 }
 
-void rv_editor_nvim_rpc::stop()
+int rv_editor_nvim_rpc::begin_stop(std::string &error)
 {
-    if (thread_.joinable()) {
-        {
-            const std::lock_guard<std::mutex> lock(mutex_);
-            quit_ = true;
-        }
-        space_.notify_all();
+    if (stopping_) {
+        error = "nvim is already stopping";
+        return RV_ERR_ALREADY;
+    }
+    if (!proc_.running() && !thread_.joinable()) {
+        return RV_OK;
+    }
+    stopping_ = true;
+    stop_failure_reported_ = false;
+    kill_sent_ = false;
+    stop_until_ = std::chrono::steady_clock::now() + std::chrono::seconds(nvim_shutdown_timeout_sec);
+    {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        quit_ = true;
+    }
+    space_.notify_all();
+    // nvim --embed leaves when its channel closes; a hung one is killed at the deadline.
+    proc_.close_stdin();
+    return RV_OK;
+}
+
+int rv_editor_nvim_rpc::send_kill(std::string &error)
+{
+    // errno belongs to the failed kill: read it before anything else runs.
+    const int rc = proc_.stop(true);
+    const int cause = errno;
+    if (rc == RV_ERR_IO) {
+        error = std::string("kill: ") + std::strerror(cause);
+        return RV_ERR_IO;
+    }
+    kill_sent_ = true;
+    stop_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(nvim_kill_reap_ms);
+    return RV_OK;
+}
+
+void rv_editor_nvim_rpc::wait_for_exit()
+{
+    // No frame runs here (stop_now at the editor's exit): a short sleep between polls.
+    while (proc_.running() && std::chrono::steady_clock::now() < stop_until_) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(nvim_shutdown_poll_ms));
+        proc_.poll();
+    }
+}
+
+int rv_editor_nvim_rpc::stop_step(std::string &error)
+{
+    if (!stopping_) {
+        return RV_OK;
+    }
+    proc_.poll();
+    int rc = RV_OK;
+    const bool overdue = proc_.running() && std::chrono::steady_clock::now() >= stop_until_;
+    if (overdue && !kill_sent_) {
+        // Past the deadline: SIGKILL to the process group; a failed kill is retried next frame.
+        rc = send_kill(error);
+    } else if (overdue) {
+        error = "nvim not ended after SIGKILL";
+        rc = RV_ERR_IO;
+    }
+    bool reader_done = false;
+    {
+        const std::lock_guard<std::mutex> lock(mutex_);
+        reader_done = reader_done_;
+    }
+    if (reader_done && thread_.joinable()) {
         thread_.join();
     }
-    if (proc_.running()) {
-        // nvim --embed leaves when its channel closes; a hung one is killed.
-        proc_.close_stdin();
-        const auto until = std::chrono::steady_clock::now() + std::chrono::seconds(nvim_shutdown_timeout_sec);
-        while (!proc_.poll() && std::chrono::steady_clock::now() < until) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(nvim_shutdown_poll_ms));
-        }
+    if (!proc_.running() && !thread_.joinable()) {
+        stopping_ = false;
     }
-    // The destructor of a running process kills and reaps it.
+    // A failure persists until the stop ends: reported once, not on every frame.
+    if (rc != RV_OK && !stop_failure_reported_) {
+        stop_failure_reported_ = true;
+        return rc;
+    }
+    return RV_OK;
+}
+
+int rv_editor_nvim_rpc::stop_now(std::string &error)
+{
+    int rc = stopping_ ? RV_OK : begin_stop(error);
+    wait_for_exit();
+    const bool kill_now = proc_.running() && !kill_sent_;
+    const int kill_rc = kill_now ? send_kill(error) : RV_OK;
+    if (kill_rc != RV_OK) {
+        rc = kill_rc;
+    }
+    wait_for_exit();
+    if (proc_.running()) {
+        error += error.empty() ? "nvim not ended after SIGKILL" : "; nvim not ended after SIGKILL";
+        rc = RV_ERR_IO;
+    }
+    // The reader leaves once quit_ is set, or when nvim's output ends with the kill.
+    if (thread_.joinable()) {
+        thread_.join();
+    }
+    stopping_ = proc_.running();
+    if (rc != RV_OK) {
+        return rc;
+    }
+    return RV_OK;
 }
 
 void rv_editor_nvim_rpc::reader()

@@ -103,6 +103,10 @@ int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, 
         error = "nvim is already running";
         return RV_ERR_ALREADY;
     }
+    if (rpc_.stopping()) {
+        error = "nvim is still stopping";
+        return RV_ERR_BUSY;
+    }
     if (started_) {
         error = "nvim has just ended; the reason follows in the log";
         return RV_ERR_BUSY;
@@ -205,6 +209,13 @@ void rv_editor_nvim::exec_lua(const std::string &code,
 
 void rv_editor_nvim::update(rv_editor_log &log)
 {
+    if (rpc_.stopping()) {
+        std::string error;
+        if (rpc_.stop_step(error) != RV_OK) {
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "code editor: stopping nvim: " + error);
+        }
+        return;
+    }
     if (!started_) {
         return;
     }
@@ -224,7 +235,10 @@ void rv_editor_nvim::update(rv_editor_log &log)
         problem = why + ". Unsaved text is in nvim's swap files (:recover)";
         last_error_ = RV_ERR_IO;
         log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "code editor: " + problem);
-        rpc_.stop();
+        std::string error;
+        if (rpc_.begin_stop(error) != RV_OK) {
+            log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "code editor: stopping nvim: " + error);
+        }
         return;
     }
     if (!held_.empty()) {
@@ -438,7 +452,7 @@ const std::vector<rv_editor_nvim_diagnostic> &rv_editor_nvim::diagnostics_for(co
     return it != diagnostics_.end() ? it->second : empty;
 }
 
-void rv_editor_nvim::stop()
+int rv_editor_nvim::stop(std::string &error)
 {
     if (started_ && rpc_.running()) {
         // Queued after any :write the user asked for, so those run first.
@@ -447,11 +461,9 @@ void rv_editor_nvim::stop()
             w.string(nvim_cmd_quit_force.data());
         }));
     }
-    if (started_) {
-        rpc_.stop();
-    }
     started_ = false;
     attached_ = false;
+    return rpc_.stop_now(error);
 }
 
 } // namespace rv_editor
