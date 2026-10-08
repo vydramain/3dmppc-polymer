@@ -65,30 +65,55 @@ struct rv_burner_destination {
     fs::path path;
 };
 
-// Runs the burn phase for whichever medium the destination names, and prints
-// its [4/4] step.
+// Burns the disc into an unpacked directory and prints its [4/4] step.
+static int rv_burner_burn_to_directory(const rv_burner_destination &destination,
+    const rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_module,
+    const archive_plan &plan,
+    std::string &error)
+{
+    const int burn_err = burn_directory(destination.path, manifest, disc_module, plan, error);
+    if (burn_err != RV_OK) {
+        return burn_err;
+    }
+    rv_burner_print_step(k_step_burn, "burn", destination.path.string() + " (unpacked)");
+    return RV_OK;
+}
+
+// Burns the disc into one .mppcdisc archive and prints its [4/4] step.
+static int rv_burner_burn_to_archive(const rv_burner_destination &destination,
+    const rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_module,
+    const archive_plan &plan,
+    std::string &error)
+{
+    int64_t burned_size = 0;
+    const int burn_err = burn_archive(destination.path, manifest, disc_module, plan, burned_size, error);
+    if (burn_err != RV_OK) {
+        return burn_err;
+    }
+    rv_burner_print_step(k_step_burn,
+        "burn",
+        std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
+    return RV_OK;
+}
+
+// Runs the burn phase for whichever medium the destination names. No default:
+// -Wswitch flags a new kind; the trailing return covers a value outside the enum.
 static int rv_burner_destination_burn(const rv_burner_destination &destination,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_module,
     const archive_plan &plan,
     std::string &error)
 {
-    if (destination.kind == rv_burner_destination_kind::directory) {
-        if (burn_directory(destination.path, manifest, disc_module, plan, error) != 0) {
-            return 1;
-        }
-        rv_burner_print_step(k_step_burn, "burn", destination.path.string() + " (unpacked)");
-        return 0;
+    switch (destination.kind) {
+    case rv_burner_destination_kind::directory:
+        return rv_burner_burn_to_directory(destination, manifest, disc_module, plan, error);
+    case rv_burner_destination_kind::archive:
+        return rv_burner_burn_to_archive(destination, manifest, disc_module, plan, error);
     }
-
-    int64_t burned_size = 0;
-    if (burn_archive(destination.path, manifest, disc_module, plan, burned_size, error) != 0) {
-        return 1;
-    }
-    rv_burner_print_step(k_step_burn,
-        "burn",
-        std::format("{} ({})", destination.path.filename().string(), rv_burner_human_size(burned_size)));
-    return 0;
+    error = "unknown destination kind";
+    return RV_ERR_INVAL;
 }
 
 // --- [1/4] manifest ---
@@ -125,23 +150,26 @@ static int rv_burner_build_compile(const rv_burner_options &options,
     std::size_t source_count,
     std::string &error)
 {
-    if (create_cmakelists(options, manifest, project_dir, absolute_includes, absolute_sources, error) != 0) {
+    const int cmake_err = create_cmakelists(options, manifest, project_dir, absolute_includes, absolute_sources, error);
+    if (cmake_err != RV_OK) {
         rv_burner_print_error(error);
-        return 1;
+        return cmake_err;
     }
 
-    if (configure_cmake(binary_dir, project_dir, error) != 0) {
+    const int configure_err = configure_cmake(binary_dir, project_dir, error);
+    if (configure_err != RV_OK) {
         rv_burner_print_error(error);
-        return 1;
+        return configure_err;
     }
 
-    if (compile_sources(options, binary_dir, error) != 0) {
+    const int compile_err = compile_sources(options, binary_dir, error);
+    if (compile_err != RV_OK) {
         rv_burner_print_error(error);
-        return 1;
+        return compile_err;
     }
 
     rv_burner_print_step(k_step_compile, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
-    return 0;
+    return RV_OK;
 }
 
 static bool script_entry_is_planned(const archive_plan &plan, const std::string &entry_name)
