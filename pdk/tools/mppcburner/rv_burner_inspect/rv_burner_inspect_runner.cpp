@@ -24,9 +24,10 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
     std::string error;
 
     zip_archive archive;
-    if (zip_open(options.operand, archive, error) != RV_OK) {
+    const int open_rc = zip_open(options.operand, archive, error);
+    if (open_rc != RV_OK) {
         rv_burner_print_error(options.operand + ": " + error);
-        return 1;
+        return open_rc;
     }
 
     // --- the manifest, verbatim ---
@@ -41,9 +42,10 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
         rv_burner_print_warning(options.operand + " has no " + k_entry_manifest + "; the console would refuse it");
     } else {
         std::string text;
-        if (zip_entry_bytes(archive, *manifest, text, error) != RV_OK) {
+        const int bytes_rc = zip_entry_bytes(archive, *manifest, text, error);
+        if (bytes_rc != RV_OK) {
             rv_burner_print_error(error);
-            return 1;
+            return bytes_rc;
         }
         std::fwrite(text.data(), 1, text.size(), stdout);
         if (!text.empty() && text.back() != '\n') {
@@ -71,5 +73,5 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
     rv_pdklib::rv_fprintf(stdout, "bytes\t%lld\n", static_cast<long long>(total));
     rv_pdklib::rv_fprintf(stdout, "file\t%lld\n", static_cast<long long>(archive.bytes.size()));
 
-    return 0;
+    return RV_OK;
 }

@@ -20,7 +20,7 @@ namespace rv_pdktools
 /// Reads `options.operand` as the image to inspect.
 ///
 /// @param options  the parsed command line
-/// @return a process exit code: 0 on success, 1 when the file cannot be read
+/// @return RV_OK on success; otherwise the RV_ERR_* of the step that failed
 int rv_burner_inspect_run(const rv_burner_options &options);
 
 } // namespace rv_pdktools

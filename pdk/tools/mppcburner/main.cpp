@@ -20,6 +20,7 @@
 #include <getopt.h>
 
 #include "pdk/de/rv_dv.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_build/rv_burner_build_runner.hpp"
@@ -138,14 +139,14 @@ int main(int argc, char **argv)
 {
     if (argc < k_min_argc) {
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     const std::string_view command_name = argv[1];
     // One line a front end can show and compare (the editor's diagnostics).
     if (command_name == "--version") {
         rv_pdklib::rv_fprintf(stdout, "mppcburner %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
-        return 0;
+        return RV_OK;
     }
 
     const rv_pdktools::rv_burner_command_spec *cmd = nullptr;
@@ -159,7 +160,7 @@ int main(int argc, char **argv)
     if (nullptr == cmd) {
         rv_pdktools::rv_burner_print_error("unknown subcommand '" + std::string(command_name) + "'");
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     std::vector<struct option> opts;
@@ -203,7 +204,7 @@ int main(int argc, char **argv)
         switch (c) {
         case 'h': {
             rv_pdktools::print_usage(stdout);
-            return 0;
+            return RV_OK;
         }
         case 'o': {
             burner_options.output = optarg;
@@ -230,7 +231,7 @@ int main(int argc, char **argv)
             const long value = std::strtol(optarg, &end, k_decimal_base);
             if (*optarg == '\0' || *end != '\0' || value <= 0 || value > INT_MAX) {
                 rv_pdktools::rv_burner_print_error("invalid --jobs value '" + std::string(optarg) + "'");
-                return 1;
+                return RV_ERR_INVAL;
             }
             burner_options.jobs = static_cast<int>(value);
             break;
@@ -251,7 +252,7 @@ int main(int argc, char **argv)
         default: {
             // No message here: getopt already printed one (opterr defaults to 1).
             rv_pdktools::print_usage(stderr);
-            return 1;
+            return RV_ERR_INVAL;
         }
         }
     }
@@ -261,7 +262,7 @@ int main(int argc, char **argv)
         rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) +
             " operand(s), got " + std::to_string(local_argc - optind));
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     // Nothing to read for an operandless command: argv[optind] is its nullptr.
@@ -275,7 +276,7 @@ int main(int argc, char **argv)
 
     if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BAKE) && burner_options.output.empty()) {
         rv_pdktools::rv_burner_print_error("bake-texture requires -o <output.mppctex>");
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     return cmd->handler(burner_options);
