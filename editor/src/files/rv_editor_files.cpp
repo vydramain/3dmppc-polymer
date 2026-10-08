@@ -34,27 +34,46 @@ constexpr const char *path_separator = "/";
 
 } // namespace
 
-void rv_editor_files::open(const std::filesystem::path &root, rv_editor_log &log)
+int rv_editor_files::open(const std::filesystem::path &root, std::string &error)
 {
     close();
     // Canonical, so inside() compares like with like.
     std::error_code ec;
     const std::filesystem::path canonical = std::filesystem::weakly_canonical(root, ec);
-    root_.path = ec ? root : canonical;
+    const std::filesystem::path path = ec ? root : canonical;
+    std::error_code dec;
+    if (!std::filesystem::is_directory(path, dec)) {
+        error = path.string() + ": " + (dec ? dec.message() : "not a folder");
+        return dec && dec.value() != ENOENT && dec.value() != ENOTDIR ? RV_ERR_IO : RV_ERR_NOENT;
+    }
+    root_.path = path;
     root_.name = root_.path.filename().string();
     root_.dir = true;
     root_.expanded = true;
-    std::string error;
-    const int started = watch_.start(root_.path, error);
+    list(root_);
+    return RV_OK;
+}
+
+int rv_editor_files::start_watching(std::string &error)
+{
+    if (!is_open()) {
+        error = "no project is open";
+        return RV_ERR_INVAL;
+    }
+    if (watching_) {
+        error = "already watched";
+        return RV_ERR_INVAL;
+    }
+    const int rc = watch_.start(root_.path, error);
     // A partial watch at the limit still reports changes; overflow re-reads the tree.
-    watching_ = started == RV_OK || started == RV_ERR_NOMEM;
+    watching_ = rc == RV_OK || rc == RV_ERR_NOMEM;
     if (!watching_) {
         watch_.stop();
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "files are not watched, Refresh shows changes: " + error);
+        return rc;
     }
+    // Watch first, then read: changes made since open() are not missed.
     list(root_);
+    return rc;
 }
 
 void rv_editor_files::close()
@@ -163,40 +182,39 @@ rv_editor_file_node *rv_editor_files::find(rv_editor_file_node &node, const std:
     return nullptr;
 }
 
-void rv_editor_files::update(rv_editor_log &log)
+int rv_editor_files::update(rv_editor_log &log, std::string &error)
 {
     if (!is_open() || !watching_) {
-        return;
+        return RV_OK;
     }
     std::vector<char> raw;
-    std::string error;
-    const int read_rc = watch_.read_events(raw, error);
-    if (read_rc != RV_OK) {
-        watch_.stop();
-        watching_ = false;
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "files are not watched, Refresh shows changes: " + error);
-        return;
-    }
+    std::string read_error;
+    const int read_rc = watch_.read_events(raw, read_error);
+    // Records read before a failed read are applied first, then the failure is returned.
     std::vector<rv_editor_watch::rv_editor_watch_event> events;
     watch_.translate(raw, events);
-    bool overflowed = false;
+    bool lost = false;
+    bool limit = false;
     bool restart = false;
+    int result = read_rc;
+    std::string why;
+    // First new folder that could not be watched: reported, the rest keeps being watched.
+    std::string folder_error;
     for (const auto &ev : events) {
         if (ev.lost) {
-            overflowed = true;
+            lost = true;
             continue;
         }
         if (ev.directory && ev.removed) {
             restart = true;
         }
         if (ev.appeared) {
-            const int rc = watch_.watch_tree(ev.path, error);
+            std::string tree_error;
+            const int rc = watch_.watch_tree(ev.path, tree_error);
             if (rc == RV_ERR_NOMEM) {
-                overflowed = true;
-            } else if (rc == RV_ERR_IO) {
-                log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "new folder is not watched: " + error);
+                limit = true;
+            } else if (rc == RV_ERR_IO && folder_error.empty()) {
+                folder_error = "new folder is not watched: " + tree_error;
             }
         }
         stale_.insert(ev.path.parent_path());
@@ -204,35 +222,56 @@ void rv_editor_files::update(rv_editor_log &log)
             changed.push_back(ev.path);
         }
     }
-    if (restart) {
+    if (result == RV_OK && restart) {
         // A moved or deleted directory leaves watches on paths that no longer exist.
         watch_.stop();
-        const int rc = watch_.start(root_.path, error);
+        const int rc = watch_.start(root_.path, why);
         watching_ = rc == RV_OK || rc == RV_ERR_NOMEM;
+        limit = limit || rc == RV_ERR_NOMEM;
+        // Restarts from the project root, so NOENT means the root itself is gone.
+        if (rc == RV_ERR_NOENT) {
+            why = "project folder is gone";
+        }
         if (!watching_) {
             watch_.stop();
-            log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::warning,
-                "files are not watched, Refresh shows changes: " + error);
+            result = RV_ERR_IO;
         }
-        overflowed = true;
     }
-    if (overflowed) {
+    if (lost) {
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::warning,
             "the file watcher lost track of changes; the whole tree is re-read");
+    }
+    if (limit) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "watch limit reached, part of the tree is not watched; the whole tree is re-read");
+    }
+    if (lost || limit || restart) {
         stale_.clear();
         list(root_);
-        return;
+    } else {
+        for (const std::filesystem::path &dir : stale_) {
+            relist(dir);
+        }
+        stale_.clear();
     }
-    for (const std::filesystem::path &dir : stale_) {
-        relist(dir);
-    }
-    stale_.clear();
     // Bounded: nobody who needs this list lets it grow across frames.
     if (changed.size() > changed_paths_max) {
         changed.erase(changed.begin(), changed.end() - changed_paths_max);
     }
+    if (result != RV_OK) {
+        watch_.stop();
+        watching_ = false;
+        error = read_rc != RV_OK ? read_error : why;
+        return result;
+    }
+    // The watch keeps running: only the new folder is unwatched.
+    if (!folder_error.empty()) {
+        error = folder_error;
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 void rv_editor_files::relist(const std::filesystem::path &dir)

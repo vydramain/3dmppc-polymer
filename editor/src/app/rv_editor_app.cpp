@@ -182,7 +182,23 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     // Another project takes the keyboard back from the game.
     app.game_captured = false;
     app.session.pad(0, app.log);
-    app.files.open(app.project.root, app.log);
+    std::string files_error;
+    const int files_rc = app.files.open(app.project.root, files_error);
+    if (files_rc != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "project files: " + files_error);
+    }
+    std::string watch_error;
+    const int watch_rc = files_rc == RV_OK ? app.files.start_watching(watch_error) : RV_OK;
+    if (watch_rc == RV_ERR_NOMEM) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "file watch: watch limit reached, part of the tree is not watched: " + watch_error);
+    } else if (watch_rc != RV_OK) {
+        if (!app.files.watching()) {
+            watch_error += "; files are not watched, Refresh shows changes";
+        }
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "file watch: " + watch_error);
+    }
     std::vector<std::string> unread;
     app.release.candidates = rv_editor_candidates_load(app.project.cache_dir / std::string(candidates_dir_name), unread);
     for (const std::string &why : unread) {

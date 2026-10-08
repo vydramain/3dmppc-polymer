@@ -29,16 +29,29 @@ struct rv_editor_file_node {
 class rv_editor_files
 {
 public:
-    void open(const std::filesystem::path &root, rv_editor_log &log);
+    // Lists the root; not watched until start_watching(). RV_ERR_NOENT when `root` is not a folder
+    // (ENOTDIR included); RV_ERR_IO when it cannot be checked.
+    int open(const std::filesystem::path &root, std::string &error);
     void close();
     bool is_open() const
     {
         return !root_.path.empty();
     }
+    bool watching() const
+    {
+        return watching_;
+    }
+
+    // Starts the watcher on the open project. RV_ERR_NOMEM: the watch limit stopped
+    // part of the tree; the rest is still watched. Any other failure leaves it unwatched.
+    int start_watching(std::string &error);
 
     // Once a frame: applies what the watcher saw. Changed files are added to
-    // `changed` for whoever needs them (disc.toml, open documents).
-    void update(rv_editor_log &log);
+    // `changed` for whoever needs them (disc.toml, open documents). RV_ERR_IO with
+    // watching() false: a read or restart failed, the watcher is stopped. RV_ERR_IO with
+    // watching() true: a new folder could not be watched, the rest still is. Either way
+    // `error` tells why, and the caller reports it once.
+    int update(rv_editor_log &log, std::string &error);
 
     rv_editor_file_node &root()
     {

@@ -115,7 +115,13 @@ void rv_editor_app_update_problems(rv_editor_app &app)
 
 void rv_editor_app_update(rv_editor_app &app)
 {
-    app.files.update(app.log);
+    std::string files_error;
+    if (app.files.update(app.log, files_error) != RV_OK) {
+        if (!app.files.watching()) {
+            files_error += "; files are not watched, Refresh shows changes";
+        }
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "file watch: " + files_error);
+    }
     app.nvim.update(app.log);
     rv_editor_app_update_terminals(app);
     rv_editor_app_update_stopping(app);
