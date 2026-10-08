@@ -159,8 +159,16 @@ namespace
 void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
 {
     rv_editor_nvim &nvim = app.nvim;
-    if (!nvim.running()) {
-        (void)nvim.ensure_started(app.project.open ? app.project.root : std::filesystem::current_path(), app.log);
+    // Once per refusal: a failed start leaves `problem` set, which the tile shows.
+    if (!nvim.running() && nvim.problem.empty()) {
+        const std::filesystem::path cwd = app.project.open ? app.project.root : std::filesystem::current_path();
+        std::string error;
+        const int err = nvim.start(cwd, app.log, error);
+        // BUSY: update() writes the exit's own error in the next frame.
+        const rv_editor_log_level level = err == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+        if (err != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, level, "code editor: " + error);
+        }
     }
     if (!nvim.problem.empty()) {
         ImGui::TextWrapped("%s", nvim.problem.c_str());

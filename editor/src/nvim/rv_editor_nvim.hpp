@@ -70,10 +70,12 @@ public:
     // Why the code editor cannot run, or empty. Checked before starting.
     std::string problem;
 
-    // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success or if
-    // already running. RV_ERR_NOENT if nvim not found, RV_ERR_IO if startup failed;
-    // reason in `problem` (only the code tiles lose, nothing else).
-    int ensure_started(const std::filesystem::path &cwd, rv_editor_log &log);
+    // Starts nvim once, with the editor's config, in `cwd`. RV_OK on success.
+    // RV_ERR_ALREADY if running, RV_ERR_BUSY if it has just ended and update() has
+    // not yet reported why, the earlier failure again if `problem` is set (only
+    // "Start again" clears it). RV_ERR_NOENT if nvim not found, RV_ERR_IO if startup
+    // failed; reason in `problem` and in `error` (only the code tiles lose).
+    int start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error);
     bool running() const
     {
         return started_ && rpc_.running();

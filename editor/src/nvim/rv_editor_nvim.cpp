@@ -105,12 +105,18 @@ std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &
 
 } // namespace
 
-int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_log &log)
+int rv_editor_nvim::start(const std::filesystem::path &cwd, rv_editor_log &log, std::string &error)
 {
+    if (running()) {
+        error = "nvim is already running";
+        return RV_ERR_ALREADY;
+    }
     if (started_) {
-        return RV_OK;
+        error = "nvim has just ended; the reason follows in the log";
+        return RV_ERR_BUSY;
     }
     if (!problem.empty()) {
+        error = problem;
         return last_error_;
     }
     // From PATH: it is the user's own editor, not one this repository ships.
@@ -118,6 +124,7 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
     if (nvim.empty()) {
         problem = "nvim is not installed or not on PATH; the code editor needs it";
         last_error_ = RV_ERR_NOENT;
+        error = problem;
         return RV_ERR_NOENT;
     }
     const std::vector<std::string> argv = { nvim.string(),
@@ -128,11 +135,11 @@ int rv_editor_nvim::ensure_started(const std::filesystem::path &cwd, rv_editor_l
         RV_EDITOR_NVIM_CONFIG,
         std::string(nvim_opt_shada_file),
         std::string(nvim_init_none) };
-    std::string error;
     const int err = rpc_.start(argv, cwd, error);
     if (err != RV_OK) {
         problem = "cannot start nvim: " + error;
         last_error_ = err;
+        error = problem;
         return err;
     }
     started_ = true;
