@@ -64,15 +64,15 @@ mat3 rv_editor_rotation(const rv_editor_vec3 &deg)
     return rv_editor_mat3_mul(ry, rv_editor_mat3_mul(rx, rz));
 }
 
-rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
+// Inverse of a 3x4 affine matrix; RV_ERR_INVAL when a is degenerate (determinant near zero).
+int rv_editor_affine_inverse(const rv_editor_affine &a, rv_editor_affine &out)
 {
     const double det = a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
         a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
-    ok = std::fabs(det) > matrix_epsilon;
-    rv_editor_affine r{};
-    if (!ok) {
-        return r;
+    if (std::fabs(det) <= matrix_epsilon) {
+        return RV_ERR_INVAL;
     }
+    rv_editor_affine r{};
     const double inv = 1.0 / det;
     r[0][0] = (a[1][1] * a[2][2] - a[1][2] * a[2][1]) * inv;
     r[0][1] = (a[0][2] * a[2][1] - a[0][1] * a[2][2]) * inv;
@@ -86,7 +86,8 @@ rv_editor_affine rv_editor_affine_inverse(const rv_editor_affine &a, bool &ok)
     for (int i = 0; i < space_axes; ++i) {
         r[i][affine_cols - 1] = -(r[i][0] * a[0][3] + r[i][1] * a[1][3] + r[i][2] * a[2][3]);
     }
-    return r;
+    out = r;
+    return RV_OK;
 }
 
 // T R S back out of a matrix; RV_ERR_INVAL when it holds a shear, which T R S cannot.
@@ -182,9 +183,9 @@ int rv_editor_scene_reparent_keep_world(const rv_editor_scene &scene,
         return rv_editor_scene_decompose_keep_transform(world, moved, why);
     }
 
-    bool ok = false;
-    const rv_editor_affine parent_inverse = rv_editor_affine_inverse(rv_editor_scene_world(scene, p), ok);
-    if (!ok) {
+    rv_editor_affine parent_inverse{};
+    const int inverted = rv_editor_affine_inverse(rv_editor_scene_world(scene, p), parent_inverse);
+    if (inverted != RV_OK) {
         why = rv_editor_text("scene_edit.new_parent_scale_zero");
         return RV_ERR_INVAL;
     }
@@ -216,9 +217,8 @@ std::array<double, 3> rv_editor_affine_point(const rv_editor_affine &a, const st
 
 std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const std::array<double, 3> &dir)
 {
-    bool ok = false;
-    const rv_editor_affine inv = rv_editor_affine_inverse(a, ok);
-    if (!ok) {
+    rv_editor_affine inv{};
+    if (rv_editor_affine_inverse(a, inv) != RV_OK) {
         return dir;
     }
     return { inv[0][0] * dir[0] + inv[0][1] * dir[1] + inv[0][2] * dir[2],
