@@ -40,14 +40,14 @@ int rv_pdktools::burn_archive(const fs::path &output_path,
     rv_zipwriter writer(output_path.string());
     if (!writer.ok()) {
         error = "cannot open '" + output_path.string() + "' for writing";
-        return 1;
+        return RV_ERR_IO;
     }
 
     // --- the manifest ---
 
     const std::string manifest_text = rv_pdklib::rv_manifest_render(manifest);
-    if (writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error) != RV_OK) {
-        return 1;
+    if (const int rc = writer.add(k_entry_manifest, manifest_text.data(), manifest_text.size(), error); rc != RV_OK) {
+        return rc;
     }
 
     // --- the module ---
@@ -59,23 +59,23 @@ int rv_pdktools::burn_archive(const fs::path &output_path,
     const std::string entry_module =
         manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
-    if (writer.add_file(entry_module, disc_module.string(), error) != RV_OK) {
-        return 1;
+    if (const int rc = writer.add_file(entry_module, disc_module.string(), error); rc != RV_OK) {
+        return rc;
     }
     rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
 
     // --- everything the plan named ---
 
     for (const archive_item &item : plan.items) {
-        if (writer.add_file(item.name, item.payload, error) != RV_OK) {
-            return 1;
+        if (const int rc = writer.add_file(item.name, item.payload, error); rc != RV_OK) {
+            return rc;
         }
     }
 
     // Not optional: an archive without a central directory is not an archive,
     // and no reader will open it.
-    if (writer.finish(error) != RV_OK) {
-        return 1;
+    if (const int rc = writer.finish(error); rc != RV_OK) {
+        return rc;
     }
 
     burned_size = static_cast<int64_t>(fs::file_size(output_path, ec));
@@ -83,7 +83,7 @@ int rv_pdktools::burn_archive(const fs::path &output_path,
         burned_size = 0;
     }
 
-    return 0;
+    return RV_OK;
 }
 
 namespace rv_pdktools
@@ -205,14 +205,14 @@ int rv_pdktools::burn_directory(const fs::path &output_dir,
     fs::create_directories(output_dir, ec);
     if (ec) {
         error = "cannot create '" + output_dir.string() + "'";
-        return 1;
+        return RV_ERR_IO;
     }
 
     // --- the manifest ---
 
     const std::string manifest_text = rv_pdklib::rv_manifest_render(manifest);
-    if (publish_text(output_dir / k_entry_manifest, manifest_text, error) != 0) {
-        return 1;
+    if (const int rc = publish_text(output_dir / k_entry_manifest, manifest_text, error); rc != RV_OK) {
+        return rc;
     }
 
     // --- the module ---
@@ -220,8 +220,8 @@ int rv_pdktools::burn_directory(const fs::path &output_dir,
     const std::string entry_module =
         manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
-    if (publish_copy(output_dir / entry_module, disc_module, error) != 0) {
-        return 1;
+    if (const int rc = publish_copy(output_dir / entry_module, disc_module, error); rc != RV_OK) {
+        return rc;
     }
     rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
 
@@ -241,10 +241,10 @@ int rv_pdktools::burn_directory(const fs::path &output_dir,
 
         const int rc =
             (is_texture || is_sound) ? publish_copy(dest, item.payload, error) : publish_link(dest, item.payload, error);
-        if (rc != 0) {
-            return 1;
+        if (rc != RV_OK) {
+            return rc;
         }
     }
 
-    return 0;
+    return RV_OK;
 }

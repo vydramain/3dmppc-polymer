@@ -30,8 +30,8 @@ namespace rv_pdktools
 /// @param disc_module  the disc.so compile_sources() produced
 /// @param plan         the planned archive, written in its own order
 /// @param burned_size  receives the size of the finished image, in bytes
-/// @param error        set on any I/O failure; a partial image is removed
-/// @return 0 on success, 1 on refusal
+/// @param error        set on any failure; a partial image is removed
+/// @return RV_OK, or the RV_ERR_* of the step that failed
 int burn_archive(const std::filesystem::path &output_path,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_module,
@@ -61,8 +61,8 @@ int burn_archive(const std::filesystem::path &output_path,
 /// @param plan         the planned archive; for an unpacked build the caller
 ///                     has already pointed script entries at their .lua
 ///                     source instead of compiled bytecode
-/// @param error        set on any I/O failure
-/// @return 0 on success, 1 on refusal
+/// @param error        set on any failure
+/// @return RV_OK, or the RV_ERR_* of the step that failed
 int burn_directory(const std::filesystem::path &output_dir,
     const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_module,
