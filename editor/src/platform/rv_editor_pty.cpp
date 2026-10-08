@@ -215,7 +215,10 @@ int rv_editor_pty::start(const std::vector<std::string> &argv,
         return RV_ERR_IO;
     }
     pid_ = pid;
-    rv_editor_guard_add(pid);
+    std::string guard_error;
+    if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+    }
     master_ = master;
     const int flags = ::fcntl(master_, F_GETFL);
     if (flags < 0 || ::fcntl(master_, F_SETFL, flags | O_NONBLOCK) < 0) {
@@ -303,7 +306,10 @@ bool rv_editor_pty::poll()
     if (!rv_editor_reap(pid_, status, false)) {
         return false;
     }
-    rv_editor_guard_remove(pid_);
+    std::string guard_error;
+    if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+    }
     exit_.exited = true;
     if (WIFEXITED(status)) {
         exit_.code = WEXITSTATUS(status);
@@ -331,7 +337,10 @@ void rv_editor_pty::stop()
             rv_editor_signal_session(pid_, SIGKILL);
             int status = 0;
             rv_editor_reap(pid_, status, true);
-            rv_editor_guard_remove(pid_);
+            std::string guard_error;
+            if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
+                std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+            }
             exit_.exited = true;
             exit_.signal = SIGKILL;
         }

@@ -5,12 +5,12 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <sstream>
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
-#include <mutex>
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -43,16 +43,6 @@ constexpr char path_separator = ':';
 
 // PATH environment variable name for executable search
 constexpr const char *env_var_path = "PATH";
-
-// A write to a pipe whose reader has died must fail with EPIPE, not kill the
-// editor with SIGPIPE.
-void rv_editor_ignore_sigpipe()
-{
-    static std::once_flag once;
-    std::call_once(once, [] {
-        std::signal(SIGPIPE, SIG_IGN);
-    });
-}
 
 void rv_editor_close(int &fd)
 {
@@ -98,7 +88,10 @@ rv_editor_process::~rv_editor_process()
         int status = 0;
         while (::waitpid(pid_, &status, 0) < 0 && errno == EINTR) {
         }
-        rv_editor_guard_remove(pid_);
+        std::string guard_error;
+        if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
+            std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+        }
     }
     close_fds();
 }
@@ -116,7 +109,6 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     int inherit_fd,
     const std::vector<std::string> &env)
 {
-    rv_editor_ignore_sigpipe();
     if (argv.empty() || running()) {
         error = argv.empty() ? "nothing to run" : "already running";
         return RV_ERR_INVAL;
@@ -210,7 +202,10 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     }
 
     pid_ = pid;
-    rv_editor_guard_add(pid);
+    std::string guard_error;
+    if (rv_editor_guard_add(pid, guard_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+    }
     in_ = in[1];
     out_ = out[0];
     err_ = err[0];
@@ -222,7 +217,10 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
             stop(true);
             while (::waitpid(pid_, nullptr, 0) < 0 && errno == EINTR) {
             }
-            rv_editor_guard_remove(pid_);
+            std::string guard_error;
+            if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
+                std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+            }
             pid_ = -1;
             close_fds();
             return RV_ERR_IO;
@@ -298,7 +296,10 @@ bool rv_editor_process::poll()
     }
     exited_at_ = std::chrono::steady_clock::now();
     rv_editor_close(in_);
-    rv_editor_guard_remove(pid_);
+    std::string guard_error;
+    if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+    }
     return true;
 }
 

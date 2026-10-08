@@ -268,7 +268,11 @@ int main(int argc, char **argv)
         return exit_code;
     }
 
-    rv_editor::rv_editor_guard_start();
+    std::string guard_error;
+    if (rv_editor::rv_editor_guard_start(guard_error) != RV_OK) {
+        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
+        return exit_code_error;
+    }
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
         std::fprintf(stderr, "3dmppc-editor: SDL_Init: %s\n", SDL_GetError());

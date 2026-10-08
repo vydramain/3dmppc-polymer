@@ -127,12 +127,14 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit);
 std::filesystem::path rv_editor_process_find(const char *name);
 
 // Guard process that kills all children on editor exit. Call once from main() before SDL_Init.
-void rv_editor_guard_start();
+// RV_OK, or RV_ERR_* with the reason in `error`.
+int rv_editor_guard_start(std::string &error);
 
 // Register a process group with the guard; unregistered groups survive the editor's death.
-void rv_editor_guard_add(pid_t group);
+// RV_OK, or RV_ERR_* with the reason in `error`.
+int rv_editor_guard_add(pid_t group, std::string &error);
 
-// Unregister a process group from the guard.
-void rv_editor_guard_remove(pid_t group);
+// Unregister a process group from the guard. RV_OK, or RV_ERR_* with the reason in `error`.
+int rv_editor_guard_remove(pid_t group, std::string &error);
 
 } // namespace rv_editor
