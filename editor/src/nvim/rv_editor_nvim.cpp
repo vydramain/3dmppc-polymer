@@ -86,14 +86,6 @@ constexpr std::string_view ext_lua = ".lua"; // Lua source
 constexpr std::string_view vim_cmd_palette_prefix = "let g:rv_editor_palette='"; // nvim palette var prefix
 constexpr std::string_view lua_toggle_vim_mode = "_G.rv_toggle_vim_mode()";      // toggle mode, defined in rv_editor_init.lua
 constexpr std::string_view lua_checktime = "vim.cmd('silent! checktime')";       // check file changes on disk
-constexpr std::string_view lua_delete_modified_bufs =
-    "for _, b in ipairs(vim.api.nvim_list_bufs()) do\n"
-    "  if vim.bo[b].modified then pcall(vim.api.nvim_buf_delete, b, { force = true }) end\n"
-    "end"; // delete modified buffers
-constexpr std::string_view lua_close_and_delete_buf =
-    "local win = tonumber(...); local b = vim.api.nvim_win_get_buf(win)\n"
-    "vim.api.nvim_win_call(win, function() vim.cmd('enew') end)\n"
-    "pcall(vim.api.nvim_buf_delete, b, { force = true })"; // close window, replace with new buffer, delete old
 
 std::string rv_editor_args(const std::function<void(rv_editor_mpack_writer &)> &fill)
 {
@@ -409,51 +401,6 @@ void rv_editor_nvim::checktime()
     if (running()) {
         exec_lua(std::string(lua_checktime), {});
     }
-}
-
-std::vector<rv_editor_nvim_buffer> rv_editor_nvim::modified() const
-{
-    std::vector<rv_editor_nvim_buffer> out;
-    for (const rv_editor_nvim_buffer &b : buffers_) {
-        if (b.modified) {
-            out.push_back(b);
-        }
-    }
-    return out;
-}
-
-bool rv_editor_nvim::modified_only_in(int64_t win) const
-{
-    for (const rv_editor_nvim_buffer &b : buffers_) {
-        if (b.modified && b.windows.size() == 1 && b.windows[0] == win) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void rv_editor_nvim::discard(int64_t win)
-{
-    if (!running()) {
-        return;
-    }
-    if (win == 0) {
-        exec_lua(std::string(lua_delete_modified_bufs), {});
-        return;
-    }
-    exec_lua(std::string(lua_close_and_delete_buf), { std::to_string(win) });
-}
-
-const rv_editor_nvim_buffer *rv_editor_nvim::buffer_in(int64_t win) const
-{
-    for (const rv_editor_nvim_buffer &b : buffers_) {
-        for (const int64_t w : b.windows) {
-            if (w == win) {
-                return &b;
-            }
-        }
-    }
-    return nullptr;
 }
 
 std::vector<uint32_t> rv_editor_nvim::panes() const

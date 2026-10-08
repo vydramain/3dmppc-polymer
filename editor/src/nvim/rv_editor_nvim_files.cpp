@@ -3,6 +3,9 @@
 #include "nvim/rv_editor_nvim.hpp"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace rv_editor
 {
@@ -68,6 +71,15 @@ end
 return ''
 )lua";
 
+constexpr std::string_view lua_delete_modified_bufs =
+    "for _, b in ipairs(vim.api.nvim_list_bufs()) do\n"
+    "  if vim.bo[b].modified then pcall(vim.api.nvim_buf_delete, b, { force = true }) end\n"
+    "end"; // delete modified buffers
+constexpr std::string_view lua_close_and_delete_buf =
+    "local win = tonumber(...); local b = vim.api.nvim_win_get_buf(win)\n"
+    "vim.api.nvim_win_call(win, function() vim.cmd('enew') end)\n"
+    "pcall(vim.api.nvim_buf_delete, b, { force = true })"; // close window, replace with new buffer, delete old
+
 } // namespace
 
 std::string rv_editor_nvim::buffers_unsaved_at(const std::filesystem::path &path) const
@@ -127,6 +139,51 @@ void rv_editor_nvim::delete_buffers_at(const std::filesystem::path &path)
             exec_lua(rv_editor_lua_delete_buffer, { norm_buf });
         }
     }
+}
+
+std::vector<rv_editor_nvim_buffer> rv_editor_nvim::modified() const
+{
+    std::vector<rv_editor_nvim_buffer> out;
+    for (const rv_editor_nvim_buffer &b : buffers_) {
+        if (b.modified) {
+            out.push_back(b);
+        }
+    }
+    return out;
+}
+
+bool rv_editor_nvim::modified_only_in(int64_t win) const
+{
+    for (const rv_editor_nvim_buffer &b : buffers_) {
+        if (b.modified && b.windows.size() == 1 && b.windows[0] == win) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void rv_editor_nvim::discard(int64_t win)
+{
+    if (!running()) {
+        return;
+    }
+    if (win == 0) {
+        exec_lua(std::string(lua_delete_modified_bufs), {});
+        return;
+    }
+    exec_lua(std::string(lua_close_and_delete_buf), { std::to_string(win) });
+}
+
+const rv_editor_nvim_buffer *rv_editor_nvim::buffer_in(int64_t win) const
+{
+    for (const rv_editor_nvim_buffer &b : buffers_) {
+        for (const int64_t w : b.windows) {
+            if (w == win) {
+                return &b;
+            }
+        }
+    }
+    return nullptr;
 }
 
 } // namespace rv_editor
