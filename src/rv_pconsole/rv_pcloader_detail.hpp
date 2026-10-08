@@ -60,7 +60,11 @@ int read_whole_entry(const rv_zipreader &zip,
 // reason in `why`.
 int read_whole_file(const std::filesystem::path &path, int64_t max_size, std::vector<unsigned char> &out, std::string &why);
 
-std::string extract_code(const std::vector<unsigned char> &code, std::string &out_path);
+// Write the code buffer to a fresh private file and hand back its path.
+// Returns RV_OK on success, RV_ERR_IO on mkstemp, fchmod, write, or close
+// failure; reason in `why`. On any failure, the staging file is removed and
+// out_path is cleared.
+int extract_code(const std::vector<unsigned char> &code, std::string &out_path, std::string &why);
 
 } // namespace rv_pcloader_detail
 using namespace rv_pcloader_detail;

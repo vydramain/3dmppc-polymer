@@ -71,8 +71,8 @@ int64_t rv_pcloader::bring_up()
         return RV_ERR_NOENT;
     }
 
-    why = extract_code(code, temp_path_);
-    if (!why.empty()) {
+    const int staged = extract_code(code, temp_path_, why);
+    if (staged != RV_OK) {
         RV_LOG_ERR("pcloader",
             "cannot stage the code of disc '{}' for loading: {}",
             rv_pdklib::rv_log_escape(manifest_.disc_id.c_str()),
