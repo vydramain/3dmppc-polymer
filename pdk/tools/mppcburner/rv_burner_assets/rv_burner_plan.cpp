@@ -29,7 +29,7 @@ namespace rv_pdktools
 // @param first        set to the index the first appended entry landed at
 // @param count        set to how many entries were appended
 // @param error        set with the section name already prefixed
-// @return 0 on success, 1 on refusal
+// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
 static int plan_section(const std::vector<std::string> &patterns,
     const char *section,
     const fs::path &disc_dir,
@@ -44,13 +44,14 @@ static int plan_section(const std::vector<std::string> &patterns,
     count = 0;
 
     if (patterns.empty()) {
-        return 0;
+        return RV_OK;
     }
 
     std::vector<std::string> matched;
-    if (glob_expand(disc_dir, patterns, matched, error) != RV_OK) {
+    const int glob_err = glob_expand(disc_dir, patterns, matched, error);
+    if (glob_err != RV_OK) {
         error = std::string(section) + ": " + error;
-        return 1;
+        return glob_err;
     }
 
     for (const std::string &relative : matched) {
@@ -63,16 +64,17 @@ static int plan_section(const std::vector<std::string> &patterns,
         item.source = relative;
         item.payload = payload_dir.empty() ? (disc_dir / relative).string() : (payload_dir / item.name).string();
 
-        if (check_asset_name(item.name, error) != RV_OK) {
+        const int name_err = check_asset_name(item.name, error);
+        if (name_err != RV_OK) {
             error = std::string(section) + ": " + error + " (from '" + relative + "')";
-            return 1;
+            return name_err;
         }
 
         plan.items.push_back(item);
     }
 
     count = matched.size();
-    return 0;
+    return RV_OK;
 }
 
 } // namespace rv_pdktools
@@ -90,68 +92,73 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
 
     // --- copied assets ---
 
-    if (plan_section(manifest.assets_files,
-            "[assets] files",
-            disc_dir,
-            fs::path(),
-            nullptr,
-            plan,
-            first_asset,
-            plan.asset_count,
-            error) != 0) {
-        return 1;
+    const int assets_err = plan_section(manifest.assets_files,
+        "[assets] files",
+        disc_dir,
+        fs::path(),
+        nullptr,
+        plan,
+        first_asset,
+        plan.asset_count,
+        error);
+    if (assets_err != RV_OK) {
+        return assets_err;
     }
 
     // --- textures ---
 
-    if (plan_section(manifest.textures_files.files,
-            "[textures] files",
-            disc_dir,
-            texture_dir,
-            ".mppctex",
-            plan,
-            plan.first_texture,
-            plan.texture_count,
-            error) != 0) {
-        return 1;
+    const int textures_err = plan_section(manifest.textures_files.files,
+        "[textures] files",
+        disc_dir,
+        texture_dir,
+        ".mppctex",
+        plan,
+        plan.first_texture,
+        plan.texture_count,
+        error);
+    if (textures_err != RV_OK) {
+        return textures_err;
     }
 
     // --- scripts ---
 
-    if (plan_section(manifest.scripts_sources,
-            "[scripts] sources",
-            disc_dir,
-            scripts_dir,
-            ".luac",
-            plan,
-            plan.first_script,
-            plan.script_count,
-            error) != 0) {
-        return 1;
+    const int scripts_err = plan_section(manifest.scripts_sources,
+        "[scripts] sources",
+        disc_dir,
+        scripts_dir,
+        ".luac",
+        plan,
+        plan.first_script,
+        plan.script_count,
+        error);
+    if (scripts_err != RV_OK) {
+        return scripts_err;
     }
 
     // --- sounds ---
 
-    if (plan_section(manifest.sounds_files,
-            "[sounds] files",
-            disc_dir,
-            sound_dir,
-            ".pcm",
-            plan,
-            plan.first_sound,
-            plan.sound_count,
-            error) != 0) {
-        return 1;
+    const int sounds_err = plan_section(manifest.sounds_files,
+        "[sounds] files",
+        disc_dir,
+        sound_dir,
+        ".pcm",
+        plan,
+        plan.first_sound,
+        plan.sound_count,
+        error);
+    if (sounds_err != RV_OK) {
+        return sounds_err;
     }
 
     // --- the whole plan at once ---
     //
     // Across sections, not within one: a PNG and a .lua can collapse onto the
     // same archive name just as easily as two PNGs can.
-    if (check_collisions(plan.items, error) != RV_OK) {
-        return 1;
+    const int collision_err = check_collisions(plan.items, error);
+    if (collision_err != RV_OK) {
+        return collision_err;
     }
 
     out = std::move(plan);
-    return 0;
+    return RV_OK;
 }

@@ -45,8 +45,9 @@ static int rv_burner_bake_texture_select(const rv_pdklib::rv_manifest &manifest,
     // is enough.
     const fs::path scratch = fs::temp_directory_path(ec);
     archive_plan plan;
-    if (plan_archive(manifest, disc_dir, scratch, scratch, scratch, plan, error) != RV_OK) {
-        return RV_ERR_INVAL;
+    const int plan_err = plan_archive(manifest, disc_dir, scratch, scratch, scratch, plan, error);
+    if (plan_err != RV_OK) {
+        return plan_err;
     }
 
     const auto first = plan.items.begin() + static_cast<std::ptrdiff_t>(plan.first_texture);

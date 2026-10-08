@@ -48,7 +48,7 @@ struct archive_plan {
 /// @param sound_dir    directory baked .pcm files will be written to
 /// @param out          receives the plan; untouched on failure
 /// @param error        set with a message that already names its manifest section
-/// @return 0 on success, 1 on refusal
+/// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
 int plan_archive(const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::filesystem::path &texture_dir,
