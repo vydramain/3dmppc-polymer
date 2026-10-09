@@ -57,6 +57,7 @@ void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::pat
     shell.ui.game_captured = false;
     // The old project's entry is not in the new tree.
     shell.ui.files_selected.clear();
+    shell.ui.scene_tabs = {};
     rv_editor_log *log = &app.log;
     app.nvim.switch_root(app.project.root, [log](const std::string &failure) {
         if (!failure.empty()) {

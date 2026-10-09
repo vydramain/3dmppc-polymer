@@ -10,6 +10,7 @@
 
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_browser.hpp"
+#include "app/rv_editor_scene_tabs.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -76,6 +77,8 @@ struct rv_editor_ui {
     // The Scene viewport's view and the Transform tools' choice, shared by the viewport and
     // the Transform Toolchest.
     rv_editor_scene_camera scene_camera;
+    // The Scene tile's tabs: the scene is tab 0 (front 0), the tabs open from Assets follow.
+    rv_editor_scene_tabs scene_tabs;
 };
 
 enum class rv_editor_ui_request_kind {
@@ -87,11 +90,15 @@ enum class rv_editor_ui_request_kind {
     game_measured,
     select_file,
     set_scene_camera,
+    open_scene_tab,
+    front_scene_tab,
+    close_scene_tab,
     count, // number of kinds; the apply table has one row per kind
 };
 
 // One change of rv_editor_ui, applied by rv_editor_shell_ui_apply. Each kind reads
-// only the fields it names: focus, scale, need and area, path, or camera.
+// only the fields it names: focus, scale, need and area, path, camera, scene tab, or
+// scene tab index: the front index (0: the scene) for front_scene_tab, the 1-based tab for close_scene_tab.
 struct rv_editor_ui_request {
     rv_editor_ui_request_kind kind;
     rv_editor_game_scale scale = rv_editor_game_scale::fit;
@@ -100,6 +107,8 @@ struct rv_editor_ui_request {
     bool focus = false;
     std::filesystem::path path = {};
     rv_editor_scene_camera camera = {};
+    rv_editor_scene_tab scene_tab = {};
+    int scene_tab_index = 0;
 };
 
 // What a pane gets: panes read the state through it and change it only by queuing requests.

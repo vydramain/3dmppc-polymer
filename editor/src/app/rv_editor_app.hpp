@@ -13,7 +13,6 @@
 #include "app/rv_editor_app_findings.hpp"
 #include "app/rv_editor_app_parts.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
-#include "app/rv_editor_scene_tabs.hpp"
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_build_map.hpp"
 #include "files/rv_editor_files.hpp"
@@ -115,7 +114,6 @@ struct rv_editor_app {
     // Why the last scene move was refused; empty after a move that went through, a dismiss, or opening a scene.
     std::string scene_move_note;
     rv_editor_assets_ui assets_ui;
-    rv_editor_scene_tabs scene_tabs;
     // The started build's map (rv_editor_build_map_read), read at rv_editor_app_run_session;
     // empty once the session is not live.
     std::map<std::string, rv_editor_map_entry> build_map;
@@ -143,10 +141,6 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
 
-// Scene tabs (editor/src/panes/rv_editor_pane_scene_tabs.cpp): opens or brings
-// forward the Scene tile's tab for a PNG or a sound (.png, .wav, .pcm); does
-// nothing for any other file.
-void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::path &path);
 // Creates scenes/<name>.scene.toml (name: non-empty, letters/digits/_/-, must not
 // exist yet), puts it on the disc if no pattern already matches it, writes
 // src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. RV_OK on success,

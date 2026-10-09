@@ -140,7 +140,7 @@ void rv_editor_shell_new_scene_request(const rv_editor_app &app)
     std::snprintf(g_new_scene.name, sizeof(g_new_scene.name), "%s", rv_editor_app_scene_free_name(app).c_str());
 }
 
-void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!g_new_scene.open) {
         return;
@@ -154,7 +154,8 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::TextUnformatted(rv_editor_text("shell_menu_scene.name_label"));
     if (g_new_scene.focus_name) {
-        app.scene_tabs.front = 0; // the scene's own tab, so the created scene shows
+        // the scene's own tab, so the created scene shows (applied after this draw)
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
         ImGui::SetKeyboardFocusHere();
         g_new_scene.focus_name = false;
     }

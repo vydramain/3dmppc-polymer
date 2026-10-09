@@ -3,12 +3,14 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 
 #include <SDL3/SDL.h>
 #include "imgui.h"
 
 #include "app/rv_editor_app.hpp"
+#include "app/rv_editor_scene_tabs.hpp"
 #include "nvim/rv_editor_nvim_grid.hpp"
 #include "theme/rv_editor_theme.hpp"
 
@@ -84,7 +86,10 @@ void rv_editor_pane_terminal(rv_editor_app &app,
 // lets the keyboard go.
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // Assets: the project's resource files as an Icon Catalog; its PNG pictures live on `renderer`.
-void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
+void rv_editor_pane_assets(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui_port);
 // The code and colour that stand in for a file's icon, by its extension.
 void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, uint32_t &color);
 
@@ -128,11 +133,18 @@ void rv_editor_pane_scene(rv_editor_app &app,
     const rv_editor_ui_port &ui);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
 // The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
-void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// A scene tab for `path` (a PNG or a sound: .png, .wav, .pcm), with a sound's duration read
+// now; nullopt for any other file (pane_scene_tabs.cpp).
+std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path);
 // Draws the Scene tile's tab strip (only when a tab is open) and, when the front
 // tab is a picture or a sound, its content. True when the scene viewport belongs
-// in front instead (no tabs open, or the scene tab is in front).
-bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
+// in front instead (no tabs open, or the scene tab is in front). The front tab
+// and Close Tab are queued on `ui` (rv_editor_ui_request).
+bool rv_editor_scene_tabs_draw(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);

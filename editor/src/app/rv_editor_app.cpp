@@ -59,7 +59,6 @@ int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)
     app.release = {};
     app.observe = {};
     app.findings = {};
-    app.scene_tabs = {};
     if (app.session.pad_pending(0)) {
         std::string pad_error;
         if (app.session.pad(0, app.log, pad_error) != RV_OK) {

@@ -3,6 +3,7 @@
 
 #include "app/rv_editor_shell.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <iterator>
 
@@ -55,6 +56,46 @@ void rv_editor_ui_set_scene_camera(rv_editor_ui &ui, const rv_editor_ui_request 
     ui.scene_camera = request.camera;
 }
 
+// A tab already open for the path comes forward; a new one is added and comes forward.
+void rv_editor_ui_open_scene_tab(rv_editor_ui &ui, const rv_editor_ui_request &request)
+{
+    rv_editor_scene_tabs &st = ui.scene_tabs;
+    const auto same = std::find_if(st.tabs.begin(), st.tabs.end(), [&request](const rv_editor_scene_tab &tab) {
+        return tab.path == request.scene_tab.path;
+    });
+    if (same == st.tabs.end()) {
+        st.tabs.push_back(request.scene_tab);
+        st.front = static_cast<int>(st.tabs.size());
+        return;
+    }
+    st.front = static_cast<int>(same - st.tabs.begin()) + 1;
+}
+
+// The index is clamped to the open tabs (0: the scene).
+void rv_editor_ui_front_scene_tab(rv_editor_ui &ui, const rv_editor_ui_request &request)
+{
+    const int last = static_cast<int>(ui.scene_tabs.tabs.size());
+    ui.scene_tabs.front = std::clamp(request.scene_tab_index, 0, last);
+}
+
+// Closes the 1-based tab; a stale index that is out of range is ignored.
+void rv_editor_ui_close_scene_tab(rv_editor_ui &ui, const rv_editor_ui_request &request)
+{
+    rv_editor_scene_tabs &st = ui.scene_tabs;
+    const int count = static_cast<int>(st.tabs.size());
+    const int closed_index = request.scene_tab_index;
+    // A stale index (the tabs changed after the pane queued this close) is ignored: there is nothing to close.
+    if (closed_index < 1 || closed_index > count) {
+        return;
+    }
+    st.tabs.erase(st.tabs.begin() + static_cast<std::ptrdiff_t>(closed_index - 1));
+    if (st.front == closed_index) {
+        st.front = 0;
+    } else if (st.front > closed_index) {
+        st.front -= 1;
+    }
+}
+
 struct rv_editor_ui_row {
     rv_editor_ui_request_kind kind;
     rv_editor_ui_apply_fn apply;
@@ -70,6 +111,9 @@ constexpr rv_editor_ui_row rv_editor_ui_table[] = {
     { rv_editor_ui_request_kind::game_measured, rv_editor_ui_measured },
     { rv_editor_ui_request_kind::select_file, rv_editor_ui_select_file },
     { rv_editor_ui_request_kind::set_scene_camera, rv_editor_ui_set_scene_camera },
+    { rv_editor_ui_request_kind::open_scene_tab, rv_editor_ui_open_scene_tab },
+    { rv_editor_ui_request_kind::front_scene_tab, rv_editor_ui_front_scene_tab },
+    { rv_editor_ui_request_kind::close_scene_tab, rv_editor_ui_close_scene_tab },
 };
 
 constexpr bool rv_editor_ui_table_ok()

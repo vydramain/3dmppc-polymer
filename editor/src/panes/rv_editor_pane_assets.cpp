@@ -16,6 +16,7 @@
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "build/rv_editor_build_map.hpp"
 #include "text/rv_editor_text.hpp"
 #include "panes/rv_editor_asset_preview.hpp"
@@ -105,8 +106,6 @@ constexpr size_t label_ellipsis_min_chars = 3;
 
 // File extensions and special markers.
 constexpr std::string_view png_extension = ".png";
-constexpr std::string_view wav_extension = ".wav";
-constexpr std::string_view pcm_extension = ".pcm";
 constexpr std::string_view scene_toml_suffix = ".scene.toml";
 constexpr std::string_view label_ellipsis = "...";
 
@@ -179,7 +178,7 @@ void rv_editor_assets_refresh(const rv_editor_app &app)
 }
 
 // The disc name, or why there is none yet.
-void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
+void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a, const rv_editor_ui_port &ui_port)
 {
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && a.rel != rv_editor_assets.selected) {
         rv_editor_assets.selected = a.rel;
@@ -207,14 +206,14 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a)
         ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip2.c_str());
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
-        const std::string ext = a.path.extension().string();
-        if (ext == png_extension || ext == wav_extension || ext == pcm_extension) {
-            rv_editor_app_scene_tab_open(app, a.path);
+        const std::optional<rv_editor_scene_tab> tab = rv_editor_scene_tab_build(a.path);
+        if (tab) {
+            ui_port.requests.push_back({ .kind = rv_editor_ui_request_kind::open_scene_tab, .scene_tab = *tab });
             app.layout_request = rv_editor_layout_preset::scene;
             app.show_request = rv_editor_pane_kind::scene;
         } else if (a.rel.ends_with(scene_toml_suffix)) {
             rv_editor_app_scene_open(app, a.path);
-            app.scene_tabs.front = 0;
+            ui_port.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
             app.layout_request = rv_editor_layout_preset::scene;
             app.show_request = rv_editor_pane_kind::scene;
         } else {
@@ -239,7 +238,10 @@ rv_editor_icon rv_editor_asset_picture(SDL_Renderer *renderer, const rv_editor_a
     return it->second;
 }
 
-void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
+void rv_editor_pane_assets(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui_port)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
@@ -367,7 +369,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::Selectable(a->rel.c_str(), a->rel == rv_editor_assets.selected, ImGuiSelectableFlags_SpanAllColumns);
-                rv_editor_asset_item(app, *a);
+                rv_editor_asset_item(app, *a, ui_port);
                 const auto entry = rv_editor_assets.map.find(a->rel);
                 ImGui::TableNextColumn();
                 const char *kind_text =
@@ -397,7 +399,7 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
             ImGui::PushID(a.rel.c_str());
             const ImVec2 p0 = ImGui::GetCursorScreenPos();
             ImGui::InvisibleButton("##cell", ImVec2(cell, art + ImGui::GetTextLineHeightWithSpacing() + icon_cell_padding_px));
-            rv_editor_asset_item(app, a);
+            rv_editor_asset_item(app, a, ui_port);
             if (a.rel == rv_editor_assets.selected) {
                 dl->AddRectFilled(p0, ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Header, selection_highlight_alpha));
             }

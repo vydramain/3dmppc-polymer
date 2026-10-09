@@ -15,7 +15,7 @@ enum class rv_editor_scene_tab_kind {
 struct rv_editor_scene_tab {
     std::filesystem::path path;
     rv_editor_scene_tab_kind kind = rv_editor_scene_tab_kind::picture;
-    double sound_seconds = 0.0; // read once at open, a sound's cached duration
+    double sound_seconds = 0.0; // read when the tab is built, a sound's cached duration
 };
 
 // The Scene tile's tabs (editor/src/panes/rv_editor_pane_scene_tabs.cpp): the

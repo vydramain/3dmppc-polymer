@@ -121,58 +121,45 @@ void rv_editor_scene_tab_sound(const rv_editor_scene_tab &tab, const rv_editor_t
     }
 }
 
-// Closes tabs[at] (0-based into app.scene_tabs.tabs); stops it first if it is a
-// playing sound; brings the scene forward if it was in front.
-void rv_editor_scene_tab_close(rv_editor_app &app, size_t at)
+// Stops `tab` when it is a sound that is playing; nothing to do otherwise.
+void rv_editor_scene_tab_stop_sound(const rv_editor_scene_tab &tab)
 {
-    rv_editor_scene_tabs &st = app.scene_tabs;
-    const rv_editor_scene_tab &tab = st.tabs[at];
-    if (tab.kind == rv_editor_scene_tab_kind::sound && rv_editor_sound_playing() && rv_editor_sound_path() == tab.path) {
-        rv_editor_sound_stop();
+    const bool playing_this =
+        tab.kind == rv_editor_scene_tab_kind::sound && rv_editor_sound_playing() && rv_editor_sound_path() == tab.path;
+    if (!playing_this) {
+        // Nothing of this tab plays.
+        return;
     }
-    const int closed_front = static_cast<int>(at) + 1;
-    st.tabs.erase(st.tabs.begin() + static_cast<std::ptrdiff_t>(at));
-    if (st.front == closed_front) {
-        st.front = 0;
-    } else if (st.front > closed_front) {
-        st.front -= 1;
-    }
+    rv_editor_sound_stop();
 }
 
 } // namespace
 
-void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::path &path)
+std::optional<rv_editor_scene_tab> rv_editor_scene_tab_build(const std::filesystem::path &path)
 {
-    const std::string ext = path.extension().string();
-    const auto maybe_kind = rv_editor_scene_tab_kind_for(ext);
+    const auto maybe_kind = rv_editor_scene_tab_kind_for(path.extension().string());
     if (!maybe_kind) {
-        return;
-    }
-    const rv_editor_scene_tab_kind kind = *maybe_kind;
-    rv_editor_scene_tabs &st = app.scene_tabs;
-    for (size_t i = 0; i < st.tabs.size(); ++i) {
-        if (st.tabs[i].path == path) {
-            st.front = static_cast<int>(i) + 1;
-            return;
-        }
+        return std::nullopt;
     }
     rv_editor_scene_tab tab;
     tab.path = path;
-    tab.kind = kind;
-    if (kind == rv_editor_scene_tab_kind::sound) {
+    tab.kind = *maybe_kind;
+    if (tab.kind == rv_editor_scene_tab_kind::sound) {
         rv_editor_asset a;
         a.path = path;
         std::error_code ec;
         a.size = std::filesystem::file_size(path, ec);
         tab.sound_seconds = rv_editor_asset_sound_seconds(a);
     }
-    st.tabs.push_back(tab);
-    st.front = static_cast<int>(st.tabs.size());
+    return tab;
 }
 
-bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
+bool rv_editor_scene_tabs_draw(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
 {
-    rv_editor_scene_tabs &st = app.scene_tabs;
+    const rv_editor_scene_tabs &st = ui.state.scene_tabs;
     if (st.tabs.empty()) {
         return true;
     }
@@ -186,9 +173,13 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
     for (const std::string &s : text) {
         labels.push_back(s.c_str());
     }
-    st.front = std::clamp(st.front, 0, static_cast<int>(st.tabs.size()));
+    const int shown = std::clamp(st.front, 0, static_cast<int>(st.tabs.size()));
+    int front = shown;
     const ImVec2 row_min = ImGui::GetCursorScreenPos();
-    rv_editor_tab_strip("##scene_tabs", labels.data(), static_cast<int>(labels.size()), &st.front, theme);
+    rv_editor_tab_strip("##scene_tabs", labels.data(), static_cast<int>(labels.size()), &front, theme);
+    if (front != shown) {
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = front });
+    }
 
     // A right click on the tabs: Close Tab; the scene tab (index 0) has none.
     if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
@@ -196,9 +187,11 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
     }
     rv_editor_menu_style_push();
     if (ImGui::BeginPopup("##scene_tabmenu")) {
-        const bool closable = st.front > 0;
+        const bool closable = front > 0;
         if (ImGui::MenuItem(rv_editor_text("pane_scene_tabs.menu_close_tab"), nullptr, false, closable)) {
-            rv_editor_scene_tab_close(app, static_cast<size_t>(st.front - 1));
+            rv_editor_scene_tab_stop_sound(st.tabs[static_cast<size_t>(front - 1)]);
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::close_scene_tab, .scene_tab_index = front });
+            front = 0; // the scene shows this frame, as the close is applied after the draw
         }
         if (!closable && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
             ImGui::SetTooltip("%s", rv_editor_text("pane_scene_tabs.tooltip_scene_stays_front"));
@@ -207,18 +200,18 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app, SDL_Renderer *renderer, const
     }
     rv_editor_menu_style_pop();
 
-    if (st.front == 0) {
+    if (front == 0) {
         // rv_editor_flow's first call below looks at the last item's rect to
         // decide whether to stay on this row; without a full-width item here
         // it would still see a tab and pull the viewport toolbar up onto it.
         ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, 0.0f));
         return true;
     }
-    const rv_editor_scene_tab &front = st.tabs[static_cast<size_t>(st.front - 1)];
-    if (front.kind == rv_editor_scene_tab_kind::picture) {
-        rv_editor_scene_tab_picture(app, renderer, front);
+    const rv_editor_scene_tab &tab = st.tabs[static_cast<size_t>(front - 1)];
+    if (tab.kind == rv_editor_scene_tab_kind::picture) {
+        rv_editor_scene_tab_picture(app, renderer, tab);
     } else {
-        rv_editor_scene_tab_sound(front, theme);
+        rv_editor_scene_tab_sound(tab, theme);
     }
     return false;
 }
