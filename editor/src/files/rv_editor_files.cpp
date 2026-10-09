@@ -32,11 +32,25 @@ constexpr std::string_view current_dir_marker = ".";
 // Filesystem path separator; used in inside() to check path boundaries.
 constexpr const char *path_separator = "/";
 
+// Stop on a failure path: the first error stays, a failed close is appended to it.
+// RV_ERR_ALREADY is ignored: nothing was open to close.
+void stop_after_failure(rv_editor_watch &watch, std::string &error)
+{
+    std::string stop_error;
+    if (watch.stop(stop_error) == RV_ERR_IO) {
+        error += "; " + stop_error;
+    }
+}
+
 } // namespace
 
 int rv_editor_files::open(const std::filesystem::path &root, std::string &error)
 {
-    close();
+    // The old descriptor is dropped either way, so the open goes on; the failure is logged by update().
+    std::string close_error;
+    if (close(close_error) == RV_ERR_IO) {
+        close_error_ += (close_error_.empty() ? "" : "; ") + close_error;
+    }
     // Canonical, so inside() compares like with like.
     std::error_code ec;
     const std::filesystem::path canonical = std::filesystem::weakly_canonical(root, ec);
@@ -68,7 +82,7 @@ int rv_editor_files::start_watching(std::string &error)
     // A partial watch at the limit still reports changes; overflow re-reads the tree.
     watching_ = rc == RV_OK || rc == RV_ERR_NOMEM;
     if (!watching_) {
-        watch_.stop();
+        stop_after_failure(watch_, error);
         return rc;
     }
     // Watch first, then read: changes made since open() are not missed.
@@ -76,14 +90,15 @@ int rv_editor_files::start_watching(std::string &error)
     return rc;
 }
 
-void rv_editor_files::close()
+int rv_editor_files::close(std::string &error)
 {
-    watch_.stop();
+    const int rc = watch_.stop(error);
     watching_ = false;
     root_ = {};
     stale_.clear();
     changed.clear();
     selected.clear();
+    return rc;
 }
 
 void rv_editor_files::list(rv_editor_file_node &dir)
@@ -184,6 +199,12 @@ rv_editor_file_node *rv_editor_files::find(rv_editor_file_node &node, const std:
 
 int rv_editor_files::update(rv_editor_log &log, std::string &error)
 {
+    if (!close_error_.empty()) {
+        log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "the previous project's file watcher did not close: " + close_error_);
+        close_error_.clear();
+    }
     if (!is_open() || !watching_) {
         return RV_OK;
     }
@@ -224,8 +245,15 @@ int rv_editor_files::update(rv_editor_log &log, std::string &error)
     }
     if (result == RV_OK && restart) {
         // A moved or deleted directory leaves watches on paths that no longer exist.
-        watch_.stop();
-        const int rc = watch_.start(root_.path, why);
+        // Restart is stop() then start(); a stop that fails fails the restart.
+        std::string stop_error;
+        const int stop_rc = watch_.stop(stop_error);
+        const bool stop_failed = stop_rc == RV_ERR_IO;
+        // RV_ERR_ALREADY: nothing to reset, the start goes on.
+        const int rc = stop_failed ? RV_ERR_IO : watch_.start(root_.path, why);
+        if (stop_failed) {
+            why = stop_error;
+        }
         watching_ = rc == RV_OK || rc == RV_ERR_NOMEM;
         limit = limit || rc == RV_ERR_NOMEM;
         // Restarts from the project root, so NOENT means the root itself is gone.
@@ -233,7 +261,6 @@ int rv_editor_files::update(rv_editor_log &log, std::string &error)
             why = "project folder is gone";
         }
         if (!watching_) {
-            watch_.stop();
             result = RV_ERR_IO;
         }
     }
@@ -261,9 +288,9 @@ int rv_editor_files::update(rv_editor_log &log, std::string &error)
         changed.erase(changed.begin(), changed.end() - changed_paths_max);
     }
     if (result != RV_OK) {
-        watch_.stop();
         watching_ = false;
         error = read_rc != RV_OK ? read_error : why;
+        stop_after_failure(watch_, error);
         return result;
     }
     // The watch keeps running: only the new folder is unwatched.

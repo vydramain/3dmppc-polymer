@@ -25,7 +25,7 @@ public:
     struct rv_editor_watch_event {
         std::filesystem::path path; // the file or directory that changed
         bool directory = false;
-        bool removed = false; // gone (deleted or moved away)
+        bool removed = false;  // gone (deleted or moved away)
         bool appeared = false; // directory created or moved in: the caller calls watch_tree() on it
         bool lost = false;     // the kernel dropped events: re-read everything, path is empty
     };
@@ -39,8 +39,10 @@ public:
     // RV_ERR_INVAL if already started. RV_ERR_NOMEM: the watch limit ran out, the part reached so far stays watched.
     // Restart is stop() then start(), done by the caller.
     int start(const std::filesystem::path &root, std::string &error);
-    // Drops every watch and closes the descriptor.
-    void stop();
+    // Drops every watch and closes the descriptor; the watch list is cleared even on failure.
+    // RV_ERR_ALREADY if not started. RV_ERR_IO: close() failed, the descriptor is dropped anyway.
+    // `error` is set for both codes.
+    int stop(std::string &error);
     // Watches `dir` and everything under it; RV_ERR_NOENT when `dir` is already gone.
     int watch_tree(const std::filesystem::path &dir, std::string &error);
 

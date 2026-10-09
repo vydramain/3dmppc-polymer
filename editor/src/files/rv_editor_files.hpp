@@ -32,7 +32,9 @@ public:
     // Lists the root; not watched until start_watching(). RV_ERR_NOENT when `root` is not a folder
     // (ENOTDIR included); RV_ERR_IO when it cannot be checked.
     int open(const std::filesystem::path &root, std::string &error);
-    void close();
+    // Stops the watcher and forgets the project; the state is reset either way. RV_ERR_IO when the
+    // descriptor fails to close; RV_ERR_ALREADY when not watched. `error` is set for both codes.
+    int close(std::string &error);
     bool is_open() const
     {
         return !root_.path.empty();
@@ -86,6 +88,8 @@ private:
     rv_editor_watch watch_;
     std::set<std::filesystem::path> stale_;
     bool watching_ = false;
+    // Why the previous project's watcher did not close; update() logs it once and clears it.
+    std::string close_error_;
 };
 
 // A NUL byte in the first 8 KiB: not text. `size` is the file's length.

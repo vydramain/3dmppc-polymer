@@ -40,7 +40,9 @@ int fail_with(const std::filesystem::path &path, int err, std::string &error)
 
 rv_editor_watch::~rv_editor_watch()
 {
-    stop();
+    std::string error;
+    // A destructor has no caller to report to; the descriptor is gone either way.
+    stop(error);
 }
 
 bool rv_editor_watch::skipped(const std::string &name)
@@ -62,13 +64,20 @@ int rv_editor_watch::start(const std::filesystem::path &root, std::string &error
     return add_tree(root, error);
 }
 
-void rv_editor_watch::stop()
+int rv_editor_watch::stop(std::string &error)
 {
-    if (fd_ >= 0) {
-        ::close(fd_);
-        fd_ = -1;
-    }
+    const int fd = fd_;
+    fd_ = -1;
     dirs_.clear();
+    if (fd < 0) {
+        error = "the watcher is not started";
+        return RV_ERR_ALREADY;
+    }
+    if (::close(fd) != 0) {
+        error = std::string("inotify close: ") + std::strerror(errno);
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 int rv_editor_watch::watch_tree(const std::filesystem::path &dir, std::string &error)
