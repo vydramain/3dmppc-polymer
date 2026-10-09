@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <system_error>
 #include <utility>
@@ -19,6 +20,22 @@ namespace
 // Gap mark in a log file. The channel lost these lines; they need not be this process's.
 constexpr const char *dropped_marker_head = "[";
 constexpr const char *dropped_marker_tail = " log lines dropped before they reached this file]\n";
+// Prefix of the editor's own stderr lines, as in main.cpp.
+constexpr const char *stderr_prefix = "3dmppc-editor: ";
+// Reason for a failure that left errno at zero; strerror(0) would read "Success".
+constexpr const char *unknown_error_text = "unknown error";
+
+// Closes handle. A failed close returns RV_ERR_IO with the strerror of the failure in error,
+// or unknown_error_text when errno is zero.
+int close_file(FILE *handle, std::string &error)
+{
+    errno = 0;
+    if (std::fclose(handle) != 0) {
+        error = errno != 0 ? std::strerror(errno) : unknown_error_text;
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
 
 // Same key for the same file: symlinks and "./" resolved, the file itself may not exist yet.
 std::string file_key(const std::filesystem::path &path)
@@ -48,6 +65,13 @@ rv_editor_log_file::~rv_editor_log_file()
     }
     wake_.notify_one();
     writer_.join();
+    // Failures of the final drain have no poll left; stderr is the only channel.
+    uint64_t id = 0;
+    int64_t pid = 0;
+    std::string error;
+    while (take_failure(id, pid, error)) {
+        std::fprintf(stderr, "%s%s\n", stderr_prefix, error.c_str());
+    }
 }
 
 int rv_editor_log_file::open(int64_t pid, const std::filesystem::path &path, const rv_editor_log &log, std::string &error)
@@ -220,7 +244,11 @@ void rv_editor_log_file::run()
         apply(files, item);
     }
     for (const auto &entry : files) {
-        std::fclose(entry.second.handle);
+        // Shutdown: no poll runs any more, so stderr is the only channel left.
+        std::string error;
+        if (close_file(entry.second.handle, error) != RV_OK) {
+            std::fprintf(stderr, "%s%s: %s\n", stderr_prefix, entry.second.path.c_str(), error.c_str());
+        }
     }
 }
 
@@ -236,7 +264,10 @@ void rv_editor_log_file::apply(std::map<uint64_t, open_file> &files, job &item)
         return;
     }
     if (item.what == job::kind::detach) {
-        std::fclose(it->second.handle);
+        std::string error;
+        if (close_file(it->second.handle, error) != RV_OK) {
+            fail(item.id, it->second.pid, it->second.path + ": " + error);
+        }
         files.erase(it);
         return;
     }
@@ -247,9 +278,15 @@ void rv_editor_log_file::apply(std::map<uint64_t, open_file> &files, job &item)
     if (ok) {
         return;
     }
+    // One failure per file: a failed close adds its reason to the write failure.
     const int err = errno;
-    fail(item.id, it->second.pid, it->second.path + ": " + std::strerror(err));
-    std::fclose(handle);
+    const char *reason = err != 0 ? std::strerror(err) : unknown_error_text;
+    std::string message = it->second.path + ": " + reason;
+    std::string close_error;
+    if (close_file(handle, close_error) != RV_OK) {
+        message += "; " + close_error;
+    }
+    fail(item.id, it->second.pid, std::move(message));
     files.erase(it);
 }
 
