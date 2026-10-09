@@ -122,7 +122,11 @@ void rv_editor_shell_scene_save(rv_editor_shell &shell)
         return;
     }
     std::string error;
-    if (rv_editor_app_scene_save(app, error) != RV_OK) {
+    const int code = rv_editor_app_scene_save(app, error);
+    // Unreachable from the menu (Save is off on a clean scene); kept so any caller hears ALREADY honestly.
+    if (code == RV_ERR_ALREADY) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "scene already saved");
+    } else if (code != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not saved: " + error);
     }
 }

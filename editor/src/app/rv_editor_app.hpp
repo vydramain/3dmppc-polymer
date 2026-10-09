@@ -140,9 +140,11 @@ struct rv_editor_app {
 std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app &app);
 bool rv_editor_app_scene_dirty(const rv_editor_app &app);
 std::string rv_editor_app_scene_name(const rv_editor_app &app);
-// If the open scene is unsaved: does nothing when path is that same scene, else
+// If the open scene is unsaved: when path is that same scene, does nothing; else
 // leaves it open and sets scene_error naming both, refusing to open path.
-// RV_OK when opened or already open; RV_ERR_BUSY when an unsaved scene refuses; the load's RV_ERR_* otherwise.
+// RV_OK when opened; RV_ERR_ALREADY when path is the open scene with unsaved edits (nothing done);
+// RV_ERR_BUSY when an unsaved scene refuses; the load's RV_ERR_* otherwise. ALREADY writes its own
+// warning to the log.
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
@@ -158,10 +160,11 @@ void rv_editor_app_scene_tab_open(rv_editor_app &app, const std::filesystem::pat
 // disc.toml update fails, or from codegen_write if C++ write fails; the scene file and whatever else
 // already succeeded stay. Reason in error.
 int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
-// Saves the scene if dirty. RV_OK when already saved or successfully saved; RV_ERR_* on save failure.
+// Saves the scene if dirty. RV_OK when successfully saved; RV_ERR_ALREADY when it was not dirty
+// (nothing written; the caller says so); RV_ERR_* on save failure.
 int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
-// The project's first scene, or none; called when a project opens.
-// RV_OK when there is none; otherwise rv_editor_app_scene_open's code.
+// The project's first scene; called when a project opens. RV_ERR_NOENT when the project has
+// no scene (not a failure: the caller decides whether to report it); otherwise rv_editor_app_scene_open's code.
 int rv_editor_app_scene_first(rv_editor_app &app);
 
 // Writes the profiles to the project, checks the active one again and refills the

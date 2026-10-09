@@ -105,7 +105,10 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
 {
     const bool dirty = rv_editor_app_scene_dirty(app);
     if (dirty && rv_editor_same_path(app.scene->scene.path, path)) {
-        return RV_OK; // already open, with its edits
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "scene already open: " + rv_editor_app_scene_name(app));
+        return RV_ERR_ALREADY; // already open, with its edits: nothing done
     }
     if (dirty) {
         const std::string current_label = rv_editor_app_scene_name(app);
@@ -220,7 +223,7 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
 int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
 {
     if (!rv_editor_app_scene_dirty(app)) {
-        return RV_OK;
+        return RV_ERR_ALREADY; // nothing unsaved: nothing written
     }
     const int code = rv_editor_scene_save(app.scene->scene, error);
     if (code != RV_OK) {
@@ -238,7 +241,7 @@ int rv_editor_app_scene_first(rv_editor_app &app)
     app.scene_error.clear();
     const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
     if (files.empty()) {
-        return RV_OK;
+        return RV_ERR_NOENT; // no scene in the project: nothing opened, the caller decides whether to say so
     }
     return rv_editor_app_scene_open(app, files.front());
 }
