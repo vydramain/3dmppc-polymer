@@ -118,7 +118,7 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
             cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("pane_build_result.no_build_running") };
         }
         if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, cancel)) {
-            app.build.cancel();
+            rv_editor_app_build_cancel(app);
         }
 
         // The job's own error and warning lines, newest job only; all of them stay in the Build Log.

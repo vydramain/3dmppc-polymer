@@ -49,8 +49,10 @@ public:
         rv_editor_log &log,
         std::string &error,
         const std::filesystem::path &image = {});
-    // Stops the burner and everything it started.
-    void cancel();
+    // Stops the burner and everything it started. RV_OK: the stop began. RV_ERR_ALREADY: no build runs
+    // or it is already being cancelled. RV_ERR_IO: SIGTERM was not delivered; the cancel still goes on and
+    // update() escalates to SIGKILL after the grace. The reason is in `error` for both failures.
+    int cancel(std::string &error);
     // Once a frame: moves output into the log and notices the end. RV_ERR_IO: a read or
     // the kill failed, the reason is in `error`; the rest of the frame still runs.
     int update(rv_editor_log &log, std::string &error);

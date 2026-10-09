@@ -340,7 +340,7 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         }
     } else if (app.build.busy()) {
         if (rv_editor_button(rv_editor_text("pane_candidate.cancel_build_button"), theme)) {
-            app.build.cancel();
+            rv_editor_app_build_cancel(app);
         }
     } else {
         ImGui::Dummy(ImVec2(1.0f, ImGui::GetFrameHeight()));

@@ -314,7 +314,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
             cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("panes.already_cancelling") };
         }
         if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, cancel)) {
-            app.build.cancel();
+            rv_editor_app_build_cancel(app);
         }
     } else if (!badge_label.empty()) {
         rv_editor_status(badge_label.c_str(), badge_kind, theme);

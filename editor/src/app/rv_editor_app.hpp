@@ -248,6 +248,9 @@ bool rv_editor_app_texture_bake_ok(const rv_editor_app &app);
 // RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
 int rv_editor_app_build(rv_editor_app &app);
 int rv_editor_app_build_saved(rv_editor_app &app);
+// Cancel of the running build. RV_OK: stop began. RV_ERR_ALREADY: nothing to stop (logged as a warning);
+// other RV_ERR_*: failed, reason in the log.
+int rv_editor_app_build_cancel(rv_editor_app &app);
 int rv_editor_app_run_saved(rv_editor_app &app);
 // Build and Restart (editor/src/app/rv_editor_app_change.cpp): builds, then restarts
 // the live session (or just starts one) once the build has ended.

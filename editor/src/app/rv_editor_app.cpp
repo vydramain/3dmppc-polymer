@@ -335,9 +335,24 @@ int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, 
     return RV_OK;
 }
 
+int rv_editor_app_build_cancel(rv_editor_app &app)
+{
+    std::string error;
+    const int err = app.build.cancel(error);
+    if (err != RV_OK) {
+        const rv_editor_log_level level = err == RV_ERR_ALREADY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+        app.log.add(rv_editor_log_source::editor, level, "not cancelled: " + error);
+        return err;
+    }
+    return RV_OK;
+}
+
 void rv_editor_app_shutdown(rv_editor_app &app)
 {
-    app.build.cancel();
+    const bool cancel_needed = app.build.state() == rv_editor_build_state::building;
+    if (cancel_needed) {
+        rv_editor_app_build_cancel(app);
+    }
     const auto until = std::chrono::steady_clock::now() + shutdown_wait_timeout;
     while (app.build.busy() && std::chrono::steady_clock::now() < until) {
         std::string build_error;

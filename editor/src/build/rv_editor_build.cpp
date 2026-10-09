@@ -8,6 +8,7 @@
 #include "text/rv_editor_text.hpp"
 
 #include <algorithm>
+#include <cerrno>
 #include <charconv>
 #include <system_error>
 #include <vector>
@@ -207,16 +208,26 @@ int rv_editor_build::start(const rv_editor_project &project,
     return RV_OK;
 }
 
-void rv_editor_build::cancel()
+int rv_editor_build::cancel(std::string &error)
 {
+    if (state_ == rv_editor_build_state::cancelling) {
+        error = "the build is already being cancelled";
+        return RV_ERR_ALREADY;
+    }
     if (state_ != rv_editor_build_state::building) {
-        return;
+        error = "no build is running";
+        return RV_ERR_ALREADY;
     }
     state_ = rv_editor_build_state::cancelling;
     cancel_at_ = std::chrono::steady_clock::now();
     kill_failure_reported_ = false;
-    // A failed SIGTERM is not reported: update() escalates to SIGKILL after the grace and reports a failure of that one.
-    proc_.stop(false);
+    // A failed SIGTERM still leaves the cancel running: update() escalates to SIGKILL after the grace.
+    const int stop_result = proc_.stop(false);
+    if (stop_result == RV_ERR_IO) {
+        error = "SIGTERM not delivered: " + std::generic_category().message(errno) + "; SIGKILL follows after the grace";
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 int rv_editor_build::update(rv_editor_log &log, std::string &error)

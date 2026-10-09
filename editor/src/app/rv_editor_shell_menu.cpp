@@ -212,7 +212,7 @@ void rv_editor_menu_project(rv_editor_shell &shell)
     const bool can_cancel = app.build.state() == rv_editor_build_state::building;
     const char *why_not_cancel = can_cancel ? nullptr : rv_editor_text("shell_menu.why_no_build");
     if (rv_editor_menu_item(rv_editor_text("shell_menu.cancel_build"), nullptr, why_not_cancel)) {
-        app.build.cancel();
+        rv_editor_app_build_cancel(app);
     }
 }
 
