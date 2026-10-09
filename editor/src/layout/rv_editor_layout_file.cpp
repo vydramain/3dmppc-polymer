@@ -84,8 +84,15 @@ int rv_editor_layout_save(const std::filesystem::path &path,
     std::filesystem::path tmp = path;
     tmp += temp_file_suffix;
 
+    std::string text;
+    const int rc = rv_editor_layout_write(panes, layout, text, error);
+    if (rc != RV_OK) {
+        error = path.string() + ": " + error;
+        return rc;
+    }
+
     std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
-    out << rv_editor_layout_write(panes, layout);
+    out << text;
     out.close();
     if (!out) {
         error = path.string() + ": write failed";

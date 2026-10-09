@@ -206,8 +206,13 @@ std::vector<rv_editor_tile_place> rv_editor_layout_place(const rv_editor_layout 
 // --- text form ----------------------------------------------------------------
 
 // The saved form of a workspace: the panes the tree shows and the tree, one
-// record per line, first line "3dmppc-editor-layout <PDK version>".
-std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout);
+// record per line, first line "3dmppc-editor-layout <PDK version>". RV_OK with `text`, or
+// RV_ERR_INVAL with `error` giving the reason (a tree pane missing from `panes`, an unknown
+// pane kind, a split ratio out of range); `text` is untouched on error.
+int rv_editor_layout_write(const rv_editor_pane_registry &panes,
+    const rv_editor_layout &layout,
+    std::string &text,
+    std::string &error);
 
 // Reads what rv_editor_layout_write wrote. RV_OK, or RV_ERR_INVAL when `text` is
 // not one whole valid layout; both outputs untouched on error.

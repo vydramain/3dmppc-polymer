@@ -1,4 +1,4 @@
-// Text form of the workspace: rv_editor_layout_write and rv_editor_layout_read.
+// Text form of the workspace, read side: rv_editor_layout_read. The write side is in rv_editor_layout_write.cpp.
 
 #include "layout/rv_editor_layout_format.hpp"
 #include "layout/rv_editor_tile.hpp"
@@ -7,13 +7,11 @@
 #include <charconv>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "pdklib/rv_version/rv_version.hpp"
 
 namespace rv_editor
 {
@@ -22,8 +20,6 @@ using namespace layout_format;
 
 namespace
 {
-
-const std::string rv_editor_layout_header = std::string(layout_header_prefix) + rv_pdklib::rv_version_str;
 
 constexpr std::string_view kind_names[] = { "empty",
     "catalog",
@@ -175,78 +171,6 @@ std::vector<std::string_view> split_text(std::string_view text)
 }
 
 } // namespace layout_format
-
-std::string rv_editor_layout_write(const rv_editor_pane_registry &panes, const rv_editor_layout &layout)
-{
-    // Only the panes the tree still shows are written, numbered in tree order: a
-    // closed pane stays in the registry for the session, never in the file.
-    std::vector<uint32_t> renumber(panes.panes.size(), rv_editor_tile_none);
-    std::string pane_lines;
-    uint32_t written = 0;
-    for (const auto &n : layout.nodes) {
-        if (n.kind != rv_editor_tile_kind::leaf) {
-            continue;
-        }
-        for (const rv_editor_pane_id x : n.leaf.tabs) {
-            renumber[x] = written++;
-            pane_lines += std::string(layout_keyword_pane) + std::string(layout_field_sep) +
-                std::string(kind_name(panes.panes[x].kind)) + std::string(layout_line_end);
-        }
-    }
-
-    std::string r = rv_editor_layout_header + std::string(layout_line_end) + pane_lines;
-    for (const auto &n : layout.nodes) {
-        if (n.kind == rv_editor_tile_kind::free) {
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_free) +
-                std::string(layout_line_end);
-        } else if (n.kind == rv_editor_tile_kind::leaf) {
-            std::string parent_str;
-            if (n.parent == rv_editor_tile_none) {
-                parent_str = layout_index_marker;
-            } else {
-                parent_str = std::to_string(n.parent);
-            }
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_leaf) +
-                std::string(layout_field_sep) + parent_str;
-            r += std::string(layout_field_sep) + std::to_string(n.leaf.active);
-            for (auto x : n.leaf.tabs) {
-                r += std::string(layout_field_sep) + std::to_string(renumber[x]);
-            }
-            r += std::string(layout_line_end);
-        } else {
-            std::string parent_str;
-            if (n.parent == rv_editor_tile_none) {
-                parent_str = layout_index_marker;
-            } else {
-                parent_str = std::to_string(n.parent);
-            }
-            std::string axis_str;
-            if (n.split.axis == rv_editor_axis::x) {
-                axis_str = std::string(layout_axis_x);
-            } else {
-                axis_str = std::string(layout_axis_y);
-            }
-            r += std::string(layout_keyword_node) + std::string(layout_field_sep) + std::string(layout_node_type_split) +
-                std::string(layout_field_sep) + parent_str;
-            r += std::string(layout_field_sep) + axis_str;
-            char buf[layout_ratio_format_buf_size];
-            std::snprintf(buf, sizeof(buf), "%.4f", n.split.ratio);
-            r += std::string(layout_field_sep) + std::string(buf) + std::string(layout_field_sep) +
-                std::to_string(n.split.first) + std::string(layout_field_sep) + std::to_string(n.split.second) +
-                std::string(layout_line_end);
-        }
-    }
-    r += std::string(layout_keyword_root) + std::string(layout_field_sep) + std::to_string(layout.root) +
-        std::string(layout_line_end);
-    std::string max_leaf_str;
-    if (layout.maximized_leaf == rv_editor_tile_none) {
-        max_leaf_str = layout_index_marker;
-    } else {
-        max_leaf_str = std::to_string(layout.maximized_leaf);
-    }
-    r += std::string(layout_keyword_maximized) + std::string(layout_field_sep) + max_leaf_str + std::string(layout_line_end);
-    return r;
-}
 
 int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout)
 {

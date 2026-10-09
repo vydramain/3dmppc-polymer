@@ -10,6 +10,8 @@
 #include <string_view>
 #include <vector>
 
+#include "pdklib/rv_version/rv_version.hpp"
+
 namespace rv_editor
 {
 
@@ -48,6 +50,10 @@ constexpr int layout_ratio_format_buf_size = 16;
 // Ratio range bounds: valid split division is from 0% to 100%
 constexpr float layout_ratio_min = 0.0f;
 constexpr float layout_ratio_max = 1.0f;
+
+// First line of a layout file: the format prefix and the PDK version of this build. The writer
+// and the reader compare the whole line, so both use this one value.
+inline const std::string rv_editor_layout_header = std::string(layout_header_prefix) + rv_pdklib::rv_version_str;
 
 std::string_view kind_name(rv_editor_pane_kind k);
 int kind_from_name(std::string_view s, rv_editor_pane_kind &k);
