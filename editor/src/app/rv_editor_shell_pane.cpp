@@ -90,7 +90,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_project(shell.app, theme);
         return;
     case rv_editor_pane_kind::files:
-        rv_editor_pane_files(shell.app, pane, theme);
+        rv_editor_pane_files(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::code:
         // A question about this tile's file sits over its text, not over the window.

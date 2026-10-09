@@ -152,7 +152,7 @@ int rv_editor_dialog_create_file(rv_editor_app &app, const rv_editor_pane_reques
     const int err = rv_editor_app_create_file(app, request.path, request.name, error);
     if (err == RV_OK) {
         const std::filesystem::path file = request.path / request.name;
-        app.files.selected = file;
+        app.files_select = file;
         app.open_requests.push_back({ file, 0 });
     }
     return err;
@@ -165,12 +165,20 @@ int rv_editor_dialog_create_dir(rv_editor_app &app, const rv_editor_pane_request
 
 int rv_editor_dialog_rename(rv_editor_app &app, const rv_editor_pane_request &request, std::string &error)
 {
-    return rv_editor_app_rename(app, request.path, request.name, error);
+    const int err = rv_editor_app_rename(app, request.path, request.name, error);
+    if (err == RV_OK) {
+        app.files_select = request.path.parent_path() / request.name;
+    }
+    return err;
 }
 
 int rv_editor_dialog_remove(rv_editor_app &app, const rv_editor_pane_request &request, std::string &error)
 {
-    return rv_editor_app_remove(app, request.path, error);
+    const int err = rv_editor_app_remove(app, request.path, error);
+    if (err == RV_OK) {
+        app.files_select = std::filesystem::path();
+    }
+    return err;
 }
 
 // Runs a Files dialog's operation, then writes its outcome to the asking pane's view: a failure

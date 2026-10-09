@@ -62,9 +62,10 @@ public:
     // Reads a directory's entries now, keeping what was expanded under it.
     void list(rv_editor_file_node &dir);
     void refresh();
-    // Selects `path` and opens the directories down to it, reading them when
-    // needed; the rest of the tree keeps what was open. Nothing outside the root.
-    void reveal(const std::filesystem::path &path);
+    // Opens the directories down to `path`, reading them when needed; the rest of the
+    // tree keeps what was open. Selects nothing. RV_OK when found; RV_ERR_NOENT when
+    // `path` is outside the root, the root itself, or not in the tree; RV_ERR_INVAL when no project is open.
+    int reveal(const std::filesystem::path &path);
 
     // Name checks shared by every operation: one path component, no "/", no NUL.
     static bool valid_name(const std::string &name, std::string &error);
@@ -77,7 +78,6 @@ public:
     // Deletes a file, a symlink (not what it points to) or a whole directory.
     int remove(const std::filesystem::path &path, std::string &error);
 
-    std::filesystem::path selected;
     std::vector<std::filesystem::path> changed;
 
 private:

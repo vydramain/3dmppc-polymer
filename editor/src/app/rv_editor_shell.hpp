@@ -71,6 +71,8 @@ struct rv_editor_ui {
     rv_editor_size game_need{ 0, 0 };
     // The picture area the Game tile gives a running game, measured at every draw.
     rv_editor_size game_area{ 0, 0 };
+    // The entry selected in Files; empty: none.
+    std::filesystem::path files_selected;
 };
 
 enum class rv_editor_ui_request_kind {
@@ -80,17 +82,19 @@ enum class rv_editor_ui_request_kind {
     set_game_scale,
     game_drawn,
     game_measured,
+    select_file,
     count, // number of kinds; the apply table has one row per kind
 };
 
 // One change of rv_editor_ui, applied by rv_editor_shell_ui_apply. Each kind reads
-// only the fields it names: focus, scale, or need and area.
+// only the fields it names: focus, scale, need and area, or path.
 struct rv_editor_ui_request {
     rv_editor_ui_request_kind kind;
     rv_editor_game_scale scale = rv_editor_game_scale::fit;
     rv_editor_size need{ 0, 0 };
     rv_editor_size area{ 0, 0 };
     bool focus = false;
+    std::filesystem::path path = {};
 };
 
 // What a pane gets: panes read the state through it and change it only by queuing requests.

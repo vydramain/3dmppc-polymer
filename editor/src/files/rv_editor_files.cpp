@@ -97,7 +97,6 @@ int rv_editor_files::close(std::string &error)
     root_ = {};
     stale_.clear();
     changed.clear();
-    selected.clear();
     return rc;
 }
 
@@ -142,11 +141,15 @@ void rv_editor_files::list(rv_editor_file_node &dir)
     }
 }
 
-void rv_editor_files::reveal(const std::filesystem::path &path)
+int rv_editor_files::reveal(const std::filesystem::path &path)
 {
+    if (!is_open()) {
+        return RV_ERR_INVAL;
+    }
     const std::filesystem::path rel = path.lexically_relative(root_.path);
-    if (!is_open() || rel.empty() || *rel.begin() == parent_dir_marker) {
-        return;
+    const bool not_below = rel.empty() || *rel.begin() == parent_dir_marker;
+    if (not_below) {
+        return RV_ERR_NOENT;
     }
     rv_editor_file_node *node = &root_;
     for (auto it = rel.begin(); it != rel.end(); ++it) {
@@ -161,17 +164,17 @@ void rv_editor_files::reveal(const std::filesystem::path &path)
             }
         }
         if (next == nullptr) {
-            return;
+            return RV_ERR_NOENT;
         }
         if (std::next(it) == rel.end()) {
             break;
         }
         if (!next->dir || next->symlink) {
-            return;
+            return RV_ERR_NOENT;
         }
         node = next;
     }
-    selected = path;
+    return RV_OK;
 }
 
 void rv_editor_files::refresh()
@@ -415,9 +418,6 @@ int rv_editor_files::rename(const std::filesystem::path &from, const std::string
         return RV_ERR_IO;
     }
     relist(from.parent_path());
-    if (selected == from) {
-        selected = to;
-    }
     return RV_OK;
 }
 
@@ -441,9 +441,6 @@ int rv_editor_files::remove(const std::filesystem::path &path, std::string &erro
         return RV_ERR_IO;
     }
     relist(parent);
-    if (selected == path) {
-        selected.clear();
-    }
     return RV_OK;
 }
 

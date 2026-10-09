@@ -71,6 +71,9 @@ struct rv_editor_app {
     // Asked by a pane, done by the window next frame: a pane to bring forward, a new
     // Untitled buffer.
     rv_editor_pane_kind show_request = rv_editor_pane_kind::empty;
+    // The selection a Files operation leaves (a created file, a renamed entry's new path; an empty
+    // path after a delete); the shell moves it into its UI state.
+    std::optional<std::filesystem::path> files_select;
     // A double click in Assets asked for this layout; nullopt: none (see rv_editor_shell_take_layout_request).
     std::optional<rv_editor_layout_preset> layout_request;
     bool new_file_request = false;

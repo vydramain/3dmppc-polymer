@@ -11,6 +11,7 @@
 
 #include "pdk/rv_err.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 #include "rv_editor_catppuccin_mocha.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -78,16 +79,21 @@ const rv_editor_files_request_row *rv_editor_files_request_find(rv_editor_files_
     return row == std::end(files_request_rows) ? nullptr : row;
 }
 
-// The directory a new entry goes into: the selection when it is a directory,
+// The directory a new entry goes into: `sel` when it is a directory,
 // its parent when it is a file, the root otherwise.
-std::filesystem::path rv_editor_files_target_dir(rv_editor_app &app)
+std::filesystem::path rv_editor_files_target_dir(rv_editor_app &app, const std::filesystem::path &sel)
 {
-    const std::filesystem::path &sel = app.files.selected;
     if (sel.empty()) {
         return app.files.root().path;
     }
     std::error_code ec;
     return std::filesystem::is_directory(std::filesystem::symlink_status(sel, ec)) ? sel : sel.parent_path();
+}
+
+// Asks the shell to select `path` in Files; the selection moves next frame.
+void rv_editor_files_select(const rv_editor_ui_port &ui, const std::filesystem::path &path)
+{
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::select_file, .path = path });
 }
 
 void rv_editor_files_ask(rv_editor_files_view &view,
@@ -127,15 +133,20 @@ void rv_editor_files_ask(rv_editor_files_view &view,
     }
 }
 
-void rv_editor_files_menu(rv_editor_app &app, rv_editor_files_view &view, const rv_editor_file_node &node)
+void rv_editor_files_menu(rv_editor_app &app,
+    rv_editor_files_view &view,
+    const rv_editor_file_node &node,
+    const rv_editor_ui_port &ui)
 {
     if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_file"))) {
-        app.files.selected = node.path;
-        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file, rv_editor_files_target_dir(app), "");
+        rv_editor_files_select(ui, node.path);
+        const std::filesystem::path target = rv_editor_files_target_dir(app, node.path);
+        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file, target, "");
     }
     if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_folder"))) {
-        app.files.selected = node.path;
-        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir, rv_editor_files_target_dir(app), "");
+        rv_editor_files_select(ui, node.path);
+        const std::filesystem::path target = rv_editor_files_target_dir(app, node.path);
+        rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir, target, "");
     }
     if (!node.dir && ImGui::MenuItem(rv_editor_text("pane_files.menu_open_as_text"))) {
         app.open_as_text.insert(node.path);
@@ -208,7 +219,10 @@ void rv_editor_file_chip(const std::filesystem::path &path, const char *&code, u
 namespace
 {
 
-void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_editor_file_node &node)
+void rv_editor_files_node(rv_editor_app &app,
+    rv_editor_files_view &view,
+    rv_editor_file_node &node,
+    const rv_editor_ui_port &ui)
 {
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
@@ -216,7 +230,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     if (!branch) {
         flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
     }
-    if (app.files.selected == node.path) {
+    if (ui.state.files_selected == node.path) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
     // Leading spaces reserve the widest code's measured width plus the usual item
@@ -242,7 +256,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
         ImGui::GetWindowDrawList()->AddText(at, rv_editor_col(color), code);
     }
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
-        app.files.selected = node.path;
+        rv_editor_files_select(ui, node.path);
     }
     if (!branch && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         app.open_requests.push_back({ node.path, 0 });
@@ -256,7 +270,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     }
     rv_editor_menu_style_push();
     if (ImGui::BeginPopupContextItem("##menu")) {
-        rv_editor_files_menu(app, view, node);
+        rv_editor_files_menu(app, view, node, ui);
         ImGui::EndPopup();
     }
     rv_editor_menu_style_pop();
@@ -267,7 +281,7 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
                 app.files.list(node);
             }
             for (rv_editor_file_node &child : node.children) {
-                rv_editor_files_node(app, view, child);
+                rv_editor_files_node(app, view, child, ui);
             }
             ImGui::TreePop();
         }
@@ -354,7 +368,7 @@ void rv_editor_files_dialog(rv_editor_app &app,
 
 } // namespace
 
-void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!app.files.is_open()) {
         ImGui::TextWrapped("%s", rv_editor_text("pane_files.no_project_open"));
@@ -363,7 +377,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     rv_editor_files_view &view = app.files_views[pane];
     using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
 
-    const bool has_sel = !app.files.selected.empty() && app.files.selected != app.files.root().path;
+    const bool has_sel = !ui.state.files_selected.empty() && ui.state.files_selected != app.files.root().path;
     const char *select_hint = rv_editor_text("pane_files.select_first");
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, select_hint };
     // Square buttons, a coloured code each until the icons are drawn.
@@ -378,7 +392,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
             theme.code_green,
             rv_editor_text("pane_files.button_new_file"),
             theme)) {
-        rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app), "");
+        rv_editor_files_ask(view, dialog_kind::new_file, rv_editor_files_target_dir(app, ui.state.files_selected), "");
     }
     rv_editor_flow(side);
     if (rv_editor_letter_button("##new_dir",
@@ -386,7 +400,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
             theme.code_yellow,
             rv_editor_text("pane_files.button_new_folder"),
             theme)) {
-        rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app), "");
+        rv_editor_files_ask(view, dialog_kind::new_dir, rv_editor_files_target_dir(app, ui.state.files_selected), "");
     }
     rv_editor_flow(side);
     if (rv_editor_letter_button("##rename",
@@ -395,7 +409,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
             rv_editor_text("pane_files.button_rename"),
             theme,
             need_sel)) {
-        rv_editor_files_ask(view, dialog_kind::rename, app.files.selected, app.files.selected.filename().string());
+        rv_editor_files_ask(view, dialog_kind::rename, ui.state.files_selected, ui.state.files_selected.filename().string());
     }
     rv_editor_flow(side);
     if (rv_editor_letter_button("##delete",
@@ -404,7 +418,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
             rv_editor_text("pane_files.button_delete"),
             theme,
             need_sel)) {
-        rv_editor_files_ask(view, dialog_kind::remove, app.files.selected, "");
+        rv_editor_files_ask(view, dialog_kind::remove, ui.state.files_selected, "");
     }
     rv_editor_flow(side);
     if (rv_editor_letter_button("##refresh",
@@ -420,7 +434,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     rv_editor_files_dialog(app, pane, view, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
-    rv_editor_files_node(app, view, app.files.root());
+    rv_editor_files_node(app, view, app.files.root(), ui);
     rv_editor_scroll_end(theme);
     rv_editor_well_end();
 }

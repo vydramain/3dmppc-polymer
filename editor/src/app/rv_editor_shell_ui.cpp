@@ -45,6 +45,11 @@ void rv_editor_ui_measured(rv_editor_ui &ui, const rv_editor_ui_request &request
     ui.game_area = request.area;
 }
 
+void rv_editor_ui_select_file(rv_editor_ui &ui, const rv_editor_ui_request &request)
+{
+    ui.files_selected = request.path;
+}
+
 struct rv_editor_ui_row {
     rv_editor_ui_request_kind kind;
     rv_editor_ui_apply_fn apply;
@@ -58,6 +63,7 @@ constexpr rv_editor_ui_row rv_editor_ui_table[] = {
     { rv_editor_ui_request_kind::set_game_scale, rv_editor_ui_set_scale },
     { rv_editor_ui_request_kind::game_drawn, rv_editor_ui_drawn },
     { rv_editor_ui_request_kind::game_measured, rv_editor_ui_measured },
+    { rv_editor_ui_request_kind::select_file, rv_editor_ui_select_file },
 };
 
 constexpr bool rv_editor_ui_table_ok()

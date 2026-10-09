@@ -286,6 +286,10 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         rv_editor_shell_show(shell.ws, requests.show_request, requests.show_request == rv_editor_pane_kind::run_config);
         requests.show_request = rv_editor_pane_kind::empty;
     }
+    if (requests.files_select.has_value()) {
+        shell.ui.files_selected = *requests.files_select;
+        requests.files_select.reset();
+    }
     if (requests.new_file_request) {
         requests.new_file_request = false;
         rv_editor_shell_new_file(shell);
@@ -403,7 +407,11 @@ void rv_editor_shell_update(rv_editor_shell &shell)
             const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(app.nvim.window_for(leaf.tabs[leaf.active]));
             if (buf != nullptr && !buf->name.empty() && buf->name != shell.revealed) {
                 shell.revealed = buf->name;
-                app.files.reveal(buf->name);
+                // NOENT: not in the Files tree (outside the root, skipped, or gone); nothing is selected.
+                const int revealed = app.files.reveal(buf->name);
+                if (revealed == RV_OK) {
+                    shell.ui.files_selected = buf->name;
+                }
             }
         }
     }

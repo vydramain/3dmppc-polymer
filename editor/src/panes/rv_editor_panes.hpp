@@ -143,7 +143,10 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The project tree and the file operations on it.
-void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+void rv_editor_pane_files(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
 
 // The open project, its manifest, and where the tools and the editor's own files are.
 void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme);

@@ -55,6 +55,8 @@ void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::pat
     shell.revealed.clear();
     // Another project takes the keyboard back from the game.
     shell.ui.game_captured = false;
+    // The old project's entry is not in the new tree.
+    shell.ui.files_selected.clear();
     rv_editor_log *log = &app.log;
     app.nvim.switch_root(app.project.root, [log](const std::string &failure) {
         if (!failure.empty()) {
@@ -337,12 +339,9 @@ bool rv_editor_shell_may_quit(rv_editor_shell &shell)
 void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_app &app = shell.app;
-    rv_editor_state busy;
-    if (shell.saving) {
-        busy = rv_editor_state{ rv_editor_look::live, rv_editor_text("shell_save.waiting_for_nvim") };
-    } else {
-        busy = rv_editor_state{};
-    }
+    const rv_editor_state busy = shell.saving ?
+        rv_editor_state{ rv_editor_look::live, rv_editor_text("shell_save.waiting_for_nvim") } :
+        rv_editor_state{};
     const int64_t win = app.nvim.window_for(shell.closing);
     const rv_editor_nvim_buffer *buf = app.nvim.buffer_in(win);
     const std::string name = buf == nullptr ? rv_editor_text("shell_save.this_file") : rv_editor_buffer_label(app, buf->name);
