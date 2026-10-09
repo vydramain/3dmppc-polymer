@@ -111,14 +111,14 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
             rv_editor_app_build_candidate(app);
         }
         ImGui::SameLine();
-        rv_editor_state cancel;
-        if (b.state() == rv_editor_build_state::building) {
-            cancel = rv_editor_state{};
-        } else {
-            cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("pane_build_result.no_build_running") };
-        }
-        if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, cancel)) {
-            rv_editor_app_build_cancel(app);
+        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+        const bool cancelling = b.state() == rv_editor_build_state::cancelling;
+        const char *no_build_why =
+            b.state() == rv_editor_build_state::building ? nullptr : rv_editor_text("pane_build_result.no_build_running");
+        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : no_build_why;
+        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        if (rv_editor_button(rv_editor_text("pane_build_result.cancel_button"), theme, { rv_editor_look::live, cancel_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
         }
 
         // The job's own error and warning lines, newest job only; all of them stay in the Build Log.

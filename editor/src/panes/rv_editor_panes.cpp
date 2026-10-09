@@ -309,12 +309,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
         ImGui::TextUnformatted(msg);
     } else if (app.build.busy()) {
-        rv_editor_state cancel;
-        if (app.build.state() == rv_editor_build_state::cancelling) {
-            cancel = rv_editor_state{ rv_editor_look::live, rv_editor_text("panes.already_cancelling") };
-        }
-        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, cancel)) {
-            rv_editor_app_build_cancel(app);
+        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+        const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
+        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
+        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        if (rv_editor_button(rv_editor_text("panes.cancel_build_button"), theme, { rv_editor_look::live, cancel_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
         }
     } else if (!badge_label.empty()) {
         rv_editor_status(badge_label.c_str(), badge_kind, theme);

@@ -339,8 +339,14 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
         }
     } else if (app.build.busy()) {
-        if (rv_editor_button(rv_editor_text("pane_candidate.cancel_build_button"), theme)) {
-            rv_editor_app_build_cancel(app);
+        const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
+        const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
+        const char *cancelling_why = cancelling ? rv_editor_text("panes.already_cancelling") : nullptr;
+        const char *cancel_why = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") : cancelling_why;
+        if (rv_editor_button(rv_editor_text("pane_candidate.cancel_build_button"),
+                theme,
+                { rv_editor_look::live, cancel_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cancel_build });
         }
     } else {
         ImGui::Dummy(ImVec2(1.0f, ImGui::GetFrameHeight()));
