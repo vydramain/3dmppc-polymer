@@ -1,4 +1,4 @@
-// Text form of the workspace, write side: rv_editor_layout_write. The read side is in rv_editor_layout_io.cpp.
+// Text form of the workspace, write side: rv_editor_layout_write. The read side is in rv_editor_layout_read.cpp.
 
 #include "layout/rv_editor_layout_format.hpp"
 #include "layout/rv_editor_tile.hpp"
