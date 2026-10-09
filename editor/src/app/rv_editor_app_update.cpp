@@ -238,7 +238,7 @@ void rv_editor_app_update(rv_editor_app &app)
     std::string session_error;
     const int session_result = app.session.update(app.log, session_error);
     if (session_result != RV_OK) {
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "runtime output not read: " + session_error);
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "runtime: " + session_error);
     }
     const bool build_ended = was_busy && !app.build.busy();
     rv_editor_app_update_build_ended(app, build_ended);

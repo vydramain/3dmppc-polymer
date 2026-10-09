@@ -145,10 +145,10 @@ int rv_editor_session::send(const std::string &verb,
     return RV_OK;
 }
 
-void rv_editor_session::log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log)
+void rv_editor_session::note_send_failure(std::string_view verb, const std::string &error)
 {
-    // A full input is reported once per run of refusals: pad retries every frame, so repeats would flood the log.
-    // A closed input is reported every time. send() clears send_failure_reported_ when one gets through.
+    // A full input is refused once per run of refusals: pad retries every frame, so repeats would flood the log.
+    // A closed input is refused every time. send() clears send_failure_reported_ when one gets through.
     const bool open = proc_.stdin_open();
     if (open) {
         if (send_failure_reported_) {
@@ -156,12 +156,7 @@ void rv_editor_session::log_send_failure(std::string_view verb, const std::strin
         }
         send_failure_reported_ = true;
     }
-    log.add(rv_editor_log_source::editor,
-        rv_editor_log_level::error,
-        "cannot send '" + std::string(verb) + "': " + error,
-        rv_editor_log_channel::none,
-        proc_.pid(),
-        number_);
+    record_follow_up(RV_ERR_IO, "cannot send '" + std::string(verb) + "': " + error);
 }
 
 int rv_editor_session::query(const std::string &request, rv_editor_log &log, std::string &error)
@@ -313,7 +308,7 @@ bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_edit
             int64_t status_id = 0;
             std::string status_error;
             if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
-                log_send_failure(cmd_status, status_error, log);
+                note_send_failure(cmd_status, status_error);
             }
         }
         return true;

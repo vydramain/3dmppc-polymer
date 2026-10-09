@@ -3,6 +3,7 @@
 #include "session/rv_editor_session.hpp"
 
 #include <cstdio>
+#include <initializer_list>
 #include <limits>
 #include <vector>
 
@@ -22,6 +23,20 @@ constexpr auto rv_editor_handshake_timeout = std::chrono::seconds(15);
 // After quit, a console still running this long counts as hung.
 constexpr auto rv_editor_stop_grace = std::chrono::seconds(3);
 
+// Separates the failure texts of one error text.
+constexpr std::string_view failure_separator = "; ";
+
+// The first code that is not RV_OK, in order; RV_OK when all of them are.
+int rv_editor_first_failure(std::initializer_list<int> codes)
+{
+    for (const int code : codes) {
+        if (code != RV_OK) {
+            return code;
+        }
+    }
+    return RV_OK;
+}
+
 constexpr std::string_view pad_prefix = "pad 0 ";
 constexpr std::string_view protocol_frame_event = "0 event=frame ";
 
@@ -31,6 +46,14 @@ constexpr auto channel_lost_timeout = std::chrono::milliseconds(500);
 constexpr int exit_code_player_build = 2;
 
 } // namespace
+
+void rv_editor_append_failure(std::string &text, const std::string &part)
+{
+    if (!text.empty()) {
+        text += failure_separator;
+    }
+    text += part;
+}
 
 const char *rv_editor_run_state_name(rv_editor_run_state state)
 {
@@ -170,12 +193,6 @@ int rv_editor_session::stop(rv_editor_log &log, std::string &error)
     }
     // Nobody reads the channel any more: the process can only be ended. One
     // that only stopped reading shows as hung and gets Force Stop.
-    log.add(rv_editor_log_source::editor,
-        rv_editor_log_level::warning,
-        "quit not delivered: " + error + "; force-stopping",
-        rv_editor_log_channel::none,
-        proc_.pid(),
-        number_);
     std::string force_error;
     const int force_result = force_stop(log, force_error);
     if (force_result != RV_OK) {
@@ -205,17 +222,38 @@ int rv_editor_session::force_stop(rv_editor_log &log, std::string &error)
     return RV_OK;
 }
 
-void rv_editor_session::force_stop_logged(rv_editor_log &log)
+void rv_editor_session::force_stop_recorded(rv_editor_log &log)
 {
     std::string error;
-    if (force_stop(log, error) != RV_OK) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "cannot force-stop runtime: " + error,
-            rv_editor_log_channel::none,
-            proc_.pid(),
-            number_);
+    const int result = force_stop(log, error);
+    if (result != RV_OK) {
+        record_follow_up(result, "cannot force-stop runtime: " + error);
     }
+}
+
+void rv_editor_session::record_follow_up(int code, const std::string &text)
+{
+    // Keeps the first refusal recorded since update() last returned one; later ones add their text.
+    if (follow_up_code_ == RV_OK) {
+        follow_up_code_ = code;
+    }
+    // A read that keeps failing repeats the same refusal every frame: a text already there is not added again.
+    if (follow_up_error_.find(text) == std::string::npos) {
+        rv_editor_append_failure(follow_up_error_, text);
+    }
+}
+
+int rv_editor_session::take_follow_up(bool read_failed, std::string &error)
+{
+    // While a read failed and the session lives, a later update() returns it; otherwise nothing else would.
+    if (follow_up_code_ == RV_OK || (read_failed && live())) {
+        return RV_OK;
+    }
+    const int code = follow_up_code_;
+    error = std::move(follow_up_error_);
+    follow_up_code_ = RV_OK;
+    follow_up_error_.clear();
+    return code;
 }
 
 bool rv_editor_session::pad_pending(uint64_t buttons) const
@@ -319,7 +357,7 @@ int rv_editor_session::update(rv_editor_log &log, std::string &error)
                     rv_editor_log_channel::none,
                     proc_.pid(),
                     number_);
-                force_stop_logged(log);
+                force_stop_recorded(log);
                 break;
             }
             uncertain_ = true;
@@ -338,25 +376,40 @@ int rv_editor_session::update(rv_editor_log &log, std::string &error)
             int64_t status_id = 0;
             std::string status_error;
             if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
-                log_send_failure(cmd_status, status_error, log);
+                note_send_failure(cmd_status, status_error);
             }
         }
 
         if (state_ == rv_editor_run_state::refused && hung()) {
-            force_stop_logged(log);
+            force_stop_recorded(log);
         }
     }
 
-    // The first failure wins: finish's reason is kept only when the read above was fine.
+    // finish() runs whatever the read gave.
+    std::string finish_error;
+    int finish_result = RV_OK;
     if (proc_.poll() && proc_.output_done()) {
-        std::string finish_error;
-        const int finish_result = finish(log, finish_error);
-        if (read_result == RV_OK && finish_result != RV_OK) {
-            error = finish_error;
-            return finish_result;
-        }
+        finish_result = finish(log, finish_error);
     }
-    return read_result;
+    std::string follow_up_error;
+    const int follow_up_result = take_follow_up(read_result != RV_OK, follow_up_error);
+    // The code is the first failure's; the error text lists all of them in the same order.
+    const int code = rv_editor_first_failure({ read_result, follow_up_result, finish_result });
+    if (code != RV_OK) {
+        std::string text;
+        if (read_result != RV_OK) {
+            rv_editor_append_failure(text, "output not read: " + error);
+        }
+        if (follow_up_result != RV_OK) {
+            rv_editor_append_failure(text, follow_up_error);
+        }
+        if (finish_result != RV_OK) {
+            rv_editor_append_failure(text, finish_error);
+        }
+        error = text;
+        return code;
+    }
+    return RV_OK;
 }
 
 int rv_editor_session::finish(rv_editor_log &log, std::string &error)

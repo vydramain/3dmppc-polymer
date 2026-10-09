@@ -111,7 +111,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
             int64_t status_id = 0;
             std::string status_error;
             if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
-                log_send_failure(cmd_status, status_error, log);
+                note_send_failure(cmd_status, status_error);
             }
         }
         return;
@@ -138,7 +138,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                     int64_t quit_id = 0;
                     std::string quit_error;
                     if (send(std::string(cmd_quit), log, quit_id, quit_error) != RV_OK) {
-                        log_send_failure(cmd_quit, quit_error, log);
+                        note_send_failure(cmd_quit, quit_error);
                     }
                 }
                 return;
@@ -168,7 +168,7 @@ void rv_editor_session::handle(const rv_editor_devmsg &msg, rv_editor_log &log)
                 int64_t status_id = 0;
                 std::string status_error;
                 if (send(std::string(cmd_status), log, status_id, status_error) != RV_OK) {
-                    log_send_failure(cmd_status, status_error, log);
+                    note_send_failure(cmd_status, status_error);
                 }
             }
             return;

@@ -105,6 +105,9 @@ struct rv_editor_session_launch {
     std::vector<std::string> env;
 };
 
+// Appends `part` to `text` after "; " when text is not empty: an error text lists the failures in order.
+void rv_editor_append_failure(std::string &text, const std::string &part);
+
 // One runtime session: `3dmppc --dev` as a child process with
 // its own window, its stdin/stdout the protocol and its stderr the log. The
 // session lives outside the UI; closing Game, Output or Controls changes nothing
@@ -131,8 +134,8 @@ public:
     int step(rv_editor_log &log, std::string &error);
     // `quit`, then waits for the process to end. RV_OK on success; RV_ERR_ALREADY when the
     // runtime is gone or a stop was already requested; RV_ERR_BUSY if send blocked and stdin
-    // open. A refusal's reason is in error. A quit not delivered before a force-stop is logged
-    // with the force-stop event.
+    // open. A refusal's reason is in error. A quit not delivered before a force-stop comes back
+    // in error with the force-stop's reason.
     int stop(rv_editor_log &log, std::string &error);
     // SIGKILL to a process this session owns, for one that does not end. RV_ERR_ALREADY when
     // the runtime is gone; otherwise the failure's code with the reason in error.
@@ -170,7 +173,11 @@ public:
     }
 
     // Once a frame: reads the channel and the log, notices timeouts and the end.
-    // RV_ERR_IO: a read failed, the reason is in `error`; the rest of the frame still runs.
+    // RV_OK, or the frame's first failure with its reason in `error`, in this order: a read
+    // ("output not read: ..."), a refused follow-up request ("cannot send 'status': ...",
+    // "cannot force-stop runtime: ..."), finish. The texts of the other failures follow, joined by "; ".
+    // A recorded follow-up waits for the next update() when the read failed and the session still lives;
+    // otherwise this frame returns it. The rest of the frame still runs.
     int update(rv_editor_log &log, std::string &error);
 
     // Ends the session for good before the editor exits: quit, a short wait,
@@ -304,10 +311,14 @@ private:
         int64_t &id,
         std::string &error,
         std::string_view payload = std::string_view());
-    // Logs a refused send once per run of refusals: a closed input every time, a full one on its first refusal.
-    void log_send_failure(std::string_view verb, const std::string &error, rv_editor_log &log);
-    // force_stop with no caller to return the reason to: the reason is logged as an error.
-    void force_stop_logged(rv_editor_log &log);
+    // Records a refused follow-up send for update(): a closed input every time, a full one once per run of refusals.
+    void note_send_failure(std::string_view verb, const std::string &error);
+    // force_stop with no caller to return the reason to: a failure is recorded for update().
+    void force_stop_recorded(rv_editor_log &log);
+    // Keeps the first refusal recorded since update() last returned one; later ones add their text.
+    void record_follow_up(int code, const std::string &text);
+    // The recorded follow-up's code and text, cleared; RV_OK when none is due. Due unless a read failed and the session lives.
+    int take_follow_up(bool read_failed, std::string &error);
     void note_facts(const rv_editor_devmsg &msg);
     // A `get`, `keys` or `reload` answer; false for any other request.
     bool handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log);
@@ -340,7 +351,9 @@ private:
     bool handshake_done_ = false;
     bool channel_open_ = false;
     bool input_full_ = false; // the runtime stopped reading its input: set by a refused open-input send, cleared by a sent one
-    bool send_failure_reported_ = false; // the current run of refusals to a full input is logged; cleared with input_full_
+    bool send_failure_reported_ = false; // the current run of refusals to a full input is recorded; cleared with input_full_
+    int follow_up_code_ = RV_OK;         // the frame's first refused follow-up request; RV_OK: none
+    std::string follow_up_error_;        // its reason, with context
     uint32_t build_number_ = 0;
     uint32_t number_ = 0;
     bool reloading_ = false;
