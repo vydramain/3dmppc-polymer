@@ -60,9 +60,6 @@ struct rv_editor_app {
     // Shells of closed tiles, hung up and stepped each frame until they have ended.
     std::vector<std::unique_ptr<rv_editor_pty>> stopping_ptys;
     rv_editor_nvim nvim;
-    // A code tile had the keyboard this frame: ImGui's own keyboard navigation
-    // stays off the next one, so arrows and Tab reach nvim.
-    bool text_focus = false;
     // How the Game tile scales the frame; kept in the view file.
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
     // The Game tile has the keyboard; and whether one was drawn this frame: a
@@ -173,9 +170,25 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // no scene (not a failure: the caller decides whether to report it); otherwise rv_editor_app_scene_open's code.
 int rv_editor_app_scene_first(rv_editor_app &app);
 
-// Writes the profiles to the project, checks the active one again and refills the
-// form. Returns RV_OK on success or RV_ERR_* on save failure.
+// Writes the profiles to the project. On success checks the active one again and refills the
+// form; on failure the in-memory state and the form stay as they were. RV_OK or RV_ERR_* on save failure.
 int rv_editor_app_profiles_save(rv_editor_app &app);
+// Run profile ops (editor/src/app/rv_editor_app_profiles.cpp): each writes through
+// rv_editor_app_profiles_save and returns its code; a refusal is logged once with its reason.
+// A failed save leaves run_config as it was, so memory matches the file.
+// The problem of an edited profile, name conflict included; empty when it has none.
+std::string rv_editor_app_profile_problem(const rv_editor_app &app, const rv_editor_run_profile &edited);
+// RV_ERR_INVAL when index is out of range; RV_ERR_ALREADY when it is the active one (nothing done).
+int rv_editor_app_profile_select(rv_editor_app &app, size_t index);
+// Copies the active profile under the next free "ProfileN" and makes the copy active.
+int rv_editor_app_profile_add(rv_editor_app &app);
+// RV_ERR_INVAL when the active profile is the last one.
+int rv_editor_app_profile_delete(rv_editor_app &app);
+// RV_ERR_INVAL when edited has a problem; nothing changes then.
+int rv_editor_app_profile_apply(rv_editor_app &app, const rv_editor_run_profile &edited);
+// Apply, then restart the session (rv_editor_app_restart). RV_ERR_INVAL with nothing applied when no session runs;
+// a refused apply returns its code and does not restart.
+int rv_editor_app_profile_apply_restart(rv_editor_app &app, const rv_editor_run_profile &edited);
 
 // Looks for the tools and says what it found.
 void rv_editor_app_init(rv_editor_app &app);
@@ -351,6 +364,7 @@ int rv_editor_app_stop(rv_editor_app &app);
 // Force Stop: SIGKILL to the runtime; logs the outcome (warning when there is nothing to stop).
 int rv_editor_app_force_stop(rv_editor_app &app);
 // Restart: sets run_after_stop, then stops; the frame runs the new build once the session ends.
+// RV_ERR_INVAL (logged, nothing done) when no session runs.
 int rv_editor_app_restart(rv_editor_app &app);
 // Queues a request; RV_ERR_ALREADY (warning logged) when one of its kind already waits.
 int rv_editor_app_request(rv_editor_app &app, const rv_editor_pane_request &request);

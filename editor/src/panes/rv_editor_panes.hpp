@@ -15,6 +15,9 @@
 namespace rv_editor
 {
 
+// The UI state port a pane gets (app/rv_editor_shell.hpp).
+struct rv_editor_ui_port;
+
 // The panes that look at the editor's models. Each draws into the current ImGui
 // window and changes the models only through rv_editor_app's commands.
 
@@ -48,7 +51,7 @@ void rv_editor_output_controls(rv_editor_app &app,
     const rv_editor_theme &theme);
 
 // A code tile: one window of the editor's nvim.
-void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // This frame's keyboard as nvim keys.
 std::string rv_editor_nvim_keys();
 
@@ -71,7 +74,10 @@ void rv_editor_nvim_draw_floats(const rv_editor_nvim_screen &screen,
     bool tile_focused);
 
 // A shell in the project's directory on a PTY of its own.
-void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+void rv_editor_pane_terminal(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
 
 // The console's own frame, scaled to the tile as View > Game Scale says, and its
 // pad while the tile holds the keyboard. Shift+Esc

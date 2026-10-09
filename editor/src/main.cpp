@@ -407,12 +407,12 @@ int main(int argc, char **argv)
         }
         // Keyboard navigation is ImGui's use of arrows and Tab: off while a code
         // tile had the keyboard last frame, so those keys reach nvim.
-        if (shell->app.text_focus) {
+        if (shell->ui.text_focus) {
             io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
         } else {
             io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
         }
-        shell->app.text_focus = false;
+        shell->ui.text_focus = false;
         // View > UI Scale between frames: the style and every size follow.
         if (shell->ui_scale_request > 0.0f) {
             const float previous = theme.scale;

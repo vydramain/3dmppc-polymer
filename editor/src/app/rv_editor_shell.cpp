@@ -422,7 +422,7 @@ void rv_editor_shell_game_input(rv_editor_shell &shell)
     uint64_t buttons = 0;
     if (app.game_captured) {
         // ImGui's keyboard navigation stays off the next frame, so arrows stay the game's.
-        app.text_focus = true;
+        shell.ui.text_focus = true;
         if (app.session.state() == rv_editor_run_state::running) {
             buttons = rv_editor_game_keys();
         }

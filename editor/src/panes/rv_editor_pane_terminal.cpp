@@ -12,6 +12,7 @@
 #include "imgui.h"
 
 #include "pdk/rv_err.h"
+#include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
@@ -228,7 +229,10 @@ bool rv_editor_term_keys(rv_editor_terminal &term)
     return typed;
 }
 
-void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+void rv_editor_pane_terminal_body(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
 {
     rv_editor_terminal_view &view = app.terminals[pane];
 
@@ -357,7 +361,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
         return;
     }
     // Keys go to the shell; ImGui's own keyboard navigation stays off meanwhile.
-    app.text_focus = true;
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::take_text_focus, .focus = true });
     if (SDL_Window *w = SDL_GetKeyboardFocus(); w != nullptr && !SDL_TextInputActive(w)) {
         SDL_StartTextInput(w);
     }
@@ -380,13 +384,16 @@ void rv_editor_pane_terminal_body(rv_editor_app &app, rv_editor_pane_id pane, co
 
 } // namespace
 
-void rv_editor_pane_terminal(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+void rv_editor_pane_terminal(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
 {
     rv_editor_font_code_push();
     // No controls row: the screen alone, in a well; it draws its own opaque
     // background and scrolls by its own wheel handling.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-    rv_editor_pane_terminal_body(app, pane, theme);
+    rv_editor_pane_terminal_body(app, pane, theme, ui);
     rv_editor_well_end();
     rv_editor_font_code_pop();
 }

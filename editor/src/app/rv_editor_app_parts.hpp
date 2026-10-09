@@ -11,6 +11,7 @@
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_process.hpp"
+#include "project/rv_editor_run_profile.hpp"
 #include "release/rv_editor_candidate.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "terminal/rv_editor_terminal.hpp"
@@ -275,6 +276,11 @@ enum class rv_editor_pane_request_kind {
     observe_pin,   // name: the key path to pin, as the pane writes it ("player x")
     observe_unpin, // name: the pinned key path to drop
     observe_refresh,
+    profile_select, // choice: the index of the profile to make active
+    profile_add,
+    profile_delete,        // the active profile
+    profile_apply,         // profile: the edited form, for the active profile
+    profile_apply_restart, // profile: as profile_apply, then the session restarts
 };
 
 struct rv_editor_pane_request {
@@ -284,6 +290,7 @@ struct rv_editor_pane_request {
     std::string name = {};                        // the new name the request carries
     // The chosen variant, e.g. the case result; the count of results: none chosen.
     size_t choice = static_cast<size_t>(rv_editor_case_result_kind::count);
+    rv_editor_run_profile profile = {}; // the edited profile a profile_apply carries; last: aggregates above stay positional
 };
 
 } // namespace rv_editor

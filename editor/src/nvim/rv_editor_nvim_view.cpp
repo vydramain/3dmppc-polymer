@@ -13,6 +13,7 @@
 
 #include "pdk/rv_err.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 
 #include "panes/rv_editor_panes.hpp"
@@ -55,7 +56,10 @@ constexpr size_t min_tabs_for_close = 2;           // Minimum tabs required to a
 namespace
 {
 
-void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme);
+void rv_editor_pane_code_body(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
 
 // The files this code tile has shown and nvim still holds, one tab each, the one
 // in front in brass. A click shows that file in the tile; a file opened again
@@ -146,17 +150,20 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
 } // namespace
 
 // Code is drawn in the code font (0004), the tile's buttons in the interface font.
-void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+void rv_editor_pane_code(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_font_code_push();
-    rv_editor_pane_code_body(app, pane, theme);
+    rv_editor_pane_code_body(app, pane, theme, ui);
     rv_editor_font_code_pop();
 }
 
 namespace
 {
 
-void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme)
+void rv_editor_pane_code_body(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
 {
     rv_editor_nvim &nvim = app.nvim;
     // Once per refusal: a failed start leaves `problem` set, which the tile shows.
@@ -410,7 +417,7 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
     }
 
     // Keys go to nvim; ImGui's own keyboard navigation stays off meanwhile.
-    app.text_focus = true;
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::take_text_focus, .focus = true });
     nvim.focus(win);
     if (SDL_Window *w = SDL_GetKeyboardFocus(); w != nullptr && !SDL_TextInputActive(w)) {
         SDL_StartTextInput(w);

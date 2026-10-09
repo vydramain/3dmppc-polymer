@@ -100,7 +100,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
             shell.leaving == rv_editor_shell::rv_editor_leave::none) {
             rv_editor_shell_ask_save_as(shell, theme);
         }
-        rv_editor_pane_code(shell.app, pane, theme);
+        rv_editor_pane_code(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::review_changes:
         rv_editor_page_review(shell, theme);
@@ -109,7 +109,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         if (pane == shell.closing_terminal) {
             rv_editor_shell_ask_terminal(shell, theme);
         }
-        rv_editor_pane_terminal(shell.app, pane, theme);
+        rv_editor_pane_terminal(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::game:
         rv_editor_pane_game(shell.app, shell.renderer, theme);

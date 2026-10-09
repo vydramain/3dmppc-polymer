@@ -118,6 +118,31 @@ int rv_editor_request_observe_refresh(rv_editor_app &app, const rv_editor_pane_r
     return rv_editor_app_observe_refresh(app);
 }
 
+int rv_editor_request_profile_select(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_profile_select(app, request.choice);
+}
+
+int rv_editor_request_profile_add(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_profile_add(app);
+}
+
+int rv_editor_request_profile_delete(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_profile_delete(app);
+}
+
+int rv_editor_request_profile_apply(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_profile_apply(app, request.profile);
+}
+
+int rv_editor_request_profile_apply_restart(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_profile_apply_restart(app, request.profile);
+}
+
 // A dialog's operation: runs on the request's entry or directory; the reason goes to error when it fails.
 using rv_editor_dialog_op = int (*)(rv_editor_app &app, const rv_editor_pane_request &request, std::string &error);
 
@@ -218,6 +243,11 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::observe_pin, rv_editor_request_observe_pin, "observe pin" },
     { rv_editor_pane_request_kind::observe_unpin, rv_editor_request_observe_unpin, "observe unpin" },
     { rv_editor_pane_request_kind::observe_refresh, rv_editor_request_observe_refresh, "observe refresh" },
+    { rv_editor_pane_request_kind::profile_select, rv_editor_request_profile_select, "profile select" },
+    { rv_editor_pane_request_kind::profile_add, rv_editor_request_profile_add, "profile add" },
+    { rv_editor_pane_request_kind::profile_delete, rv_editor_request_profile_delete, "profile delete" },
+    { rv_editor_pane_request_kind::profile_apply, rv_editor_request_profile_apply, "profile apply" },
+    { rv_editor_pane_request_kind::profile_apply_restart, rv_editor_request_profile_apply_restart, "profile apply restart" },
 };
 
 // Named in the log when a kind has no table row.
@@ -233,6 +263,11 @@ std::string_view rv_editor_request_name(rv_editor_pane_request_kind kind)
 
 int rv_editor_app_restart(rv_editor_app &app)
 {
+    if (!app.session.live()) {
+        const std::string text = "restart refused: no session runs";
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, text);
+        return RV_ERR_INVAL;
+    }
     app.run_after_stop = true;
     return rv_editor_app_stop(app);
 }
@@ -256,9 +291,14 @@ bool rv_editor_app_request_pending(const rv_editor_app &app, rv_editor_pane_requ
     const bool queued = std::ranges::any_of(app.requests, [kind](const rv_editor_pane_request &request) {
         return request.kind == kind;
     });
-    // Restart also covers the run after its stop, and that run's unsaved-files question (asked or open).
+    // Restart also covers the run after its stop, that run's unsaved-files question (asked or open),
+    // and a waiting apply-and-restart, which restarts once it has applied.
     const bool run_asked = app.unsaved_ask == rv_editor_unsaved_ask::run || app.unsaved_open == rv_editor_unsaved_ask::run;
-    const bool restarting = kind == rv_editor_pane_request_kind::restart && (app.run_after_stop || run_asked);
+    const bool apply_restart_waiting = std::ranges::any_of(app.requests, [](const rv_editor_pane_request &request) {
+        return request.kind == rv_editor_pane_request_kind::profile_apply_restart;
+    });
+    const bool restarting =
+        kind == rv_editor_pane_request_kind::restart && (app.run_after_stop || run_asked || apply_restart_waiting);
     return queued || restarting;
 }
 

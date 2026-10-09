@@ -206,15 +206,16 @@ int rv_editor_app_run_saved(rv_editor_app &app)
 
 int rv_editor_app_profiles_save(rv_editor_app &app)
 {
-    app.run_config.error.clear();
-    app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
-    ++app.run_config_revision;
     std::string error;
     const int err = rv_editor_run_config_save(app.project.root, app.run_config, error);
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "run profiles not saved: " + error);
         return err;
     }
+    // Only a saved change refills the form and reruns the problem check.
+    app.run_config.error.clear();
+    app.run_problem = rv_editor_run_profile_problem(app.run_config.profiles[app.run_config.active], app.project.root);
+    ++app.run_config_revision;
     return RV_OK;
 }
 
