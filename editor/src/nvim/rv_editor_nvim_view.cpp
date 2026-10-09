@@ -171,6 +171,11 @@ void rv_editor_pane_code_body(rv_editor_app &app, rv_editor_pane_id pane, const 
             app.log.add(rv_editor_log_source::editor, level, "code editor: " + error);
         }
     }
+    // A stop runs in the background: the pane has no grid meanwhile, the rest of the editor keeps running.
+    if (nvim.stopping()) {
+        ImGui::TextWrapped("%s", rv_editor_text("pane_code.nvim_stopping"));
+        return;
+    }
     if (!nvim.problem.empty()) {
         ImGui::TextWrapped("%s", nvim.problem.c_str());
         if (rv_editor_button(rv_editor_text("pane_code.start_nvim_again"), theme)) {

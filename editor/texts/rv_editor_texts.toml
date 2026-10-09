@@ -954,6 +954,7 @@ swap_recover_button_tooltip = "Load the unsaved text from the swap file; save it
 swap_discard_button = "Discard"
 swap_discard_button_tooltip = "Delete the swap file and keep the text on disk."
 start_nvim_again = "Start nvim Again"
+nvim_stopping = "nvim is stopping..."
 readonly_process_editing = "Read-only: nvim process {} is editing this file."
 starting_nvim = "Starting nvim..."
 lsp_status_format = "LSP: {} {}"
