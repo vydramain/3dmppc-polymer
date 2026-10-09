@@ -28,19 +28,6 @@ constexpr const char *log_level_error_code = "ERR";
 constexpr const char *log_level_warning_code = "WRN";
 constexpr const char *log_level_info_code = "INF";
 
-const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
-{
-    switch (channel) {
-    case rv_editor_log_channel::out:
-        return "out";
-    case rv_editor_log_channel::err:
-        return "err";
-    case rv_editor_log_channel::none:
-        break;
-    }
-    return "-";
-}
-
 // The steady clock the lines count from, and the wall clock at that moment.
 struct rv_editor_log_clock {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -250,6 +237,19 @@ void rv_editor_log::clear()
     lines_.clear();
     dropped_ = 0;
     ++seq_;
+}
+
+const char *rv_editor_log_channel_name(rv_editor_log_channel channel)
+{
+    switch (channel) {
+    case rv_editor_log_channel::out:
+        return "out";
+    case rv_editor_log_channel::err:
+        return "err";
+    case rv_editor_log_channel::none:
+        break;
+    }
+    return "-";
 }
 
 const char *rv_editor_log_source_name(rv_editor_log_source source)

@@ -125,6 +125,8 @@ private:
 };
 
 const char *rv_editor_log_source_name(rv_editor_log_source source);
+// Channel name in exported log text: "out", "err", or "-" for the editor's own lines.
+const char *rv_editor_log_channel_name(rv_editor_log_channel channel);
 // Three-letter code of a level in exported log text: "ERR", "WRN", or "INF".
 const char *rv_editor_log_level_code(rv_editor_log_level level);
 // The local clock time `line` arrived at, "14:03:27", with ".412" when `ms`.
