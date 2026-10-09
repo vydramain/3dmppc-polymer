@@ -417,6 +417,7 @@ void rv_editor_shell_game_input(rv_editor_shell &shell)
     if (!app.game_drawn || !shell.window_focused || !app.session.live()) {
         app.game_captured = false;
     }
+    // The shell owns the Game's frame state and resets it itself: a pane only reports the draw.
     app.game_drawn = false;
     uint64_t buttons = 0;
     if (app.game_captured) {

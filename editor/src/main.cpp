@@ -190,6 +190,8 @@ void rv_editor_frame(rv_editor::rv_editor_shell &shell, const rv_editor::rv_edit
         rv_editor_screen_draw_table[static_cast<size_t>(rv_editor_screen_pick(shell))](shell, theme, area);
     }
     ImGui::End();
+    // The panes' UI requests land before game_input reads the state.
+    rv_editor::rv_editor_shell_ui_apply(shell);
     rv_editor::rv_editor_shell_game_input(shell);
 }
 

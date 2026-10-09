@@ -54,6 +54,52 @@ constexpr size_t settings_tools_count = 4;
 // Workspaces: number of layouts (Code, Scene, Debug, Burn) in rv_editor_workspaces.
 constexpr size_t editor_workspace_slots_count = 4;
 
+// The window's UI state, owned by the shell: panes will read it and change it only by
+// queuing an rv_editor_ui_request, as the fields move out of rv_editor_app.
+struct rv_editor_ui {
+    // A code tile had the keyboard this frame: ImGui's own keyboard navigation
+    // stays off the next one, so arrows and Tab reach nvim.
+    bool text_focus = false;
+    // How the Game tile scales the frame; kept in the view file.
+    rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
+    // The Game tile has the keyboard; and whether one was drawn this frame: a
+    // Game tile closed or behind another tab holds no keys.
+    bool game_captured = false;
+    bool game_drawn = false;
+    // The Game tile's own minimum: its mode row and status line (the picture scales
+    // below 1x to fit); 0 x 0 before the first frame.
+    rv_editor_size game_need{ 0, 0 };
+    // The picture area the Game tile gives a running game, measured at every draw.
+    rv_editor_size game_area{ 0, 0 };
+};
+
+enum class rv_editor_ui_request_kind {
+    take_text_focus,
+    capture_keyboard,
+    release_keyboard,
+    set_game_scale,
+    game_drawn,
+    game_measured,
+    count, // number of kinds; the apply table has one row per kind
+};
+
+// One change of rv_editor_ui, applied by rv_editor_shell_ui_apply. Each kind reads
+// only the fields it names: focus, scale, or need and area.
+struct rv_editor_ui_request {
+    rv_editor_ui_request_kind kind;
+    rv_editor_game_scale scale = rv_editor_game_scale::fit;
+    rv_editor_size need{ 0, 0 };
+    rv_editor_size area{ 0, 0 };
+    bool focus = false;
+};
+
+// What a pane gets: panes read the state through it and change it only by queuing requests.
+// The fields move here from rv_editor_app one by one; until then nothing reads them.
+struct rv_editor_ui_port {
+    const rv_editor_ui &state;
+    std::vector<rv_editor_ui_request> &requests;
+};
+
 // One editor window: its tiles, its models, and the commands that reach them
 // from the menus and the keyboard.
 struct rv_editor_shell {
@@ -143,6 +189,9 @@ struct rv_editor_shell {
     rv_editor_browser settings_browser;
     // What each strip of controls drew last frame: its minimum in the tree.
     std::map<rv_editor_pane_id, rv_editor_size> strips;
+    // The UI state, and the requests the panes queued for rv_editor_shell_ui_apply.
+    rv_editor_ui ui;
+    std::vector<rv_editor_ui_request> ui_requests;
 };
 
 // Every tree a window keeps, as the switcher and Window > Reference Layouts offer them.
@@ -168,6 +217,9 @@ void rv_editor_shell_take_layout_request(rv_editor_shell &shell);
 
 // Once a frame, before drawing: takes the layout request, then fits the Game.
 void rv_editor_shell_frame_start(rv_editor_shell &shell);
+
+// Once a frame after the panes drew: applies the queued UI requests in order, then clears them (rv_editor_shell_ui.cpp).
+void rv_editor_shell_ui_apply(rv_editor_shell &shell);
 
 // Each layout's saved tree from `path`-<name> (read from the file an earlier
 // editor kept it in while that is missing), or its starting one when there is
