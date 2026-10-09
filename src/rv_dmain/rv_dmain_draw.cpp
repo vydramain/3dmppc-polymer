@@ -355,6 +355,8 @@ void rv_dmain::draw_textured(int x,
     int64_t addr_palette,
     rv_texture_mapping_type mapping)
 {
+    // Empty on a refused texture load: the failure is not drawn here, its outcome
+    // is the TEX row of draw_post(), and its code is in the WARN of the setup step.
     if (addr_texture == 0) {
         return;
     }

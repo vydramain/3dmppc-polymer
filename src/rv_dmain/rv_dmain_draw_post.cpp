@@ -2,6 +2,7 @@
 #include "rv_dmain.hpp"
 
 #include <cstdio>
+#include <span>
 
 #include "pdk/cv/rv_cv.h"
 #include "pdklib/rv_font/rv_font.hpp"
@@ -31,7 +32,7 @@ void format_bytes(char *out, std::size_t cap, int64_t bytes)
 }
 
 // POST header. Two lines that say what this machine IS - the virtual
-// budget it imposes on itself - and one bottom line saying whether each
+// budget it imposes on itself - and bottom rows saying whether each
 // subsystem answered. The numbers come straight from the contract's geometry
 // queries, so a line that prints at all is a query that worked.
 //
@@ -49,10 +50,16 @@ constexpr const char *RV_DMAIN_NO_DISC = "NO DISC INSERTED";
 // the bottom face button, and nobody outside that header knows it.
 constexpr const char *RV_DMAIN_HINTS = "Z sound   ESC power off";
 
-constexpr float RV_DMAIN_POST_BAR_HEIGHT = 24.0f;
+// Two probe rows over the pads row, 10 px apart.
+constexpr float RV_DMAIN_POST_BAR_HEIGHT = 34.0f;
+// The bottom slab turns this colour when the font is gone: with no font the
+// slab is the only sign left, and the reason is the WARN of build_font().
+constexpr rv_color RV_DMAIN_POST_SLAB_FAILED{ 120, 24, 28 };
 constexpr int RV_DMAIN_POST_MARGIN_H = 4;
 constexpr int RV_DMAIN_POST_MARGIN_TOP = 2;
 constexpr int RV_DMAIN_POST_BUDGET_LINE_Y = 13;
+// TEX and FONT: the row above the device probes.
+constexpr int RV_DMAIN_POST_UPPER_PROBE_ROW_OFFSET_FROM_BOTTOM = 31;
 constexpr int RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM = 21;
 constexpr int RV_DMAIN_POST_PADS_ROW_OFFSET_FROM_BOTTOM = 11;
 constexpr int RV_DMAIN_POST_PROBE_LABEL_SPACING = 8;
@@ -70,10 +77,6 @@ void rv_dmain::draw_post_row(int, const char *, const char *, const char *, bool
 
 void rv_dmain::draw_post()
 {
-    if (addr_font_ == 0) {
-        return;
-    }
-
     rv_cv *cv = rv_pdko_cv(pdk_);
     auto file = [cv](const rv_primitive &primitive) {
         rv_cv_frame_put(cv, &primitive);
@@ -82,6 +85,22 @@ void rv_dmain::draw_post()
     const int width = static_cast<int>(screen_width_);
     const int height = static_cast<int>(screen_height_);
     const rv_color slab{ 12, 14, 22 };
+
+    const bool font_ok = addr_font_ != 0;
+    const rv_color bottom_colour = font_ok ? slab : RV_DMAIN_POST_SLAB_FAILED;
+    const rv_primitive bottom_slab = rv_dmain_detail::make_bar(0.0f,
+        static_cast<float>(height) - RV_DMAIN_POST_BAR_HEIGHT,
+        static_cast<float>(width),
+        RV_DMAIN_POST_BAR_HEIGHT,
+        bottom_colour,
+        RV_DMAIN_DEPTH_PANEL);
+    rv_cv_frame_put(cv, &bottom_slab);
+
+    // No font, no text: the red slab alone is the sign.
+    if (!font_ok) {
+        return;
+    }
+
     const rv_pdklib::rv_font_style ink = rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_, RV_DMAIN_DEPTH_TEXT, 1);
     const rv_pdklib::rv_font_style bad =
         rv_pdklib::rv_font_style_make(addr_font_, addr_font_palette_bad_, RV_DMAIN_DEPTH_TEXT, 1);
@@ -116,47 +135,38 @@ void rv_dmain::draw_post()
         sram);
     rv_pdklib::rv_font_draw(ink, RV_DMAIN_POST_MARGIN_H, RV_DMAIN_POST_BUDGET_LINE_Y, budget, file);
 
-    // The bottom slab: one word per subsystem, and the word is the whole report.
-    const rv_primitive bottom_slab = rv_dmain_detail::make_bar(0.0f,
-        static_cast<float>(height) - RV_DMAIN_POST_BAR_HEIGHT,
-        static_cast<float>(width),
-        RV_DMAIN_POST_BAR_HEIGHT,
-        slab,
-        RV_DMAIN_DEPTH_PANEL);
-    rv_cv_frame_put(cv, &bottom_slab);
-
     struct rv_dmain_probe {
         const char *label;
         bool ok;
         bool absent; // legal "nothing there", which is not a failure
     };
-    const rv_dmain_probe probes[RV_DMAIN_POST_PROBE_COUNT] = {
+    const rv_dmain_probe upper[] = {
+        { "TEX", texture_result_ == RV_OK && idx4_result_ == RV_OK, false },
+        { "FONT", font_result_ == RV_OK, false },
+    };
+    const rv_dmain_probe lower[RV_DMAIN_POST_PROBE_COUNT] = {
         { "AUDIO", beep_ok_, false },
         { "DRIVE", asset_ok_, asset_bytes_ == 0 },
         { "CARD", card_ok_, false },
         { "PATHS", drive_rejects_paths_, false },
     };
 
-    int pen = RV_DMAIN_POST_MARGIN_H;
-    for (const rv_dmain_probe &probe : probes) {
-        rv_pdklib::rv_font_draw(ink,
-            pen,
-            static_cast<int>(height) - RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM,
-            probe.label,
-            file);
-        pen += rv_pdklib::rv_font_measure_width(probe.label, 1) + RV_DMAIN_POST_PROBE_LABEL_SPACING;
-
-        const char *mark = probe.absent ? "-" : (probe.ok ? "OK" : "FAIL");
-        rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad,
-            pen,
-            static_cast<int>(height) - RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM,
-            mark,
-            file);
-        pen += rv_pdklib::rv_font_measure_width(mark, 1) + RV_DMAIN_POST_PROBE_VERDICT_SPACING;
-    }
-
-    // The probe row owns its whole line: four labels and four verdicts already
+    // Each probe row owns its whole line: four labels and four verdicts already
     // fill 40 columns, and anything sharing the row lands on top of them.
+    auto draw_probe_row = [&](std::span<const rv_dmain_probe> probes, int offset_from_bottom) {
+        int pen = RV_DMAIN_POST_MARGIN_H;
+        for (const rv_dmain_probe &probe : probes) {
+            rv_pdklib::rv_font_draw(ink, pen, height - offset_from_bottom, probe.label, file);
+            pen += rv_pdklib::rv_font_measure_width(probe.label, 1) + RV_DMAIN_POST_PROBE_LABEL_SPACING;
+
+            const char *mark = probe.absent ? "-" : (probe.ok ? "OK" : "FAIL");
+            rv_pdklib::rv_font_draw(probe.ok || probe.absent ? ink : bad, pen, height - offset_from_bottom, mark, file);
+            pen += rv_pdklib::rv_font_measure_width(mark, 1) + RV_DMAIN_POST_PROBE_VERDICT_SPACING;
+        }
+    };
+    draw_probe_row(upper, RV_DMAIN_POST_UPPER_PROBE_ROW_OFFSET_FROM_BOTTOM);
+    draw_probe_row(lower, RV_DMAIN_POST_PROBE_ROW_OFFSET_FROM_BOTTOM);
+
     char pads[RV_DMAIN_POST_PADS_BUFFER_SIZE];
     std::snprintf(pads,
         sizeof(pads),
