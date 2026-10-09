@@ -214,7 +214,13 @@ void rv_editor_app_update_log_files(rv_editor_app &app)
 // Once a frame: a finished candidate build, its revision, the records' saves, the playtest's verdict and end.
 void rv_editor_app_update_release(rv_editor_app &app, bool build_ended)
 {
-    rv_editor_app_player_update(app);
+    const bool player_exists = app.release.player != nullptr;
+    if (player_exists) {
+        (void)rv_editor_app_player_transfer(app);
+    }
+    if (player_exists && rv_editor_app_player_output_complete(app)) {
+        (void)rv_editor_app_player_finish(app);
+    }
     if (build_ended && app.release.building) {
         (void)rv_editor_app_release_note_build_end(app);
     }

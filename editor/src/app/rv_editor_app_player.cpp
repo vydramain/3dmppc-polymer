@@ -54,9 +54,68 @@ void rv_editor_player_lines(rv_editor_app &app, rv_editor_log_channel channel, s
     }
 }
 
-void rv_editor_player_finish(rv_editor_app &app)
+// The first free player-<k>.log of a candidate. RV_ERR_IO with the reason in error when a name cannot be checked.
+int rv_editor_player_log_path(const std::filesystem::path &dir, uint32_t number, std::filesystem::path &log, std::string &error)
+{
+    std::error_code ec;
+    uint32_t k = 1;
+    log = rv_editor_candidate_log(dir, number, std::string(player_log_prefix) + std::to_string(k));
+    while (std::filesystem::exists(log, ec)) {
+        ++k;
+        log = rv_editor_candidate_log(dir, number, std::string(player_log_prefix) + std::to_string(k));
+    }
+    if (ec) {
+        error = "cannot look for a free name: " + ec.message();
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+// Keeps the player's output beside its candidate's record. RV_OK, or RV_ERR_IO with the reason logged.
+int rv_editor_player_keep_log(rv_editor_app &app, const rv_editor_candidate &c)
+{
+    const rv_editor_release &r = app.release;
+    const std::filesystem::path dir = app.project.cache_dir / std::string(candidates_dir_name);
+    std::filesystem::path log;
+    std::string error;
+    const int named = rv_editor_player_log_path(dir, c.number, log, error);
+    const int kept = named != RV_OK ? named : rv_editor_file_replace(log, r.player_output, error);
+    if (kept != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "player log not kept: " + error,
+            rv_editor_log_channel::none,
+            r.player->pid(),
+            rv_editor_player_run(r));
+    }
+    return kept;
+}
+
+// Records the player's end on its candidate, then keeps its output. RV_OK, or RV_ERR_IO (logged).
+int rv_editor_player_record(rv_editor_app &app, const rv_editor_process::rv_editor_exit &exit, const std::string &ended)
 {
     rv_editor_release &r = app.release;
+    rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.player_candidate)];
+    // Stopped by the editor is the operator's act and proves no normal exit.
+    const rv_editor_check_state state = r.player_stopped ? rv_editor_check_state::not_run :
+        exit.signal == 0 && exit.code == 0               ? rv_editor_check_state::passed :
+                                                           rv_editor_check_state::failed;
+    const std::string note = r.player_stopped  ? "stopped by the operator (" + ended + "): no normal exit shown" :
+        state == rv_editor_check_state::passed ? "ended by itself, " + ended :
+                                                 "ended " + ended;
+    rv_editor_check_set(c, rv_editor_check_player, state, note, app.tools.player.path.string());
+    return rv_editor_player_keep_log(app, c);
+}
+
+} // namespace
+
+int rv_editor_app_player_finish(rv_editor_app &app)
+{
+    rv_editor_release &r = app.release;
+    if (r.player == nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player not finished: no player");
+        return RV_ERR_INVAL;
+    }
     const int64_t pid = r.player->pid();
     const uint32_t run = rv_editor_player_run(r);
     rv_editor_player_lines(app,
@@ -85,40 +144,12 @@ void rv_editor_player_finish(rv_editor_app &app)
         rv_editor_log_channel::none,
         pid,
         run);
-    if (r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size()) {
-        rv_editor_candidate &c = r.candidates[static_cast<size_t>(r.player_candidate)];
-        // Stopped by the editor is the operator's act and proves no normal exit.
-        const rv_editor_check_state state = r.player_stopped ? rv_editor_check_state::not_run :
-            exit.signal == 0 && exit.code == 0               ? rv_editor_check_state::passed :
-                                                               rv_editor_check_state::failed;
-        const std::string note = r.player_stopped  ? "stopped by the operator (" + ended + "): no normal exit shown" :
-            state == rv_editor_check_state::passed ? "ended by itself, " + ended :
-                                                     "ended " + ended;
-        rv_editor_check_set(c, rv_editor_check_player, state, note, app.tools.player.path.string());
-        // Its output beside the record, as the first free player-<k>.log.
-        const std::filesystem::path dir = app.project.cache_dir / std::string(candidates_dir_name);
-        uint32_t k = 1;
-        std::error_code ec;
-        std::string log_name = std::string(player_log_prefix) + std::to_string(k);
-        while (std::filesystem::exists(rv_editor_candidate_log(dir, c.number, log_name), ec)) {
-            ++k;
-            log_name = std::string(player_log_prefix) + std::to_string(k);
-        }
-        std::string error;
-        if (rv_editor_file_replace(rv_editor_candidate_log(dir, c.number, log_name), r.player_output, error) != RV_OK) {
-            app.log.add(rv_editor_log_source::editor,
-                rv_editor_log_level::error,
-                "player log not kept: " + error,
-                rv_editor_log_channel::none,
-                pid,
-                run);
-        }
-    }
+    const bool has_candidate = r.player_candidate >= 0 && static_cast<size_t>(r.player_candidate) < r.candidates.size();
+    const int kept = has_candidate ? rv_editor_player_record(app, exit, ended) : RV_OK;
     r.player.reset();
     r.player_candidate = -1;
+    return kept;
 }
-
-} // namespace
 
 const char *rv_editor_app_why_not_play(const rv_editor_app &app)
 {
@@ -225,14 +256,14 @@ bool rv_editor_app_player_running(const rv_editor_app &app)
     return r.player != nullptr && r.player->running();
 }
 
-void rv_editor_app_player_update(rv_editor_app &app)
+int rv_editor_app_player_transfer(rv_editor_app &app)
 {
     rv_editor_release &r = app.release;
     if (r.player == nullptr) {
-        return;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player output not transferred: no player");
+        return RV_ERR_INVAL;
     }
-    // A live player keeps reading every frame, exited or not: rv_editor_player_finish
-    // runs once, only when the player's output is complete (output_done()).
+    // Read every frame, exited or not: the output is complete only after the read reaches its end.
     std::string out;
     std::string err;
     std::string read_error;
@@ -247,9 +278,13 @@ void rv_editor_app_player_update(rv_editor_app &app)
     }
     rv_editor_player_lines(app, rv_editor_log_channel::out, r.player_out_partial, out);
     rv_editor_player_lines(app, rv_editor_log_channel::err, r.player_err_partial, err);
-    if (r.player->poll() && r.player->output_done()) {
-        rv_editor_player_finish(app);
-    }
+    return read_err;
+}
+
+bool rv_editor_app_player_output_complete(rv_editor_app &app)
+{
+    rv_editor_release &r = app.release;
+    return r.player != nullptr && r.player->poll() && r.player->output_done();
 }
 
 } // namespace rv_editor

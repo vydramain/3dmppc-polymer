@@ -278,7 +278,15 @@ const char *rv_editor_app_why_not_play(const rv_editor_app &app);
 int rv_editor_app_play_candidate(rv_editor_app &app);
 void rv_editor_app_stop_player(rv_editor_app &app);
 bool rv_editor_app_player_running(const rv_editor_app &app);
-void rv_editor_app_player_update(rv_editor_app &app);
+// Reads the player's output into the log. RV_OK, or the read's RV_ERR_*; RV_ERR_INVAL when no player runs (logged).
+int rv_editor_app_player_transfer(rv_editor_app &app);
+// Question: the player has exited and its output is read to the end. Only meaningful with a player.
+// Reaps the exited child and may close the pipes after the grace. Ask it after
+// rv_editor_app_player_transfer in the same frame.
+bool rv_editor_app_player_output_complete(rv_editor_app &app);
+// Finishes the player's run and clears it, even when its log is not kept. RV_OK; RV_ERR_IO when the
+// player log cannot be kept (logged); RV_ERR_INVAL when no player runs (logged).
+int rv_editor_app_player_finish(rv_editor_app &app);
 // Returns RV_OK on success or RV_ERR_* on failure.
 int rv_editor_app_export_report(rv_editor_app &app);
 // Release steps: the frame rv_editor_app_update_release (app_update.cpp) asks the questions and
