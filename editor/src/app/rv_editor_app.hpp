@@ -281,8 +281,31 @@ bool rv_editor_app_player_running(const rv_editor_app &app);
 void rv_editor_app_player_update(rv_editor_app &app);
 // Returns RV_OK on success or RV_ERR_* on failure.
 int rv_editor_app_export_report(rv_editor_app &app);
-// Once a frame: a finished candidate build, hashes, the playtest's end.
-void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
+// Release steps: the frame rv_editor_app_update_release (app_update.cpp) asks the questions and
+// calls the operations, all defined in rv_editor_app_release.cpp.
+// Question: a candidate build's end was noted and waits for its revision.
+bool rv_editor_app_release_build_noted();
+// Notes a candidate build's end. RV_OK; RV_ERR_INVAL when no build runs (logged).
+int rv_editor_app_release_note_build_end(rv_editor_app &app);
+// The sources' revision of the running candidate build. RV_OK when known; RV_ERR_PENDING while
+// the lookup runs; RV_ERR_INVAL when no build runs (logged).
+int rv_editor_app_release_revision_poll(rv_editor_app &app);
+// Finishes the candidate build and clears the latch. RV_OK: the candidate is added. RV_ERR_NOENT:
+// the build did not succeed (last_failure says why). RV_ERR_INVAL when no build runs (logged).
+int rv_editor_app_release_finish_build(rv_editor_app &app);
+// Saves one candidate's record. RV_OK, or the save's RV_ERR_*; the first failure of a run is logged.
+int rv_editor_app_release_save_candidate(rv_editor_app &app, rv_editor_candidate &c);
+// Questions: a candidate runs on the development console; that session is live and still
+// runs its image; the running candidate's loads check is running.
+bool rv_editor_app_release_playing(const rv_editor_app &app);
+bool rv_editor_app_release_still_playing(const rv_editor_app &app);
+bool rv_editor_app_release_loads_running(const rv_editor_app &app);
+// The loads verdict of the playing candidate, asked while it is still playing and connected.
+// RV_OK; RV_ERR_INVAL when the session no longer plays the candidate (logged).
+int rv_editor_app_release_playtest_verdict(rv_editor_app &app);
+// The playtest's end, asked when the session no longer runs the playing candidate. RV_OK; RV_ERR_INVAL
+// when none plays (logged).
+int rv_editor_app_release_playtest_end(rv_editor_app &app);
 // A project file changed: every candidate's sources now differ from the tree.
 void rv_editor_app_release_changed(rv_editor_app &app);
 

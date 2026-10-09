@@ -211,6 +211,37 @@ void rv_editor_app_update_log_files(rv_editor_app &app)
     }
 }
 
+// Once a frame: a finished candidate build, its revision, the records' saves, the playtest's verdict and end.
+void rv_editor_app_update_release(rv_editor_app &app, bool build_ended)
+{
+    rv_editor_app_player_update(app);
+    if (build_ended && app.release.building) {
+        (void)rv_editor_app_release_note_build_end(app);
+    }
+    // The lookup advances only while a candidate builds.
+    const int revision = app.release.building ? rv_editor_app_release_revision_poll(app) : RV_ERR_PENDING;
+    const bool revision_known = revision == RV_OK;
+    if (revision_known && rv_editor_app_release_build_noted()) {
+        (void)rv_editor_app_release_finish_build(app);
+    }
+    for (rv_editor_candidate &c : app.release.candidates) {
+        rv_editor_candidate_poll(c);
+        if (c.dirty) {
+            (void)rv_editor_app_release_save_candidate(app, c);
+        }
+    }
+    const bool playing = rv_editor_app_release_playing(app);
+    const bool still_playing = rv_editor_app_release_still_playing(app);
+    const bool verdict_due = still_playing && app.session.connected() && rv_editor_app_release_loads_running(app);
+    if (verdict_due) {
+        (void)rv_editor_app_release_playtest_verdict(app);
+    }
+    const bool playtest_over = playing && !still_playing;
+    if (playtest_over) {
+        (void)rv_editor_app_release_playtest_end(app);
+    }
+}
+
 } // namespace
 
 void rv_editor_app_update(rv_editor_app &app)
@@ -243,7 +274,7 @@ void rv_editor_app_update(rv_editor_app &app)
     const bool build_ended = was_busy && !app.build.busy();
     rv_editor_app_update_build_ended(app, build_ended);
     rv_editor_app_update_problems(app);
-    rv_editor_app_release_update(app, build_ended);
+    rv_editor_app_update_release(app, build_ended);
     if (app.run_after_stop && !app.session.live()) {
         app.run_after_stop = false;
         rv_editor_app_run(app);
