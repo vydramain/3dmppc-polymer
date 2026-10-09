@@ -2,11 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <deque>
 #include <string>
 #include <string_view>
-#include <vector>
 
 namespace rv_editor
 {
@@ -46,8 +44,9 @@ struct rv_editor_log_line {
 };
 
 // Output's model: every process line the editor keeps, oldest first. Bounded
-// past `capacity` the oldest lines go and `dropped` counts them. It
-// lives outside the UI, so closing an Output pane loses nothing.
+// past `capacity` the oldest lines go and `dropped` counts them. The channel
+// only keeps lines; rv_editor_log_file writes them to files. It lives outside
+// the UI, so closing an Output pane loses nothing.
 class rv_editor_log
 {
 public:
@@ -94,34 +93,14 @@ public:
         return seq_;
     }
 
-    // Mirrors every line with this pid into `path`: creates the parent
-    // directory, writes the lines already kept for `pid`, then appends
-    // later ones as they are added. A failure drops the sink and logs an
-    // editor error naming `path` and the OS reason.
-    void attach_file(int64_t pid, const std::string &path);
-    // Path attached for `pid`, empty when none.
-    std::string file_for(int64_t pid) const;
-
     rv_editor_log() = default;
     rv_editor_log(const rv_editor_log &) = delete;
     rv_editor_log &operator=(const rv_editor_log &) = delete;
-    ~rv_editor_log();
 
 private:
-    struct rv_editor_log_sink {
-        int64_t pid;
-        std::string path;
-        FILE *file;
-    };
-
-    void write_to_sink(rv_editor_log_sink &sink, const rv_editor_log_line &line);
-    void drop_sink(size_t index);
-
     std::deque<rv_editor_log_line> lines_;
     uint64_t seq_ = 0;
     uint64_t dropped_ = 0;
-    // At most 8 sinks open at once; a 9th attach closes the oldest (pid reuse after exit).
-    std::vector<rv_editor_log_sink> sinks_;
 };
 
 const char *rv_editor_log_source_name(rv_editor_log_source source);
