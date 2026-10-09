@@ -108,12 +108,11 @@ struct rv_editor_app {
     rv_editor_unsaved_ask unsaved_open = rv_editor_unsaved_ask::none;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
-    // Run profiles, what stops the active one, and a count of their changes
-    // for the form; Apply and Restart waits for the session to end, then runs.
+    // Run profiles, what stops the active one, and a count of their changes, which the
+    // Run Configuration pane refills its form from; Apply and Restart waits for the session to end, then runs.
     rv_editor_run_config run_config;
     std::string run_problem;
     uint64_t run_config_revision = 1;
-    rv_editor_run_form run_form;
     bool run_after_stop = false;
     // Build and Restart: a build runs for it; once it ends, the live session (if any)
     // stops, then the new build starts. restart_after_stop is the wait for that stop.
@@ -170,8 +169,9 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // no scene (not a failure: the caller decides whether to report it); otherwise rv_editor_app_scene_open's code.
 int rv_editor_app_scene_first(rv_editor_app &app);
 
-// Writes the profiles to the project. On success checks the active one again and refills the
-// form; on failure the in-memory state and the form stay as they were. RV_OK or RV_ERR_* on save failure.
+// Writes the profiles to the project. On success checks the active one again and bumps
+// run_config_revision, so the pane refills its form; on failure the in-memory state stays as it was.
+// RV_OK or RV_ERR_* on save failure.
 int rv_editor_app_profiles_save(rv_editor_app &app);
 // Run profile ops (editor/src/app/rv_editor_app_profiles.cpp): each writes through
 // rv_editor_app_profiles_save and returns its code; a refusal is logged once with its reason.

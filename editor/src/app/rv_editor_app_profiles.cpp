@@ -1,5 +1,5 @@
 // Run profiles the Run Configuration pane asks for: select, add, delete, apply and apply-restart.
-// Each change goes through rv_editor_app_profiles_save, which writes the file and refills the form.
+// Each change goes through rv_editor_app_profiles_save, which writes the file and bumps run_config_revision.
 
 #include "app/rv_editor_app.hpp"
 

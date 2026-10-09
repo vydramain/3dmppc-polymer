@@ -65,22 +65,6 @@ struct rv_editor_files_view {
     size_t doomed_total = 0;
 };
 
-// Run Configuration's form: the active profile as edited until Apply.
-// filled again whenever the profiles change.
-struct rv_editor_run_form {
-    uint64_t loaded = 0; // the run_config_revision it was filled at
-    char name[short_text_field_size] = {};
-    char runtime[filesystem_path_field_size] = {};
-    char memcard[filesystem_path_field_size] = {};
-    char cwd[filesystem_path_field_size] = {};
-    bool mute = false;
-    bool paused = false;
-    bool fixed_step = false;
-    bool reload_on_save = false;
-    char args[command_line_field_size] = {};
-    char env[command_line_field_size] = {};
-};
-
 // The Scene viewport's tool and view: the editor's, never the game's camera.
 enum class rv_editor_scene_tool {
     select,
