@@ -5,6 +5,7 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <system_error>
 
@@ -36,6 +37,21 @@ void rv_editor_multiline(const char *label, char *buf, size_t size)
         size,
         ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * multiline_input_height_lines));
     ImGui::PopID();
+}
+
+// Listed cases that failed to read in the per-frame loop; each is logged once until it reads again.
+std::set<std::filesystem::path> warned_cases;
+
+// The finding's error, with a Dismiss button that asks the app to clear it.
+void rv_editor_finding_error(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    rv_editor_status(app.findings.error.c_str(), rv_editor_status_kind::error, theme);
+    rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.dismiss")));
+    const bool dismiss_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_findings_error);
+    const char *dismiss_why = dismiss_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
+    if (rv_editor_button(rv_editor_text("findings.dismiss"), theme, { rv_editor_look::live, dismiss_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::dismiss_findings_error });
+    }
 }
 
 // testcases/*.txt of the project, read again when the directory changes.
@@ -88,22 +104,32 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_radio(rv_editor_text("findings.exploratory_desc"), f.test_case < 0, theme)) {
         f.test_case = -1;
     }
+    // A case that left the listing is forgotten, so it is logged again if it comes back unreadable.
+    std::erase_if(warned_cases, [&f](const std::filesystem::path &p) {
+        return std::find(f.cases.begin(), f.cases.end(), p) == f.cases.end();
+    });
     // Each case file is read every frame for its title; a cache when a project keeps dozens.
     for (size_t i = 0; i < f.cases.size(); ++i) {
         rv_editor_case listed;
         std::string read_error;
-        // A file that changed since the refresh and cannot be read now is left out of this frame.
+        // Left out of this frame; logged the first frame it cannot be read, and again only after it reads again.
         if (rv_editor_case_read(f.cases[i], listed, read_error) != RV_OK) {
+            if (warned_cases.insert(f.cases[i]).second) {
+                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "test case skipped: " + read_error);
+            }
             continue;
         }
+        warned_cases.erase(f.cases[i]);
         ImGui::PushID(static_cast<int>(i));
         if (rv_editor_radio(listed.title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
             f.test_case = static_cast<int32_t>(i);
         }
         ImGui::PopID();
     }
-    if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme)) {
-        (void)rv_editor_app_case_new(app);
+    const bool new_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_new);
+    const char *new_why = new_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
+    if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme, { rv_editor_look::live, new_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::case_new });
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
@@ -124,16 +150,21 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     const char *no_session = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
     // A chosen case that cannot be read has no result to record: why the buttons are off is the read's error.
     const char *why_not = read_rv == RV_OK ? no_session : read_error.c_str();
+    const bool result_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_result);
+    const char *result_why = result_pending ? rv_editor_text("app_why_not.request_pending") : why_not;
+    // The request names the chosen case file; empty when exploratory.
+    const std::filesystem::path case_path = chosen ? f.cases[static_cast<size_t>(f.test_case)] : std::filesystem::path();
     for (size_t i = 0; i < result_kind_count; ++i) {
         if (i > 0) {
             ImGui::SameLine();
         }
-        if (rv_editor_button(rv_editor_text(result_label_keys[i]), theme, { rv_editor_look::live, why_not })) {
-            (void)rv_editor_app_case_result(app, c, static_cast<rv_editor_case_result_kind>(i));
+        if (rv_editor_button(rv_editor_text(result_label_keys[i]), theme, { rv_editor_look::live, result_why })) {
+            (void)rv_editor_app_request(app,
+                { rv_editor_pane_request_kind::case_result, rv_editor_tile_none, case_path, {}, i });
         }
     }
     if (!f.error.empty()) {
-        rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
+        rv_editor_finding_error(app, theme);
     }
     for (const std::string &r : f.results) {
         ImGui::BulletText("%s", r.c_str());
@@ -150,20 +181,24 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
     rv_editor_shelf_begin("##shelf", theme);
-    const char *why_not_capture = app.session.live() ? nullptr : rv_editor_text("findings.no_session_running");
+    const bool capture_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::capture_frame);
+    const char *no_capture = app.session.live() ? nullptr : rv_editor_text("findings.no_session_running");
+    const char *why_not_capture = capture_pending ? rv_editor_text("app_why_not.request_pending") : no_capture;
     if (rv_editor_button(rv_editor_text("findings.capture_frame"), theme, { rv_editor_look::live, why_not_capture })) {
-        (void)rv_editor_app_capture_frame(app);
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::capture_frame });
     }
     rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.record_finding")));
-    const char *why_not_record = f.title[0] == '\0' ? rv_editor_text("findings.title_first") : nullptr;
+    const bool save_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::save_finding);
+    const char *no_title = f.title[0] == '\0' ? rv_editor_text("findings.title_first") : nullptr;
+    const char *why_not_record = save_pending ? rv_editor_text("app_why_not.request_pending") : no_title;
     if (rv_editor_button(rv_editor_text("findings.record_finding"), theme, { rv_editor_look::live, why_not_record })) {
-        (void)rv_editor_app_save_finding(app);
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::save_finding });
     }
     rv_editor_shelf_end();
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     if (!f.error.empty()) {
-        rv_editor_status(f.error.c_str(), rv_editor_status_kind::error, theme);
+        rv_editor_finding_error(app, theme);
     }
 
     ImGui::TextUnformatted(rv_editor_text("findings.title"));

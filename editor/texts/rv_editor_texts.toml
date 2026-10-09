@@ -803,6 +803,7 @@ title_first = "Give the finding a title first"
 screenshot = "Screenshot"
 none_screenshot = "none: Capture Frame attaches one"
 finding_label = "Finding"
+dismiss = "Dismiss"
 
 [shell_menu_scene]
 no_scene_open = "No scene is open"

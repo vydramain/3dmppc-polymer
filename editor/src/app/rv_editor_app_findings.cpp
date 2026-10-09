@@ -274,6 +274,11 @@ int rv_editor_app_capture_frame(rv_editor_app &app)
 int rv_editor_case_read(const std::filesystem::path &path, rv_editor_case &out, std::string &error)
 {
     std::error_code ec;
+    const bool present = std::filesystem::exists(path, ec);
+    if (ec || !present) {
+        error = ec ? "cannot check " + path.string() + ": " + ec.message() : "cannot read " + path.string() + ": missing";
+        return RV_ERR_IO;
+    }
     if (!std::filesystem::is_regular_file(path, ec)) {
         error = ec ? "cannot check " + path.string() + ": " + ec.message() : "not a regular file: " + path.string();
         return RV_ERR_IO;

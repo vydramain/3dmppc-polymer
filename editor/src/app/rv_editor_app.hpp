@@ -401,7 +401,8 @@ int rv_editor_app_save_finding(rv_editor_app &app);
 // RV_ERR_IO when the file cannot be written (reason in findings.error and the log).
 int rv_editor_app_capture_frame(rv_editor_app &app);
 // Test Case (editor/src/app/rv_editor_app_findings.cpp): reads a case file's title, steps and expected
-// into out. RV_OK, or RV_ERR_IO when the file does not open (reason in error; out is then untouched).
+// into out. RV_OK, or RV_ERR_IO when the file cannot be read as a regular file: missing, not regular,
+// open or read failure (reason in error; out is then untouched).
 int rv_editor_case_read(const std::filesystem::path &path, rv_editor_case &out, std::string &error);
 // The exploratory case: no file, its title only.
 rv_editor_case rv_editor_case_exploratory();
