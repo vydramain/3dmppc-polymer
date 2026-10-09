@@ -112,6 +112,8 @@ struct rv_editor_app {
     // The scene the Scene layout edits, if one is open, and why the last open failed.
     std::unique_ptr<rv_editor_scene_doc> scene;
     std::string scene_error;
+    // Why the last scene move was refused; empty after a move that went through, a dismiss, or opening a scene.
+    std::string scene_move_note;
     rv_editor_scene_ui scene_ui;
     rv_editor_assets_ui assets_ui;
     rv_editor_scene_tabs scene_tabs;
@@ -159,6 +161,10 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error);
 // The project's first scene; called when a project opens. RV_ERR_NOENT when the project has
 // no scene (not a failure: the caller decides whether to report it); otherwise rv_editor_app_scene_open's code.
 int rv_editor_app_scene_first(rv_editor_app &app);
+// Moves object `id` under `parent` (empty: the root), keeping its place in the scene when keep_world.
+// RV_OK clears scene_move_note. RV_ERR_INVAL when no scene is open (logged) or the move is refused:
+// the reason is logged as a warning and set in scene_move_note; the refusal's code is returned.
+int rv_editor_app_scene_move(rv_editor_app &app, const std::string &id, const std::string &parent, bool keep_world);
 
 // Writes the profiles to the project. On success checks the active one again and bumps
 // run_config_revision, so the pane refills its form; on failure the in-memory state stays as it was.

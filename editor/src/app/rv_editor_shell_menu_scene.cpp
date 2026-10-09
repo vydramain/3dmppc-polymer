@@ -289,10 +289,9 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
         rv_editor_scene_delete(*app.scene, app.scene->selected);
     }
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.move_to_root"), nullptr, no_selection)) {
-        std::string why;
-        if (rv_editor_scene_reparent(*app.scene, app.scene->selected, "", true, why) != RV_OK) {
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "not moved: " + why);
-        }
+        // The app op logs a refusal and sets scene_move_note itself.
+        const std::string selected = app.scene->selected;
+        (void)rv_editor_app_scene_move(app, selected, "", true);
     }
 }
 

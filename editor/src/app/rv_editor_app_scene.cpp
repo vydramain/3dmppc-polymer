@@ -11,6 +11,7 @@
 
 #include "project/rv_editor_manifest_edit.hpp"
 #include "scene/rv_editor_scene_codegen.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -132,6 +133,7 @@ int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &pa
     doc->scene = std::move(scene);
     app.scene = std::move(doc);
     app.scene_error.clear();
+    app.scene_move_note.clear();
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
         "scene opened: " + rv_editor_app_scene_name(app) +
@@ -239,11 +241,29 @@ int rv_editor_app_scene_first(rv_editor_app &app)
 {
     app.scene.reset();
     app.scene_error.clear();
+    app.scene_move_note.clear();
     const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
     if (files.empty()) {
         return RV_ERR_NOENT; // no scene in the project: nothing opened, the caller decides whether to say so
     }
     return rv_editor_app_scene_open(app, files.front());
+}
+
+int rv_editor_app_scene_move(rv_editor_app &app, const std::string &id, const std::string &parent, bool keep_world)
+{
+    if (app.scene == nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "scene not moved: no scene open");
+        return RV_ERR_INVAL;
+    }
+    std::string why;
+    const int code = rv_editor_scene_reparent(*app.scene, id, parent, keep_world, why);
+    if (code != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "not moved: " + why);
+        app.scene_move_note = rv_editor_text_format("pane_hierarchy.not_moved", std::make_format_args(why));
+        return code;
+    }
+    app.scene_move_note.clear();
+    return RV_OK;
 }
 
 } // namespace rv_editor

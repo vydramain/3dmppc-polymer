@@ -100,8 +100,7 @@ struct rv_editor_scene_camera {
 };
 
 // The scene panes' own state: Inspector's text for the object shown, the drag
-// being made and the values before it, the last refusal to say; the viewport's
-// view and its drag of a tool.
+// being made and the values before it; the viewport's view and its drag of a tool.
 struct rv_editor_scene_ui {
     std::string shown;
     char name[identifier_field_size] = {};
@@ -110,7 +109,6 @@ struct rv_editor_scene_ui {
     std::string editing;
     rv_editor_vec3 before{};
     bool cancelled = false; // Escape took the drag back; it ends when the button is let go
-    std::string note;
     rv_editor_scene_camera camera;
     bool gizmo_dragging = false;
     int gizmo_axis = -1;
@@ -266,6 +264,8 @@ enum class rv_editor_pane_request_kind {
     profile_apply,         // profile: the edited form, for the active profile
     profile_apply_restart, // profile: as profile_apply, then the session restarts
     texture_bake,          // name: the texture's plan name, path: its png
+    scene_move,            // name: the object's id, parent, keep_world
+    dismiss_scene_note,    // the move refusal's note
 };
 
 struct rv_editor_pane_request {
@@ -276,6 +276,8 @@ struct rv_editor_pane_request {
     // The chosen variant, e.g. the case result; the count of results: none chosen.
     size_t choice = static_cast<size_t>(rv_editor_case_result_kind::count);
     rv_editor_run_profile profile = {}; // the edited profile a profile_apply carries; last: aggregates above stay positional
+    std::string parent = {};            // scene_move: the object it goes under (empty: the root)
+    bool keep_world = true;             // scene_move: keep where it is in the scene
 };
 
 } // namespace rv_editor

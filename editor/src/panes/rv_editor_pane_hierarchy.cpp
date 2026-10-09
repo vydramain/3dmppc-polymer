@@ -10,8 +10,6 @@
 
 #include "imgui.h"
 
-#include "pdk/rv_err.h"
-
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -33,14 +31,33 @@ const char *rv_editor_scene_kind_label(const std::string &kind)
     return kind == kind_mesh ? "box" : kind.c_str();
 }
 
+// Asks the app to move the object under parent (empty: the root); the app's frame runs it.
 void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const std::string &parent, bool keep_world)
 {
-    std::string why;
-    const int err = rv_editor_scene_reparent(*app.scene, id, parent, keep_world, why);
-    if (err == RV_OK) {
-        app.scene_ui.note = std::string();
-    } else {
-        app.scene_ui.note = rv_editor_text_format("pane_hierarchy.not_moved", std::make_format_args(why));
+    const rv_editor_pane_request request = {
+        .kind = rv_editor_pane_request_kind::scene_move,
+        .name = id,
+        .parent = parent,
+        .keep_world = keep_world,
+    };
+    (void)rv_editor_app_request(app, request);
+}
+
+// The last move's refusal, with a Dismiss button that asks the app to clear it.
+void rv_editor_hierarchy_note(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    if (app.scene_move_note.empty()) {
+        return;
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
+    ImGui::TextWrapped("%s", app.scene_move_note.c_str());
+    ImGui::PopStyleColor();
+    const bool dismiss_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note);
+    const char *dismiss_why = dismiss_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
+    const bool dismiss_clicked =
+        rv_editor_button(rv_editor_text("findings.dismiss"), theme, { rv_editor_look::live, dismiss_why });
+    if (dismiss_clicked) {
+        (void)rv_editor_app_request(app, { .kind = rv_editor_pane_request_kind::dismiss_scene_note });
     }
 }
 
@@ -187,11 +204,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
 
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
-        if (!app.scene_ui.note.empty()) {
-            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
-            ImGui::TextWrapped("%s", app.scene_ui.note.c_str());
-            ImGui::PopStyleColor();
-        }
+        rv_editor_hierarchy_note(app, theme);
         for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
             // Roots, and objects whose parent is missing, which the tree would otherwise hide.
             const std::string &parent = doc.scene.objects[i].parent;

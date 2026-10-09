@@ -93,6 +93,18 @@ int rv_editor_request_dismiss_findings_error(rv_editor_app &app, const rv_editor
     return rv_editor_app_findings_dismiss_error(app);
 }
 
+int rv_editor_request_scene_move(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_scene_move(app, request.name, request.parent, request.keep_world);
+}
+
+// Dismiss clears scene_move_note; the Hierarchy pane only draws it.
+int rv_editor_request_dismiss_scene_note(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    app.scene_move_note.clear();
+    return RV_OK;
+}
+
 int rv_editor_request_observe_read(rv_editor_app &app, const rv_editor_pane_request &)
 {
     return rv_editor_app_observe_read(app);
@@ -262,6 +274,8 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::profile_apply, rv_editor_request_profile_apply, "profile apply" },
     { rv_editor_pane_request_kind::profile_apply_restart, rv_editor_request_profile_apply_restart, "profile apply restart" },
     { rv_editor_pane_request_kind::texture_bake, rv_editor_request_texture_bake, "texture bake" },
+    { rv_editor_pane_request_kind::scene_move, rv_editor_request_scene_move, "scene move" },
+    { rv_editor_pane_request_kind::dismiss_scene_note, rv_editor_request_dismiss_scene_note, "dismiss scene note" },
 };
 
 // Named in the log when a kind has no table row.
