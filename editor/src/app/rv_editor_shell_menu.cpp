@@ -209,8 +209,13 @@ void rv_editor_menu_project(rv_editor_shell &shell)
             rv_editor_app_why_not_build(app))) {
         rv_editor_app_build(app);
     }
+    const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
     const bool can_cancel = app.build.state() == rv_editor_build_state::building;
-    const char *why_not_cancel = can_cancel ? nullptr : rv_editor_text("shell_menu.why_no_build");
+    const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
+    const char *why_not_cancel = cancel_pending ? rv_editor_text("app_why_not.cancel_pending") :
+        can_cancel                              ? nullptr :
+        cancelling                              ? rv_editor_text("panes.already_cancelling") :
+                                                  rv_editor_text("shell_menu.why_no_build");
     if (rv_editor_menu_item(rv_editor_text("shell_menu.cancel_build"), nullptr, why_not_cancel)) {
         rv_editor_app_build_cancel(app);
     }
