@@ -74,9 +74,32 @@ rv_cl *rv_3dmppc::rv_pconsole::cl()
     return reinterpret_cast<rv_cl *>(cl_.get());
 }
 
-bool rv_3dmppc::rv_pconsole::ready() const
+int rv_3dmppc::rv_pconsole::check_ready() const
 {
-    return ca_->valid() && cd_->valid() && cio_->valid() && cm_->valid() && cv_->valid() && cl_->valid();
+    // The reason a controller is not usable was logged by its constructor; this names
+    // which one refused the start. The first one in this order is the one reported.
+    // code: what the refusal means. Memory reservations fail with RV_ERR_NOMEM; the card
+    // image is a file the console reads, so a bad one is a device failure, RV_ERR_IO.
+    struct slot_check {
+        const char *name;
+        bool valid;
+        int code;
+    };
+    const slot_check slots[] = {
+        { "ca", ca_->valid(), RV_ERR_NOMEM },
+        { "cd", cd_->valid(), RV_ERR_NOMEM },
+        { "cio", cio_->valid(), RV_ERR_NOMEM },
+        { "cm", cm_->valid(), RV_ERR_IO },
+        { "cv", cv_->valid(), RV_ERR_NOMEM },
+        { "cl", cl_->valid(), RV_ERR_NOMEM },
+    };
+    for (const auto &slot : slots) {
+        if (!slot.valid) {
+            RV_LOG_ERR("pconsole", "controller '{}' is not usable, the console does not start", slot.name);
+            return slot.code;
+        }
+    }
+    return RV_OK;
 }
 
 // --- C contract (pdk/rv_pdko.h) ----------------------------------------------

@@ -221,7 +221,7 @@ int rv_pboot_run(int argc, char **argv)
     // std::vectors, so a budget that passed that check can still fail here,
     // and it fails by throwing rather than by returning an error. Catching
     // std::exception here turns that throw into the same ordinary refusal
-    // the ready() check below produces for the vmem's error path: a
+    // the check_ready() call below produces for the vmem's error path: a
     // diagnostic and exit code, not std::terminate/SIGABRT.
     try {
         console.emplace(conf, *platform, args.disc_path != nullptr ? &loader : nullptr);
@@ -235,9 +235,10 @@ int rv_pboot_run(int argc, char **argv)
 
     // The reservation can still refuse what the resource check already
     // accepted: an address-space reservation is allowed to fail even when the
-    // budget looked fine on paper. The controllers have already logged which
-    // memory and how many bytes; this only names what is being refused.
-    if (!console->ready()) {
+    // budget looked fine on paper. check_ready() logs the controller that refused
+    // and its constructor logged why; this line only names what is being refused.
+    const int ready_rc = console->check_ready();
+    if (ready_rc != RV_OK) {
         rv_console_print_error(std::format("refusing to boot '{}'",
             args.disc_path != nullptr ? rv_pdklib::rv_log_escape(args.disc_path) : "built-in disc"));
         return 1;

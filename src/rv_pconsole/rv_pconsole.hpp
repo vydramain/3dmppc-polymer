@@ -260,15 +260,14 @@ public:
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
-    // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and
-    // cl_. A budget the boot budget check accepted can still fail to
-    // materialise in the constructor - an address-space reservation is allowed to
-    // refuse, and so is the card's backing image. cl_ needs no
-    // special-casing: rv_pccl::valid() already treats "scripting was never
-    // asked for" as true, so this stays a plain conjunction. False means the
-    // machine did not provide what the disc declared, and the run must not
-    // start.
-    bool ready() const;
+    // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and cl_. A budget the
+    // boot budget check accepted can still fail to materialise in the constructor.
+    // cl_ needs no special case: rv_pccl::valid() is true when scripting was never
+    // asked for. RV_OK, or that controller's code after logging the first one that is
+    // not usable: RV_ERR_NOMEM for memory it could not reserve, RV_ERR_IO for cm, whose
+    // card image is a file that is unreadable or has refused geometry. The machine did
+    // not provide what the disc declared and the run must not start.
+    int check_ready() const;
 };
 
 } // namespace rv_3dmppc
