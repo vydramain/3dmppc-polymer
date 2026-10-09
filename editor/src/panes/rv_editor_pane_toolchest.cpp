@@ -3,11 +3,13 @@
 
 #include "panes/rv_editor_panes.hpp"
 
+#include <limits>
 #include <string>
 
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -17,13 +19,30 @@ namespace rv_editor
 namespace
 {
 
+// The draft of the Toolchest's one field; the add_mark request takes a copy of it.
+char mark_draft[mark_note_field_size] = {};
+// The marks count when a mark request took the draft; the draft clears once that request has run and
+// the count grew. no_mark_sent: nothing is waiting.
+constexpr size_t no_mark_sent = std::numeric_limits<size_t>::max();
+size_t mark_count_at_send = no_mark_sent;
+
 void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_session &s = app.session;
     const char *no_session = s.live() ? nullptr : rv_editor_text("pane_toolchest.no_session");
+    const bool mark_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::add_mark);
+    const bool mark_done = mark_count_at_send != no_mark_sent && !mark_pending;
+    // A refused mark (the app logged why) leaves the draft for another try.
+    if (mark_done && app.marks.size() > mark_count_at_send) {
+        mark_draft[0] = '\0';
+    }
+    if (mark_done) {
+        mark_count_at_send = no_mark_sent;
+    }
+    const char *mark_why = mark_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
     ImGui::SetNextItemWidth(-1.0f);
-    rv_editor_text_field("##mark_note", app.mark_note, sizeof(app.mark_note), theme);
-    if (app.mark_note[0] == '\0' && !ImGui::IsItemActive()) {
+    rv_editor_text_field("##mark_note", mark_draft, sizeof(mark_draft), theme, { {}, mark_pending });
+    if (mark_draft[0] == '\0' && !ImGui::IsItemActive()) {
         const ImVec2 min = ImGui::GetItemRectMin();
         const ImVec2 pad = ImGui::GetStyle().FramePadding;
         ImGui::GetWindowDrawList()->AddText(ImVec2(min.x + pad.x, min.y + pad.y),
@@ -36,49 +55,37 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             rv_editor_text("pane_toolchest.mark_tooltip"),
             nullptr,
             theme,
-            { rv_editor_look::live, no_session })) {
-        const auto frame_number = s.frame();
-        const std::string note(app.mark_note);
-        std::string mark;
-        if (app.mark_note[0] == '\0') {
-            mark = rv_editor_text_format("pane_toolchest.mark_text_no_note", std::make_format_args(frame_number));
-        } else {
-            mark = rv_editor_text_format("pane_toolchest.mark_text", std::make_format_args(frame_number, note));
+            { rv_editor_look::live, mark_why })) {
+        const rv_editor_pane_request request = { rv_editor_pane_request_kind::add_mark, rv_editor_tile_none, {}, mark_draft };
+        if (rv_editor_app_request(app, request) == RV_OK) {
+            mark_count_at_send = app.marks.size();
         }
-        app.marks.push_back(mark);
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::info,
-            "mark " + std::to_string(app.marks.size()) + " of session #" + std::to_string(s.number()) + ", " + mark);
-        app.mark_note[0] = '\0';
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_toolchest.capture_button")));
+    const bool capture_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::capture_frame);
+    const char *capture_why = capture_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
     if (rv_editor_tool_button(rv_editor_text("pane_toolchest.capture_button"),
             rv_editor_glyph::capture_frame,
             theme.code_blue,
             rv_editor_text("pane_toolchest.capture_tooltip"),
             nullptr,
             theme,
-            { rv_editor_look::live, no_session })) {
-        (void)rv_editor_app_capture_frame(app);
+            { rv_editor_look::live, capture_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::capture_frame });
     }
     // The moment is kept before the form is: a frame, the keyboard back, then Findings.
     const char *no_report = s.number() != 0 ? nullptr : rv_editor_text("pane_toolchest.no_report");
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_toolchest.report_button")));
+    const bool report_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::report_problem);
+    const char *report_why = report_pending ? rv_editor_text("app_why_not.request_pending") : no_report;
     if (rv_editor_tool_button(rv_editor_text("pane_toolchest.report_button"),
             rv_editor_glyph::report_issue,
             theme.code_red,
             rv_editor_text("pane_toolchest.report_tooltip"),
             nullptr,
             theme,
-            { rv_editor_look::live, no_report })) {
-        if (s.live()) {
-            (void)rv_editor_app_capture_frame(app);
-        }
-        app.game_captured = false;
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::info,
-            "issue reported at frame " + std::to_string(s.frame()) + " of session #" + std::to_string(s.number()));
-        app.show_request = rv_editor_pane_kind::findings;
+            { rv_editor_look::live, report_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::report_problem });
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_toolchest.restart_button")));
     // A restart in progress says so in place of the no-session reason.

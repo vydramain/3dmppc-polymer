@@ -92,7 +92,6 @@ struct rv_editor_app {
     // "frame 812: the door opens late".
     std::string session_profile;
     std::vector<std::string> marks;
-    char mark_note[mark_note_field_size] = {};
     // The first log line of the latest build job, for its diagnostics.
     uint64_t build_first_seq = 0;
     // What that job's lines name, re-read when the log changes; and when the job ended.
