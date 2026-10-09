@@ -8,6 +8,7 @@
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "lua.hpp"
@@ -70,7 +71,13 @@ int64_t rv_pccl_luajit::reload_entry_bytes_(const void *bytecode, int64_t size, 
     // about to give `state` itself back, not just the running code.
     const int64_t shaped = capture_state_shape_(/*initial=*/false, report);
     if (shaped < 0) {
-        restore_state_(snapshot);
+        std::string restore_error;
+        if (restore_state_(snapshot, restore_error) != RV_OK) {
+            RV_LOG_ERR("pccl", "state not restored after a refused reload, console must stop: {}", restore_error);
+            report.effects_possible = true;
+            report.console_must_stop = true;
+            report.message += "; the state was not restored (" + restore_error + "), the console is stopping";
+        }
         luaL_unref(L_, LUA_REGISTRYINDEX, candidate);
         return shaped;
     }

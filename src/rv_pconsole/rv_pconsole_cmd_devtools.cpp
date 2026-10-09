@@ -89,10 +89,13 @@ void rv_3dmppc::rv_pconsole::cmd_service()
         cmd_dispatch(req);
         // A step SUSPENDS the queue. Draining on would collapse three step
         // requests into one frame, and would answer a status for a frame that
-        // has not happened yet.
-        if (step_reply_id_ >= 0 || quit_by_command_) {
+        // has not happened yet. A refused state put-back ends it: nothing runs on a bad state.
+        if (step_reply_id_ >= 0 || quit_by_command_ || console_must_stop_) {
             break;
         }
+    }
+    if (console_must_stop_) {
+        cmd_refuse_pending();
     }
 }
 
@@ -338,7 +341,11 @@ void rv_3dmppc::rv_pconsole::cmd_reload(const rv_pccmdreq &req)
     }
 
     if (rc < 0) {
+        // The refusal is answered first; the loop stops before its next frame.
         cmd_->reply(rv_pccmd_err(req.id, report.phase, rc, report.effects_possible, report.message));
+        if (report.console_must_stop) {
+            console_must_stop_ = true;
+        }
         return;
     }
 
@@ -378,6 +385,9 @@ void rv_3dmppc::rv_pconsole::cmd_reload_module(const rv_pccmdreq &req)
 
     if (rc < 0) {
         cmd_->reply(rv_pccmd_err(req.id, report.phase, rc, report.effects_possible, report.message));
+        if (report.console_must_stop) {
+            console_must_stop_ = true;
+        }
         return;
     }
 

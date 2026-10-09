@@ -190,7 +190,7 @@ struct snapshot_args {
 struct restore_args {
     rv_pccl_luajit *self = nullptr;
     int snapshot_ref = 0;
-    bool ok = false;
+    int rc = RV_OK; // mirror_table_'s result, set by the trampoline
 };
 
 } // namespace
@@ -262,7 +262,7 @@ int rv_pccl_luajit::state_restore_trampoline_(lua_State *L)
     const int src_idx = lua_gettop(L);
 
     int nodes = 0;
-    args->ok = mirror_table_(L, dst_idx, src_idx, nodes, 0) == RV_OK;
+    args->rc = mirror_table_(L, dst_idx, src_idx, nodes, 0);
     lua_pop(L, 2); // src, dst
     return 0;
 }
@@ -271,25 +271,33 @@ int rv_pccl_luajit::state_restore_trampoline_(lua_State *L)
 // candidate's body wrote into `state` is gone, and the live table reads
 // again as it did the moment before raise_ ran that body - which is what
 // lets the old code keep going with its data intact instead of merely
-// keeping its bytecode. The snapshot ref is released either way; a restore
-// that cannot itself finish (an allocation failure partway through
-// repopulating an already-emptied table) is the one shape of loss this
-// cannot promise against, the same limit every other console-side walk over
-// the script heap already lives with.
-void rv_pccl_luajit::restore_state_(int snapshot_ref)
+// keeping its bytecode. The snapshot ref is released either way. A restore
+// that cannot finish leaves `state` half-filled; that is reported to the
+// caller, which decides it is fatal.
+int rv_pccl_luajit::restore_state_(int snapshot_ref, std::string &error)
 {
     [[maybe_unused]] const int top = lua_gettop(L_);
     restore_args args;
     args.self = this;
     args.snapshot_ref = snapshot_ref;
-    if (protected_call_(state_restore_trampoline_, &args) != 0) {
+    int rc = RV_OK;
+    const int status = protected_call_(state_restore_trampoline_, &args);
+    if (status == LUA_ERRMEM) {
         lua_pop(L_, 1);
-        RV_LOG_ERR("pccl", "state rollback ran out of script heap partway through; state may be incomplete");
-    } else if (!args.ok) {
-        RV_LOG_ERR("pccl", "state rollback stopped at its own depth/node bound; state may be incomplete");
+        rc = RV_ERR_NOMEM;
+        error = "the script heap ran out partway through the state rollback";
+    } else if (status != 0) {
+        const char *msg = lua_tostring(L_, -1);
+        error = std::string("the state rollback raised a Lua error: ") + (msg != nullptr ? msg : "(no message)");
+        lua_pop(L_, 1);
+        rc = RV_ERR_INVAL;
+    } else if (args.rc != RV_OK) {
+        rc = args.rc;
+        error = "the state rollback stopped at its depth/node bound";
     }
     assert(lua_gettop(L_) == top);
     luaL_unref(L_, LUA_REGISTRYINDEX, snapshot_ref);
+    return rc;
 }
 
 } // namespace rv_3dmppc

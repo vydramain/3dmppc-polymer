@@ -60,7 +60,8 @@ struct rv_pccl_key {
 // code has never heard of is already allocated. A write into `state` itself
 // is the one exception - a shape refusal specifically means the console has
 // already put `state` back the way it was before that body ran (see
-// rv_pccl_luajit's snapshot_state_/restore_state_) - but this flag stays
+// rv_pccl_luajit's snapshot_state_/restore_state_), unless console_must_stop
+// says that put-back itself failed - but this flag stays
 // conservative anyway, because it cannot tell that refusal apart from any
 // other by the time it is set. The contract is therefore "atomic in code,
 // effects on state undone on a shape refusal, nothing else promised", and
@@ -70,6 +71,9 @@ struct rv_pccl_reload_report {
     bool effects_possible = false;
     std::string message;
     uint64_t hash = 0; // FNV-1a of the bytes now running; set on a successful reload
+    // Set when a refused reload could not give `state` back: the live state no
+    // longer matches what the running code expects, so the console must stop.
+    bool console_must_stop = false;
 };
 
 class rv_pccl

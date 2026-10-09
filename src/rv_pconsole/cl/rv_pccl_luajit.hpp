@@ -232,8 +232,12 @@ private:
     // entry_env_ref_'s `state` field, keeps pointing at a live table) and
     // refills it from `snapshot_ref`, then releases that ref. Called only
     // when a reload candidate's shape capture refused - the one case where
-    // whatever the candidate's body wrote to state must not survive it.
-    void restore_state_(int snapshot_ref);
+    // whatever the candidate's body wrote to state must not survive it. The
+    // snapshot ref is released either way. Returns RV_OK when state again equals
+    // the snapshot; RV_ERR_NOMEM when the script heap ran out (LUA_ERRMEM);
+    // RV_ERR_INVAL for any other Lua error raised by the copy or for hitting the
+    // depth/node bound. On each failure state is half-filled. `error` gets the reason.
+    int restore_state_(int snapshot_ref, std::string &error);
     static int state_restore_trampoline_(lua_State *L);
 
     // The path walk, run under lua_pcall for the same reason: looking a key up

@@ -406,6 +406,14 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
             break;
         }
 
+        // Checked here, before run_frame: a frame on a state the console can no longer vouch for is not run.
+        if (console_must_stop_) {
+            RV_LOG_ERR("pconsole",
+                "stopping after {} frame(s): the script state was not restored after a refused reload",
+                frames_);
+            break;
+        }
+
         if (run_hold_paused(run)) {
             continue;
         }
@@ -434,6 +442,10 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     // refused dump is returned only once the answer has gone out.
     const int dumped = params_.dump_frame_path.empty() ? RV_OK : run_dump_frame();
     run_release_channel();
+    // A failed put-back outranks a refused dump: the state is the bigger problem.
+    if (console_must_stop_) {
+        return RV_ERR_IO;
+    }
     if (dumped != RV_OK) {
         return dumped;
     }

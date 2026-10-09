@@ -120,6 +120,10 @@ private:
 
     uint64_t frames_ = 0;
     bool quit_by_command_ = false;
+    // A reload was refused AND its put-back of the script state failed, so the
+    // live state is not what the running code expects. Set by the reload command,
+    // checked once per frame boundary; the run ends with RV_ERR_IO.
+    bool console_must_stop_ = false;
     // Move the channel along and execute whatever arrived, on the frame
     // boundary and nowhere else: at that point no script call is in flight and
     // the lua stack is at its base, which is what makes a code swap safe. Pause
@@ -214,6 +218,8 @@ private:
     // about it as an event.
     void cmd_note_pause();
     void cmd_dispatch(const rv_pccmdreq &req);
+    // Answers every request still queued with a refusal once console_must_stop_ is set.
+    void cmd_refuse_pending();
     void cmd_status(int64_t id);
     void cmd_reload(const rv_pccmdreq &req);
     void cmd_reload_module(const rv_pccmdreq &req);
@@ -248,9 +254,9 @@ public:
     //
     // Returns RV_OK when the run ends normally (the disc asked to stop, the
     // frame budget ran out, or the user powered the machine off), a negative
-    // rv_err if the disc refused to initialize, or the rv_err of a requested
-    // frame dump that failed. A display that would not come up is a warning,
-    // not a stop.
+    // rv_err if the disc refused to initialize, RV_ERR_IO if a refused reload left
+    // the script state unrestored, or the rv_err of a requested frame dump that
+    // failed. A display that would not come up is a warning, not a stop.
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into

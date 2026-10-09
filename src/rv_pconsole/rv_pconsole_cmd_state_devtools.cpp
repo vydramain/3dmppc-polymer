@@ -194,3 +194,17 @@ void rv_3dmppc::rv_pconsole::cmd_keys(const rv_pccmdreq &req)
 
     cmd_->reply(std::format("{}{} keys={}", prefix, shown, list));
 }
+
+void rv_3dmppc::rv_pconsole::cmd_refuse_pending()
+{
+    // The console stops after this frame boundary, so each queued request gets its own
+    // refusal here: a client never waits for an answer that will not come.
+    rv_pccmdreq req;
+    while (cmd_->next_request(req)) {
+        cmd_->reply(rv_pccmd_err(req.id,
+            "console_stopped",
+            RV_ERR_IO,
+            false,
+            "the script state was not restored; the console is stopping"));
+    }
+}
