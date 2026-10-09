@@ -195,8 +195,16 @@ bool rv_editor_app_can_reload(const rv_editor_app &app);
 rv_editor_change_plan rv_editor_app_change_for(const rv_editor_app &app, const std::filesystem::path &file);
 // Reload On Save: `changed` joins the queue when its plan is reload_entry/reload_module.
 void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::path &changed);
-// Once a frame: sends the next queued reload once it has settled and the last answered.
-void rv_editor_app_reload_queue_update(rv_editor_app &app);
+// Reload On Save steps, asked for by rv_editor_app_update (questions there). Drop: no live session
+// takes the queue, so it goes; nothing can refuse it.
+void rv_editor_app_reload_queue_drop(rv_editor_app &app);
+// Question: the settle wait has passed (reload_due is set and reached).
+bool rv_editor_app_reload_due(const rv_editor_app &app);
+// Question: the session can reload its entry now and no texture bake runs.
+bool rv_editor_app_can_reload_now(const rv_editor_app &app);
+// Sends the oldest queued file. RV_OK; RV_ERR_INVAL when the queue is empty; RV_ERR_BUSY when a
+// reload cannot go now. Both refusals are logged; the queue is kept.
+int rv_editor_app_reload_queue_send(rv_editor_app &app);
 
 // Texture bake (editor/src/app/rv_editor_app_texture.cpp): a refresh_texture reload
 // bakes the changed PNG with the burner before sending it, one bake at a time,

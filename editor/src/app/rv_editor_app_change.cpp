@@ -90,8 +90,7 @@ void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &
 
 void rv_editor_app_reload(rv_editor_app &app)
 {
-    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr ||
-        rv_editor_app_texture_bake_busy(app)) {
+    if (!rv_editor_app_can_reload_now(app)) {
         return;
     }
     rv_editor_app_reload_send(app, app.code_file);
@@ -111,25 +110,35 @@ void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::
     app.reload_due = std::chrono::steady_clock::now() + reload_delay;
 }
 
-void rv_editor_app_reload_queue_update(rv_editor_app &app)
+// A queue left over from a session that ended is dropped; nothing can refuse it, so it returns nothing.
+void rv_editor_app_reload_queue_drop(rv_editor_app &app)
 {
-    // No live session to receive it: drop a queue left over from the one before.
-    if (!app.session.live()) {
-        app.reload_queue.clear();
-        app.reload_due = {};
-        return;
-    }
+    app.reload_queue.clear();
+    app.reload_due = {};
+}
+
+// Zero reload_due means none is due.
+bool rv_editor_app_reload_due(const rv_editor_app &app)
+{
+    return app.reload_due != std::chrono::steady_clock::time_point{} && std::chrono::steady_clock::now() >= app.reload_due;
+}
+
+// Refusals (not running or paused, a packed medium, a reload or bake already out) keep the queue whole.
+bool rv_editor_app_can_reload_now(const rv_editor_app &app)
+{
+    return rv_editor_app_can_reload(app) && rv_editor_app_why_not_reload(app) == nullptr &&
+        !rv_editor_app_texture_bake_busy(app);
+}
+
+int rv_editor_app_reload_queue_send(rv_editor_app &app)
+{
     if (app.reload_queue.empty()) {
-        return;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "reload queue is empty: nothing to send");
+        return RV_ERR_INVAL;
     }
-    if (app.reload_due == std::chrono::steady_clock::time_point{} || std::chrono::steady_clock::now() < app.reload_due) {
-        return;
-    }
-    // The gate refuses (not running/paused, a packed medium, a reload or bake
-    // already out): the queue waits whole, nothing is dropped.
-    if (!rv_editor_app_can_reload(app) || rv_editor_app_why_not_reload(app) != nullptr ||
-        rv_editor_app_texture_bake_busy(app)) {
-        return;
+    if (!rv_editor_app_can_reload_now(app)) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "reload waits: the session cannot take it now");
+        return RV_ERR_BUSY;
     }
     const std::filesystem::path file = app.reload_queue.front();
     app.reload_queue.erase(app.reload_queue.begin());
@@ -137,6 +146,7 @@ void rv_editor_app_reload_queue_update(rv_editor_app &app)
         app.reload_due = {};
     }
     rv_editor_app_reload_send(app, file);
+    return RV_OK;
 }
 
 int rv_editor_app_build_restart(rv_editor_app &app)

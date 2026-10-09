@@ -105,6 +105,25 @@ void rv_editor_app_update_texture_bake(rv_editor_app &app)
     (void)rv_editor_app_texture_bake_send(app);
 }
 
+// Reload On Save: the queue's oldest file goes out once it has settled and the session can take it.
+void rv_editor_app_update_reload_queue(rv_editor_app &app)
+{
+    if (!app.session.live()) {
+        rv_editor_app_reload_queue_drop(app);
+        return;
+    }
+    if (app.reload_queue.empty()) {
+        return;
+    }
+    if (!rv_editor_app_reload_due(app)) {
+        return;
+    }
+    if (!rv_editor_app_can_reload_now(app)) {
+        return;
+    }
+    (void)rv_editor_app_reload_queue_send(app);
+}
+
 // Detects if a line is from the last build's output or a candidate being built.
 bool rv_editor_app_line_from_latest_build(const rv_editor_log_line &line, uint64_t build_first_seq)
 {
@@ -206,7 +225,7 @@ void rv_editor_app_update(rv_editor_app &app)
     }
     rv_editor_app_build_restart_update(app, build_ended);
     rv_editor_app_update_texture_bake(app);
-    rv_editor_app_reload_queue_update(app);
+    rv_editor_app_update_reload_queue(app);
 }
 
 } // namespace rv_editor
