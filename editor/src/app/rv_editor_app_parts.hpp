@@ -248,6 +248,7 @@ enum class rv_editor_pane_request_kind {
     stop,
     force_stop,
     restart,
+    cancel_build,
 };
 
 struct rv_editor_pane_request {

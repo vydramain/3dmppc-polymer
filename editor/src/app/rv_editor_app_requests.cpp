@@ -28,6 +28,7 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::stop, rv_editor_app_stop, "stop" },
     { rv_editor_pane_request_kind::force_stop, rv_editor_app_force_stop, "force stop" },
     { rv_editor_pane_request_kind::restart, rv_editor_app_restart, "restart" },
+    { rv_editor_pane_request_kind::cancel_build, rv_editor_app_build_cancel, "cancel build" },
 };
 
 // Named in the log when a kind has no table row.
