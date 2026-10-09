@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <system_error>
 
@@ -55,6 +56,26 @@ const char *rv_editor_files_dialog_title(rv_editor_files_view::rv_editor_files_d
     default:
         return "";
     }
+}
+
+struct rv_editor_files_request_row {
+    rv_editor_files_view::rv_editor_files_dialog dialog;
+    rv_editor_pane_request_kind kind;
+};
+
+// The request a dialog's confirm leaves for the app.
+constexpr rv_editor_files_request_row files_request_rows[] = {
+    { rv_editor_files_view::rv_editor_files_dialog::new_file, rv_editor_pane_request_kind::create_file },
+    { rv_editor_files_view::rv_editor_files_dialog::new_dir, rv_editor_pane_request_kind::create_dir },
+    { rv_editor_files_view::rv_editor_files_dialog::rename, rv_editor_pane_request_kind::rename },
+    { rv_editor_files_view::rv_editor_files_dialog::remove, rv_editor_pane_request_kind::remove },
+};
+
+// The row of a dialog's request; nullptr for none and for a dialog without a row.
+const rv_editor_files_request_row *rv_editor_files_request_find(rv_editor_files_view::rv_editor_files_dialog dialog)
+{
+    const auto row = std::ranges::find(files_request_rows, dialog, &rv_editor_files_request_row::dialog);
+    return row == std::end(files_request_rows) ? nullptr : row;
 }
 
 // The directory a new entry goes into: the selection when it is a directory,
@@ -254,14 +275,29 @@ void rv_editor_files_node(rv_editor_app &app, rv_editor_files_view &view, rv_edi
     ImGui::PopID();
 }
 
-void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, const rv_editor_theme &theme)
+void rv_editor_files_dialog(rv_editor_app &app,
+    rv_editor_pane_id pane,
+    rv_editor_files_view &view,
+    const rv_editor_theme &theme)
 {
     using dialog_kind = rv_editor_files_view::rv_editor_files_dialog;
     if (view.dialog == dialog_kind::none) {
         return;
     }
+    const rv_editor_files_request_row *row = rv_editor_files_request_find(view.dialog);
+    if (row == nullptr) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "files dialog without a request closed: impossible call");
+        view.dialog = dialog_kind::none;
+        return;
+    }
     rv_editor_ask_begin(rv_editor_files_dialog_title(view.dialog), theme);
 
+    // While the dialog's request waits or runs, its confirm, name field and Cancel say so;
+    // the app closes the dialog on success.
+    const char *running_why =
+        rv_editor_app_request_pending(app, row->kind) ? rv_editor_text("app_why_not.files_pending") : nullptr;
     const std::string what = view.target.filename().string();
     bool confirm = false;
     if (view.dialog == dialog_kind::remove) {
@@ -286,6 +322,7 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
         const std::string target_path = (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).string();
         ImGui::Text("%s in %s", label, target_path.c_str());
         rv_editor_field field;
+        field.state = { rv_editor_look::live, running_why };
         field.invalid = view.error.empty() ? nullptr : view.error.c_str();
         if (view.opening) {
             ImGui::SetKeyboardFocusHere();
@@ -301,36 +338,14 @@ void rv_editor_files_dialog(rv_editor_app &app, rv_editor_files_view &view, cons
     const char *delete_btn = rv_editor_text("pane_files.delete_button");
     const char *ok_btn = rv_editor_text("pane_files.ok_button");
     const char *confirm_button_text = view.dialog == dialog_kind::remove ? delete_btn : ok_btn;
-    confirm = rv_editor_button(confirm_button_text, theme) || confirm;
+    confirm = rv_editor_button(confirm_button_text, theme, { rv_editor_look::live, running_why }) || confirm;
     ImGui::SameLine();
-    const bool cancel = rv_editor_button(rv_editor_text("pane_files.cancel_button"), theme);
+    const bool cancel =
+        rv_editor_button(rv_editor_text("pane_files.cancel_button"), theme, { rv_editor_look::live, running_why });
 
-    if (confirm) {
-        bool ok = false;
-        const std::string name = view.name;
-        switch (view.dialog) {
-        case dialog_kind::new_file:
-            ok = (app.files.create_file(view.target, name, view.error) == RV_OK);
-            break;
-        case dialog_kind::new_dir:
-            ok = (app.files.create_dir(view.target, name, view.error) == RV_OK);
-            break;
-        case dialog_kind::rename:
-            ok = (rv_editor_app_rename(app, view.target, name, view.error) == RV_OK);
-            break;
-        case dialog_kind::remove:
-            ok = (rv_editor_app_remove(app, view.target, view.error) == RV_OK);
-            break;
-        default:
-            break;
-        }
-        if (ok) {
-            if (view.dialog == dialog_kind::new_file) {
-                app.files.selected = view.target / name;
-                app.open_requests.push_back({ view.target / name, 0 });
-            }
-            view.dialog = dialog_kind::none;
-        }
+    if (confirm && running_why == nullptr) {
+        // The app runs the request on the next frame and writes the outcome into this view.
+        (void)rv_editor_app_request(app, { row->kind, pane, view.target, std::string(view.name) });
     } else if (cancel) {
         view.dialog = dialog_kind::none;
     }
@@ -353,6 +368,10 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
     const rv_editor_state need_sel = has_sel ? rv_editor_state{} : rv_editor_state{ rv_editor_look::live, select_hint };
     // Square buttons, a coloured code each until the icons are drawn.
     const float side = ImGui::GetFrameHeight();
+    // A refresh waiting for the next frame blocks Refresh, saying so.
+    const bool refresh_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::refresh_files);
+    const rv_editor_state refresh_state{ rv_editor_look::live,
+        refresh_pending ? rv_editor_text("app_why_not.files_pending") : nullptr };
     rv_editor_shelf_begin("##shelf", theme);
     if (rv_editor_letter_button("##new_file",
             rv_editor_glyph::new_,
@@ -392,12 +411,13 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
             rv_editor_glyph::refresh,
             rv_editor_mocha_teal,
             rv_editor_text("pane_files.button_refresh"),
-            theme)) {
-        app.files.refresh();
+            theme,
+            refresh_state)) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::refresh_files, pane });
     }
     rv_editor_shelf_end();
 
-    rv_editor_files_dialog(app, view, theme);
+    rv_editor_files_dialog(app, pane, view, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     rv_editor_scroll_begin("##tree", ImVec2(0, 0), true);
     rv_editor_files_node(app, view, app.files.root());
