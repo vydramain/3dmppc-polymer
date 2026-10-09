@@ -403,4 +403,27 @@ void rv_editor_shell_game_input(rv_editor_shell &shell)
     shell.pad_refusal_reported = refused;
 }
 
+int rv_editor_shell_pace_apply(rv_editor_shell &shell)
+{
+    const bool set = SDL_SetRenderVSync(shell.renderer, shell.pace.vsync ? 1 : 0);
+    const std::string set_error = set ? std::string() : SDL_GetError();
+    // The window's own answer is what counts: vsync is active only when SDL reports it on.
+    int on = 0;
+    const bool read = SDL_GetRenderVSync(shell.renderer, &on);
+    shell.vsync_active = read && on != 0;
+    if (!read) {
+        shell.app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "cannot read vsync: " + std::string(SDL_GetError()));
+    }
+    if (!set) {
+        const std::string limit = std::to_string(shell.pace.fps_limit);
+        const std::string text = shell.pace.vsync ?
+            "vsync did not turn on (" + set_error + "); frames are limited to " + limit + " per second" :
+            "vsync did not turn off: " + set_error;
+        shell.app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, text);
+    }
+    return set && read ? RV_OK : RV_ERR_IO;
+}
+
 } // namespace rv_editor

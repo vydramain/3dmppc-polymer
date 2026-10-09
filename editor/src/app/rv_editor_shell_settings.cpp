@@ -14,6 +14,7 @@
 
 #include "pdk/rv_err.h"
 #include "app/rv_editor_shell.hpp"
+#include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_settings.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -193,6 +194,32 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     ImGui::PopID();
 }
 
+// Frame pacing: vsync, or the frame rate limit while it is off. Applied at once, not by Apply;
+// saved with the view settings at exit.
+void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &theme)
+{
+    rv_editor_pace draft = shell.pace;
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
+    ImGui::TextUnformatted(rv_editor_text("shell_settings.pace_title"));
+    ImGui::PopStyleColor();
+    bool changed = ImGui::Checkbox(rv_editor_text("shell_settings.vsync_label"), &draft.vsync);
+    // The field follows what the window runs, not the request.
+    ImGui::BeginDisabled(shell.vsync_active);
+    changed |=
+        ImGui::SliderInt(rv_editor_text("shell_settings.fps_limit_label"), &draft.fps_limit, fps_limit_min, fps_limit_max);
+    ImGui::EndDisabled();
+    const bool refused = shell.pace.vsync && !shell.vsync_active;
+    if (shell.vsync_active || refused) {
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+        ImGui::TextUnformatted(rv_editor_text(refused ? "shell_settings.vsync_refused_note" : "shell_settings.fps_limit_note"));
+        ImGui::PopStyleColor();
+    }
+    if (changed) {
+        shell.pace_request = draft;
+    }
+}
+
 } // namespace
 
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme)
@@ -223,6 +250,8 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme)) {
         shell.settings_loaded = false;
     }
+    ImGui::Separator();
+    rv_editor_settings_pace(shell, theme);
     if (!apply) {
         return;
     }

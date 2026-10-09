@@ -10,11 +10,18 @@
 
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_browser.hpp"
+#include "prefs/rv_editor_prefs.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
 {
+
+// Frame pacing as Settings shows it: vsync, and the frame rate limit that applies while it is off.
+struct rv_editor_pace {
+    bool vsync = true;
+    int fps_limit = fps_limit_default;
+};
 
 // The page the window without a project shows beside its Toolchest.
 enum class rv_editor_start_page {
@@ -119,6 +126,10 @@ struct rv_editor_shell {
     // The UI scale shown, and one View > UI Scale asked for, applied between frames (0: none).
     float ui_scale = 1.0f;
     float ui_scale_request = 0.0f;
+    // The pacing in use, and one Settings change asked for, applied between frames (empty: none).
+    rv_editor_pace pace;
+    bool vsync_active = false; // vsync as SDL reports it on the renderer, read after each rv_editor_shell_pace_apply
+    std::optional<rv_editor_pace> pace_request;
     // Settings' draft: read from the tools when the page first shows and after
     // Apply or Revert, kept while other pages or tabs are in front.
     bool settings_loaded = false;
@@ -284,6 +295,9 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
 void rv_editor_shell_review_tab(rv_editor_shell &shell);
 // File > Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
+// Sets vsync as shell.pace asks on shell.renderer and sets shell.vsync_active from what SDL reports.
+// RV_OK, or RV_ERR_IO; the SDL reason is logged as a warning.
+int rv_editor_shell_pace_apply(rv_editor_shell &shell);
 
 // Once a frame after drawing: sends the Game's keys while a drawn Game tile
 // holds the keyboard of a focused window and a console runs, and every key up

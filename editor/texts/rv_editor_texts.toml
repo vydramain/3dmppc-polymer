@@ -589,6 +589,11 @@ no_dir_tooltip = "No settings directory: set XDG_CONFIG_HOME or HOME"
 apply_button = "Apply"
 revert_button = "Revert"
 settings_desc = "Kept in {}. Applying does not stop a build or a game: they keep the tools they started with."
+pace_title = "Frame pacing"
+vsync_label = "Vsync"
+fps_limit_label = "Frame rate limit per second"
+fps_limit_note = "Not in effect while vsync is on"
+vsync_refused_note = "Vsync did not turn on; the limit is in effect"
 
 [shell_status]
 no_project = "No project: File > Open Project..."

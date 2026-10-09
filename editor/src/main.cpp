@@ -323,13 +323,6 @@ int main(int argc, char **argv)
     // The view the user chose last time: code text size, Game scale, layout, UI scale.
     const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
     const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
-    // The loop waits for no event: without vsync or a cap it would take a whole core.
-    // Set before the too-small screen, which runs the same kind of loop.
-    const bool vsync_set = SDL_SetRenderVSync(renderer, prefs.vsync ? 1 : 0);
-    if (!vsync_set) {
-        std::fprintf(stderr, "3dmppc-editor: SDL_SetRenderVSync: %s\n", SDL_GetError());
-    }
-    const bool vsync_active = prefs.vsync && vsync_set;
 
     // Check if display is large enough (needs 1280x720 at scale 1.0).
     const rv_editor::rv_editor_display_size display_size = rv_editor::rv_editor_get_display_size(window);
@@ -388,11 +381,9 @@ int main(int argc, char **argv)
     shell->renderer = renderer;
     rv_editor::rv_editor_app_init(shell->app);
     shell->ui_scale = theme.scale;
-    if (prefs.vsync && !vsync_active) {
-        shell->app.log.add(rv_editor::rv_editor_log_source::editor,
-            rv_editor::rv_editor_log_level::warning,
-            "vsync did not turn on; frames are limited to " + std::to_string(prefs.fps_limit) + " per second");
-    }
+    // The loop waits for no event: without vsync or a cap it would take a whole core.
+    shell->pace = { prefs.vsync, prefs.fps_limit };
+    (void)rv_editor::rv_editor_shell_pace_apply(*shell);
     rv_editor::rv_editor_shell_load_layouts(*shell, layout_path, prefs.workspace);
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
     shell->app.game_scale = prefs.game_scale;
@@ -435,6 +426,12 @@ int main(int argc, char **argv)
             }
             rv_editor::rv_editor_theme_apply(theme, ImGui::GetStyle());
         }
+        // Settings' vsync and frame rate limit, applied between frames.
+        if (shell->pace_request) {
+            shell->pace = *shell->pace_request;
+            shell->pace_request.reset();
+            (void)rv_editor::rv_editor_shell_pace_apply(*shell);
+        }
         rv_editor::rv_editor_shell_update(*shell);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
@@ -452,8 +449,8 @@ int main(int argc, char **argv)
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
         // Without vsync, the cap is the only pacing: the loop must not spin at CPU speed.
-        if (!vsync_active) {
-            rv_editor_frame_pace(frame_start, prefs.fps_limit);
+        if (!shell->vsync_active) {
+            rv_editor_frame_pace(frame_start, shell->pace.fps_limit);
         }
     }
 
@@ -465,12 +462,14 @@ int main(int argc, char **argv)
     if (!layout_path.empty() && rv_editor::rv_editor_shell_save_layouts(*shell, layout_path, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the layout: %s\n", error.c_str());
     }
+    // A request not applied yet is what the user chose last.
+    const rv_editor::rv_editor_pace pace = shell->pace_request.value_or(shell->pace);
     const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(),
         shell->app.game_scale,
         rv_editor::rv_editor_shell_workspace_key(*shell),
         shell->ui_scale,
-        prefs.vsync,
-        prefs.fps_limit };
+        pace.vsync,
+        pace.fps_limit };
     if (!prefs_path.empty() && rv_editor::rv_editor_prefs_save(prefs_path, chosen, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }
