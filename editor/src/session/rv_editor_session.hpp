@@ -144,6 +144,8 @@ public:
     // same text. RV_OK on success; RV_ERR_BUSY when the runtime is not ready for
     // requests, RV_ERR_IO when send fails. The reason is in error; nothing is logged.
     int query(const std::string &request, rv_editor_log &log, std::string &error);
+    // True while a query() get/keys has no answer yet and is not overdue: the Observe pane blocks on it.
+    bool query_waiting() const;
     // Empty `module`: `reload entry`, the entry script again. Otherwise `reload module
     // <module>`, that required module again, both off the drive the disc runs from.
     // RV_OK on success; RV_ERR_BUSY when the runtime is not ready or a reload is in flight,

@@ -72,6 +72,12 @@ int64_t rv_editor_field_int(const rv_editor_devmsg &msg, std::string_view key, i
     return v;
 }
 
+// True for a `get` or `keys` request: the answers that land in answers() and the Observe pane waits on.
+bool rv_editor_is_query_verb(const std::string &verb)
+{
+    return verb.starts_with(cmd_get_prefix) || verb.starts_with(cmd_keys_prefix) || verb == cmd_keys_exact;
+}
+
 // What a reload-slot verb ("reload entry", "reload module <name>" or
 // "asset <name> bytes <n>") is about; false for any other verb.
 bool rv_editor_parse_reload_verb(const std::string &verb, rv_editor_reload_kind &kind, std::string &target)
@@ -173,6 +179,16 @@ int rv_editor_session::query(const std::string &request, rv_editor_log &log, std
     return RV_OK;
 }
 
+bool rv_editor_session::query_waiting() const
+{
+    for (const auto &entry : pending_) {
+        if (rv_editor_is_query_verb(entry.second.verb) && !entry.second.overdue) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int rv_editor_session::reload(rv_editor_log &log, std::string &error, const std::string &module)
 {
     const bool can_reload = handshake_done_ && proc_.running() && !quit_sent_;
@@ -264,7 +280,7 @@ void rv_editor_session::note_facts(const rv_editor_devmsg &msg)
 bool rv_editor_session::handle_query(const rv_editor_request &req, const rv_editor_devmsg &msg, rv_editor_log &log)
 {
     const bool err = msg.kind == rv_editor_devmsg::rv_editor_devmsg_kind::err;
-    if (req.verb.starts_with(cmd_get_prefix) || req.verb.starts_with(cmd_keys_prefix) || req.verb == cmd_keys_exact) {
+    if (rv_editor_is_query_verb(req.verb)) {
         // An answer describes the frame it was asked on only when the machine was
         // paused then: nothing ran between the question and the reading.
         rv_editor_answer &a = answers_[req.verb];
