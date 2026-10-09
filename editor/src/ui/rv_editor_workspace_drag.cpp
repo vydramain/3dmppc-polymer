@@ -2,9 +2,11 @@
 // tiled workspace, without recreating the moved pane.
 
 #include <algorithm>
+#include <string>
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
@@ -82,23 +84,94 @@ bool rv_editor_tile_drop_zone(const rv_editor_layout &layout,
     return true;
 }
 
-// The button let go over a drop zone: the dragged pane moves there.
-void rv_editor_tile_drop(rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of)
-{
-    rv_editor_tile_drag &drag = ws.drag;
-
-    if (!drag.dragging) {
-        return;
-    }
-
-    const ImVec2 pos = ImGui::GetMousePos();
-    const uint32_t target = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
+// A drop target: the leaf under the pointer and the side the pane docks to.
+struct rv_editor_tile_zone {
+    uint32_t leaf = rv_editor_tile_none;
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
-    if (target == rv_editor_tile_none || !rv_editor_tile_drop_zone(ws.layout, target, rect_of[target], pos, dock)) {
-        return;
-    }
+};
 
-    (void)rv_editor_tile_move(ws.layout, drag.pane, target, dock);
+// Whether a drag is armed or in progress.
+bool rv_editor_tile_drag_running(const rv_editor_workspace &ws)
+{
+    return ws.drag.armed || ws.drag.dragging;
+}
+
+// Whether the pointer is at least the drag threshold away from the press point.
+bool rv_editor_tile_drag_moved(const rv_editor_workspace &ws, const rv_editor_theme &theme)
+{
+    const ImVec2 pos = ImGui::GetMousePos();
+    const float dx = pos.x - ws.drag.press.x;
+    const float dy = pos.y - ws.drag.press.y;
+    const float threshold = drag_threshold_base * theme.scale;
+    return dx * dx + dy * dy >= threshold * threshold;
+}
+
+// The drop zone under the pointer; its leaf is rv_editor_tile_none when there is none.
+rv_editor_tile_zone rv_editor_tile_drag_zone_at(const rv_editor_workspace &ws, const std::vector<rv_editor_rect> &rect_of)
+{
+    const ImVec2 pos = ImGui::GetMousePos();
+    rv_editor_tile_zone zone;
+    zone.leaf = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
+    if (zone.leaf != rv_editor_tile_none &&
+        !rv_editor_tile_drop_zone(ws.layout, zone.leaf, rect_of[zone.leaf], pos, zone.dock)) {
+        zone.leaf = rv_editor_tile_none;
+    }
+    return zone;
+}
+
+// The drag passes the threshold: the drop-zone preview starts showing.
+void rv_editor_tile_drag_start(rv_editor_workspace &ws)
+{
+    ws.drag.dragging = true;
+}
+
+// Why a drop onto a leaf that holds only the dragged pane is refused.
+constexpr const char *drop_refused_reason = "the pane stays where it is: a side drop needs a second tab in its own leaf, "
+                                            "and the target must be a leaf";
+
+// The dragged pane moves to `zone`, and the drag ends. On refusal `error` says why.
+int rv_editor_tile_drag_drop(rv_editor_workspace &ws, const rv_editor_tile_zone &zone, std::string &error)
+{
+    const int rv = rv_editor_tile_move(ws.layout, ws.drag.pane, zone.leaf, zone.dock);
+    if (rv != RV_OK) {
+        error = drop_refused_reason;
+    }
+    ws.drag = rv_editor_tile_drag{};
+    return rv;
+}
+
+// The drag ends with no change.
+void rv_editor_tile_drag_cancel(rv_editor_workspace &ws)
+{
+    ws.drag = rv_editor_tile_drag{};
+}
+
+// Shows the drop-zone preview: the half the pane would take, or the whole tile for a tab.
+void rv_editor_tile_drag_preview(const std::vector<rv_editor_rect> &rect_of,
+    const rv_editor_tile_zone &zone,
+    const rv_editor_theme &theme)
+{
+    const rv_editor_rect &r = rect_of[zone.leaf];
+    ImVec2 pmin(static_cast<float>(r.x), static_cast<float>(r.y));
+    ImVec2 pmax(static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h));
+    switch (zone.dock) {
+    case rv_editor_tile_dock::left:
+        pmax.x = pmin.x + static_cast<float>(r.w) * dock_preview_split_ratio;
+        break;
+    case rv_editor_tile_dock::right:
+        pmin.x = pmax.x - static_cast<float>(r.w) * dock_preview_split_ratio;
+        break;
+    case rv_editor_tile_dock::top:
+        pmax.y = pmin.y + static_cast<float>(r.h) * dock_preview_split_ratio;
+        break;
+    case rv_editor_tile_dock::bottom:
+        pmin.y = pmax.y - static_cast<float>(r.h) * dock_preview_split_ratio;
+        break;
+    default:
+        break;
+    }
+    const ImU32 fill = (rv_editor_col(theme.selection) & ~IM_COL32_A_MASK) | dock_preview_alpha_bits;
+    ImGui::GetForegroundDrawList()->AddRectFilled(pmin, pmax, fill);
 }
 
 } // namespace
@@ -133,64 +206,37 @@ void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int presse
     ws.drag.press = ImGui::GetMousePos();
 }
 
-void rv_editor_tile_drag_update(rv_editor_workspace &ws,
+int rv_editor_tile_drag_update(rv_editor_workspace &ws,
     const std::vector<rv_editor_rect> &rect_of,
-    const rv_editor_theme &theme)
+    const rv_editor_theme &theme,
+    std::string &error)
 {
-    rv_editor_tile_drag &drag = ws.drag;
-    if (!drag.armed && !drag.dragging) {
-        return;
+    if (!rv_editor_tile_drag_running(ws)) {
+        return RV_OK;
     }
+    const rv_editor_tile_zone zone = rv_editor_tile_drag_zone_at(ws, rect_of);
+    const bool over_zone = zone.leaf != rv_editor_tile_none;
+    // Dropping a tab on its own leaf's tab strip is no move: the pane stays, so it cancels.
+    const bool onto_own_tabs = zone.leaf == ws.drag.from_leaf && zone.dock == rv_editor_tile_dock::tab;
+    const bool drops = ws.drag.dragging && over_zone && !onto_own_tabs;
 
+    // Release ends the drag; Escape cancels it; otherwise the drag may start and its preview is drawn in the same frame.
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        rv_editor_tile_drop(ws, rect_of);
-        drag = rv_editor_tile_drag{};
-        return;
-    }
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        drag = rv_editor_tile_drag{};
-        return;
-    }
-
-    const ImVec2 pos = ImGui::GetMousePos();
-    if (!drag.dragging) {
-        const float dx = pos.x - drag.press.x;
-        const float dy = pos.y - drag.press.y;
-        const float threshold = drag_threshold_base * theme.scale;
-        if (dx * dx + dy * dy < threshold * threshold) {
-            return;
+        if (drops) {
+            return rv_editor_tile_drag_drop(ws, zone, error);
         }
-        drag.dragging = true;
+        rv_editor_tile_drag_cancel(ws);
+    } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        rv_editor_tile_drag_cancel(ws);
+    } else {
+        if (!ws.drag.dragging && rv_editor_tile_drag_moved(ws, theme)) {
+            rv_editor_tile_drag_start(ws);
+        }
+        if (ws.drag.dragging && over_zone) {
+            rv_editor_tile_drag_preview(rect_of, zone, theme);
+        }
     }
-
-    const uint32_t target = rv_editor_tile_leaf_at(ws.layout, rect_of, pos);
-    rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
-    if (target == rv_editor_tile_none || !rv_editor_tile_drop_zone(ws.layout, target, rect_of[target], pos, dock)) {
-        return;
-    }
-
-    // The half the pane would take, or the whole tile for a tab.
-    const rv_editor_rect &r = rect_of[target];
-    ImVec2 pmin(static_cast<float>(r.x), static_cast<float>(r.y));
-    ImVec2 pmax(static_cast<float>(r.x + r.w), static_cast<float>(r.y + r.h));
-    switch (dock) {
-    case rv_editor_tile_dock::left:
-        pmax.x = pmin.x + static_cast<float>(r.w) * dock_preview_split_ratio;
-        break;
-    case rv_editor_tile_dock::right:
-        pmin.x = pmax.x - static_cast<float>(r.w) * dock_preview_split_ratio;
-        break;
-    case rv_editor_tile_dock::top:
-        pmax.y = pmin.y + static_cast<float>(r.h) * dock_preview_split_ratio;
-        break;
-    case rv_editor_tile_dock::bottom:
-        pmin.y = pmax.y - static_cast<float>(r.h) * dock_preview_split_ratio;
-        break;
-    default:
-        break;
-    }
-    const ImU32 fill = (rv_editor_col(theme.selection) & ~IM_COL32_A_MASK) | dock_preview_alpha_bits;
-    ImGui::GetForegroundDrawList()->AddRectFilled(pmin, pmax, fill);
+    return RV_OK;
 }
 
 } // namespace rv_editor

@@ -240,11 +240,13 @@ void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int presse
 
 // Advances an armed or in-progress drag, draws its drop-zone preview and, on
 // release over a valid zone, moves the pane. Escape or a release outside
-// every leaf cancels with no change. Call once per frame, after every leaf has
-// been placed, with each node's rectangle from that placement.
-void rv_editor_tile_drag_update(rv_editor_workspace &ws,
+// every leaf cancels with no change. Returns RV_OK, or the move's code with
+// `error` naming why the pane could not be moved. Call once per frame, after
+// every leaf has been placed, with each node's rectangle from that placement.
+int rv_editor_tile_drag_update(rv_editor_workspace &ws,
     const std::vector<rv_editor_rect> &rect_of,
-    const rv_editor_theme &theme);
+    const rv_editor_theme &theme,
+    std::string &error);
 
 // Draws one pane's content into the current ImGui window. `context` is what the
 // caller handed rv_editor_workspace_draw: the models the panes are views of.
@@ -264,12 +266,14 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 // Fills `area` (screen pixels) of the current window with the workspace, a child
 // window of its own. A splitter drag changes its
 // split's ratio.
-void rv_editor_workspace_draw(rv_editor_workspace &ws,
+// Returns the tile drag's result (rv_editor_tile_drag_update); `error` names a refused drop.
+int rv_editor_workspace_draw(rv_editor_workspace &ws,
     const rv_editor_theme &theme,
     rv_editor_pane_draw_fn draw_pane,
     rv_editor_pane_close_fn close_pane,
     void *context,
-    rv_editor_rect area);
+    rv_editor_rect area,
+    std::string &error);
 
 // --- status, log, transport, dialogs --------------------------------------------
 // Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,

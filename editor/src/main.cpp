@@ -132,12 +132,19 @@ void rv_editor_screen_draw_workspace(rv_editor::rv_editor_shell &shell,
     const rv_editor::rv_editor_theme &theme,
     const rv_editor::rv_editor_rect &area)
 {
-    rv_editor::rv_editor_workspace_draw(shell.ws,
+    std::string error;
+    const int rv = rv_editor::rv_editor_workspace_draw(shell.ws,
         theme,
         rv_editor::rv_editor_shell_pane,
         rv_editor::rv_editor_shell_close_pane,
         &shell,
-        area);
+        area,
+        error);
+    if (rv != RV_OK) {
+        shell.app.log.add(rv_editor::rv_editor_log_source::editor,
+            rv_editor::rv_editor_log_level::warning,
+            "pane not moved: " + error);
+    }
 }
 
 // Dispatch table for screen drawing functions.

@@ -188,7 +188,9 @@ void rv_editor_catalog_tiles(const rv_editor_theme &t)
         static_cast<int>(at.y),
         static_cast<int>(ImGui::GetContentRegionAvail().x),
         static_cast<int>(ImGui::GetFrameHeight() * catalog_tile_height_frames) };
-    rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area);
+    // The sample tree belongs to the catalog, which has no log: a refused drop is not reported.
+    std::string error;
+    (void)rv_editor_workspace_draw(ws, t, rv_editor_catalog_pane_name, nullptr, nullptr, area, error);
 }
 
 // Shelf over well: how a pane's three layers (header, shelf, well) look

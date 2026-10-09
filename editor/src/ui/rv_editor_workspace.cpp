@@ -339,12 +339,13 @@ void rv_editor_tile_apply(rv_editor_workspace &ws,
 
 } // namespace
 
-void rv_editor_workspace_draw(rv_editor_workspace &ws,
+int rv_editor_workspace_draw(rv_editor_workspace &ws,
     const rv_editor_theme &theme,
     rv_editor_pane_draw_fn draw_pane,
     rv_editor_pane_close_fn close_pane,
     void *context,
-    rv_editor_rect area)
+    rv_editor_rect area,
+    std::string &error)
 {
     // A child of the current window, so a workspace can sit inside any pane: the
     // Widget Catalog shows one.
@@ -433,7 +434,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws,
     }
 
     ws.rects = rect_of;
-    rv_editor_tile_drag_update(ws, rect_of, theme);
+    const int drag_rv = rv_editor_tile_drag_update(ws, rect_of, theme, error);
 
     // The content size the scrollbars measure.
     ImGui::SetCursorScreenPos(origin);
@@ -447,6 +448,7 @@ void rv_editor_workspace_draw(rv_editor_workspace &ws,
 
     rv_editor_tile_apply(ws, action, close_pane, context);
     rv_editor_scroll_end(theme);
+    return drag_rv;
 }
 
 } // namespace rv_editor
