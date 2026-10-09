@@ -41,10 +41,17 @@ void rv_editor_browser_go(rv_editor_browser &b, const std::filesystem::path &dir
     b.path[sizeof(b.path) - 1] = '\0';
 }
 
+// True when dir has not been listed yet or differs from the one last listed.
+bool rv_editor_browser_needs_list(const rv_editor_browser &b)
+{
+    return b.listed.empty() || b.listed != b.dir;
+}
+
+// Lists dir. RV_ERR_ALREADY: dir is already listed. RV_ERR_IO: the reason is in b.error, shown on the path field.
 int rv_editor_browser_list(rv_editor_browser &b)
 {
-    if (b.listed == b.dir && !b.listed.empty()) {
-        return RV_OK;
+    if (!rv_editor_browser_needs_list(b)) {
+        return RV_ERR_ALREADY;
     }
     b.listed = b.dir;
     b.entries.clear();
@@ -117,7 +124,10 @@ rv_editor_browse_result rv_editor_browser_draw(rv_editor_browser &b,
     std::filesystem::path &out,
     const rv_editor_theme &theme)
 {
-    rv_editor_browser_list(b);
+    if (rv_editor_browser_needs_list(b)) {
+        // RV_ERR_IO: the reason is in b.error and shows on the path field below.
+        (void)rv_editor_browser_list(b);
+    }
     rv_editor_browse_result result = rv_editor_browse_result::none;
     ImGui::PushID(&b);
     ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
