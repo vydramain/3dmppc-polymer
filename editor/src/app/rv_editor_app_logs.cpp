@@ -48,7 +48,7 @@ std::string rv_editor_app_timestamp(std::chrono::system_clock::time_point t)
     std::tm tm{};
     localtime_r(&tt, &tm);
     char buf[session_timestamp_buffer_size];
-    std::strftime(buf, sizeof(buf), "%Y%m%d-%H%M%S", &tm);
+    std::strftime(buf, sizeof(buf), time_format_file, &tm);
     return buf;
 }
 

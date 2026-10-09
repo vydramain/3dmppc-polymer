@@ -371,6 +371,24 @@ int rv_editor_app_create_dir(rv_editor_app &app, const std::filesystem::path &di
 int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error);
 int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
 
+// Findings files: the directory under the project's state dir, and the extensions of the
+// text files and logs in it (findings and test results).
+constexpr std::string_view dir_name_findings = "findings";
+constexpr std::string_view file_ext_text = ".txt";
+constexpr std::string_view file_ext_log = ".log";
+// File-name stamp "20260926-141203" and the stamp people read, "2026-09-26 14:12:03".
+constexpr const char *time_format_file = "%Y%m%d-%H%M%S";
+constexpr const char *time_format_people = "%Y-%m-%d %H:%M:%S";
+
+// Findings (editor/src/app/rv_editor_app_findings.cpp): saves the drafted finding with its log.
+// RV_OK, or RV_ERR_IO with the reason in findings.error.
+int rv_editor_app_save_finding(rv_editor_app &app);
+// Text and file helpers the Findings and Test Case panes share: a timestamp by format, the
+// session's facts as "key: value" lines, and a file write (error holds the reason).
+std::string rv_editor_now_text(const char *format);
+std::string rv_editor_session_text(const rv_editor_app &app);
+int rv_editor_write_file(const std::filesystem::path &path, const std::string &text, std::string &error);
+
 // Once a frame, before drawing.
 void rv_editor_app_update(rv_editor_app &app);
 

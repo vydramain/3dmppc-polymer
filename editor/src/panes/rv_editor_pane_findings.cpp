@@ -6,7 +6,6 @@
 
 #include <algorithm>
 #include <cstdio>
-#include <ctime>
 #include <fstream>
 #include <string>
 #include <system_error>
@@ -24,9 +23,6 @@ namespace rv_editor
 namespace
 {
 
-// Time format buffer size for timestamp "YYYYMMDD-HHMMSS".
-constexpr size_t time_format_buffer_size = 32;
-
 // Multiline text input height in lines of text (multiplied by line height).
 constexpr float multiline_input_height_lines = 3.5f;
 
@@ -40,20 +36,14 @@ constexpr std::string_view case_file_marker_expected = "expected:";
 constexpr std::string_view case_file_new_template = "title: What this checks\nsteps:\n1. \nexpected:\n\n";
 
 // File format labels and separators.
-constexpr std::string_view log_text_open = " [";
-constexpr std::string_view log_text_close = "] ";
-constexpr std::string_view log_text_level_sep = " ";
 constexpr std::string_view frame_filename_part = "-frame";
 
 // File extensions.
 constexpr std::string_view file_ext_image = ".png";
-constexpr std::string_view file_ext_log = ".log";
-constexpr std::string_view file_ext_text = ".txt";
 
 // Directory names.
 constexpr std::string_view dir_name_testcases = "testcases";
 constexpr std::string_view case_file_prefix = "case-"; // Prefix for new case filenames.
-constexpr std::string_view dir_name_findings = "findings";
 
 // Filename and result format markers.
 constexpr std::string_view filename_timestamp_result_sep = "-";
@@ -61,16 +51,6 @@ constexpr std::string_view result_type_passed = "passed";
 constexpr std::string_view result_type_failed = "failed";
 constexpr std::string_view result_type_blocked = "blocked";
 
-// Findings text format: sections and labels.
-constexpr std::string_view findings_label_title = "title: ";
-constexpr std::string_view session_label_project = "project: "; // Label of the project string in the session text.
-constexpr std::string_view findings_label_recorded = "recorded: ";
-constexpr std::string_view findings_label_screenshot = "screenshot: ";
-constexpr std::string_view findings_label_log = "log: ";
-constexpr std::string_view findings_label_steps = "\nsteps:\n";
-constexpr std::string_view findings_label_expected = "\n\nexpected:\n";
-constexpr std::string_view findings_label_actual = "\n\nactual:\n";
-constexpr std::string_view findings_none = "none";
 constexpr const char *exploratory_case_title =
     "Exploratory"; // Default test case title, written into result files - not translated.
 
@@ -80,68 +60,10 @@ constexpr std::string_view result_label_result = "\nresult: ";
 constexpr std::string_view result_label_note = "\nnote: ";
 constexpr std::string_view result_label_recorded = "\nrecorded: ";
 
-// "20260926-141203" for file names, "2026-09-26 14:12:03" for people.
-std::string rv_editor_now_text(const char *format)
-{
-    const std::time_t t = std::time(nullptr);
-    std::tm tm{};
-    localtime_r(&t, &tm);
-    char buf[time_format_buffer_size];
-    std::strftime(buf, sizeof(buf), format, &tm);
-    return buf;
-}
-
-std::string rv_editor_log_text(const rv_editor_log_line &line)
-{
-    const char *level = rv_editor_log_level_code(line.level);
-    return rv_editor_log_stamp(line, true) + std::string(log_text_open) + rv_editor_log_source_name(line.source) +
-        std::string(log_text_close) + level + std::string(log_text_level_sep) + line.text;
-}
-
-// What is known about the session now, one "key: value" line each.
-std::string rv_editor_session_text(const rv_editor_app &app)
-{
-    const rv_editor_session &s = app.session;
-    const rv_editor_session_facts &f = s.facts();
-    std::string out;
-    out += std::string(session_label_project) + app.project.root.string() + "\n";
-    if (s.number() == 0) {
-        return out + "session: none ran in this window\n";
-    }
-    out += "session: #" + std::to_string(s.number()) + ", " + rv_editor_run_state_name(s.state()) + "\n";
-    out += "frame: " + std::to_string(s.frame()) +
-        (s.state() == rv_editor_run_state::paused ? " (paused)" : " (last reported; the machine was not paused)") + "\n";
-    out += "build: #" + std::to_string(s.build_number()) + ", " + s.disc_dir().string() + "\n";
-    out += "runtime: " + app.tools.console.path.string() + ", PDK " + f.pdk + "\n";
-    out += "disc: " + f.disc + ", code hash " + f.code_hash + ", medium " + f.medium + "\n";
-    if (f.lua_budget > 0) {
-        out += "entry revision: " + std::to_string(f.revision) +
-            (f.revision != f.first_revision ? " (reloaded; the build had " + std::to_string(f.first_revision) + ")" :
-                                              " (as built)") +
-            "\n";
-    }
-    if (!s.live()) {
-        out += "ended: " + s.end_reason() + "\n";
-    }
-    return out;
-}
-
-int rv_editor_write_file(const std::filesystem::path &path, const std::string &text, std::string &error)
-{
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
-    out << text;
-    out.close();
-    if (!out) {
-        error = "cannot write " + path.string();
-        return RV_ERR_IO;
-    }
-    return RV_OK;
-}
-
 void rv_editor_capture(rv_editor_app &app, const std::filesystem::path &dir)
 {
     rv_editor_findings &f = app.findings;
-    const std::string filename = rv_editor_now_text("%Y%m%d-%H%M%S") + std::string(frame_filename_part) +
+    const std::string filename = rv_editor_now_text(time_format_file) + std::string(frame_filename_part) +
         std::to_string(app.session.frame()) + std::string(file_ext_image);
     const std::filesystem::path path = dir / filename;
     std::string error;
@@ -152,38 +74,6 @@ void rv_editor_capture(rv_editor_app &app, const std::filesystem::path &dir)
     f.capture = path;
     f.error.clear();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "captured " + path.string());
-}
-
-void rv_editor_record(rv_editor_app &app, const std::filesystem::path &dir)
-{
-    rv_editor_findings &f = app.findings;
-    const std::string stem = rv_editor_now_text("%Y%m%d-%H%M%S");
-    const std::filesystem::path log_path = dir / (stem + std::string(file_ext_log));
-    std::string log;
-    for (const rv_editor_log_line &line : app.log.lines()) {
-        if (line.seq >= app.session_first_seq && line.source != rv_editor_log_source::protocol) {
-            log += rv_editor_log_text(line) + "\n";
-        }
-    }
-    std::string text = std::string(findings_label_title) + std::string(f.title) + "\n";
-    text += std::string(findings_label_recorded) + rv_editor_now_text("%Y-%m-%d %H:%M:%S") + "\n";
-    text += rv_editor_session_text(app);
-    text +=
-        std::string(findings_label_screenshot) + (f.capture.empty() ? std::string(findings_none) : f.capture.string()) + "\n";
-    text += std::string(findings_label_log) + log_path.string() + "\n";
-    text += std::string(findings_label_steps) + std::string(f.steps) + std::string(findings_label_expected) +
-        std::string(f.expected) + std::string(findings_label_actual) + std::string(f.actual) + "\n";
-    const std::filesystem::path path = dir / (stem + std::string(file_ext_text));
-    std::string error;
-    if (rv_editor_write_file(log_path, log, error) != RV_OK || rv_editor_write_file(path, text, error) != RV_OK) {
-        f.error = error;
-        return;
-    }
-    f.saved.push_back(path);
-    f.error.clear();
-    f.capture.clear();
-    f.title[0] = f.steps[0] = f.expected[0] = f.actual[0] = '\0';
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "finding saved: " + path.string());
 }
 
 void rv_editor_multiline(const char *label, char *buf, size_t size)
@@ -279,10 +169,10 @@ void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const ch
     std::error_code ec;
     std::filesystem::create_directories(dir, ec);
     const std::string filename =
-        rv_editor_now_text("%Y%m%d-%H%M%S") + std::string(filename_timestamp_result_sep) + result + std::string(file_ext_text);
+        rv_editor_now_text(time_format_file) + std::string(filename_timestamp_result_sep) + result + std::string(file_ext_text);
     const std::filesystem::path path = dir / filename;
     std::string text = std::string(result_label_test_case) + c.title + std::string(result_label_result) + result +
-        std::string(result_label_note) + f.note + std::string(result_label_recorded) + rv_editor_now_text("%Y-%m-%d %H:%M:%S") +
+        std::string(result_label_note) + f.note + std::string(result_label_recorded) + rv_editor_now_text(time_format_people) +
         "\n" + rv_editor_session_text(app);
     if (rv_editor_write_file(path, text, f.error) != RV_OK) {
         return;
@@ -394,9 +284,7 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.record_finding")));
     const char *why_not_record = f.title[0] == '\0' ? rv_editor_text("findings.title_first") : nullptr;
     if (rv_editor_button(rv_editor_text("findings.record_finding"), theme, { rv_editor_look::live, why_not_record })) {
-        std::error_code ec;
-        std::filesystem::create_directories(dir, ec);
-        rv_editor_record(app, dir);
+        (void)rv_editor_app_save_finding(app);
     }
     rv_editor_shelf_end();
 
