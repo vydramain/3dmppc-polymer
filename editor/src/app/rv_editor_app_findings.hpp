@@ -52,6 +52,13 @@ int rv_editor_app_capture_frame(rv_editor_app &app);
 int rv_editor_case_read(const std::filesystem::path &path, rv_editor_case &out, std::string &error);
 // The exploratory case: no file, its title only.
 rv_editor_case rv_editor_case_exploratory();
+// Test Case listing (editor/src/app/rv_editor_app_cases.cpp): the readable cases of testcases/*.txt with their
+// text and file time, sorted by path; each unreadable one is logged at this listing. RV_OK, RV_ERR_NOENT when there
+// is no directory (not logged: a project may have none), RV_ERR_IO when it cannot be listed (logged). The panel
+// asks for it through the cases_list request.
+int rv_editor_app_cases_list(rv_editor_app &app);
+// Question: the directory changed since the last listing, or a listed or skipped case's file changed or became unreadable.
+bool rv_editor_app_cases_stale(const rv_editor_app &app);
 // A new case file opened in Code. RV_OK, or RV_ERR_IO with the reason in findings.error and the log.
 int rv_editor_app_case_new(rv_editor_app &app);
 // A case result with the session, written into the findings. RV_OK, or RV_ERR_IO when it is not

@@ -4,10 +4,7 @@
 
 #include "panes/rv_editor_panes.hpp"
 
-#include <algorithm>
-#include <set>
 #include <string>
-#include <system_error>
 
 #include "imgui.h"
 
@@ -39,9 +36,6 @@ void rv_editor_multiline(const char *label, char *buf, size_t size)
     ImGui::PopID();
 }
 
-// Listed cases that failed to read in the per-frame loop; each is logged once until it reads again.
-std::set<std::filesystem::path> warned_cases;
-
 // The finding's error, with a Dismiss button that asks the app to clear it.
 void rv_editor_finding_error(rv_editor_app &app, const rv_editor_theme &theme)
 {
@@ -54,40 +48,6 @@ void rv_editor_finding_error(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-// testcases/*.txt of the project, read again when the directory changes.
-void rv_editor_cases_list(rv_editor_app &app)
-{
-    rv_editor_findings &f = app.findings;
-    const std::filesystem::path dir = app.project.root / std::string(dir_name_testcases);
-    std::error_code ec;
-    const std::filesystem::file_time_type at = std::filesystem::last_write_time(dir, ec);
-    if (ec || at == f.cases_read) {
-        if (ec) {
-            f.cases.clear();
-        }
-        return;
-    }
-    f.cases_read = at;
-    f.cases.clear();
-    for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
-        if (entry.path().extension() == file_ext_text) {
-            rv_editor_case probe;
-            std::string read_error;
-            const int read_rv = rv_editor_case_read(entry.path(), probe, read_error);
-            // A case that cannot be read is not listed; the log names it once, at this refresh.
-            if (read_rv == RV_OK) {
-                f.cases.push_back(entry.path());
-            } else {
-                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "test case skipped: " + read_error);
-            }
-        }
-    }
-    std::sort(f.cases.begin(), f.cases.end());
-    if (f.test_case >= static_cast<int32_t>(f.cases.size())) {
-        f.test_case = -1;
-    }
-}
-
 } // namespace
 
 void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
@@ -97,31 +57,21 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_open_project_row(app, theme);
         return;
     }
-    rv_editor_cases_list(app);
+    // The listing is the app's: asked for when testcases/ or a listed case changed, and not while one is queued.
+    const bool listing_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cases_list);
+    const bool listing_stale = rv_editor_app_cases_stale(app);
+    if (listing_stale && !listing_pending) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::cases_list });
+    }
     // No controls row at the top: the New Test Case button sits inside the
     // content between the selector and the case preview, so only a well.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     if (rv_editor_radio(rv_editor_text("findings.exploratory_desc"), f.test_case < 0, theme)) {
         f.test_case = -1;
     }
-    // A case that left the listing is forgotten, so it is logged again if it comes back unreadable.
-    std::erase_if(warned_cases, [&f](const std::filesystem::path &p) {
-        return std::find(f.cases.begin(), f.cases.end(), p) == f.cases.end();
-    });
-    // Each case file is read every frame for its title; a cache when a project keeps dozens.
     for (size_t i = 0; i < f.cases.size(); ++i) {
-        rv_editor_case listed;
-        std::string read_error;
-        // Left out of this frame; logged the first frame it cannot be read, and again only after it reads again.
-        if (rv_editor_case_read(f.cases[i], listed, read_error) != RV_OK) {
-            if (warned_cases.insert(f.cases[i]).second) {
-                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "test case skipped: " + read_error);
-            }
-            continue;
-        }
-        warned_cases.erase(f.cases[i]);
         ImGui::PushID(static_cast<int>(i));
-        if (rv_editor_radio(listed.title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
+        if (rv_editor_radio(f.cases[i].title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
             f.test_case = static_cast<int32_t>(i);
         }
         ImGui::PopID();
@@ -133,27 +83,23 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
-    rv_editor_case c = rv_editor_case_exploratory();
-    const bool chosen = f.test_case >= 0;
-    std::string read_error;
-    const int read_rv = chosen ? rv_editor_case_read(f.cases[static_cast<size_t>(f.test_case)], c, read_error) : RV_OK;
-    if (read_rv == RV_OK && chosen) {
+    // The chosen case is drawn from the listing's cache; the listing keeps the index in range.
+    const rv_editor_listed_case *picked = f.test_case >= 0 ? &f.cases[static_cast<size_t>(f.test_case)] : nullptr;
+    if (picked != nullptr) {
         ImGui::SeparatorText(rv_editor_text("findings.steps"));
-        ImGui::TextWrapped("%s", c.steps.empty() ? rv_editor_text("findings.none_written") : c.steps.c_str());
+        ImGui::TextWrapped("%s", picked->steps.empty() ? rv_editor_text("findings.none_written") : picked->steps.c_str());
         ImGui::SeparatorText(rv_editor_text("findings.expected"));
-        ImGui::TextWrapped("%s", c.expected.empty() ? rv_editor_text("findings.none_written") : c.expected.c_str());
+        ImGui::TextWrapped("%s", picked->expected.empty() ? rv_editor_text("findings.none_written") : picked->expected.c_str());
     }
     ImGui::SeparatorText(rv_editor_text("findings.result"));
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
     const char *no_session = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
-    // A chosen case that cannot be read has no result to record: why the buttons are off is the read's error.
-    const char *why_not = read_rv == RV_OK ? no_session : read_error.c_str();
     const bool result_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::case_result);
-    const char *result_why = result_pending ? rv_editor_text("app_why_not.request_pending") : why_not;
+    const char *result_why = result_pending ? rv_editor_text("app_why_not.request_pending") : no_session;
     // The request names the chosen case file; empty when exploratory.
-    const std::filesystem::path case_path = chosen ? f.cases[static_cast<size_t>(f.test_case)] : std::filesystem::path();
+    const std::filesystem::path case_path = picked != nullptr ? picked->path : std::filesystem::path();
     for (size_t i = 0; i < result_kind_count; ++i) {
         if (i > 0) {
             ImGui::SameLine();

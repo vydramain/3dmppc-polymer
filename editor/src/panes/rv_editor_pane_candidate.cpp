@@ -277,7 +277,8 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     const bool player_running = rv_editor_app_player_running(app);
     const bool stop_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::stop);
     const char *why_not_stop_release = player_running ? nullptr : rv_editor_app_why_not_stop(app);
-    const char *stop_release_why = stop_pending ? rv_editor_text("app_why_not.stop_pending") : why_not_stop_release;
+    const bool stop_asked = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::stop_player) || stop_pending;
+    const char *stop_release_why = stop_asked ? rv_editor_text("app_why_not.stop_pending") : why_not_stop_release;
     if (rv_editor_tool_button(rv_editor_text("pane_candidate.stop_button"),
             rv_editor_glyph::stop,
             theme.code_red,
@@ -288,7 +289,9 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
         if (session_live) {
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
         }
-        rv_editor_app_stop_player(app);
+        if (player_running) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop_player });
+        }
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_candidate.report_button")));
     const char *why_not_export = nullptr;

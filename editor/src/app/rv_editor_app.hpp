@@ -292,7 +292,10 @@ int rv_editor_app_run_candidate(rv_editor_app &app);
 const char *rv_editor_app_why_not_play(const rv_editor_app &app);
 // Returns RV_OK on success or RV_ERR_* on failure.
 int rv_editor_app_play_candidate(rv_editor_app &app);
-void rv_editor_app_stop_player(rv_editor_app &app);
+// Stops the running player: the first ask is a polite SIGTERM, asked again SIGKILL. RV_OK on success.
+// RV_ERR_INVAL when no player runs (logged; ask rv_editor_app_player_running first); the signal's
+// RV_ERR_* when it is not delivered (logged).
+int rv_editor_app_stop_player(rv_editor_app &app);
 bool rv_editor_app_player_running(const rv_editor_app &app);
 // Reads the player's output into the log. RV_OK, or the read's RV_ERR_*; RV_ERR_INVAL when no player runs (logged).
 int rv_editor_app_player_transfer(rv_editor_app &app);

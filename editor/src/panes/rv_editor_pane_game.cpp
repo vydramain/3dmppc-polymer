@@ -351,10 +351,21 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 ImGui::TextWrapped("%s", external_msg.c_str());
                 const char *button_text =
                     r.player_stopped ? rv_editor_text("pane_game.kill_player") : rv_editor_text("pane_game.stop_player");
-                if (rv_editor_button(button_text, theme)) {
-                    rv_editor_app_stop_player(app);
+                const bool player_running = rv_editor_app_player_running(app);
+                const bool stop_player_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::stop_player);
+                const char *stop_player_why = stop_player_pending ? rv_editor_text("app_why_not.stop_pending") :
+                    player_running                                ? nullptr :
+                                                                    rv_editor_text("scene_viewport.game_not_running");
+                const bool clicked = rv_editor_button(button_text, theme, { rv_editor_look::live, stop_player_why });
+                const bool stop_now = clicked && player_running;
+                if (stop_now) {
+                    (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop_player });
                 }
-                ImGui::SetItemTooltip("%s", rv_editor_text("pane_game.stop_player_tooltip"));
+                // A disabled button keeps its reason as the tooltip; the Stop tooltip is for the enabled one.
+                const bool enabled = stop_player_why == nullptr;
+                if (enabled) {
+                    ImGui::SetItemTooltip("%s", rv_editor_text("pane_game.stop_player_tooltip"));
+                }
                 return;
             }
             if (app.release_view) {

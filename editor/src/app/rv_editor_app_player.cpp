@@ -222,32 +222,35 @@ int rv_editor_app_play_candidate(rv_editor_app &app)
     return RV_OK;
 }
 
-void rv_editor_app_stop_player(rv_editor_app &app)
+int rv_editor_app_stop_player(rv_editor_app &app)
 {
-    rv_editor_release &r = app.release;
-    if (r.player == nullptr || !r.player->running()) {
-        return;
+    const bool running = rv_editor_app_player_running(app);
+    if (!running) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "player not stopped: no player runs");
+        return RV_ERR_INVAL;
     }
-    // The first ask is a polite SIGTERM; asked again, it is killed.
+    rv_editor_release &r = app.release;
+    // The first ask is a polite SIGTERM; asked again, it is killed. Marked even when the signal fails,
+    // so the next ask goes to SIGKILL.
     const int stop_err = r.player->stop(r.player_stopped);
-    if (stop_err != RV_OK && stop_err != RV_ERR_ALREADY) {
-        // Still marked, so the next ask goes to SIGKILL.
-        r.player_stopped = true;
+    r.player_stopped = true;
+    const bool delivered = stop_err == RV_OK || stop_err == RV_ERR_ALREADY;
+    if (!delivered) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::error,
             "player stop failed: signal not delivered, code " + std::to_string(stop_err),
             rv_editor_log_channel::none,
             r.player->pid(),
             rv_editor_player_run(r));
-        return;
+        return stop_err;
     }
-    r.player_stopped = true;
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::warning,
         "player stopped by the operator",
         rv_editor_log_channel::none,
         r.player->pid(),
         rv_editor_player_run(r));
+    return RV_OK;
 }
 
 bool rv_editor_app_player_running(const rv_editor_app &app)

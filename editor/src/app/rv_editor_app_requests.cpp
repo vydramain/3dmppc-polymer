@@ -78,6 +78,11 @@ int rv_editor_request_case_result(rv_editor_app &app, const rv_editor_pane_reque
     return rv_editor_app_case_result(app, c, static_cast<rv_editor_case_result_kind>(request.choice));
 }
 
+int rv_editor_request_cases_list(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_cases_list(app);
+}
+
 int rv_editor_request_add_mark(rv_editor_app &app, const rv_editor_pane_request &request)
 {
     return rv_editor_app_add_mark(app, request.name);
@@ -103,6 +108,11 @@ int rv_editor_request_dismiss_scene_note(rv_editor_app &app, const rv_editor_pan
 {
     app.scene_move_note.clear();
     return RV_OK;
+}
+
+int rv_editor_request_stop_player(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_stop_player(app);
 }
 
 int rv_editor_request_observe_read(rv_editor_app &app, const rv_editor_pane_request &)
@@ -276,6 +286,8 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::texture_bake, rv_editor_request_texture_bake, "texture bake" },
     { rv_editor_pane_request_kind::scene_move, rv_editor_request_scene_move, "scene move" },
     { rv_editor_pane_request_kind::dismiss_scene_note, rv_editor_request_dismiss_scene_note, "dismiss scene note" },
+    { rv_editor_pane_request_kind::stop_player, rv_editor_request_stop_player, "stop player" },
+    { rv_editor_pane_request_kind::cases_list, rv_editor_request_cases_list, "cases list" },
 };
 
 // Named in the log when a kind has no table row.

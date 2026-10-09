@@ -133,6 +133,15 @@ struct rv_editor_observe {
     int64_t read_frame = -1;
 };
 
+// A test case listed from testcases/: its file, the text the panel shows, and the file's time at the read.
+struct rv_editor_listed_case {
+    std::filesystem::path path;
+    std::string title;
+    std::string steps;
+    std::string expected;
+    std::filesystem::file_time_type written{};
+};
+
 // The finding being written and the ones saved in this window.
 struct rv_editor_findings {
     char title[title_field_size] = {};
@@ -142,9 +151,11 @@ struct rv_editor_findings {
     std::filesystem::path capture; // the frame captured for it, if any
     std::vector<std::filesystem::path> saved;
     std::string error;
-    // Test Case: the project's cases, the one chosen (-1: free play), a note, the results given.
-    std::vector<std::filesystem::path> cases;
-    std::filesystem::file_time_type cases_read{};
+    // Test Case: the listed cases (sorted by path), the one chosen (-1: free play), a note, the results given.
+    std::vector<rv_editor_listed_case> cases;
+    std::filesystem::file_time_type cases_read{}; // testcases/ time at the last listing
+    std::vector<rv_editor_listed_case> skipped;   // unreadable cases: their file time, so a change lists again
+    bool cases_failed = false;                    // the last listing could not read the directory's time
     int32_t test_case = -1;
     char note[note_field_size] = {};
     std::vector<std::string> results;
@@ -248,6 +259,8 @@ enum class rv_editor_pane_request_kind {
     texture_bake,          // name: the texture's plan name, path: its png
     scene_move,            // name: the object's id, parent, keep_world
     dismiss_scene_note,    // the move refusal's note
+    stop_player,           // the running player's Stop: asked again, it is killed
+    cases_list,            // the test cases listed again: testcases/ or a listed case changed
 };
 
 struct rv_editor_pane_request {
