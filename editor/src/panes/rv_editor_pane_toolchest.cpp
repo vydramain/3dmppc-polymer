@@ -59,7 +59,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             nullptr,
             theme,
             { rv_editor_look::live, no_session })) {
-        rv_editor_findings_capture(app);
+        (void)rv_editor_app_capture_frame(app);
     }
     // The moment is kept before the form is: a frame, the keyboard back, then Findings.
     const char *no_report = s.number() != 0 ? nullptr : rv_editor_text("pane_toolchest.no_report");
@@ -72,7 +72,7 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             theme,
             { rv_editor_look::live, no_report })) {
         if (s.live()) {
-            rv_editor_findings_capture(app);
+            (void)rv_editor_app_capture_frame(app);
         }
         app.game_captured = false;
         app.log.add(rv_editor_log_source::editor,

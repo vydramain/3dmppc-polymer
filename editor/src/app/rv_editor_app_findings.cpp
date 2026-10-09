@@ -4,11 +4,16 @@
 #include "app/rv_editor_app.hpp"
 
 #include <ctime>
+#include <cstdint>
 #include <fstream>
 #include <string>
 #include <system_error>
+#include <vector>
+
+#include <SDL3/SDL.h>
 
 #include "pdk/rv_err.h"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -18,6 +23,13 @@ namespace
 
 // Time format buffer size for timestamp "YYYYMMDD-HHMMSS".
 constexpr size_t time_format_buffer_size = 32;
+
+// Capture file name parts, and the bytes per pixel of the frame's ARGB8888 pixels.
+constexpr std::string_view frame_filename_part = "-frame";
+constexpr std::string_view file_ext_image = ".png";
+constexpr size_t bytes_per_pixel_argb8888 = 4;
+// Reads of the frame before giving up: one can overlap the console's write of that slot.
+constexpr int frame_read_attempts = 3;
 
 // File format labels and separators.
 constexpr std::string_view log_text_open = " [";
@@ -40,6 +52,33 @@ std::string rv_editor_log_text(const rv_editor_log_line &line)
     const char *level = rv_editor_log_level_code(line.level);
     return rv_editor_log_stamp(line, true) + std::string(log_text_open) + rv_editor_log_source_name(line.source) +
         std::string(log_text_close) + level + std::string(log_text_level_sep) + line.text;
+}
+
+// Writes the pixels (0xAARRGGBB, width x height) as a PNG. RV_OK, or RV_ERR_IO with the reason in error.
+int rv_editor_capture_png(const std::filesystem::path &path,
+    uint32_t width,
+    uint32_t height,
+    std::vector<uint32_t> &pixels,
+    std::string &error)
+{
+    SDL_Surface *surface = SDL_CreateSurfaceFrom(static_cast<int>(width),
+        static_cast<int>(height),
+        SDL_PIXELFORMAT_ARGB8888,
+        pixels.data(),
+        static_cast<int>(width * bytes_per_pixel_argb8888));
+    if (surface == nullptr) {
+        error = SDL_GetError();
+        return RV_ERR_IO;
+    }
+    const bool saved = SDL_SavePNG(surface, path.c_str());
+    if (!saved) {
+        error = path.string() + ": " + SDL_GetError();
+    }
+    SDL_DestroySurface(surface);
+    if (!saved) {
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 } // namespace
@@ -133,6 +172,44 @@ int rv_editor_app_save_finding(rv_editor_app &app)
     f.capture.clear();
     f.title[0] = f.steps[0] = f.expected[0] = f.actual[0] = '\0';
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "finding saved: " + path.string());
+    return RV_OK;
+}
+
+// Captures the newest frame of the live session; see rv_editor_app.hpp.
+int rv_editor_app_capture_frame(rv_editor_app &app)
+{
+    rv_editor_findings &f = app.findings;
+    uint64_t frame = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    std::vector<uint32_t> pixels;
+    // Only the live session's memory: a stopped session's last frame is not the game's now.
+    const bool live = app.session.live();
+    bool have = false;
+    for (int attempt = 0; live && !have && attempt < frame_read_attempts; ++attempt) {
+        have = app.session.frame_memory().read(frame, width, height, pixels);
+    }
+    if (!have) {
+        f.error = rv_editor_text("pane_game.error_no_frame");
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "capture refused: " + f.error);
+        return RV_ERR_NOENT;
+    }
+    const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    const std::filesystem::path path = dir /
+        (rv_editor_now_text(time_format_file) + std::string(frame_filename_part) + std::to_string(frame) +
+            std::string(file_ext_image));
+    std::string error = ec ? "cannot create " + dir.string() + ": " + ec.message() : std::string();
+    const int rv = error.empty() ? rv_editor_capture_png(path, width, height, pixels, error) : RV_ERR_IO;
+    if (rv != RV_OK) {
+        f.error = error;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "capture not saved: " + error);
+        return RV_ERR_IO;
+    }
+    f.capture = path;
+    f.error.clear();
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "captured " + path.string());
     return RV_OK;
 }
 

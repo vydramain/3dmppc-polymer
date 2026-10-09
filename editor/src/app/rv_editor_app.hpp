@@ -383,6 +383,10 @@ constexpr const char *time_format_people = "%Y-%m-%d %H:%M:%S";
 // Findings (editor/src/app/rv_editor_app_findings.cpp): saves the drafted finding with its log.
 // RV_OK, or RV_ERR_IO with the reason in findings.error.
 int rv_editor_app_save_finding(rv_editor_app &app);
+// Captures the running session's newest frame as a PNG into the findings and attaches it to the
+// finding being written. RV_OK, RV_ERR_NOENT when no frame of the live session has arrived,
+// RV_ERR_IO when the file cannot be written (reason in findings.error and the log).
+int rv_editor_app_capture_frame(rv_editor_app &app);
 // Text and file helpers the Findings and Test Case panes share: a timestamp by format, the
 // session's facts as "key: value" lines, and a file write (error holds the reason).
 std::string rv_editor_now_text(const char *format);

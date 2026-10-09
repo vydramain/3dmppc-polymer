@@ -96,13 +96,6 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme);
 // The project's testcases/*.txt, or free play, and a Passed, Failed or Blocked
 // result saved with the session; Failed starts a finding from the case.
 void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme);
-// Saves the Game's frame into the project's findings and attaches it to the one being written.
-void rv_editor_findings_capture(rv_editor_app &app);
-
-// Writes the frame the Game tile shows now as a PNG. RV_OK on success, RV_ERR_NOENT
-// when no frame of the running session has arrived, RV_ERR_IO when the file cannot be written.
-int rv_editor_game_capture(rv_editor_app &app, const std::filesystem::path &path, std::string &error);
-
 // Release: Build Candidate, Run Candidate, Stop, Export Report and the shown
 // candidate's state on one row; and the Candidate pane.
 void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &theme);

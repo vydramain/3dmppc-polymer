@@ -35,12 +35,6 @@ constexpr std::string_view case_file_marker_steps = "steps:";
 constexpr std::string_view case_file_marker_expected = "expected:";
 constexpr std::string_view case_file_new_template = "title: What this checks\nsteps:\n1. \nexpected:\n\n";
 
-// File format labels and separators.
-constexpr std::string_view frame_filename_part = "-frame";
-
-// File extensions.
-constexpr std::string_view file_ext_image = ".png";
-
 // Directory names.
 constexpr std::string_view dir_name_testcases = "testcases";
 constexpr std::string_view case_file_prefix = "case-"; // Prefix for new case filenames.
@@ -59,22 +53,6 @@ constexpr std::string_view result_label_test_case = "test case: ";
 constexpr std::string_view result_label_result = "\nresult: ";
 constexpr std::string_view result_label_note = "\nnote: ";
 constexpr std::string_view result_label_recorded = "\nrecorded: ";
-
-void rv_editor_capture(rv_editor_app &app, const std::filesystem::path &dir)
-{
-    rv_editor_findings &f = app.findings;
-    const std::string filename = rv_editor_now_text(time_format_file) + std::string(frame_filename_part) +
-        std::to_string(app.session.frame()) + std::string(file_ext_image);
-    const std::filesystem::path path = dir / filename;
-    std::string error;
-    if (rv_editor_game_capture(app, path, error) != RV_OK) {
-        f.error = error;
-        return;
-    }
-    f.capture = path;
-    f.error.clear();
-    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "captured " + path.string());
-}
 
 void rv_editor_multiline(const char *label, char *buf, size_t size)
 {
@@ -190,7 +168,7 @@ void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const ch
         std::snprintf(f.expected, sizeof(f.expected), "%s", c.expected.c_str());
         std::snprintf(f.actual, sizeof(f.actual), "%s", f.note);
         if (app.session.live()) {
-            rv_editor_capture(app, dir);
+            (void)rv_editor_app_capture_frame(app);
         }
         app.show_request = rv_editor_pane_kind::findings;
     }
@@ -260,14 +238,6 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_end();
 }
 
-void rv_editor_findings_capture(rv_editor_app &app)
-{
-    const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
-    std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
-    rv_editor_capture(app, dir);
-}
-
 void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
 {
     rv_editor_findings &f = app.findings;
@@ -279,7 +249,7 @@ void rv_editor_pane_findings(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_shelf_begin("##shelf", theme);
     const char *why_not_capture = app.session.live() ? nullptr : rv_editor_text("findings.no_session_running");
     if (rv_editor_button(rv_editor_text("findings.capture_frame"), theme, { rv_editor_look::live, why_not_capture })) {
-        rv_editor_findings_capture(app);
+        (void)rv_editor_app_capture_frame(app);
     }
     rv_editor_flow(rv_editor_button_width(rv_editor_text("findings.record_finding")));
     const char *why_not_record = f.title[0] == '\0' ? rv_editor_text("findings.title_first") : nullptr;
