@@ -338,7 +338,9 @@ void rv_editor_app_release_changed(rv_editor_app &app);
 
 // Runs the latest build, building the saved files first when rv_editor_app_run_builds; on a paused session this resumes it.
 // RV_OK: run or build started (a rebuild comes first), or pause lifted. RV_ERR_PENDING: waits on the unsaved-files answer
-// (unsaved_ask set), nothing started. RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
+// (unsaved_ask set), nothing started.
+// RV_ERR_BUSY: refused by a guard, the reason logged as a warning; BUSY from a build or session start is logged as an error.
+// other RV_ERR_*: the step that failed (resume, build or session start) logged why.
 int rv_editor_app_run(rv_editor_app &app);
 // Runs the last successful build after a later build failed. Returns RV_OK or RV_ERR_*.
 int rv_editor_app_run_last(rv_editor_app &app);
