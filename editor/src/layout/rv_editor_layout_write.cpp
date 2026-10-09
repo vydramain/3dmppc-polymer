@@ -33,6 +33,7 @@ std::string index_text(uint32_t index)
 
 // Pane lines for the panes the tree still shows, in tree order. `renumber` maps a pane id to its
 // written number. A closed pane stays in the registry for the session, never in the file.
+// Precondition: check_tree has passed, so every leaf tab is a pane of the registry.
 int write_panes(const rv_editor_pane_registry &panes,
     const rv_editor_layout &layout,
     std::vector<uint32_t> &renumber,
@@ -46,17 +47,9 @@ int write_panes(const rv_editor_pane_registry &panes,
             continue;
         }
         for (const rv_editor_pane_id x : n.leaf.tabs) {
-            if (x >= panes.panes.size()) {
-                error = "layout shows pane " + std::to_string(x) + " that the registry does not have";
-                return RV_ERR_INVAL;
-            }
             const std::string_view kind = kind_name(panes.panes[x].kind);
             if (kind.empty()) {
                 error = "pane " + std::to_string(x) + " has an unknown kind";
-                return RV_ERR_INVAL;
-            }
-            if (renumber[x] != rv_editor_tile_none) {
-                error = "pane " + std::to_string(x) + " is shown in two leaves";
                 return RV_ERR_INVAL;
             }
             renumber[x] = written++;
@@ -67,7 +60,8 @@ int write_panes(const rv_editor_pane_registry &panes,
     return RV_OK;
 }
 
-// One node line of any kind. `renumber` comes from write_panes, which checked every leaf tab.
+// One node line of any kind. The tree checks have passed: every leaf tab is a pane of the registry, shown once,
+// and the split ratio is in range. `renumber` comes from write_panes.
 int write_node(const rv_editor_tile_node &n, const std::vector<uint32_t> &renumber, std::string &line, std::string &error)
 {
     const std::string keyword = std::string(layout_keyword_node) + std::string(layout_field_sep);
@@ -87,11 +81,6 @@ int write_node(const rv_editor_tile_node &n, const std::vector<uint32_t> &renumb
         return RV_OK;
     }
     case rv_editor_tile_kind::split: {
-        // NaN fails both comparisons, so it is refused too.
-        if (!(n.split.ratio >= layout_ratio_min && n.split.ratio <= layout_ratio_max)) {
-            error = "split ratio is outside the range from 0 to 1";
-            return RV_ERR_INVAL;
-        }
         char ratio[layout_ratio_format_buf_size];
         const int written = std::snprintf(ratio, sizeof(ratio), "%.4f", n.split.ratio);
         if (written < 0 || written >= static_cast<int>(sizeof(ratio))) {
@@ -108,43 +97,27 @@ int write_node(const rv_editor_tile_node &n, const std::vector<uint32_t> &renumb
     return RV_ERR_INVAL;
 }
 
-// Root line and maximized line. Refuses what the reader refuses: the root must be a node that is
-// not free and has no parent, the maximized node must be a leaf.
-int write_tail(const rv_editor_layout &layout, std::string &tail, std::string &error)
+// Root line and maximized line. The tree checks have passed, so both indices are in range.
+std::string write_tail(const rv_editor_layout &layout)
 {
-    if (layout.root >= layout.nodes.size()) {
-        error = "root is outside the node list";
-        return RV_ERR_INVAL;
-    }
-    const rv_editor_tile_node &root = layout.nodes[layout.root];
-    if (root.kind == rv_editor_tile_kind::free || root.parent != rv_editor_tile_none) {
-        error = "root is a free slot or has a parent";
-        return RV_ERR_INVAL;
-    }
-    if (layout.maximized_leaf != rv_editor_tile_none &&
-        (layout.maximized_leaf >= layout.nodes.size() ||
-            layout.nodes[layout.maximized_leaf].kind != rv_editor_tile_kind::leaf)) {
-        error = "maximized node is not a leaf of the layout";
-        return RV_ERR_INVAL;
-    }
     const std::string sep(layout_field_sep);
     const std::string line_end(layout_line_end);
-    tail = std::string(layout_keyword_root) + sep + std::to_string(layout.root) + line_end +
+    return std::string(layout_keyword_root) + sep + std::to_string(layout.root) + line_end +
         std::string(layout_keyword_maximized) + sep + index_text(layout.maximized_leaf) + line_end;
-    return RV_OK;
 }
 
 } // namespace
 
-// Builds the whole text before publishing it, so `text` changes only on RV_OK. Checks the panes,
-// the nodes (kind, ratio, formatting), the root and the maximized node. Not checked yet: the leaf
-// active index, parent-child links, reachability from the root; the reader's shared checks for
-// these come in a later task.
+// Runs the tree checks first, so a layout the reader would refuse is never written. Builds the whole text
+// before publishing it, so `text` changes only on RV_OK.
 int rv_editor_layout_write(const rv_editor_pane_registry &panes,
     const rv_editor_layout &layout,
     std::string &text,
     std::string &error)
 {
+    if (check_tree(panes, layout, error) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
     std::vector<uint32_t> renumber;
     std::string pane_text;
     const int panes_rc = write_panes(panes, layout, renumber, pane_text, error);
@@ -160,12 +133,7 @@ int rv_editor_layout_write(const rv_editor_pane_registry &panes,
         }
         r += line;
     }
-    std::string tail;
-    const int tail_rc = write_tail(layout, tail, error);
-    if (tail_rc != RV_OK) {
-        return tail_rc;
-    }
-    text = r + tail;
+    text = r + write_tail(layout);
     return RV_OK;
 }
 

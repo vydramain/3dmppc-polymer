@@ -4,7 +4,6 @@
 #include "layout/rv_editor_layout_format.hpp"
 #include "layout/rv_editor_tile.hpp"
 
-#include <cmath>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -211,104 +210,6 @@ int read_maximized_and_end(const std::vector<std::string_view> &lines, size_t &i
     ++idx;
     if (idx != lines.size()) {
         error = "text follows the maximized line";
-        return RV_ERR_INVAL;
-    }
-    return RV_OK;
-}
-
-// Tree checks over the whole layout: the root, leaves, splits, parent links, reachability from the root,
-// and the maximized leaf. A pane is shown at most once.
-int check_tree(const rv_editor_pane_registry &np, const rv_editor_layout &nl, std::string &error)
-{
-    if (nl.nodes.empty() || nl.root >= nl.nodes.size()) {
-        error = "root is outside the node list";
-        return RV_ERR_INVAL;
-    }
-    if (nl.nodes[nl.root].kind == rv_editor_tile_kind::free || nl.nodes[nl.root].parent != rv_editor_tile_none) {
-        error = "root is a free slot or has a parent";
-        return RV_ERR_INVAL;
-    }
-    uint32_t pc = static_cast<uint32_t>(np.panes.size());
-    std::vector<bool> pu(pc, false);
-    for (uint32_t i = 0; i < nl.nodes.size(); ++i) {
-        const auto &n = nl.nodes[i];
-        if (n.kind == rv_editor_tile_kind::leaf) {
-            if ((n.leaf.tabs.empty() && n.leaf.active != 0) || (!n.leaf.tabs.empty() && n.leaf.active >= n.leaf.tabs.size())) {
-                error = "leaf active tab is outside its tabs";
-                return RV_ERR_INVAL;
-            }
-            for (auto x : n.leaf.tabs) {
-                if (x >= pc) {
-                    error = "leaf shows a pane that the registry does not have";
-                    return RV_ERR_INVAL;
-                }
-                if (pu[x]) {
-                    error = "pane is shown in two leaves";
-                    return RV_ERR_INVAL;
-                }
-                pu[x] = true;
-            }
-        } else if (n.kind == rv_editor_tile_kind::split) {
-            // The axis was read by name, so it needs no check here.
-            if (!std::isfinite(n.split.ratio) || n.split.ratio < layout_ratio_min || n.split.ratio > layout_ratio_max) {
-                error = "split ratio is outside the range from 0 to 1";
-                return RV_ERR_INVAL;
-            }
-            if (n.split.first == n.split.second || n.split.first >= nl.nodes.size() || n.split.second >= nl.nodes.size()) {
-                error = "split children are the same node or outside the node list";
-                return RV_ERR_INVAL;
-            }
-            if (nl.nodes[n.split.first].kind == rv_editor_tile_kind::free ||
-                nl.nodes[n.split.second].kind == rv_editor_tile_kind::free) {
-                error = "split child is a free slot";
-                return RV_ERR_INVAL;
-            }
-            if (nl.nodes[n.split.first].parent != i || nl.nodes[n.split.second].parent != i) {
-                error = "split child does not name the split as its parent";
-                return RV_ERR_INVAL;
-            }
-        }
-    }
-    for (uint32_t i = 0; i < nl.nodes.size(); ++i) {
-        const auto &n = nl.nodes[i];
-        if (n.kind == rv_editor_tile_kind::free || i == nl.root) {
-            continue;
-        }
-        if (n.parent == rv_editor_tile_none || n.parent >= nl.nodes.size()) {
-            error = "node has no parent or its parent is outside the node list";
-            return RV_ERR_INVAL;
-        }
-        const auto &pn = nl.nodes[n.parent];
-        if (pn.kind != rv_editor_tile_kind::split || (pn.split.first != i && pn.split.second != i)) {
-            error = "parent is not a split that lists the node";
-            return RV_ERR_INVAL;
-        }
-    }
-    std::vector<bool> r(nl.nodes.size(), false);
-    std::vector<uint32_t> s;
-    s.push_back(nl.root);
-    while (!s.empty()) {
-        uint32_t x = s.back();
-        s.pop_back();
-        if (r[x]) {
-            continue;
-        }
-        r[x] = true;
-        const auto &n = nl.nodes[x];
-        if (n.kind == rv_editor_tile_kind::split) {
-            s.push_back(n.split.first);
-            s.push_back(n.split.second);
-        }
-    }
-    for (uint32_t i = 0; i < nl.nodes.size(); ++i) {
-        if (nl.nodes[i].kind != rv_editor_tile_kind::free && !r[i]) {
-            error = "node is not reachable from the root";
-            return RV_ERR_INVAL;
-        }
-    }
-    if (nl.maximized_leaf != rv_editor_tile_none &&
-        (nl.maximized_leaf >= nl.nodes.size() || nl.nodes[nl.maximized_leaf].kind != rv_editor_tile_kind::leaf)) {
-        error = "maximized node is not a leaf of the layout";
         return RV_ERR_INVAL;
     }
     return RV_OK;

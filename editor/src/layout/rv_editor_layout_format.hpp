@@ -64,6 +64,9 @@ int parse_index(std::string_view s, uint32_t &out);
 std::vector<std::string_view> split_line(std::string_view line);
 std::vector<std::string_view> split_text(std::string_view text);
 
+// Tree checks of a layout, shared by the reader and the writer. A refusal sets `error` with its reason.
+int check_tree(const rv_editor_pane_registry &panes, const rv_editor_layout &layout, std::string &error);
+
 } // namespace layout_format
 
 } // namespace rv_editor
