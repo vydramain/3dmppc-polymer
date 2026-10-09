@@ -105,10 +105,21 @@ int rv_editor_texture_evaluate(rv_editor_app &app)
     if (bake.ok) {
         bake.message = "texture " + bake.name + " baked from " + bake.png.string();
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, bake.message);
+        if (exit.guard_result != RV_OK) {
+            app.log.add(rv_editor_log_source::editor,
+                rv_editor_log_level::warning,
+                "texture " + bake.name + " bake: process guard: " + exit.guard_error,
+                rv_editor_log_channel::none,
+                bake.proc->pid(),
+                bake.build_number);
+        }
         return RV_OK;
     }
     const std::string last = rv_editor_texture_last_line(bake.err_all);
-    const std::string why = exit.code == 0 && exit.signal == 0 ? "the output was not written" : rv_editor_exit_text(exit);
+    // rv_editor_exit_text already carries the guard reason for a non-zero exit.
+    const bool clean_exit = exit.code == 0 && exit.signal == 0;
+    const std::string guard = exit.guard_result != RV_OK ? "; process guard: " + exit.guard_error : "";
+    const std::string why = clean_exit ? "the output was not written" + guard : rv_editor_exit_text(exit);
     bake.message =
         "texture " + bake.name + " not baked from " + bake.png.string() + ": " + why + (last.empty() ? "" : " (" + last + ")");
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);

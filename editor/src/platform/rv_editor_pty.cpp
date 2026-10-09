@@ -334,6 +334,8 @@ int rv_editor_pty::record_exit(int status, std::string &error)
     // once nothing holds the session, its id may name another process's.
     std::string guard_error;
     const int guard_rc = rv_editor_guard_remove(pid_, guard_error);
+    exit_.guard_result = guard_rc;
+    exit_.guard_error = guard_rc != RV_OK ? guard_error : std::string();
     std::string kill_error;
     const int kill_rc = rv_editor_signal_session(pid_, SIGKILL, kill_error);
     if (guard_rc != RV_OK) {

@@ -83,16 +83,18 @@ int rv_editor_version_job::poll(std::string &error)
     const std::string first_line = out_.substr(0, line_end);
     const bool understood = exit.exited && exit.signal == 0 && exit.code == 0 && !first_line.empty();
     proc_.reset();
+    // A guard failure never voids a read version: it rides along as a suffix.
+    const std::string guard = exit.guard_result != RV_OK ? "; process guard: " + exit.guard_error : "";
     if (!understood) {
-        error = std::string(version_arg) + " is not understood";
+        error = std::string(version_arg) + " is not understood" + guard;
         return RV_ERR_IO;
     }
     // No line end within what was read: the line is longer than the buffer, not a short version.
     if (line_end == std::string::npos && out_.size() >= version_read_buf_size) {
-        error = "version line too long";
+        error = "version line too long" + guard;
         return RV_ERR_IO;
     }
-    version_ = first_line;
+    version_ = first_line + guard;
     return RV_OK;
 }
 

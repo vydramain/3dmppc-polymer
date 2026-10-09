@@ -291,7 +291,13 @@ bool rv_editor_revision_job::poll()
     const rv_editor_process::rv_editor_exit exit = proc_->exit_status();
     const bool ok = exit.exited && exit.signal == 0 && exit.code == 0;
     proc_.reset();
+    const std::string guard = exit.guard_result != RV_OK ? "; process guard: " + exit.guard_error : "";
     if (!status_step_) {
+        // Nothing is read yet on this step: a guard failure ends the job as unknown.
+        if (exit.guard_result != RV_OK) {
+            text_ = "unknown: process guard: " + exit.guard_error;
+            return true;
+        }
         if (!ok || out_.empty()) {
             text_ = "unknown: not in a git work tree with a commit";
             return true;
@@ -310,10 +316,10 @@ bool rv_editor_revision_job::poll()
         return true;
     }
     if (!ok) {
-        text_ = "git " + head_ + ", whether the files differ from it is unknown";
+        text_ = "git " + head_ + ", whether the files differ from it is unknown" + guard;
         return true;
     }
-    text_ = "git " + head_ + (out_.empty() ? "" : " + uncommitted changes");
+    text_ = "git " + head_ + (out_.empty() ? "" : " + uncommitted changes") + guard;
     return true;
 }
 

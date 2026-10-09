@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
-#include <cstdio>
 #include <cstdlib>
 #include <sstream>
 #include <csignal>
@@ -320,10 +319,7 @@ bool rv_editor_process::poll()
     }
     exited_at_ = std::chrono::steady_clock::now();
     rv_editor_close(in_);
-    std::string guard_error;
-    if (rv_editor_guard_remove(pid_, guard_error) != RV_OK) {
-        std::fprintf(stderr, "3dmppc-editor: process guard: %s\n", guard_error.c_str());
-    }
+    exit_.guard_result = rv_editor_guard_remove(pid_, exit_.guard_error);
     return true;
 }
 
@@ -358,11 +354,15 @@ std::string rv_editor_exit_text(const rv_editor_process::rv_editor_exit &exit)
     if (!exit.exited) {
         return "running";
     }
+    std::string text = "exit code " + std::to_string(exit.code);
     if (exit.signal != 0) {
         const char *name = sigabbrev_np(exit.signal);
-        return std::string("killed by SIG") + (name != nullptr ? name : std::to_string(exit.signal));
+        text = std::string("killed by SIG") + (name != nullptr ? name : std::to_string(exit.signal));
     }
-    return "exit code " + std::to_string(exit.code);
+    if (exit.guard_result != RV_OK) {
+        text += "; process guard: " + exit.guard_error;
+    }
+    return text;
 }
 
 std::filesystem::path rv_editor_process_find(const char *name)

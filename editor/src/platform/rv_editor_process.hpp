@@ -8,6 +8,8 @@
 #include <sys/types.h>
 #include <vector>
 
+#include "pdk/rv_err.h"
+
 namespace rv_editor
 {
 
@@ -21,9 +23,11 @@ class rv_editor_process
 public:
     // How the child ended.
     struct rv_editor_exit {
-        bool exited = false; // false while it runs
-        int code = 0;        // exit status, when it exited normally
-        int signal = 0;      // non-zero when a signal ended it
+        bool exited = false;      // false while it runs
+        int code = 0;             // exit status, when it exited normally
+        int signal = 0;           // non-zero when a signal ended it
+        int guard_result = RV_OK; // rv_editor_guard_remove code, after the exit
+        std::string guard_error;  // its reason, empty when fine
     };
 
     rv_editor_process() = default;
@@ -90,7 +94,8 @@ public:
     int write(std::string_view bytes);
     void flush();
 
-    // Reaps the child when it has ended. Returns true when it is (now) ended.
+    // Reaps the child when it has ended; the guard's remove code and reason come with the
+    // exit status. Returns true when it is (now) ended.
     bool poll();
 
     // True once both pipes are closed (end of file or a read failure reported by read()),
