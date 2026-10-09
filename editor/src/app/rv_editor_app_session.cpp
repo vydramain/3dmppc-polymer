@@ -55,13 +55,15 @@ void rv_editor_app_session_reset(rv_editor_app &app, const rv_editor_artifact &a
     app.observe.read_frame = -1;
 }
 
-// Fills what a session runs from app state, the artifact and an optional card path (empty: the profile's).
-// `profile` is the label the log shows for this run.
-void rv_editor_app_launch_prepare(const rv_editor_app &app,
-    const rv_editor_artifact &artifact,
-    const std::filesystem::path &card,
-    rv_editor_session_launch &launch,
-    std::string &profile)
+// Label the log shows for a run: the active profile's name, or the candidate's own card.
+std::string rv_editor_app_profile_label(const rv_editor_app &app, const std::filesystem::path &card)
+{
+    return card.empty() ? app.run_config.profiles[app.run_config.active].name : "the candidate's own";
+}
+
+// Builds what a session runs from app state, the artifact and an optional card path (empty: the profile's).
+rv_editor_session_launch
+rv_editor_app_launch_prepare(const rv_editor_app &app, const rv_editor_artifact &artifact, const std::filesystem::path &card)
 {
     const rv_editor_run_profile none;
     // A development run follows the active profile; a candidate, with its own card, does not.
@@ -71,6 +73,7 @@ void rv_editor_app_launch_prepare(const rv_editor_app &app,
     const std::filesystem::path own_card = rv_editor_run_profile_path(run.memcard, app.project.root);
     const std::filesystem::path run_cwd = rv_editor_run_profile_path(run.cwd, app.project.root);
 
+    rv_editor_session_launch launch;
     launch.console = runtime.empty() ? app.tools.console.path : runtime;
     launch.disc_dir = artifact.dir;
     launch.memcard = !card.empty() ? card :
@@ -80,20 +83,16 @@ void rv_editor_app_launch_prepare(const rv_editor_app &app,
     launch.build_number = artifact.number;
     launch.options = rv_editor_run_profile_args(run);
     launch.env = run.env;
-    profile = card.empty() ? run.name : "the candidate's own";
+    return launch;
 }
 
-// Starts the runtime on a ready launch. A failed handshake keeps its output in the session log;
-// BUSY means another session is running and its log must stay as it is.
+// Starts the runtime on a ready launch.
 int rv_editor_app_start(rv_editor_app &app, const rv_editor_session_launch &launch)
 {
     std::string error;
     const int err = app.session.start(launch, app.log, error);
     if (err != RV_OK) {
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot start the runtime: " + error);
-        if (err != RV_ERR_BUSY && app.session.live()) {
-            rv_editor_app_attach_session_log(app);
-        }
         return err;
     }
     return RV_OK;
@@ -116,9 +115,8 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
     }
     rv_editor_app_session_reset(app, artifact);
 
-    rv_editor_session_launch launch;
-    std::string profile;
-    rv_editor_app_launch_prepare(app, artifact, card, launch, profile);
+    const rv_editor_session_launch launch = rv_editor_app_launch_prepare(app, artifact, card);
+    const std::string profile = rv_editor_app_profile_label(app, card);
     app.session_profile = profile;
     // Log profile info when running from development (not candidate) card.
     if (card.empty()) {
@@ -126,8 +124,22 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
             rv_editor_log_level::info,
             "run profile " + profile + ": build #" + std::to_string(artifact.number));
     }
+    // A live session answers BUSY from start; that reason wins over a missing console.
+    const bool console_missing = launch.console.empty() && !app.session.live();
+    if (console_missing) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "cannot start the runtime: no console found; search for tools in Settings");
+        return RV_ERR_NOENT;
+    }
 
     const int start_err = rv_editor_app_start(app, launch);
+    // A live runtime that failed its handshake keeps its output in the session log; BUSY means another session
+    // is running and its log must stay as it is.
+    const bool failed_live = start_err != RV_OK && start_err != RV_ERR_BUSY && app.session.live();
+    if (failed_live) {
+        rv_editor_app_attach_session_log(app);
+    }
     if (start_err != RV_OK) {
         return start_err;
     }
