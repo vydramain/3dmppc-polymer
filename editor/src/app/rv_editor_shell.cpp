@@ -182,6 +182,7 @@ int rv_editor_shell_open_question(rv_editor_shell &shell, rv_editor_unsaved_ask 
         return RV_ERR_BUSY;
     }
     shell.leaving = found->leave;
+    shell.app.unsaved_open = ask;
     return RV_OK;
 }
 } // namespace

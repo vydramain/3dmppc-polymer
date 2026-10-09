@@ -5,12 +5,22 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace rv_editor
 {
 
 namespace
 {
+
+// Requests queued by the panes; taken out first, so one queued while running waits.
+void rv_editor_app_update_requests(rv_editor_app &app)
+{
+    const std::vector<rv_editor_pane_request> requests = std::exchange(app.requests, {});
+    for (const rv_editor_pane_request &request : requests) {
+        (void)rv_editor_app_request_run(app, request);
+    }
+}
 
 // Every shell reads on, behind another tab too, so none stalls on a full terminal.
 void rv_editor_app_update_terminals(rv_editor_app &app)
@@ -234,6 +244,7 @@ void rv_editor_app_update_release(rv_editor_app &app, bool build_ended)
 
 void rv_editor_app_update(rv_editor_app &app)
 {
+    rv_editor_app_update_requests(app);
     rv_editor_app_update_log_files(app);
     std::string files_error;
     if (app.files.update(app.log, files_error) != RV_OK) {

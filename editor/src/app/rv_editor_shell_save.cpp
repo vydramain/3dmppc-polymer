@@ -263,6 +263,7 @@ void rv_editor_shell_after_save(rv_editor_shell &shell)
         }
     }
     shell.leaving = leave::none;
+    shell.app.unsaved_open = rv_editor_unsaved_ask::none;
 }
 
 void rv_editor_shell_save_all(rv_editor_shell &shell)
@@ -310,6 +311,7 @@ bool rv_editor_shell_close_pane(void *context, rv_editor_pane_id pane)
     // Closing Review Changes is Return: what waited does not happen.
     if (shell.ws.panes.panes[pane].kind == rv_editor_pane_kind::review_changes) {
         shell.leaving = rv_editor_shell::rv_editor_leave::none;
+        shell.app.unsaved_open = rv_editor_unsaved_ask::none;
         shell.save_failed.clear();
         return true;
     }
@@ -447,6 +449,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
         if (saved || back) {
             const leave was = shell.leaving;
             shell.leaving = leave::none;
+            app.unsaved_open = rv_editor_unsaved_ask::none;
             shell.save_failed.clear();
             if (saved && was == leave::build) {
                 rv_editor_app_build_saved(app);
@@ -474,6 +477,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     }
     if (back) {
         shell.leaving = leave::none;
+        shell.app.unsaved_open = rv_editor_unsaved_ask::none;
         shell.save_failed.clear();
     }
 }

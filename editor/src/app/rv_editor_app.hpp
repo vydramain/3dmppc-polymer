@@ -49,6 +49,9 @@ struct rv_editor_app {
     // Files the user asked to open (Files, a new file, Problems, Search Results),
     // for the code editor to take, each at its line (0: where nvim last had it).
     std::vector<rv_editor_open_request> open_requests;
+    // Operations the panes asked for, run by the app's frame at its start; a request
+    // queued while the frame runs waits for the next one.
+    std::vector<rv_editor_pane_request> requests;
     // Binary files among them the user asked to see as text anyway (Files > Open as Text).
     std::set<std::filesystem::path> open_as_text;
     std::map<rv_editor_pane_id, rv_editor_code_tabs> code_tabs;
@@ -103,6 +106,9 @@ struct rv_editor_app {
     bool run_after_build = false;
     // Build or Run met unsaved named buffers: the window asks before either goes ahead.
     rv_editor_unsaved_ask unsaved_ask = rv_editor_unsaved_ask::none;
+    // The action whose unsaved-files question is open; set by the shell when it opens
+    // the question, cleared when the question closes.
+    rv_editor_unsaved_ask unsaved_open = rv_editor_unsaved_ask::none;
     // The first log line of the current session, for a finding's log.
     uint64_t session_first_seq = 0;
     // Run profiles, what stops the active one, and a count of their changes
@@ -341,6 +347,15 @@ int rv_editor_app_step(rv_editor_app &app);
 int rv_editor_app_stop(rv_editor_app &app);
 // Force Stop: SIGKILL to the runtime; logs the outcome (warning when there is nothing to stop).
 int rv_editor_app_force_stop(rv_editor_app &app);
+// Restart: sets run_after_stop, then stops; the frame runs the new build once the session ends.
+int rv_editor_app_restart(rv_editor_app &app);
+// Queues a request; RV_ERR_ALREADY (warning logged) when one of its kind already waits.
+int rv_editor_app_request(rv_editor_app &app, const rv_editor_pane_request &request);
+// Waits in the queue, or (restart) its stop or the run after it still waits (run_after_stop,
+// or a run's unsaved-files question asked or open).
+bool rv_editor_app_request_pending(const rv_editor_app &app, rv_editor_pane_request_kind kind);
+// Runs the request's operation; RV_ERR_INVAL (error logged) for an unknown kind.
+int rv_editor_app_request_run(rv_editor_app &app, const rv_editor_pane_request &request);
 void rv_editor_app_reload(rv_editor_app &app);
 
 // Renames or deletes inside the project; RV_OK or RV_ERR_* with the reason in error.

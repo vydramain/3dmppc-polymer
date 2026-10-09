@@ -243,4 +243,15 @@ struct rv_editor_open_request {
     int32_t column = 0;
 };
 
+// What a pane asks the app to do; the app's frame runs it. Later kinds add their fields.
+enum class rv_editor_pane_request_kind {
+    stop,
+    force_stop,
+    restart,
+};
+
+struct rv_editor_pane_request {
+    rv_editor_pane_request_kind kind = rv_editor_pane_request_kind::stop;
+};
+
 } // namespace rv_editor
