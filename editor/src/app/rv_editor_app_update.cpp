@@ -3,6 +3,8 @@
 #include "app/rv_editor_app.hpp"
 
 #include <filesystem>
+#include <string>
+#include <string_view>
 
 namespace rv_editor
 {
@@ -127,10 +129,31 @@ void rv_editor_app_update_tool_version(rv_editor_app &app, rv_editor_tool &tool,
     }
 }
 
+// Failure texts: the session's and the build's file name what the user lost; any other file gets the generic one.
+constexpr std::string_view session_failed_text = "session log not kept: ";
+constexpr std::string_view build_failed_text = "build log not kept: ";
+constexpr std::string_view file_failed_text = "log file not written: ";
+
+// Queues this frame's new log lines to the open files, before any clear of the log; reports each write failure.
+void rv_editor_app_update_log_files(rv_editor_app &app)
+{
+    app.log_files.feed(app.log);
+    std::string error;
+    int64_t pid = 0;
+    while (app.log_files.poll(error, pid) != RV_OK) {
+        const bool is_session = pid == app.session.pid();
+        const bool is_build = pid == app.build.pid();
+        const std::string_view prefix = is_session ? session_failed_text : is_build ? build_failed_text : file_failed_text;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, std::string(prefix) + error);
+        error.clear();
+    }
+}
+
 } // namespace
 
 void rv_editor_app_update(rv_editor_app &app)
 {
+    rv_editor_app_update_log_files(app);
     std::string files_error;
     if (app.files.update(app.log, files_error) != RV_OK) {
         if (!app.files.watching()) {

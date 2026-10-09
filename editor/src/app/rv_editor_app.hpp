@@ -18,6 +18,7 @@
 #include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
+#include "log/rv_editor_log_file.hpp"
 #include "nvim/rv_editor_nvim.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_change.hpp"
@@ -38,6 +39,8 @@ struct rv_editor_app {
     rv_editor_toolchain tools;
     rv_editor_project project;
     rv_editor_log log;
+    // Writes the chosen processes' lines to files; the app decides which (rv_editor_app_logs.cpp).
+    rv_editor_log_file log_files;
     rv_editor_build build;
     rv_editor_session session;
     rv_editor_files files;

@@ -75,7 +75,7 @@ int rv_editor_log_file::open(int64_t pid, const std::filesystem::path &path, con
     }
 
     const uint64_t id = next_id_++;
-    push(job{ .what = job::kind::attach, .id = id, .path = name, .line = {} });
+    push(job{ .what = job::kind::attach, .id = id, .pid = pid, .path = name, .line = {} });
     files_.push_back({ pid, id, name, key, log.revision() });
     for (const rv_editor_log_line &line : log.lines()) {
         if (line.pid == pid) {
@@ -125,10 +125,10 @@ void rv_editor_log_file::feed(const rv_editor_log &log)
     }
 }
 
-int rv_editor_log_file::poll(std::string &error)
+int rv_editor_log_file::poll(std::string &error, int64_t &pid)
 {
     uint64_t id = 0;
-    if (take_failure(id, error)) {
+    if (take_failure(id, pid, error)) {
         // The writer already closed the file; forget it so path_for stops naming it.
         const auto it = std::find_if(files_.begin(), files_.end(), [id](const file_entry &entry) {
             return entry.id == id;
@@ -184,22 +184,23 @@ void rv_editor_log_file::push(job &&item)
     wake_.notify_one();
 }
 
-bool rv_editor_log_file::take_failure(uint64_t &id, std::string &message)
+bool rv_editor_log_file::take_failure(uint64_t &id, int64_t &pid, std::string &message)
 {
     std::lock_guard lock(mutex_);
     if (failures_.empty()) {
         return false;
     }
     id = failures_.front().id;
+    pid = failures_.front().pid;
     message = std::move(failures_.front().message);
     failures_.pop_front();
     return true;
 }
 
-void rv_editor_log_file::fail(uint64_t id, std::string message)
+void rv_editor_log_file::fail(uint64_t id, int64_t pid, std::string message)
 {
     std::lock_guard lock(mutex_);
-    failures_.push_back({ id, std::move(message) });
+    failures_.push_back({ id, pid, std::move(message) });
 }
 
 void rv_editor_log_file::run()
@@ -247,7 +248,7 @@ void rv_editor_log_file::apply(std::map<uint64_t, open_file> &files, job &item)
         return;
     }
     const int err = errno;
-    fail(item.id, it->second.path + ": " + std::strerror(err));
+    fail(item.id, it->second.pid, it->second.path + ": " + std::strerror(err));
     std::fclose(handle);
     files.erase(it);
 }
@@ -260,7 +261,7 @@ void rv_editor_log_file::attach(std::map<uint64_t, open_file> &files, const job 
         std::filesystem::create_directories(parent, ec);
     }
     if (ec) {
-        fail(item.id, item.path + ": " + ec.message());
+        fail(item.id, item.pid, item.path + ": " + ec.message());
         return;
     }
 
@@ -268,10 +269,10 @@ void rv_editor_log_file::attach(std::map<uint64_t, open_file> &files, const job 
     FILE *handle = std::fopen(item.path.c_str(), "w");
     if (handle == nullptr) {
         const int err = errno;
-        fail(item.id, item.path + ": " + std::strerror(err));
+        fail(item.id, item.pid, item.path + ": " + std::strerror(err));
         return;
     }
-    files[item.id] = { handle, item.path };
+    files[item.id] = { handle, item.path, item.pid };
 }
 
 } // namespace rv_editor

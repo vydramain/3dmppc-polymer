@@ -38,8 +38,8 @@ public:
     // channel evicted before this read are marked in every open file. Call it every frame,
     // before the channel's clear().
     void feed(const rv_editor_log &log);
-    // Reports one failure not yet reported (RV_ERR_IO, "<path>: <reason>"), else RV_OK.
-    int poll(std::string &error);
+    // Reports one failure not yet reported (RV_ERR_IO, "<path>: <reason>") and the pid it was opened for, else RV_OK.
+    int poll(std::string &error, int64_t &pid);
     // Path of the file open for `pid`, empty when none. Named until poll reports that file's failure.
     std::string path_for(int64_t pid) const;
 
@@ -68,18 +68,21 @@ private:
         };
         kind what;
         uint64_t id = 0;
+        int64_t pid = 0;  // attach only
         std::string path; // attach only
         std::string line; // text only
     };
 
     struct failure {
         uint64_t id;
+        int64_t pid;
         std::string message;
     };
 
     struct open_file {
         FILE *handle;
         std::string path;
+        int64_t pid;
     };
 
     size_t index_of(int64_t pid) const;
@@ -87,12 +90,12 @@ private:
     void queue_line(uint64_t id, const rv_editor_log_line &line);
     void queue_text(uint64_t id, std::string text);
     void push(job &&item);
-    bool take_failure(uint64_t &id, std::string &message);
+    bool take_failure(uint64_t &id, int64_t &pid, std::string &message);
 
     void run();
     void apply(std::map<uint64_t, open_file> &files, job &item);
     void attach(std::map<uint64_t, open_file> &files, const job &item);
-    void fail(uint64_t id, std::string message);
+    void fail(uint64_t id, int64_t pid, std::string message);
 
     std::vector<file_entry> files_;
     uint64_t next_id_ = 1;

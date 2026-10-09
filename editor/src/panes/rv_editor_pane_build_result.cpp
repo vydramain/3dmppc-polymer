@@ -61,7 +61,7 @@ void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b
         ImGui::EndTable();
     }
 
-    const std::string file = app.log.file_for(b.pid());
+    const std::string file = app.log_files.path_for(b.pid());
     const char *log_key = b.image().empty() ? "pane_build_result.log_kept_no" : "pane_build_result.log_candidate";
     const char *no_log = rv_editor_text(log_key);
     const char *btn_text = rv_editor_text("pane_build_result.open_log_button");

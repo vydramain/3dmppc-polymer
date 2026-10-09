@@ -85,7 +85,7 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
         ImGui::TextUnformatted(line->text.c_str());
     }
 
-    const std::string file = app.log.file_for(s.pid());
+    const std::string file = app.log_files.path_for(s.pid());
     if (rv_editor_button(rv_editor_text("pane_session.open_full_log"),
             theme,
             { rv_editor_look::live, file.empty() ? rv_editor_text("pane_session.open_full_log_no_file") : nullptr })) {

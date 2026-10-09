@@ -105,25 +105,44 @@ void rv_editor_app_prune_session_logs(const std::filesystem::path &dir)
 
 void rv_editor_app_attach_session_log(rv_editor_app &app)
 {
+    // Nowhere to keep the log: no project is open, or neither $XDG_STATE_HOME nor $HOME is set.
     if (app.project.state_dir.empty()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "session log not kept: no state directory: no project is open, or $XDG_STATE_HOME and $HOME are unset");
         return;
     }
     const std::filesystem::path sessions = app.project.state_dir / sessions_dir_name;
     const std::string name = rv_editor_app_timestamp(app.session.started_at()) + std::string(session_log_part_separator) +
         std::to_string(app.session.number()) + std::string(session_log_part_separator) + std::to_string(app.session.pid()) +
         std::string(log_file_extension);
-    app.log.attach_file(app.session.pid(), (sessions / name).string());
+    const std::filesystem::path file = sessions / name;
+    std::string error;
+    if (app.log_files.open(app.session.pid(), file, app.log, error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "session log not kept: " + file.string() + ": " + error);
+    }
     rv_editor_app_prune_session_logs(sessions);
 }
 
 void rv_editor_app_attach_build_log(rv_editor_app &app)
 {
+    // Nowhere to keep the log: no project is open, or neither $XDG_CACHE_HOME nor $HOME is set.
     if (app.project.cache_dir.empty()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "build log not kept: no cache directory: no project is open, or $XDG_CACHE_HOME and $HOME are unset");
         return;
     }
     const std::string filename = std::to_string(app.build.number()) + std::string(log_file_extension);
     const std::filesystem::path path = app.project.cache_dir / builds_dir_name / filename;
-    app.log.attach_file(app.build.pid(), path.string());
+    std::string error;
+    if (app.log_files.open(app.build.pid(), path, app.log, error) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "build log not kept: " + path.string() + ": " + error);
+    }
 }
 
 } // namespace rv_editor
