@@ -99,16 +99,8 @@ struct rv_editor_scene_camera {
     bool seeking = false; // Seek pressed: the next click picks the point to turn about
 };
 
-// The scene panes' own state: Inspector's text for the object shown, the drag
-// being made and the values before it; the viewport's view and its drag of a tool.
+// The Scene viewport's own state: its view, and the tool drag being made and the values before it.
 struct rv_editor_scene_ui {
-    std::string shown;
-    char name[identifier_field_size] = {};
-    char mesh[asset_identifier_field_size] = {};
-    char texture[asset_identifier_field_size] = {};
-    std::string editing;
-    rv_editor_vec3 before{};
-    bool cancelled = false; // Escape took the drag back; it ends when the button is let go
     rv_editor_scene_camera camera;
     bool gizmo_dragging = false;
     int gizmo_axis = -1;
