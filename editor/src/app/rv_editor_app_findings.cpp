@@ -1,10 +1,12 @@
 // Findings: a written-down finding saved as a text file with the session's facts and
-// a log file beside it, and the text and file helpers the panes share.
+// a log file beside it; test cases (a written check and its result) saved the same way;
+// and the text and file helpers the panes share.
 
 #include "app/rv_editor_app.hpp"
 
 #include <ctime>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <string>
 #include <system_error>
@@ -47,6 +49,25 @@ constexpr std::string_view findings_label_expected = "\n\nexpected:\n";
 constexpr std::string_view findings_label_actual = "\n\nactual:\n";
 constexpr std::string_view findings_none = "none";
 
+// Default line number to open new test case file in editor.
+constexpr int case_file_open_line = 3;
+
+// Case file name prefix and template.
+constexpr std::string_view case_file_prefix = "case-";
+constexpr std::string_view case_file_new_template = "title: What this checks\nsteps:\n1. \nexpected:\n\n";
+
+// Case file section markers: "title:" on the first line, then "steps:" and "expected:" on lines of their own.
+constexpr std::string_view case_file_marker_title = "title:";
+constexpr std::string_view case_file_marker_steps = "steps:";
+constexpr std::string_view case_file_marker_expected = "expected:";
+
+// Result file name part and labels.
+constexpr std::string_view filename_timestamp_result_sep = "-";
+constexpr std::string_view result_label_test_case = "test case: ";
+constexpr std::string_view result_label_result = "\nresult: ";
+constexpr std::string_view result_label_note = "\nnote: ";
+constexpr std::string_view result_label_recorded = "\nrecorded: ";
+
 std::string rv_editor_log_text(const rv_editor_log_line &line)
 {
     const char *level = rv_editor_log_level_code(line.level);
@@ -79,6 +100,36 @@ int rv_editor_capture_png(const std::filesystem::path &path,
         return RV_ERR_IO;
     }
     return RV_OK;
+}
+
+// The first case-N.txt in dir that does not exist yet. An empty path with the reason in error when
+// the check fails: a case may already be there, so nothing is written over it.
+std::filesystem::path rv_editor_case_free_path(const std::filesystem::path &dir, std::string &error)
+{
+    for (int n = 1;; ++n) {
+        const std::filesystem::path path =
+            dir / (std::string(case_file_prefix) + std::to_string(n) + std::string(file_ext_text));
+        std::error_code ec;
+        const bool taken = std::filesystem::exists(path, ec);
+        if (ec) {
+            error = "cannot check " + path.string() + ": " + ec.message();
+            return {};
+        }
+        if (!taken) {
+            return path;
+        }
+    }
+}
+
+// A failed case starts a finding: its title, steps and expected, with the drafted note as actual.
+void rv_editor_case_start_finding(rv_editor_app &app, const rv_editor_case &c)
+{
+    rv_editor_findings &f = app.findings;
+    std::snprintf(f.title, sizeof(f.title), "%s: failed", c.title.c_str());
+    std::snprintf(f.steps, sizeof(f.steps), "%s", c.steps.c_str());
+    std::snprintf(f.expected, sizeof(f.expected), "%s", c.expected.c_str());
+    std::snprintf(f.actual, sizeof(f.actual), "%s", f.note);
+    app.show_request = rv_editor_pane_kind::findings;
 }
 
 } // namespace
@@ -211,6 +262,92 @@ int rv_editor_app_capture_frame(rv_editor_app &app)
     f.error.clear();
     app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "captured " + path.string());
     return RV_OK;
+}
+
+// A test case file: the title from its "title:" line (else the file name), then the steps and expected text.
+rv_editor_case rv_editor_case_read(const std::filesystem::path &path)
+{
+    rv_editor_case c;
+    c.title = path.stem().string();
+    std::ifstream in(path);
+    std::string line;
+    std::string *into = nullptr;
+    while (std::getline(in, line)) {
+        if (line.starts_with(case_file_marker_title)) {
+            const size_t pos = line.find_first_not_of(' ', case_file_marker_title.size());
+            c.title = line.substr(pos == std::string::npos ? line.size() : pos);
+        } else if (line == case_file_marker_steps) {
+            into = &c.steps;
+        } else if (line == case_file_marker_expected) {
+            into = &c.expected;
+        } else if (into != nullptr) {
+            *into += line + "\n";
+        }
+    }
+    return c;
+}
+
+// A new case to fill in, opened in Code. RV_OK, or RV_ERR_IO with the reason in findings.error and the log.
+int rv_editor_app_case_new(rv_editor_app &app)
+{
+    rv_editor_findings &f = app.findings;
+    const std::filesystem::path dir = app.project.root / std::string(dir_name_testcases);
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    std::string error = ec ? "cannot create " + dir.string() + ": " + ec.message() : std::string();
+    const std::filesystem::path path = error.empty() ? rv_editor_case_free_path(dir, error) : std::filesystem::path();
+    const int rv = error.empty() ? rv_editor_write_file(path, std::string(case_file_new_template), error) : RV_ERR_IO;
+    if (rv != RV_OK) {
+        f.error = error;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "test case not created: " + error);
+        return RV_ERR_IO;
+    }
+    f.error.clear();
+    app.open_requests.push_back({ path, case_file_open_line });
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "test case created: " + path.string());
+    return RV_OK;
+}
+
+// A case result with the session, written into the findings. RV_OK, or RV_ERR_IO when it is not
+// saved (reason in findings.error and the log). Failed also starts a finding and attaches the live
+// session's frame; then the capture's code is returned (its reason in findings.error and the log).
+int rv_editor_app_case_result(rv_editor_app &app, const rv_editor_case &c, rv_editor_case_result_kind kind)
+{
+    rv_editor_findings &f = app.findings;
+    const std::string name(case_result_names[static_cast<size_t>(kind)]);
+    const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    std::string error = ec ? "cannot create " + dir.string() + ": " + ec.message() : std::string();
+    const std::string filename =
+        rv_editor_now_text(time_format_file) + std::string(filename_timestamp_result_sep) + name + std::string(file_ext_text);
+    const std::filesystem::path path = dir / filename;
+    const std::string text = std::string(result_label_test_case) + c.title + std::string(result_label_result) + name +
+        std::string(result_label_note) + f.note + std::string(result_label_recorded) + rv_editor_now_text(time_format_people) +
+        "\n" + rv_editor_session_text(app);
+    const int rv = error.empty() ? rv_editor_write_file(path, text, error) : RV_ERR_IO;
+    if (rv != RV_OK) {
+        f.error = error;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "test case result not saved: " + error);
+        return RV_ERR_IO;
+    }
+    const bool failed = kind == rv_editor_case_result_kind::failed;
+    f.error.clear();
+    f.saved.push_back(path);
+    f.results.push_back(
+        name + ": " + c.title + ", session #" + std::to_string(app.session.number()) + ", " + rv_editor_now_text("%H:%M"));
+    const rv_editor_log_level level = failed ? rv_editor_log_level::warning : rv_editor_log_level::info;
+    app.log.add(rv_editor_log_source::editor,
+        level,
+        "test case " + c.title + ": " + name + ", session #" + std::to_string(app.session.number()));
+    if (failed) {
+        rv_editor_case_start_finding(app, c);
+    }
+    f.note[0] = '\0';
+    if (!failed || !app.session.live()) {
+        return RV_OK;
+    }
+    return rv_editor_app_capture_frame(app);
 }
 
 } // namespace rv_editor

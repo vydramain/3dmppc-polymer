@@ -374,11 +374,31 @@ int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, 
 // Findings files: the directory under the project's state dir, and the extensions of the
 // text files and logs in it (findings and test results).
 constexpr std::string_view dir_name_findings = "findings";
+// Test case files (case-N.txt, listed by the Test Case pane), under the project root.
+constexpr std::string_view dir_name_testcases = "testcases";
 constexpr std::string_view file_ext_text = ".txt";
 constexpr std::string_view file_ext_log = ".log";
 // File-name stamp "20260926-141203" and the stamp people read, "2026-09-26 14:12:03".
 constexpr const char *time_format_file = "%Y%m%d-%H%M%S";
 constexpr const char *time_format_people = "%Y-%m-%d %H:%M:%S";
+// Test case results: the pane's choice, and the name each one has in result files.
+enum class rv_editor_case_result_kind {
+    passed,
+    failed,
+    blocked,
+    count
+};
+constexpr std::string_view case_result_names[] = { "passed", "failed", "blocked" };
+static_assert(std::size(case_result_names) == static_cast<size_t>(rv_editor_case_result_kind::count),
+    "case result name table size must match enum count");
+
+// A test case file: "title: ..." on its first line, then "steps:" and "expected:"
+// each on a line of its own over their text, as a finding writes them.
+struct rv_editor_case {
+    std::string title;
+    std::string steps;
+    std::string expected;
+};
 
 // Findings (editor/src/app/rv_editor_app_findings.cpp): saves the drafted finding with its log.
 // RV_OK, or RV_ERR_IO with the reason in findings.error.
@@ -387,6 +407,14 @@ int rv_editor_app_save_finding(rv_editor_app &app);
 // finding being written. RV_OK, RV_ERR_NOENT when no frame of the live session has arrived,
 // RV_ERR_IO when the file cannot be written (reason in findings.error and the log).
 int rv_editor_app_capture_frame(rv_editor_app &app);
+// Test Case (editor/src/app/rv_editor_app_findings.cpp): reads a case file's title, steps and expected.
+rv_editor_case rv_editor_case_read(const std::filesystem::path &path);
+// A new case file opened in Code. RV_OK, or RV_ERR_IO with the reason in findings.error and the log.
+int rv_editor_app_case_new(rv_editor_app &app);
+// A case result with the session, written into the findings. RV_OK, or RV_ERR_IO when it is not
+// saved (reason in findings.error and the log). Failed also starts a finding and attaches the live
+// session's frame; then the capture's code is returned (its reason in findings.error and the log).
+int rv_editor_app_case_result(rv_editor_app &app, const rv_editor_case &c, rv_editor_case_result_kind kind);
 // Text and file helpers the Findings and Test Case panes share: a timestamp by format, the
 // session's facts as "key: value" lines, and a file write (error holds the reason).
 std::string rv_editor_now_text(const char *format);

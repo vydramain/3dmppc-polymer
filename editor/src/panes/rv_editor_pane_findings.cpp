@@ -5,14 +5,10 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
-#include <cstdio>
-#include <fstream>
 #include <string>
 #include <system_error>
 
 #include "imgui.h"
-
-#include "pdk/rv_err.h"
 
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -26,33 +22,13 @@ namespace
 // Multiline text input height in lines of text (multiplied by line height).
 constexpr float multiline_input_height_lines = 3.5f;
 
-// Default line number to open new test case file in editor.
-constexpr int case_file_open_line = 3;
-
-// Case file section markers and template.
-constexpr std::string_view case_file_marker_title = "title:";
-constexpr std::string_view case_file_marker_steps = "steps:";
-constexpr std::string_view case_file_marker_expected = "expected:";
-constexpr std::string_view case_file_new_template = "title: What this checks\nsteps:\n1. \nexpected:\n\n";
-
-// Directory names.
-constexpr std::string_view dir_name_testcases = "testcases";
-constexpr std::string_view case_file_prefix = "case-"; // Prefix for new case filenames.
-
-// Filename and result format markers.
-constexpr std::string_view filename_timestamp_result_sep = "-";
-constexpr std::string_view result_type_passed = "passed";
-constexpr std::string_view result_type_failed = "failed";
-constexpr std::string_view result_type_blocked = "blocked";
-
 constexpr const char *exploratory_case_title =
     "Exploratory"; // Default test case title, written into result files - not translated.
 
-// Result file format labels.
-constexpr std::string_view result_label_test_case = "test case: ";
-constexpr std::string_view result_label_result = "\nresult: ";
-constexpr std::string_view result_label_note = "\nnote: ";
-constexpr std::string_view result_label_recorded = "\nrecorded: ";
+// Result button text keys, in rv_editor_case_result_kind order.
+constexpr size_t result_kind_count = static_cast<size_t>(rv_editor_case_result_kind::count);
+constexpr const char *result_label_keys[] = { "findings.passed", "findings.failed", "findings.blocked" };
+static_assert(std::size(result_label_keys) == result_kind_count, "result label keys must match enum count");
 
 void rv_editor_multiline(const char *label, char *buf, size_t size)
 {
@@ -63,36 +39,6 @@ void rv_editor_multiline(const char *label, char *buf, size_t size)
         size,
         ImVec2(-1.0f, ImGui::GetTextLineHeightWithSpacing() * multiline_input_height_lines));
     ImGui::PopID();
-}
-
-// A test case file: "title: ..." on its first line, then "steps:" and "expected:"
-// each on a line of its own over their text, as a finding writes them.
-struct rv_editor_case {
-    std::string title;
-    std::string steps;
-    std::string expected;
-};
-
-rv_editor_case rv_editor_case_read(const std::filesystem::path &path)
-{
-    rv_editor_case c;
-    c.title = path.stem().string();
-    std::ifstream in(path);
-    std::string line;
-    std::string *into = nullptr;
-    while (std::getline(in, line)) {
-        if (line.starts_with(case_file_marker_title)) {
-            const size_t pos = line.find_first_not_of(' ', case_file_marker_title.size());
-            c.title = line.substr(pos == std::string::npos ? line.size() : pos);
-        } else if (line == case_file_marker_steps) {
-            into = &c.steps;
-        } else if (line == case_file_marker_expected) {
-            into = &c.expected;
-        } else if (into != nullptr) {
-            *into += line + "\n";
-        }
-    }
-    return c;
 }
 
 // testcases/*.txt of the project, read again when the directory changes.
@@ -121,60 +67,6 @@ void rv_editor_cases_list(rv_editor_app &app)
     }
 }
 
-// A new case to fill in, opened in Code.
-void rv_editor_case_new(rv_editor_app &app)
-{
-    const std::filesystem::path dir = app.project.root / std::string(dir_name_testcases);
-    std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
-    std::filesystem::path path;
-    for (int n = 1; path.empty() || std::filesystem::exists(path, ec); ++n) {
-        path = dir / (std::string(case_file_prefix) + std::to_string(n) + std::string(file_ext_text));
-    }
-    std::string error;
-    if (rv_editor_write_file(path, std::string(case_file_new_template), error) != RV_OK) {
-        app.findings.error = error;
-        return;
-    }
-    app.open_requests.push_back({ path, case_file_open_line });
-}
-
-// Passed, Failed or Blocked, with the session; Failed also starts a finding.
-void rv_editor_case_result(rv_editor_app &app, const rv_editor_case &c, const char *result)
-{
-    rv_editor_findings &f = app.findings;
-    const std::filesystem::path dir = app.project.state_dir / std::string(dir_name_findings);
-    std::error_code ec;
-    std::filesystem::create_directories(dir, ec);
-    const std::string filename =
-        rv_editor_now_text(time_format_file) + std::string(filename_timestamp_result_sep) + result + std::string(file_ext_text);
-    const std::filesystem::path path = dir / filename;
-    std::string text = std::string(result_label_test_case) + c.title + std::string(result_label_result) + result +
-        std::string(result_label_note) + f.note + std::string(result_label_recorded) + rv_editor_now_text(time_format_people) +
-        "\n" + rv_editor_session_text(app);
-    if (rv_editor_write_file(path, text, f.error) != RV_OK) {
-        return;
-    }
-    f.error.clear();
-    f.saved.push_back(path);
-    f.results.push_back(std::string(result) + ": " + c.title + ", session #" + std::to_string(app.session.number()) + ", " +
-        rv_editor_now_text("%H:%M"));
-    app.log.add(rv_editor_log_source::editor,
-        std::string_view(result) == result_type_failed ? rv_editor_log_level::warning : rv_editor_log_level::info,
-        "test case " + c.title + ": " + result + ", session #" + std::to_string(app.session.number()));
-    if (std::string_view(result) == result_type_failed) {
-        std::snprintf(f.title, sizeof(f.title), "%s: failed", c.title.c_str());
-        std::snprintf(f.steps, sizeof(f.steps), "%s", c.steps.c_str());
-        std::snprintf(f.expected, sizeof(f.expected), "%s", c.expected.c_str());
-        std::snprintf(f.actual, sizeof(f.actual), "%s", f.note);
-        if (app.session.live()) {
-            (void)rv_editor_app_capture_frame(app);
-        }
-        app.show_request = rv_editor_pane_kind::findings;
-    }
-    f.note[0] = '\0';
-}
-
 } // namespace
 
 void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
@@ -200,7 +92,7 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::PopID();
     }
     if (rv_editor_button(rv_editor_text("findings.new_test_case"), theme)) {
-        rv_editor_case_new(app);
+        (void)rv_editor_app_case_new(app);
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
@@ -217,16 +109,12 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
     const char *why_not = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
-    constexpr const char *results[] = { result_type_passed.data(), result_type_failed.data(), result_type_blocked.data() };
-    const char *labels[] = { rv_editor_text("findings.passed"),
-        rv_editor_text("findings.failed"),
-        rv_editor_text("findings.blocked") };
-    for (size_t i = 0; i < std::size(results); ++i) {
+    for (size_t i = 0; i < result_kind_count; ++i) {
         if (i > 0) {
             ImGui::SameLine();
         }
-        if (rv_editor_button(labels[i], theme, { rv_editor_look::live, why_not })) {
-            rv_editor_case_result(app, c, results[i]);
+        if (rv_editor_button(rv_editor_text(result_label_keys[i]), theme, { rv_editor_look::live, why_not })) {
+            (void)rv_editor_app_case_result(app, c, static_cast<rv_editor_case_result_kind>(i));
         }
     }
     if (!f.error.empty()) {
