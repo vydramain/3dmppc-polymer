@@ -1,7 +1,9 @@
-// The view file: the code text size, the Game scale and the workspace, one line each.
+// The view file: the code text size, the Game scale, the workspace, the UI scale, vsync and the
+// frame rate limit, one line each.
 
 #include "prefs/rv_editor_prefs.hpp"
 
+#include <charconv>
 #include <fstream>
 #include <sstream>
 #include <system_error>
@@ -20,11 +22,17 @@ namespace
 // View preferences file header: magic string prefix with PDK version
 constexpr std::string_view prefs_header_prefix = "3dmppc-editor-view ";
 
-// Preference keys for code font size, game scale, workspace, and UI scale
+// Preference keys for code font size, game scale, workspace, UI scale, vsync and frame rate limit
 constexpr std::string_view prefs_key_code_font = "code-font";
 constexpr std::string_view prefs_key_game_scale = "game-scale";
 constexpr std::string_view prefs_key_workspace = "workspace";
 constexpr std::string_view prefs_key_ui_scale = "ui-scale";
+constexpr std::string_view prefs_key_vsync = "vsync";
+constexpr std::string_view prefs_key_fps_limit = "fps-limit";
+
+// Vsync values as stored in the view file; anything but "off" reads as on, the default
+constexpr std::string_view vsync_on_str = "on";
+constexpr std::string_view vsync_off_str = "off";
 
 // File format: key-value separator and line ending
 constexpr std::string_view key_value_sep = " ";
@@ -117,6 +125,14 @@ std::string rv_editor_prefs_write(const rv_editor_prefs &prefs)
         out += ui_scale_default_str;
     }
     out += line_end;
+    out += prefs_key_vsync;
+    out += key_value_sep;
+    out += prefs.vsync ? vsync_on_str : vsync_off_str;
+    out += line_end;
+    out += prefs_key_fps_limit;
+    out += key_value_sep;
+    out += std::to_string(prefs.fps_limit);
+    out += line_end;
     return out;
 }
 
@@ -148,6 +164,15 @@ rv_editor_prefs rv_editor_prefs_read(std::string_view text)
                 prefs.ui_scale = ui_scale_medium;
             } else {
                 prefs.ui_scale = ui_scale_default;
+            }
+        } else if (key == prefs_key_vsync) {
+            prefs.vsync = value != vsync_off_str;
+        } else if (key == prefs_key_fps_limit) {
+            int fps = 0;
+            const char *end = value.data() + value.size();
+            const std::from_chars_result parsed = std::from_chars(value.data(), end, fps);
+            if (parsed.ec == std::errc{} && parsed.ptr == end && fps >= fps_limit_min && fps <= fps_limit_max) {
+                prefs.fps_limit = fps;
             }
         }
     }

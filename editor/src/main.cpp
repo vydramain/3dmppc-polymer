@@ -437,7 +437,9 @@ int main(int argc, char **argv)
     const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(),
         shell->app.game_scale,
         rv_editor::rv_editor_shell_workspace_key(*shell),
-        shell->ui_scale };
+        shell->ui_scale,
+        prefs.vsync,
+        prefs.fps_limit };
     if (!prefs_path.empty() && rv_editor::rv_editor_prefs_save(prefs_path, chosen, error) != RV_OK) {
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }

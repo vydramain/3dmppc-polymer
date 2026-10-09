@@ -29,13 +29,21 @@ int rv_editor_game_scale_parse(std::string_view name, rv_editor_game_scale &scal
 constexpr float ui_scale_medium = 1.5f;
 constexpr float ui_scale_large = 2.0f;
 
+// Frame rate limit bounds: a damaged file must not stall the frame loop or lift the cap,
+// so a stored value outside them keeps the default, 60.
+constexpr int fps_limit_default = 60;
+constexpr int fps_limit_min = 15;
+constexpr int fps_limit_max = 240;
+
 // What the user chose for the view, kept between runs in its own file next to
 // the layout, never in settings.toml or disc.toml.
 struct rv_editor_prefs {
     rv_editor_code_size code_size = rv_editor_code_size::small;
     rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
-    std::string workspace = "code"; // the layout shown last: "code", "scene", "debug" or "burn"
-    float ui_scale = 1.0f;          // View > UI Scale: 1, 2 or 3
+    std::string workspace = "code";    // the layout shown last: "code", "scene", "debug" or "burn"
+    float ui_scale = 1.0f;             // View > UI Scale: 1, 2 or 3
+    bool vsync = true;                 // the frame waits for the display's refresh
+    int fps_limit = fps_limit_default; // the frame rate cap, in frames per second
 };
 
 // "3dmppc-editor-view <PDK version>", then one "key value" line per setting.
