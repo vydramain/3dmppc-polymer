@@ -7,6 +7,7 @@
 
 #include "imgui.h"
 
+#include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
@@ -434,7 +435,8 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     }
 
     ws.rects = rect_of;
-    const int drag_rv = rv_editor_tile_drag_update(ws, rect_of, theme, error);
+    const bool drag_running = rv_editor_tile_drag_running(ws);
+    const int drag_rv = drag_running ? rv_editor_tile_drag_frame(ws, rect_of, theme, error) : RV_OK;
 
     // The content size the scrollbars measure.
     ImGui::SetCursorScreenPos(origin);

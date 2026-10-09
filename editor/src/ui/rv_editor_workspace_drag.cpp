@@ -90,11 +90,9 @@ struct rv_editor_tile_zone {
     rv_editor_tile_dock dock = rv_editor_tile_dock::tab;
 };
 
-// Whether a drag is armed or in progress.
-bool rv_editor_tile_drag_running(const rv_editor_workspace &ws)
-{
-    return ws.drag.armed || ws.drag.dragging;
-}
+// Why a drop onto a leaf that holds only the dragged pane is refused.
+constexpr const char *drop_refused_reason = "the pane stays where it is: a side drop needs a second tab in its own leaf, "
+                                            "and the target must be a leaf";
 
 // Whether the pointer is at least the drag threshold away from the press point.
 bool rv_editor_tile_drag_moved(const rv_editor_workspace &ws, const rv_editor_theme &theme)
@@ -124,10 +122,6 @@ void rv_editor_tile_drag_start(rv_editor_workspace &ws)
 {
     ws.drag.dragging = true;
 }
-
-// Why a drop onto a leaf that holds only the dragged pane is refused.
-constexpr const char *drop_refused_reason = "the pane stays where it is: a side drop needs a second tab in its own leaf, "
-                                            "and the target must be a leaf";
 
 // The dragged pane moves to `zone`, and the drag ends. On refusal `error` says why.
 int rv_editor_tile_drag_drop(rv_editor_workspace &ws, const rv_editor_tile_zone &zone, std::string &error)
@@ -176,6 +170,44 @@ void rv_editor_tile_drag_preview(const std::vector<rv_editor_rect> &rect_of,
 
 } // namespace
 
+bool rv_editor_tile_drag_running(const rv_editor_workspace &ws)
+{
+    return ws.drag.armed || ws.drag.dragging;
+}
+
+int rv_editor_tile_drag_frame(rv_editor_workspace &ws,
+    const std::vector<rv_editor_rect> &rect_of,
+    const rv_editor_theme &theme,
+    std::string &error)
+{
+    const rv_editor_tile_zone zone = rv_editor_tile_drag_zone_at(ws, rect_of);
+    const bool over_zone = zone.leaf != rv_editor_tile_none;
+    // Dropping a tab on its own leaf's tab strip is no move: the pane stays, so it cancels.
+    const bool onto_own_tabs = zone.leaf == ws.drag.from_leaf && zone.dock == rv_editor_tile_dock::tab;
+    const bool drops = ws.drag.dragging && over_zone && !onto_own_tabs;
+    const bool released = !ImGui::IsMouseDown(ImGuiMouseButton_Left);
+    const bool escape = ImGui::IsKeyPressed(ImGuiKey_Escape);
+    const bool should_start = !ws.drag.dragging && rv_editor_tile_drag_moved(ws, theme);
+    const bool show_preview = (ws.drag.dragging || should_start) && over_zone;
+    const bool drop_now = released && drops;
+    const bool cancel_now = (released && !drops) || escape;
+
+    if (drop_now) {
+        return rv_editor_tile_drag_drop(ws, zone, error);
+    }
+    if (cancel_now) {
+        rv_editor_tile_drag_cancel(ws);
+        return RV_OK;
+    }
+    if (should_start) {
+        rv_editor_tile_drag_start(ws);
+    }
+    if (show_preview) {
+        rv_editor_tile_drag_preview(rect_of, zone, theme);
+    }
+    return RV_OK;
+}
+
 void rv_editor_tile_drag_header(rv_editor_workspace &ws, uint32_t leaf, bool title_pressed)
 {
     if (!title_pressed || ws.drag.armed || ws.drag.dragging) {
@@ -204,39 +236,6 @@ void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int presse
     ws.drag.pane = tabs.tabs[static_cast<size_t>(pressed_tab)];
     ws.drag.from_leaf = leaf;
     ws.drag.press = ImGui::GetMousePos();
-}
-
-int rv_editor_tile_drag_update(rv_editor_workspace &ws,
-    const std::vector<rv_editor_rect> &rect_of,
-    const rv_editor_theme &theme,
-    std::string &error)
-{
-    if (!rv_editor_tile_drag_running(ws)) {
-        return RV_OK;
-    }
-    const rv_editor_tile_zone zone = rv_editor_tile_drag_zone_at(ws, rect_of);
-    const bool over_zone = zone.leaf != rv_editor_tile_none;
-    // Dropping a tab on its own leaf's tab strip is no move: the pane stays, so it cancels.
-    const bool onto_own_tabs = zone.leaf == ws.drag.from_leaf && zone.dock == rv_editor_tile_dock::tab;
-    const bool drops = ws.drag.dragging && over_zone && !onto_own_tabs;
-
-    // Release ends the drag; Escape cancels it; otherwise the drag may start and its preview is drawn in the same frame.
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-        if (drops) {
-            return rv_editor_tile_drag_drop(ws, zone, error);
-        }
-        rv_editor_tile_drag_cancel(ws);
-    } else if (ImGui::IsKeyPressed(ImGuiKey_Escape)) {
-        rv_editor_tile_drag_cancel(ws);
-    } else {
-        if (!ws.drag.dragging && rv_editor_tile_drag_moved(ws, theme)) {
-            rv_editor_tile_drag_start(ws);
-        }
-        if (ws.drag.dragging && over_zone) {
-            rv_editor_tile_drag_preview(rect_of, zone, theme);
-        }
-    }
-    return RV_OK;
 }
 
 } // namespace rv_editor

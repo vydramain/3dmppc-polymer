@@ -238,12 +238,16 @@ void rv_editor_tile_drag_header(rv_editor_workspace &ws, uint32_t leaf, bool tit
 // param named it, or -1) says the left button just went down on that tab.
 void rv_editor_tile_drag_tabs(rv_editor_workspace &ws, uint32_t leaf, int pressed_tab);
 
-// Advances an armed or in-progress drag, draws its drop-zone preview and, on
-// release over a valid zone, moves the pane. Escape or a release outside
-// every leaf cancels with no change. Returns RV_OK, or the move's code with
-// `error` naming why the pane could not be moved. Call once per frame, after
-// every leaf has been placed, with each node's rectangle from that placement.
-int rv_editor_tile_drag_update(rv_editor_workspace &ws,
+// Whether a drag is armed or in progress.
+bool rv_editor_tile_drag_running(const rv_editor_workspace &ws);
+
+// The drag's frame, called only while a drag runs: asks whether the button was
+// released, Escape pressed, the threshold passed and the pointer is over a zone,
+// then runs the drop, the cancel, the start or the preview. A release over a
+// valid zone moves the pane and returns the move's code, else RV_OK; `error`
+// names a refused move. Call once per frame, after every leaf has been placed,
+// with each node's rectangle from that placement.
+int rv_editor_tile_drag_frame(rv_editor_workspace &ws,
     const std::vector<rv_editor_rect> &rect_of,
     const rv_editor_theme &theme,
     std::string &error);
@@ -266,7 +270,7 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind);
 // Fills `area` (screen pixels) of the current window with the workspace, a child
 // window of its own. A splitter drag changes its
 // split's ratio.
-// Returns the tile drag's result (rv_editor_tile_drag_update); `error` names a refused drop.
+// Returns the code of a drop that ended this frame's tile drag, else RV_OK; `error` names a refused drop.
 int rv_editor_workspace_draw(rv_editor_workspace &ws,
     const rv_editor_theme &theme,
     rv_editor_pane_draw_fn draw_pane,
