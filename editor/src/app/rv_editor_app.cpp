@@ -285,12 +285,11 @@ int rv_editor_app_force_stop(rv_editor_app &app)
 int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error)
 {
     error = app.nvim.buffers_unsaved_at(from);
-    if (!error.empty()) {
-        return RV_ERR_BUSY;
-    }
+    const bool busy = !error.empty();
     const std::filesystem::path to = from.parent_path() / name;
-    const int err = app.files.rename(from, name, error);
+    const int err = busy ? RV_ERR_BUSY : app.files.rename(from, name, error);
     if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not renamed: " + error);
         return err;
     }
     app.nvim.rename_buffers_at(from, to);
@@ -301,11 +300,10 @@ int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, 
 int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error)
 {
     error = app.nvim.buffers_unsaved_at(path);
-    if (!error.empty()) {
-        return RV_ERR_BUSY;
-    }
-    const int err = app.files.remove(path, error);
+    const bool busy = !error.empty();
+    const int err = busy ? RV_ERR_BUSY : app.files.remove(path, error);
     if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not deleted: " + error);
         return err;
     }
     app.nvim.delete_buffers_at(path);
