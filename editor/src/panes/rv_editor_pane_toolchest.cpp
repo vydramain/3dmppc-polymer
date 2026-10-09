@@ -81,15 +81,17 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
         app.show_request = rv_editor_pane_kind::findings;
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_toolchest.restart_button")));
+    // A restart in progress says so in place of the no-session reason.
+    const bool restart_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart);
+    const char *restart_why = restart_pending ? rv_editor_text("app_why_not.restart_pending") : no_session;
     if (rv_editor_tool_button(rv_editor_text("pane_toolchest.restart_button"),
             rv_editor_glyph::restart,
             theme.code_green,
             rv_editor_text("pane_toolchest.restart_tooltip"),
             nullptr,
             theme,
-            { rv_editor_look::live, no_session })) {
-        app.run_after_stop = true;
-        rv_editor_app_stop(app);
+            { rv_editor_look::live, restart_why })) {
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::restart });
     }
 }
 

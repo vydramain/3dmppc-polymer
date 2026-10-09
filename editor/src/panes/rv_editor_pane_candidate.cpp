@@ -275,16 +275,18 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_candidate.stop_button")));
     const bool session_live = app.session.live();
     const bool player_running = rv_editor_app_player_running(app);
+    const bool stop_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::stop);
     const char *why_not_stop_release = player_running ? nullptr : rv_editor_app_why_not_stop(app);
+    const char *stop_release_why = stop_pending ? rv_editor_text("app_why_not.stop_pending") : why_not_stop_release;
     if (rv_editor_tool_button(rv_editor_text("pane_candidate.stop_button"),
             rv_editor_glyph::stop,
             theme.code_red,
             rv_editor_text("pane_candidate.stop_tooltip"),
             nullptr,
             theme,
-            { rv_editor_look::live, why_not_stop_release })) {
+            { rv_editor_look::live, stop_release_why })) {
         if (session_live) {
-            rv_editor_app_stop(app);
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
         }
         rv_editor_app_stop_player(app);
     }
@@ -331,8 +333,10 @@ void rv_editor_pane_release_controls(rv_editor_app &app, const rv_editor_theme &
     // One action row shared by the two: a hung runtime needs Force Stop first,
     // a gap standing in when neither applies, so the strip's height stays fixed.
     if (app.session.hung()) {
-        if (rv_editor_button(rv_editor_text("pane_candidate.force_stop_button"), theme)) {
-            rv_editor_app_force_stop(app);
+        const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
+        const char *force_why = force_pending ? rv_editor_text("app_why_not.stop_pending") : nullptr;
+        if (rv_editor_button(rv_editor_text("pane_candidate.force_stop_button"), theme, { rv_editor_look::live, force_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
         }
     } else if (app.build.busy()) {
         if (rv_editor_button(rv_editor_text("pane_candidate.cancel_build_button"), theme)) {

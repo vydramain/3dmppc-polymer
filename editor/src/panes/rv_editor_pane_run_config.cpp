@@ -247,12 +247,11 @@ bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_button(rv_editor_text("pane_run_config.apply_label"), theme, { rv_editor_look::live, why_not });
     ImGui::SetItemTooltip("%s", rv_editor_text("pane_run_config.apply_button_tooltip"));
     ImGui::SameLine();
-    const char *restart_disabled = nullptr;
-    if (why_not != nullptr) {
-        restart_disabled = why_not;
-    } else if (!app.session.live()) {
-        restart_disabled = rv_editor_text("pane_run_config.restart_disabled");
-    }
+    const char *no_session_why = app.session.live() ? nullptr : rv_editor_text("pane_run_config.restart_disabled");
+    const char *profile_why = why_not != nullptr ? why_not : no_session_why;
+    // Pending wins: the Restart already runs, whatever the profile says.
+    const bool restart_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::restart);
+    const char *restart_disabled = restart_pending ? rv_editor_text("app_why_not.restart_pending") : profile_why;
     const bool restart = rv_editor_button(rv_editor_text("pane_run_config.apply_restart_label"),
         theme,
         { rv_editor_look::live, restart_disabled });
@@ -266,8 +265,7 @@ bool rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_app_profiles_save(app);
     }
     if (restart) {
-        app.run_after_stop = true;
-        rv_editor_app_stop(app);
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::restart });
     }
     return apply || restart;
 }

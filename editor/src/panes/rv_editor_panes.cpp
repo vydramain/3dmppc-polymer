@@ -176,11 +176,13 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         reload_name = rv_editor_text("panes.reload_entry_script");
     }
     // Reload is always shown; it is disabled with a reason when the disc cannot take one.
+    // A Stop waiting for the next frame blocks the bar's Stop, saying so in place of the app's reason.
+    const bool stop_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::stop);
     const rv_editor_transport_state state{ rv_editor_app_why_not_build(app),
         rv_editor_app_why_not_run(app),
         rv_editor_app_why_not_pause(app),
         rv_editor_app_why_not_step(app),
-        rv_editor_app_why_not_stop(app),
+        stop_pending ? rv_editor_text("app_why_not.stop_pending") : rv_editor_app_why_not_stop(app),
         rv_editor_why_not_reload_shown(app),
         s.state() == rv_editor_run_state::paused,
         offer_build_restart,
@@ -205,7 +207,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_app_step(app);
     }
     if (clicked.stop) {
-        rv_editor_app_stop(app);
+        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::stop });
     }
     if (clicked.reload) {
         rv_editor_app_reload(app);
@@ -298,8 +300,10 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     // hung runtime needs Force Stop first, then a running build needs Cancel,
     // and only then the reload badge, the least urgent of the three.
     if (s.hung() || s.state() == rv_editor_run_state::disconnected) {
-        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme)) {
-            rv_editor_app_force_stop(app);
+        const bool force_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::force_stop);
+        const char *force_why = force_pending ? rv_editor_text("app_why_not.stop_pending") : nullptr;
+        if (rv_editor_button(rv_editor_text("panes.force_stop_button"), theme, { rv_editor_look::live, force_why })) {
+            (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::force_stop });
         }
         ImGui::SameLine();
         const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");

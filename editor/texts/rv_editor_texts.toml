@@ -1277,6 +1277,8 @@ pause_before_step = "Pause first: Step runs one frame of a paused machine"
 stopping_runtime = "Stopping; Force Stop ends it if it hangs"
 baking_texture = "Baking texture {}"
 waiting_for_reload = "Waiting for the last reload's answer"
+stop_pending = "Stopping: the request runs on the next frame"
+restart_pending = "Restarting: waiting for the session to stop and the run to start"
 
 [page_help]
 title = "Help: Keyboard Shortcuts"
