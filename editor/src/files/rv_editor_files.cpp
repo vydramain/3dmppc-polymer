@@ -46,7 +46,7 @@ void stop_after_failure(rv_editor_watch &watch, std::string &error)
 
 int rv_editor_files::open(const std::filesystem::path &root, std::string &error)
 {
-    // The old descriptor is dropped either way, so the open goes on; the failure is logged by update().
+    // The old descriptor is dropped either way, so the open goes on; the failure is reported by update().
     std::string close_error;
     if (close(close_error) == RV_ERR_IO) {
         close_error_ += (close_error_.empty() ? "" : "; ") + close_error;
@@ -200,12 +200,10 @@ rv_editor_file_node *rv_editor_files::find(rv_editor_file_node &node, const std:
     return nullptr;
 }
 
-int rv_editor_files::update(rv_editor_log &log, std::string &error)
+int rv_editor_files::update(std::vector<std::string> &warnings, std::string &error)
 {
     if (!close_error_.empty()) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "the previous project's file watcher did not close: " + close_error_);
+        warnings.push_back("the previous project's file watcher did not close: " + close_error_);
         close_error_.clear();
     }
     if (!is_open() || !watching_) {
@@ -268,14 +266,10 @@ int rv_editor_files::update(rv_editor_log &log, std::string &error)
         }
     }
     if (lost) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "the file watcher lost track of changes; the whole tree is re-read");
+        warnings.push_back("the file watcher lost track of changes; the whole tree is re-read");
     }
     if (limit) {
-        log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "watch limit reached, part of the tree is not watched; the whole tree is re-read");
+        warnings.push_back("watch limit reached, part of the tree is not watched; the whole tree is re-read");
     }
     if (lost || limit || restart) {
         stale_.clear();

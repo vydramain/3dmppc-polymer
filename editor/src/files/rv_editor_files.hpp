@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-#include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_watch.hpp"
 
 namespace rv_editor
@@ -52,8 +51,10 @@ public:
     // `changed` for whoever needs them (disc.toml, open documents). RV_ERR_IO with
     // watching() false: a read or restart failed, the watcher is stopped. RV_ERR_IO with
     // watching() true: a new folder could not be watched, the rest still is. Either way
-    // `error` tells why, and the caller reports it once.
-    int update(rv_editor_log &log, std::string &error);
+    // `error` tells why, and the caller reports it once. Warnings the tree survives (a previous
+    // watcher that did not close, a lost track, the watch limit) are appended to `warnings` as
+    // texts; the caller logs them.
+    int update(std::vector<std::string> &warnings, std::string &error);
 
     rv_editor_file_node &root()
     {
@@ -88,7 +89,7 @@ private:
     rv_editor_watch watch_;
     std::set<std::filesystem::path> stale_;
     bool watching_ = false;
-    // Why the previous project's watcher did not close; update() logs it once and clears it.
+    // Why the previous project's watcher did not close; update() reports it once and clears it.
     std::string close_error_;
 };
 

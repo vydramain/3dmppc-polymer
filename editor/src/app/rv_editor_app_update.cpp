@@ -105,11 +105,16 @@ int rv_editor_app_update_log_files(rv_editor_app &app)
 // The watcher's suffix when no watch runs: Refresh is then the only way to see changes.
 constexpr std::string_view files_unwatched_text = "; files are not watched, Refresh shows changes";
 
-// Watches the files; a failure is logged with the watcher's reason, and the suffix when nothing is watched.
+// Watches the files; warnings are logged as warnings, a failure is logged with the watcher's reason,
+// and the suffix when nothing is watched.
 int rv_editor_app_update_files(rv_editor_app &app)
 {
+    std::vector<std::string> warnings;
     std::string error;
-    const int result = app.files.update(app.log, error);
+    const int result = app.files.update(warnings, error);
+    for (const std::string &warning : warnings) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, warning);
+    }
     const bool failed = result != RV_OK;
     const bool unwatched = failed && !app.files.watching();
     const std::string_view suffix = unwatched ? files_unwatched_text : std::string_view();
