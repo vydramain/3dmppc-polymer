@@ -434,13 +434,15 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app);
 
 // Build and Run ask first when a named buffer is unsaved; the _saved
 // forms go ahead with the files as they are on disk.
-// Returns RV_OK on success or RV_ERR_* on failure.
+// RV_OK: build started. RV_ERR_PENDING: waits on the unsaved-files answer (unsaved_ask set), nothing started.
+// RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
 int rv_editor_app_build(rv_editor_app &app);
 int rv_editor_app_build_saved(rv_editor_app &app);
 int rv_editor_app_run_saved(rv_editor_app &app);
 // Build and Restart (editor/src/app/rv_editor_app_change.cpp): builds, then restarts
 // the live session (or just starts one) once the build has ended.
-// Returns RV_OK on success or RV_ERR_* on failure.
+// RV_OK: build started. RV_ERR_PENDING: waits on the unsaved-files answer (unsaved_ask set), nothing started.
+// RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
 int rv_editor_app_build_restart(rv_editor_app &app);
 int rv_editor_app_build_restart_saved(rv_editor_app &app);
 // Called from rv_editor_app_update with whether a build just ended.
@@ -475,8 +477,9 @@ void rv_editor_app_release_update(rv_editor_app &app, bool build_ended);
 // A project file changed: every candidate's sources now differ from the tree.
 void rv_editor_app_release_changed(rv_editor_app &app);
 
-// Runs the latest build, building the saved files first when rv_editor_app_run_builds;
-// on a paused session this resumes it. Returns RV_OK on success or RV_ERR_* on failure.
+// Runs the latest build, building the saved files first when rv_editor_app_run_builds; on a paused session this resumes it.
+// RV_OK: run or build started (a rebuild comes first), or pause lifted. RV_ERR_PENDING: waits on the unsaved-files answer
+// (unsaved_ask set), nothing started. RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
 int rv_editor_app_run(rv_editor_app &app);
 // Runs the last successful build after a later build failed. Returns RV_OK or RV_ERR_*.
 int rv_editor_app_run_last(rv_editor_app &app);

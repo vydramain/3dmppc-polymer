@@ -137,7 +137,7 @@ int rv_editor_app_build(rv_editor_app &app)
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::build;
-        return RV_ERR_BUSY;
+        return RV_ERR_PENDING;
     }
     return rv_editor_app_build_saved(app);
 }
@@ -181,7 +181,7 @@ int rv_editor_app_run(rv_editor_app &app)
     }
     if (!rv_editor_app_unsaved(app).empty() || rv_editor_app_scene_dirty(app)) {
         app.unsaved_ask = rv_editor_unsaved_ask::run;
-        return RV_ERR_BUSY;
+        return RV_ERR_PENDING;
     }
     return rv_editor_app_run_saved(app);
 }
