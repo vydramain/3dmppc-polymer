@@ -245,8 +245,17 @@ int rv_editor_app_run_saved(rv_editor_app &app);
 // RV_ERR_BUSY: refused; other RV_ERR_*: failed, reason in the log.
 int rv_editor_app_build_restart(rv_editor_app &app);
 int rv_editor_app_build_restart_saved(rv_editor_app &app);
-// Called from rv_editor_app_update with whether a build just ended.
-void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended);
+// Build and Restart steps, asked for by rv_editor_app_update (questions there).
+// Question: the build that ended succeeded and has an artifact to run.
+bool rv_editor_app_build_restart_built(const rv_editor_app &app);
+// Refuse: the build did not succeed, so no restart goes on; logs why. RV_ERR_BUSY.
+int rv_editor_app_build_restart_refuse(rv_editor_app &app);
+// Stop: asks the live session to stop; the restart waits for it. RV_OK, also when a stop is
+// already under way; else the stop's RV_ERR_* (logged, the wait is cleared).
+int rv_editor_app_build_restart_stop(rv_editor_app &app);
+// Start: runs the last successful build. RV_OK or rv_editor_app_run_session's RV_ERR_*;
+// RV_ERR_NOENT when no successful build exists (logged, nothing started).
+int rv_editor_app_build_restart_start(rv_editor_app &app);
 // Run would build first: nothing succeeded yet, the last build did not, or an input changed.
 bool rv_editor_app_run_builds(const rv_editor_app &app);
 // Buffers with a file name and unsaved changes: what a build would miss.

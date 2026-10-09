@@ -23,44 +23,6 @@ namespace
 // Quiet time after the last file change before a reload.
 constexpr auto reload_delay = std::chrono::milliseconds(300);
 
-// Build for Build and Restart completed: stop the live session or start the new one.
-void rv_editor_app_build_restart_built(rv_editor_app &app)
-{
-    if (!app.restart_after_build) {
-        return;
-    }
-    app.restart_after_build = false;
-    const bool built = app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success();
-    if (!built) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            std::string("the game was not restarted: the build ") + rv_editor_build_state_name(app.build.dev_state()));
-        return;
-    }
-    if (app.session.live()) {
-        app.restart_after_stop = true;
-        std::string error;
-        // RV_ERR_ALREADY: a stop is under way or the runtime is gone; the restart goes on.
-        const int stop_result = app.session.stop(app.log, error);
-        if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY) {
-            app.restart_after_stop = false;
-            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot stop the runtime: " + error);
-        }
-        return;
-    }
-    (void)rv_editor_app_run_session(app, *app.build.last_success());
-}
-
-// Restart the game after the session stopped.
-void rv_editor_app_build_restart_stopped(rv_editor_app &app)
-{
-    if (!app.restart_after_stop || app.session.live()) {
-        return;
-    }
-    app.restart_after_stop = false;
-    (void)rv_editor_app_run_session(app, *app.build.last_success());
-}
-
 // Sends the reload for `file`'s plan (reload_module: that module; otherwise the
 // entry); an empty `file` always means the entry. The caller has already gated.
 void rv_editor_app_reload_send(rv_editor_app &app, const std::filesystem::path &file)
@@ -175,12 +137,43 @@ int rv_editor_app_build_restart_saved(rv_editor_app &app)
     return err;
 }
 
-void rv_editor_app_build_restart_update(rv_editor_app &app, bool build_ended)
+bool rv_editor_app_build_restart_built(const rv_editor_app &app)
 {
-    if (build_ended) {
-        rv_editor_app_build_restart_built(app);
+    return app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success();
+}
+
+int rv_editor_app_build_restart_refuse(rv_editor_app &app)
+{
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        std::string("the game was not restarted: the build ") + rv_editor_build_state_name(app.build.dev_state()));
+    return RV_ERR_BUSY;
+}
+
+int rv_editor_app_build_restart_stop(rv_editor_app &app)
+{
+    app.restart_after_stop = true;
+    std::string error;
+    const int stop_result = app.session.stop(app.log, error);
+    // RV_ERR_ALREADY: a stop is under way or the runtime is gone; the restart goes on.
+    const bool stop_failed = stop_result != RV_OK && stop_result != RV_ERR_ALREADY;
+    if (stop_failed) {
+        app.restart_after_stop = false;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot stop the runtime: " + error);
+        return stop_result;
     }
-    rv_editor_app_build_restart_stopped(app);
+    return RV_OK;
+}
+
+int rv_editor_app_build_restart_start(rv_editor_app &app)
+{
+    if (!app.build.last_success()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "the game was not restarted: no successful build to run");
+        return RV_ERR_NOENT;
+    }
+    return rv_editor_app_run_session(app, *app.build.last_success());
 }
 
 } // namespace rv_editor

@@ -124,6 +124,31 @@ void rv_editor_app_update_reload_queue(rv_editor_app &app)
     (void)rv_editor_app_reload_queue_send(app);
 }
 
+// Build and Restart: a build it waited for has ended. A good one stops the live session, or starts
+// the new build when none runs; a failed one drops the restart. A stop that has ended starts it.
+void rv_editor_app_update_build_restart(rv_editor_app &app, bool build_ended)
+{
+    const bool build_for_restart = build_ended && app.restart_after_build;
+    if (build_for_restart) {
+        app.restart_after_build = false;
+    }
+    const bool built = build_for_restart && rv_editor_app_build_restart_built(app);
+    const bool live = app.session.live();
+    if (build_for_restart && !built) {
+        (void)rv_editor_app_build_restart_refuse(app);
+    }
+    if (built && live) {
+        (void)rv_editor_app_build_restart_stop(app);
+    }
+    if (built && !live) {
+        (void)rv_editor_app_build_restart_start(app);
+    }
+    if (app.restart_after_stop && !app.session.live()) {
+        app.restart_after_stop = false;
+        (void)rv_editor_app_build_restart_start(app);
+    }
+}
+
 // Detects if a line is from the last build's output or a candidate being built.
 bool rv_editor_app_line_from_latest_build(const rv_editor_log_line &line, uint64_t build_first_seq)
 {
@@ -223,7 +248,7 @@ void rv_editor_app_update(rv_editor_app &app)
         app.run_after_stop = false;
         rv_editor_app_run(app);
     }
-    rv_editor_app_build_restart_update(app, build_ended);
+    rv_editor_app_update_build_restart(app, build_ended);
     rv_editor_app_update_texture_bake(app);
     rv_editor_app_update_reload_queue(app);
 }
