@@ -120,7 +120,7 @@ constexpr rv_burner_option_spec OPTIONS[] = {
 static int nullable_handler(const rv_burner_options &)
 {
     rv_pdktools::print_usage(stderr);
-    return -1;
+    return RV_OK;
 }
 
 // Every subcommand, plus the three spellings of help. A new command is a row
