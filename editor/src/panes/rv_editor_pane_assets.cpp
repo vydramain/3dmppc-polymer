@@ -274,7 +274,10 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         const std::filesystem::path file = app.project.root / rv_editor_assets.selected;
         const rv_editor_change_plan plan = rv_editor_app_change_for(app, file);
         const char *why = nullptr;
-        if (!app.session.live() || !rv_editor_app_can_reload(app)) {
+        const bool bake_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::texture_bake);
+        if (bake_pending) {
+            why = rv_editor_text("app_why_not.request_pending");
+        } else if (!app.session.live() || !rv_editor_app_can_reload(app)) {
             why = rv_editor_text("pane_assets.no_console");
         } else if (plan.action != rv_editor_change_action::refresh_texture) {
             why = rv_editor_text("pane_assets.not_texture");
@@ -286,8 +289,8 @@ void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_
         rv_editor_state state;
         state.disabled = why;
         if (rv_editor_button(refresh_text, theme, state)) {
-            app.texture_bake.message.clear();
-            rv_editor_app_texture_bake_start(app, plan.name, file);
+            (void)rv_editor_app_request(app,
+                { .kind = rv_editor_pane_request_kind::texture_bake, .path = file, .name = plan.name });
         }
         if (why == nullptr) {
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.refresh_tooltip"));

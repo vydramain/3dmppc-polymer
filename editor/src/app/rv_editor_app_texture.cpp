@@ -148,6 +148,8 @@ int rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name
             "texture " + name + " not baked: another bake is already running");
         return RV_ERR_BUSY;
     }
+    // A started bake replaces the last outcome.
+    bake.message.clear();
     bake.name = name;
     bake.png = png;
     bake.build_number = app.session.build_number();

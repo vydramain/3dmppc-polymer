@@ -222,6 +222,11 @@ int rv_editor_request_remove(rv_editor_app &app, const rv_editor_pane_request &r
     return rv_editor_request_dialog(app, request, rv_editor_dialog_remove);
 }
 
+int rv_editor_request_texture_bake(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_texture_bake_start(app, request.name, request.path);
+}
+
 struct rv_editor_request_entry {
     rv_editor_pane_request_kind kind;
     rv_editor_request_op run;
@@ -256,6 +261,7 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::profile_delete, rv_editor_request_profile_delete, "profile delete" },
     { rv_editor_pane_request_kind::profile_apply, rv_editor_request_profile_apply, "profile apply" },
     { rv_editor_pane_request_kind::profile_apply_restart, rv_editor_request_profile_apply_restart, "profile apply restart" },
+    { rv_editor_pane_request_kind::texture_bake, rv_editor_request_texture_bake, "texture bake" },
 };
 
 // Named in the log when a kind has no table row.

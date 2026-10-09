@@ -265,6 +265,7 @@ enum class rv_editor_pane_request_kind {
     profile_delete,        // the active profile
     profile_apply,         // profile: the edited form, for the active profile
     profile_apply_restart, // profile: as profile_apply, then the session restarts
+    texture_bake,          // name: the texture's plan name, path: its png
 };
 
 struct rv_editor_pane_request {
