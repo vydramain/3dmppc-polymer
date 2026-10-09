@@ -157,7 +157,8 @@ int rv_editor_app_build_saved(rv_editor_app &app)
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "cannot build: " + error);
         return err;
     }
-    rv_editor_app_attach_build_log(app);
+    // The build goes on without its file log; the reason is already in the log.
+    [[maybe_unused]] const int build_log_err = rv_editor_app_attach_build_log(app);
     app.inputs_changed = false;
     return RV_OK;
 }

@@ -384,7 +384,9 @@ void rv_editor_app_shutdown(rv_editor_app &app);
 
 // Logs (editor/src/app/rv_editor_app_logs.cpp): each session and each
 // development build keeps its whole log in a file next to it.
-void rv_editor_app_attach_session_log(rv_editor_app &app);
-void rv_editor_app_attach_build_log(rv_editor_app &app);
+// RV_OK when attached; RV_ERR_NOENT without a state/cache directory, or the open's
+// error. A refusal is logged as a warning; the session or build goes on without it.
+int rv_editor_app_attach_session_log(rv_editor_app &app);
+int rv_editor_app_attach_build_log(rv_editor_app &app);
 
 } // namespace rv_editor

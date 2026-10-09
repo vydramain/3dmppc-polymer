@@ -136,7 +136,8 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
     // is running and its log must stay as it is.
     const bool failed_live = start_err != RV_OK && start_err != RV_ERR_BUSY && app.session.live();
     if (failed_live) {
-        rv_editor_app_attach_session_log(app);
+        // The session goes on without its file log; the reason is already in the log.
+        [[maybe_unused]] const int failed_log_err = rv_editor_app_attach_session_log(app);
     }
     if (start_err != RV_OK) {
         return start_err;
@@ -150,7 +151,8 @@ int rv_editor_app_run_session(rv_editor_app &app, const rv_editor_artifact &arti
             rv_editor_build_map_path(artifact.dir).string() + ": no map; reload targets fall back to the entry script");
     }
 
-    rv_editor_app_attach_session_log(app);
+    // The session goes on without its file log; the reason is already in the log.
+    [[maybe_unused]] const int session_log_err = rv_editor_app_attach_session_log(app);
     return RV_OK;
 }
 
