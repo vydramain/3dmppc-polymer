@@ -206,10 +206,23 @@ bool rv_editor_app_texture_bake_busy(const rv_editor_app &app, std::string *name
 // does nothing if a bake is already running. RV_OK on success, RV_ERR_BUSY if a bake is running, RV_ERR_IO on filesystem
 // failure, or the start error code.
 int rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name, const std::filesystem::path &png);
-// Once a frame: drains the running bake, reports its outcome, and on success sends
-// the baked bytes over the session's reload slot (dropped, not sent, if the session
-// ended or another reload is in flight).
-void rv_editor_app_texture_bake_update(rv_editor_app &app);
+// Steps of a running bake, called by rv_editor_app_update, which asks the questions.
+// transfer: moves the output read so far to the log. RV_OK, RV_ERR_IO on a failed read (logged),
+// RV_ERR_INVAL when no bake runs (logged).
+int rv_editor_app_texture_bake_transfer(rv_editor_app &app);
+// reap: polls the baker and closes its pipes once they are done; releases nothing. RV_OK once it has
+// exited and its output is closed; RV_ERR_BUSY while it runs or its output is still open within the grace (not a failure);
+// RV_ERR_INVAL when no bake runs (logged).
+int rv_editor_app_texture_bake_reap(rv_editor_app &app);
+// end: one last read of what the pipes hold, then flush and judge; releases the baker.
+// RV_OK when baked; RV_ERR_IO when the baker failed or its read failed (logged); RV_ERR_INVAL when no bake runs (logged).
+int rv_editor_app_texture_bake_end(rv_editor_app &app);
+// send: sends the baked bytes over the session's reload slot. Precondition: called only right after
+// end judged the bake ok (the frame does it). RV_OK; RV_ERR_BUSY when the session cannot take it now
+// (logged as a warning); RV_ERR_IO when the baked file is unreadable; else the reload's code.
+int rv_editor_app_texture_bake_send(rv_editor_app &app);
+// Question: the judged result, valid after end.
+bool rv_editor_app_texture_bake_ok(const rv_editor_app &app);
 
 // Build and Run ask first when a named buffer is unsaved; the _saved
 // forms go ahead with the files as they are on disk.

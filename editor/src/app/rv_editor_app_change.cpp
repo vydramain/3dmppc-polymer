@@ -113,9 +113,6 @@ void rv_editor_app_reload_queue_note(rv_editor_app &app, const std::filesystem::
 
 void rv_editor_app_reload_queue_update(rv_editor_app &app)
 {
-    // Drains any running bake regardless of the queue below, so a session that
-    // ends mid-bake still lets it finish (or drop) without leaking a process.
-    rv_editor_app_texture_bake_update(app);
     // No live session to receive it: drop a queue left over from the one before.
     if (!app.session.live()) {
         app.reload_queue.clear();

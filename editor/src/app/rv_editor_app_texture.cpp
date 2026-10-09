@@ -60,8 +60,42 @@ int rv_editor_texture_read(const std::filesystem::path &path, std::vector<unsign
     return (static_cast<bool>(in) || in.eof()) ? RV_OK : RV_ERR_IO;
 }
 
-// The bake ended (successfully or not): logs it, keeps the outcome, sends on success.
-void rv_editor_texture_bake_finish(rv_editor_app &app)
+// Moves the baker output read so far to the log; a failed read is logged and returned.
+// Needs a running bake (proc set).
+int rv_editor_texture_pump(rv_editor_app &app)
+{
+    rv_editor_texture_bake &bake = app.texture_bake;
+    std::string out;
+    std::string err;
+    std::string read_error;
+    const int read_err = bake.proc->read(out, err, read_chunk_bytes, read_error);
+    if (read_err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "baker output not read: " + read_error,
+            rv_editor_log_channel::none,
+            bake.proc->pid(),
+            bake.build_number);
+    }
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.out_partial,
+        out,
+        rv_editor_log_channel::out,
+        bake.proc->pid(),
+        bake.build_number);
+    app.log.add_stream(rv_editor_log_source::build,
+        bake.err_partial,
+        err,
+        rv_editor_log_channel::err,
+        bake.proc->pid(),
+        bake.build_number);
+    bake.err_all += err;
+    return read_err;
+}
+
+// Judges the ended baker by its exit and its output file; sets bake.ok and logs the outcome once.
+// RV_OK when baked, RV_ERR_IO otherwise. Needs an ended bake (proc set).
+int rv_editor_texture_evaluate(rv_editor_app &app)
 {
     rv_editor_texture_bake &bake = app.texture_bake;
     const rv_editor_process::rv_editor_exit exit = bake.proc->exit_status();
@@ -71,40 +105,14 @@ void rv_editor_texture_bake_finish(rv_editor_app &app)
     if (bake.ok) {
         bake.message = "texture " + bake.name + " baked from " + bake.png.string();
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, bake.message);
-    } else {
-        const std::string last = rv_editor_texture_last_line(bake.err_all);
-        const std::string why = exit.code == 0 && exit.signal == 0 ? "the output was not written" : rv_editor_exit_text(exit);
-        bake.message = "texture " + bake.name + " not baked from " + bake.png.string() + ": " + why +
-            (last.empty() ? "" : " (" + last + ")");
-        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
+        return RV_OK;
     }
-    const std::string name = bake.name;
-    const std::filesystem::path out = bake.out;
-    bake.proc.reset();
-    if (!bake.ok) {
-        return;
-    }
-    if (!app.session.live() || app.session.reloading()) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            "texture " + name +
-                " baked but not sent: " + (app.session.live() ? "a reload is already in flight" : "the session has ended"));
-        return;
-    }
-    std::vector<unsigned char> bytes;
-    if (rv_editor_texture_read(out, bytes) != RV_OK) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "texture " + name + " baked but not sent: " + out.string() + " could not be read");
-        return;
-    }
-    std::string error;
-    const int sent = app.session.reload_asset(app.log, name, bytes, error);
-    if (sent != RV_OK) {
-        // Busy is a refusal to retry later (not ready, a reload in flight): a warning.
-        const rv_editor_log_level level = sent == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
-        app.log.add(rv_editor_log_source::editor, level, "texture " + name + " baked but not sent: " + error);
-    }
+    const std::string last = rv_editor_texture_last_line(bake.err_all);
+    const std::string why = exit.code == 0 && exit.signal == 0 ? "the output was not written" : rv_editor_exit_text(exit);
+    bake.message =
+        "texture " + bake.name + " not baked from " + bake.png.string() + ": " + why + (last.empty() ? "" : " (" + last + ")");
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, bake.message);
+    return RV_ERR_IO;
 }
 
 } // namespace
@@ -172,65 +180,39 @@ int rv_editor_app_texture_bake_start(rv_editor_app &app, const std::string &name
     return RV_OK;
 }
 
-void rv_editor_app_texture_bake_update(rv_editor_app &app)
+int rv_editor_app_texture_bake_reap(rv_editor_app &app)
 {
+    if (app.texture_bake.proc == nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "texture bake not reaped: no bake is running");
+        return RV_ERR_INVAL;
+    }
+    return app.texture_bake.proc->poll() && app.texture_bake.proc->output_done() ? RV_OK : RV_ERR_BUSY;
+}
+
+bool rv_editor_app_texture_bake_ok(const rv_editor_app &app)
+{
+    return app.texture_bake.ok;
+}
+
+int rv_editor_app_texture_bake_transfer(rv_editor_app &app)
+{
+    if (app.texture_bake.proc == nullptr) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "texture bake output not moved: no bake is running");
+        return RV_ERR_INVAL;
+    }
+    return rv_editor_texture_pump(app);
+}
+
+int rv_editor_app_texture_bake_end(rv_editor_app &app)
+{
+    if (app.texture_bake.proc == nullptr) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "texture bake not ended: no bake is running");
+        return RV_ERR_INVAL;
+    }
     rv_editor_texture_bake &bake = app.texture_bake;
-    if (bake.proc == nullptr) {
-        return;
-    }
-    std::string out;
-    std::string err;
-    std::string read_error;
-    const int read_err = bake.proc->read(out, err, read_chunk_bytes, read_error);
-    if (read_err != RV_OK) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "baker output not read: " + read_error,
-            rv_editor_log_channel::none,
-            bake.proc->pid(),
-            bake.build_number);
-    }
-    app.log.add_stream(rv_editor_log_source::build,
-        bake.out_partial,
-        out,
-        rv_editor_log_channel::out,
-        bake.proc->pid(),
-        bake.build_number);
-    app.log.add_stream(rv_editor_log_source::build,
-        bake.err_partial,
-        err,
-        rv_editor_log_channel::err,
-        bake.proc->pid(),
-        bake.build_number);
-    bake.err_all += err;
-    if (!bake.proc->poll() || !bake.proc->output_done()) {
-        return;
-    }
-    out.clear();
-    err.clear();
-    read_error.clear();
-    const int last_read_err = bake.proc->read(out, err, read_chunk_bytes, read_error);
-    if (last_read_err != RV_OK) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::error,
-            "baker output not read: " + read_error,
-            rv_editor_log_channel::none,
-            bake.proc->pid(),
-            bake.build_number);
-    }
-    app.log.add_stream(rv_editor_log_source::build,
-        bake.out_partial,
-        out,
-        rv_editor_log_channel::out,
-        bake.proc->pid(),
-        bake.build_number);
-    app.log.add_stream(rv_editor_log_source::build,
-        bake.err_partial,
-        err,
-        rv_editor_log_channel::err,
-        bake.proc->pid(),
-        bake.build_number);
-    bake.err_all += err;
+    const int read_err = rv_editor_texture_pump(app);
     app.log.flush_stream(rv_editor_log_source::build,
         bake.out_partial,
         rv_editor_log_channel::out,
@@ -241,7 +223,45 @@ void rv_editor_app_texture_bake_update(rv_editor_app &app)
         rv_editor_log_channel::err,
         bake.proc->pid(),
         bake.build_number);
-    rv_editor_texture_bake_finish(app);
+    if (bake.proc->output_cut()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "texture " + bake.name +
+                " baker output after exit was not fully read: a process it started kept a pipe open past the grace",
+            rv_editor_log_channel::none,
+            bake.proc->pid(),
+            bake.build_number);
+    }
+    const int judged = rv_editor_texture_evaluate(app);
+    bake.proc.reset();
+    return read_err != RV_OK ? read_err : judged;
+}
+
+int rv_editor_app_texture_bake_send(rv_editor_app &app)
+{
+    const rv_editor_texture_bake &bake = app.texture_bake;
+    if (!app.session.live() || app.session.reloading()) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            "texture " + bake.name +
+                " baked but not sent: " + (app.session.live() ? "a reload is already in flight" : "the session has ended"));
+        return RV_ERR_BUSY;
+    }
+    std::vector<unsigned char> bytes;
+    if (rv_editor_texture_read(bake.out, bytes) != RV_OK) {
+        app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "texture " + bake.name + " baked but not sent: " + bake.out.string() + " could not be read");
+        return RV_ERR_IO;
+    }
+    std::string error;
+    const int sent = app.session.reload_asset(app.log, bake.name, bytes, error);
+    if (sent != RV_OK) {
+        // Busy is a refusal to retry later (not ready, a reload in flight): a warning.
+        const rv_editor_log_level level = sent == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
+        app.log.add(rv_editor_log_source::editor, level, "texture " + bake.name + " baked but not sent: " + error);
+    }
+    return sent;
 }
 
 } // namespace rv_editor

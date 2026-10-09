@@ -87,6 +87,24 @@ void rv_editor_app_update_build_ended(rv_editor_app &app, bool build_ended)
     (void)rv_editor_app_run_session(app, *app.build.last_success());
 }
 
+// The running bake: its output joins the log each frame; once the baker has ended the bake
+// is judged, and a good one goes to the session. Drained even if the session has ended.
+void rv_editor_app_update_texture_bake(rv_editor_app &app)
+{
+    if (!rv_editor_app_texture_bake_busy(app)) {
+        return;
+    }
+    (void)rv_editor_app_texture_bake_transfer(app);
+    if (rv_editor_app_texture_bake_reap(app) != RV_OK) {
+        return;
+    }
+    (void)rv_editor_app_texture_bake_end(app);
+    if (!rv_editor_app_texture_bake_ok(app)) {
+        return;
+    }
+    (void)rv_editor_app_texture_bake_send(app);
+}
+
 // Detects if a line is from the last build's output or a candidate being built.
 bool rv_editor_app_line_from_latest_build(const rv_editor_log_line &line, uint64_t build_first_seq)
 {
@@ -187,6 +205,7 @@ void rv_editor_app_update(rv_editor_app &app)
         rv_editor_app_run(app);
     }
     rv_editor_app_build_restart_update(app, build_ended);
+    rv_editor_app_update_texture_bake(app);
     rv_editor_app_reload_queue_update(app);
 }
 
