@@ -112,7 +112,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_terminal(shell.app, pane, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::game:
-        rv_editor_pane_game(shell.app, shell.renderer, theme);
+        rv_editor_pane_game(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::observe:
         rv_editor_pane_observe(shell.app, theme);

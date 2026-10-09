@@ -21,7 +21,6 @@
 #include "log/rv_editor_log.hpp"
 #include "log/rv_editor_log_file.hpp"
 #include "nvim/rv_editor_nvim.hpp"
-#include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_change.hpp"
 #include "project/rv_editor_problems.hpp"
 #include "project/rv_editor_project.hpp"
@@ -60,8 +59,6 @@ struct rv_editor_app {
     // Shells of closed tiles, hung up and stepped each frame until they have ended.
     std::vector<std::unique_ptr<rv_editor_pty>> stopping_ptys;
     rv_editor_nvim nvim;
-    // How the Game tile scales the frame; kept in the view file.
-    rv_editor_game_scale game_scale = rv_editor_game_scale::fit;
     // The Game tile has the keyboard; and whether one was drawn this frame: a
     // Game tile closed or behind another tab holds no keys.
     bool game_captured = false;

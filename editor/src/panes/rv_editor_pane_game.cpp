@@ -1,6 +1,7 @@
 // The Game tile: the console's own frame scaled as
 // View > Game Scale says, and, while the tile holds the keyboard, its pad.
 
+#include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
@@ -94,7 +95,7 @@ constexpr size_t bytes_per_pixel_argb8888 = 4;
 // Fit, Integer, 1x, 2x, 3x (View > Game Scale), then Run: one shelf, same in
 // every state, so it never changes the well's height between them. Burn's
 // candidate view carries its own Run Candidate here instead of the dev Run.
-void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     constexpr rv_editor_game_scale modes[] = { rv_editor_game_scale::fit,
         rv_editor_game_scale::integer,
@@ -111,9 +112,9 @@ void rv_editor_game_modes(rv_editor_app &app, const rv_editor_theme &theme)
         if (i > 0) {
             rv_editor_flow(rv_editor_button_width(label));
         }
-        bool on = app.game_scale == modes[i];
+        bool on = ui.state.game_scale == modes[i];
         if (rv_editor_toggle(label, &on, theme)) {
-            app.game_scale = modes[i];
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_game_scale, .scale = modes[i] });
         }
     }
     if (app.release_view) {
@@ -171,21 +172,18 @@ void rv_editor_game_picture(rv_editor_app &app,
     const rv_editor_theme &theme,
     std::string status,
     rv_editor_game_line line,
-    bool clickable)
+    bool clickable,
+    rv_editor_game_scale mode)
 {
     const bool have = rv_editor_game_texture != nullptr && rv_editor_game_frame != 0;
     ImVec2 area = ImGui::GetContentRegionAvail();
     area.y -= ImGui::GetTextLineHeightWithSpacing();
     rv_editor_game_view view{};
     if (have) {
-        view = rv_editor_game_place(static_cast<int>(rv_editor_game_w),
-            static_cast<int>(rv_editor_game_h),
-            area.x,
-            area.y,
-            app.game_scale);
+        view =
+            rv_editor_game_place(static_cast<int>(rv_editor_game_w), static_cast<int>(rv_editor_game_h), area.x, area.y, mode);
         status = std::to_string(rv_editor_game_w) + dimension_sep.data() + std::to_string(rv_editor_game_h) +
-            dimensions_scale_sep.data() + rv_editor_game_scale_text(app.game_scale, view) + dimensions_scale_sep.data() +
-            status;
+            dimensions_scale_sep.data() + rv_editor_game_scale_text(mode, view) + dimensions_scale_sep.data() + status;
     }
     if (line == rv_editor_game_line::warn) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
@@ -288,7 +286,7 @@ std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const r
 // Burn's tile: the shelf's Run Candidate and, once a candidate's image runs, its
 // own frame. The unpacked development build never stands in for it (README),
 // whether stopped or a development session is live.
-void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme, rv_editor_game_scale mode)
 {
     std::string status;
     if (app.release.candidates.empty()) {
@@ -298,12 +296,12 @@ void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &th
         status = rv_editor_text_format("pane_game.candidate_image", std::make_format_args(candidate_num));
     }
     const bool stale = rv_editor_game_join_stale(app, status);
-    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
+    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false, mode);
 }
 
 } // namespace
 
-void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
+void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_session &s = app.session;
     app.game_drawn = true;
@@ -314,7 +312,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     const float top = ImGui::GetCursorPosY();
 
     rv_editor_shelf_begin("##shelf", theme);
-    rv_editor_game_modes(app, theme);
+    rv_editor_game_modes(app, theme, ui);
     rv_editor_shelf_end();
     const float shelf_tall = ImGui::GetCursorPosY() - top;
 
@@ -354,7 +352,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 return;
             }
             if (app.release_view) {
-                rv_editor_game_candidate_tile(app, theme);
+                rv_editor_game_candidate_tile(app, theme, ui.state.game_scale);
                 return;
             }
             // Stopped: what the shelf's Run starts; a stale frame, if one is left,
@@ -367,7 +365,12 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 status = rv_editor_text("pane_game.stopped_rebuilds");
             }
             const bool stale = rv_editor_game_join_stale(app, status);
-            rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false);
+            rv_editor_game_picture(app,
+                theme,
+                status,
+                stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
+                false,
+                ui.state.game_scale);
             return;
         }
 
@@ -375,7 +378,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         // frame is not a candidate's image, so Burn still shows the stopped tile.
         if (app.release_view && app.release.playing < 0) {
             app.game_captured = false;
-            rv_editor_game_candidate_tile(app, theme);
+            rv_editor_game_candidate_tile(app, theme, ui.state.game_scale);
             return;
         }
 
@@ -414,7 +417,12 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
         // The texture may still hold the last session's frame: not this one's.
         if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
-            rv_editor_game_picture(app, theme, rv_editor_text("pane_game.frame_waiting"), rv_editor_game_line::muted, false);
+            rv_editor_game_picture(app,
+                theme,
+                rv_editor_text("pane_game.frame_waiting"),
+                rv_editor_game_line::muted,
+                false,
+                ui.state.game_scale);
             return;
         }
 
@@ -429,7 +437,8 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             theme,
             rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)),
             line,
-            s.state() != rv_editor_run_state::disconnected);
+            s.state() != rv_editor_run_state::disconnected,
+            ui.state.game_scale);
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
         if (app.game_captured &&

@@ -82,7 +82,7 @@ void rv_editor_pane_terminal(rv_editor_app &app,
 // The console's own frame, scaled to the tile as View > Game Scale says, and its
 // pad while the tile holds the keyboard. Shift+Esc
 // lets the keyboard go.
-void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
+void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // Assets: the project's resource files as an Icon Catalog; its PNG pictures live on `renderer`.
 void rv_editor_pane_assets(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
 // The code and colour that stand in for a file's icon, by its extension.

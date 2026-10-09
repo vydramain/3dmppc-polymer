@@ -129,7 +129,6 @@ void rv_editor_menu_edit(rv_editor_shell &shell)
 
 void rv_editor_menu_view(rv_editor_shell &shell)
 {
-    rv_editor_app &app = shell.app;
     if (ImGui::BeginMenu(rv_editor_text("shell_menu.code_text_size"))) {
         struct {
             rv_editor_code_size size;
@@ -154,8 +153,9 @@ void rv_editor_menu_view(rv_editor_shell &shell)
             { rv_editor_game_scale::x2, "pane_game.scale_2x" },
             { rv_editor_game_scale::x3, "pane_game.scale_3x" } };
         for (const auto &s : scales) {
-            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, app.game_scale == s.scale)) {
-                app.game_scale = s.scale;
+            const bool on = shell.ui.game_scale == s.scale;
+            if (ImGui::MenuItem(rv_editor_text(s.text_key), nullptr, on)) {
+                shell.ui.game_scale = s.scale;
             }
         }
         ImGui::EndMenu();

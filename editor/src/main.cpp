@@ -395,7 +395,7 @@ int main(int argc, char **argv)
     (void)rv_editor::rv_editor_shell_pace_apply(*shell);
     rv_editor::rv_editor_shell_load_layouts(*shell, layout_path, prefs.workspace);
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
-    shell->app.game_scale = prefs.game_scale;
+    shell->ui.game_scale = prefs.game_scale;
     if (!open_path.empty()) {
         rv_editor::rv_editor_shell_request_open(*shell, open_path);
     }
@@ -474,7 +474,7 @@ int main(int argc, char **argv)
     // A request not applied yet is what the user chose last.
     const rv_editor::rv_editor_pace pace = shell->pace_request.value_or(shell->pace);
     const rv_editor::rv_editor_prefs chosen{ rv_editor::rv_editor_font_code_size(),
-        shell->app.game_scale,
+        shell->ui.game_scale,
         rv_editor::rv_editor_shell_workspace_key(*shell),
         shell->ui_scale,
         pace.vsync,
