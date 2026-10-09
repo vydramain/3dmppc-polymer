@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -53,17 +54,18 @@ constexpr int default_snap_step_index = 1;
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
 // by the mouse for Rotate (yaw across, pitch up and down) and Scale (uniform).
-void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v, const rv_editor_gizmo_drag &drag)
+void rv_editor_manipulate(rv_editor_app &app,
+    const rv_editor_scene_camera &cam,
+    const rv_editor_view &v,
+    const rv_editor_gizmo_drag &drag)
 {
     rv_editor_scene_doc &doc = *app.scene;
-    rv_editor_scene_ui &ui = app.scene_ui;
     const int at = rv_editor_scene_find(doc.scene, doc.selected);
     if (at < 0) {
         return;
     }
     rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
     const ImVec2 total(ImGui::GetMousePos().x - drag.from[0], ImGui::GetMousePos().y - drag.from[1]);
-    const rv_editor_scene_camera &cam = ui.camera;
     switch (cam.tool) {
     case rv_editor_scene_tool::move: {
         // Pixels along the axis as the screen shows it, into scene units, into the parent's space.
@@ -118,10 +120,9 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v, const rv_
     }
 }
 
-void rv_editor_scene_frame(rv_editor_app &app, bool all)
+void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool all)
 {
     rv_editor_scene_doc &doc = *app.scene;
-    rv_editor_scene_camera &cam = app.scene_ui.camera;
     vec3 lo{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
         hi{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
     bool any = false;
@@ -146,9 +147,8 @@ void rv_editor_scene_frame(rv_editor_app &app, bool all)
     cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
 }
 
-void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme)
 {
-    rv_editor_scene_camera &cam = app.scene_ui.camera;
     const struct {
         const char *label_id;
         double yaw, pitch;
@@ -170,13 +170,13 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     const char *frame_btn = rv_editor_text("scene_tools.toolbar_frame_selection");
     rv_editor_flow(rv_editor_button_width(frame_btn));
     if (rv_editor_button(frame_btn, theme, { rv_editor_look::live, no_selection })) {
-        rv_editor_scene_frame(app, false);
+        rv_editor_scene_frame(app, cam, false);
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_frame_tooltip"));
     const char *view_all = rv_editor_text("scene_tools.toolbar_view_all");
     rv_editor_flow(rv_editor_button_width(view_all));
     if (rv_editor_button(view_all, theme)) {
-        rv_editor_scene_frame(app, true);
+        rv_editor_scene_frame(app, cam, true);
     }
     const char *home = rv_editor_text("scene_tools.toolbar_home");
     rv_editor_flow(rv_editor_button_width(home));
@@ -210,9 +210,9 @@ void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
-    rv_editor_scene_camera &cam = app.scene_ui.camera;
+    rv_editor_scene_camera cam = ui.state.scene_camera;
     const char *const tool_ids[] = { "scene_tools.tool_select",
         "scene_tools.tool_move",
         "scene_tools.tool_rotate",
@@ -237,6 +237,10 @@ void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_step_tooltip"));
     const char *grid_label = rv_editor_text("scene_tools.grid_label");
     rv_editor_checkbox(grid_label, &cam.grid, theme);
+    const bool changed = cam != ui.state.scene_camera;
+    if (changed) {
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
+    }
 }
 
 } // namespace rv_editor

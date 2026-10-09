@@ -114,7 +114,6 @@ struct rv_editor_app {
     std::string scene_error;
     // Why the last scene move was refused; empty after a move that went through, a dismiss, or opening a scene.
     std::string scene_move_note;
-    rv_editor_scene_ui scene_ui;
     rv_editor_assets_ui assets_ui;
     rv_editor_scene_tabs scene_tabs;
     // The started build's map (rv_editor_build_map_read), read at rv_editor_app_run_session;

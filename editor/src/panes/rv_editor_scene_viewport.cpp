@@ -13,6 +13,7 @@
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
@@ -85,13 +86,16 @@ int rv_editor_tool_axis(rv_editor_scene_tool tool,
 
 } // namespace
 
-void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
+void rv_editor_scene_viewport(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui)
 {
     rv_editor_scene_doc &doc = *app.scene;
-    rv_editor_scene_ui &ui = app.scene_ui;
-    rv_editor_scene_camera &cam = ui.camera;
+    // Worked on as a copy; the shell gets the result once, at the end.
+    rv_editor_scene_camera cam = ui.state.scene_camera;
     rv_editor_shelf_begin("##shelf", theme);
-    rv_editor_scene_toolbar(app, theme);
+    rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
     rv_editor_scene_keys(app);
 
@@ -191,7 +195,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
         }
         if (ImGui::IsKeyPressed(ImGuiKey_F) && !doc.selected.empty()) {
-            rv_editor_scene_frame(app, false);
+            rv_editor_scene_frame(app, cam, false);
         }
         // One letter per tool, only here, where it is not typing.
         const ImGuiKey keys[] = { ImGuiKey_Q, ImGuiKey_W, ImGuiKey_E, ImGuiKey_R };
@@ -244,7 +248,7 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             }
             tool_drag.dragging = false;
         } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            rv_editor_manipulate(app, v, tool_drag);
+            rv_editor_manipulate(app, cam, v, tool_drag);
         } else {
             tool_drag.dragging = false;
         }
@@ -376,6 +380,11 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         ImGui::EndTooltip();
     }
     rv_editor_well_end();
+    // The copy goes back to the shell once: queued at the end of this draw, applied after all panes drew.
+    const bool changed = cam != ui.state.scene_camera;
+    if (changed) {
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
+    }
 }
 
 } // namespace rv_editor

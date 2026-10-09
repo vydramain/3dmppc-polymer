@@ -122,7 +122,10 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme);
 
 // Scene: the open scene document, or how to create or open one; the
 // Create/Open row is shared with the other scene panes.
-void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
+void rv_editor_pane_scene(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
 void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme);
 // The New Scene area at the top of the Scene pane while it is asked for (menu_scene.cpp).
 void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme);
@@ -136,8 +139,11 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_scene_keys(rv_editor_app &app);
 // The Scene viewport, and the Scene Toolchest's tools it uses.
-void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme);
-void rv_editor_scene_tools(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_scene_viewport(rv_editor_app &app,
+    SDL_Renderer *renderer,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui);
+void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 
 // The project's run profiles as a list beside a form: Apply, Apply and Restart.
 void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme);

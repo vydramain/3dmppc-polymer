@@ -116,7 +116,7 @@ void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, 
         rv_editor_session_tools(app, theme, ui);
     } else if (app.scene != nullptr) {
         // Scene's tools act on a scene document; without one, none is offered.
-        rv_editor_scene_tools(app, theme);
+        rv_editor_scene_tools(theme, ui);
     } else {
         ImGui::TextWrapped("%s", rv_editor_text("pane_toolchest.no_scene"));
     }

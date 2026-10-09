@@ -31,7 +31,7 @@ void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme)
+void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
@@ -64,7 +64,7 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         ImGui::TextWrapped("%s", app.scene_error.c_str());
         ImGui::PopStyleColor();
     }
-    rv_editor_scene_viewport(app, renderer, theme);
+    rv_editor_scene_viewport(app, renderer, theme, ui);
 }
 
 } // namespace rv_editor

@@ -97,11 +97,7 @@ struct rv_editor_scene_camera {
     double distance = camera_distance_default;
     rv_editor_vec3 target{ 0.0, 0.0, 0.0 };
     bool seeking = false; // Seek pressed: the next click picks the point to turn about
-};
-
-// The Scene viewport's own state: its view (the camera).
-struct rv_editor_scene_ui {
-    rv_editor_scene_camera camera;
+    bool operator==(const rv_editor_scene_camera &) const = default;
 };
 
 // Assets' own view: the folder shown (0: all), the filter, icons or details.

@@ -17,6 +17,7 @@ namespace rv_editor
 {
 
 struct rv_editor_app;
+struct rv_editor_scene_camera;
 struct rv_editor_theme;
 struct rv_editor_view;
 
@@ -32,9 +33,12 @@ struct rv_editor_gizmo_drag {
 };
 
 // Scene viewport tools: toolbar UI, object manipulation, view framing.
-void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme);
-void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v, const rv_editor_gizmo_drag &drag);
-void rv_editor_scene_frame(rv_editor_app &app, bool all);
+void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme);
+void rv_editor_manipulate(rv_editor_app &app,
+    const rv_editor_scene_camera &cam,
+    const rv_editor_view &v,
+    const rv_editor_gizmo_drag &drag);
+void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool all);
 
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):
 // the editor camera's frame, how scene points land on screen, what each object
@@ -46,8 +50,6 @@ vec3 sub(const vec3 &a, const vec3 &b);
 vec3 add(const vec3 &a, const vec3 &b);
 vec3 mul(const vec3 &a, double s);
 double dot(const vec3 &a, const vec3 &b);
-
-struct rv_editor_scene_camera;
 
 // The near plane both the view and the filled-mesh pass clip against.
 inline constexpr double rv_editor_near = 0.05;
