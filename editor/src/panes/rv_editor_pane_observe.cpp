@@ -38,8 +38,6 @@ constexpr std::string_view field_count = "count";
 constexpr std::string_view field_keys = "keys";
 // Protocol field: visible key count in keys response from console.
 constexpr std::string_view field_shown = "shown";
-// Protocol request verb: list keys at path (see src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
-constexpr const char *request_verb_keys = "keys";
 // Protocol value: true for boolean and found fields (see src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
 constexpr std::string_view protocol_value_true = "1";
 // Protocol marker: string key type in keys list entry (see src/rv_pconsole/rv_pconsole_cmd_devtools.cpp).
@@ -61,8 +59,6 @@ constexpr std::string_view state_root = "state";
 // Separator between path components.
 constexpr std::string_view path_dot = ".";
 
-// Request command for fetching value from Lua state.
-constexpr const char *verb_get = "get ";
 // Separator in command and pin path construction.
 constexpr std::string_view sep_space = " ";
 // Characters splitting key paths.
@@ -133,16 +129,6 @@ void rv_editor_fact(const char *label, const std::string &value)
 
 namespace
 {
-
-// The request for the value or the keys at `path`: "get a b", "keys a b".
-std::string rv_editor_request(const char *verb, const std::vector<std::string> &path)
-{
-    std::string out = verb;
-    for (const std::string &key : path) {
-        out += " " + key;
-    }
-    return out;
-}
 
 std::string rv_editor_path_text(const std::vector<std::string> &path)
 {
@@ -252,41 +238,6 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
     return rows;
 }
 
-// Writes a refused query or refresh: a busy runtime is a warning, any other refusal an error.
-void rv_editor_observe_refusal(rv_editor_app &app, int rv, const std::string &prefix, const std::string &error)
-{
-    const rv_editor_log_level level = rv == RV_ERR_BUSY ? rv_editor_log_level::warning : rv_editor_log_level::error;
-    app.log.add(rv_editor_log_source::editor,
-        level,
-        prefix + error,
-        rv_editor_log_channel::none,
-        app.session.pid(),
-        app.session.number());
-}
-
-// RV_OK when the session sent the request; otherwise its code, and the refusal is written.
-int rv_editor_observe_query(rv_editor_app &app, const std::string &request)
-{
-    std::string error;
-    const int rv = app.session.query(request, app.log, error);
-    if (rv != RV_OK) {
-        rv_editor_observe_refusal(app, rv, "cannot query '" + request + "': ", error);
-    }
-    return rv;
-}
-
-void rv_editor_observe_read(rv_editor_app &app)
-{
-    rv_editor_observe &o = app.observe;
-    // Stops at the first refusal: the rest would be refused the same way.
-    int rv = rv_editor_observe_query(app, rv_editor_request(request_verb_keys, o.path));
-    for (auto p = o.pins.begin(); rv == RV_OK && p != o.pins.end(); ++p) {
-        rv = rv_editor_observe_query(app, std::string(verb_get) + *p);
-    }
-    // Also after a refusal: a paused pane reads only when read_frame differs, so no retry every frame.
-    o.read_frame = app.session.frame();
-}
-
 void rv_editor_observe_facts(const rv_editor_session &s)
 {
     const rv_editor_session_facts &f = s.facts();
@@ -358,15 +309,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
     const auto body = [&]() {
         rv_editor_observe_facts(s);
         if (rv_editor_button(rv_editor_text("pane_observe.refresh"), theme)) {
-            std::string error;
-            const int rv = s.refresh(app.log, error);
-            if (rv != RV_OK) {
-                rv_editor_observe_refusal(app, rv, "cannot refresh the runtime status: ", error);
-                // The paused read below would ask again this frame and be refused the same way.
-                o.read_frame = s.frame();
-            } else {
-                rv_editor_observe_read(app);
-            }
+            rv_editor_app_observe_refresh(app);
         }
         if (s.facts().lua_budget <= 0) {
             rv_editor_dim(rv_editor_text("pane_observe.no_lua_machine"));
@@ -376,7 +319,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         // A paused machine is read again after every frame it runs (a Step); a
         // running one only on Refresh, and its values say they are samples.
         if (s.state() == rv_editor_run_state::paused && o.read_frame != s.frame()) {
-            rv_editor_observe_read(app);
+            rv_editor_app_observe_read(app);
         }
         rv_editor_dim(rv_editor_text("pane_observe.each_value_note"));
 
@@ -395,7 +338,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(pin.c_str());
-                const auto it = s.answers().find(std::string(verb_get) + pin);
+                const auto it = s.answers().find(std::string(observe_verb_get) + pin);
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
                                                                  rv_editor_value_text(it->second).c_str());
@@ -416,10 +359,10 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         if (!o.path.empty()) {
             if (rv_editor_button(rv_editor_text("pane_observe.up"), theme)) {
                 o.path.pop_back();
-                rv_editor_observe_read(app);
+                rv_editor_app_observe_read(app);
             }
         }
-        const auto it = s.answers().find(rv_editor_request(request_verb_keys, o.path));
+        const auto it = s.answers().find(rv_editor_observe_request(observe_verb_keys, o.path));
         if (it == s.answers().end()) {
             rv_editor_dim(rv_editor_text("pane_observe.not_read_refresh"));
             return;
@@ -476,7 +419,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
                 const char *tooltip = pinned ? rv_editor_text("pane_observe.already_pinned") : nullptr;
                 if (rv_editor_button(rv_editor_text("pane_observe.pin"), theme, { rv_editor_look::live, tooltip })) {
                     o.pins.push_back(pin);
-                    rv_editor_observe_query(app, std::string(verb_get) + pin);
+                    rv_editor_app_observe_query(app, std::string(observe_verb_get) + pin);
                 }
             }
             ImGui::PopID();
@@ -484,7 +427,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         ImGui::EndTable();
         if (!open.empty()) {
             o.path = open;
-            rv_editor_observe_read(app);
+            rv_editor_app_observe_read(app);
         }
     };
     body();

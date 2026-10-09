@@ -426,6 +426,21 @@ std::string rv_editor_now_text(const char *format);
 std::string rv_editor_session_text(const rv_editor_app &app);
 int rv_editor_write_file(const std::filesystem::path &path, const std::string &text, std::string &error);
 
+// Observe (editor/src/app/rv_editor_app_observe.cpp): reads of the session's Lua state. Verbs of the
+// requests: keys lists the keys at a path (see src/rv_pconsole/rv_pconsole_cmd_devtools.cpp); get
+// reads a value, its path after the trailing space.
+constexpr const char *observe_verb_keys = "keys";
+constexpr const char *observe_verb_get = "get ";
+// The request for the value or the keys at `path`: "get a b", "keys a b".
+std::string rv_editor_observe_request(const char *verb, const std::vector<std::string> &path);
+// Asks the session for `request`. RV_OK, or the refusal's code (logged: a busy runtime a warning, else an error).
+int rv_editor_app_observe_query(rv_editor_app &app, const std::string &request);
+// Reads the keys at the path, then each pin; stops at the first refusal. RV_OK, or that refusal's code.
+int rv_editor_app_observe_read(rv_editor_app &app);
+// Refreshes the session's status, then reads. On a refusal, logs it, marks the frame read and returns
+// the code without reading. RV_OK, or the refusal's code.
+int rv_editor_app_observe_refresh(rv_editor_app &app);
+
 // Once a frame, before drawing.
 void rv_editor_app_update(rv_editor_app &app);
 
