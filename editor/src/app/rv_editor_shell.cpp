@@ -147,6 +147,43 @@ void rv_editor_shell_stop_terminal(rv_editor_app &app, rv_editor_terminal_view &
     }
     app.stopping_ptys.push_back(std::move(pty));
 }
+
+// The action an unsaved ask stands for, and the question it opens on the shell.
+struct rv_editor_ask_question {
+    rv_editor_unsaved_ask ask;
+    rv_editor_shell::rv_editor_leave leave;
+    const char *action; // named in the log when another question refuses it
+};
+constexpr rv_editor_ask_question rv_editor_ask_questions[] = {
+    { rv_editor_unsaved_ask::build, rv_editor_shell::rv_editor_leave::build, "build" },
+    { rv_editor_unsaved_ask::run, rv_editor_shell::rv_editor_leave::run, "run" },
+    { rv_editor_unsaved_ask::build_restart, rv_editor_shell::rv_editor_leave::build_restart, "build and restart" },
+};
+
+// RV_OK: the question is open. RV_ERR_BUSY: another question is open, so the action
+// does not start and the log says so. The shell asks one thing at a time.
+int rv_editor_shell_open_question(rv_editor_shell &shell, rv_editor_unsaved_ask ask)
+{
+    const auto found = std::find_if(std::begin(rv_editor_ask_questions),
+        std::end(rv_editor_ask_questions),
+        [ask](const rv_editor_ask_question &question) {
+            return question.ask == ask;
+        });
+    if (found == std::end(rv_editor_ask_questions)) {
+        shell.app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::error,
+            "unsaved-files question: unknown action " + std::to_string(static_cast<int>(ask)));
+        return RV_ERR_INVAL;
+    }
+    if (shell.leaving != rv_editor_shell::rv_editor_leave::none) {
+        shell.app.log.add(rv_editor_log_source::editor,
+            rv_editor_log_level::warning,
+            std::string(found->action) + " not started: another question is open");
+        return RV_ERR_BUSY;
+    }
+    shell.leaving = found->leave;
+    return RV_OK;
+}
 } // namespace
 void rv_editor_shell_page(rv_editor_shell &shell, rv_editor_start_page page)
 {
@@ -231,11 +268,9 @@ void rv_editor_shell_update(rv_editor_shell &shell)
 {
     rv_editor_shell_frame_start(shell);
     rv_editor_app_update(shell.app);
-    // Build, Run or Build and Restart met unsaved files: the question opens, unless another is open.
-    if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none && shell.leaving == rv_editor_shell::rv_editor_leave::none) {
-        shell.leaving = shell.app.unsaved_ask == rv_editor_unsaved_ask::build ? rv_editor_shell::rv_editor_leave::build :
-            shell.app.unsaved_ask == rv_editor_unsaved_ask::run               ? rv_editor_shell::rv_editor_leave::run :
-                                                                                rv_editor_shell::rv_editor_leave::build_restart;
+    // Build, Run or Build and Restart met unsaved files: the question opens, or the refusal (or an unknown action) is logged.
+    if (shell.app.unsaved_ask != rv_editor_unsaved_ask::none) {
+        (void)rv_editor_shell_open_question(shell, shell.app.unsaved_ask);
     }
     shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
