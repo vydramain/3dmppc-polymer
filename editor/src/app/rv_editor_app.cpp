@@ -233,6 +233,29 @@ int rv_editor_app_run_last(rv_editor_app &app)
     return rv_editor_app_run_session(app, artifact);
 }
 
+void rv_editor_app_build_ended_note(rv_editor_app &app)
+{
+    app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
+    app.build_ended = std::filesystem::file_time_type::clock::now();
+}
+
+int rv_editor_app_run_after_build_refuse(rv_editor_app &app)
+{
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::warning,
+        std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));
+    return RV_ERR_BUSY;
+}
+
+int rv_editor_app_run_after_build_start(rv_editor_app &app)
+{
+    if (!app.build.last_success()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not run: no successful build to run");
+        return RV_ERR_NOENT;
+    }
+    return rv_editor_app_run_session(app, *app.build.last_success());
+}
+
 int rv_editor_app_pause(rv_editor_app &app)
 {
     std::string error;

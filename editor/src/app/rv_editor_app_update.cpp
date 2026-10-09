@@ -67,24 +67,21 @@ void rv_editor_app_update_changed_files(rv_editor_app &app)
 // A build just ended: old builds go, the time is noted, a waiting Run runs.
 void rv_editor_app_update_build_ended(rv_editor_app &app, bool build_ended)
 {
-    if (!build_ended) {
-        return;
+    if (build_ended) {
+        rv_editor_app_build_ended_note(app);
     }
-    app.build.prune(app.session.live() ? app.session.disc_dir() : std::filesystem::path());
-    app.build_ended = std::filesystem::file_time_type::clock::now();
     // The build Run started runs, or Run says why not; never the one before.
-    if (!app.run_after_build) {
-        return;
+    const bool run_for_build = build_ended && app.run_after_build;
+    if (run_for_build) {
+        app.run_after_build = false;
     }
-    app.run_after_build = false;
-    const bool built = app.build.dev_state() == rv_editor_build_state::succeeded && app.build.last_success();
-    if (!built) {
-        app.log.add(rv_editor_log_source::editor,
-            rv_editor_log_level::warning,
-            std::string("not run: the build ") + rv_editor_build_state_name(app.build.dev_state()));
-        return;
+    const bool built = run_for_build && rv_editor_app_build_restart_built(app);
+    if (run_for_build && !built) {
+        (void)rv_editor_app_run_after_build_refuse(app);
     }
-    (void)rv_editor_app_run_session(app, *app.build.last_success());
+    if (built) {
+        (void)rv_editor_app_run_after_build_start(app);
+    }
 }
 
 // The running bake: its output joins the log each frame; once the baker has ended the bake
