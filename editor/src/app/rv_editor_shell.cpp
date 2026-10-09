@@ -240,6 +240,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
     shell.app.unsaved_ask = rv_editor_unsaved_ask::none;
     rv_editor_shell_after_save(shell);
     rv_editor_shell_review_tab(shell);
+    rv_editor_shell_settings_apply(shell);
 
     rv_editor_app &requests = shell.app;
     requests.preset = shell.active;

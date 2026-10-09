@@ -135,6 +135,8 @@ struct rv_editor_shell {
     bool settings_loaded = false;
     char settings_paths[settings_tools_count][filesystem_path_field_size] = {};
     std::string settings_error;
+    // Apply was pressed; the frame after saves and looks the tools up (rv_editor_shell_settings_apply).
+    bool settings_apply_request = false;
     // What Check found for a field as it stood; dropped when the field changes.
     std::array<std::optional<rv_editor_tool>, settings_tools_count> settings_checks;
     int settings_browse = -1; // the field the browser is choosing for; -1: none
@@ -295,6 +297,8 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
 void rv_editor_shell_review_tab(rv_editor_shell &shell);
 // File > Settings: the tool paths of settings.toml.
 void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &theme);
+// Once a frame: an Apply asked for saves settings.toml and finds the tools again; a failed save goes to settings_error.
+void rv_editor_shell_settings_apply(rv_editor_shell &shell);
 // Sets vsync as shell.pace asks on shell.renderer and sets shell.vsync_active from what SDL reports.
 // RV_OK, or RV_ERR_IO; the SDL reason is logged as a warning.
 int rv_editor_shell_pace_apply(rv_editor_shell &shell);

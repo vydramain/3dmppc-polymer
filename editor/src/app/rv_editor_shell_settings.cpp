@@ -243,18 +243,36 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     if (!shell.settings_error.empty()) {
         rv_editor_status(shell.settings_error.c_str(), rv_editor_status_kind::error, theme);
     }
+    // Apply only asks; the frame after saves and looks up. Off while that or the version checks run.
+    const bool searching =
+        shell.settings_apply_request || app.tools.burner.version_check.running() || app.tools.baker.version_check.running();
     const char *no_dir_tooltip = nowhere ? rv_editor_text("shell_settings.no_dir_tooltip") : nullptr;
-    const bool apply =
-        rv_editor_button(rv_editor_text("shell_settings.apply_button"), theme, { rv_editor_look::live, no_dir_tooltip });
+    const char *searching_text = searching ? rv_editor_text("shell_settings.searching_tools") : nullptr;
+    const char *apply_block = searching_text != nullptr ? searching_text : no_dir_tooltip;
+    if (rv_editor_button(rv_editor_text("shell_settings.apply_button"), theme, { rv_editor_look::live, apply_block })) {
+        shell.settings_apply_request = true;
+    }
     ImGui::SameLine();
-    if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme)) {
+    if (rv_editor_button(rv_editor_text("shell_settings.revert_button"), theme, { rv_editor_look::live, searching_text })) {
         shell.settings_loaded = false;
+    }
+    if (searching) {
+        ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+        ImGui::TextUnformatted(rv_editor_text("shell_settings.searching_tools"));
+        ImGui::PopStyleColor();
     }
     ImGui::Separator();
     rv_editor_settings_pace(shell, theme);
-    if (!apply) {
+}
+
+void rv_editor_shell_settings_apply(rv_editor_shell &shell)
+{
+    if (!shell.settings_apply_request) {
         return;
     }
+    shell.settings_apply_request = false;
+    rv_editor_app &app = shell.app;
     std::vector<rv_editor_settings_tool> tools;
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
         tools.push_back({ rv_editor_settings_rows[i].key, shell.settings_paths[i] });
