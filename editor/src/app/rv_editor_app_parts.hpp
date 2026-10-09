@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "release/rv_editor_candidate.hpp"
@@ -253,6 +254,9 @@ enum class rv_editor_pane_request_kind {
 
 struct rv_editor_pane_request {
     rv_editor_pane_request_kind kind = rv_editor_pane_request_kind::stop;
+    rv_editor_pane_id pane = rv_editor_tile_none; // the pane that asked; none when the app asks
+    std::filesystem::path path = {};              // the entry the request is about
+    std::string name = {};                        // the new name the request carries
 };
 
 } // namespace rv_editor

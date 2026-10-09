@@ -15,7 +15,28 @@ namespace rv_editor
 namespace
 {
 
-using rv_editor_request_op = int (*)(rv_editor_app &app);
+using rv_editor_request_op = int (*)(rv_editor_app &app, const rv_editor_pane_request &request);
+
+// Kinds that need no data from the request: the operation ignores it.
+int rv_editor_request_stop(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_stop(app);
+}
+
+int rv_editor_request_force_stop(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_force_stop(app);
+}
+
+int rv_editor_request_restart(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_restart(app);
+}
+
+int rv_editor_request_cancel_build(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_build_cancel(app);
+}
 
 struct rv_editor_request_entry {
     rv_editor_pane_request_kind kind;
@@ -25,10 +46,10 @@ struct rv_editor_request_entry {
 
 // Each kind's operation and name for the log; a new kind adds one row.
 constexpr rv_editor_request_entry rv_editor_request_table[] = {
-    { rv_editor_pane_request_kind::stop, rv_editor_app_stop, "stop" },
-    { rv_editor_pane_request_kind::force_stop, rv_editor_app_force_stop, "force stop" },
-    { rv_editor_pane_request_kind::restart, rv_editor_app_restart, "restart" },
-    { rv_editor_pane_request_kind::cancel_build, rv_editor_app_build_cancel, "cancel build" },
+    { rv_editor_pane_request_kind::stop, rv_editor_request_stop, "stop" },
+    { rv_editor_pane_request_kind::force_stop, rv_editor_request_force_stop, "force stop" },
+    { rv_editor_pane_request_kind::restart, rv_editor_request_restart, "restart" },
+    { rv_editor_pane_request_kind::cancel_build, rv_editor_request_cancel_build, "cancel build" },
 };
 
 // Named in the log when a kind has no table row.
@@ -80,7 +101,7 @@ int rv_editor_app_request_run(rv_editor_app &app, const rv_editor_pane_request &
         app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "unknown request kind");
         return RV_ERR_INVAL;
     }
-    return entry->run(app);
+    return entry->run(app, request);
 }
 
 } // namespace rv_editor
