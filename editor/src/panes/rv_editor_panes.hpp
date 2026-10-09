@@ -109,7 +109,7 @@ void rv_editor_pane_candidate(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_checks(rv_editor_app &app, const rv_editor_theme &theme);
 
 // The layout's command palette (spec 7): Code, Debug and Burn each their few.
-void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 
 // The last build job's outcome and diagnostics, and the next action.
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme);

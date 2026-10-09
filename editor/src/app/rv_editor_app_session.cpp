@@ -48,8 +48,6 @@ int rv_editor_app_state_dir_prepare(rv_editor_app &app)
 void rv_editor_app_session_reset(rv_editor_app &app, const rv_editor_artifact &artifact)
 {
     app.build.prune(artifact.dir);
-    // A new console starts with every key up: no capture carries over.
-    app.game_captured = false;
     app.marks.clear();
     app.session_first_seq = app.log.revision() + 1;
     app.observe.read_frame = -1;

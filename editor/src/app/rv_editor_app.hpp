@@ -59,9 +59,7 @@ struct rv_editor_app {
     // Shells of closed tiles, hung up and stepped each frame until they have ended.
     std::vector<std::unique_ptr<rv_editor_pty>> stopping_ptys;
     rv_editor_nvim nvim;
-    // The Game tile has the keyboard; and whether one was drawn this frame: a
-    // Game tile closed or behind another tab holds no keys.
-    bool game_captured = false;
+    // Whether a Game tile was drawn this frame: a Game tile closed or behind another tab holds no keys.
     bool game_drawn = false;
     // The Game tile's own minimum: its mode row and status line (the picture scales
     // below 1x to fit); 0 x 0 before the first frame.

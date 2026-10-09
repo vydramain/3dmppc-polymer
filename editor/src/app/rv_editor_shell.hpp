@@ -54,8 +54,8 @@ constexpr size_t settings_tools_count = 4;
 // Workspaces: number of layouts (Code, Scene, Debug, Burn) in rv_editor_workspaces.
 constexpr size_t editor_workspace_slots_count = 4;
 
-// The window's UI state, owned by the shell: panes will read it and change it only by
-// queuing an rv_editor_ui_request, as the fields move out of rv_editor_app.
+// The window's UI state, owned by the shell: panes read it and change it only by
+// queuing an rv_editor_ui_request; the fields move here out of rv_editor_app one by one.
 struct rv_editor_ui {
     // A code tile had the keyboard this frame: ImGui's own keyboard navigation
     // stays off the next one, so arrows and Tab reach nvim.
@@ -94,7 +94,8 @@ struct rv_editor_ui_request {
 };
 
 // What a pane gets: panes read the state through it and change it only by queuing requests.
-// The fields move here from rv_editor_app one by one; until then nothing reads them.
+// rv_editor_ui's game_drawn, game_need and game_area are not used yet; rv_editor_app's copies
+// are the live ones until the next move.
 struct rv_editor_ui_port {
     const rv_editor_ui &state;
     std::vector<rv_editor_ui_request> &requests;
@@ -124,6 +125,8 @@ struct rv_editor_shell {
     // A refused pad is retried every frame, so its warning is logged once per run of refusals.
     // Cleared by a frame with nothing to send (pad_pending false) and by the next pad that is sent.
     bool pad_refusal_reported = false;
+    // The session number game_input saw last frame: a new console ends the Game's keyboard capture.
+    uint32_t game_session = 0;
 
     // A code tile with unsaved changes waiting for Save, Discard or Cancel.
     rv_editor_pane_id closing = rv_editor_tile_none;

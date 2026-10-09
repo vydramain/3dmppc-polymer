@@ -8,6 +8,7 @@
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_glyphs.hpp"
@@ -26,7 +27,7 @@ char mark_draft[mark_note_field_size] = {};
 constexpr size_t no_mark_sent = std::numeric_limits<size_t>::max();
 size_t mark_count_at_send = no_mark_sent;
 
-void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_session &s = app.session;
     const char *no_session = s.live() ? nullptr : rv_editor_text("pane_toolchest.no_session");
@@ -85,7 +86,10 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
             nullptr,
             theme,
             { rv_editor_look::live, report_why })) {
-        (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::report_problem });
+        const bool queued = rv_editor_app_request(app, { rv_editor_pane_request_kind::report_problem }) == RV_OK;
+        if (queued) {
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
+        }
     }
     rv_editor_flow(rv_editor_tool_button_width(rv_editor_text("pane_toolchest.restart_button")));
     // A restart in progress says so in place of the no-session reason.
@@ -104,12 +108,12 @@ void rv_editor_session_tools(rv_editor_app &app, const rv_editor_theme &theme)
 
 } // namespace
 
-void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     // Only controls, no separate content: the whole pane is a shelf.
     rv_editor_shelf_begin("##shelf", theme);
     if (app.preset == rv_editor_layout_preset::debug) {
-        rv_editor_session_tools(app, theme);
+        rv_editor_session_tools(app, theme, ui);
     } else if (app.scene != nullptr) {
         // Scene's tools act on a scene document; without one, none is offered.
         rv_editor_scene_tools(app, theme);

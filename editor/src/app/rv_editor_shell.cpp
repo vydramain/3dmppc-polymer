@@ -412,15 +412,19 @@ void rv_editor_shell_update(rv_editor_shell &shell)
 void rv_editor_shell_game_input(rv_editor_shell &shell)
 {
     rv_editor_app &app = shell.app;
+    // A new console starts with every key up: a capture made for the last console does not carry over to the next one.
+    const bool new_session = app.session.number() != shell.game_session;
+    shell.game_session = app.session.number();
     // A Game tile closed or behind another tab, a window without the keyboard or
     // no console: the capture ends here, whatever the pane saw.
-    if (!app.game_drawn || !shell.window_focused || !app.session.live()) {
-        app.game_captured = false;
+    const bool capture_lost = new_session || !app.game_drawn || !shell.window_focused || !app.session.live();
+    if (capture_lost) {
+        shell.ui.game_captured = false;
     }
     // The shell owns the Game's frame state and resets it itself: a pane only reports the draw.
     app.game_drawn = false;
     uint64_t buttons = 0;
-    if (app.game_captured) {
+    if (shell.ui.game_captured) {
         // ImGui's keyboard navigation stays off the next frame, so arrows stay the game's.
         shell.ui.text_focus = true;
         if (app.session.state() == rv_editor_run_state::running) {

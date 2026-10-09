@@ -47,16 +47,14 @@ void rv_editor_shell_open_now(rv_editor_shell &shell, const std::filesystem::pat
     if (rv_editor_app_open(app, path) != RV_OK) {
         return;
     }
-    std::string project_name;
-    if (app.project.disc_title.empty()) {
-        project_name = app.project.root.filename().string();
-    } else {
-        project_name = app.project.disc_title;
-    }
+    const std::string project_name =
+        app.project.disc_title.empty() ? app.project.root.filename().string() : app.project.disc_title;
     const auto title = rv_editor_text_format("shell_save.window_title", std::make_format_args(project_name));
     SDL_SetWindowTitle(shell.window, title.c_str());
     app.open_requests.clear();
     shell.revealed.clear();
+    // Another project takes the keyboard back from the game.
+    shell.ui.game_captured = false;
     rv_editor_log *log = &app.log;
     app.nvim.switch_root(app.project.root, [log](const std::string &failure) {
         if (!failure.empty()) {

@@ -63,7 +63,7 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         if (kind == rv_editor_pane_kind::controls) {
             rv_editor_pane_controls(shell.app, theme);
         } else if (kind == rv_editor_pane_kind::toolchest) {
-            rv_editor_pane_toolchest(shell.app, theme);
+            rv_editor_pane_toolchest(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         } else {
             rv_editor_pane_release_controls(shell.app, theme);
         }

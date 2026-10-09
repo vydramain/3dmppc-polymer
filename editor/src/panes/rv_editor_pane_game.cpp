@@ -168,7 +168,7 @@ enum class rv_editor_game_line {
 // frame placed as Game Scale says once a texture exists; empty otherwise. Every
 // state routes through here so this-frame's area is the same shape regardless of
 // what the state has to show (game-steady).
-void rv_editor_game_picture(rv_editor_app &app,
+void rv_editor_game_picture(const rv_editor_ui_port &ui,
     const rv_editor_theme &theme,
     std::string status,
     rv_editor_game_line line,
@@ -207,7 +207,7 @@ void rv_editor_game_picture(rv_editor_app &app,
     // (rv_editor_shell_game_input). Not every state has a game to send them to.
     if (clickable) {
         if (ImGui::InvisibleButton("##game", area)) {
-            app.game_captured = true;
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::capture_keyboard });
         }
     } else {
         ImGui::Dummy(area);
@@ -223,7 +223,7 @@ void rv_editor_game_picture(rv_editor_app &app,
         ImVec2(0.0f, 0.0f),
         ImVec2(1.0f, 1.0f),
         line == rv_editor_game_line::warn ? warn_picture_tint : IM_COL32_WHITE);
-    if (app.game_captured) {
+    if (ui.state.game_captured) {
         dl->AddRect(ImVec2(i0.x - 1, i0.y - 1),
             ImVec2(i1.x + 1, i1.y + 1),
             rv_editor_col(theme.selection),
@@ -250,7 +250,7 @@ bool rv_editor_game_join_stale(const rv_editor_app &app, std::string &status)
 }
 
 // Status line: select text and style by session state with guards for special cases.
-std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const rv_editor_session &s, const rv_editor_app &app)
+std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const rv_editor_session &s, bool captured)
 {
     // Order matters: a stalled or stopping console says so before any other state.
     if (s.state() == rv_editor_run_state::disconnected) {
@@ -276,7 +276,7 @@ std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const r
     case rv_editor_run_state::starting:
         return { rv_editor_run_state_name(s.state()), rv_editor_game_line::normal };
     case rv_editor_run_state::running:
-        return { app.game_captured ? rv_editor_text("pane_game.playing_keyboard") : rv_editor_text("pane_game.click_to_play"),
+        return { captured ? rv_editor_text("pane_game.playing_keyboard") : rv_editor_text("pane_game.click_to_play"),
             rv_editor_game_line::normal };
     default:
         return { rv_editor_run_state_name(s.state()), rv_editor_game_line::normal };
@@ -286,7 +286,10 @@ std::pair<const char *, rv_editor_game_line> rv_editor_game_state_status(const r
 // Burn's tile: the shelf's Run Candidate and, once a candidate's image runs, its
 // own frame. The unpacked development build never stands in for it (README),
 // whether stopped or a development session is live.
-void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &theme, rv_editor_game_scale mode)
+void rv_editor_game_candidate_tile(rv_editor_app &app,
+    const rv_editor_theme &theme,
+    const rv_editor_ui_port &ui,
+    rv_editor_game_scale mode)
 {
     std::string status;
     if (app.release.candidates.empty()) {
@@ -296,7 +299,7 @@ void rv_editor_game_candidate_tile(rv_editor_app &app, const rv_editor_theme &th
         status = rv_editor_text_format("pane_game.candidate_image", std::make_format_args(candidate_num));
     }
     const bool stale = rv_editor_game_join_stale(app, status);
-    rv_editor_game_picture(app, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false, mode);
+    rv_editor_game_picture(ui, theme, status, stale ? rv_editor_game_line::warn : rv_editor_game_line::normal, false, mode);
 }
 
 } // namespace
@@ -325,7 +328,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
     const auto body = [&]() {
         if (!s.live()) {
-            app.game_captured = false;
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
             if (!app.project.open) {
                 rv_editor_open_project_row(app, theme);
                 return;
@@ -352,7 +355,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 return;
             }
             if (app.release_view) {
-                rv_editor_game_candidate_tile(app, theme, ui.state.game_scale);
+                rv_editor_game_candidate_tile(app, theme, ui, ui.state.game_scale);
                 return;
             }
             // Stopped: what the shelf's Run starts; a stale frame, if one is left,
@@ -365,7 +368,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 status = rv_editor_text("pane_game.stopped_rebuilds");
             }
             const bool stale = rv_editor_game_join_stale(app, status);
-            rv_editor_game_picture(app,
+            rv_editor_game_picture(ui,
                 theme,
                 status,
                 stale ? rv_editor_game_line::warn : rv_editor_game_line::normal,
@@ -377,8 +380,8 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         // A development session (Code/Debug/Scene) can be live while Burn is open: its
         // frame is not a candidate's image, so Burn still shows the stopped tile.
         if (app.release_view && app.release.playing < 0) {
-            app.game_captured = false;
-            rv_editor_game_candidate_tile(app, theme, ui.state.game_scale);
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
+            rv_editor_game_candidate_tile(app, theme, ui, ui.state.game_scale);
             return;
         }
 
@@ -417,7 +420,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
 
         // The texture may still hold the last session's frame: not this one's.
         if (rv_editor_game_texture == nullptr || rv_editor_game_frame == 0) {
-            rv_editor_game_picture(app,
+            rv_editor_game_picture(ui,
                 theme,
                 rv_editor_text("pane_game.frame_waiting"),
                 rv_editor_game_line::muted,
@@ -427,13 +430,13 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
         }
 
         // A console that stopped answering leaves a frame that is no longer the game's.
-        const auto [state, line] = rv_editor_game_state_status(s, app);
+        const auto [state, line] = rv_editor_game_state_status(s, ui.state.game_captured);
         if (s.state() == rv_editor_run_state::disconnected) {
-            app.game_captured = false;
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
         }
 
         const auto frame = s.frame();
-        rv_editor_game_picture(app,
+        rv_editor_game_picture(ui,
             theme,
             rv_editor_text_format("pane_game.frame_status", std::make_format_args(frame, state)),
             line,
@@ -441,10 +444,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             ui.state.game_scale);
 
         // Shift+Esc or focus elsewhere gives the keyboard back; Shift+Esc never reaches the game.
-        if (app.game_captured &&
+        if (ui.state.game_captured &&
             (ImGui::IsKeyChordPressed(ImGuiMod_Shift | ImGuiKey_Escape) ||
                 !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows | ImGuiFocusedFlags_RootAndChildWindows))) {
-            app.game_captured = false;
+            ui.requests.push_back({ .kind = rv_editor_ui_request_kind::release_keyboard });
         }
     };
     body();

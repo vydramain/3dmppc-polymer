@@ -397,7 +397,7 @@ int rv_editor_app_add_mark(rv_editor_app &app, const std::string &note)
     return RV_OK;
 }
 
-// Report Issue: the live session's frame is captured, the keyboard is given up, Findings is asked for.
+// Report Issue: the live session's frame is captured, Findings is asked for.
 int rv_editor_app_report_problem(rv_editor_app &app)
 {
     const bool ran = app.session.number() != 0;
@@ -409,8 +409,6 @@ int rv_editor_app_report_problem(rv_editor_app &app)
         // The capture logs its own failure; the report goes on without the picture.
         (void)rv_editor_app_capture_frame(app);
     }
-    // The Game tile's keyboard capture is UI state; the report gives it up so Findings can take the keys.
-    app.game_captured = false;
     app.log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
         "issue reported at frame " + std::to_string(app.session.frame()) + " of session #" +
