@@ -324,15 +324,16 @@ void rv_editor_shell_load_layouts(rv_editor_shell &shell, const std::filesystem:
         if (!file.empty() && !std::filesystem::exists(file, ec) && !rv_editor_workspace_old_file(path, preset).empty()) {
             file = rv_editor_workspace_old_file(path, preset);
         }
-        if (!file.empty() && rv_editor_layout_load(file, own, layout) == RV_OK) {
+        std::string error;
+        if (!file.empty() && rv_editor_layout_load(file, own, layout, error) == RV_OK) {
             rv_editor_pane_adopt(shell.ws.panes, own, layout);
             tree = std::move(layout);
             continue;
         }
         if (!file.empty() && std::filesystem::exists(file, ec)) {
             std::fprintf(stderr,
-                "3dmppc-editor: %s is not a layout this editor reads; starting from %s\n",
-                file.c_str(),
+                "3dmppc-editor: layout not read: %s; starting from %s\n",
+                error.c_str(),
                 rv_editor_layout_preset_name(preset));
         }
         tree = rv_editor_workspace_start(shell.ws.panes, preset);

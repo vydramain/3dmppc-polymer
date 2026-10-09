@@ -217,31 +217,35 @@ int read_maximized_and_end(const std::vector<std::string_view> &lines, size_t &i
 
 } // namespace
 
-// Publishes the parsed panes and layout only when every step passes. The reason of a refusal is dropped
-// here: the public contract keeps its signature, so the caller gets RV_ERR_INVAL alone.
-int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout)
+// Publishes the parsed panes and layout only when every step passes. The reason of a refusal goes to `error`.
+int rv_editor_layout_read(std::string_view text, rv_editor_pane_registry &panes, rv_editor_layout &layout, std::string &error)
 {
     const auto lines = split_text(text);
     size_t idx = 0;
-    std::string error;
     rv_editor_pane_registry np;
     rv_editor_layout nl;
-    if (read_header(lines, idx, error) != RV_OK) {
+    const int header_rc = read_header(lines, idx, error);
+    if (header_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (read_panes(lines, idx, np, error) != RV_OK) {
+    const int panes_rc = read_panes(lines, idx, np, error);
+    if (panes_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (read_nodes(lines, idx, nl, error) != RV_OK) {
+    const int nodes_rc = read_nodes(lines, idx, nl, error);
+    if (nodes_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (read_root(lines, idx, nl, error) != RV_OK) {
+    const int root_rc = read_root(lines, idx, nl, error);
+    if (root_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (read_maximized_and_end(lines, idx, nl, error) != RV_OK) {
+    const int end_rc = read_maximized_and_end(lines, idx, nl, error);
+    if (end_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
-    if (check_tree(np, nl, error) != RV_OK) {
+    const int tree_rc = check_tree(np, nl, error);
+    if (tree_rc != RV_OK) {
         return RV_ERR_INVAL;
     }
     panes = np;

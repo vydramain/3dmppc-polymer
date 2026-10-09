@@ -49,24 +49,35 @@ std::filesystem::path rv_editor_layout_file_path()
     return {};
 }
 
-int rv_editor_layout_load(const std::filesystem::path &path, rv_editor_pane_registry &panes, rv_editor_layout &layout)
+int rv_editor_layout_load(const std::filesystem::path &path,
+    rv_editor_pane_registry &panes,
+    rv_editor_layout &layout,
+    std::string &error)
 {
     std::error_code ec;
     const auto sz = std::filesystem::file_size(path, ec);
     if (ec) {
+        error = path.string() + ": " + ec.message();
         return RV_ERR_IO;
     }
     if (sz > layout_file_max_bytes) {
+        error = path.string() + ": file is larger than " + std::to_string(layout_file_max_bytes) + " bytes";
         return RV_ERR_INVAL;
     }
 
     std::ifstream file(path, std::ios::binary);
     std::string text(sz, '\0');
     if (!file.read(text.data(), sz)) {
+        error = path.string() + ": read failed";
         return RV_ERR_IO;
     }
 
-    return rv_editor_layout_read(text, panes, layout);
+    const int rc = rv_editor_layout_read(text, panes, layout, error);
+    if (rc != RV_OK) {
+        error = path.string() + ": " + error;
+        return rc;
+    }
+    return RV_OK;
 }
 
 int rv_editor_layout_save(const std::filesystem::path &path,
