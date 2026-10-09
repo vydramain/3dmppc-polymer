@@ -42,6 +42,8 @@ constexpr float window_padding_sides = 2.0f;
 constexpr float ui_scale_candidates[] = { 2.0f, 1.5f, 1.0f };
 // Exit code for argument parse or initialization errors.
 constexpr int exit_code_error = 2;
+// Nanoseconds per second: SDL_GetTicksNS and SDL_DelayPrecise count in nanoseconds.
+constexpr Uint64 ns_per_second = 1000000000;
 // Command-line options: --help / -h.
 constexpr char option_help_long[] = "help";
 constexpr char option_help_short = 'h';
@@ -255,6 +257,17 @@ int rv_editor_set_window_size_for_scale(SDL_Window *window, float scale, bool re
     return RV_OK;
 }
 
+// Sleeps out the rest of a frame that started at frame_start (SDL_GetTicksNS), so the
+// loop runs at fps_limit when vsync does not pace it. SDL_DelayPrecise, not SDL_Delay:
+// SDL_Delay rounds the sleep to whole milliseconds.
+// A frame already over its budget gets no sleep.
+void rv_editor_frame_pace(Uint64 frame_start, int fps_limit)
+{
+    const Uint64 frame_ns = ns_per_second / static_cast<Uint64>(fps_limit);
+    const Uint64 used_ns = std::min(SDL_GetTicksNS() - frame_start, frame_ns);
+    SDL_DelayPrecise(frame_ns - used_ns);
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -292,10 +305,6 @@ int main(int argc, char **argv)
         SDL_Quit();
         return 1;
     }
-    if (!SDL_SetRenderVSync(renderer, 1)) {
-        std::fprintf(stderr, "3dmppc-editor: SDL_SetRenderVSync: %s\n", SDL_GetError());
-    }
-
     // Load UI texts: embedded default + optional user file next to prefs.
     const std::filesystem::path prefs_file_path = rv_editor::rv_editor_prefs_file_path();
     std::filesystem::path user_texts_file;
@@ -311,9 +320,24 @@ int main(int argc, char **argv)
             text_error.c_str());
     }
 
+    // The view the user chose last time: code text size, Game scale, layout, UI scale.
+    const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
+    const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
+    // The loop waits for no event: without vsync or a cap it would take a whole core.
+    // Set before the too-small screen, which runs the same kind of loop.
+    const bool vsync_set = SDL_SetRenderVSync(renderer, prefs.vsync ? 1 : 0);
+    if (!vsync_set) {
+        std::fprintf(stderr, "3dmppc-editor: SDL_SetRenderVSync: %s\n", SDL_GetError());
+    }
+    const bool vsync_active = prefs.vsync && vsync_set;
+
     // Check if display is large enough (needs 1280x720 at scale 1.0).
     const rv_editor::rv_editor_display_size display_size = rv_editor::rv_editor_get_display_size(window);
     if (display_size.w_pixels < rv_editor::window_min_width || display_size.h_pixels < rv_editor::window_min_height) {
+        // The too-small screen has no frame cap, so it always runs with vsync.
+        if (!SDL_SetRenderVSync(renderer, 1)) {
+            std::fprintf(stderr, "3dmppc-editor: SDL_SetRenderVSync: %s\n", SDL_GetError());
+        }
         rv_editor::rv_editor_show_too_small_error(window, renderer, display_size);
         SDL_Quit();
         return 1;
@@ -326,9 +350,6 @@ int main(int argc, char **argv)
     // The editor will keep its own layout file; ImGui writes none.
     io.IniFilename = nullptr;
 
-    // The view the user chose last time: code text size, Game scale, layout, UI scale.
-    const std::filesystem::path prefs_path = rv_editor::rv_editor_prefs_file_path();
-    const rv_editor::rv_editor_prefs prefs = rv_editor::rv_editor_prefs_load(prefs_path);
     rv_editor::rv_editor_theme theme = rv_editor::rv_editor_theme_olive;
     theme.scale = prefs.ui_scale;
 
@@ -367,6 +388,11 @@ int main(int argc, char **argv)
     shell->renderer = renderer;
     rv_editor::rv_editor_app_init(shell->app);
     shell->ui_scale = theme.scale;
+    if (prefs.vsync && !vsync_active) {
+        shell->app.log.add(rv_editor::rv_editor_log_source::editor,
+            rv_editor::rv_editor_log_level::warning,
+            "vsync did not turn on; frames are limited to " + std::to_string(prefs.fps_limit) + " per second");
+    }
     rv_editor::rv_editor_shell_load_layouts(*shell, layout_path, prefs.workspace);
     rv_editor::rv_editor_font_code_size_set(prefs.code_size);
     shell->app.game_scale = prefs.game_scale;
@@ -375,6 +401,7 @@ int main(int argc, char **argv)
     }
 
     while (!shell->quit_now) {
+        const Uint64 frame_start = SDL_GetTicksNS();
         if (rv_editor_poll(window, renderer, shell->window_focused) && rv_editor::rv_editor_shell_may_quit(*shell)) {
             break;
         }
@@ -424,6 +451,10 @@ int main(int argc, char **argv)
         SDL_RenderClear(renderer);
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
+        // Without vsync, the cap is the only pacing: the loop must not spin at CPU speed.
+        if (!vsync_active) {
+            rv_editor_frame_pace(frame_start, prefs.fps_limit);
+        }
     }
 
     // No build and no runtime outlives the window; nor does a sound.
