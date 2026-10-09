@@ -361,6 +361,12 @@ bool rv_editor_app_request_pending(const rv_editor_app &app, rv_editor_pane_requ
 int rv_editor_app_request_run(rv_editor_app &app, const rv_editor_pane_request &request);
 void rv_editor_app_reload(rv_editor_app &app);
 
+// Creates a file or folder in dir; RV_OK or RV_ERR_* with the reason in error.
+int rv_editor_app_create_file(rv_editor_app &app,
+    const std::filesystem::path &dir,
+    const std::string &name,
+    std::string &error);
+int rv_editor_app_create_dir(rv_editor_app &app, const std::filesystem::path &dir, const std::string &name, std::string &error);
 // Renames or deletes inside the project; RV_OK or RV_ERR_* with the reason in error.
 int rv_editor_app_rename(rv_editor_app &app, const std::filesystem::path &from, const std::string &name, std::string &error);
 int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, std::string &error);

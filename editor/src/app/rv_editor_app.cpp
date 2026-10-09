@@ -335,6 +335,28 @@ int rv_editor_app_remove(rv_editor_app &app, const std::filesystem::path &path, 
     return RV_OK;
 }
 
+int rv_editor_app_create_file(rv_editor_app &app, const std::filesystem::path &dir, const std::string &name, std::string &error)
+{
+    const int err = app.files.create_file(dir, name, error);
+    if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not created: " + error);
+        return err;
+    }
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "created " + (dir / name).string());
+    return RV_OK;
+}
+
+int rv_editor_app_create_dir(rv_editor_app &app, const std::filesystem::path &dir, const std::string &name, std::string &error)
+{
+    const int err = app.files.create_dir(dir, name, error);
+    if (err != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not created: " + error);
+        return err;
+    }
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "created " + (dir / name).string());
+    return RV_OK;
+}
+
 int rv_editor_app_build_cancel(rv_editor_app &app)
 {
     std::string error;

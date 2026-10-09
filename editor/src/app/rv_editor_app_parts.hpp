@@ -250,6 +250,11 @@ enum class rv_editor_pane_request_kind {
     force_stop,
     restart,
     cancel_build,
+    create_file, // path: the directory, name: the new file
+    create_dir,  // path: the directory, name: the new folder
+    rename,      // path: the entry, name: its new name
+    remove,      // path: the entry
+    refresh_files,
 };
 
 struct rv_editor_pane_request {
