@@ -60,6 +60,8 @@ constexpr std::string_view case_file_new_template = "title: What this checks\nst
 constexpr std::string_view case_file_marker_title = "title:";
 constexpr std::string_view case_file_marker_steps = "steps:";
 constexpr std::string_view case_file_marker_expected = "expected:";
+// The exploratory case's title; not translated, written into result files.
+constexpr std::string_view case_exploratory_title = "Exploratory";
 
 // Result file name part and labels.
 constexpr std::string_view filename_timestamp_result_sep = "-";
@@ -67,6 +69,10 @@ constexpr std::string_view result_label_test_case = "test case: ";
 constexpr std::string_view result_label_result = "\nresult: ";
 constexpr std::string_view result_label_note = "\nnote: ";
 constexpr std::string_view result_label_recorded = "\nrecorded: ";
+
+// Mark text keys: with a note, and without one.
+constexpr std::string_view mark_text_key = "pane_toolchest.mark_text";
+constexpr std::string_view mark_text_key_no_note = "pane_toolchest.mark_text_no_note";
 
 std::string rv_editor_log_text(const rv_editor_log_line &line)
 {
@@ -265,11 +271,19 @@ int rv_editor_app_capture_frame(rv_editor_app &app)
 }
 
 // A test case file: the title from its "title:" line (else the file name), then the steps and expected text.
-rv_editor_case rv_editor_case_read(const std::filesystem::path &path)
+int rv_editor_case_read(const std::filesystem::path &path, rv_editor_case &out, std::string &error)
 {
-    rv_editor_case c;
-    c.title = path.stem().string();
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(path, ec)) {
+        error = ec ? "cannot check " + path.string() + ": " + ec.message() : "not a regular file: " + path.string();
+        return RV_ERR_IO;
+    }
     std::ifstream in(path);
+    if (!in) {
+        error = "cannot read " + path.string();
+        return RV_ERR_IO;
+    }
+    rv_editor_case c{ path.stem().string(), {}, {} };
     std::string line;
     std::string *into = nullptr;
     while (std::getline(in, line)) {
@@ -284,7 +298,17 @@ rv_editor_case rv_editor_case_read(const std::filesystem::path &path)
             *into += line + "\n";
         }
     }
-    return c;
+    if (in.bad()) {
+        error = "cannot read " + path.string();
+        return RV_ERR_IO;
+    }
+    out = c;
+    return RV_OK;
+}
+
+rv_editor_case rv_editor_case_exploratory()
+{
+    return rv_editor_case{ std::string(case_exploratory_title), {}, {} };
 }
 
 // A new case to fill in, opened in Code. RV_OK, or RV_ERR_IO with the reason in findings.error and the log.
@@ -348,6 +372,57 @@ int rv_editor_app_case_result(rv_editor_app &app, const rv_editor_case &c, rv_ed
         return RV_OK;
     }
     return rv_editor_app_capture_frame(app);
+}
+
+// Debug's mark at the live session's frame, with the note when there is one.
+int rv_editor_app_add_mark(rv_editor_app &app, const std::string &note)
+{
+    const rv_editor_session &s = app.session;
+    if (!s.live()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "mark refused: no session is live");
+        return RV_ERR_INVAL;
+    }
+    const int64_t frame_number = s.frame();
+    const std::string mark = note.empty() ? rv_editor_text_format(mark_text_key_no_note, std::make_format_args(frame_number)) :
+                                            rv_editor_text_format(mark_text_key, std::make_format_args(frame_number, note));
+    app.marks.push_back(mark);
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        "mark " + std::to_string(app.marks.size()) + " of session #" + std::to_string(s.number()) + ", " + mark);
+    return RV_OK;
+}
+
+// Report Issue: the live session's frame is captured, the keyboard is given up, Findings is asked for.
+int rv_editor_app_report_problem(rv_editor_app &app)
+{
+    const bool ran = app.session.number() != 0;
+    if (!ran) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "report refused: no session has run");
+        return RV_ERR_INVAL;
+    }
+    if (app.session.live()) {
+        // The capture logs its own failure; the report goes on without the picture.
+        (void)rv_editor_app_capture_frame(app);
+    }
+    // The Game tile's keyboard capture is UI state; the report gives it up so Findings can take the keys.
+    app.game_captured = false;
+    app.log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        "issue reported at frame " + std::to_string(app.session.frame()) + " of session #" +
+            std::to_string(app.session.number()));
+    app.show_request = rv_editor_pane_kind::findings;
+    return RV_OK;
+}
+
+int rv_editor_app_findings_dismiss_error(rv_editor_app &app)
+{
+    if (app.findings.error.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "nothing to dismiss: no finding error");
+        return RV_ERR_ALREADY;
+    }
+    app.log.add(rv_editor_log_source::editor, rv_editor_log_level::info, "finding error dismissed");
+    app.findings.error.clear();
+    return RV_OK;
 }
 
 } // namespace rv_editor

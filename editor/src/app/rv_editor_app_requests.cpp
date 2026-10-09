@@ -44,6 +44,55 @@ int rv_editor_request_refresh_files(rv_editor_app &app, const rv_editor_pane_req
     return RV_OK;
 }
 
+int rv_editor_request_capture_frame(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_capture_frame(app);
+}
+
+int rv_editor_request_save_finding(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_save_finding(app);
+}
+
+int rv_editor_request_case_new(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_case_new(app);
+}
+
+// The case result: the case file named by the request (empty: exploratory), the choice is the result.
+int rv_editor_request_case_result(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    const bool chosen = request.choice < static_cast<size_t>(rv_editor_case_result_kind::count);
+    if (!chosen) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "test case result refused: no result chosen");
+        return RV_ERR_INVAL;
+    }
+    const bool exploratory = request.path.empty();
+    rv_editor_case c = rv_editor_case_exploratory();
+    std::string error;
+    const int read_rv = exploratory ? RV_OK : rv_editor_case_read(request.path, c, error);
+    if (read_rv != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "test case result refused: " + error);
+        return read_rv;
+    }
+    return rv_editor_app_case_result(app, c, static_cast<rv_editor_case_result_kind>(request.choice));
+}
+
+int rv_editor_request_add_mark(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_add_mark(app, request.name);
+}
+
+int rv_editor_request_report_problem(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_report_problem(app);
+}
+
+int rv_editor_request_dismiss_findings_error(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_findings_dismiss_error(app);
+}
+
 // A dialog's operation: runs on the request's entry or directory; the reason goes to error when it fails.
 using rv_editor_dialog_op = int (*)(rv_editor_app &app, const rv_editor_pane_request &request, std::string &error);
 
@@ -132,6 +181,13 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::rename, rv_editor_request_rename, "rename" },
     { rv_editor_pane_request_kind::remove, rv_editor_request_remove, "remove" },
     { rv_editor_pane_request_kind::refresh_files, rv_editor_request_refresh_files, "refresh files" },
+    { rv_editor_pane_request_kind::capture_frame, rv_editor_request_capture_frame, "capture frame" },
+    { rv_editor_pane_request_kind::save_finding, rv_editor_request_save_finding, "save finding" },
+    { rv_editor_pane_request_kind::case_new, rv_editor_request_case_new, "case new" },
+    { rv_editor_pane_request_kind::case_result, rv_editor_request_case_result, "case result" },
+    { rv_editor_pane_request_kind::add_mark, rv_editor_request_add_mark, "add mark" },
+    { rv_editor_pane_request_kind::report_problem, rv_editor_request_report_problem, "report problem" },
+    { rv_editor_pane_request_kind::dismiss_findings_error, rv_editor_request_dismiss_findings_error, "dismiss findings error" },
 };
 
 // Named in the log when a kind has no table row.

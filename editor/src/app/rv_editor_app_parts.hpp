@@ -244,6 +244,14 @@ struct rv_editor_open_request {
     int32_t column = 0;
 };
 
+// Test case results: the pane's choice, and the name each one has in result files.
+enum class rv_editor_case_result_kind {
+    passed,
+    failed,
+    blocked,
+    count
+};
+
 // What a pane asks the app to do; the app's frame runs it. Later kinds add their fields.
 enum class rv_editor_pane_request_kind {
     stop,
@@ -255,6 +263,13 @@ enum class rv_editor_pane_request_kind {
     rename,      // path: the entry, name: its new name
     remove,      // path: the entry
     refresh_files,
+    capture_frame,
+    save_finding,
+    case_new,
+    case_result, // path: the case file (empty: exploratory), choice: the result
+    add_mark,    // name: the mark's note (empty: none)
+    report_problem,
+    dismiss_findings_error,
 };
 
 struct rv_editor_pane_request {
@@ -262,6 +277,8 @@ struct rv_editor_pane_request {
     rv_editor_pane_id pane = rv_editor_tile_none; // the pane that asked; none when the app asks
     std::filesystem::path path = {};              // the entry the request is about
     std::string name = {};                        // the new name the request carries
+    // The chosen variant, e.g. the case result; the count of results: none chosen.
+    size_t choice = static_cast<size_t>(rv_editor_case_result_kind::count);
 };
 
 } // namespace rv_editor

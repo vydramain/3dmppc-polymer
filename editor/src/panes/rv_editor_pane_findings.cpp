@@ -22,9 +22,6 @@ namespace
 // Multiline text input height in lines of text (multiplied by line height).
 constexpr float multiline_input_height_lines = 3.5f;
 
-constexpr const char *exploratory_case_title =
-    "Exploratory"; // Default test case title, written into result files - not translated.
-
 // Result button text keys, in rv_editor_case_result_kind order.
 constexpr size_t result_kind_count = static_cast<size_t>(rv_editor_case_result_kind::count);
 constexpr const char *result_label_keys[] = { "findings.passed", "findings.failed", "findings.blocked" };
@@ -58,7 +55,15 @@ void rv_editor_cases_list(rv_editor_app &app)
     f.cases.clear();
     for (const auto &entry : std::filesystem::directory_iterator(dir, ec)) {
         if (entry.path().extension() == file_ext_text) {
-            f.cases.push_back(entry.path());
+            rv_editor_case probe;
+            std::string read_error;
+            const int read_rv = rv_editor_case_read(entry.path(), probe, read_error);
+            // A case that cannot be read is not listed; the log names it once, at this refresh.
+            if (read_rv == RV_OK) {
+                f.cases.push_back(entry.path());
+            } else {
+                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "test case skipped: " + read_error);
+            }
         }
     }
     std::sort(f.cases.begin(), f.cases.end());
@@ -85,8 +90,14 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     }
     // Each case file is read every frame for its title; a cache when a project keeps dozens.
     for (size_t i = 0; i < f.cases.size(); ++i) {
+        rv_editor_case listed;
+        std::string read_error;
+        // A file that changed since the refresh and cannot be read now is left out of this frame.
+        if (rv_editor_case_read(f.cases[i], listed, read_error) != RV_OK) {
+            continue;
+        }
         ImGui::PushID(static_cast<int>(i));
-        if (rv_editor_radio(rv_editor_case_read(f.cases[i]).title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
+        if (rv_editor_radio(listed.title.c_str(), f.test_case == static_cast<int32_t>(i), theme)) {
             f.test_case = static_cast<int32_t>(i);
         }
         ImGui::PopID();
@@ -96,9 +107,11 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.new_test_case_tooltip"));
 
-    rv_editor_case c{ std::string(exploratory_case_title), {}, {} };
-    if (f.test_case >= 0) {
-        c = rv_editor_case_read(f.cases[static_cast<size_t>(f.test_case)]);
+    rv_editor_case c = rv_editor_case_exploratory();
+    const bool chosen = f.test_case >= 0;
+    std::string read_error;
+    const int read_rv = chosen ? rv_editor_case_read(f.cases[static_cast<size_t>(f.test_case)], c, read_error) : RV_OK;
+    if (read_rv == RV_OK && chosen) {
         ImGui::SeparatorText(rv_editor_text("findings.steps"));
         ImGui::TextWrapped("%s", c.steps.empty() ? rv_editor_text("findings.none_written") : c.steps.c_str());
         ImGui::SeparatorText(rv_editor_text("findings.expected"));
@@ -108,7 +121,9 @@ void rv_editor_pane_test_case(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##note", f.note, sizeof(f.note), theme);
     ImGui::SetItemTooltip("%s", rv_editor_text("findings.note_tooltip"));
-    const char *why_not = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
+    const char *no_session = app.session.number() != 0 ? nullptr : rv_editor_text("findings.no_session_yet");
+    // A chosen case that cannot be read has no result to record: why the buttons are off is the read's error.
+    const char *why_not = read_rv == RV_OK ? no_session : read_error.c_str();
     for (size_t i = 0; i < result_kind_count; ++i) {
         if (i > 0) {
             ImGui::SameLine();
