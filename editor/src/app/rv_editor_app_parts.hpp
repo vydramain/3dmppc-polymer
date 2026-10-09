@@ -270,6 +270,11 @@ enum class rv_editor_pane_request_kind {
     add_mark,    // name: the mark's note (empty: none)
     report_problem,
     dismiss_findings_error,
+    observe_read,
+    observe_open,  // name: the key path, keys separated by spaces ("player x"; empty: the root)
+    observe_pin,   // name: the key path to pin, as the pane writes it ("player x")
+    observe_unpin, // name: the pinned key path to drop
+    observe_refresh,
 };
 
 struct rv_editor_pane_request {

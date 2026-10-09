@@ -3,6 +3,8 @@
 
 #include "app/rv_editor_app.hpp"
 
+#include <algorithm>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -13,6 +15,21 @@ namespace rv_editor
 
 namespace
 {
+
+// The requests that read the session: a pane waits for them to be answered.
+bool rv_editor_observe_request_kind(const rv_editor_pane_request &request)
+{
+    switch (request.kind) {
+    case rv_editor_pane_request_kind::observe_read:
+    case rv_editor_pane_request_kind::observe_open:
+    case rv_editor_pane_request_kind::observe_pin:
+    case rv_editor_pane_request_kind::observe_unpin:
+    case rv_editor_pane_request_kind::observe_refresh:
+        return true;
+    default:
+        return false;
+    }
+}
 
 // Writes a refused query or refresh: a busy runtime is a warning, any other refusal an error.
 void rv_editor_observe_refusal(rv_editor_app &app, int rv, const std::string &prefix, const std::string &error)
@@ -72,6 +89,49 @@ int rv_editor_app_observe_refresh(rv_editor_app &app)
         return rv;
     }
     return rv_editor_app_observe_read(app);
+}
+
+int rv_editor_app_observe_open(rv_editor_app &app, const std::string &path)
+{
+    // Split at the console's separator; an empty piece (a doubled space) is no key.
+    std::istringstream keys(path);
+    app.observe.path.clear();
+    std::string key;
+    while (std::getline(keys, key, ' ')) {
+        if (!key.empty()) {
+            app.observe.path.push_back(key);
+        }
+    }
+    return rv_editor_app_observe_read(app);
+}
+
+int rv_editor_app_observe_pin(rv_editor_app &app, const std::string &key)
+{
+    rv_editor_observe &o = app.observe;
+    if (std::ranges::find(o.pins, key) != o.pins.end()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "already pinned: " + key);
+        return RV_ERR_ALREADY;
+    }
+    o.pins.push_back(key);
+    return rv_editor_app_observe_query(app, std::string(observe_verb_get) + key);
+}
+
+int rv_editor_app_observe_unpin(rv_editor_app &app, const std::string &key)
+{
+    rv_editor_observe &o = app.observe;
+    const auto pin = std::ranges::find(o.pins, key);
+    if (pin == o.pins.end()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::warning, "not pinned: " + key);
+        return RV_ERR_ALREADY;
+    }
+    o.pins.erase(pin);
+    return RV_OK;
+}
+
+bool rv_editor_app_observe_waiting(const rv_editor_app &app)
+{
+    const bool queued = std::ranges::any_of(app.requests, rv_editor_observe_request_kind);
+    return queued || app.session.query_waiting();
 }
 
 } // namespace rv_editor

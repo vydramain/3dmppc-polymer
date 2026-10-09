@@ -440,6 +440,17 @@ int rv_editor_app_observe_read(rv_editor_app &app);
 // Refreshes the session's status, then reads. On a refusal, logs it, marks the frame read and returns
 // the code without reading. RV_OK, or the refusal's code.
 int rv_editor_app_observe_refresh(rv_editor_app &app);
+// Sets the path to the keys in `path` (split at single spaces, empty pieces skipped; empty: the root), then reads.
+// RV_OK, or the refusal's code.
+int rv_editor_app_observe_open(rv_editor_app &app, const std::string &path);
+// Pins the key path `key` ("player x"), then asks its value. RV_ERR_ALREADY when it is pinned already (warned,
+// nothing done); else the query's code.
+int rv_editor_app_observe_pin(rv_editor_app &app, const std::string &key);
+// Drops the pin `key`. RV_OK; RV_ERR_ALREADY when it is not pinned (warned, nothing done).
+int rv_editor_app_observe_unpin(rv_editor_app &app, const std::string &key);
+// Question: an observe request waits in the queue, or a session query is unanswered until each query is
+// answered or overdue.
+bool rv_editor_app_observe_waiting(const rv_editor_app &app);
 
 // Once a frame, before drawing.
 void rv_editor_app_update(rv_editor_app &app);

@@ -93,6 +93,31 @@ int rv_editor_request_dismiss_findings_error(rv_editor_app &app, const rv_editor
     return rv_editor_app_findings_dismiss_error(app);
 }
 
+int rv_editor_request_observe_read(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_observe_read(app);
+}
+
+int rv_editor_request_observe_open(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_observe_open(app, request.name);
+}
+
+int rv_editor_request_observe_pin(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_observe_pin(app, request.name);
+}
+
+int rv_editor_request_observe_unpin(rv_editor_app &app, const rv_editor_pane_request &request)
+{
+    return rv_editor_app_observe_unpin(app, request.name);
+}
+
+int rv_editor_request_observe_refresh(rv_editor_app &app, const rv_editor_pane_request &)
+{
+    return rv_editor_app_observe_refresh(app);
+}
+
 // A dialog's operation: runs on the request's entry or directory; the reason goes to error when it fails.
 using rv_editor_dialog_op = int (*)(rv_editor_app &app, const rv_editor_pane_request &request, std::string &error);
 
@@ -188,6 +213,11 @@ constexpr rv_editor_request_entry rv_editor_request_table[] = {
     { rv_editor_pane_request_kind::add_mark, rv_editor_request_add_mark, "add mark" },
     { rv_editor_pane_request_kind::report_problem, rv_editor_request_report_problem, "report problem" },
     { rv_editor_pane_request_kind::dismiss_findings_error, rv_editor_request_dismiss_findings_error, "dismiss findings error" },
+    { rv_editor_pane_request_kind::observe_read, rv_editor_request_observe_read, "observe read" },
+    { rv_editor_pane_request_kind::observe_open, rv_editor_request_observe_open, "observe open" },
+    { rv_editor_pane_request_kind::observe_pin, rv_editor_request_observe_pin, "observe pin" },
+    { rv_editor_pane_request_kind::observe_unpin, rv_editor_request_observe_unpin, "observe unpin" },
+    { rv_editor_pane_request_kind::observe_refresh, rv_editor_request_observe_refresh, "observe refresh" },
 };
 
 // Named in the log when a kind has no table row.
