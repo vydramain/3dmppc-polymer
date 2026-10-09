@@ -205,6 +205,10 @@ bool rv_editor_app_can_reload_now(const rv_editor_app &app);
 // Sends the oldest queued file. RV_OK; RV_ERR_INVAL when the queue is empty; RV_ERR_BUSY when a
 // reload cannot go now. Both refusals are logged; the queue is kept.
 int rv_editor_app_reload_queue_send(rv_editor_app &app);
+// Changed files steps, asked for by rv_editor_app_update_changed_files (question there). Applies the
+// list: nvim checks, release, inputs, queue notes, manifest reload; then the list is cleared. RV_OK;
+// RV_ERR_INVAL when the list is empty (logged).
+int rv_editor_app_changed_files_apply(rv_editor_app &app);
 
 // Texture bake (editor/src/app/rv_editor_app_texture.cpp): a refresh_texture reload
 // bakes the changed PNG with the burner before sending it, one bake at a time,

@@ -43,25 +43,10 @@ void rv_editor_app_update_stopping(rv_editor_app &app)
 // What changed on disk: nvim, candidates, reload queue and disc.toml follow it.
 void rv_editor_app_update_changed_files(rv_editor_app &app)
 {
-    if (app.files.changed.empty()) {
-        return;
+    const bool changed = !app.files.changed.empty();
+    if (changed) {
+        (void)rv_editor_app_changed_files_apply(app);
     }
-    // Clean buffers follow the disk; nvim asks about modified ones.
-    app.nvim.checktime();
-    rv_editor_app_release_changed(app);
-    app.inputs_changed = true;
-    const bool reload_on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
-    for (const std::filesystem::path &changed : app.files.changed) {
-        if (reload_on_save) {
-            rv_editor_app_reload_queue_note(app, changed);
-        }
-        // disc.toml is the source of truth: what the Project pane
-        // shows follows it; a running console keeps what it loaded.
-        if (app.project.open && changed == app.project.manifest) {
-            rv_editor_project_reload_manifest(app.project);
-        }
-    }
-    app.files.changed.clear();
 }
 
 // A build just ended: old builds go, the time is noted, a waiting Run runs.

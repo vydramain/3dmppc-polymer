@@ -111,6 +111,31 @@ int rv_editor_app_reload_queue_send(rv_editor_app &app)
     return RV_OK;
 }
 
+int rv_editor_app_changed_files_apply(rv_editor_app &app)
+{
+    if (app.files.changed.empty()) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "changed files: none to apply");
+        return RV_ERR_INVAL;
+    }
+    // Clean buffers follow the disk; nvim asks about modified ones.
+    app.nvim.checktime();
+    rv_editor_app_release_changed(app);
+    app.inputs_changed = true;
+    const bool reload_on_save = app.run_config.profiles[app.run_config.active].reload_on_save;
+    for (const std::filesystem::path &changed : app.files.changed) {
+        if (reload_on_save) {
+            rv_editor_app_reload_queue_note(app, changed);
+        }
+        // disc.toml is the source of truth: what the Project pane
+        // shows follows it; a running console keeps what it loaded.
+        if (app.project.open && changed == app.project.manifest) {
+            rv_editor_project_reload_manifest(app.project);
+        }
+    }
+    app.files.changed.clear();
+    return RV_OK;
+}
+
 int rv_editor_app_build_restart(rv_editor_app &app)
 {
     const char *why = rv_editor_app_why_not_build(app);
