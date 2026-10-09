@@ -307,7 +307,7 @@ void rv_editor_game_candidate_tile(rv_editor_app &app,
 void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     rv_editor_session &s = app.session;
-    app.game_drawn = true;
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::game_drawn });
     // Chrome this pane adds around the picture: the shelf, the well's own padding
     // on every side, and the status line, measured rather than listed, from the
     // leaf's content region before the shelf and this frame's picture area below.
@@ -324,7 +324,10 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     // text, all measured inside it.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     const ImVec2 avail = ImGui::GetContentRegionAvail();
-    app.game_area = { static_cast<int32_t>(avail.x), static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()) };
+    const rv_editor_size area{
+        static_cast<int32_t>(avail.x),
+        static_cast<int32_t>(avail.y - ImGui::GetTextLineHeightWithSpacing()),
+    };
 
     const auto body = [&]() {
         if (!s.live()) {
@@ -453,12 +456,14 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
     body();
     // The tile's own minimum: the frame at 1x plus the measured chrome when
     // screen size is known, else just the shelf and status line.
-    app.game_need = rv_editor_size{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
-    if (app.project.screen_w > 0 && app.project.screen_h > 0) {
-        app.game_need = rv_editor_size{ static_cast<int32_t>(app.project.screen_w) +
-                std::max(0, static_cast<int32_t>(region.x) - app.game_area.w),
-            static_cast<int32_t>(app.project.screen_h) + std::max(0, static_cast<int32_t>(region.y) - app.game_area.h) };
-    }
+    const rv_editor_size shelf_need{ 0, static_cast<int32_t>(shelf_tall + ImGui::GetTextLineHeightWithSpacing()) };
+    const rv_editor_size screen_need{
+        static_cast<int32_t>(app.project.screen_w) + std::max(0, static_cast<int32_t>(region.x) - area.w),
+        static_cast<int32_t>(app.project.screen_h) + std::max(0, static_cast<int32_t>(region.y) - area.h),
+    };
+    const bool screen_known = app.project.screen_w > 0 && app.project.screen_h > 0;
+    const rv_editor_size need = screen_known ? screen_need : shelf_need;
+    ui.requests.push_back({ .kind = rv_editor_ui_request_kind::game_measured, .need = need, .area = area });
     rv_editor_well_end();
 }
 

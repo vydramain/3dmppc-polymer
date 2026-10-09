@@ -1,5 +1,5 @@
-// The shell's UI state changes only by queued requests. The apply runs after the draw and
-// before game_input; readers inside the draw see the state as it was when the frame began.
+// Panes queue requests that apply after the draw, before game_input. The shell owns the state and writes
+// it directly; the menu is drawn before the tiles, so panes see its writes in the same frame.
 
 #include "app/rv_editor_shell.hpp"
 

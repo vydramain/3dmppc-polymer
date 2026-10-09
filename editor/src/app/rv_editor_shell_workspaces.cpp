@@ -213,7 +213,7 @@ void rv_editor_shell_switch(rv_editor_shell &shell, rv_editor_layout_preset to)
     shell.active = to;
     shell.ws.focused_leaf = rv_editor_tile_none;
     // The Game's area and the rectangles are the other tree's until the next draw.
-    shell.app.game_area = { 0, 0 };
+    shell.ui.game_area = { 0, 0 };
     shell.ws.rects.clear();
     shell.game_fit_tries = game_fit_attempts;
 }
@@ -225,7 +225,7 @@ void rv_editor_shell_reset_layout(rv_editor_shell &shell, rv_editor_layout_prese
     shell.game_fit[rv_editor_workspace_slot(preset)] = rv_editor_preset_fits_game(preset);
     shell.layout_untouched[rv_editor_workspace_slot(preset)] = true;
     shell.game_fit_tries = game_fit_attempts;
-    shell.app.game_area = { 0, 0 };
+    shell.ui.game_area = { 0, 0 };
 }
 
 // Assets asked for a layout (double click): switched before this frame's open requests are taken.
@@ -260,7 +260,7 @@ void rv_editor_shell_fit_game(rv_editor_shell &shell)
         shell.layout_untouched[slot] = false;
     }
     const rv_editor_layout &layout = shell.ws.layout;
-    const rv_editor_size area = shell.app.game_area;
+    const rv_editor_size area = shell.ui.game_area;
     // Nothing drawn yet (the start screen, no project, a tree just shown): wait.
     if (!shell.game_fit[slot] || area.w <= 0 || area.h <= 0 || layout.maximized_leaf != rv_editor_tile_none ||
         shell.ws.rects.size() != layout.nodes.size()) {

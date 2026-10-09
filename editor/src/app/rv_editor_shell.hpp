@@ -94,8 +94,6 @@ struct rv_editor_ui_request {
 };
 
 // What a pane gets: panes read the state through it and change it only by queuing requests.
-// rv_editor_ui's game_drawn, game_need and game_area are not used yet; rv_editor_app's copies
-// are the live ones until the next move.
 struct rv_editor_ui_port {
     const rv_editor_ui &state;
     std::vector<rv_editor_ui_request> &requests;

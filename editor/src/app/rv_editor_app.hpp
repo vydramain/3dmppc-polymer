@@ -59,13 +59,6 @@ struct rv_editor_app {
     // Shells of closed tiles, hung up and stepped each frame until they have ended.
     std::vector<std::unique_ptr<rv_editor_pty>> stopping_ptys;
     rv_editor_nvim nvim;
-    // Whether a Game tile was drawn this frame: a Game tile closed or behind another tab holds no keys.
-    bool game_drawn = false;
-    // The Game tile's own minimum: its mode row and status line (the picture scales
-    // below 1x to fit); 0 x 0 before the first frame.
-    rv_editor_size game_need{ 0, 0 };
-    // The picture area the Game tile gives a running game, measured at every draw.
-    rv_editor_size game_area{ 0, 0 };
     // A pane's Open Project button was clicked: the window shows its folder dialog.
     bool open_folder_request = false;
     rv_editor_observe observe;

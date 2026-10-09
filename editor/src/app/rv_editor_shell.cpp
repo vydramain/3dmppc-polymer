@@ -389,7 +389,7 @@ void rv_editor_shell_update(rv_editor_shell &shell)
         }
         for (const rv_editor_pane_id pane : node.leaf.tabs) {
             const rv_editor_pane_kind kind = shell.ws.panes.panes[pane].kind;
-            rv_editor_shell_set_minimum(shell, pane, kind, app.game_need);
+            rv_editor_shell_set_minimum(shell, pane, kind, shell.ui.game_need);
             rv_editor_shell_title(shell, pane, kind);
         }
     }
@@ -417,12 +417,12 @@ void rv_editor_shell_game_input(rv_editor_shell &shell)
     shell.game_session = app.session.number();
     // A Game tile closed or behind another tab, a window without the keyboard or
     // no console: the capture ends here, whatever the pane saw.
-    const bool capture_lost = new_session || !app.game_drawn || !shell.window_focused || !app.session.live();
+    const bool capture_lost = new_session || !shell.ui.game_drawn || !shell.window_focused || !app.session.live();
     if (capture_lost) {
         shell.ui.game_captured = false;
     }
     // The shell owns the Game's frame state and resets it itself: a pane only reports the draw.
-    app.game_drawn = false;
+    shell.ui.game_drawn = false;
     uint64_t buttons = 0;
     if (shell.ui.game_captured) {
         // ImGui's keyboard navigation stays off the next frame, so arrows stay the game's.
