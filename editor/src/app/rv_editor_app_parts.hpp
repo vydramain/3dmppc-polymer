@@ -99,15 +99,9 @@ struct rv_editor_scene_camera {
     bool seeking = false; // Seek pressed: the next click picks the point to turn about
 };
 
-// The Scene viewport's own state: its view, and the tool drag being made and the values before it.
+// The Scene viewport's own state: its view (the camera).
 struct rv_editor_scene_ui {
     rv_editor_scene_camera camera;
-    bool gizmo_dragging = false;
-    int gizmo_axis = -1;
-    std::array<float, 2> gizmo_from{};
-    rv_editor_vec3 gizmo_before_position{};
-    rv_editor_vec3 gizmo_before_rotation{};
-    rv_editor_vec3 gizmo_before_scale{};
 };
 
 // Assets' own view: the folder shown (0: all), the filter, icons or details.

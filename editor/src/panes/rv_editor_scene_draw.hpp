@@ -20,9 +20,20 @@ struct rv_editor_app;
 struct rv_editor_theme;
 struct rv_editor_view;
 
+// The Scene viewport's tool drag: whether one runs, its axis, and the mouse where it began.
+struct rv_editor_gizmo_drag {
+    bool dragging = false;
+    int axis = -1;
+    std::array<float, 2> from{};
+    // The object's values before the drag, which Escape takes back.
+    rv_editor_vec3 before_position{};
+    rv_editor_vec3 before_rotation{};
+    rv_editor_vec3 before_scale{};
+};
+
 // Scene viewport tools: toolbar UI, object manipulation, view framing.
 void rv_editor_scene_toolbar(rv_editor_app &app, const rv_editor_theme &theme);
-void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v);
+void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v, const rv_editor_gizmo_drag &drag);
 void rv_editor_scene_frame(rv_editor_app &app, bool all);
 
 // The Scene viewport's geometry (editor/src/panes/rv_editor_scene_viewport.cpp):

@@ -53,7 +53,7 @@ constexpr int default_snap_step_index = 1;
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
 // by the mouse for Rotate (yaw across, pitch up and down) and Scale (uniform).
-void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
+void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v, const rv_editor_gizmo_drag &drag)
 {
     rv_editor_scene_doc &doc = *app.scene;
     rv_editor_scene_ui &ui = app.scene_ui;
@@ -62,14 +62,14 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
         return;
     }
     rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-    const ImVec2 total(ImGui::GetMousePos().x - ui.gizmo_from[0], ImGui::GetMousePos().y - ui.gizmo_from[1]);
+    const ImVec2 total(ImGui::GetMousePos().x - drag.from[0], ImGui::GetMousePos().y - drag.from[1]);
     const rv_editor_scene_camera &cam = ui.camera;
     switch (cam.tool) {
     case rv_editor_scene_tool::move: {
         // Pixels along the axis as the screen shows it, into scene units, into the parent's space.
         const vec3 origin = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
         vec3 axis{ 0, 0, 0 };
-        axis[static_cast<size_t>(ui.gizmo_axis)] = 1;
+        axis[static_cast<size_t>(drag.axis)] = 1;
         ImVec2 s0, s1;
         if (!v.point(origin, s0) || !v.point(add(origin, axis), s1)) {
             return;
@@ -86,7 +86,7 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
             const rv_editor_affine pw = rv_editor_scene_world(doc.scene, parent);
             world = rv_editor_affine_solve(pw, world);
         }
-        o.position = add(ui.gizmo_before_position, world);
+        o.position = add(drag.before_position, world);
         if (cam.snap) {
             for (double &c : o.position) {
                 c = rv_editor_snap(c, cam.snap_step);
@@ -95,7 +95,7 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
         break;
     }
     case rv_editor_scene_tool::rotate:
-        o.rotation = ui.gizmo_before_rotation;
+        o.rotation = drag.before_rotation;
         o.rotation[1] += total.x * rotation_speed_factor;
         o.rotation[0] += total.y * rotation_speed_factor;
         if (cam.snap) {
@@ -105,7 +105,7 @@ void rv_editor_manipulate(rv_editor_app &app, const rv_editor_view &v)
         break;
     case rv_editor_scene_tool::scale: {
         const double f = std::exp(-total.y * scale_sensitivity);
-        o.scale = mul(ui.gizmo_before_scale, f);
+        o.scale = mul(drag.before_scale, f);
         if (cam.snap) {
             for (double &c : o.scale) {
                 c = std::max(scale_min, rv_editor_snap(c, scale_snap_step));

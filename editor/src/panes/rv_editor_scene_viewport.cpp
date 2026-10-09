@@ -54,6 +54,9 @@ constexpr float status_text_offset = 2.0f;
 constexpr int grid_half_extent = 10;
 constexpr size_t camera_status_buffer_size = 160; // the camera status line: yaw, pitch, distance
 
+// The Scene viewport's own tool drag, shared by every Scene tile.
+rv_editor_gizmo_drag tool_drag;
+
 // The gizmo axis under the mouse for the active tool; -1 when none.
 int rv_editor_tool_axis(rv_editor_scene_tool tool,
     const rv_editor_scene_doc &doc,
@@ -209,12 +212,12 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && axis >= 0) {
             rv_editor_scene_step(doc);
             const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-            ui.gizmo_axis = axis;
-            ui.gizmo_from = { mouse.x, mouse.y };
-            ui.gizmo_before_position = o.position;
-            ui.gizmo_before_rotation = o.rotation;
-            ui.gizmo_before_scale = o.scale;
-            ui.gizmo_dragging = true;
+            tool_drag.axis = axis;
+            tool_drag.from = { mouse.x, mouse.y };
+            tool_drag.before_position = o.position;
+            tool_drag.before_rotation = o.rotation;
+            tool_drag.before_scale = o.scale;
+            tool_drag.dragging = true;
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             const std::string hit = rv_editor_pick(doc.scene, app.project, v, mouse);
             if (cam.seeking) {
@@ -228,22 +231,22 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
             }
         }
     }
-    if (ui.gizmo_dragging) {
+    if (tool_drag.dragging) {
         const int at = rv_editor_scene_find(doc.scene, doc.selected);
         if (at >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             // Taken back: the values from before the press, and the step it took goes.
             rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-            o.position = ui.gizmo_before_position;
-            o.rotation = ui.gizmo_before_rotation;
-            o.scale = ui.gizmo_before_scale;
+            o.position = tool_drag.before_position;
+            o.rotation = tool_drag.before_rotation;
+            o.scale = tool_drag.before_scale;
             if (!doc.undo.empty()) {
                 doc.undo.pop_back();
             }
-            ui.gizmo_dragging = false;
+            tool_drag.dragging = false;
         } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-            rv_editor_manipulate(app, v);
+            rv_editor_manipulate(app, v, tool_drag);
         } else {
-            ui.gizmo_dragging = false;
+            tool_drag.dragging = false;
         }
     }
 
@@ -313,8 +316,8 @@ void rv_editor_scene_viewport(rv_editor_app &app, SDL_Renderer *renderer, const 
         for (int a = 0; a < std::ssize(colors); ++a) {
             vec3 tip = o;
             tip[static_cast<size_t>(a)] += gizmo;
-            const bool hot = (ui.gizmo_dragging && ui.gizmo_axis == a) ||
-                (!ui.gizmo_dragging && hovered && rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo) == a);
+            const bool hot = (tool_drag.dragging && tool_drag.axis == a) ||
+                (!tool_drag.dragging && hovered && rv_editor_gizmo_axis(doc.scene, doc.selected, v, mouse, gizmo) == a);
             rv_editor_line(dl, v, o, tip, rv_editor_col(colors[a]), hot ? gizmo_line_width_hot : gizmo_line_width_normal);
         }
     } else if (at >= 0 && cam.tool != rv_editor_scene_tool::select) {
