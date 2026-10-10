@@ -1,4 +1,4 @@
-// Child processes on POSIX: posix_spawn with its own pipes and process group.
+// Child processes on POSIX: fork/exec through rv_editor_spawn with its own pipes and process group.
 
 #include "platform/rv_editor_process.hpp"
 
@@ -10,11 +10,11 @@
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
-#include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "pdk/rv_err.h"
+#include "platform/rv_editor_spawn.hpp"
 
 extern char **environ;
 
@@ -145,28 +145,17 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
         return RV_ERR_IO;
     }
 
-    posix_spawn_file_actions_t actions;
-    posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_adddup2(&actions, in[0], STDIN_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, out[1], STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, err[1], STDERR_FILENO);
+    rv_editor_spawn_setup setup;
+    setup.group = rv_editor_spawn_group::own;
+    setup.dup_pairs = { { in[0], STDIN_FILENO }, { out[1], STDOUT_FILENO }, { err[1], STDERR_FILENO } };
     // dup2 leaves the copy without close-on-exec, so this one descriptor crosses.
     if (inherit_fd >= 0) {
-        posix_spawn_file_actions_adddup2(&actions, inherit_fd, inherit_fd_number);
+        setup.dup_pairs.emplace_back(inherit_fd, inherit_fd_number);
     }
-    if (!cwd.empty()) {
-        posix_spawn_file_actions_addchdir_np(&actions, cwd.c_str());
-    }
-
-    // Its own process group, and SIGPIPE back to the default the editor turned off.
-    posix_spawnattr_t attr;
-    posix_spawnattr_init(&attr);
-    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGDEF);
-    posix_spawnattr_setpgroup(&attr, 0);
-    sigset_t defaults;
-    sigemptyset(&defaults);
-    sigaddset(&defaults, SIGPIPE);
-    posix_spawnattr_setsigdefault(&attr, &defaults);
+    setup.cwd = cwd;
+    // SIGPIPE back to the default the editor turned off.
+    sigemptyset(&setup.signals_default);
+    sigaddset(&setup.signals_default, SIGPIPE);
 
     std::vector<char *> args;
     for (const std::string &a : argv) {
@@ -194,24 +183,15 @@ int rv_editor_process::start(const std::vector<std::string> &argv,
     }
     envp.push_back(nullptr);
 
-    const int rc = posix_spawn(&pid, argv[0].c_str(), &actions, &attr, args.data(), envp.data());
-    posix_spawn_file_actions_destroy(&actions);
-    posix_spawnattr_destroy(&attr);
+    const int rc = rv_editor_spawn(argv[0].c_str(), args.data(), envp.data(), setup, pid, error);
     ::close(in[0]);
     ::close(out[1]);
     ::close(err[1]);
-    if (rc != 0) {
+    if (rc != RV_OK) {
         ::close(in[1]);
         ::close(out[0]);
         ::close(err[0]);
-        error = argv[0] + ": " + std::strerror(rc);
-        if (rc == ENOENT) {
-            return RV_ERR_NOENT;
-        }
-        if (rc == EINVAL) {
-            return RV_ERR_INVAL;
-        }
-        return RV_ERR_IO;
+        return rc;
     }
 
     pid_ = pid;
