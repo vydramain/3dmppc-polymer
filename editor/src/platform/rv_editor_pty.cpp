@@ -1,5 +1,5 @@
-// Pseudo-terminals on POSIX: posix_openpt, and posix_spawn into a new session
-// whose controlling terminal is the PTY's other side.
+// Pseudo-terminals on POSIX: posix_openpt, and fork/exec through rv_editor_spawn into a new
+// session whose controlling terminal is the PTY's other side.
 
 #include "platform/rv_editor_pty.hpp"
 
@@ -9,7 +9,6 @@
 #include <csignal>
 #include <cstring>
 #include <fcntl.h>
-#include <spawn.h>
 #include <string_view>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -18,6 +17,7 @@
 
 #include "pdk/rv_err.h"
 #include "platform/rv_editor_pty_session.hpp"
+#include "platform/rv_editor_spawn.hpp"
 
 extern char **environ;
 
@@ -159,28 +159,18 @@ int rv_editor_pty::start(const std::vector<std::string> &argv,
     const winsize ws = rv_editor_winsize(cols, rows);
     ::ioctl(master, TIOCSWINSZ, &ws);
 
-    // posix_spawn makes the new session before the file actions run, and the
-    // first terminal a session leader opens becomes its controlling terminal.
-    posix_spawn_file_actions_t actions;
-    posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, name, O_RDWR, 0);
-    posix_spawn_file_actions_adddup2(&actions, STDIN_FILENO, STDOUT_FILENO);
-    posix_spawn_file_actions_adddup2(&actions, STDIN_FILENO, STDERR_FILENO);
-    if (!cwd.empty()) {
-        posix_spawn_file_actions_addchdir_np(&actions, cwd.c_str());
-    }
-    // Every signal back to its default and none blocked: a shell has to see the
-    // Ctrl+C its terminal turns into SIGINT, even when the editor itself was
-    // started with SIGINT ignored (a background job of a non-interactive shell).
-    posix_spawnattr_t attr;
-    posix_spawnattr_init(&attr);
-    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK);
-    sigset_t all;
-    sigfillset(&all);
-    posix_spawnattr_setsigdefault(&attr, &all);
-    sigset_t none;
-    sigemptyset(&none);
-    posix_spawnattr_setsigmask(&attr, &none);
+    // The child leads a new session, and the first terminal it opens (the PTY's name, as stdin)
+    // becomes its controlling one. Every signal back to its default and none blocked: a shell has
+    // to see the Ctrl+C its terminal turns into SIGINT, even when the editor itself was started
+    // with SIGINT ignored (a background job of a non-interactive shell).
+    rv_editor_spawn_setup setup;
+    setup.group = rv_editor_spawn_group::session;
+    setup.tty = name;
+    setup.dup_pairs = { { STDIN_FILENO, STDOUT_FILENO }, { STDIN_FILENO, STDERR_FILENO } };
+    setup.cwd = cwd;
+    sigfillset(&setup.signals_default);
+    setup.set_mask = true;
+    sigemptyset(&setup.mask);
 
     std::vector<char *> args;
     for (const std::string &a : argv) {
@@ -195,16 +185,10 @@ int rv_editor_pty::start(const std::vector<std::string> &argv,
     envp.push_back(nullptr);
 
     pid_t pid = -1;
-    const int rc = posix_spawn(&pid, argv[0].c_str(), &actions, &attr, args.data(), envp.data());
-    posix_spawn_file_actions_destroy(&actions);
-    posix_spawnattr_destroy(&attr);
-    if (rc != 0) {
+    const int rc = rv_editor_spawn(argv[0].c_str(), args.data(), envp.data(), setup, pid, error);
+    if (rc != RV_OK) {
         ::close(master);
-        error = argv[0] + ": " + std::strerror(rc);
-        if (rc == ENOENT) {
-            return RV_ERR_NOENT;
-        }
-        return RV_ERR_IO;
+        return rc;
     }
     pid_ = pid;
     std::string guard_error;
