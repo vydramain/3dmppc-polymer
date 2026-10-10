@@ -4,6 +4,7 @@
 
 #include "platform/rv_editor_spawn.hpp"
 
+#include <algorithm>
 #include <cerrno>
 #include <csignal>
 #include <cstring>
@@ -169,6 +170,38 @@ int rv_editor_spawn_fail(const char *path, ssize_t n, int child_errno, int read_
     return rv_editor_spawn_rc(child_errno);
 }
 
+// Lowest number for a report end: above stdin/stdout/stderr and every dup_pairs target. The child's dup2
+// onto a target would otherwise overwrite the report end, and the exec failure would be lost.
+int rv_editor_report_min_fd(const rv_editor_spawn_setup &setup)
+{
+    int min_fd = STDERR_FILENO + 1;
+    for (const auto &[from, to] : setup.dup_pairs) {
+        min_fd = std::max(min_fd, to + 1);
+    }
+    return min_fd;
+}
+
+// Moves both report ends to numbers >= min_fd, close-on-exec kept. The original ends are always closed;
+// on failure no new ends remain.
+int rv_editor_report_lift(int fds[2], int min_fd, std::string &error)
+{
+    const int read_end = ::fcntl(fds[0], F_DUPFD_CLOEXEC, min_fd);
+    const int write_end = read_end < 0 ? -1 : ::fcntl(fds[1], F_DUPFD_CLOEXEC, min_fd);
+    const int lift_errno = errno;
+    ::close(fds[0]);
+    ::close(fds[1]);
+    if (read_end < 0 || write_end < 0) {
+        // close(-1) fails with EBADF, which is harmless; lift_errno is already saved.
+        ::close(read_end);
+        ::close(write_end);
+        error = std::string("pipe: fcntl: ") + std::strerror(lift_errno);
+        return RV_ERR_IO;
+    }
+    fds[0] = read_end;
+    fds[1] = write_end;
+    return RV_OK;
+}
+
 } // namespace
 
 int rv_editor_spawn(const char *path,
@@ -182,6 +215,9 @@ int rv_editor_spawn(const char *path,
     int fds[2] = { -1, -1 };
     if (::pipe2(fds, O_CLOEXEC) != 0) {
         error = std::string("pipe: ") + std::strerror(errno);
+        return RV_ERR_IO;
+    }
+    if (rv_editor_report_lift(fds, rv_editor_report_min_fd(setup), error) != RV_OK) {
         return RV_ERR_IO;
     }
     const pid_t parent = ::getpid();
