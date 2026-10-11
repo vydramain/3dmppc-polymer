@@ -27,7 +27,7 @@ int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_
     const std::string key(resname);
     if (auto it = tex_by_name_.find(key); it != tex_by_name_.end()) {
         kind_out = RV_CD_RESOURCE_TEXTURE;
-        return texture_reload_(resname, textures_[static_cast<size_t>(it->second)]);
+        return texture_reload_(resname, it->second);
     }
     if (audio_by_name_.find(key) != audio_by_name_.end()) {
         // A resident sound is not "nothing to refresh": the bytes did change,
@@ -46,7 +46,7 @@ int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_
 }
 
 // Re-reads `resname` off the medium and hands the bytes to texture_refresh_.
-int64_t rv_pccd_fs::texture_reload_(const char *resname, texture_record &record)
+int64_t rv_pccd_fs::texture_reload_(const char *resname, int64_t index)
 {
     std::vector<std::byte> bytes;
     const int64_t read_rc = asset_read_bytes_(resname, bytes);
@@ -54,7 +54,7 @@ int64_t rv_pccd_fs::texture_reload_(const char *resname, texture_record &record)
         return read_rc;
     }
 
-    return texture_refresh_(record, bytes);
+    return texture_refresh_(index, bytes);
 }
 
 // Decodes and re-uploads `bytes` and prepares a whole NEW upload before
@@ -62,21 +62,12 @@ int64_t rv_pccd_fs::texture_reload_(const char *resname, texture_record &record)
 // new ones are fully written, so a failed refresh leaves the old texture
 // exactly as it was rather than a torn or freed-then-hoped-for one. Shared by
 // texture_reload_ (medium bytes) and asset_refresh (request bytes).
-int64_t rv_pccd_fs::texture_refresh_(texture_record &record, const std::vector<std::byte> &bytes)
+int64_t rv_pccd_fs::texture_refresh_(int64_t index, const std::vector<std::byte> &bytes)
 {
     if (cv_ == nullptr) {
         return RV_ERR_INVAL;
     }
-
-    // The swap below frees the old addresses, and a model still reads them.
-    // Refused before anything is written: the model has to come back with its disc.
-    if (const model_record *model = model_using_texture_(record.tex_addr, record.pal_addr); model != nullptr) {
-        RV_LOG_WARN("pccd",
-            "texture '{}' is used by model '{}'; reload the model's disc instead",
-            rv_pdklib::rv_log_escape(record.resname.c_str()),
-            rv_pdklib::rv_log_escape(model->resname.c_str()));
-        return RV_ERR_INVAL;
-    }
+    texture_record &record = textures_[static_cast<size_t>(index)];
 
     rv_pdklib::rv_mppctex_header header;
     const std::byte *palette = nullptr;
@@ -93,6 +84,21 @@ int64_t rv_pccd_fs::texture_refresh_(texture_record &record, const std::vector<s
         return upload_rc;
     }
 
+    // Models move to the new blocks before the old ones are freed. A model that
+    // cannot go back keeps the new blocks, so they stay too.
+    const rv_pccg_part_texture from{ record.tex_addr, record.pal_addr, record.width, record.height };
+    const rv_pccg_part_texture to{ tex_addr, pal_addr, header.width, header.height };
+    bool stuck = false;
+    const int64_t models_rc = models_retexture_(index, from, to, stuck);
+    const bool release_new = models_rc < 0 && !stuck;
+    if (release_new) {
+        video_asset_release_(tex_addr);
+        video_asset_release_(pal_addr);
+    }
+    if (models_rc < 0) {
+        return models_rc;
+    }
+
     // Everything new is up and written; only now is it safe to drop the old.
     const int64_t old_tex_addr = record.tex_addr;
     const int64_t old_pal_addr = record.pal_addr;
@@ -100,10 +106,8 @@ int64_t rv_pccd_fs::texture_refresh_(texture_record &record, const std::vector<s
     record.pal_addr = pal_addr;
     record.width = header.width;
     record.height = header.height;
-    cv_->video_asset_free(old_tex_addr);
-    if (old_pal_addr != 0) {
-        cv_->video_asset_free(old_pal_addr);
-    }
+    video_asset_release_(old_tex_addr);
+    video_asset_release_(old_pal_addr);
 
     return RV_OK;
 }
@@ -121,7 +125,7 @@ int64_t rv_pccd_fs::asset_refresh(const char *resname, const void *bytes, int64_
         kind_out = RV_CD_RESOURCE_TEXTURE;
         const auto *first = static_cast<const std::byte *>(bytes);
         const std::vector<std::byte> payload(first, first + nbytes);
-        return texture_refresh_(textures_[static_cast<size_t>(it->second)], payload);
+        return texture_refresh_(it->second, payload);
     }
     if (audio_by_name_.find(key) != audio_by_name_.end()) {
         kind_out = RV_CD_RESOURCE_AUDIO;

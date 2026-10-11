@@ -26,15 +26,6 @@ int64_t video_asset_upload_(rv_3dmppc::rv_pccv &cv, int64_t size, const rv_textu
     return addr;
 }
 
-// Free video memory if address is valid (0 means no palette).
-void video_asset_release_(rv_3dmppc::rv_pccv &cv, int64_t addr)
-{
-    if (addr == 0) {
-        return;
-    }
-    cv.video_asset_free(addr);
-}
-
 // Upload palette if present, or return 0 if no palette in format.
 // Returns address (> 0), 0 if no palette, or error code (< 0).
 int64_t palette_upload_(rv_3dmppc::rv_pccv &cv, const rv_pdklib::rv_mppctex_header &header, const std::byte *palette)
@@ -301,6 +292,15 @@ int64_t rv_pccd_fs::texture_decode_(const std::vector<std::byte> &bytes,
     return RV_OK;
 }
 
+// Frees a video block; 0 means no block (a format without a palette).
+void rv_pccd_fs::video_asset_release_(int64_t addr)
+{
+    if (addr == 0) {
+        return;
+    }
+    cv_->video_asset_free(addr);
+}
+
 // Allocates and uploads the palette (if any) and the texels. On any failure
 // AFTER an allocation succeeded, that allocation is freed before returning:
 // a failed acquire must leave video RAM exactly as it found it.
@@ -324,7 +324,7 @@ int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header &header,
     tex.height = static_cast<uint64_t>(header.height);
     const int64_t tex_addr = video_asset_upload_(*cv_, texel_bytes, tex);
     if (tex_addr < 0) {
-        video_asset_release_(*cv_, pal_addr);
+        video_asset_release_(pal_addr);
         return tex_addr;
     }
 
@@ -442,10 +442,8 @@ int64_t rv_pccd_fs::texture_resolve_(const char *resname, texture_record *&recor
         textures_.push_back(std::move(record));
         tex_by_name_[std::move(key)] = index;
     } catch (const std::bad_alloc &) {
-        cv_->video_asset_free(tex_addr);
-        if (pal_addr != 0) {
-            cv_->video_asset_free(pal_addr);
-        }
+        video_asset_release_(tex_addr);
+        video_asset_release_(pal_addr);
         if (static_cast<int64_t>(textures_.size()) > index) {
             textures_.pop_back();
         }

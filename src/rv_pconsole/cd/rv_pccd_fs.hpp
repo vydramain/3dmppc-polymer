@@ -17,6 +17,7 @@
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/cd/rv_pcmedium.hpp"
+#include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -82,11 +83,11 @@ private:
     struct model_record {
         std::string resname;
         int64_t addr = 0;
-        // (tex, pal) per part, as the textures were uploaded (0 = no texture). The
-        // controller copies them at upload, so a texture refresh that frees one of
-        // them would leave the model reading freed video RAM; texture_refresh_()
-        // asks model_using_texture_() first.
-        std::vector<std::pair<int64_t, int64_t>> texture_addrs;
+        // One entry per part, as the controller holds it, and per part the index of
+        // its texture in textures_ (-1 = none). A refresh matches parts by that index,
+        // never by address: a null video controller can hand out one address for all.
+        std::vector<rv_pccg_part_texture> textures;
+        std::vector<int64_t> part_texture;
     };
     std::vector<model_record> models_;
     std::unordered_map<std::string, int64_t> model_by_name_;
@@ -296,9 +297,20 @@ private:
     // Defined in rv_pccd_fs_scene.cpp.
     int64_t scene_load_(const char *scene, scene_record &record);
 
-    // The first model that was uploaded with `tex_addr` or `pal_addr` (0 = none
-    // in that slot), or nullptr when no model uses either address.
-    const model_record *model_using_texture_(int64_t tex_addr, int64_t pal_addr) const;
+    // Moves every model whose parts read texture `index` from `from` to `to` (same
+    // model address, new entries). All or nothing: when the controller refuses one
+    // model, the models already moved go back. `stuck` is set when a model could not
+    // go back, so it still reads the new blocks and the caller must keep them.
+    // Defined in rv_pccd_fs_model.cpp.
+    int64_t models_retexture_(int64_t index, const rv_pccg_part_texture &from, const rv_pccg_part_texture &to, bool &stuck);
+
+    // models_retexture_()'s rollback over the first `moved` models back to `from`;
+    // returns the first failure, RV_OK when all went back.
+    int64_t models_revert_(int64_t index, const rv_pccg_part_texture &from, size_t moved);
+
+    // One model's step: sets the parts that read `index` to `next` and asks the
+    // controller; a refusal restores the model's entries as they were.
+    int64_t model_retexture_(model_record &model, int64_t index, const rv_pccg_part_texture &next);
 
     // Shared by texture_resolve_(), audio_resolve_(), model_resolve_() and
     // texture_reload_(): open, measure, allocate and read `resname`'s whole current
@@ -320,16 +332,19 @@ private:
         int64_t &tex_addr_out,
         int64_t &pal_addr_out);
 
+    // Frees a video block; 0 means none. Needs cv_ attached.
+    void video_asset_release_(int64_t addr);
+
     // asset_reload()'s TEXTURE branch: refreshes `record` from `resname`'s
     // current bytes on the medium. Defined with asset_reload(), in the
     // development half.
-    int64_t texture_reload_(const char *resname, texture_record &record);
+    int64_t texture_reload_(const char *resname, int64_t index);
 
     // Shared decode/upload/swap behind both texture_reload_() (bytes read
     // from the medium) and asset_refresh() (bytes the request carried): the
     // one place a texture record is actually refreshed from a byte buffer.
     // Defined with asset_reload(), in the development half.
-    int64_t texture_refresh_(texture_record &record, const std::vector<std::byte> &bytes);
+    int64_t texture_refresh_(int64_t index, const std::vector<std::byte> &bytes);
 };
 
 } // namespace rv_3dmppc

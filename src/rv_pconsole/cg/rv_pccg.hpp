@@ -55,6 +55,7 @@ public:
     // model_textures_set, which keeps the model's address.
     virtual int64_t model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures) = 0;
     // RV_OK, or RV_ERR_INVAL with nothing changed: no model at addr, or not one texture per part.
+    // rv_pccg_null keeps no models, so it checks the address only, not the texture count.
     virtual int64_t model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> textures) = 0;
     virtual int64_t model_free(int64_t addr) = 0;
 

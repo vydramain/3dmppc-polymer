@@ -48,9 +48,9 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
     }
 
     // One entry per part, in part order, as model_upload() requires; a part
-    // without a texture keeps addr_texture 0.
+    // without a texture keeps addr_texture 0 and texture index -1.
     std::vector<rv_pccg_part_texture> textures(model.parts.size(), rv_pccg_part_texture{ 0, 0, 0, 0 });
-    std::vector<std::pair<int64_t, int64_t>> texture_addrs(model.parts.size(), { 0, 0 });
+    std::vector<int64_t> part_texture(model.parts.size(), -1);
     for (size_t p = 0; p < model.parts.size(); ++p) {
         const std::string &texture_name = model.parts[p].texture;
         if (texture_name.empty()) {
@@ -68,7 +68,7 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
             return texture_rc;
         }
         textures[p] = { texture->tex_addr, texture->pal_addr, texture->width, texture->height };
-        texture_addrs[p] = { texture->tex_addr, texture->pal_addr };
+        part_texture[p] = static_cast<int64_t>(texture - textures_.data());
     }
 
     const int64_t addr = cg_->model_upload(model, textures);
@@ -80,7 +80,8 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
     model_record record;
     record.resname = resname;
     record.addr = addr;
-    record.texture_addrs = std::move(texture_addrs);
+    record.textures = std::move(textures);
+    record.part_texture = std::move(part_texture);
 
     const int64_t index = static_cast<int64_t>(models_.size());
     try {
@@ -99,16 +100,93 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
     return RV_OK;
 }
 
-const rv_pccd_fs::model_record *rv_pccd_fs::model_using_texture_(int64_t tex_addr, int64_t pal_addr) const
+namespace
 {
-    for (const model_record &model : models_) {
-        for (const auto &[tex, pal] : model.texture_addrs) {
-            if ((tex != 0 && tex == tex_addr) || (pal != 0 && pal == pal_addr)) {
-                return &model;
-            }
+// A part reads texture `index` when it was uploaded from that texture record.
+bool reads_texture(const std::vector<int64_t> &part_texture, int64_t index)
+{
+    for (const int64_t part : part_texture) {
+        if (part == index) {
+            return true;
         }
     }
-    return nullptr;
+    return false;
+}
+
+// Puts `value` into every part that reads texture `index`.
+void set_parts(std::vector<rv_pccg_part_texture> &textures,
+    const std::vector<int64_t> &part_texture,
+    int64_t index,
+    const rv_pccg_part_texture &value)
+{
+    for (size_t p = 0; p < textures.size(); ++p) {
+        if (part_texture[p] == index) {
+            textures[p] = value;
+        }
+    }
+}
+} // namespace
+
+int64_t
+rv_pccd_fs::models_retexture_(int64_t index, const rv_pccg_part_texture &from, const rv_pccg_part_texture &to, bool &stuck)
+{
+    stuck = false;
+    for (size_t m = 0; m < models_.size(); ++m) {
+        if (!reads_texture(models_[m].part_texture, index)) {
+            continue;
+        }
+        const int64_t rc = model_retexture_(models_[m], index, to);
+        if (rc < 0) {
+            RV_LOG_WARN("pccd",
+                "texture refresh refused: model '{}' keeps its old texture (rv_err {})",
+                rv_pdklib::rv_log_escape(models_[m].resname.c_str()),
+                rc);
+            // Only the models before m were moved; they are the ones reading `index`.
+            const int64_t revert_rc = models_revert_(index, from, m);
+            stuck = revert_rc < 0;
+            return revert_rc < 0 ? revert_rc : rc;
+        }
+    }
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::models_revert_(int64_t index, const rv_pccg_part_texture &from, size_t moved)
+{
+    int64_t first = RV_OK;
+    for (size_t m = 0; m < moved; ++m) {
+        if (!reads_texture(models_[m].part_texture, index)) {
+            continue;
+        }
+        const int64_t rc = model_retexture_(models_[m], index, from);
+        if (rc < 0) {
+            RV_LOG_ERR("pccd",
+                "model '{}' keeps the new texture: it could not go back (rv_err {}); the new blocks belong to no "
+                "texture record, so the drive never frees them and they stay in video RAM until the video controller "
+                "is destroyed",
+                rv_pdklib::rv_log_escape(models_[m].resname.c_str()),
+                rc);
+            first = first == RV_OK ? rc : first;
+        }
+    }
+    return first;
+}
+
+int64_t rv_pccd_fs::model_retexture_(model_record &model, int64_t index, const rv_pccg_part_texture &next)
+{
+    // The mirror must equal the controller's state after every call, so a refusal
+    // puts back this copy rather than undoing the parts one by one.
+    std::vector<rv_pccg_part_texture> before;
+    try {
+        before = model.textures;
+    } catch (const std::bad_alloc &) {
+        return RV_ERR_NOMEM;
+    }
+    set_parts(model.textures, model.part_texture, index, next);
+    const int64_t rc = cg_->model_textures_set(model.addr, model.textures);
+    if (rc < 0) {
+        model.textures = before;
+    }
+    return rc;
 }
 
 void rv_pccd_fs::free_models_()
