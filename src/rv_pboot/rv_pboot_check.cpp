@@ -145,6 +145,11 @@ int rv_pboot_check_budget(const rv_pdklib::rv_manifest_budget &budget,
         return cv_rc;
     }
 
+    const int cg_rc = evaluate_slot(RV_PCSLOTS_CG, slots.cg, "cg", budget, total, error);
+    if (cg_rc != RV_OK) {
+        return cg_rc;
+    }
+
     const int cio_rc = evaluate_slot(RV_PCSLOTS_CIO, slots.cio, "cio", budget, total, error);
     if (cio_rc != RV_OK) {
         return cio_rc;

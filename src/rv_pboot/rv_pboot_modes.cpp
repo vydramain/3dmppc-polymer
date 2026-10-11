@@ -46,6 +46,7 @@ enum class rv_pboot_slot_key {
     platform,
     ca,
     cv,
+    cg,
     cio,
     cl,
     cd,
@@ -61,6 +62,7 @@ constexpr rv_pboot_slot_key_entry rv_pboot_slot_keys[] = {
     { "platform", rv_pboot_slot_key::platform },
     { "ca", rv_pboot_slot_key::ca },
     { "cv", rv_pboot_slot_key::cv },
+    { "cg", rv_pboot_slot_key::cg },
     { "cio", rv_pboot_slot_key::cio },
     { "cl", rv_pboot_slot_key::cl },
     { "cd", rv_pboot_slot_key::cd },
@@ -223,6 +225,9 @@ int apply_modes_tree(const rv_pdklib::rv_manifest_tree &tree,
             case rv_pboot_slot_key::cv:
                 (void)lookup_slot_value(RV_PCSLOTS_CV, entry, slots.cv, failer);
                 break;
+            case rv_pboot_slot_key::cg:
+                (void)lookup_slot_value(RV_PCSLOTS_CG, entry, slots.cg, failer);
+                break;
             case rv_pboot_slot_key::cio:
                 (void)lookup_slot_value(RV_PCSLOTS_CIO, entry, slots.cio, failer);
                 break;
@@ -374,6 +379,9 @@ int rv_pboot_modes_resolve(const rv_pboot_args &args, rv_pcslots &out, int &exit
         return err;
     }
     if ((err = apply_override(RV_PCSLOTS_CV, "cv", args.mode_cv, slots.cv, exit_code)) != RV_OK) {
+        return err;
+    }
+    if ((err = apply_override(RV_PCSLOTS_CG, "cg", args.mode_cg, slots.cg, exit_code)) != RV_OK) {
         return err;
     }
     if ((err = apply_override(RV_PCSLOTS_CIO, "cio", args.mode_cio, slots.cio, exit_code)) != RV_OK) {

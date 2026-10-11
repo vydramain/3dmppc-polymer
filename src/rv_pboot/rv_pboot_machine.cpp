@@ -84,11 +84,12 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
 void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine)
 {
     RV_LOG_INFO("main",
-        "mode '{}' requested: platform={} ca={} cv={} cio={} cl={} cd={} cm={}",
+        "mode '{}' requested: platform={} ca={} cv={} cg={} cio={} cl={} cd={} cm={}",
         args.mode,
         rv_pcslots_name(slots.platform),
         rv_pcslots_name(slots.ca),
         rv_pcslots_name(slots.cv),
+        rv_pcslots_name(slots.cg),
         rv_pcslots_name(slots.cio),
         rv_pcslots_name(slots.cl),
         rv_pcslots_name(slots.cd),

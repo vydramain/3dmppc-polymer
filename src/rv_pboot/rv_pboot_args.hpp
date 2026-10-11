@@ -87,6 +87,7 @@ struct rv_pboot_args {
     std::string mode_platform;
     std::string mode_ca;
     std::string mode_cv;
+    std::string mode_cg;
     std::string mode_cio;
     std::string mode_cl;
     std::string mode_cd;

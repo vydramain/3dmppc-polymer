@@ -93,6 +93,7 @@ void rv_console_print_usage(std::FILE *stream)
     const std::string platform_list = join_names_or(RV_PCSLOTS_PLATFORM);
     const std::string ca_list = join_names_or(RV_PCSLOTS_CA);
     const std::string cv_list = join_names_or(RV_PCSLOTS_CV);
+    const std::string cg_list = join_names_or(RV_PCSLOTS_CG);
     const std::string cio_list = join_names_or(RV_PCSLOTS_CIO);
     const std::string cl_list = join_names_or(RV_PCSLOTS_CL);
     const std::string cd_list = join_names_or(RV_PCSLOTS_CD);
@@ -142,6 +143,8 @@ void rv_console_print_usage(std::FILE *stream)
         "      --mode_cv=IMPL   Override the cv slot of the preset. IMPL is\n"
         "                       %s. A run without a window ends by\n"
         "                       --frames, by the disc, or by Ctrl+C.\n"
+        "      --mode_cg=IMPL   Override the cg slot of the preset. IMPL is\n"
+        "                       %s.\n"
         "      --mode_cio=IMPL  Override the cio slot of the preset. IMPL is\n"
         "                       %s.\n"
         "      --mode_cl=IMPL   Override the cl slot of the preset. IMPL is\n"
@@ -155,6 +158,7 @@ void rv_console_print_usage(std::FILE *stream)
         platform_list.c_str(),
         ca_list.c_str(),
         cv_list.c_str(),
+        cg_list.c_str(),
         cio_list.c_str(),
         cl_list.c_str(),
         cd_list.c_str(),
@@ -207,6 +211,7 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
         { "mode_platform", required_argument, 0, 'p' },
         { "mode_ca", required_argument, 0, 'a' },
         { "mode_cv", required_argument, 0, 'v' },
+        { "mode_cg", required_argument, 0, 'g' },
         { "mode_cio", required_argument, 0, 'i' },
         { "mode_cl", required_argument, 0, 'l' },
         { "mode_cd", required_argument, 0, 'c' },
@@ -249,6 +254,9 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
             break;
         case 'v':
             args.mode_cv = optarg;
+            break;
+        case 'g':
+            args.mode_cg = optarg;
             break;
         case 'i':
             args.mode_cio = optarg;
