@@ -21,13 +21,13 @@ namespace rv_pdktools
 
 // The program each kind of asset is baked by. Named once so the lookup and the
 // error text cannot disagree about which program ran.
-static constexpr const char *k_texture_baker = "mppcbaker";
+static constexpr const char *k_texture_baker = "mppctexbaker";
 static constexpr const char *k_sound_baker = "mppcmusbaker";
 
 // S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
 static constexpr std::size_t k_pcm_sample_bytes = 2;
 
-// Read back the WHOLE file mppcbaker just wrote and hand it to
+// Read back the WHOLE file mppctexbaker just wrote and hand it to
 // rv_pdklib::rv_mppctex_parse() - the one validator this burner shares with a
 // disc's own loader, so a texture accepted here is a texture the console can
 // actually upload later. This burner used to check only the header's first
@@ -98,7 +98,7 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
         return baker_err;
     }
 
-    // One format for the whole manifest, so the spelling mppcbaker is given is
+    // One format for the whole manifest, so the --format spelling passed to the baker is
     // looked up once rather than per texture. The accepted spellings are the
     // rows of rv_texfmt_names and are not restated in this tool.
     const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
@@ -107,7 +107,7 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
         const archive_item &item = plan.items[i];
 
-        // --- run mppcbaker ---
+        // --- run mppctexbaker ---
 
         const std::string command = shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
             shell_quote(item.payload) + " --format " + texfmt_text;

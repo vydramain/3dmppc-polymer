@@ -8,7 +8,7 @@ namespace rv_pdktools
 // --- child processes ---
 //
 // The burner does not compile or bake anything itself: it drives cmake, ninja
-// and mppcbaker as child processes. Everything needed to do that safely — quote
+// and the bakers as child processes. Everything needed to do that safely — quote
 // a path, run a command, show what the child said — lives here, because every
 // phase that spawns a child needs the same three things.
 

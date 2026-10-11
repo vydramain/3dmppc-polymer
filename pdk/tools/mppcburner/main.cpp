@@ -75,8 +75,8 @@ static void print_usage(std::FILE *stream)
         "                           against. Default: " RV_BURNER_DEFAULT_PDK "\n"
         "  -l, --pdklib PATH        Disc-side SDK include directory.\n"
         "                           Default: " RV_BURNER_DEFAULT_PDKLIB "\n"
-        "  -b, --baker PATH         mppcbaker used to bake textures. Default: the\n"
-        "                           copy next to mppcburner, then $PATH.\n"
+        "  -b, --baker PATH         directory of the bakers (mppctexbaker, mppcmusbaker),\n"
+        "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
         "  -k, --keep-build[=PATH]  Keep the generated CMake project instead of\n"
         "                           deleting it. PATH must be attached with '='.\n"
@@ -85,8 +85,8 @@ static void print_usage(std::FILE *stream)
         "\n"
         "Options (bake-texture):\n"
         "  -o, --output PATH        .mppctex file to write. Required.\n"
-        "  -b, --baker PATH         mppcbaker used to bake the texture. Default: the\n"
-        "                           copy next to mppcburner, then $PATH.\n"
+        "  -b, --baker PATH         directory of the bakers (mppctexbaker, mppcmusbaker),\n"
+        "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
         "\n"
         "Options (any command):\n"
         "  -h, --help               Print this text.\n"
@@ -111,7 +111,7 @@ constexpr rv_burner_option_spec OPTIONS[] = {
     { 'u', "unpacked", required_argument, "write an unpacked disc directory instead", RV_BURNER_MASK_BUILD },
     { 'p', "pdk", required_argument, "PDK include directory the disc compiles against", RV_BURNER_MASK_BUILD },
     { 'l', "pdklib", required_argument, "disc-side SDK include directory", RV_BURNER_MASK_BUILD },
-    { 'b', "baker", required_argument, "mppcbaker used to bake textures", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
+    { 'b', "baker", required_argument, "directory of the bakers, or a file in it", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
     { 'j', "jobs", required_argument, "parallel compile jobs", RV_BURNER_MASK_BUILD },
     { 'k', "keep-build", optional_argument, "keep the generated CMake project, optionally at PATH", RV_BURNER_MASK_BUILD },
     { 'm', "map", required_argument, "write the source-to-entry map to PATH", RV_BURNER_MASK_BUILD },

@@ -28,7 +28,7 @@ struct rv_burner_options {
                                                        // of a .mppcdisc; exclusive with -o
     std::string pdk_dir = RV_BURNER_DEFAULT_PDK;       // -p
     std::string pdklib_dir = RV_BURNER_DEFAULT_PDKLIB; // -l
-    std::string baker = "";                            // -b, empty: find mppcbaker on our own
+    std::string baker = "";                            // -b, empty: find the bakers next to mppcburner, then $PATH
     std::string build_dir = "";                        // -k=PATH, empty: <operand>/.mppcburn
     int jobs = 0;                                      // -j, 0: let cmake decide
     bool keep_build = false;                           // -k

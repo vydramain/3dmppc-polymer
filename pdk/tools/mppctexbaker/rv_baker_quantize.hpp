@@ -1,4 +1,4 @@
-// mppcbaker: median-cut palette generation and Lloyd relaxation over rv_color5.
+// mppctexbaker: median-cut palette generation and Lloyd relaxation over rv_color5.
 #pragma once
 
 #include <cstddef>

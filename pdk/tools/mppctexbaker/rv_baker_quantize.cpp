@@ -1,4 +1,4 @@
-// mppcbaker: Heckbert median cut plus Lloyd relaxation, isolated from the file format.
+// mppctexbaker: Heckbert median cut plus Lloyd relaxation, isolated from the file format.
 #include "rv_baker_quantize.hpp"
 
 #include <algorithm>

@@ -53,7 +53,7 @@ target_include_directories(mppcburner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
 
 # pdklib: the output adapter (rv_stdio.hpp), the texel format names, and
-# rv_mppctex.hpp — the one description of the container mppcbaker writes and this
+# rv_mppctex.hpp — the one description of the container mppctexbaker writes and this
 # tool reads back. Separate from the contract above because it is a separate tree.
 #
 # LINKED, not merely included: the manifest lexer/parser/semantic/binder are

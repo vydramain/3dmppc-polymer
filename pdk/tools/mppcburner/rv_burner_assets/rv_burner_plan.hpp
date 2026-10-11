@@ -22,7 +22,7 @@ namespace rv_pdktools
 ///
 /// One vector rather than three because the burn phase writes it in order and
 /// the collision check needs to see all of it at once. The ranges are how the
-/// later stages find their own entries again: textures go to mppcbaker, scripts
+/// later stages find their own entries again: textures go to mppctexbaker, scripts
 /// go to luajit, copied assets need neither.
 struct archive_plan {
     std::vector<archive_item> items; ///< every entry, in archive order

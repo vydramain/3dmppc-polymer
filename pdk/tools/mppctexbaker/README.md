@@ -13,15 +13,15 @@ in both modes).
 
 ---
 
-## `mppcbaker` — PNG → `.mppctex`, WAV → `.pcm`
+## `mppctexbaker` — PNG → `.mppctex`
 
 The console does not decode image formats and never will. A disc hands
 `rv_cv::video_asset_write()` **finished texels**, exactly as it would on real
 devkit hardware. So turning a picture into texels is a build-step job, and
-`mppcbaker` is what does it.
+`mppctexbaker` is what does it.
 
 ```
-mppcbaker <input.png> <output.mppctex> --format idx4|idx8|direct15
+mppctexbaker <input.png> <output.mppctex> --format idx4|idx8|direct15
         [--transparent-key RRGGBB]
 ```
 
@@ -41,34 +41,17 @@ Any error gets a readable message on `stderr` and exit code `1`.
 
 ```sh
 # sprite with alpha, 16 colors
-mppcbaker assets/protagonist_tex.png build/protagonist_tex.mppctex --format idx4
+mppctexbaker assets/protagonist_tex.png build/protagonist_tex.mppctex --format idx4
 
 # sprite without alpha, where the hole is marked with hot pink
-mppcbaker assets/hud.png build/hud.mppctex --format idx8 --transparent-key FF00FF
+mppctexbaker assets/hud.png build/hud.mppctex --format idx8 --transparent-key FF00FF
 
 # opaque background, full color
-mppcbaker assets/sky.png build/sky.mppctex --format direct15
+mppctexbaker assets/sky.png build/sky.mppctex --format direct15
 ```
 
----
-
-## WAV → `.pcm`
-
-The console does not decode sound formats either. A disc hands
-`rv_ca::sound_asset_write()` **raw samples**, so turning a WAV into those
-samples is the same kind of build-step job as a texture.
-
-```
-mppcbaker <input.wav> <output.pcm>
-```
-
-The input must already be RIFF/WAVE, PCM, 16-bit, 44100 Hz, mono or stereo;
-anything else (another rate, another bit depth, float, more than two
-channels) is refused. Stereo is downmixed to mono by averaging the two
-channels. The output is headerless S16LE mono at 44100 Hz, nothing else -
-exactly what `sound_asset_write` expects, and no `--format` applies to it.
-
-Any error gets a readable message on `stderr` and exit code `1`.
+Sounds are not baked here: `mppcmusbaker` turns a WAV into `.pcm`. A WAV given
+to this tool is refused.
 
 ---
 
@@ -131,7 +114,7 @@ stride given above.
 ```
 
 5 bits per channel, `0..31`. Bit 15 is the semi-transparency flag (STP);
-`mppcbaker` always writes `0` there, because the semi-transparent blending modes
+`mppctexbaker` always writes `0` there, because the semi-transparent blending modes
 are still deferred on the console side, and an STP set in advance would silently
 change how a texture looks once they land.
 
@@ -146,7 +129,7 @@ Naive quantization sends any very dark color there — and the shadows in the im
 turn into see-through holes. This is the classic PSX trap: you cannot spot it by
 eye in an editor, it only shows up once the sprite is drawn over a background.
 
-`mppcbaker` handles it explicitly: **any opaque color that packs to `0000h` is
+`mppctexbaker` handles it explicitly: **any opaque color that packs to `0000h` is
 nudged to `0001h`** — the darkest red, one 1/31 step of red away, which is below
 the noise floor of the console's own dithering. The rule lives in one place
 (`pack_opaque`), so it applies to DIRECT15 texels and palette entries alike.

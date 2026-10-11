@@ -1,4 +1,4 @@
-// mppcbaker: encoding decoded pixels into .mppctex bytes (median-cut palette, IDX4/IDX8/direct15).
+// mppctexbaker: encoding decoded pixels into .mppctex bytes (median-cut palette, IDX4/IDX8/direct15).
 #pragma once
 
 #include <cstddef>

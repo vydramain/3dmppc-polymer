@@ -97,7 +97,7 @@ int rv_pdktools::rv_burner_bake_texture_run(const rv_burner_options &options)
         rv_burner_print_error(std::format("cannot resolve output path '{}'", options.output));
         return RV_ERR_IO;
     }
-    // Baked beside the final path and renamed into place only once mppcbaker
+    // Baked beside the final path and renamed into place only once mppctexbaker
     // and the budget check both passed, so a refusal never leaves a partial
     // file at -o.
     const fs::path temp_path = output_path.string() + ".tmp";

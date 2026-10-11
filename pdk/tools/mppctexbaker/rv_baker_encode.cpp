@@ -1,4 +1,4 @@
-// mppcbaker: the .mppctex header and the IDX4/IDX8/DIRECT15 encoders.
+// mppctexbaker: the .mppctex header and the IDX4/IDX8/DIRECT15 encoders.
 #include "rv_baker_encode.hpp"
 
 #include <cstdio>
@@ -142,7 +142,7 @@ rv_err encode_indexed(const options &opt, const source_image &src, std::vector<u
     }
     if (bins.size() > color_slots) {
         rv_pdklib::rv_fprintf(stderr,
-            "mppcbaker: note: %zu distinct colours reduced to %zu palette entries\n",
+            "mppctexbaker: note: %zu distinct colours reduced to %zu palette entries\n",
             bins.size(),
             color_slots);
     }

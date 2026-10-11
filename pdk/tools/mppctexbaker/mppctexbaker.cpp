@@ -75,7 +75,7 @@ inline const char *rv_baker_progname()
 #ifdef __GLIBC__
     return program_invocation_short_name;
 #else
-    return "mppcbaker";
+    return "mppctexbaker";
 #endif
 }
 
@@ -100,7 +100,7 @@ std::string format_texfmt_names(const char *separator)
 void rv_baker_print_usage(std::FILE *out)
 {
     rv_pdklib::rv_fprintf(out,
-        "usage: mppcbaker <input.png> <output.mppctex> --format %s\n"
+        "usage: mppctexbaker <input.png> <output.mppctex> --format %s\n"
         "                [--transparent-key RRGGBB]\n"
         "\n"
         "  --format            texel encoding (rv_texfmt): 4-bit or 8-bit palette\n"
@@ -109,7 +109,7 @@ void rv_baker_print_usage(std::FILE *out)
         "                      fully transparent value 0000h. PNG alpha < 128 is\n"
         "                      treated as transparent as well, always.\n"
         "\n"
-        "mppcbaker --version prints one line, `mppcbaker <major>.<minor>`.\n",
+        "mppctexbaker --version prints one line, `mppctexbaker <major>.<minor>`.\n",
         format_texfmt_names("|").c_str());
 }
 
@@ -365,7 +365,7 @@ int run(int argc, char **argv)
     }
 
     rv_pdklib::rv_texfmt_name::by_format(*opt.format);
-    std::printf("mppcbaker: %s -> %s (%dx%d, %s, %zu bytes)\n",
+    std::printf("mppctexbaker: %s -> %s (%dx%d, %s, %zu bytes)\n",
         opt.input.c_str(),
         opt.output.c_str(),
         src.width,
@@ -390,7 +390,7 @@ int main(int argc, char **argv)
 {
     // One line a front end can show and compare (the editor's diagnostics).
     if (argc == RV_BAKER_ARGC_VERSION_CHECK && std::string_view(argv[1]) == "--version") {
-        rv_pdklib::rv_fprintf(stdout, "mppcbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        rv_pdklib::rv_fprintf(stdout, "mppctexbaker %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
         return 0;
     }
     return rv_pdktools::run(argc, argv);
