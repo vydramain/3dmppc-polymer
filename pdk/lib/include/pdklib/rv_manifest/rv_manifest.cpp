@@ -178,6 +178,12 @@ std::string rv_manifest_render(const rv_manifest &manifest)
         render_array(out, "files", manifest.sounds_files);
     }
 
+    // Optional like [sounds]: no models, no section.
+    if (!manifest.models_files.empty()) {
+        out << "\n[models]\n";
+        render_array(out, "files", manifest.models_files);
+    }
+
     const rv_manifest_budget &budget = manifest.budget;
 
     out << "\n[budget.pcca]\n";

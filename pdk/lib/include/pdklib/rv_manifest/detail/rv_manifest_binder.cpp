@@ -76,6 +76,11 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.sounds_files = v.arr;
         } },
+    { rv_manifest_section_models, // [models] files = [ … ]
+        rv_manifest_key_models_files,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.models_files = v.arr;
+        } },
     { rv_manifest_section_budget_pcca, // [budget.pcca] voice_count = N
         rv_manifest_key_budget_pcca_voice_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {

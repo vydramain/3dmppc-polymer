@@ -153,6 +153,9 @@ struct rv_manifest {
     // by mppcbaker on the way in; no format key yet, there is only one output.
     std::vector<std::string> sounds_files;
 
+    // [models] - .glb globs baked by mppcmodbaker into "<name>.mppcmod" and its textures
+    std::vector<std::string> models_files;
+
     // [budget]
     rv_manifest_budget budget;
 };
