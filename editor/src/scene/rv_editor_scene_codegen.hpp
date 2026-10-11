@@ -1,8 +1,9 @@
 #pragma once
 
 // Opt-in C++ for a scene the editor just created: a header the disc can include
-// to load it, and a comment explaining how. Written once; the editor never
-// rewrites or regenerates it, and a user who does not want it never gets it.
+// to draw it through the PDK C API, and a comment explaining how. Written once;
+// the editor never rewrites or regenerates it, and a user who does not want it
+// never gets it.
 
 #include <filesystem>
 #include <string>
