@@ -39,19 +39,23 @@ See the root README for details and your platform's package list.
 
 ## Tools
 
-The editor looks for the console, burner and texture baker (`mppctexbaker`) next to
-its own executable, where a development build puts them (`build-dev/pconsole/`).
+The editor looks for the console and burner next to its own executable, where a development
+build puts them (`build-dev/pconsole/`), and the three bakers in the same directory:
+`mppctexbaker` (PNG), `mppcmusbaker` (WAV) and `mppcmodbaker` (.glb).
 Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
-override them. `baker` is the path to the `mppctexbaker` executable itself, not to
-a directory. The editor passes it to `mppcburner` as `--baker` on each build, unpacked build,
-release candidate and PNG texture bake; `mppcburner` then looks for the other bakers
-in that file's directory:
+override them. `baker` is the bakers' directory, not an executable. A file path, or a symlink
+to one, means the directory where that file really lies, as with `mppcburner --baker`.
+Empty means the editor's own directory. The editor checks the three bakers there (present,
+executable, version) and reports a path it cannot look up as its own problem; Project > Project
+Settings > Toolchain shows them. It passes the directory to `mppcburner` as `--baker` on each
+build, unpacked build, release candidate and PNG texture bake, and records their versions in
+a release candidate:
 
 ```toml
 [tools]
 console = "/path/to/3dmppc"
 burner = "/path/to/mppcburner"
-baker = "/path/to/mppctexbaker"
+baker = "/path/to/bakers"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```
 
