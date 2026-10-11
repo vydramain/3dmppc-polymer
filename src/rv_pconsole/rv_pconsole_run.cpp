@@ -246,6 +246,8 @@ bool rv_pconsole::run_hold_paused(run_state &run)
 
 void rv_pconsole::run_frame(rv_de *disc, run_state &run)
 {
+    // The camera and the triangle count of cg are valid within one frame only.
+    cg_->frame_reset();
     disc->frame_update(disc->self, run.dt);
     // frame_render() is always called: with cv null the calls it makes land on
     // rv_pccv_null, which touches no rasterizer, no framebuffer and no virtual

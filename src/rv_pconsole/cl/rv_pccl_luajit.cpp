@@ -86,7 +86,7 @@ setmetatable(pdk, {
 -- is not an allocation) and the accessor is the same exported function the
 -- long form called, so this is a shorter spelling of the identical path, not
 -- a layer in front of it.
-for _, slot in ipairs({ "ca", "cd", "cio", "cl", "cm", "cv" }) do
+for _, slot in ipairs({ "ca", "cd", "cg", "cio", "cl", "cm", "cv" }) do
     local accessor = pdk["pdko_" .. slot]
     pdk[slot] = function(o) return accessor(pdk.cast("rv_pdko*", o)) end
 end
