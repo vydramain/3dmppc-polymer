@@ -79,7 +79,7 @@ than by discipline.
 | Tree | What it is | Depends on |
 | --- | --- | --- |
 | [`pdk/`](pdk/) | **the contract** — the headers describing what the console can do | nothing |
-| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, `.obj`, text | `pdk/` |
+| [`pdklib/`](pdk/lib/) | **disc-side conveniences** written against the contract: matrices, camera, text | `pdk/` |
 | `src/` | **the console** — the concrete machine that implements the contract | `pdk/` |
 | [`pdk/tools/`](pdk/tools/) | **authoring tools** that turn a directory into a disc | `pdk/` |
 | [`mppcdiscs/`](mppcdiscs/) | **the games** | `pdk/`, `pdklib/` |
@@ -620,7 +620,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | Document | What it covers |
 | --- | --- |
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
-| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
+| [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, text |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppctexbaker/README.md`](pdk/tools/mppctexbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |

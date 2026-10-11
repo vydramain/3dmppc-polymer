@@ -13,8 +13,8 @@ namespace rv_pdklib
 
 // A scene document as a disc reads it:
 // objects in file order with their parents resolved. It takes the file's BYTES,
-// never a path: reading is the drive's (rv_cd_asset_*), as for rv_obj. A disc
-// that draws no scene never calls it.
+// never a path: reading is the drive's (rv_cd_asset_*). A disc that draws no
+// scene never calls it.
 //
 // [scene] carries version = "M.m", the PDK version the file was written
 // against; a file is read when rv_version_compatible(major, minor) holds

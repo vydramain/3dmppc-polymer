@@ -42,7 +42,7 @@ an incompatible version opens read-only. A console and an editor of
 different versions refuse each other.
 
 At PDK 1.0, these pdklib functions changed from `bool` to `int`
-returning `rv_err` codes: `rv_obj_parse`, `rv_version_parse`,
+returning `rv_err` codes: `rv_version_parse`,
 `rv_manifest_validate`, `rv_font_build_atlas`, `rv_font_build_palette`,
 `rv_scene_vector`, `rv_scene_uv`, `rv_scene_tint`, `rv_scene_tess`,
 `rv_mppctex_parse`, `rv_disc_hash_compute`, `rv_disc_hash_magic_offset`,
