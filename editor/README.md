@@ -39,15 +39,19 @@ See the root README for details and your platform's package list.
 
 ## Tools
 
-The editor looks for the console, burner and baker next to its own executable,
-where a development build puts all four (`build-dev/pconsole/`). Settings in
-File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml` override them:
+The editor looks for the console, burner and texture baker (`mppctexbaker`) next to
+its own executable, where a development build puts them (`build-dev/pconsole/`).
+Settings in File > Settings or `$XDG_CONFIG_HOME/3dmppc-editor/settings.toml`
+override them. `baker` is the path to the `mppctexbaker` executable itself, not to
+a directory. The editor passes it to `mppcburner` as `--baker` on each build, unpacked build,
+release candidate and PNG texture bake; `mppcburner` then looks for the other bakers
+in that file's directory:
 
 ```toml
 [tools]
 console = "/path/to/3dmppc"
 burner = "/path/to/mppcburner"
-baker = "/path/to/mppcbaker"
+baker = "/path/to/mppctexbaker"
 player = "/path/to/3dmppc"   # built without devtools; there is no default
 ```
 

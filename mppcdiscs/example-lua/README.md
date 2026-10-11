@@ -136,8 +136,7 @@ itself, only asks for "the one you already checked".
 ## Burning and running
 
 ```sh
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-lua -o build/example-lua.mppcdisc \
-    --baker pdk/tools/build/mppcbaker/mppcbaker
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-lua -o build/example-lua.mppcdisc
 ./build/pconsole/3dmppc build/example-lua.mppcdisc
 ```
 
