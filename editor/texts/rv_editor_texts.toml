@@ -927,6 +927,7 @@ player_not_set_file_settings = "No player set: File > Settings names a 3dmppc bu
 player_not_set_name = "No player set: name a 3dmppc built without devtools"
 tool_not_found = "{} not found"
 tool_not_found_at = "{} not found at {}"
+baker_dir_error = "{}: the bakers' directory cannot be read: {}"
 tool_not_executable = "{} is not an executable file"
 model_not_absolute = "{} is not an absolute path"
 model_not_found = "{} not found"

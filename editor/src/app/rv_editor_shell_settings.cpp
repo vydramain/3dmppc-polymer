@@ -245,7 +245,7 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     }
     // Apply only asks; the frame after saves and looks up. Off while that or the version checks run.
     const bool searching =
-        shell.settings_apply_request || app.tools.burner.version_check.running() || app.tools.baker.version_check.running();
+        shell.settings_apply_request || app.tools.burner.version_check.running() || rv_editor_bakers_checking(app.tools);
     const char *no_dir_tooltip = nowhere ? rv_editor_text("shell_settings.no_dir_tooltip") : nullptr;
     const char *searching_text = searching ? rv_editor_text("shell_settings.searching_tools") : nullptr;
     const char *apply_block = searching_text != nullptr ? searching_text : no_dir_tooltip;

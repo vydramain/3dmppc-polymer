@@ -161,7 +161,7 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
         return RV_ERR_BUSY;
     }
     // A candidate records the tools' versions; a check still running would leave them empty.
-    if (app.tools.burner.version_check.running() || app.tools.baker.version_check.running()) {
+    if (app.tools.burner.version_check.running() || rv_editor_bakers_checking(app.tools)) {
         app.log.add(rv_editor_log_source::editor,
             rv_editor_log_level::warning,
             "not built: tool versions are still being checked");
@@ -185,7 +185,7 @@ int rv_editor_app_build_candidate(rv_editor_app &app)
     r.building_number = number;
     // No check runs here (refused above), so the versions are final.
     r.building_burner = app.tools.burner.version;
-    r.building_baker = app.tools.baker.version;
+    r.building_baker = rv_editor_bakers_version_text(app.tools);
     r.tree_changed_during = false;
     g_build_ended = false;
     g_revision.start(app.project.root);

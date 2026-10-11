@@ -210,6 +210,18 @@ int rv_editor_app_update_candidates(rv_editor_app &app)
     return RV_OK;
 }
 
+// The bakers whose version checks the frame polls and logs as the burner's.
+struct baker_version_slot {
+    rv_editor_tool rv_editor_toolchain::*member;
+    const char *name;
+};
+
+constexpr baker_version_slot baker_version_slots[] = {
+    { &rv_editor_toolchain::texbaker, "texbaker" },
+    { &rv_editor_toolchain::musbaker, "musbaker" },
+    { &rv_editor_toolchain::modbaker, "modbaker" },
+};
+
 } // namespace
 
 // The editor frame: not an operation, so it returns nothing; it asks the questions below and calls the operations.
@@ -231,12 +243,16 @@ void rv_editor_app_update(rv_editor_app &app)
     if (burner_ended) {
         (void)rv_editor_app_log_tool_version(app, app.tools.burner, "burner");
     }
-    const bool baker_checking = app.tools.baker.version_check.running();
-    const int baker_poll_result =
-        baker_checking ? rv_editor_app_update_tool_version(app, app.tools.baker, "baker") : RV_ERR_PENDING;
-    const bool baker_ended = baker_checking && baker_poll_result == RV_OK && !app.tools.baker.version_check.running();
-    if (baker_ended) {
-        (void)rv_editor_app_log_tool_version(app, app.tools.baker, "baker");
+    for (const baker_version_slot &slot : baker_version_slots) {
+        rv_editor_tool &baker = app.tools.*(slot.member);
+        if (!baker.version_check.running()) {
+            continue;
+        }
+        const int poll_result = rv_editor_app_update_tool_version(app, baker, slot.name);
+        const bool ended = poll_result == RV_OK && !baker.version_check.running();
+        if (ended) {
+            (void)rv_editor_app_log_tool_version(app, baker, slot.name);
+        }
     }
 
     // What changed on disk: nvim, candidates, reload queue and disc.toml follow it.

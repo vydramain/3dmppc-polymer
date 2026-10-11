@@ -36,30 +36,43 @@ struct rv_editor_tool {
 };
 
 // The console and the authoring tools. Each is looked for next to the editor's
-// own executable (a development build puts all four in pconsole/) unless
+// own executable (a development build puts all of them in pconsole/) unless
 // settings.toml names it:
 //
 //   [tools]
 //   console = "/path/to/3dmppc"
 //   burner = "/path/to/mppcburner"
-//   baker = "/path/to/mppctexbaker"
+//   baker = "/path/to/bakers"    (a directory, or a file in it; empty: next to the editor)
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
+//
+// baker is the directory record of the bakers: path is the directory, problem the first problem
+// of the three bakers or none; it has no version. texbaker, musbaker, modbaker are the bakers
+// the burner runs from that directory.
 struct rv_editor_toolchain {
     rv_editor_tool console;
     rv_editor_tool burner;
     rv_editor_tool baker;
+    rv_editor_tool texbaker; // PNG
+    rv_editor_tool musbaker; // WAV
+    rv_editor_tool modbaker; // .glb
     rv_editor_tool player;
     std::filesystem::path settings_path;
     std::string settings_error; // settings.toml exists and does not parse
 };
 
-// Looks the tools up again and starts the burner's and the baker's version checks,
+// Looks the tools up again and starts the burner's and the three bakers' version checks,
 // so a replaced executable drops what was known about the old one.
 rv_editor_toolchain rv_editor_toolchain_find();
 
+// True while a version check of one of the three bakers runs.
+bool rv_editor_bakers_checking(const rv_editor_toolchain &tc);
+
+// The bakers' versions as "texbaker: <version>; musbaker: <version>; modbaker: <version>".
+std::string rv_editor_bakers_version_text(const rv_editor_toolchain &tc);
+
 // Settings' Check: the tool `key` ("console", "burner", "baker", "player") at
 // `override_path`, or where it is found automatically when that is empty.
-// Starts the version check of the burner and the baker, as rv_editor_toolchain_find does.
+// Starts the burner's version check, as rv_editor_toolchain_find does; the baker asks for no version.
 rv_editor_tool rv_editor_tool_probe(const char *key, const std::filesystem::path &override_path);
 
 // Starts the tool's version check in the background, never waiting for it. RV_ERR_INVAL with
