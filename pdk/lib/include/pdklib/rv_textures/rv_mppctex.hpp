@@ -18,7 +18,7 @@ namespace rv_pdklib
 // One baked texture: a 16-byte header, then the palette when the format has
 // one, then the texels. Little-endian throughout.
 //
-// This header is the ONE description of that layout. mppcbaker writes by it,
+// This header is the ONE description of that layout. mppctexbaker writes by it,
 // mppcburner reads it back to check a disc's [budget], and a disc reads it to
 // upload texels — three programs that would otherwise each restate the offsets
 // and drift apart the first time the format changes.
@@ -90,7 +90,7 @@ inline uint16_t rv_mppctex_read_le16(const std::byte *p)
 
 // --- the ONE parse+validate, and the ONE write ---
 //
-// Four places read or write this container: mppcbaker writes it, mppcburner
+// Four places read or write this container: mppctexbaker writes it, mppcburner
 // reads one back to check it against [budget] before it goes on a disc, a
 // disc's own loader (rv_pccd_fs::texture_decode_) reads it to upload the
 // texture, and a hot-reload does the same read again for a changed file. A
@@ -211,7 +211,7 @@ inline int rv_mppctex_parse(std::span<const std::byte> bytes,
 
 /// Appends the 16-byte header for a texture of `format`, `width` x `height`
 /// with `palette_count` palette entries (0 for DIRECT15) to `*out`. This is
-/// the write-side counterpart of rv_mppctex_parse(): mppcbaker calls it once
+/// the write-side counterpart of rv_mppctex_parse(): mppctexbaker calls it once
 /// per texture instead of spelling the byte layout out itself, which is what
 /// let the two drift in the first place.
 inline void
