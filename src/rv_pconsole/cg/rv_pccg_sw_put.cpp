@@ -58,8 +58,9 @@ rv_pdklib::rv_mat4 world_matrix(const float (&world)[16])
     return matrix;
 }
 
-// RV_CG_CULL_BACK drops the faces turned away from the eye. glTF faces are wound
-// counter-clockwise seen from outside, which the screen sees as clockwise: RV_CULL_SCREEN_CW.
+// RV_CG_CULL_BACK drops the faces turned away from the eye. A front face stays counter-clockwise
+// on screen (y points down, so the pixel area sign flips in rv_xform_culled), and RV_CULL_SCREEN_CW
+// keeps exactly those.
 uint32_t cull_mode(uint32_t cull)
 {
     return cull == RV_CG_CULL_NONE ? rv_pdklib::RV_CULL_NONE : rv_pdklib::RV_CULL_SCREEN_CW;

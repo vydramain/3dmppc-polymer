@@ -51,8 +51,9 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
     return { a.x * b.x, a.y * b.y, a.z * b.z, 1.0f };
 }
 
-// A .glb's triangles, flat: glTF's own coordinates (Y up, metres) and uv (top-left origin, so
-// no flip needed). `part_cpu` holds one picture per part (null: none).
+// A .glb's triangles, flat: the project's coordinates (left-handed, Y up, metres; the glTF reader
+// has negated z) and uv (top-left origin, so no flip needed). `part_cpu` holds one picture per part
+// (null: none).
 std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model,
     const rv_editor_affine &m,
     const std::vector<const rv_editor_cpu_image *> &part_cpu)

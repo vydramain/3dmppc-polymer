@@ -22,7 +22,7 @@ namespace rv_pdklib
 // --- the .mppcmod container ---
 //
 // One baked model: 16-byte header, parts, vertices, triangles. Little-endian.
-// Coordinates are glTF's (right-handed, Y up, metres); nothing converts them.
+// Coordinates are the project's (left-handed, Y up, metres): the glTF reader negates z.
 //
 // This header is the ONE description of that layout: mppcmodbaker will write
 // it, mppcburner will check it, the console will load it. The header is 16

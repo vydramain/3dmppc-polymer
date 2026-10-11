@@ -37,6 +37,8 @@ constexpr std::array<uint8_t, 3> RV_MPPCMOD_GLTF_WHITE = { 255, 255, 255 };
 // Components of a position and of a texture coordinate.
 constexpr size_t RV_MPPCMOD_GLTF_POS_LANES = 3;
 constexpr size_t RV_MPPCMOD_GLTF_UV_LANES = 2;
+// Lane of z in a position: glTF is right-handed, the project left-handed, so the reader negates it.
+constexpr size_t RV_MPPCMOD_GLTF_DEPTH_LANE = 2;
 // Corners of a triangle.
 constexpr size_t RV_MPPCMOD_GLTF_CORNERS = 3;
 // A closed mesh has about two triangles per vertex, so the tool caps a model at twice the
@@ -108,6 +110,15 @@ void transform_point(const float *m, const float *p, float *out)
     }
 }
 
+// glTF is right-handed (+Z toward the viewer); the project is left-handed (rv_camera.hpp:
+// right = cross(up, forward), +z in front). Negating z maps one frame onto the other. The
+// camera then sees the model from the side glTF's viewer did, so the windings and the mirror
+// test on the glTF world matrix need no change.
+void to_project_frame(float *p)
+{
+    p[RV_MPPCMOD_GLTF_DEPTH_LANE] = -p[RV_MPPCMOD_GLTF_DEPTH_LANE];
+}
+
 // Determinant of the 3x3 part of a column-major matrix; negative when the matrix mirrors.
 float determinant3(const float *m)
 {
@@ -173,6 +184,7 @@ int read_vertices(const cgltf_primitive &prim,
     for (size_t i = 0; i < count; ++i) {
         rv_mppcmod_vertex &vertex = out[i];
         transform_point(world, &pos[i * RV_MPPCMOD_GLTF_POS_LANES], vertex.pos.data());
+        to_project_frame(vertex.pos.data());
         if (has_uv) {
             vertex.uv = { uv[i * RV_MPPCMOD_GLTF_UV_LANES], uv[i * RV_MPPCMOD_GLTF_UV_LANES + 1] };
         }
