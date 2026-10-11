@@ -36,4 +36,5 @@ include(${RV_REPO_ROOT}/cmake/pdklib.cmake)
 
 add_subdirectory(mppcbaker)
 add_subdirectory(mppcmusbaker)
+add_subdirectory(mppcmodbaker)
 add_subdirectory(mppcburner)

@@ -1,7 +1,7 @@
 # cgltf
 
-Single-file glTF 2.0 parser in C99. Intended for `pdk/tools` and `editor/` to read
-glTF models; no target links it yet. Never linked by the console.
+Single-file glTF 2.0 parser in C99. Used by `pdk/tools` mppcmodbaker to read glTF models;
+`editor/` later. Never linked by the console.
 
 | | |
 | --- | --- |
