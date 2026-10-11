@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <span>
+#include <string>
 
 #include "pdk/cg/rv_cg.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
@@ -18,6 +19,9 @@ class rv_pccg_null final : public rv_pccg
 {
 public:
     explicit rv_pccg_null(const rv_pccg_conf &conf);
+
+    // No engine, no pool: RV_OK, bytes = 0.
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     // --- budget: straight out of the configuration ---
 

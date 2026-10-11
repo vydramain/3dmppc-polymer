@@ -25,6 +25,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
     , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
     , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
+    , cg_(rv_pccg_make(conf.slots.cg, conf.cg))
     , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
@@ -69,6 +70,10 @@ rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
     return reinterpret_cast<rv_cv *>(cv_.get());
 }
+rv_cg *rv_3dmppc::rv_pconsole::cg()
+{
+    return reinterpret_cast<rv_cg *>(cg_.get());
+}
 rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
     return reinterpret_cast<rv_cl *>(cl_.get());
@@ -91,6 +96,7 @@ int rv_3dmppc::rv_pconsole::check_ready() const
         { "cio", cio_->valid(), RV_ERR_NOMEM },
         { "cm", cm_->valid(), RV_ERR_IO },
         { "cv", cv_->valid(), RV_ERR_NOMEM },
+        { "cg", cg_->valid(), RV_ERR_NOMEM },
         { "cl", cl_->valid(), RV_ERR_NOMEM },
     };
     for (const auto &slot : slots) {
@@ -134,4 +140,8 @@ extern "C" rv_cm *rv_pdko_cm(rv_pdko *o)
 extern "C" rv_cv *rv_pdko_cv(rv_pdko *o)
 {
     return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cv();
+}
+extern "C" rv_cg *rv_pdko_cg(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cg();
 }

@@ -1,5 +1,5 @@
 // The factory: the ONLY place a slot's choice is branched on. Every caller
-// above this file asks for a base (rv_pcca/rv_pccv/rv_pccio/rv_pccl/rv_pccd/
+// above this file asks for a base (rv_pcca/rv_pccv/rv_pccio/rv_pccl/rv_pccd/rv_pccg/
 // rv_pccm) and gets back whichever concrete class the choice resolves to, and
 // asks for the platform the same way; no `if (disabled)` belongs anywhere
 // else in the tree.
@@ -21,6 +21,7 @@
 
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
@@ -44,6 +45,7 @@ struct rv_pcslots_row {
 
 extern const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA;
 extern const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV;
+extern const std::span<const rv_pcslots_row<rv_pccg_impl>> RV_PCSLOTS_CG;
 extern const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO;
 extern const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL;
 extern const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD;
@@ -51,6 +53,7 @@ extern const std::span<const rv_pcslots_row<rv_pccm_impl>> RV_PCSLOTS_CM;
 
 const char *rv_pcslots_name(rv_pcca_impl impl);
 const char *rv_pcslots_name(rv_pccv_impl impl);
+const char *rv_pcslots_name(rv_pccg_impl impl);
 const char *rv_pcslots_name(rv_pccio_impl impl);
 const char *rv_pcslots_name(rv_pccl_impl impl);
 const char *rv_pcslots_name(rv_pccd_impl impl);
@@ -72,6 +75,7 @@ const char *rv_pcslots_name(rv_pcplatform_impl impl);
 // Straight mapping, no device fallback: what was asked for is what is built.
 std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf);
 std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf);
+std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf);
 std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform);
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf);
 std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &conf);

@@ -21,6 +21,8 @@ void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget,
     conf.cv.video_memory_size = budget.pccv.video_memory_size;
     conf.cv.frame_capacity = budget.pccv.frame_capacity;
     conf.cv.ot_bucket_count = budget.pccv.ot_bucket_count;
+    conf.cg.model_memory_size = budget.pccg.model_memory_size;
+    conf.cg.triangle_capacity = budget.pccg.triangle_capacity;
     conf.cio.iport_count = budget.pccio.iport_count;
     conf.cm.card_slots = budget.pccm.card_slots;
     conf.cm.card_slot_size = budget.pccm.card_slot_size;

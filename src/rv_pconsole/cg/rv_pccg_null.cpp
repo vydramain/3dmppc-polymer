@@ -13,6 +13,12 @@ namespace
 constexpr int64_t RV_PCCG_NULL_FAKE_ADDR = 16;
 } // namespace
 
+int rv_pccg_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes, std::string & /*error*/)
+{
+    bytes = 0;
+    return RV_OK;
+}
+
 rv_pccg_null::rv_pccg_null(const rv_pccg_conf &conf)
     : conf_(conf)
 {

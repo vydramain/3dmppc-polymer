@@ -5,6 +5,7 @@
 #include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
+#include "rv_pconsole/cg/rv_pccg_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_platform.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
@@ -29,6 +30,9 @@ constexpr rv_pcslots_row<rv_pcca_impl> RV_PCSLOTS_CA_ROWS[] = {
 constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
     { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
     { "sw", rv_pccv_impl::sw, &rv_pccv_sw::evaluate },
+};
+constexpr rv_pcslots_row<rv_pccg_impl> RV_PCSLOTS_CG_ROWS[] = {
+    { "null", rv_pccg_impl::null, &rv_pccg_null::evaluate },
 };
 constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
@@ -62,6 +66,7 @@ const char *impl_name(const Table &table, Impl impl)
 
 const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA = RV_PCSLOTS_CA_ROWS;
 const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV = RV_PCSLOTS_CV_ROWS;
+const std::span<const rv_pcslots_row<rv_pccg_impl>> RV_PCSLOTS_CG = RV_PCSLOTS_CG_ROWS;
 const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO = RV_PCSLOTS_CIO_ROWS;
 const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL = RV_PCSLOTS_CL_ROWS;
 const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD = RV_PCSLOTS_CD_ROWS;
@@ -74,6 +79,10 @@ const char *rv_pcslots_name(rv_pcca_impl impl)
 const char *rv_pcslots_name(rv_pccv_impl impl)
 {
     return impl_name(RV_PCSLOTS_CV, impl);
+}
+const char *rv_pcslots_name(rv_pccg_impl impl)
+{
+    return impl_name(RV_PCSLOTS_CG, impl);
 }
 const char *rv_pcslots_name(rv_pccio_impl impl)
 {
@@ -112,6 +121,12 @@ std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &con
         return std::make_unique<rv_pccv_sw>(conf);
     }
     return std::make_unique<rv_pccv_null>(conf);
+}
+
+std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf)
+{
+    RV_LOG_INFO("pccg", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
+    return std::make_unique<rv_pccg_null>(conf);
 }
 
 std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform)

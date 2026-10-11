@@ -108,6 +108,9 @@ enum class rv_pccv_impl {
     null,
     sw
 };
+enum class rv_pccg_impl {
+    null
+};
 enum class rv_pccio_impl {
     null,
     standard
@@ -127,11 +130,12 @@ enum class rv_pccm_impl {
 
 struct rv_pcslots {
     // Not a slot itself (see rv_pcslots.hpp), but the first field: it decides
-    // whether the six slots below get real endpoints to talk to at all.
+    // whether the slots below get real endpoints to talk to at all.
     rv_pcplatform_impl platform = rv_pcplatform_impl::sdl3;
 
     rv_pcca_impl ca = rv_pcca_impl::sw;
     rv_pccv_impl cv = rv_pccv_impl::sw;
+    rv_pccg_impl cg = rv_pccg_impl::null;
     rv_pccio_impl cio = rv_pccio_impl::standard;
     rv_pccl_impl cl = rv_pccl_impl::luajit;
     rv_pccd_impl cd = rv_pccd_impl::fs;
@@ -180,6 +184,7 @@ struct rv_pconsole_conf {
     rv_pccd_conf cd;
     rv_pccl_conf cl;
     rv_pccv_conf cv;
+    rv_pccg_conf cg;
     rv_pccio_conf cio;
     rv_pccm_conf cm;
 

@@ -10,6 +10,7 @@
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 #include "rv_pconsole/ca/rv_pcca.hpp"
 #include "rv_pconsole/cd/rv_pccd.hpp"
+#include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cio/rv_pccio.hpp"
 #include "rv_pconsole/cl/rv_pccl.hpp"
 #include "rv_pconsole/cm/rv_pccm.hpp"
@@ -31,7 +32,7 @@ constexpr uint64_t RV_PCONSOLE_DEFAULT_TARGET_FPS = 60;
 constexpr auto RV_PCONSOLE_SHUTDOWN_DRAIN_TIMEOUT = std::chrono::milliseconds(50);
 
 // Composition root. This is the single place where the concrete
-// machine is assembled - the platform it is served by, the six controllers,
+// machine is assembled - the platform it is served by, the controllers,
 // and the geometry they were built from. Nothing below constructs a
 // subsystem: a controller receives what it needs and never reaches sideways
 // for it. There is no host: the console talks only to rv_pcplatform.
@@ -67,6 +68,8 @@ private:
     std::unique_ptr<rv_pccio> cio_;
     std::unique_ptr<rv_pccm> cm_;
     std::unique_ptr<rv_pccv> cv_;
+    // After cv_ so it dies first: a geometry frame puts its primitives into cv_.
+    std::unique_ptr<rv_pccg> cg_;
     std::unique_ptr<rv_pccd> cd_;
     std::unique_ptr<rv_pccl> cl_;
 
@@ -239,6 +242,7 @@ public:
     rv_cio *cio();
     rv_cm *cm();
     rv_cv *cv();
+    rv_cg *cg();
     rv_cl *cl();
 
     // The drive itself, console-side. rv_pdko::cd() hands a disc the CONTRACT's
@@ -260,7 +264,7 @@ public:
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
-    // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_ and cl_. A budget the
+    // existence? Covers every slot: ca_, cd_, cio_, cm_, cv_, cg_ and cl_. A budget the
     // boot budget check accepted can still fail to materialise in the constructor.
     // cl_ needs no special case: rv_pccl::valid() is true when scripting was never
     // asked for. RV_OK, or that controller's code after logging the first one that is
