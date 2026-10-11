@@ -32,7 +32,7 @@ CompileFlags:
 
 ---
 
-# pdklib (disc-side helpers) and pdk/tools (mppcburner, mppcbaker) stay C++.
+# pdklib (disc-side helpers) and pdk/tools (mppcburner, mppctexbaker, mppcmusbaker, mppcmodbaker) stay C++.
 If:
   PathMatch: pdk/(lib|tools)/.*
 
