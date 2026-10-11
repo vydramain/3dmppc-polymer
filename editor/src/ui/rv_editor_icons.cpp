@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <limits>
+#include <span>
 #include <string>
 
 #include <SDL3/SDL.h>
@@ -34,6 +36,21 @@ constexpr const char *rv_editor_icon_files[rv_editor_icon_count] = {
 
 rv_editor_icon rv_editor_icons[rv_editor_icon_count] = {};
 
+// Uploads decoded RGBA pixels; `source` names the image in the failure message.
+rv_editor_icon
+rv_editor_icon_texture(SDL_Renderer *renderer, const unsigned char *rgba, int w, int h, const std::string &source)
+{
+    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
+    if (texture == nullptr) {
+        std::fprintf(stderr, "3dmppc-editor: icon %s: %s\n", source.c_str(), SDL_GetError());
+        return {};
+    }
+    SDL_UpdateTexture(texture, nullptr, rgba, w * rgba_channels);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+    return { static_cast<ImTextureID>(reinterpret_cast<intptr_t>(texture)), w, h };
+}
+
 rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &path)
 {
     int w = 0;
@@ -45,17 +62,32 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
         return {};
     }
 
-    SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STATIC, w, h);
-    if (texture == nullptr) {
-        std::fprintf(stderr, "3dmppc-editor: icon %s: %s\n", path.c_str(), SDL_GetError());
-        stbi_image_free(rgba);
+    rv_editor_icon icon = rv_editor_icon_texture(renderer, rgba, w, h, path);
+    stbi_image_free(rgba);
+    return icon;
+}
+
+rv_editor_icon rv_editor_icon_load_png(SDL_Renderer *renderer, std::span<const uint8_t> png)
+{
+    constexpr const char *source = "embedded PNG";
+    if (png.size() > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        std::fprintf(stderr, "3dmppc-editor: icon %s: too large\n", source);
         return {};
     }
-    SDL_UpdateTexture(texture, nullptr, rgba, w * rgba_channels);
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
-    SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
+
+    int w = 0;
+    int h = 0;
+    int channels = 0;
+    const int size = static_cast<int>(png.size());
+    unsigned char *rgba = stbi_load_from_memory(png.data(), size, &w, &h, &channels, rgba_channels);
+    if (rgba == nullptr) {
+        std::fprintf(stderr, "3dmppc-editor: icon %s: %s\n", source, stbi_failure_reason());
+        return {};
+    }
+
+    rv_editor_icon icon = rv_editor_icon_texture(renderer, rgba, w, h, source);
     stbi_image_free(rgba);
-    return { static_cast<ImTextureID>(reinterpret_cast<intptr_t>(texture)), w, h };
+    return icon;
 }
 
 } // namespace
@@ -63,6 +95,11 @@ rv_editor_icon rv_editor_icon_load(SDL_Renderer *renderer, const std::string &pa
 rv_editor_icon rv_editor_image_load(SDL_Renderer *renderer, const std::string &path)
 {
     return rv_editor_icon_load(renderer, path);
+}
+
+rv_editor_icon rv_editor_image_load_png(SDL_Renderer *renderer, std::span<const uint8_t> png)
+{
+    return rv_editor_icon_load_png(renderer, png);
 }
 
 void rv_editor_icons_load(SDL_Renderer *renderer)

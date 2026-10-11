@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
 #include <string>
 
 #include "imgui.h"
@@ -38,6 +40,9 @@ rv_editor_icon rv_editor_icon_get(rv_editor_icon_name name);
 // Any PNG as a texture on `renderer`, drawn with nearest sampling (Assets' pictures);
 // an empty icon when it does not load. The caller keeps it for the session.
 rv_editor_icon rv_editor_image_load(SDL_Renderer *renderer, const std::string &path);
+
+// The same for a PNG held in memory (an image embedded in a .glb).
+rv_editor_icon rv_editor_image_load_png(SDL_Renderer *renderer, std::span<const uint8_t> png);
 
 // Whole-number size multiplier for the icons at a UI scale: they are drawn for
 // a 1x desktop, which is the editor's scale 1 (its 16 px font).
