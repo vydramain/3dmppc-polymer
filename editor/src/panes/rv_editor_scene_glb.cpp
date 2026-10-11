@@ -2,6 +2,8 @@
 
 #include "panes/rv_editor_scene_glb.hpp"
 
+#include <cstddef>
+#include <iterator>
 #include <string_view>
 #include <system_error>
 #include <unordered_map>
@@ -30,6 +32,24 @@ struct rv_editor_glb_entry {
 
 // Keyed by absolute path; file-local so no other translation unit can reach into it.
 std::unordered_map<std::string, rv_editor_glb_entry> rv_editor_glb_cache;
+
+// A .glb's triangles, flat: glTF's own coordinates (Y up, metres) and uv (top-left origin, so
+// no flip as .obj needs). Colour and texture parts are not drawn yet.
+std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model, const rv_editor_affine &m)
+{
+    std::vector<rv_editor_tri> tris;
+    tris.reserve(model.triangles.size());
+    for (const rv_pdklib::rv_mppcmod_triangle &t : model.triangles) {
+        rv_editor_tri tri;
+        for (std::size_t k = 0; k < std::size(tri.p); ++k) {
+            const rv_pdklib::rv_mppcmod_vertex &v = model.vertices[t.index[k]];
+            tri.p[k] = rv_editor_affine_point(m, { v.pos[0], v.pos[1], v.pos[2] });
+            tri.uv[k] = { v.uv[0], v.uv[1] };
+        }
+        tris.push_back(tri);
+    }
+    return tris;
+}
 
 } // namespace
 
@@ -101,6 +121,26 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
         return RV_ERR_INVAL;
     }
     found = walk.matches.front();
+    return RV_OK;
+}
+
+// A .glb named by its bare filename: resolved under [models] and read once per mtime. Returns the
+// code with the reason in `error`; the placeholder cube fallback is the caller's.
+int rv_editor_glb_object_triangles(const rv_editor_project &project,
+    const std::string &name,
+    const rv_editor_affine &m,
+    std::vector<rv_editor_tri> &tris,
+    std::string &error)
+{
+    std::filesystem::path path;
+    if (const int rc = rv_editor_glb_resolve_name(project, name, path, error); rc != RV_OK) {
+        return rc;
+    }
+    std::shared_ptr<const rv_editor_glb_model> glb;
+    if (const int rc = rv_editor_glb_load(path, glb, error); rc != RV_OK) {
+        return rc;
+    }
+    tris = rv_editor_glb_triangles(glb->model, m);
     return RV_OK;
 }
 

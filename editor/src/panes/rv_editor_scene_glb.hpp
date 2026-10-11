@@ -7,6 +7,7 @@
 
 #include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
+#include "panes/rv_editor_scene_draw.hpp"
 #include "project/rv_editor_project.hpp"
 
 namespace rv_editor
@@ -29,6 +30,15 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
 int rv_editor_glb_resolve_name(const rv_editor_project &project,
     const std::string &name,
     std::filesystem::path &found,
+    std::string &error);
+
+// The .glb under [models] named `name` as triangles in scene space through `m`, RV_OK with `tris`
+// written. Otherwise the code with the reason in `error`, and `tris` is left alone: the caller
+// falls back to the placeholder cube.
+int rv_editor_glb_object_triangles(const rv_editor_project &project,
+    const std::string &name,
+    const rv_editor_affine &m,
+    std::vector<rv_editor_tri> &tris,
     std::string &error);
 
 } // namespace rv_editor

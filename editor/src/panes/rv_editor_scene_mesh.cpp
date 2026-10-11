@@ -8,7 +8,6 @@
 #include <cmath>
 #include <fstream>
 #include <functional>
-#include <memory>
 #include <sstream>
 #include <unordered_map>
 
@@ -154,45 +153,6 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
     return tris;
 }
 
-// A .glb's triangles, flat: glTF's own coordinates (Y up, metres) and uv (top-left origin, so
-// no flip as .obj needs). Colour and texture parts are not drawn yet.
-std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model, const rv_editor_affine &m)
-{
-    std::vector<rv_editor_tri> tris;
-    tris.reserve(model.triangles.size());
-    for (const rv_pdklib::rv_mppcmod_triangle &t : model.triangles) {
-        rv_editor_tri tri;
-        for (int k = 0; k < tri_vertices; ++k) {
-            const rv_pdklib::rv_mppcmod_vertex &v = model.vertices[t.index[k]];
-            tri.p[k] = rv_editor_affine_point(m, { v.pos[0], v.pos[1], v.pos[2] });
-            tri.uv[k] = { v.uv[0], v.uv[1] };
-        }
-        tris.push_back(tri);
-    }
-    return tris;
-}
-
-// A .glb named by its bare filename: resolved under [models] and read once per mtime. Fails to
-// the placeholder cube with the reason in *error, as the .obj path does.
-std::vector<rv_editor_tri> rv_editor_glb_object_triangles(const rv_editor_project &project,
-    const std::string &name,
-    const rv_editor_affine &m,
-    std::string *error)
-{
-    std::filesystem::path path;
-    std::string reason;
-    if (rv_editor_glb_resolve_name(project, name, path, reason) != RV_OK) {
-        set_error(error, reason);
-        return rv_editor_cube_triangles(m);
-    }
-    std::shared_ptr<const rv_editor_glb_model> glb;
-    if (rv_editor_glb_load(path, glb, reason) != RV_OK) {
-        set_error(error, reason);
-        return rv_editor_cube_triangles(m);
-    }
-    return rv_editor_glb_triangles(glb->model, m);
-}
-
 // A disc asset name has no folders (rv_dmain_setup.cpp refuses one with a separator;
 // mppcburner names every [assets] entry by filename alone). So a mesh or texture name is
 // a bare filename, resolved by walking the tree for it under a manifest pattern, not
@@ -318,7 +278,13 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
         return rv_editor_cube_triangles(m);
     }
     if (o.mesh.ends_with(file_ext_glb)) {
-        return rv_editor_glb_object_triangles(project, o.mesh, m, error);
+        std::vector<rv_editor_tri> glb_tris;
+        std::string glb_error;
+        if (rv_editor_glb_object_triangles(project, o.mesh, m, glb_tris, glb_error) == RV_OK) {
+            return glb_tris;
+        }
+        set_error(error, glb_error);
+        return rv_editor_cube_triangles(m);
     }
     std::string resolve_error;
     const std::filesystem::path path = rv_editor_resolve_mesh_name(project, o.mesh, &resolve_error);
