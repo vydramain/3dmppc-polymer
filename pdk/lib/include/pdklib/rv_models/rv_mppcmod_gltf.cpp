@@ -1,10 +1,10 @@
-// mppcmodbaker: glTF 2.0 reading. cgltf is the one place that knows the glTF layout.
+// glTF 2.0 reading, compiled by mppcmodbaker. cgltf is the one place that knows the glTF layout.
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
-#include "rv_modbaker_gltf.hpp"
+#include "rv_mppcmod_gltf.hpp"
 
-#include "rv_modbaker_accessor.hpp"
+#include "rv_mppcmod_gltf_accessor.hpp"
 
 #include <algorithm>
 #include <array>
@@ -17,6 +17,9 @@
 
 #include "pdk/rv_err.h"
 
+namespace rv_pdklib
+{
+
 namespace
 {
 
@@ -28,39 +31,39 @@ using rv_pdklib::rv_mppcmod_vertex;
 using gltf_ptr = std::unique_ptr<cgltf_data, decltype(&cgltf_free)>;
 
 // glTF colours are 0..1; the container stores bytes 0..255.
-constexpr float RV_MODBAKER_COLOR_SCALE = 255.0f;
+constexpr float RV_MPPCMOD_GLTF_COLOR_SCALE = 255.0f;
 // The colour of a part or vertex that names none: white, so a texture shows as painted.
-constexpr std::array<uint8_t, 3> RV_MODBAKER_WHITE = { 255, 255, 255 };
+constexpr std::array<uint8_t, 3> RV_MPPCMOD_GLTF_WHITE = { 255, 255, 255 };
 // Components of a position and of a texture coordinate.
-constexpr size_t RV_MODBAKER_POS_LANES = 3;
-constexpr size_t RV_MODBAKER_UV_LANES = 2;
+constexpr size_t RV_MPPCMOD_GLTF_POS_LANES = 3;
+constexpr size_t RV_MPPCMOD_GLTF_UV_LANES = 2;
 // Corners of a triangle.
-constexpr size_t RV_MODBAKER_CORNERS = 3;
+constexpr size_t RV_MPPCMOD_GLTF_CORNERS = 3;
 // A closed mesh has about two triangles per vertex, so the tool caps a model at twice the
 // vertex limit. This is the tool's own bound, not the format's: a shared index buffer
 // repeated by many primitives would otherwise grow the model without limit.
-constexpr size_t RV_MODBAKER_MAX_TRIANGLES = 2 * static_cast<size_t>(rv_pdklib::rv_mppcmod_max_vertices);
+constexpr size_t RV_MPPCMOD_GLTF_MAX_TRIANGLES = 2 * static_cast<size_t>(rv_pdklib::rv_mppcmod_max_vertices);
 // glTF matrices are 4x4 and column-major; the last column holds the translation.
-constexpr size_t RV_MODBAKER_MATRIX_DIM = 4;
-constexpr size_t RV_MODBAKER_MATRIX_FLOATS = RV_MODBAKER_MATRIX_DIM * RV_MODBAKER_MATRIX_DIM;
-constexpr std::string_view RV_MODBAKER_MIME_PNG = "image/png";
-constexpr std::string_view RV_MODBAKER_MIME_JPEG = "image/jpeg";
-constexpr std::string_view RV_MODBAKER_TEXTURE_EXT = ".mppctex";
+constexpr size_t RV_MPPCMOD_GLTF_MATRIX_DIM = 4;
+constexpr size_t RV_MPPCMOD_GLTF_MATRIX_FLOATS = RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_MATRIX_DIM;
+constexpr std::string_view RV_MPPCMOD_GLTF_MIME_PNG = "image/png";
+constexpr std::string_view RV_MPPCMOD_GLTF_MIME_JPEG = "image/jpeg";
+constexpr std::string_view RV_MPPCMOD_GLTF_TEXTURE_EXT = ".mppctex";
 // A data: URI is embedded in the file, so it is not an external buffer.
-constexpr std::string_view RV_MODBAKER_DATA_URI = "data:";
+constexpr std::string_view RV_MPPCMOD_GLTF_DATA_URI = "data:";
 
 // What the walk over the scene carries from one primitive to the next.
 struct flatten_state {
     const cgltf_data *data = nullptr;
     std::string stem;
     rv_mppcmod *model = nullptr;
-    std::vector<rv_modbaker_image> *images = nullptr;
+    std::vector<rv_mppcmod_gltf_image> *images = nullptr;
     std::vector<bool> image_seen;
 };
 
 uint8_t to_channel(float v)
 {
-    return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * RV_MODBAKER_COLOR_SCALE));
+    return static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * RV_MPPCMOD_GLTF_COLOR_SCALE));
 }
 
 std::array<uint8_t, 3> to_rgb(const float *c)
@@ -71,7 +74,7 @@ std::array<uint8_t, 3> to_rgb(const float *c)
 std::array<uint8_t, 3> base_color(const cgltf_material *material)
 {
     if (material == nullptr || !material->has_pbr_metallic_roughness) {
-        return RV_MODBAKER_WHITE;
+        return RV_MPPCMOD_GLTF_WHITE;
     }
     return to_rgb(material->pbr_metallic_roughness.base_color_factor);
 }
@@ -90,16 +93,16 @@ const cgltf_accessor *find_attribute(const cgltf_primitive &prim, cgltf_attribut
 // A buffer that is not embedded in the file: cgltf would read a file beside the model.
 bool is_external_uri(const char *uri)
 {
-    return uri != nullptr && std::string_view(uri).substr(0, RV_MODBAKER_DATA_URI.size()) != RV_MODBAKER_DATA_URI;
+    return uri != nullptr && std::string_view(uri).substr(0, RV_MPPCMOD_GLTF_DATA_URI.size()) != RV_MPPCMOD_GLTF_DATA_URI;
 }
 
 // out = M * (p, 1) for the column-major matrix M.
 void transform_point(const float *m, const float *p, float *out)
 {
-    for (size_t row = 0; row < RV_MODBAKER_POS_LANES; ++row) {
-        float sum = m[RV_MODBAKER_MATRIX_DIM * RV_MODBAKER_POS_LANES + row];
-        for (size_t col = 0; col < RV_MODBAKER_POS_LANES; ++col) {
-            sum += m[RV_MODBAKER_MATRIX_DIM * col + row] * p[col];
+    for (size_t row = 0; row < RV_MPPCMOD_GLTF_POS_LANES; ++row) {
+        float sum = m[RV_MPPCMOD_GLTF_MATRIX_DIM * RV_MPPCMOD_GLTF_POS_LANES + row];
+        for (size_t col = 0; col < RV_MPPCMOD_GLTF_POS_LANES; ++col) {
+            sum += m[RV_MPPCMOD_GLTF_MATRIX_DIM * col + row] * p[col];
         }
         out[row] = sum;
     }
@@ -123,7 +126,7 @@ int read_vertices(const cgltf_primitive &prim,
         error = where + " has no POSITION of type VEC3";
         return RV_ERR_INVAL;
     }
-    const int bound = rv_modbaker_check_accessor(*pos_acc, where, "POSITION", error);
+    const int bound = detail::check_accessor(*pos_acc, where, "POSITION", error);
     if (bound != RV_OK) {
         return bound;
     }
@@ -133,7 +136,7 @@ int read_vertices(const cgltf_primitive &prim,
     }
     const size_t count = pos_acc->count;
     std::vector<float> pos;
-    int rc = rv_modbaker_read_attribute(*pos_acc, count, where, "POSITION", pos, error);
+    int rc = detail::read_attribute(*pos_acc, count, where, "POSITION", pos, error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -151,12 +154,12 @@ int read_vertices(const cgltf_primitive &prim,
         return RV_ERR_INVAL;
     }
     std::vector<float> uv;
-    rc = rv_modbaker_read_optional(uv_acc, count, where, "TEXCOORD_0", uv, error);
+    rc = detail::read_optional(uv_acc, count, where, "TEXCOORD_0", uv, error);
     if (rc != RV_OK) {
         return rc;
     }
     std::vector<float> color;
-    rc = rv_modbaker_read_optional(color_acc, count, where, "COLOR_0", color, error);
+    rc = detail::read_optional(color_acc, count, where, "COLOR_0", color, error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -165,13 +168,13 @@ int read_vertices(const cgltf_primitive &prim,
     const bool has_color = color_acc != nullptr;
     const size_t color_lanes = has_color ? cgltf_num_components(color_acc->type) : 0;
     rv_mppcmod_vertex blank;
-    blank.color = RV_MODBAKER_WHITE;
+    blank.color = RV_MPPCMOD_GLTF_WHITE;
     out.assign(count, blank);
     for (size_t i = 0; i < count; ++i) {
         rv_mppcmod_vertex &vertex = out[i];
-        transform_point(world, &pos[i * RV_MODBAKER_POS_LANES], vertex.pos.data());
+        transform_point(world, &pos[i * RV_MPPCMOD_GLTF_POS_LANES], vertex.pos.data());
         if (has_uv) {
-            vertex.uv = { uv[i * RV_MODBAKER_UV_LANES], uv[i * RV_MODBAKER_UV_LANES + 1] };
+            vertex.uv = { uv[i * RV_MPPCMOD_GLTF_UV_LANES], uv[i * RV_MPPCMOD_GLTF_UV_LANES + 1] };
         }
         if (has_color) {
             vertex.color = to_rgb(&color[i * color_lanes]);
@@ -183,7 +186,7 @@ int read_vertices(const cgltf_primitive &prim,
 // The name of an image's kind in a message: JPEG is named, a missing type is said so.
 std::string image_kind(std::string_view mime)
 {
-    if (mime == RV_MODBAKER_MIME_JPEG) {
+    if (mime == RV_MPPCMOD_GLTF_MIME_JPEG) {
         return "JPEG";
     }
     return mime.empty() ? "no MIME type" : std::string(mime);
@@ -225,7 +228,7 @@ int bake_texture(flatten_state &st,
         return RV_ERR_INVAL;
     }
     const std::string_view mime = image->mime_type != nullptr ? std::string_view(image->mime_type) : std::string_view();
-    if (mime != RV_MODBAKER_MIME_PNG) {
+    if (mime != RV_MPPCMOD_GLTF_MIME_PNG) {
         error = image_where + " is " + image_kind(mime) +
             ", not PNG; the baker reads PNG only, so export the model with PNG textures";
         return RV_ERR_INVAL;
@@ -238,13 +241,13 @@ int bake_texture(flatten_state &st,
             error = image_where + " has no data";
             return RV_ERR_INVAL;
         }
-        rv_modbaker_image out;
+        rv_mppcmod_gltf_image out;
         out.name = name;
         out.png.assign(src, src + image->buffer_view->size);
         st.images->push_back(std::move(out));
         st.image_seen[index] = true;
     }
-    texture = name + std::string(RV_MODBAKER_TEXTURE_EXT);
+    texture = name + std::string(RV_MPPCMOD_GLTF_TEXTURE_EXT);
     return RV_OK;
 }
 
@@ -269,14 +272,14 @@ int append_primitive(flatten_state &st,
         return rc;
     }
     std::vector<uint32_t> corners;
-    rc = rv_modbaker_read_corners(prim, vertices.size(), where, corners, error);
+    rc = detail::read_corners(prim, vertices.size(), where, corners, error);
     if (rc != RV_OK) {
         return rc;
     }
-    const size_t total_triangles = st.model->triangles.size() + corners.size() / RV_MODBAKER_CORNERS;
-    if (total_triangles > RV_MODBAKER_MAX_TRIANGLES) {
+    const size_t total_triangles = st.model->triangles.size() + corners.size() / RV_MPPCMOD_GLTF_CORNERS;
+    if (total_triangles > RV_MPPCMOD_GLTF_MAX_TRIANGLES) {
         error = "has " + std::to_string(total_triangles) + " triangles, more than the " +
-            std::to_string(RV_MODBAKER_MAX_TRIANGLES) + " this tool bakes";
+            std::to_string(RV_MPPCMOD_GLTF_MAX_TRIANGLES) + " this tool bakes";
         return RV_ERR_INVAL;
     }
     const size_t total_vertices = st.model->vertices.size() + vertices.size();
@@ -296,7 +299,7 @@ int append_primitive(flatten_state &st,
     }
     part.color = base_color(prim.material);
     part.first_tri = static_cast<uint32_t>(st.model->triangles.size());
-    part.tri_count = static_cast<uint32_t>(corners.size() / RV_MODBAKER_CORNERS);
+    part.tri_count = static_cast<uint32_t>(corners.size() / RV_MPPCMOD_GLTF_CORNERS);
 
     // A mirrored node reverses the winding: glTF front faces are counter-clockwise, and the
     // console culls back faces, so corners 1 and 2 swap to keep the faces the author drew.
@@ -307,7 +310,7 @@ int append_primitive(flatten_state &st,
     // Indices are local to the primitive; shift them past the vertices already in the model.
     const size_t base = st.model->vertices.size();
     st.model->vertices.insert(st.model->vertices.end(), vertices.begin(), vertices.end());
-    for (size_t c = 0; c < corners.size(); c += RV_MODBAKER_CORNERS) {
+    for (size_t c = 0; c < corners.size(); c += RV_MPPCMOD_GLTF_CORNERS) {
         rv_mppcmod_triangle tri;
         tri.index = { static_cast<uint16_t>(base + corners[c]),
             static_cast<uint16_t>(base + corners[c + first]),
@@ -389,7 +392,7 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
             continue;
         }
         const size_t n = static_cast<size_t>(node - raw->nodes);
-        float world[RV_MODBAKER_MATRIX_FLOATS];
+        float world[RV_MPPCMOD_GLTF_MATRIX_FLOATS];
         cgltf_node_transform_world(node, world);
         for (size_t p = 0; p < node->mesh->primitives_count; ++p) {
             const std::string where = "node " + std::to_string(n) + ", primitive " + std::to_string(p);
@@ -408,10 +411,10 @@ int read_gltf(const std::string &path, flatten_state &st, std::string &error)
 
 } // namespace
 
-int rv_modbaker_read_gltf(const std::string &path,
+int rv_mppcmod_read_gltf(const std::string &path,
     const std::string &stem,
     rv_mppcmod &model,
-    std::vector<rv_modbaker_image> &images,
+    std::vector<rv_mppcmod_gltf_image> &images,
     std::string &error)
 {
     model = rv_mppcmod{};
@@ -427,3 +430,5 @@ int rv_modbaker_read_gltf(const std::string &path,
     }
     return RV_OK;
 }
+
+} // namespace rv_pdklib

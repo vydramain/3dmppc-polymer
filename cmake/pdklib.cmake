@@ -23,6 +23,8 @@ target_include_directories(3dmppc_pdk INTERFACE ${RV_REPO_ROOT}/pdk/include)
 file(GLOB_RECURSE 3DMPPC_PDKLIB_SOURCES CONFIGURE_DEPENDS
   ${RV_REPO_ROOT}/pdk/lib/include/pdklib/*.cpp
 )
+# The glTF reader needs cgltf, which the console does not have: mppcmodbaker compiles it itself.
+list(FILTER 3DMPPC_PDKLIB_SOURCES EXCLUDE REGEX "/rv_models/rv_mppcmod_gltf")
 add_library(3dmppc_pdklib STATIC ${3DMPPC_PDKLIB_SOURCES})
 target_include_directories(3dmppc_pdklib PUBLIC ${RV_REPO_ROOT}/pdk/lib/include)
 target_link_libraries(3dmppc_pdklib PUBLIC 3dmppc_pdk)

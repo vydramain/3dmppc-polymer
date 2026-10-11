@@ -1,5 +1,5 @@
-// mppcmodbaker: glTF accessor reading. Every size is checked against the bytes the file holds.
-#include "rv_modbaker_accessor.hpp"
+// glTF accessor reading, compiled by mppcmodbaker. Every size is checked against the bytes the file holds.
+#include "rv_mppcmod_gltf_accessor.hpp"
 
 #include "cgltf.h"
 
@@ -10,16 +10,19 @@
 
 #include "pdk/rv_err.h"
 
+namespace rv_pdklib::detail
+{
+
 namespace
 {
 
 // Corners of a triangle.
-constexpr size_t RV_MODBAKER_CORNERS = 3;
+constexpr size_t RV_MPPCMOD_GLTF_CORNERS = 3;
 
 // Corners must form whole triangles and name vertices of their own primitive.
 int check_corners(const std::vector<uint32_t> &corners, size_t vertex_count, const std::string &where, std::string &error)
 {
-    if (corners.size() % RV_MODBAKER_CORNERS != 0) {
+    if (corners.size() % RV_MPPCMOD_GLTF_CORNERS != 0) {
         error = where + " has " + std::to_string(corners.size()) + " indices, not a multiple of 3";
         return RV_ERR_INVAL;
     }
@@ -61,7 +64,7 @@ int read_indices(const cgltf_accessor &acc,
     std::vector<uint32_t> &out,
     std::string &error)
 {
-    const int rc = rv_modbaker_check_accessor(acc, where, "indices", error);
+    const int rc = check_accessor(acc, where, "indices", error);
     if (rc != RV_OK) {
         return rc;
     }
@@ -84,7 +87,7 @@ int read_indices(const cgltf_accessor &acc,
 
 } // namespace
 
-int rv_modbaker_check_accessor(const cgltf_accessor &acc, const std::string &where, const char *name, std::string &error)
+int check_accessor(const cgltf_accessor &acc, const std::string &where, const char *name, std::string &error)
 {
     if (acc.buffer_view == nullptr) {
         error = where + " " + name + " has no data";
@@ -93,21 +96,21 @@ int rv_modbaker_check_accessor(const cgltf_accessor &acc, const std::string &whe
     return RV_OK;
 }
 
-int rv_modbaker_read_attribute(const cgltf_accessor &acc,
+int read_attribute(const cgltf_accessor &acc,
     size_t count,
     const std::string &where,
     const char *name,
     std::vector<float> &out,
     std::string &error)
 {
-    const int rc = rv_modbaker_check_accessor(acc, where, name, error);
+    const int rc = check_accessor(acc, where, name, error);
     if (rc != RV_OK) {
         return rc;
     }
     return unpack(acc, count, where, name, out, error);
 }
 
-int rv_modbaker_read_optional(const cgltf_accessor *acc,
+int read_optional(const cgltf_accessor *acc,
     size_t count,
     const std::string &where,
     const char *name,
@@ -117,10 +120,10 @@ int rv_modbaker_read_optional(const cgltf_accessor *acc,
     if (acc == nullptr) {
         return RV_OK;
     }
-    return rv_modbaker_read_attribute(*acc, count, where, name, out, error);
+    return read_attribute(*acc, count, where, name, out, error);
 }
 
-int rv_modbaker_read_corners(const cgltf_primitive &prim,
+int read_corners(const cgltf_primitive &prim,
     size_t vertex_count,
     const std::string &where,
     std::vector<uint32_t> &out,
@@ -133,3 +136,5 @@ int rv_modbaker_read_corners(const cgltf_primitive &prim,
     std::iota(out.begin(), out.end(), uint32_t{ 0 });
     return check_corners(out, vertex_count, where, error);
 }
+
+} // namespace rv_pdklib::detail

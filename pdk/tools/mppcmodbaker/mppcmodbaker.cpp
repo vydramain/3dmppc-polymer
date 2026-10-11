@@ -12,8 +12,8 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
-#include "rv_modbaker_gltf.hpp"
 
 namespace
 {
@@ -135,10 +135,10 @@ std::string output_stem(const std::string &output)
 }
 
 // Each embedded PNG beside the output: <output directory>/<name>.png.
-int write_pngs(const std::string &output, const std::vector<rv_modbaker_image> &images, modbaker_error &error)
+int write_pngs(const std::string &output, const std::vector<rv_pdklib::rv_mppcmod_gltf_image> &images, modbaker_error &error)
 {
     const std::filesystem::path dir = std::filesystem::path(output).parent_path();
-    for (const rv_modbaker_image &image : images) {
+    for (const rv_pdklib::rv_mppcmod_gltf_image &image : images) {
         const std::string path = (dir / (image.name + std::string(RV_MODBAKER_PNG_EXT))).string();
         const int rc = write_file(path, image.png, error);
         if (rc != RV_OK) {
@@ -168,9 +168,9 @@ int run(int argc, char **argv)
     }
 
     rv_pdklib::rv_mppcmod model;
-    std::vector<rv_modbaker_image> images;
+    std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
     std::string bake_error;
-    if (rv_modbaker_read_gltf(args.input, stem, model, images, bake_error) != RV_OK) {
+    if (rv_pdklib::rv_mppcmod_read_gltf(args.input, stem, model, images, bake_error) != RV_OK) {
         error.message = bake_error;
         return report(error);
     }

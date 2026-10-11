@@ -1,7 +1,10 @@
 # mppcmodbaker BAKES a model: glTF 2.0 (.glb) in, .mppcmod and its PNG textures out.
-# The glTF reader is rv_modbaker_gltf.cpp in this directory; cgltf is vendored in third_party/cgltf.
+# The glTF reader is pdklib's rv_models/rv_mppcmod_gltf*.cpp, which cmake/pdklib.cmake keeps out of
+# 3dmppc_pdklib; cgltf is vendored in third_party/cgltf.
 
-add_executable(mppcmodbaker mppcmodbaker.cpp rv_modbaker_gltf.cpp rv_modbaker_accessor.cpp)
+add_executable(mppcmodbaker mppcmodbaker.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
 
 # SYSTEM: cgltf.h is third-party and not warning-clean under -Wextra; the diagnostics
 # of our own code stay standing.
