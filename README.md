@@ -28,8 +28,7 @@ cmake -S . -B build -G Ninja && cmake --build build
 cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 # 3. burn the sample game into a disc
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp -o build/example-cpp.mppcdisc \
-    --baker pdk/tools/build/mppcbaker/mppcbaker
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp -o build/example-cpp.mppcdisc
 
 # 4. run it
 ./build/pconsole/3dmppc build/example-cpp.mppcdisc
@@ -104,12 +103,14 @@ see below.
 | Build | Command | What lands in `pconsole/` |
 | --- | --- | --- |
 | player | `cmake -S . -B build -G Ninja && cmake --build build` | `3dmppc` |
-| development kit | `cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev` | `3dmppc` (development), `mppcbaker`, `mppcburner`, `3dmppc-editor` |
+| development kit | `cmake -S . -B build-dev -G Ninja -D3DMPPC_DEVTOOLS=ON && cmake --build build-dev` | `3dmppc` (development), `mppctexbaker`, `mppcmusbaker`, `mppcmodbaker`, `mppcburner`, `3dmppc-editor` |
 
 ```
 build-dev/pconsole/
     3dmppc          the development console: --dev, loose disc directories, reload
-    mppcbaker       bakes a PNG into a console texture
+    mppctexbaker    bakes a PNG into a console texture (.mppctex)
+    mppcmusbaker    bakes a WAV into console sound (.pcm)
+    mppcmodbaker    bakes a glTF 2.0 .glb model into a .mppcmod and its PNG textures
     mppcburner      compiles a disc directory and burns a .mppcdisc
     3dmppc-editor   the editor
 ```
@@ -316,7 +317,7 @@ still has to be an entry on whatever is mounted.
 
 ```sh
 build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
-    --baker build-dev/pconsole/mppcbaker
+    --baker build-dev/pconsole
 build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
 ```
 
@@ -540,11 +541,20 @@ format = "idx8"
 
 [sounds]
 files = ["assets/*.wav"]
+
+[models]
+files = ["models/*.glb"]
 ```
 
 `[sounds]` is optional, like `[textures]`: each listed WAV is baked by
-`mppcbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
-44100 Hz samples - and put on the disc beside the textures.
+`mppcmusbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
+44100 Hz samples - and put on the disc beside the textures. The WAV must already
+be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
+else is refused, not resampled.
+
+`[models]` is optional the same way: each listed `.glb` (glTF 2.0) is baked by
+`mppcmodbaker` into a `<name>.mppcmod`; its embedded PNG textures are baked
+into `<stem>-<n>.mppctex` in the same texture directory as `[textures]`.
 
 `[scripts]` belongs to a Lua disc and `[build]` to a C++ one; a disc may carry
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
@@ -611,7 +621,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`pdk/README.md`](pdk/README.md) | the contract: the facade, the five controllers, why the boundary is where it is |
 | [`pdklib/README.md`](pdk/lib/README.md) | the disc-side helpers: matrices, camera, transform, `.obj`, text |
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
-| [`pdk/tools/mppcbaker/README.md`](pdk/tools/mppcbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
+| [`pdk/tools/mppctexbaker/README.md`](pdk/tools/mppctexbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
 | [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
 | [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
