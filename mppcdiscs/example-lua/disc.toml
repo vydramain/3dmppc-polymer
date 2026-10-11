@@ -9,14 +9,11 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-# .pcm is copied verbatim: raw PCM is read straight off the disc and made
-# resident through RV_CD_RESOURCE_AUDIO - there is no baker and no container
-# for raw PCM, so unlike [textures] below there is nothing to bake it into.
 # The scene is copied verbatim, as in example-cpp.
-files = ["assets/*.pcm", "scenes/*.scene.toml"]
+files = ["scenes/*.scene.toml"]
 
 [textures]
-files = ["assets/*.png", "assets/tex/*.png"]
+files = ["assets/tex/*.png"]
 format = "idx8"
 
 [sounds]
@@ -50,13 +47,9 @@ card_slots = 16
 card_slot_size = 8192
 
 [budget.pccl]
-# 256 KiB. The whole script is one module table with a handful of tiny
-# closures and a few numeric locals - LuaJIT's own bootstrap (the base,
-# string, math and table libraries opened by rv_pccl) plus that module easily
-# fit in a few tens of KiB. 262144 leaves comfortable headroom over what this
-# example could ever allocate without reserving memory nobody here needs; same
-# order of magnitude as [budget.pcca] sound_memory_size above, for the same
-# reason - honest for what this disc actually does, not a guess at a "real"
-# budget.
+# 256 KiB for the whole VM: LuaJIT's bootstrap (base, string, math and table
+# libraries) plus this chunk and its state. The state holds the scene copied
+# into plain tables - 9 meshes with 16 world numbers each, and 18 cam_NN keys -
+# a few KiB at most.
 script_memory_size = 262144
 script_entry = "example-lua.luac"
