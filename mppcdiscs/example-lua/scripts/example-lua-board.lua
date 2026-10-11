@@ -20,6 +20,7 @@ local TEXT = {
     "glyph_5.mppcmod",
 }
 local CELL_COUNT = 11
+M.CELL_COUNT = CELL_COUNT
 -- Cell pitch along the panel, metres; the text is centred on the panel.
 local CELL_WIDTH = 0.24
 -- Forward offsets from the panel along its normal, metres: the halo and the letter stand off it.

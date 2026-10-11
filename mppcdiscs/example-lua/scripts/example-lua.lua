@@ -141,6 +141,9 @@ end
 function M.disc_initialize(o_)
     state.frame_count = 0
     state.logged_errors = {}
+    -- The last frame the sound played for (-1: none yet) and its area (0 = workshop).
+    state.sound_frame = -1
+    state.sound_area = 0
     local mathx = require("example-lua-math")
     local scene, reason = scene_read(pdk.cd(o_), mathx)
     state.meshes = scene.meshes
@@ -175,6 +178,12 @@ function M.frame_render(o_)
     end
 
     local mathx = require("example-lua-math")
+    local at = state.frame_count % mathx.PERIOD_FRAMES
+    -- The sound first, as in example-cpp's frame_render: the music and the clack, then the picture.
+    local sound_code = require("example-lua-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
+    if sound_code < 0 then
+        log_error_once("sound", sound_code)
+    end
     local eye, target = mathx.camera_of(state.keys, state.frame_count)
     local camera = pdk.new("rv_cg_camera")
     camera.eye.x, camera.eye.y, camera.eye.z = eye.x, eye.y, eye.z
@@ -198,7 +207,6 @@ function M.frame_render(o_)
             log_error_once(mesh.model, code)
         end
     end
-    local at = state.frame_count % mathx.PERIOD_FRAMES
     local lamps_code = require("example-lua-lamps").draw(cg, cd, state.lamps, at)
     if lamps_code < 0 then
         log_error_once("lamps", lamps_code)

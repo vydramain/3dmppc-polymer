@@ -50,10 +50,10 @@ card_slot_size = 8192
 # 512 KiB for the whole VM. The state holds the scene copied into plain tables:
 # the meshes, the cam_NN keys, the lamps and the board's world. The modules and
 # the per-frame garbage of cdata (rv_cg_put, int64 returns) are left to the
-# ordinary collector. Measured with the dev channel's status (lua_used, bytes): 259312
-# after disc_initialize, when the lamp schedule's garbage is not yet collected;
-# 148555-291043 over the frames (min and max of 122 readings), as the collector runs;
-# 176738 after a reload.
-# 256 KiB (262144 bytes) was too little: the largest reading over the frames is 291043.
+# ordinary collector. Measured with the dev channel's status (lua_used, bytes, with the
+# sound module): 262548 after disc_initialize, when the lamp schedule's garbage is not yet
+# collected; 164803-300692 over the frames (min and max of 122 readings), as the collector
+# runs; 222393 after a reload.
+# 256 KiB (262144 bytes) was too little: the largest reading over the frames is 300692.
 script_memory_size = 524288
 script_entry = "example-lua.luac"
