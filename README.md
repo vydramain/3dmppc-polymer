@@ -279,7 +279,7 @@ lowercase hex, which is why the protocol needs no escaping rules at all.
 | `reload entry bytes <n>` | the next `n` bytes are the candidate script |
 | `reload module <name>` | re-read the module `require("<name>")` loaded off the drive and update it in place (directory medium only) |
 | `reload module <name> bytes <n>` | the next `n` bytes are the new version of that module |
-| `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND) is refused with `unsupported_kind` (directory medium only) |
+| `asset <name>` | refresh the named asset in place, by the kind it is resident as: a texture answers `resident=1` with the new `width=`/`height=`; `resident=0` when nothing holds it resident and there is nothing to refresh; a kind the drive cannot refresh (a SOUND or a SCENE) is refused with `unsupported_kind` (directory medium only) |
 | `asset <name> bytes <n>` | the next `n` bytes are the new content of `<name>` - a baked `.mppctex` for a texture; same answers as `asset <name>`, and works on any medium. Bytes that are not a valid texture are refused with `asset`, and the last good copy stays resident |
 | `get <key> [<key> ...]` | read the value at a path into the persistent state table, one key per level; a table answers with its `count=` |
 | `keys [<key> ...]` | list the keys of the table at a path - no path lists the state table itself - with their value types |
@@ -430,6 +430,7 @@ reshaping at all.
 | a Lua module | no - `reload module <name>` | the client, by asking; every file that required it sees the new code |
 | an existing texture's bytes | no — `asset <name>` or `asset <name> bytes <n>` | the client, by asking or by sending the new bytes; the drive refreshes it |
 | an existing sound's bytes | **yes**, once it is resident | the client: `asset` on it answers `err unsupported_kind`. A voice is already reading that block, and moving the bytes under its read head is not something the drive can undo |
+| an existing scene's objects | **yes**, once the disc has read it | the client: `asset` on it answers `err unsupported_kind`. The drive reads a scene once and serves its objects from that cache |
 | an asset added | no | the code that asks for it: the drive looks a name up when it is opened, so reloaded code can acquire it |
 | an asset removed | no | a resident texture keeps its last good copy and `asset` on it answers `err asset`; a new open or acquire gets `RV_ERR_NOENT` |
 | `disc.so`, any C++ change | **yes** | the client, comparing `disc_hash` against its own fresh build |
