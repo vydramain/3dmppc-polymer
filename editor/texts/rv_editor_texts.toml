@@ -934,6 +934,7 @@ model_not_found = "{} not found"
 model_has_folder = "{} has a folder in it; a disc model name is a bare filename"
 model_no_file = "{}: no [models] file by that name"
 model_ambiguous = "{}: more than one [models] file by that name, {} and {}"
+mesh_not_glb = "{}: only .glb meshes are supported"
 walk_failed = "{}: cannot walk the project: {} (error {})"
 
 [pane_terminal]

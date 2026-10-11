@@ -15,6 +15,7 @@
 #include "panes/rv_editor_scene_glb.hpp"
 #include "panes/rv_editor_walk.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
+#include "text/rv_editor_text.hpp"
 
 namespace rv_editor
 {
@@ -145,7 +146,7 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
         return rv_editor_cube_triangles(m);
     }
     if (!o.mesh.ends_with(file_ext_glb)) {
-        set_error(error, o.mesh + ": only .glb meshes are supported");
+        set_error(error, rv_editor_text_format("project.mesh_not_glb", std::make_format_args(o.mesh)));
         return rv_editor_cube_triangles(m);
     }
     std::vector<rv_editor_tri> glb_tris;
