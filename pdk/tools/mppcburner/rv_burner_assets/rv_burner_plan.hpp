@@ -27,15 +27,17 @@ namespace rv_pdktools
 struct archive_plan {
     std::vector<archive_item> items; ///< every entry, in archive order
 
-    std::size_t asset_count = 0;   ///< copied verbatim; they lead the vector
-    std::size_t first_texture = 0; ///< index of the first texture entry
-    std::size_t texture_count = 0; ///< how many texture entries follow it
-    std::size_t first_script = 0;  ///< index of the first script entry
-    std::size_t script_count = 0;  ///< how many script entries follow it
-    std::size_t first_sound = 0;   ///< index of the first sound entry
-    std::size_t sound_count = 0;   ///< how many sound entries follow it
-    std::size_t first_model = 0;   ///< index of the first model entry
-    std::size_t model_count = 0;   ///< how many model entries follow it
+    std::size_t asset_count = 0;         ///< copied verbatim; they lead the vector
+    std::size_t first_texture = 0;       ///< index of the first texture entry
+    std::size_t texture_count = 0;       ///< how many texture entries follow it
+    std::size_t first_script = 0;        ///< index of the first script entry
+    std::size_t script_count = 0;        ///< how many script entries follow it
+    std::size_t first_sound = 0;         ///< index of the first sound entry
+    std::size_t sound_count = 0;         ///< how many sound entries follow it
+    std::size_t first_model = 0;         ///< index of the first model entry
+    std::size_t model_count = 0;         ///< how many model entries follow it
+    std::size_t first_model_texture = 0; ///< index of the first texture a model names
+    std::size_t model_texture_count = 0; ///< how many model texture entries follow it
 };
 
 /// Plan every archive entry the manifest asks for, and refuse a plan whose flat

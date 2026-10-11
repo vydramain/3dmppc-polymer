@@ -19,9 +19,7 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-// The program each kind of asset is baked by. Named once so the lookup and the
-// error text cannot disagree about which program ran.
-static constexpr const char *k_texture_baker = "mppctexbaker";
+// The sound baker's program name; the texture baker's is in rv_burner_baker_path.hpp.
 static constexpr const char *k_sound_baker = "mppcmusbaker";
 
 // S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
@@ -85,6 +83,49 @@ static int check_pcm_size(const fs::path &path, std::string &error)
 
 } // namespace rv_pdktools
 
+int rv_pdktools::bake_one_texture(const std::string &baker,
+    const fs::path &source,
+    const fs::path &payload,
+    const rv_pdklib::rv_manifest &manifest,
+    const std::string &label,
+    std::string &error)
+{
+    // The accepted --format spellings are the rows of rv_texfmt_names and are not restated here.
+    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
+    const std::string texfmt_text = texfmt != nullptr ? texfmt->text : "";
+
+    // --- run mppctexbaker ---
+
+    const std::string command = shell_quote(baker) + " " + shell_quote(source.string()) + " " + shell_quote(payload.string()) +
+        " --format " + texfmt_text;
+
+    std::string child_output;
+    const int status = run_capture(command, child_output);
+    if (status != 0) {
+        dump_child_output(child_output);
+        error = std::string(k_texture_baker) + " failed on '" + label + "' (exit " + std::to_string(status) + ")";
+        return RV_ERR_IO;
+    }
+
+    // --- read back what it produced ---
+
+    rv_pdklib::rv_mppctex_header header;
+    const int read_err = read_mppctex_header(payload, header, error);
+    if (read_err != RV_OK) {
+        return read_err;
+    }
+
+    // --- one texture against the machine's limits ---
+
+    if (header.width > manifest.budget.pccv.texture_max_width || header.height > manifest.budget.pccv.texture_max_height) {
+        error = "texture '" + label + "' is " + std::to_string(header.width) + "x" + std::to_string(header.height) +
+            ", over the budget of " + std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
+            std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
 int rv_pdktools::bake_textures(const std::string &baker_hint,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
@@ -98,43 +139,11 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
         return baker_err;
     }
 
-    // One format for the whole manifest, so the --format spelling passed to the baker is
-    // looked up once rather than per texture. The accepted spellings are the
-    // rows of rv_texfmt_names and are not restated in this tool.
-    const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
-    const std::string texfmt_text = texfmt != nullptr ? texfmt->text : "";
-
     for (std::size_t i = plan.first_texture; i < plan.first_texture + plan.texture_count; ++i) {
         const archive_item &item = plan.items[i];
-
-        // --- run mppctexbaker ---
-
-        const std::string command = shell_quote(baker) + " " + shell_quote((disc_dir / item.source).string()) + " " +
-            shell_quote(item.payload) + " --format " + texfmt_text;
-
-        std::string child_output;
-        const int status = run_capture(command, child_output);
-        if (status != 0) {
-            dump_child_output(child_output);
-            error = std::string(k_texture_baker) + " failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
-            return RV_ERR_IO;
-        }
-
-        // --- read back what it produced ---
-
-        rv_pdklib::rv_mppctex_header header;
-        const int read_err = read_mppctex_header(item.payload, header, error);
-        if (read_err != RV_OK) {
-            return read_err;
-        }
-
-        // --- one texture against the machine's limits ---
-
-        if (header.width > manifest.budget.pccv.texture_max_width || header.height > manifest.budget.pccv.texture_max_height) {
-            error = "texture '" + item.source + "' is " + std::to_string(header.width) + "x" + std::to_string(header.height) +
-                ", over the budget of " + std::to_string(manifest.budget.pccv.texture_max_width) + "x" +
-                std::to_string(manifest.budget.pccv.texture_max_height) + " declared in [budget]";
-            return RV_ERR_INVAL;
+        const int bake_err = bake_one_texture(baker, disc_dir / item.source, item.payload, manifest, item.source, error);
+        if (bake_err != RV_OK) {
+            return bake_err;
         }
     }
 

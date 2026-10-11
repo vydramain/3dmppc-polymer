@@ -5,6 +5,9 @@
 namespace rv_pdktools
 {
 
+// The texture baker's program name. Named once so the lookup and the error text cannot disagree.
+inline constexpr const char *k_texture_baker = "mppctexbaker";
+
 // --- finding the bakers ---
 //
 // A baker (mppctexbaker for textures, mppcmusbaker for sounds, more later) is a

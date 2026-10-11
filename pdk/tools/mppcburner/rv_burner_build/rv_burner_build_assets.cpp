@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <format>
 #include <string>
+#include <vector>
 
 #include "pdk/rv_err.h"
 #include "rv_burner_assets/rv_burner_bake.hpp"
@@ -142,10 +143,23 @@ int rv_burner_build_assets(const rv_burner_options &options,
         return sounds_err;
     }
 
-    const int models_err = bake_models(options.baker, disc_dir, plan, error);
+    std::vector<model_texture> model_textures;
+    const int models_err = bake_models(options.baker, disc_dir, plan, model_textures, error);
     if (models_err != RV_OK) {
         rv_burner_print_error(error);
         return models_err;
+    }
+
+    const int model_plan_err = plan_model_textures(model_textures, paths.textures, plan, error);
+    if (model_plan_err != RV_OK) {
+        rv_burner_print_error(error);
+        return model_plan_err;
+    }
+
+    const int model_textures_err = bake_model_textures(options.baker, manifest, model_textures, plan, error);
+    if (model_textures_err != RV_OK) {
+        rv_burner_print_error(error);
+        return model_textures_err;
     }
 
     const char *scripts_wording =
@@ -153,7 +167,7 @@ int rv_burner_build_assets(const rv_burner_options &options,
     rv_burner_print_step(k_step_assets,
         "assets",
         std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied",
-            plan.texture_count,
+            plan.texture_count + plan.model_texture_count,
             plan.sound_count,
             plan.script_count,
             scripts_wording,
