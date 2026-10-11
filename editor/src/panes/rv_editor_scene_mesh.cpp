@@ -18,6 +18,8 @@
 #include "pdklib/rv_math/rv_obj.hpp"
 
 #include "panes/rv_editor_asset_preview.hpp"
+#include "panes/rv_editor_walk.hpp"
+#include "text/rv_editor_text.hpp"
 #include "scene/rv_editor_scene_edit.hpp"
 
 namespace rv_editor
@@ -32,8 +34,6 @@ constexpr double unit_half_extent = 0.5;
 constexpr float min_shade_value = 0.15f;
 // Maximum value for sRGB colour channel normalization.
 constexpr float color_channel_max = 255.0f;
-// Directory name pattern to exclude from asset search.
-constexpr std::string_view skip_build_dir_name = "build";
 // Normalization threshold: minimum vector length before clamping to zero.
 constexpr double normalize_epsilon = 1e-12;
 // Vertex count for triangles: used for depth averaging and geometry creation.
@@ -156,76 +156,6 @@ std::vector<rv_editor_tri> rv_editor_cube_triangles(const rv_editor_affine &m)
 // mppcburner names every [assets] entry by filename alone). So a mesh or texture name is
 // a bare filename, resolved by walking the tree for it under a manifest pattern, not
 // joined onto the root.
-struct rv_editor_name_cache {
-    std::vector<std::string> patterns; // last-seen manifest patterns, to notice a change
-    std::unordered_map<std::string, std::filesystem::path> found;
-    // known-absent since this steady_clock time; re-walked once stale, so a typo does not
-    // re-walk every frame but a file dropped in later is picked up within about a second.
-    std::unordered_map<std::string, std::chrono::steady_clock::time_point> missing;
-};
-constexpr std::chrono::seconds rv_editor_mesh_miss_ttl{ 1 };
-rv_editor_name_cache rv_editor_mesh_names;
-rv_editor_name_cache rv_editor_texture_names;
-
-// True for a directory the tree walk skips whole: dotfiles and build outputs.
-bool rv_editor_mesh_skip_dir(const std::string &name)
-{
-    return !name.empty() && (name[0] == '.' || name.starts_with(skip_build_dir_name));
-}
-
-// The project file under `patterns` for which `match` holds, cached in `cache` under `key`.
-// Shared by the mesh (match: exact filename) and texture (match: same stem) resolvers below.
-std::filesystem::path rv_editor_walk_project(const rv_editor_project &project,
-    rv_editor_name_cache &cache,
-    const std::vector<std::string> &patterns,
-    const std::string &key,
-    const std::function<bool(const std::filesystem::path &)> &match)
-{
-    if (cache.patterns != patterns) {
-        cache = { patterns, {}, {} };
-    }
-    auto cached = cache.found.find(key);
-    std::error_code exists_ec;
-    if (cached != cache.found.end() && std::filesystem::exists(cached->second, exists_ec)) {
-        return cached->second;
-    }
-    auto missed = cache.missing.find(key);
-    if (cached == cache.found.end() && missed != cache.missing.end() &&
-        std::chrono::steady_clock::now() - missed->second < rv_editor_mesh_miss_ttl) {
-        return {};
-    }
-    std::error_code ec;
-    constexpr auto opts = std::filesystem::directory_options::skip_permission_denied;
-    for (std::filesystem::recursive_directory_iterator it(project.root, opts, ec), end; it != end && !ec; it.increment(ec)) {
-        std::error_code entry_ec;
-        const bool is_dir = it->is_directory(entry_ec);
-        if (entry_ec) {
-            continue; // this one entry is unreadable or vanished; the walk goes on
-        }
-        if (is_dir) {
-            if (rv_editor_mesh_skip_dir(it->path().filename().string())) {
-                it.disable_recursion_pending();
-            }
-            continue;
-        }
-        if (!match(it->path())) {
-            continue;
-        }
-        std::error_code rel_ec;
-        const std::string rel = std::filesystem::relative(it->path(), project.root, rel_ec).generic_string();
-        if (rel_ec) {
-            continue;
-        }
-        for (const std::string &pattern : patterns) {
-            if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
-                cache.found[key] = it->path();
-                return it->path();
-            }
-        }
-    }
-    cache.missing[key] = std::chrono::steady_clock::now();
-    return {};
-}
 
 // The project file matching an [assets] pattern whose filename is `name`. Empty with
 // *error set when the name has a folder in it or no such file is found.
@@ -235,17 +165,18 @@ std::filesystem::path rv_editor_resolve_mesh_name(const rv_editor_project &proje
         set_error(error, name + ": a disc asset name has no folders");
         return {};
     }
-    const std::filesystem::path found = rv_editor_walk_project(project,
-        rv_editor_mesh_names,
-        project.assets_patterns,
-        name,
-        [&](const std::filesystem::path &p) {
-            return p.filename() == name;
-        });
-    if (found.empty()) {
-        set_error(error, name + ": no [assets] file by that name");
+    const rv_editor_walk_result walk = rv_editor_walk_name(project, rv_editor_name_section::assets, false, name);
+    if (!walk.matches.empty()) {
+        return walk.matches.front();
     }
-    return found;
+    if (walk.ec) {
+        const std::string message = walk.ec.message();
+        const int code = walk.ec.value();
+        set_error(error, rv_editor_text_format("project.walk_failed", std::make_format_args(name, message, code)));
+        return {};
+    }
+    set_error(error, name + ": no [assets] file by that name");
+    return {};
 }
 
 // A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
@@ -253,13 +184,8 @@ std::filesystem::path rv_editor_resolve_mesh_name(const rv_editor_project &proje
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
 {
     const std::string stem = std::filesystem::path(name).stem().string();
-    return rv_editor_walk_project(project,
-        rv_editor_texture_names,
-        project.textures_patterns,
-        stem,
-        [&](const std::filesystem::path &p) {
-            return p.stem().string() == stem;
-        });
+    const rv_editor_walk_result walk = rv_editor_walk_name(project, rv_editor_name_section::textures, true, stem);
+    return walk.matches.empty() ? std::filesystem::path() : walk.matches.front();
 }
 
 // A mesh object's texture, loaded on `renderer`; an empty icon when it has none, does not

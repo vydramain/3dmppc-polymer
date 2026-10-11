@@ -65,6 +65,13 @@ target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_vterm)
 # pdklib: the manifest parser the discs and the burner use, never a copy of it.
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
 
+# glTF reader: pdklib's, compiled here as mppcmodbaker compiles it (cmake/pdklib.cmake keeps
+# it out of 3dmppc_pdklib). cgltf is this target's own third party, SYSTEM like mppcmodbaker's.
+target_sources(3dmppc-editor PRIVATE
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf.cpp
+  ${RV_REPO_ROOT}/pdk/lib/include/pdklib/rv_models/rv_mppcmod_gltf_accessor.cpp)
+target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/cgltf)
+
 # stb_image (vendored, third_party/stb) decodes the icons. The icons are read
 # from the repository at run time, the way mppcburner finds pdk/.
 target_include_directories(3dmppc-editor SYSTEM PRIVATE ${RV_REPO_ROOT}/third_party/stb)

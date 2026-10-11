@@ -928,6 +928,12 @@ player_not_set_name = "No player set: name a 3dmppc built without devtools"
 tool_not_found = "{} not found"
 tool_not_found_at = "{} not found at {}"
 tool_not_executable = "{} is not an executable file"
+model_not_absolute = "{} is not an absolute path"
+model_not_found = "{} not found"
+model_has_folder = "{} has a folder in it; a disc model name is a bare filename"
+model_no_file = "{}: no [models] file by that name"
+model_ambiguous = "{}: more than one [models] file by that name, {} and {}"
+walk_failed = "{}: cannot walk the project: {} (error {})"
 
 [pane_terminal]
 shell_not_started = "The shell did not start: {}"
