@@ -109,7 +109,8 @@ enum class rv_pccv_impl {
     sw
 };
 enum class rv_pccg_impl {
-    null
+    null,
+    sw
 };
 enum class rv_pccio_impl {
     null,
@@ -135,7 +136,7 @@ struct rv_pcslots {
 
     rv_pcca_impl ca = rv_pcca_impl::sw;
     rv_pccv_impl cv = rv_pccv_impl::sw;
-    rv_pccg_impl cg = rv_pccg_impl::null;
+    rv_pccg_impl cg = rv_pccg_impl::sw;
     rv_pccio_impl cio = rv_pccio_impl::standard;
     rv_pccl_impl cl = rv_pccl_impl::luajit;
     rv_pccd_impl cd = rv_pccd_impl::fs;

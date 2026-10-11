@@ -6,6 +6,7 @@
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
 #include "rv_pconsole/cg/rv_pccg_null.hpp"
+#include "rv_pconsole/cg/rv_pccg_sw.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_platform.hpp"
 #include "rv_pconsole/cl/rv_pccl_luajit.hpp"
@@ -33,6 +34,7 @@ constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
 };
 constexpr rv_pcslots_row<rv_pccg_impl> RV_PCSLOTS_CG_ROWS[] = {
     { "null", rv_pccg_impl::null, &rv_pccg_null::evaluate },
+    { "sw", rv_pccg_impl::sw, &rv_pccg_sw::evaluate },
 };
 constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
@@ -123,9 +125,12 @@ std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &con
     return std::make_unique<rv_pccv_null>(conf);
 }
 
-std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf)
+std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf, rv_pccv &cv)
 {
     RV_LOG_INFO("pccg", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
+    if (impl == rv_pccg_impl::sw) {
+        return std::make_unique<rv_pccg_sw>(conf, cv);
+    }
     return std::make_unique<rv_pccg_null>(conf);
 }
 

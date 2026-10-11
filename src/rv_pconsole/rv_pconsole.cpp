@@ -25,7 +25,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
     , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
     , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
-    , cg_(rv_pccg_make(conf.slots.cg, conf.cg))
+    , cg_(rv_pccg_make(conf.slots.cg, conf.cg, *cv_))
     , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)

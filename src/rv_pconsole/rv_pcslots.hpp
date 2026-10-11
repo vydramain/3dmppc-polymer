@@ -75,7 +75,7 @@ const char *rv_pcslots_name(rv_pcplatform_impl impl);
 // Straight mapping, no device fallback: what was asked for is what is built.
 std::unique_ptr<rv_pcca> rv_pcca_make(rv_pcca_impl impl, const rv_pcca_conf &conf);
 std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &conf);
-std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf);
+std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf, rv_pccv &cv);
 std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform);
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf);
 std::unique_ptr<rv_pccm> rv_pccm_make(rv_pccm_impl impl, const rv_pccm_conf &conf);

@@ -48,7 +48,8 @@ public:
     // Start of a frame: forget the camera and the triangles counted so far.
     virtual void frame_reset() = 0;
 
-    // Address in the model memory, or RV_ERR_NOMEM / RV_ERR_INVAL (one texture per part).
+    // Address in the model memory, or RV_ERR_NOMEM / RV_ERR_INVAL (one texture per part,
+    // and the model must pass rv_mppcmod_validate: a model the format refuses is INVAL).
     // The texture addresses and sizes are copied at upload: a texture rewritten at the
     // same address (video_asset_write) stays valid; a new texture address needs
     // model_free + model_upload.
