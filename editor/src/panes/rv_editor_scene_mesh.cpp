@@ -37,8 +37,6 @@ constexpr float min_shade_value = 0.15f;
 constexpr float color_channel_max = 255.0f;
 // Normalization threshold: minimum vector length before clamping to zero.
 constexpr double normalize_epsilon = 1e-12;
-// Vertex count for triangles: used for depth averaging and geometry creation.
-constexpr int tri_vertices = 3;
 // Corners of a unit cube.
 constexpr int cube_corner_count = 8;
 // Face definitions of a unit cube: six faces with four corner indices each.
@@ -358,34 +356,54 @@ void rv_editor_draw_filled(ImDrawList *dl,
             tris = rv_editor_object_triangles(scene, project, static_cast<int>(i), nullptr, renderer);
         }
         for (const rv_editor_tri &tri : tris) {
-            rv_editor_shaded_tri st;
-            st.depth = 0.0;
-            bool visible = true;
-            for (int k = 0; k < tri_vertices; ++k) {
-                const vec3 view_p = v.to_view(tri.p[k]);
-                if (view_p[2] < rv_editor_near) {
-                    visible = false;
-                    break;
+            // Shade by the source triangle's normal; its cut pieces share it.
+            const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
+            const float shade =
+                static_cast<float>(std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
+            const ImVec4 tint = { o.tint[0] / color_channel_max,
+                o.tint[1] / color_channel_max,
+                o.tint[2] / color_channel_max,
+                1.0f };
+            // A part's own texture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
+            const ImTextureID piece_tex = tri.tex != ImTextureID{} ? tri.tex : (tri.from_model ? ImTextureID{} : tex.id);
+            // A piece's corners, already in view space, projected and queued.
+            auto emit = [&](const rv_editor_tri &piece, const vec3(&view_p)[tri_vertices]) {
+                rv_editor_shaded_tri st;
+                st.depth = 0.0;
+                for (int k = 0; k < tri_vertices; ++k) {
+                    st.depth += view_p[k][2];
+                    st.s[k] = v.to_screen(view_p[k]);
+                    st.uv[k] = pixel_uv ?
+                        ImVec2(piece.uv[k].x / static_cast<float>(tex.w), piece.uv[k].y / static_cast<float>(tex.h)) :
+                        piece.uv[k];
+                    st.part[k] = is_selected ? ImVec4(1, 1, 1, 1) : piece.color[k];
                 }
-                st.depth += view_p[2];
-                st.s[k] = v.to_screen(view_p);
-                st.uv[k] = pixel_uv ? ImVec2(tri.uv[k].x / static_cast<float>(tex.w), tri.uv[k].y / static_cast<float>(tex.h)) :
-                                      tri.uv[k];
-                st.part[k] = is_selected ? ImVec4(1, 1, 1, 1) : tri.color[k];
+                st.depth /= triangle_vertex_count;
+                st.shade = shade;
+                st.selected = is_selected;
+                st.tint = tint;
+                st.tex = piece_tex;
+                st.from_model = tri.from_model;
+                shaded.push_back(st);
+            };
+            vec3 view_p[tri_vertices];
+            bool in_front = true;
+            for (int k = 0; k < tri_vertices; ++k) {
+                view_p[k] = v.to_view(tri.p[k]);
+                in_front = in_front && view_p[k][2] >= rv_editor_near;
             }
-            if (!visible) {
+            if (in_front) {
+                emit(tri, view_p);
                 continue;
             }
-            st.depth /= triangle_vertex_count;
-            const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            st.shade =
-                static_cast<float>(std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
-            st.selected = is_selected;
-            st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max, 1.0f };
-            // A part's own texture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
-            st.tex = tri.tex != ImTextureID{} ? tri.tex : (tri.from_model ? ImTextureID{} : tex.id);
-            st.from_model = tri.from_model;
-            shaded.push_back(st);
+            // Behind the near plane: cut first, then each piece's corners are viewed.
+            for (const rv_editor_tri &piece : rv_editor_clip_near(v, tri)) {
+                vec3 piece_view[tri_vertices];
+                for (int k = 0; k < tri_vertices; ++k) {
+                    piece_view[k] = v.to_view(piece.p[k]);
+                }
+                emit(piece, piece_view);
+            }
         }
     }
     // Painter's algorithm, no depth buffer. Intersecting triangles can sort wrong;

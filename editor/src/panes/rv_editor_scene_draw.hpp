@@ -53,6 +53,8 @@ double dot(const vec3 &a, const vec3 &b);
 
 // The near plane both the view and the filled-mesh pass clip against.
 inline constexpr double rv_editor_near = 0.05;
+// Corners of a triangle.
+inline constexpr int tri_vertices = 3;
 
 // The editor camera as it is this frame: its frame and how a point lands on screen.
 struct rv_editor_view {
@@ -61,6 +63,8 @@ struct rv_editor_view {
     double focal = 1.0;
 
     vec3 to_view(const vec3 &p) const;
+    // Precondition: v[2] >= rv_editor_near up to rounding; rv_editor_draw_filled (a triangle wholly
+    // in front) and rv_editor_clip_near (its pieces) guarantee it.
     ImVec2 to_screen(const vec3 &v) const;
     // False when the point is behind the near plane.
     bool point(const vec3 &p, ImVec2 &out) const;
@@ -86,6 +90,11 @@ struct rv_editor_tri {
     ImTextureID tex{};
     ImVec4 color[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } };
 };
+
+// The triangle cut to the near plane (view z >= rv_editor_near): 0 to 2 triangles in the same winding,
+// each cut corner's uv and colour interpolated with its position. Wholly in front: the triangle as is;
+// wholly behind: none.
+std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri);
 
 // An object's surface in scene space: a mesh's triangles, a .glb's (name ends in ".glb") or an
 // .obj's, or the unit cube while its mesh is empty or does not load (the reason in *error when

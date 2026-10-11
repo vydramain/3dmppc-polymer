@@ -155,6 +155,78 @@ void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, cons
     dl->AddLine(v.to_screen(va), v.to_screen(vb), color, width);
 }
 
+namespace
+{
+
+// A corner of the polygon a triangle is cut into: position, uv and colour, and its distance in
+// front of the near plane (view z - rv_editor_near; below 0 is behind).
+struct rv_editor_clip_vertex {
+    vec3 p;
+    ImVec2 uv;
+    ImVec4 color;
+    double front;
+};
+
+// Where the edge a-b crosses the near plane. Position, uv and colour take the same t.
+rv_editor_clip_vertex rv_editor_clip_cross(const rv_editor_clip_vertex &a, const rv_editor_clip_vertex &b)
+{
+    const double t = a.front / (a.front - b.front);
+    const float f = static_cast<float>(t);
+    const ImVec2 uv(a.uv.x + (b.uv.x - a.uv.x) * f, a.uv.y + (b.uv.y - a.uv.y) * f);
+    const ImVec4 color = { a.color.x + (b.color.x - a.color.x) * f,
+        a.color.y + (b.color.y - a.color.y) * f,
+        a.color.z + (b.color.z - a.color.z) * f,
+        a.color.w + (b.color.w - a.color.w) * f };
+    return { add(a.p, mul(sub(b.p, a.p), t)), uv, color, 0.0 };
+}
+
+} // namespace
+
+std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri)
+{
+    std::vector<rv_editor_clip_vertex> in;
+    in.reserve(tri_vertices);
+    for (int k = 0; k < tri_vertices; ++k) {
+        in.push_back({ tri.p[k], tri.uv[k], tri.color[k], v.to_view(tri.p[k])[2] - rv_editor_near });
+    }
+    const auto behind = [](const rv_editor_clip_vertex &c) {
+        return c.front < 0.0;
+    };
+    const auto behind_count = std::count_if(in.begin(), in.end(), behind);
+    if (behind_count == 0) {
+        return { tri };
+    }
+    if (behind_count == tri_vertices) {
+        return {};
+    }
+    // Sutherland-Hodgman against one plane: keep the corners in front, add each crossing.
+    std::vector<rv_editor_clip_vertex> poly;
+    poly.reserve(tri_vertices + 1);
+    for (size_t i = 0; i < in.size(); ++i) {
+        const rv_editor_clip_vertex &cur = in[i];
+        const rv_editor_clip_vertex &nxt = in[(i + 1) % in.size()];
+        if (!behind(cur)) {
+            poly.push_back(cur);
+        }
+        if (behind(cur) != behind(nxt)) {
+            poly.push_back(rv_editor_clip_cross(cur, nxt));
+        }
+    }
+    // The polygon is convex: a fan from its first corner keeps the order of the source's winding.
+    std::vector<rv_editor_tri> out;
+    for (size_t i = 1; i + 1 < poly.size(); ++i) {
+        const rv_editor_clip_vertex *corner[tri_vertices] = { &poly[0], &poly[i], &poly[i + 1] };
+        rv_editor_tri piece = tri; // keeps tex and from_model
+        for (int k = 0; k < tri_vertices; ++k) {
+            piece.p[k] = corner[k]->p;
+            piece.uv[k] = corner[k]->uv;
+            piece.color[k] = corner[k]->color;
+        }
+        out.push_back(piece);
+    }
+    return out;
+}
+
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b)
 {
     const ImVec2 ab(b.x - a.x, b.y - a.y);
