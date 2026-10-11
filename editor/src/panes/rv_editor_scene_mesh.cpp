@@ -263,8 +263,11 @@ rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m
 
 } // namespace
 
-std::vector<rv_editor_tri>
-rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
+std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
+    const rv_editor_project &project,
+    int index,
+    std::string *error,
+    SDL_Renderer *renderer)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
     if (o.kind == kind_quad) {
@@ -280,7 +283,7 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
     if (o.mesh.ends_with(file_ext_glb)) {
         std::vector<rv_editor_tri> glb_tris;
         std::string glb_error;
-        if (rv_editor_glb_object_triangles(project, o.mesh, m, glb_tris, glb_error) == RV_OK) {
+        if (rv_editor_glb_object_triangles(project, o.mesh, m, renderer, glb_tris, glb_error) == RV_OK) {
             return glb_tris;
         }
         set_error(error, glb_error);
@@ -332,7 +335,9 @@ void rv_editor_draw_filled(ImDrawList *dl,
         float shade;
         bool selected;
         ImVec4 tint;     // the object's tint/255, 0..1; identity (1,1,1) for a mesh's default
-        ImTextureID tex; // 0: flat AddTriangleFilled; else textured via Prim*
+        ImTextureID tex; // 0: flat, drawn with ImGui's white texel; else textured
+        bool from_model; // a .glb's triangle: its base is white and the object's tint applies, flat too
+        ImVec4 part[3];  // each corner's colour, 0..1; identity when selected (the selection colour shows as is)
     };
     std::vector<rv_editor_shaded_tri> shaded;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
@@ -350,7 +355,7 @@ void rv_editor_draw_filled(ImDrawList *dl,
             const rv_editor_affine world = rv_editor_scene_world(scene, static_cast<int>(i));
             tris = rv_editor_billboard_triangles(v, world, o);
         } else {
-            tris = rv_editor_object_triangles(scene, project, static_cast<int>(i));
+            tris = rv_editor_object_triangles(scene, project, static_cast<int>(i), nullptr, renderer);
         }
         for (const rv_editor_tri &tri : tris) {
             rv_editor_shaded_tri st;
@@ -366,6 +371,7 @@ void rv_editor_draw_filled(ImDrawList *dl,
                 st.s[k] = v.to_screen(view_p);
                 st.uv[k] = pixel_uv ? ImVec2(tri.uv[k].x / static_cast<float>(tex.w), tri.uv[k].y / static_cast<float>(tex.h)) :
                                       tri.uv[k];
+                st.part[k] = is_selected ? ImVec4(1, 1, 1, 1) : tri.color[k];
             }
             if (!visible) {
                 continue;
@@ -376,7 +382,9 @@ void rv_editor_draw_filled(ImDrawList *dl,
                 static_cast<float>(std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
             st.selected = is_selected;
             st.tint = { o.tint[0] / color_channel_max, o.tint[1] / color_channel_max, o.tint[2] / color_channel_max, 1.0f };
-            st.tex = tex.id;
+            // A part's own texture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
+            st.tex = tri.tex != ImTextureID{} ? tri.tex : (tri.from_model ? ImTextureID{} : tex.id);
+            st.from_model = tri.from_model;
             shaded.push_back(st);
         }
     }
@@ -386,31 +394,27 @@ void rv_editor_draw_filled(ImDrawList *dl,
         return a.depth > b.depth;
     });
     for (const rv_editor_shaded_tri &st : shaded) {
-        if (st.tex == ImTextureID{}) {
-            // Flat: the base or selection colour times shade; the object's tint is a texture
-            // modulation (quad/billboard) and does not apply to a flat fill.
-            ImVec4 col = ImGui::ColorConvertU32ToFloat4(st.selected ? selected_color : base);
-            col.x *= st.shade;
-            col.y *= st.shade;
-            col.z *= st.shade;
-            dl->AddTriangleFilled(st.s[0], st.s[1], st.s[2], ImGui::ColorConvertFloat4ToU32(col));
-            continue;
-        }
-        // Textured: the picture multiplied by the flat shade and, unselected, the object's
-        // tint (a mesh's default tint is identity, so this leaves mesh unchanged); selected
-        // keeps its selection colour instead of grey or tint. A push/pop per triangle keeps
-        // texture changes correct under the global sort.
-        const ImVec4 sel_tint = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) : ImVec4(1, 1, 1, 1);
-        const ImVec4 obj_tint = st.selected ? ImVec4(1, 1, 1, 1) : st.tint;
-        const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(sel_tint.x * obj_tint.x * st.shade,
-            sel_tint.y * obj_tint.y * st.shade,
-            sel_tint.z * obj_tint.z * st.shade,
-            1.0f));
-        dl->PushTexture(st.tex);
+        // Base: the selection colour when selected (no tint); a plain flat fill (quad, billboard, mesh
+        // default) is its base colour, no tint; else white times the object's tint. A .glb's flat triangles
+        // take the tint as the console does. A push/pop per triangle keeps texture changes correct under the global sort.
+        const bool flat = st.tex == ImTextureID{};
+        const bool plain = flat && !st.from_model;
+        const ImVec4 over = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) :
+                                          (plain ? ImGui::ColorConvertU32ToFloat4(base) : ImVec4(1, 1, 1, 1));
+        const ImVec4 tint = st.selected || plain ? ImVec4(1, 1, 1, 1) : st.tint;
+        const ImVec4 mod(over.x * tint.x, over.y * tint.y, over.z * tint.z, over.w);
+        // Flat triangles sample ImGui's white texel, so each corner shows its own colour.
+        const ImTextureRef texture = flat ? ImGui::GetIO().Fonts->TexRef : ImTextureRef(st.tex);
+        const ImVec2 white_uv = ImGui::GetFontTexUvWhitePixel();
+        dl->PushTexture(texture);
         dl->PrimReserve(tri_vertices, tri_vertices);
-        dl->PrimVtx(st.s[0], st.uv[0], col);
-        dl->PrimVtx(st.s[1], st.uv[1], col);
-        dl->PrimVtx(st.s[2], st.uv[2], col);
+        for (int k = 0; k < tri_vertices; ++k) {
+            const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(mod.x * st.shade * st.part[k].x,
+                mod.y * st.shade * st.part[k].y,
+                mod.z * st.shade * st.part[k].z,
+                mod.w));
+            dl->PrimVtx(st.s[k], flat ? white_uv : st.uv[k], col);
+        }
         dl->PopTexture();
     }
 }

@@ -33,11 +33,14 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     std::string &error);
 
 // The .glb under [models] named `name` as triangles in scene space through `m`, RV_OK with `tris`
-// written. Otherwise the code with the reason in `error`, and `tris` is left alone: the caller
+// written. Each triangle carries its part's colour and, with `renderer` non-null, its part's texture:
+// the SDL textures are created on `renderer` and written to a cache (glb.cpp), once per file version
+// and renderer. Otherwise the code with the reason in `error`, and `tris` is left alone: the caller
 // falls back to the placeholder cube.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
     const rv_editor_affine &m,
+    SDL_Renderer *renderer,
     std::vector<rv_editor_tri> &tris,
     std::string &error);
 
