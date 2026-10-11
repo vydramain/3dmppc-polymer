@@ -69,7 +69,10 @@ int64_t rv_cg_frame_camera(rv_cg *cg, const rv_cg_camera *camera);
 // of cv. Returns the number of primitives put. No camera this frame, an unknown
 // cull, or depth_min > depth_max answers RV_ERR_INVAL and puts nothing.
 // Going over triangle_capacity answers RV_ERR_NOMEM and puts nothing: a model
-// put half-way would show as a hole, not as a smaller model.
+// put half-way would show as a hole, not as a smaller model. A refusal by cv
+// part-way through leaves the primitives already put and returns cv's error.
+// A textured part with no size answers RV_ERR_INVAL and puts nothing; a triangle
+// whose uv spans more than 65535 texels is skipped and the rest of the model is put.
 int64_t rv_cg_model_put(rv_cg *cg, int64_t model_addr, const rv_cg_put *put);
 
 // Projects a world point with the frame's camera; no camera this frame answers

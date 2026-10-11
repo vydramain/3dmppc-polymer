@@ -183,44 +183,6 @@ int64_t rv_pccg_sw::frame_camera(const rv_cg_camera *camera)
     return RV_OK;
 }
 
-int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
-{
-    const bool no_camera = !camera_set_;
-    if (no_camera) {
-        return RV_ERR_INVAL;
-    }
-    const bool no_put = put == nullptr;
-    if (no_put) {
-        return RV_ERR_INVAL;
-    }
-    const bool cull_known = put->cull == RV_CG_CULL_NONE || put->cull == RV_CG_CULL_BACK;
-    if (!cull_known) {
-        return RV_ERR_INVAL;
-    }
-    const bool depth_ordered = put->depth_min <= put->depth_max;
-    if (!depth_ordered) {
-        return RV_ERR_INVAL;
-    }
-    const bool unknown_model = find(model_addr) == models_.end();
-    if (unknown_model) {
-        return RV_ERR_INVAL;
-    }
-    return 0;
-}
-
-int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, rv_cg_screen *out)
-{
-    const bool no_point = world == nullptr || out == nullptr;
-    if (no_point) {
-        return RV_ERR_INVAL;
-    }
-    const bool no_camera = !camera_set_;
-    if (no_camera) {
-        return RV_ERR_INVAL;
-    }
-    return RV_ERR_INVAL;
-}
-
 // --- console-side ------------------------------------------------------------
 
 void rv_pccg_sw::frame_reset()

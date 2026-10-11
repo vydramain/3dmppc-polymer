@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -175,6 +176,21 @@ inline int rv_mppcmod_validate(const rv_mppcmod &model, std::string &error)
                     std::to_string(model.vertices.size());
                 return RV_ERR_INVAL;
             }
+        }
+    }
+
+    // NaN and inf would reach the projection and the uv mapping unchecked: refused here, so
+    // every reader and writer of the format refuses them alike.
+    for (size_t v = 0; v < model.vertices.size(); ++v) {
+        const rv_mppcmod_vertex &vertex = model.vertices[v];
+        const auto is_finite = [](float x) {
+            return std::isfinite(x);
+        };
+        const bool finite = std::all_of(vertex.pos.begin(), vertex.pos.end(), is_finite) &&
+            std::all_of(vertex.uv.begin(), vertex.uv.end(), is_finite);
+        if (!finite) {
+            error = "vertex " + std::to_string(v) + " has a position or uv that is not a finite number";
+            return RV_ERR_INVAL;
         }
     }
 

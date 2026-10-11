@@ -16,6 +16,13 @@
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
 
+namespace rv_pdklib
+{
+// Only named here: the .cpp files that build or use them include the full headers.
+struct rv_mat4;
+struct rv_xform_conf;
+} // namespace rv_pdklib
+
 namespace rv_3dmppc
 {
 
@@ -63,10 +70,12 @@ private:
     };
 
     std::vector<model_record>::iterator find(int64_t addr);
+    // The frame's xform conf: camera from camera_, screen size from cv_.
+    rv_pdklib::rv_xform_conf frame_conf(const rv_pdklib::rv_mat4 &world, int32_t depth_min, int32_t depth_max, uint32_t cull);
 
     rv_pccg_conf conf_;
     // the frame of cv the geometry puts its primitives into
-    [[maybe_unused]] rv_pccv &cv_;
+    rv_pccv &cv_;
 
     std::vector<model_record> models_;
     int64_t used_bytes_ = 0;
