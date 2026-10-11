@@ -76,6 +76,21 @@ private:
     std::vector<audio_record> audios_;
     std::unordered_map<std::string, int64_t> audio_by_name_;
 
+    // MODEL's counterpart of texture_record: one model uploaded to the geometry
+    // controller, which owns its memory and hands back `addr`. Same growth rules
+    // as `textures_`; freed by free_models_() before the textures it refers to.
+    struct model_record {
+        std::string resname;
+        int64_t addr = 0;
+        // (tex, pal) per part, as the textures were uploaded (0 = no texture). The
+        // controller copies them at upload, so a texture refresh that frees one of
+        // them would leave the model reading freed video RAM; texture_refresh_()
+        // asks model_using_texture_() first.
+        std::vector<std::pair<int64_t, int64_t>> texture_addrs;
+    };
+    std::vector<model_record> models_;
+    std::unordered_map<std::string, int64_t> model_by_name_;
+
     // Handle table - a handle is simply an index into `resnames_`, and
     // `by_name_` makes the resolution idempotent. Two properties fall out, and
     // both are contract requirements rather than conveniences:
@@ -179,6 +194,9 @@ public:
         ca_ = &ca;
     }
 
+    // Called once, before any model is resident: the drive keeps this pointer
+    // and frees its models through it at teardown, so a second controller
+    // would leave the first one's models unfreed.
     void geometry_attach(rv_pccg &cg) override
     {
         cg_ = &cg;
@@ -200,21 +218,23 @@ private:
     const char *handle_name(int64_t handle) const;
 
     // The ONE gate every resource_* query above routes through, so it is the
-    // one place `kind` is checked: a kind other than RV_CD_RESOURCE_TEXTURE
-    // or RV_CD_RESOURCE_AUDIO is refused with RV_ERR_INVAL right here, not in
-    // each of the five callers. Exactly one of `texture_out` / `audio_out` is
-    // set on success, matching the kind that actually resolved; the other is
-    // left null. A caller whose query does not describe that kind (say,
-    // resource_palette_addr against an AUDIO name) reads that from the null
-    // it got back and answers RV_ERR_INVAL itself - it never re-derives the
-    // kind check, it just never learned to read the OTHER record type. A
-    // third kind gets its own record type and its own branch out of this
-    // gate, not a rewrite of the five callers.
-    // On failure both output pointers are left null and the return is the
+    // one place `kind` is checked: a kind other than RV_CD_RESOURCE_TEXTURE,
+    // RV_CD_RESOURCE_AUDIO or RV_CD_RESOURCE_MODEL is refused with RV_ERR_INVAL
+    // right here, not in each of the five callers. Exactly one of `texture_out`,
+    // `audio_out` and `model_out` is set on success, matching the kind that
+    // actually resolved; the others are left null. A caller whose query does not
+    // describe that kind (say, resource_palette_addr against an AUDIO name) reads
+    // the null it got back and answers RV_ERR_INVAL itself - it never re-derives
+    // the kind check. A fourth kind adds its own out-pointer and branch out of
+    // this gate; the callers declare that pointer and pass it through.
+    // On failure all output pointers are left null and the return is the
     // negative rv_err reading, decoding or uploading answered (the same
     // rv_err asset_open would give the name, when that is where it failed).
-    int64_t
-    resource_resolve_(rv_cd_resource_kind kind, const char *resname, texture_record *&texture_out, audio_record *&audio_out);
+    int64_t resource_resolve_(rv_cd_resource_kind kind,
+        const char *resname,
+        texture_record *&texture_out,
+        audio_record *&audio_out,
+        model_record *&model_out);
 
     // Cache-hit half of resource_resolve_() for TEXTURE: a resident name answers from
     // textures_, a new one goes to texture_resolve_().
@@ -223,6 +243,10 @@ private:
     // The same for AUDIO: a resident name answers from audios_, a new one goes to
     // audio_resolve_().
     int64_t resident_audio_(const char *resname, audio_record *&audio_out);
+
+    // The same for MODEL: a resident name answers from models_, a new one goes to
+    // model_resolve_(). Refused while no geometry controller is attached.
+    int64_t resident_model_(const char *resname, model_record *&model_out);
 
     // Cache miss half of resource_resolve_() for TEXTURE: read, decode and
     // upload `resname`, then remember it in `textures_`. Same
@@ -236,9 +260,23 @@ private:
     // resource_resolve_() itself.
     int64_t audio_resolve_(const char *resname, audio_record *&record_out);
 
-    // Shared by texture_resolve_(), audio_resolve_() and texture_reload_():
-    // open, measure, allocate and read `resname`'s whole current contents
-    // into `bytes_out`. Returns RV_OK or the negative rv_err either step
+    // Cache miss half of resource_resolve_() for MODEL: parse `resname`'s
+    // .mppcmod, make each textured part's texture resident through
+    // resident_texture_(), upload the model through cg_, then remember it in
+    // `models_`. Same success/failure contract as resource_resolve_() itself.
+    int64_t model_resolve_(const char *resname, model_record *&record_out);
+
+    // Frees every model this drive uploaded, through cg_. Called from
+    // ~rv_pccd_fs() before the textures are freed: a model holds their addresses.
+    void free_models_();
+
+    // The first model that was uploaded with `tex_addr` or `pal_addr` (0 = none
+    // in that slot), or nullptr when no model uses either address.
+    const model_record *model_using_texture_(int64_t tex_addr, int64_t pal_addr) const;
+
+    // Shared by texture_resolve_(), audio_resolve_(), model_resolve_() and
+    // texture_reload_(): open, measure, allocate and read `resname`'s whole current
+    // contents into `bytes_out`. Returns RV_OK or the negative rv_err either step
     // answered. Named for what it reads (an asset's bytes), not for who
     // reads them, because both resource kinds and the dev reload path share
     // it verbatim.

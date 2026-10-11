@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_textures/rv_mppctex.hpp"
 
 namespace rv_3dmppc
@@ -58,6 +59,16 @@ int64_t rv_pccd_fs::texture_reload_(const char *resname, texture_record &record)
 int64_t rv_pccd_fs::texture_refresh_(texture_record &record, const std::vector<std::byte> &bytes)
 {
     if (cv_ == nullptr) {
+        return RV_ERR_INVAL;
+    }
+
+    // The swap below frees the old addresses, and a model still reads them.
+    // Refused before anything is written: the model has to come back with its disc.
+    if (const model_record *model = model_using_texture_(record.tex_addr, record.pal_addr); model != nullptr) {
+        RV_LOG_WARN("pccd",
+            "texture '{}' is used by model '{}'; reload the model's disc instead",
+            rv_pdklib::rv_log_escape(record.resname.c_str()),
+            rv_pdklib::rv_log_escape(model->resname.c_str()));
         return RV_ERR_INVAL;
     }
 

@@ -1,5 +1,5 @@
 // rv_pccd_fs resource accessor implementations: resolve addresses and metadata
-// for textures and audio (resource_addr, resource_size, resource_palette_addr,
+// for textures, audio and models (resource_addr, resource_size, resource_palette_addr,
 // resource_width, resource_height).
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 
@@ -12,12 +12,16 @@ int64_t rv_pccd_fs::resource_addr(rv_cd_resource_kind kind, const char *resname)
 {
     texture_record *texture = nullptr;
     audio_record *audio = nullptr;
-    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    model_record *model = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio, model);
     if (rc < 0) {
         return rc;
     }
-    // Meaningful for both kinds (rv_cd.h): whichever record resolved is the
+    // Meaningful for every kind (rv_cd.h): whichever record resolved is the
     // one this query answers.
+    if (model != nullptr) {
+        return model->addr;
+    }
     return texture != nullptr ? texture->tex_addr : audio->addr;
 }
 
@@ -25,7 +29,8 @@ int64_t rv_pccd_fs::resource_size(rv_cd_resource_kind kind, const char *resname)
 {
     texture_record *texture = nullptr;
     audio_record *audio = nullptr;
-    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    model_record *model = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio, model);
     if (rc < 0) {
         return rc;
     }
@@ -43,7 +48,8 @@ int64_t rv_pccd_fs::resource_palette_addr(rv_cd_resource_kind kind, const char *
 {
     texture_record *texture = nullptr;
     audio_record *audio = nullptr;
-    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    model_record *model = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio, model);
     if (rc < 0) {
         return rc;
     }
@@ -58,7 +64,8 @@ int64_t rv_pccd_fs::resource_width(rv_cd_resource_kind kind, const char *resname
 {
     texture_record *texture = nullptr;
     audio_record *audio = nullptr;
-    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    model_record *model = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio, model);
     if (rc < 0) {
         return rc;
     }
@@ -73,7 +80,8 @@ int64_t rv_pccd_fs::resource_height(rv_cd_resource_kind kind, const char *resnam
 {
     texture_record *texture = nullptr;
     audio_record *audio = nullptr;
-    const int64_t rc = resource_resolve_(kind, resname, texture, audio);
+    model_record *model = nullptr;
+    const int64_t rc = resource_resolve_(kind, resname, texture, audio, model);
     if (rc < 0) {
         return rc;
     }

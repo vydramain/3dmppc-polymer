@@ -70,11 +70,13 @@ rv_pccd_fs::rv_pccd_fs(const rv_pccd_conf &conf)
 
 rv_pccd_fs::~rv_pccd_fs()
 {
-    // A disc never releases a texture or a sound; this is where the drive
-    // frees every one it made resident, all at once, when the disc that
-    // named them goes away. cv_/ca_ are null only when video/audio was never
+    // A disc never releases a texture, a sound or a model; this is where the
+    // drive frees every one it made resident, all at once, when the disc that
+    // named them goes away. Models go first: their parts point at the textures
+    // freed below. cv_/ca_ are null only when video/audio was never
     // attached, which means nothing of that kind was ever uploaded and there
     // is nothing to free.
+    free_models_();
     if (cv_ != nullptr) {
         for (const texture_record &record : textures_) {
             cv_->video_asset_free(record.tex_addr);
@@ -338,10 +340,12 @@ int64_t rv_pccd_fs::texture_upload_(const rv_pdklib::rv_mppctex_header &header,
 int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind,
     const char *resname,
     texture_record *&texture_out,
-    audio_record *&audio_out)
+    audio_record *&audio_out,
+    model_record *&model_out)
 {
     texture_out = nullptr;
     audio_out = nullptr;
+    model_out = nullptr;
     if (resname == nullptr) {
         return RV_ERR_INVAL;
     }
@@ -352,13 +356,12 @@ int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind,
     case RV_CD_RESOURCE_AUDIO:
         return resident_audio_(resname, audio_out);
     case RV_CD_RESOURCE_MODEL:
-        // the drive does not make models resident yet
-        return RV_ERR_INVAL;
+        return resident_model_(resname, model_out);
     }
 
     // Neither kind this contract knows about: the same malformed-argument
     // refusal a bad handle or a short buffer gets elsewhere in this contract.
-    // A third kind adds its own branch here, not a rewrite of the five
+    // A fourth kind adds its own branch here, not a rewrite of the five
     // callers below.
     return RV_ERR_INVAL;
 }
