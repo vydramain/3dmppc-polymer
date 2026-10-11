@@ -90,6 +90,12 @@ bool camera_finite(const rv_cg_camera &camera)
     });
 }
 
+// One texture entry per part, in part order: the rule model_upload and model_textures_set share.
+bool textures_per_part(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+{
+    return textures.size() == model.parts.size();
+}
+
 } // namespace
 
 int rv_pccg_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error)
@@ -193,7 +199,7 @@ void rv_pccg_sw::frame_reset()
 
 int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
 {
-    const bool texture_per_part = textures.size() == model.parts.size();
+    const bool texture_per_part = textures_per_part(model, textures);
     if (!texture_per_part) {
         return RV_ERR_INVAL;
     }
@@ -218,6 +224,24 @@ int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<c
     models_.push_back({ addr, bytes, model, std::vector<rv_pccg_part_texture>(textures.begin(), textures.end()) });
     used_bytes_ += bytes;
     return addr;
+}
+
+int64_t rv_pccg_sw::model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> textures)
+{
+    const auto it = find(addr);
+    const bool unknown = it == models_.end();
+    if (unknown) {
+        RV_LOG_WARN("pccg", "textures refused: no model at address {}", addr);
+        return RV_ERR_INVAL;
+    }
+    const bool texture_per_part = textures_per_part(it->model, textures);
+    if (!texture_per_part) {
+        RV_LOG_WARN("pccg", "textures refused: {} texture(s) for {} part(s)", textures.size(), it->model.parts.size());
+        return RV_ERR_INVAL;
+    }
+    // Only the texture entries change: the bytes charged and the record's address stay.
+    it->textures.assign(textures.begin(), textures.end());
+    return RV_OK;
 }
 
 int64_t rv_pccg_sw::model_free(int64_t addr)

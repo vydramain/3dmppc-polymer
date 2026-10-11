@@ -43,6 +43,7 @@ public:
 
     void frame_reset() override;
     int64_t model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures) override;
+    int64_t model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> textures) override;
     int64_t model_free(int64_t addr) override;
 
 private:

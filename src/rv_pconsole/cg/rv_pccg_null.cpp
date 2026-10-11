@@ -94,6 +94,18 @@ int64_t rv_pccg_null::model_upload(const rv_pdklib::rv_mppcmod &model, std::span
     return RV_PCCG_NULL_FAKE_ADDR;
 }
 
+int64_t rv_pccg_null::model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> /*textures*/)
+{
+    // Known gap: no model is kept, so the texture count cannot be checked against its parts.
+    // Only the address is checked: the one model_upload hands out is the only one accepted.
+    const bool unknown = addr != RV_PCCG_NULL_FAKE_ADDR;
+    if (unknown) {
+        RV_LOG_WARN("pccg", "textures refused: no model at address {}", addr);
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
 int64_t rv_pccg_null::model_free(int64_t /*addr*/)
 {
     return RV_OK;
