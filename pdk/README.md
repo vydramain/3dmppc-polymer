@@ -54,6 +54,12 @@ read-only in the editor; a 1.0 disc refuses it at runtime
 (`rv_scene_parse`). Raise its `[scene]` `version` to "1.0" with the
 rebuild. `.mppccard` saves migrate automatically.
 
+At PDK 1.1 the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor `rv_pdko_cg()`)
+arrives, with its `[budget.pccg]` manifest section (`model_memory_size`,
+`triangle_capacity`), the drive's `RV_CD_RESOURCE_MODEL` kind and the scene queries
+`rv_cd_scene_object_count()` / `rv_cd_scene_object_read()`. This is a minor bump:
+a disc built for 1.0 runs unchanged.
+
 ---
 
 ## Purpose — why this directory exists
@@ -121,11 +127,12 @@ asks the organizer for one.
 
 | Symbol     | File               | Subsystem                           | Realized surface                                    |
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
-| `rv_pdko`  | `rv_pdko.h`        | organizer / façade                  | `rv_pdko_ca()`, `rv_pdko_cv()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`, `rv_pdko_cl()` — free functions, opaque handle in, controller pointer out |
+| `rv_pdko`  | `rv_pdko.h`        | organizer / façade                  | `rv_pdko_ca()`, `rv_pdko_cv()`, `rv_pdko_cg()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`, `rv_pdko_cl()` — free functions, opaque handle in, controller pointer out |
 | `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
+| `rv_cg`    | `cg/rv_cg.h`       | **C**ontroller **G**eometry (GTE)   | model memory (`rv_cg_model_memory_size()`, `rv_cg_triangle_capacity()`, budget `[budget.pccg]`), `rv_cg_frame_camera()`, `rv_cg_model_put()` (a model made resident by the drive: transformed, cut at the near plane, culled per put, keyed into the ordering-table range the disc gives, put into the frame of `rv_cv`), `rv_cg_point()` (world point → screen) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads) |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()` list a scene's objects by scene name (POD `rv_cd_scene_object`) |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 
@@ -133,8 +140,9 @@ Shared vocabulary lives next to the controllers: the audio POD is in `ca/`
 (`rv_sample`, `rv_voice_conf`, `rv_loop`), the I/O POD is in `cio/` (`rv_isource`,
 `rv_istate`, `rv_iaxes`, `rv_imotion`, `rv_imouse`, `rv_ohaptic`), the video POD
 is in `cv/` (`rv_color`, `rv_uv`, `rv_vertex`, `rv_texture`, and the primitive
-family in `rv_primitives.h`), and the cross-controller error enum is
-`rv_err.h` (see *Error convention*). `cl/` carries no separate POD tree —
+family in `rv_primitives.h`), the geometry POD is in `cg/`
+(`rv_cg_vec3`, `rv_cg_camera`, `rv_cg_put`, `rv_cg_screen`), and the cross-controller
+error enum is `rv_err.h` (see *Error convention*). `cl/` carries no separate POD tree —
 its one shared type, `rv_cl_type` (nil/boolean/number/string/function/table/
 other), only tags a value already sitting on the script machine's own stack.
 
@@ -183,7 +191,7 @@ Subsystem split, PSX-faithful:
 
 ### Class realization — opaque in `pdk/`, concrete at the edges
 
-`rv_pdko` and its six controllers are **opaque C11 structs**: `pdk/` declares
+`rv_pdko` and its seven controllers are **opaque C11 structs**: `pdk/` declares
 `typedef struct rv_ca rv_ca;` and a page of function prototypes, never a
 definition and never a base class. There is nothing to inherit — a disc holds
 a pointer it can never dereference itself, and every operation on it is a
@@ -201,6 +209,7 @@ contract is one ABI, not two:
   ║        rv_pdko_ca(o)->rv_ca*   rv_pdko_cd(o)->rv_cd*   rv_pdko_cm(o)->rv_cm* ║
   ║        rv_pdko_cio(o)->rv_cio* rv_pdko_cv(o)->rv_cv*   rv_pdko_cl(o)->rv_cl* ║
   ║                                        (rv_cl* is never NULL; may be inert)  ║
+  ║        rv_pdko_cg(o)->rv_cg*  (geometry: models in, primitives to rv_cv)     ║
   ║                                                                              ║
   ║  ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐   ┌───────┐       ║
   ║  │ rv_ca │   │ rv_cv │   │ rv_cio│   │ rv_cd │   │ rv_cm │   │ rv_cl │       ║
@@ -216,13 +225,14 @@ contract is one ABI, not two:
         │  src/  (THE CONSOLE)          │        │  mppcdiscs/<game>/         │
         │                               │        │                            │
         │  class rv_pconsole            │        │  class rv_dmain            │
-        │   owns the loop + six members:│        │   (no base class — its     │
+        │   owns loop + seven members:  │        │   (no base class — its     │
         │   ├ (video)    : rv_pccv      │        │    methods just match      │
         │   │   └ rv_Rasterizer,        │        │    what RV_MPPC_DISC_      │
         │   │     rv_Framebuffer  (priv)│        │    ENTRY_DEF thunks call)  │
         │   ├ (audio)    : rv_pcca      │        │    rv_pdko* pdk_;          │
         │   ├ (input)    : rv_pccio     │        │    // disc_initialize:     │
         │   ├ (drive)    : rv_pccd      │        │    //   pdk_ = pdk         │
+        │   ├ (geometry) : rv_pccg      │        │                            │
         │   ├ (card)     : rv_pccm      │        │    // frame_render:        │
         │   └ (script)   : rv_pccl      │        │    //   rv_pdko_cv(pdk_)   │
         │  free rv_pdko_cX(o) casts o   │        │    //   rv_cv_frame_put(…) │
@@ -231,6 +241,8 @@ contract is one ABI, not two:
         └───────────────────────────────┘        └────────────────────────────┘
          concrete backends are PRIVATE to          a game sees only rv_pdko and
          src/, never exposed, never in pdk/         its controllers — no src/ type
+
+rv_cg (accessor rv_pdko_cg()) is the seventh controller; the row above has no room for its box.
 ```
 
 ---
@@ -433,7 +445,7 @@ function-pointer struct is. `rv_Disc` + `rv_DiscServices` from the old
 
 ### disc → console and script → console: the exported `rv_*` functions
 
-`rv_pdko` and its six controllers are opaque C11 structs; every operation on
+`rv_pdko` and its seven controllers are opaque C11 structs; every operation on
 one is a free function taking the handle first (`rv_pdko_cv(o)`,
 `rv_cv_frame_put(cv, prim)`). Those exported functions ARE the entire
 disc → console direction — there is no second, wrapped interface sitting
@@ -542,7 +554,7 @@ never as isolation a reader could rely on.
     │        runs via dlopen (packaging/loading mechanics are a separate
     │        concern)
     │
-    │ 1. build the CONCRETE console (it constructs its own six controllers)
+    │ 1. build the CONCRETE console (it constructs its own seven controllers)
     ├──────────►  rv_pconsole console;   // owns ca_/cd_/cio_/cl_/cm_/cv_
     │
     │ 2. obtain the disc object: rv_de* disc;
@@ -575,7 +587,7 @@ never as isolation a reader could rely on.
 
 ## Ownership and lifetime
 
-- The controllers (`rv_ca` / `rv_cv` / `rv_cio` / `rv_cd` / `rv_cm` / `rv_cl`)
+- The controllers (`rv_ca` / `rv_cv` / `rv_cg` / `rv_cio` / `rv_cd` / `rv_cm` / `rv_cl`)
   are **owned by the concrete console** and live as long as it does — except
   `cl_`, which is deliberately declared LAST among the console's members
   (`src/rv_pconsole/rv_pconsole.hpp`), out of alphabetical order, so it is
@@ -643,6 +655,7 @@ bug: the boundary is checked by the toolchain every build.
 | `rv_cd`   | **C**ontroller **D**isk (accessor `rv_pdko_cd()`) |
 | `rv_cm`   | **C**ontroller **M**emory card (accessor `rv_pdko_cm()`) |
 | `rv_cl`   | **C**ontroller **L**ua — the script machine (accessor `rv_pdko_cl()`, never `NULL`) |
+| `rv_cg` | **C**ontroller **G**eometry (accessor `rv_pdko_cg()`) |
 | `rv_de` | console → disc: a POD table of hook function pointers (`disc_*` / `frame_*`) a `.mppcdisc` builds |
 | `rv_dmain` | convention: the name of the plain C++ class a disc writes its hooks in; not a base of `rv_de` |
 | `rv_pconsole` | the concrete console in `src/` — the object behind the `rv_pdko*` handle, owns the loop (`rv_pconsole::disc_run`) |
@@ -689,8 +702,8 @@ Tracked here so they are chosen deliberately rather than by drift:
 ## Status
 
 - **`rv_pdko`** — done: an opaque C11 handle, not a C++ base class, vending
-  its six controllers by pointer through free functions (`rv_pdko_ca()`,
-  `rv_pdko_cv()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`,
+  its seven controllers by pointer through free functions (`rv_pdko_ca()`,
+  `rv_pdko_cv()`, `rv_pdko_cg()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`,
   `rv_pdko_cl()`).
 - **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
   management + voices + geometry queries `voice_count`/`sound_memory_size`).
@@ -720,6 +733,11 @@ Tracked here so they are chosen deliberately rather than by drift:
   quad / sprite) sorted by the hardware ordering table. Blending, modulation,
   VRAM readback, the display stage and the sprite fixed-size fast
   paths are deferred. Concrete backend built in `src/rv_pconsole/cv/rv_pccv.cpp`.
+- **`rv_cg` (geometry, GTE)** — surface defined: model memory and triangle budget
+  queries, `frame_camera`, `model_put` (near-plane cut, per-put back-face cull,
+  ordering-table key range), `point` (world → screen). Models are resident through
+  the drive (`RV_CD_RESOURCE_MODEL`). Concrete backend in `src/rv_pconsole/cg/`
+  (`rv_pccg`, `rv_pccg_sw`, `rv_pccg_null`). `cv` stays the 2D primitive layer.
 - **`rv_cm` (memory card)** — surface defined: equally-sized slots (count and
   size queried via `card_slots()` / `card_slot_size()`), `card_size` /
   `card_read` / `card_write` / `card_erase`, whole-slot and **atomic** — a failed
@@ -754,4 +772,4 @@ Tracked here so they are chosen deliberately rather than by drift:
   geometry and validates its baked assumptions.
 - The migration off the old in-binary path is DONE: `rv_Disc` and
   `rv_DiscServices` are gone from `src/` — every disc, built-in or loaded,
-  now runs behind `rv_pdko` and the six controllers above.
+  now runs behind `rv_pdko` and the seven controllers above.
