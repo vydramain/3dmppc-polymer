@@ -52,11 +52,9 @@ ImVec4 modulate(const ImVec4 &a, const ImVec4 &b)
 }
 
 // A .glb's triangles, flat: glTF's own coordinates (Y up, metres) and uv (top-left origin, so
-// no flip as .obj needs). `part_tex` holds one texture per part, or is empty for none; `part_cpu`
-// one picture per part (null: none).
+// no flip as .obj needs). `part_cpu` holds one picture per part (null: none).
 std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &model,
     const rv_editor_affine &m,
-    const std::vector<ImTextureID> &part_tex,
     const std::vector<const rv_editor_cpu_image *> &part_cpu)
 {
     std::vector<rv_editor_tri> tris;
@@ -72,18 +70,16 @@ std::vector<rv_editor_tri> rv_editor_glb_triangles(const rv_pdklib::rv_mppcmod &
         tri.from_model = true;
         tris.push_back(tri);
     }
-    // A part's triangles are a run of the index list; each takes the part's colour and texture.
+    // A part's triangles are a run of the index list; each takes the part's colour and picture.
     for (size_t p = 0; p < model.parts.size(); ++p) {
         const rv_pdklib::rv_mppcmod_part &part = model.parts[p];
         const ImVec4 part_color = rgb_unit(part.color);
-        const ImTextureID tex = p < part_tex.size() ? part_tex[p] : ImTextureID{};
         const rv_editor_cpu_image *cpu = p < part_cpu.size() ? part_cpu[p] : nullptr;
         const size_t end = std::min(static_cast<size_t>(part.first_tri) + part.tri_count, tris.size());
         for (size_t t = part.first_tri; t < end; ++t) {
             for (ImVec4 &c : tris[t].color) {
                 c = modulate(c, part_color);
             }
-            tris[t].tex = tex;
             tris[t].cpu_tex = cpu;
         }
     }
@@ -107,56 +103,6 @@ size_t part_image_index(const rv_editor_glb_model &glb, const rv_pdklib::rv_mppc
         return !name.empty() && image.name == name;
     });
     return static_cast<size_t>(it - glb.images.begin());
-}
-
-// Each embedded PNG decoded once; a part gets the one its texture names, or 0 when none or it does not load.
-// Transitional: E3-3 makes the whole viewport one SDL texture and this SDL decode goes with it. Until then
-// rv_editor_glb_part_pictures decodes the same PNGs again for the CPU rasterizer.
-std::vector<ImTextureID> rv_editor_glb_make_part_textures(const rv_editor_glb_model &glb, SDL_Renderer *renderer)
-{
-    std::vector<ImTextureID> image_tex;
-    image_tex.reserve(glb.images.size());
-    for (const rv_pdklib::rv_mppcmod_gltf_image &image : glb.images) {
-        image_tex.push_back(rv_editor_image_load_png(renderer, image.png).id);
-    }
-    std::vector<ImTextureID> part_tex;
-    part_tex.reserve(glb.model.parts.size());
-    for (const rv_pdklib::rv_mppcmod_part &part : glb.model.parts) {
-        const size_t i = part_image_index(glb, part);
-        part_tex.push_back(i < image_tex.size() ? image_tex[i] : ImTextureID{});
-    }
-    return part_tex;
-}
-
-// Textures of one .glb, made from `model`: a later mtime brings a new model, so the pointer names the file version.
-struct rv_editor_glb_textures {
-    std::shared_ptr<const rv_editor_glb_model> model;
-    SDL_Renderer *renderer = nullptr;
-    std::vector<ImTextureID> part_tex;
-};
-
-// Keyed by absolute path, as the model cache is.
-std::unordered_map<std::string, rv_editor_glb_textures> rv_editor_glb_texture_cache;
-
-// The part textures of `glb` on `renderer`, made once per file version and renderer.
-// ponytail: a replaced set (new mtime or renderer) is leaked, not freed: an ImGui draw list may
-// still name it this frame. Also kept: records of removed files, and a renderer compared by address,
-// so a new renderer at a destroyed one's address would get stale IDs. Upgrade: free a set once the
-// frame that drew it has rendered, drop the cache with the renderer's owner, erase removed files.
-const std::vector<ImTextureID> &rv_editor_glb_part_textures(const std::string &key,
-    const std::shared_ptr<const rv_editor_glb_model> &glb,
-    SDL_Renderer *renderer)
-{
-    auto it = rv_editor_glb_texture_cache.find(key);
-    const bool fresh = it != rv_editor_glb_texture_cache.end() && it->second.model == glb && it->second.renderer == renderer;
-    if (!fresh) {
-        rv_editor_glb_textures made;
-        made.model = glb;
-        made.renderer = renderer;
-        made.part_tex = rv_editor_glb_make_part_textures(*glb, renderer);
-        it = rv_editor_glb_texture_cache.insert_or_assign(key, std::move(made)).first;
-    }
-    return it->second.part_tex;
 }
 
 // A .glb's embedded PNGs decoded to memory, and each part's one. `part` points into `images`, so a set
@@ -277,7 +223,6 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
     const rv_editor_affine &m,
-    SDL_Renderer *renderer,
     std::vector<rv_editor_tri> &tris,
     std::string &error)
 {
@@ -290,9 +235,7 @@ int rv_editor_glb_object_triangles(const rv_editor_project &project,
         return rc;
     }
     const rv_editor_glb_pictures &pictures = rv_editor_glb_part_pictures(path.string(), glb);
-    const std::vector<ImTextureID> part_tex =
-        renderer == nullptr ? std::vector<ImTextureID>{} : rv_editor_glb_part_textures(path.string(), glb, renderer);
-    tris = rv_editor_glb_triangles(glb->model, m, part_tex, pictures.part);
+    tris = rv_editor_glb_triangles(glb->model, m, pictures.part);
     return RV_OK;
 }
 

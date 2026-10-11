@@ -218,11 +218,8 @@ std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &pr
     return walk.matches.empty() ? std::filesystem::path() : walk.matches.front();
 }
 
-std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
-    const rv_editor_project &project,
-    int index,
-    std::string *error,
-    SDL_Renderer *renderer)
+std::vector<rv_editor_tri>
+rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error)
 {
     const rv_editor_scene_object &o = scene.objects[static_cast<size_t>(index)];
     if (o.kind == kind_quad) {
@@ -238,7 +235,7 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &sce
     if (o.mesh.ends_with(file_ext_glb)) {
         std::vector<rv_editor_tri> glb_tris;
         std::string glb_error;
-        if (rv_editor_glb_object_triangles(project, o.mesh, m, renderer, glb_tris, glb_error) == RV_OK) {
+        if (rv_editor_glb_object_triangles(project, o.mesh, m, glb_tris, glb_error) == RV_OK) {
             return glb_tris;
         }
         set_error(error, glb_error);

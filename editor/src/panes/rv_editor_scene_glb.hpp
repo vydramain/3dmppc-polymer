@@ -33,16 +33,13 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
     std::string &error);
 
 // The .glb under [models] named `name` as triangles in scene space through `m`, RV_OK with `tris`
-// written. Each triangle carries its part's colour and its part's picture in memory (cpu_tex), always.
-// With `renderer` non-null, also its part's SDL texture, created on `renderer` and cached (glb.cpp)
-// once per file version and renderer. The pictures are freed by the first successful re-read after the
-// file's mtime moved (or when the file is gone), so a cpu_tex is read before the next
-// rv_editor_object_triangles call. On failure: the code with
-// the reason in `error`, and `tris` is left alone; the caller falls back to the placeholder cube.
+// written. Each triangle carries its part's colour and its part's picture in memory (cpu_tex). The
+// pictures are freed by the first successful re-read after the file's mtime moved (or when the file
+// is gone), so a cpu_tex is read before the next rv_editor_object_triangles call. On failure: the code
+// with the reason in `error`, and `tris` is left alone; the caller falls back to the placeholder cube.
 int rv_editor_glb_object_triangles(const rv_editor_project &project,
     const std::string &name,
     const rv_editor_affine &m,
-    SDL_Renderer *renderer,
     std::vector<rv_editor_tri> &tris,
     std::string &error);
 

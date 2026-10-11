@@ -216,7 +216,7 @@ std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv
     std::vector<rv_editor_tri> out;
     for (size_t i = 1; i + 1 < poly.size(); ++i) {
         const rv_editor_clip_vertex *corner[tri_vertices] = { &poly[0], &poly[i], &poly[i + 1] };
-        rv_editor_tri piece = tri; // keeps tex and from_model
+        rv_editor_tri piece = tri; // keeps from_model and cpu_tex
         for (int k = 0; k < tri_vertices; ++k) {
             piece.p[k] = corner[k]->p;
             piece.uv[k] = corner[k]->uv;

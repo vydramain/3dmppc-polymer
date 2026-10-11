@@ -85,11 +85,9 @@ struct rv_editor_cpu_image;
 struct rv_editor_tri {
     vec3 p[3];
     ImVec2 uv[3];
-    // A .glb's triangle: from_model, so the object's tint applies to it as in the console; its part's
-    // own texture (0: the object's) and each corner's colour 0..1 (vertex colour times part colour).
-    // A mesh without them keeps from_model false, 0 and white.
+    // A .glb's triangle: from_model, so the object's tint applies to it as in the console, and each
+    // corner's colour 0..1 (vertex colour times part colour). A mesh without them keeps from_model false and white.
     bool from_model = false;
-    ImTextureID tex{};
     // The same part's picture decoded to memory, for the CPU rasterizer; null for none. It points into
     // the .glb cache (glb.cpp): a set is freed on the first successful re-read after the file's mtime
     // moved, or when the file is gone; a failed re-read keeps it. Read cpu_tex before the next
@@ -111,14 +109,11 @@ std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv
 // Each mesh triangle carries its uv: a .glb's as glTF has it, an .obj's vt (or 0,0 for a corner
 // without one; the whole unit square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
 // rv_editor_draw_filled once a texture's pixel size is known.
-// `renderer` non-null: each .glb part's texture is an SDL texture created on it and cached (see
-// rv_editor_glb_object_triangles), so the call writes the cache. Null: no SDL texture (edges, picking).
-// Either way each .glb part's cpu_tex is set.
+// Each .glb part's cpu_tex is set.
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,
     int index,
-    std::string *error = nullptr,
-    SDL_Renderer *renderer = nullptr);
+    std::string *error = nullptr);
 // A billboard's two triangles: a card of world size scale.xy (a scaled parent included) centred on
 // the object's world position, facing the view's right/up (not the object's own rotation).
 std::vector<rv_editor_tri>
