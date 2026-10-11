@@ -10,8 +10,14 @@ sources = ["src/*.cpp"]
 files = ["assets/*.txt", "scenes/*.scene.toml"]
 
 [textures]
-files = ["assets/*.png"]
+files = ["assets/*.png", "assets/tex/*.png"]
 format = "idx8"
+
+[sounds]
+files = ["assets/snd/*.wav"]
+
+[models]
+files = ["models/*.glb"]
 
 [budget.pcca]
 voice_count = 24
@@ -25,6 +31,10 @@ texture_max_height = 256
 video_memory_size = 1048576
 frame_capacity = 4096
 ot_bucket_count = 1024
+
+[budget.pccg]
+model_memory_size = 524288
+triangle_capacity = 2048
 
 [budget.pccio]
 iport_count = 2
