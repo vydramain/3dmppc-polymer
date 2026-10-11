@@ -32,6 +32,7 @@ constexpr const char *RV_BOARD_TEXT[] = {
     "glyph_5.mppcmod",
 };
 constexpr int RV_BOARD_TEXT_LEN = static_cast<int>(std::size(RV_BOARD_TEXT));
+static_assert(RV_BOARD_TEXT_LEN == RV_BOARD_CELL_COUNT, "the header's cell count is the text's length");
 
 // Cell pitch along the panel, metres (a glyph quad is 0.24 x 0.30); the text is centred on the panel.
 constexpr float RV_BOARD_CELL_WIDTH = 0.24f;
@@ -80,14 +81,18 @@ void panel_world(const float *board, float forward, float along, float out[16])
 
 } // namespace
 
+bool rv_board_cell_lit(int i, int64_t frame)
+{
+    const int64_t index = (frame / RV_BOARD_FLICKER_STEP + i * RV_BOARD_FLICKER_SHIFT) % RV_BOARD_FLICKER_SIZE;
+    const uint8_t level = RV_BOARD_FLICKER_TABLE[static_cast<size_t>(index)];
+    return RV_BOARD_TEXT[i] != nullptr && level > RV_BOARD_LIT_ABOVE;
+}
+
 int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
 {
-    const int64_t step = frame / RV_BOARD_FLICKER_STEP;
     std::array<bool, RV_BOARD_TEXT_LEN> lit = {};
     for (int i = 0; i < RV_BOARD_TEXT_LEN; ++i) {
-        const int64_t index = (step + i * RV_BOARD_FLICKER_SHIFT) % RV_BOARD_FLICKER_SIZE;
-        const uint8_t level = RV_BOARD_FLICKER_TABLE[static_cast<size_t>(index)];
-        lit[static_cast<size_t>(i)] = RV_BOARD_TEXT[i] != nullptr && level > RV_BOARD_LIT_ABOVE;
+        lit[static_cast<size_t>(i)] = rv_board_cell_lit(i, frame);
     }
 
     // Halos first, then letters: a halo must not land over its neighbour's letter.

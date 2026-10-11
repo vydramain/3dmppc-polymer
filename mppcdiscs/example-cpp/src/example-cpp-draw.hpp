@@ -35,7 +35,10 @@ inline int64_t rv_draw_model(rv_pdko *pdk, const char *name, const float *world)
     put.cull = RV_CG_CULL_BACK;
     put.tint = RV_DRAW_TINT;
     const int64_t count = rv_cg_model_put(rv_pdko_cg(pdk), addr, &put);
-    return count < 0 ? count : RV_OK;
+    if (count < 0) {
+        return count;
+    }
+    return RV_OK;
 }
 
 } // namespace example_cpp

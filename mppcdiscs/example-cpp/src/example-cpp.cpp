@@ -15,6 +15,7 @@
 #include "example-cpp-draw.hpp"
 #include "example-cpp-lamps.hpp"
 #include "example-cpp-route.hpp"
+#include "example-cpp-sound.hpp"
 
 namespace example_cpp
 {
@@ -77,6 +78,7 @@ public:
     void frame_render()
     {
         frame_begin(RV_EXAMPLE_CPP_BACKGROUND);
+        play_sound();
         draw_world();
         frame_end();
     }
@@ -97,6 +99,8 @@ private:
     void add_route_key(const rv_cd_scene_object &object);
     void draw_world();
     void log_draw_error(const char *step, int64_t code);
+    void play_sound();
+    void log_sound_error(int64_t code);
 
     std::vector<rv_example_cpp_mesh> meshes_;
     // The cam_NN keys, in NN order.
@@ -109,6 +113,9 @@ private:
     // Frames updated while running: the demo's clock.
     int64_t frame_count_ = 0;
     bool draw_error_logged_ = false;
+    // The music and the clack: the last frame played for and the area of its music.
+    rv_sound_state sound_state_;
+    bool sound_error_logged_ = false;
 };
 
 // Fills meshes_ and keys_ from the scene. An error leaves them partly filled; the caller clears them.
@@ -221,6 +228,28 @@ void rv_dmain::log_draw_error(const char *step, int64_t code)
     }
     draw_error_logged_ = true;
     RV_LOG_ERR("draw", "{} not drawn: rv_err {}", step, code);
+}
+
+// Plays the frame's sound; no keys means no camera and so no area, and read_scene has logged why.
+void rv_dmain::play_sound()
+{
+    if (keys_.empty()) {
+        return;
+    }
+    const int64_t sound_code = rv_sound_update(pdk_, keys_, frame_count_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
+    if (sound_code < 0) {
+        log_sound_error(sound_code);
+    }
+}
+
+// Logs the first failure only, as log_draw_error does: the same failure would repeat in every frame.
+void rv_dmain::log_sound_error(int64_t code)
+{
+    if (sound_error_logged_) {
+        return;
+    }
+    sound_error_logged_ = true;
+    RV_LOG_ERR("sound", "sound not played: rv_err {}", code);
 }
 
 } // namespace example_cpp
