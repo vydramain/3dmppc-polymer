@@ -39,7 +39,7 @@ struct rv_editor_tool {
 //   [tools]
 //   console = "/path/to/3dmppc"
 //   burner = "/path/to/mppcburner"
-//   baker = "/path/to/mppcbaker"
+//   baker = "/path/to/mppctexbaker"
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
 struct rv_editor_toolchain {
     rv_editor_tool console;

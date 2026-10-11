@@ -563,7 +563,7 @@ log_time_4 = "12:00:04"
 log_msg_error = "script_error: main.lua:12: ')' expected"
 
 [shell_settings]
-label_baker = "Baker: mppcbaker"
+label_baker = "Baker: mppctexbaker"
 label_burner = "Burner: mppcburner"
 label_console = "Runtime: 3dmppc built with devtools"
 label_player = "Player: 3dmppc built without devtools, for a candidate's final check"

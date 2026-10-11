@@ -38,7 +38,7 @@ constexpr std::string_view proc_self_exe = "/proc/self/exe";
 // Tool executable names as they appear on the system or in next to the editor.
 constexpr std::string_view tool_console_name = "3dmppc";
 constexpr std::string_view tool_burner_name = "mppcburner";
-constexpr std::string_view tool_baker_name = "mppcbaker";
+constexpr std::string_view tool_baker_name = "mppctexbaker";
 constexpr std::string_view tool_player_name = "player";
 
 // Tool key names used in settings.toml and configuration.
