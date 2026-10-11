@@ -10,13 +10,12 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
-#include "rv_baker_encode.hpp" // baker_error
-#include "rv_baker_wav.hpp"
+#include "rv_musbaker_wav.hpp"
 
 namespace
 {
 
-// Exit codes, as mppcbaker: 1 is a job that could not be done, 2 a command line
+// Exit codes: 1 is a job that could not be done, 2 a command line
 // not understood.
 constexpr int RV_MUSBAKER_EXIT_SUCCESS = 0;
 constexpr int RV_MUSBAKER_EXIT_FAILURE = 1;
@@ -31,6 +30,14 @@ constexpr int RV_MUSBAKER_ARGC_VERSION_CHECK = 2;
 
 // Positional arguments required after option processing: input and output paths.
 constexpr int RV_MUSBAKER_POSITIONAL_ARGS_REQUIRED = 2;
+
+// What a failed step hands back to the CLI. `show_usage` is set by argument
+// parsing only; an empty message means the failure has already explained itself
+// on stderr, which is how getopt reports an unknown flag.
+struct musbaker_error {
+    std::string message;
+    bool show_usage = false;
+};
 
 struct musbaker_args {
     std::string input;
@@ -52,7 +59,7 @@ void print_usage(std::FILE *out)
 
 // The ONE place a failure becomes something the user sees and a code the shell
 // gets. An empty message means the failure has already explained itself.
-int report(const baker_error &error)
+int report(const musbaker_error &error)
 {
     if (error.show_usage) {
         print_usage(stderr);
@@ -64,7 +71,7 @@ int report(const baker_error &error)
 }
 
 // Fills `out` from argv. --help is not a failure: it sets out->help and succeeds.
-int parse_args(int argc, char **argv, musbaker_args *out, baker_error *error)
+int parse_args(int argc, char **argv, musbaker_args *out, musbaker_error *error)
 {
     static struct option long_opts[] = { { "help", no_argument, 0, 'h' }, { 0, 0, 0, 0 } };
 
@@ -92,7 +99,7 @@ int parse_args(int argc, char **argv, musbaker_args *out, baker_error *error)
 }
 
 // One open, one write, one close. The message says what was being attempted.
-int write_file(const std::string &path, const std::vector<uint8_t> &bytes, baker_error *error)
+int write_file(const std::string &path, const std::vector<uint8_t> &bytes, musbaker_error *error)
 {
     std::FILE *out = std::fopen(path.c_str(), "wb");
     if (out == nullptr) {
@@ -111,7 +118,7 @@ int write_file(const std::string &path, const std::vector<uint8_t> &bytes, baker
 int run(int argc, char **argv)
 {
     musbaker_args args;
-    baker_error error;
+    musbaker_error error;
 
     if (parse_args(argc, argv, &args, &error) != RV_OK) {
         return report(error);
@@ -122,7 +129,9 @@ int run(int argc, char **argv)
     }
 
     std::vector<uint8_t> pcm;
-    if (load_wav_pcm(args.input, &pcm, &error) != RV_OK) {
+    std::string wav_error;
+    if (load_wav_pcm(args.input, &pcm, &wav_error) != RV_OK) {
+        error.message = wav_error;
         return report(error);
     }
     if (write_file(args.output, pcm, &error) != RV_OK) {
@@ -142,7 +151,7 @@ int run(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
-    // One line a front end can show and compare, as mppcbaker prints.
+    // One line a front end can show and compare.
     if (argc == RV_MUSBAKER_ARGC_VERSION_CHECK && std::string_view(argv[1]) == "--version") {
         rv_pdklib::rv_fprintf(stdout, "%s %d.%d\n", RV_MUSBAKER_PROGNAME, RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
         return RV_MUSBAKER_EXIT_SUCCESS;

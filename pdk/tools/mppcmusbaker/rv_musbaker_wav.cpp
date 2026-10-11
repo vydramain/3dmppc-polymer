@@ -1,5 +1,5 @@
-// mppcbaker: the RIFF/WAVE chunk walk and the PCM downmix.
-#include "rv_baker_wav.hpp"
+// mppcmusbaker: the RIFF/WAVE chunk walk and the PCM downmix.
+#include "rv_musbaker_wav.hpp"
 
 #include <cstdio>
 #include <cstring>
@@ -95,16 +95,16 @@ int16_t downmix_frame(const uint8_t *frame)
 
 } // namespace
 
-rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_error *error)
+rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, std::string *error)
 {
     std::vector<uint8_t> file;
     if (read_whole_file(input, &file) != RV_OK) {
-        error->message = "cannot read '" + input + "'";
+        *error = "cannot read '" + input + "'";
         return RV_ERR_IO;
     }
     if (file.size() < RV_RIFF_HEADER_SIZE || std::memcmp(file.data(), "RIFF", RV_TAG_LENGTH) != 0 ||
         std::memcmp(file.data() + RV_CHUNK_HEADER_SIZE, "WAVE", RV_TAG_LENGTH) != 0) {
-        error->message = "'" + input + "' is not a RIFF/WAVE file";
+        *error = "'" + input + "' is not a RIFF/WAVE file";
         return RV_ERR_INVAL;
     }
 
@@ -119,7 +119,7 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
         const uint32_t chunk_size = read_le32(file.data() + pos + RV_TAG_LENGTH);
         pos += RV_CHUNK_HEADER_SIZE;
         if (chunk_size > file.size() - pos) {
-            error->message = "'" + input + "' has a truncated chunk";
+            *error = "'" + input + "' has a truncated chunk";
             return RV_ERR_INVAL;
         }
         if (std::memcmp(chunk_id, "fmt ", RV_TAG_LENGTH) == 0 && chunk_size >= RV_FMT_MIN_CHUNK_SIZE) {
@@ -141,33 +141,36 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
     }
 
     if (!have_fmt) {
-        error->message = "'" + input + "' has no fmt chunk";
+        *error = "'" + input + "' has no fmt chunk";
         return RV_ERR_INVAL;
     }
     if (data == nullptr) {
-        error->message = "'" + input + "' has no data chunk";
+        *error = "'" + input + "' has no data chunk";
         return RV_ERR_INVAL;
     }
     if (fmt.audio_format != RV_WAV_FORMAT_PCM) {
-        error->message = "'" + input + "' is WAVE format " + std::to_string(fmt.audio_format) + ", mppcbaker requires PCM (1)";
+        *error = "'" + input + "' is WAVE format " + std::to_string(fmt.audio_format) + ", requires PCM (" +
+            std::to_string(RV_WAV_FORMAT_PCM) + ")";
         return RV_ERR_INVAL;
     }
     if (fmt.bits_per_sample != RV_WAV_REQUIRED_BITS) {
-        error->message = "'" + input + "' is " + std::to_string(fmt.bits_per_sample) + "-bit, mppcbaker requires 16-bit PCM";
+        *error = "'" + input + "' is " + std::to_string(fmt.bits_per_sample) + "-bit, requires " +
+            std::to_string(RV_WAV_REQUIRED_BITS) + "-bit PCM";
         return RV_ERR_INVAL;
     }
     if (fmt.sample_rate != RV_WAV_REQUIRED_RATE) {
-        error->message = "'" + input + "' is " + std::to_string(fmt.sample_rate) + " Hz, mppcbaker requires 44100 Hz";
+        *error = "'" + input + "' is " + std::to_string(fmt.sample_rate) + " Hz, requires " +
+            std::to_string(RV_WAV_REQUIRED_RATE) + " Hz";
         return RV_ERR_INVAL;
     }
     if (fmt.channels != 1 && fmt.channels != RV_WAV_CHANNELS_STEREO) {
-        error->message = "'" + input + "' has " + std::to_string(fmt.channels) + " channels, mppcbaker requires mono or stereo";
+        *error = "'" + input + "' has " + std::to_string(fmt.channels) + " channels, requires mono or stereo";
         return RV_ERR_INVAL;
     }
 
     if (fmt.channels == 1) {
         if (data_size % RV_BYTES_PER_SAMPLE != 0) {
-            error->message = "'" + input + "' data chunk is not a whole number of samples";
+            *error = "'" + input + "' data chunk is not a whole number of samples";
             return RV_ERR_INVAL;
         }
         out->assign(data, data + data_size); // already S16LE mono, byte for byte
@@ -175,7 +178,7 @@ rv_err load_wav_pcm(const std::string &input, std::vector<uint8_t> *out, baker_e
     }
 
     if (data_size % RV_STEREO_FRAME_SIZE != 0) {
-        error->message = "'" + input + "' data chunk is not a whole number of stereo frames";
+        *error = "'" + input + "' data chunk is not a whole number of stereo frames";
         return RV_ERR_INVAL;
     }
     const size_t frame_count = data_size / RV_STEREO_FRAME_SIZE;
