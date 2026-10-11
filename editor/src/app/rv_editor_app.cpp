@@ -42,7 +42,9 @@ void rv_editor_app_init(rv_editor_app &app)
     }
     rv_editor_app_tool_note(app, "runtime", app.tools.console);
     rv_editor_app_tool_note(app, "burner", app.tools.burner);
-    rv_editor_app_tool_note(app, "baker", app.tools.baker);
+    rv_editor_app_tool_note(app, "texbaker", app.tools.texbaker);
+    rv_editor_app_tool_note(app, "musbaker", app.tools.musbaker);
+    rv_editor_app_tool_note(app, "modbaker", app.tools.modbaker);
 }
 
 int rv_editor_app_open(rv_editor_app &app, const std::filesystem::path &target)

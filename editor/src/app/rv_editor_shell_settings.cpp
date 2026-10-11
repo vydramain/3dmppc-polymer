@@ -44,7 +44,7 @@ struct rv_editor_settings_row {
     rv_editor_tool rv_editor_toolchain::*tool;
 };
 
-// Pipeline order: baker bakes textures, burner writes the disc image, console
+// Pipeline order: the bakers bake textures, sounds and models, burner writes the disc image, console
 // runs it with devtools, player is the candidate's final check without them.
 constexpr rv_editor_settings_row rv_editor_settings_rows[] = {
     { "baker", "shell_settings.label_baker", "shell_settings.empty_auto_next", &rv_editor_toolchain::baker },

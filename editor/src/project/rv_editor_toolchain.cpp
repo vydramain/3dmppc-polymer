@@ -159,9 +159,9 @@ void rv_editor_tool_check(rv_editor_tool &tool, const char *name)
     }
 }
 
-// The bakers' directory as the burner finds it: a regular file means the directory of its symlink
-// target; empty stays empty. A missing path is returned as it is, the bakers then report it.
-// Any other failure sets ec and returns the path given.
+// The bakers' directory as the burner finds it: a regular file, or a symlink to one, means the directory
+// where its real file lies, after symlinks are resolved; empty stays empty. A missing path is returned as it is, the bakers
+// then report it. Any other failure sets ec and returns the path given.
 std::filesystem::path rv_editor_bakers_dir(const std::filesystem::path &given, std::error_code &ec)
 {
     if (given.empty()) {

@@ -43,8 +43,8 @@ rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
     const std::string where = rv_editor_status_where(app);
 
     int missing = 0;
-    for (const rv_editor_tool *t : { &app.tools.console, &app.tools.burner, &app.tools.baker }) {
-        missing += t->problem.empty() ? 0 : 1;
+    for (rv_editor_tool rv_editor_toolchain::*const member : rv_editor_toolchain_tools) {
+        missing += (app.tools.*member).problem.empty() ? 0 : 1;
     }
     const std::string tools = (missing == 0) ?
         std::string(rv_editor_text("shell_status.tools_ready")) :

@@ -29,6 +29,21 @@ constexpr std::string_view builds_dir_name = "builds";
 // Memory card file in the project's state directory. Same value used in rv_editor_app.cpp.
 constexpr std::string_view memcard_filename = "memcard.mppccard";
 
+// The tools the Toolchain list shows, in order: the member of rv_editor_toolchain and its name text.
+struct rv_editor_tool_row {
+    rv_editor_tool rv_editor_toolchain::*tool;
+    const char *name_id;
+};
+
+constexpr rv_editor_tool_row tool_rows[] = {
+    { &rv_editor_toolchain::console, "panes.tool_runtime" },
+    { &rv_editor_toolchain::burner, "panes.tool_burner" },
+    { &rv_editor_toolchain::texbaker, "panes.tool_texbaker" },
+    { &rv_editor_toolchain::musbaker, "panes.tool_musbaker" },
+    { &rv_editor_toolchain::modbaker, "panes.tool_modbaker" },
+};
+static_assert(std::size(tool_rows) == std::size(rv_editor_toolchain_tools));
+
 rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 {
     switch (session.state()) {
@@ -365,13 +380,11 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     }
 
     ImGui::SeparatorText(rv_editor_text("panes.toolchain_header"));
-    const rv_editor_tool *tools[] = { &app.tools.console, &app.tools.burner, &app.tools.baker };
-    const char *tool_names[] = { rv_editor_text("panes.tool_runtime"),
-        rv_editor_text("panes.tool_burner"),
-        rv_editor_text("panes.tool_baker") };
-    for (size_t i = 0; i < std::size(tools); ++i) {
-        const rv_editor_tool &t = *tools[i];
-        rv_editor_status(tool_names[i], t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error, theme);
+    for (size_t i = 0; i < std::size(tool_rows); ++i) {
+        const rv_editor_tool &t = app.tools.*tool_rows[i].tool;
+        rv_editor_status(rv_editor_text(tool_rows[i].name_id),
+            t.problem.empty() ? rv_editor_status_kind::ok : rv_editor_status_kind::error,
+            theme);
         ImGui::SameLine();
         if (!t.problem.empty()) {
             rv_editor_wrapped(t.problem);

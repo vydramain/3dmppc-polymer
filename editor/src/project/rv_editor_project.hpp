@@ -46,8 +46,8 @@ struct rv_editor_tool {
 //   player = "/path/to/3dmppc"   (built without devtools; no default place)
 //
 // baker is the directory record of the bakers: path is the directory, problem the first problem
-// of the three bakers or none; it has no version. texbaker, musbaker, modbaker are the bakers
-// the burner runs from that directory.
+// of the three bakers or none, or that the directory cannot be read (project.baker_dir_error); it has
+// no version. texbaker, musbaker, modbaker are the bakers the burner runs from that directory.
 struct rv_editor_toolchain {
     rv_editor_tool console;
     rv_editor_tool burner;
@@ -58,6 +58,15 @@ struct rv_editor_toolchain {
     rv_editor_tool player;
     std::filesystem::path settings_path;
     std::string settings_error; // settings.toml exists and does not parse
+};
+
+// The tools the editor lists and counts, in order: the console, the burner and the three bakers.
+inline constexpr rv_editor_tool rv_editor_toolchain::*rv_editor_toolchain_tools[] = {
+    &rv_editor_toolchain::console,
+    &rv_editor_toolchain::burner,
+    &rv_editor_toolchain::texbaker,
+    &rv_editor_toolchain::musbaker,
+    &rv_editor_toolchain::modbaker,
 };
 
 // Looks the tools up again and starts the burner's and the three bakers' version checks,
