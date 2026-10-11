@@ -146,11 +146,11 @@ struct rv_manifest {
     // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
-    // [textures] - globs baked through mppcbaker on the way in
+    // [textures] - globs baked through mppctexbaker on the way in
     rv_manifest_textures textures_files;
 
     // [sounds] - WAV globs baked into headerless S16LE mono 44100 "<name>.pcm"
-    // by mppcbaker on the way in; no format key yet, there is only one output.
+    // by mppcmusbaker on the way in; no format key yet, there is only one output.
     std::vector<std::string> sounds_files;
 
     // [models] - .glb globs baked by mppcmodbaker into "<name>.mppcmod" and its textures

@@ -12,7 +12,7 @@ namespace rv_pdklib
 //
 // One bit layout, written once. rv_texture.hpp mandates bits 0-4 red, 5-9 green,
 // 10-14 blue and bit 15 STP. Before this header those three shifts were restated
-// by mppcbaker, by the text renderer and twice by the rasterizer — four chances
+// by mppctexbaker, by the text renderer and twice by the rasterizer — four chances
 // to disagree about a format all of them must read identically.
 //
 // STP is left clear by everything here: the semi-transparency modes are deferred
