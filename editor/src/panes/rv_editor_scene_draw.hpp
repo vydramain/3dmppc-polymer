@@ -80,6 +80,8 @@ float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
 std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
 
+struct rv_editor_cpu_image;
+
 struct rv_editor_tri {
     vec3 p[3];
     ImVec2 uv[3];
@@ -88,6 +90,11 @@ struct rv_editor_tri {
     // A mesh without them keeps from_model false, 0 and white.
     bool from_model = false;
     ImTextureID tex{};
+    // The same part's picture decoded to memory, for the CPU rasterizer; null for none. It points into
+    // the .glb cache (glb.cpp): a set is freed on the first successful re-read after the file's mtime
+    // moved, or when the file is gone; a failed re-read keeps it. Read cpu_tex before the next
+    // rv_editor_object_triangles call.
+    const rv_editor_cpu_image *cpu_tex = nullptr;
     ImVec4 color[3] = { { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f } };
 };
 
@@ -105,7 +112,8 @@ std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv
 // without one; the whole unit square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
 // rv_editor_draw_filled once a texture's pixel size is known.
 // `renderer` non-null: each .glb part's texture is an SDL texture created on it and cached (see
-// rv_editor_glb_object_triangles), so the call writes the cache. Null: colour only (edges, picking).
+// rv_editor_glb_object_triangles), so the call writes the cache. Null: no SDL texture (edges, picking).
+// Either way each .glb part's cpu_tex is set.
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,
     int index,
