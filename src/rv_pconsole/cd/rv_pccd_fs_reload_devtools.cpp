@@ -10,7 +10,6 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_textures/rv_mppctex.hpp"
 
 namespace rv_3dmppc
@@ -37,10 +36,7 @@ int64_t rv_pccd_fs::asset_reload(const char *resname, rv_cd_resource_kind &kind_
         return RV_PCCD_UNSUPPORTED_KIND;
     }
     if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        RV_LOG_WARN("pccd",
-            "scene '{}' is resident; a hot refresh of a scene is not supported, restart the disc",
-            rv_pdklib::rv_log_escape(resname));
-        return RV_ERR_INVAL;
+        return RV_PCCD_SCENE_RESIDENT;
     }
     return RV_PCCD_NOT_RESIDENT;
 }
@@ -132,10 +128,7 @@ int64_t rv_pccd_fs::asset_refresh(const char *resname, const void *bytes, int64_
         return RV_PCCD_UNSUPPORTED_KIND;
     }
     if (scene_by_name_.find(key) != scene_by_name_.end()) {
-        RV_LOG_WARN("pccd",
-            "scene '{}' is resident; a hot refresh of a scene is not supported, restart the disc",
-            rv_pdklib::rv_log_escape(resname));
-        return RV_ERR_INVAL;
+        return RV_PCCD_SCENE_RESIDENT;
     }
     return RV_PCCD_NOT_RESIDENT;
 }

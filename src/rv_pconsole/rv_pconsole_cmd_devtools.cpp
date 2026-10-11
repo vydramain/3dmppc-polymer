@@ -13,6 +13,7 @@
 // dependency to speak it.
 #include "rv_pconsole/rv_pconsole.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <cstddef>
 #include <format>
@@ -57,6 +58,53 @@ size_t cmd_scene_sent = 0;
 uint64_t cmd_scene_generation = 0;
 
 } // namespace
+
+namespace rv_3dmppc
+{
+namespace
+{
+
+// The kinds refused by a protocol token that is shared by both asset commands.
+struct refusal_text {
+    int64_t code;
+    const char *text;
+};
+
+constexpr refusal_text REFUSAL_TEXTS[] = {
+    { RV_PCCD_UNSUPPORTED_KIND, "a sound is resident under that name; its bytes change only across a restart" },
+    { RV_PCCD_SCENE_RESIDENT, "a scene is resident under that name; it changes only across a restart" },
+};
+
+// The one reading of a drive's refresh result, shared by both asset commands.
+void reply_asset_result(rv_pccmdchan &cmd, rv_pccd &cd, const rv_pccmdreq &req, rv_cd_resource_kind kind, int64_t rc)
+{
+    const std::string key(req.arg(0));
+    if (rc < 0) {
+        // Names the path that failed: the request's bytes or a re-read of the medium.
+        const char *failed =
+            req.has_payload ? "the drive could not refresh that asset" : "the drive could not reload that asset";
+        cmd.reply(rv_pccmd_err(req.id, "asset", rc, false, failed));
+        return;
+    }
+    if (rc == RV_PCCD_NOT_RESIDENT) {
+        cmd.reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
+        return;
+    }
+    for (const refusal_text &refusal : REFUSAL_TEXTS) {
+        if (rc == refusal.code) {
+            cmd.reply(rv_pccmd_err(req.id, "unsupported_kind", RV_ERR_INVAL, false, refusal.text));
+            return;
+        }
+    }
+    // The new size, read by name: the refresh left it resident, so a cache hit. The editor
+    // needs it because a RESIZED texture is the one case its layout has to follow.
+    const int64_t width = std::max<int64_t>(cd.resource_width(kind, key.c_str()), 0);
+    const int64_t height = std::max<int64_t>(cd.resource_height(kind, key.c_str()), 0);
+    cmd.reply(std::format("{} ok asset={} resident=1 width={} height={}", req.id, rv_pccmd_hex(key), width, height));
+}
+
+} // namespace
+} // namespace rv_3dmppc
 
 // --- the development runtime -------------------------------------------------
 //
@@ -413,29 +461,7 @@ void rv_3dmppc::rv_pconsole::cmd_asset_from_bytes(const rv_pccmdreq &req, const 
         cmd_->reply(rv_pccmd_err(req.id, "asset", RV_ERR_INVAL, false, "this drive cannot refresh an asset from bytes"));
         return;
     }
-    if (rc == RV_PCCD_UNSUPPORTED_KIND) {
-        cmd_->reply(rv_pccmd_err(req.id,
-            "unsupported_kind",
-            RV_ERR_INVAL,
-            false,
-            "a sound is resident under that name; its bytes change only across a restart"));
-        return;
-    }
-    if (rc == RV_PCCD_NOT_RESIDENT) {
-        cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
-        return;
-    }
-    if (rc < 0) {
-        cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not refresh that asset"));
-        return;
-    }
-    const int64_t width = cd_->resource_width(kind, key.c_str());
-    const int64_t height = cd_->resource_height(kind, key.c_str());
-    cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
-        req.id,
-        rv_pccmd_hex(key),
-        width < 0 ? 0 : width,
-        height < 0 ? 0 : height));
+    reply_asset_result(*cmd_, *cd_, req, kind, rc);
 }
 
 void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
@@ -478,32 +504,5 @@ void rv_3dmppc::rv_pconsole::cmd_asset(const rv_pccmdreq &req)
     // address each draw.
     rv_cd_resource_kind kind = RV_CD_RESOURCE_TEXTURE;
     const int64_t rc = cd_->asset_reload(key.c_str(), kind);
-    if (rc == RV_PCCD_UNSUPPORTED_KIND) {
-        cmd_->reply(rv_pccmd_err(req.id,
-            "unsupported_kind",
-            RV_ERR_INVAL,
-            false,
-            "a sound is resident under that name; its bytes change only across a restart"));
-        return;
-    }
-    if (rc == RV_PCCD_NOT_RESIDENT) {
-        cmd_->reply(std::format("{} ok asset={} resident=0", req.id, rv_pccmd_hex(key)));
-        return;
-    }
-    if (rc < 0) {
-        cmd_->reply(rv_pccmd_err(req.id, "asset", rc, false, "the drive could not reload that asset"));
-        return;
-    }
-    // The new size, read back through the ordinary by-name contract rather
-    // than a console-only accessor: the reload above already left this name
-    // resident, so this is a cache hit that costs no reupload. The editor
-    // needs the numbers because a RESIZED texture is the one case its own
-    // layout has to follow, and nothing else in the protocol carries them.
-    const int64_t width = cd_->resource_width(kind, key.c_str());
-    const int64_t height = cd_->resource_height(kind, key.c_str());
-    cmd_->reply(std::format("{} ok asset={} resident=1 width={} height={}",
-        req.id,
-        rv_pccmd_hex(key),
-        width < 0 ? 0 : width,
-        height < 0 ? 0 : height));
+    reply_asset_result(*cmd_, *cd_, req, kind, rc);
 }
