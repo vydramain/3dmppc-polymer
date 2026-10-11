@@ -13,6 +13,7 @@ namespace rv_3dmppc
 
 class rv_pccv;
 class rv_pcca;
+class rv_pccg;
 
 // asset_reload result meaning nothing holds that name resident, so there
 // was nothing to refresh.
@@ -97,6 +98,11 @@ public:
     // the whole run, and rv_pconsole builds cd_ after ca_ already exists but
     // still cannot take it by constructor reference (see video_attach above).
     virtual void audio_attach(rv_pcca &ca) = 0;
+
+    // audio_attach's twin: where a resident model is uploaded to. Borrowed
+    // the same way and for the same reason - cg_ is built before cd_ and
+    // outlives it, so the drive never holds a dangling controller.
+    virtual void geometry_attach(rv_pccg &cg) = 0;
 
     virtual bool valid() const = 0;
 

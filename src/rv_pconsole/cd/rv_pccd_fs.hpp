@@ -44,6 +44,11 @@ private:
     // "nothing resident yet" meaning while null.
     rv_pcca *ca_ = nullptr;
 
+    // geometry_attach()'s twin of cv_ above: same borrow, same "nothing
+    // resident yet" meaning while null; why it is a borrow - see geometry_attach()
+    // in rv_pccd.hpp.
+    rv_pccg *cg_ = nullptr;
+
     // One baked texture currently uploaded, keyed by name in `tex_by_name_`.
     // A disc never releases a texture, so the vector only ever grows and a
     // record lives for as long as the drive does - freed only in ~rv_pccd_fs,
@@ -172,6 +177,11 @@ public:
     void audio_attach(rv_pcca &ca) override
     {
         ca_ = &ca;
+    }
+
+    void geometry_attach(rv_pccg &cg) override
+    {
+        cg_ = &cg;
     }
 
     // An empty or unmountable medium leaves the drive empty, never broken.

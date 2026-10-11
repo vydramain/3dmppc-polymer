@@ -42,6 +42,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     // seam for ca_ - see rv_pccd.hpp's own comment on audio_attach().
     cd_->video_attach(*cv_);
     cd_->audio_attach(*ca_);
+    cd_->geometry_attach(*cg_);
 }
 
 // This is where the contract meets the machine. reinterpret_cast is mandatory

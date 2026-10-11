@@ -49,6 +49,9 @@ public:
     void audio_attach(rv_pcca & /*ca*/) override
     {
     }
+    void geometry_attach(rv_pccg & /*cg*/) override
+    {
+    }
 
     bool valid() const override
     {
