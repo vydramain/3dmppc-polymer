@@ -17,7 +17,7 @@ namespace rv_editor
 constexpr int64_t console_native_screen_width = 320;
 constexpr int64_t console_native_screen_height = 240;
 
-// A .glb file's extension: a mesh name ending in it names a [models] file, not an .obj.
+// A .glb file's extension: the only mesh format the editor reads; a mesh name ending in it names a [models] file.
 inline constexpr std::string_view file_ext_glb = ".glb";
 
 // Where the editor keeps what is not the game's.

@@ -74,8 +74,8 @@ rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, I
 // A scene segment clipped to the near plane, drawn.
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
-// Each object's edges in scene space: a mesh's real triangles, .glb or .obj (or the unit cube while
-// it does not resolve, with the reason in *error), a camera's body and lens, a group's corner
+// Each object's edges in scene space: a mesh's real .glb triangles (or the unit cube while
+// its mesh is empty or does not load, with the reason in *error), a camera's body and lens, a group's corner
 // brackets and axis cross, a third marker for any other kind.
 std::vector<std::pair<vec3, vec3>>
 rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &project, int index, std::string *error = nullptr);
@@ -101,14 +101,13 @@ struct rv_editor_tri {
 // wholly behind: none.
 std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv_editor_tri &tri);
 
-// An object's surface in scene space: a mesh's triangles, a .glb's (name ends in ".glb") or an
-// .obj's, or the unit cube while its mesh is empty or does not load (the reason in *error when
-// given); a quad's two triangles (rv_pdklib::rv_scene_quad_corners' layout, uv the object's
-// pixel rect); empty for other kinds (a billboard's corners depend on the view: see
-// rv_editor_billboard_triangles).
-// Each mesh triangle carries its uv: a .glb's as glTF has it, an .obj's vt (or 0,0 for a corner
-// without one; the whole unit square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
-// rv_editor_draw_filled once a texture's pixel size is known.
+// An object's surface in scene space: a mesh's .glb triangles (name ends in ".glb"), or the unit
+// cube while its mesh is empty or does not load (the reason in *error when given); a quad's two
+// triangles (rv_pdklib::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for
+// other kinds (a billboard's corners depend on the view: see rv_editor_billboard_triangles).
+// Each mesh triangle carries its glTF uv (the whole unit square per face for the placeholder
+// cube); a quad's uv is raw pixels, normalized in rv_editor_draw_filled once a texture's pixel
+// size is known.
 // Each .glb part's cpu_tex is set.
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,
