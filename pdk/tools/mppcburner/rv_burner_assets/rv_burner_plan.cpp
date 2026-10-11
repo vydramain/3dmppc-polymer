@@ -162,3 +162,33 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
     out = std::move(plan);
     return RV_OK;
 }
+
+int rv_pdktools::plan_models(const rv_pdklib::rv_manifest &manifest,
+    const fs::path &disc_dir,
+    const fs::path &model_dir,
+    archive_plan &plan,
+    std::string &error)
+{
+    archive_plan next = plan;
+
+    const int models_err = plan_section(manifest.models_files,
+        "[models] files",
+        disc_dir,
+        model_dir,
+        ".mppcmod",
+        next,
+        next.first_model,
+        next.model_count,
+        error);
+    if (models_err != RV_OK) {
+        return models_err;
+    }
+
+    const int collision_err = check_collisions(next.items, error);
+    if (collision_err != RV_OK) {
+        return collision_err;
+    }
+
+    plan = std::move(next);
+    return RV_OK;
+}

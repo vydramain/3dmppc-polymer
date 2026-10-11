@@ -30,6 +30,9 @@ int rv_pdktools::write_map(const std::filesystem::path &path,
     for (std::size_t i = plan.first_sound; i < plan.first_sound + plan.sound_count; ++i) {
         line(plan.items[i], "sound", "s16le-44100-mono");
     }
+    for (std::size_t i = plan.first_model; i < plan.first_model + plan.model_count; ++i) {
+        line(plan.items[i], "model", "");
+    }
     for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
         const archive_item &item = plan.items[i];
         if (item.name == manifest.budget.pccl.script_entry) {

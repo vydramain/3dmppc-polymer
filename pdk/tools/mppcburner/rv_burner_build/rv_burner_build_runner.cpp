@@ -12,8 +12,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
-#include "rv_burner_assets/rv_burner_bake.hpp"
-#include "rv_burner_assets/rv_burner_compile_scripts.hpp"
+#include "rv_burner_build/rv_burner_build_assets.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
 #include "rv_burner_build/rv_burner_map.hpp"
 #include "rv_burner_burn/rv_burner_burn.hpp"
@@ -29,7 +28,6 @@ namespace
 // Build phases in order: manifest, compile, assets, burn.
 constexpr int k_step_manifest = 1;
 constexpr int k_step_compile = 2;
-constexpr int k_step_assets = 3;
 constexpr int k_step_burn = 4;
 } // namespace
 
@@ -48,22 +46,11 @@ static constexpr const char *k_binary_subdir = "build";
 static constexpr const char *k_scripts_subdir = "scripts";
 static constexpr const char *k_textures_subdir = "textures";
 static constexpr const char *k_sounds_subdir = "sounds";
+static constexpr const char *k_models_subdir = "models";
 
 // The module compile_sources() produces, at the path the burn phase reads it
 // from.
 static constexpr const char *k_disc_module_name = "disc.so";
-
-// What -o/--unpacked resolved to, decided once and asked by every later
-// stage instead of each one re-testing which flag was given.
-enum class rv_burner_destination_kind {
-    archive,
-    directory,
-};
-
-struct rv_burner_destination {
-    rv_burner_destination_kind kind;
-    fs::path path;
-};
 
 // Burns the disc into an unpacked directory and prints its [4/4] step.
 static int rv_burner_burn_to_directory(const rv_burner_destination &destination,
@@ -171,138 +158,6 @@ static int rv_burner_build_compile(const rv_burner_options &options,
     }
 
     rv_burner_print_step(k_step_compile, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
-    return RV_OK;
-}
-
-static bool script_entry_is_planned(const archive_plan &plan, const std::string &entry_name)
-{
-    for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
-        if (plan.items[i].name == entry_name) {
-            return true;
-        }
-    }
-    return false;
-}
-
-static std::string planned_script_names(const archive_plan &plan)
-{
-    std::string result;
-    for (std::size_t i = plan.first_script; i < plan.first_script + plan.script_count; ++i) {
-        if (!result.empty()) {
-            result += ", ";
-        }
-        result += plan.items[i].name;
-    }
-    return result;
-}
-
-// --- [3/4] assets ---
-//
-// Plans, checks, compiles or copies scripts, bakes textures, and prints step 3.
-static int rv_burner_build_assets(const rv_burner_options &options,
-    rv_pdklib::rv_manifest &manifest,
-    const fs::path &disc_dir,
-    const fs::path &texture_dir,
-    const fs::path &scripts_dir,
-    const fs::path &sound_dir,
-    const rv_burner_destination &destination,
-    archive_plan &plan,
-    std::string &error)
-{
-    const int plan_err = plan_archive(manifest, disc_dir, texture_dir, scripts_dir, sound_dir, plan, error);
-    if (plan_err != RV_OK) {
-        rv_burner_print_error(error);
-        return plan_err;
-    }
-
-    // Scripts and the memory they run in travel together, and the plan is the
-    // first place both are known: the manifest states the budget, the glob
-    // decides whether any .lua actually exists. Bytecode burned onto a disc
-    // whose manifest declares no [budget.pccl] is dead weight - the console
-    // reads that manifest, finds no Lua machine, and the disc can never load
-    // the very files it carries. That is a mistake to catch on the author's
-    // desk, not a silent archive.
-    if (plan.script_count > 0 && manifest.budget.pccl.script_memory_size <= 0) {
-        rv_burner_print_error(std::to_string(plan.script_count) +
-            " lua script(s) to compile, but [budget.pccl] script_memory_size is not stated. "
-            "A disc that carries scripts must declare the memory its lua machine gets.");
-        return RV_ERR_INVAL;
-    }
-
-    // The mirror of the refusal above, and the case that hides best: the author
-    // wrote [budget.pccl], put .lua files in the disc directory, and forgot the
-    // [scripts] section that tells the burner to look for them. The glob then
-    // matches nothing, the plan holds no scripts, and without this the disc
-    // burns with a lua machine declared and not one script aboard.
-    // Only one cause can reach here. A [scripts] glob that matches nothing is
-    // already refused by plan_archive above, by name, so an empty plan past
-    // that point means there was no [scripts] section to glob with at all.
-    if (plan.script_count == 0 && manifest.budget.pccl.script_memory_size > 0) {
-        rv_burner_print_error("[budget.pccl] declares a lua machine, but there is no [scripts] section to "
-                              "put a script in it. State [scripts] sources, or drop [budget.pccl].");
-        return RV_ERR_INVAL;
-    }
-
-    // The named entry must be one of the scripts actually planned. Without this
-    // the disc burns with a lua machine pointed at a name nothing on the medium
-    // answers to, and the failure surfaces on a player's machine as a missing
-    // asset instead of here as a typo.
-    const bool entry_ok =
-        manifest.budget.pccl.script_memory_size <= 0 || script_entry_is_planned(plan, manifest.budget.pccl.script_entry);
-    if (!entry_ok) {
-        rv_burner_print_error(std::format("[budget.pccl] script_entry '{}' is not among the compiled scripts ({})",
-            manifest.budget.pccl.script_entry,
-            planned_script_names(plan)));
-        return RV_ERR_INVAL;
-    }
-
-    // Which of the two a script gets - left as .lua or turned into .luac - is
-    // decided once here by the destination, in a switch rather than an
-    // if/else chain, so a third destination kind added later fails to compile
-    // instead of silently falling into one of these two. One failure check
-    // below covers both functions, instead of one per branch.
-    int scripts_status = RV_ERR_INVAL;
-    switch (destination.kind) {
-    case rv_burner_destination_kind::directory:
-        scripts_status = prepare_scripts(plan, manifest, disc_dir, error);
-        break;
-    case rv_burner_destination_kind::archive:
-        scripts_status = compile_scripts(plan, disc_dir, error);
-        break;
-    default:
-        // Unreachable while rv_burner_destination_kind has only these two
-        // values - kept so the switch stays exhaustive under a compiler
-        // warning and so a future third kind fails here, not silently.
-        error = "unknown destination kind";
-        break;
-    }
-    if (scripts_status != RV_OK) {
-        rv_burner_print_error(error);
-        return scripts_status;
-    }
-
-    const int textures_err = bake_textures(options.baker, manifest, disc_dir, plan, error);
-    if (textures_err != RV_OK) {
-        rv_burner_print_error(error);
-        return textures_err;
-    }
-
-    const int sounds_err = bake_sounds(options.baker, disc_dir, plan, error);
-    if (sounds_err != RV_OK) {
-        rv_burner_print_error(error);
-        return sounds_err;
-    }
-
-    const char *scripts_wording =
-        destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
-    rv_burner_print_step(k_step_assets,
-        "assets",
-        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied",
-            plan.texture_count,
-            plan.sound_count,
-            plan.script_count,
-            scripts_wording,
-            plan.asset_count));
     return RV_OK;
 }
 
@@ -438,11 +293,17 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return RV_ERR_IO;
     }
     const fs::path binary_dir = project_dir / k_binary_subdir;
-    const fs::path scripts_dir = project_dir / k_scripts_subdir;
-    const fs::path texture_dir = project_dir / k_textures_subdir;
-    const fs::path sound_dir = project_dir / k_sounds_subdir;
+    const rv_burner_asset_paths asset_paths{ disc_dir,
+        project_dir / k_textures_subdir,
+        project_dir / k_scripts_subdir,
+        project_dir / k_sounds_subdir,
+        project_dir / k_models_subdir };
 
-    const std::vector<fs::path> build_dirs{ binary_dir, scripts_dir, texture_dir, sound_dir };
+    const std::vector<fs::path> build_dirs{ binary_dir,
+        asset_paths.scripts,
+        asset_paths.textures,
+        asset_paths.sounds,
+        asset_paths.models };
     for (const auto &dir : build_dirs) {
         fs::create_directories(dir, ec);
         if (ec) {
@@ -471,8 +332,7 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     const fs::path disc_module = binary_dir / k_disc_module_name;
 
     archive_plan plan;
-    const int assets_err =
-        rv_burner_build_assets(options, manifest, disc_dir, texture_dir, scripts_dir, sound_dir, destination, plan, error);
+    const int assets_err = rv_burner_build_assets(options, manifest, asset_paths, destination, plan, error);
     if (assets_err != RV_OK) {
         return assets_err;
     }

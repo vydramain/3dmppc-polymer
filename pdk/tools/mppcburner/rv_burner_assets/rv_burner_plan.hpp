@@ -34,12 +34,15 @@ struct archive_plan {
     std::size_t script_count = 0;  ///< how many script entries follow it
     std::size_t first_sound = 0;   ///< index of the first sound entry
     std::size_t sound_count = 0;   ///< how many sound entries follow it
+    std::size_t first_model = 0;   ///< index of the first model entry
+    std::size_t model_count = 0;   ///< how many model entries follow it
 };
 
 /// Plan every archive entry the manifest asks for, and refuse a plan whose flat
 /// names collide.
 ///
 /// Nothing is read, baked or compiled here — only names and paths are decided.
+/// Models are not in this plan: plan_models() appends them after it.
 ///
 /// @param manifest     the validated manifest; assets, textures and scripts are read
 /// @param disc_dir     absolute, canonical disc directory the globs resolve against
@@ -55,6 +58,22 @@ int plan_archive(const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &scripts_dir,
     const std::filesystem::path &sound_dir,
     archive_plan &out,
+    std::string &error);
+
+/// Append the [models] entries to a plan made by plan_archive, and refuse a plan whose names collide.
+///
+/// Kept apart from plan_archive so its callers that never bake models stay as they were.
+///
+/// @param manifest   the validated manifest; models_files is read
+/// @param disc_dir   absolute, canonical disc directory the globs resolve against
+/// @param model_dir  directory baked .mppcmod files will be written to
+/// @param plan       the plan to extend; untouched on failure
+/// @param error      set with a message that already names its manifest section
+/// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
+int plan_models(const rv_pdklib::rv_manifest &manifest,
+    const std::filesystem::path &disc_dir,
+    const std::filesystem::path &model_dir,
+    archive_plan &plan,
     std::string &error);
 
 } // namespace rv_pdktools

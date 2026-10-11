@@ -227,7 +227,7 @@ int rv_pdktools::burn_directory(const fs::path &output_dir,
 
     // --- everything the plan named ---
     //
-    // Textures and sounds are finished products (baked from a source the
+    // Textures, sounds and models are finished products (baked from a source the
     // player never sees, in a work directory that goes away after the
     // build) and are copied; everything else (copied assets and, for an
     // unpacked build, scripts) is the developer's own file and is
@@ -237,10 +237,11 @@ int rv_pdktools::burn_directory(const fs::path &output_dir,
         const archive_item &item = plan.items[i];
         const bool is_texture = i >= plan.first_texture && i < plan.first_texture + plan.texture_count;
         const bool is_sound = i >= plan.first_sound && i < plan.first_sound + plan.sound_count;
+        const bool is_model = i >= plan.first_model && i < plan.first_model + plan.model_count;
         const fs::path dest = output_dir / item.name;
 
-        const int rc =
-            (is_texture || is_sound) ? publish_copy(dest, item.payload, error) : publish_link(dest, item.payload, error);
+        const int rc = (is_texture || is_sound || is_model) ? publish_copy(dest, item.payload, error) :
+                                                              publish_link(dest, item.payload, error);
         if (rc != RV_OK) {
             return rc;
         }

@@ -14,6 +14,7 @@ add_executable(mppcburner
 
   # the two subcommands, named for what the user types
   rv_burner_build/rv_burner_build_runner.cpp
+  rv_burner_build/rv_burner_build_assets.cpp
   rv_burner_build/rv_burner_bake_texture.cpp
   rv_burner_build/rv_burner_map.cpp
   rv_burner_inspect/rv_burner_inspect_runner.cpp
@@ -32,6 +33,7 @@ add_executable(mppcburner
   rv_burner_assets/rv_burner_plan.cpp
   rv_burner_assets/rv_burner_baker_path.cpp
   rv_burner_assets/rv_burner_bake.cpp
+  rv_burner_assets/rv_burner_bake_models.cpp
   rv_burner_assets/rv_burner_compile_scripts.cpp
 
   # [4/4] burn
