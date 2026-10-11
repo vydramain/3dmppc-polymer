@@ -26,7 +26,7 @@ constexpr std::string_view burner_cmd_bake = "bake-texture";
 // Burner argument for output file path.
 constexpr std::string_view burner_arg_output = "-o";
 
-// Burner argument to specify the baker tool path.
+// Burner argument to specify the directory of the bakers.
 constexpr std::string_view burner_arg_baker = "--baker";
 
 // The last non-empty line of `text`, for a one-line failure summary.

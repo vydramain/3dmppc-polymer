@@ -31,7 +31,7 @@ constexpr std::string_view build_log_ext = ".log";
 // mppcburner command: build a disc or candidate image.
 constexpr std::string_view build_command = "build";
 
-// mppcburner flag: use this baker binary.
+// mppcburner flag: the directory of the bakers; the burner finds the baker for each asset kind there.
 constexpr std::string_view build_flag_baker = "--baker";
 
 // mppcburner flag: write the disc map to this file.
