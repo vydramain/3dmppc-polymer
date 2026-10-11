@@ -1,0 +1,316 @@
+# The scene of the Solid Maid demo (pdklib/rv_scene/rv_scene.hpp): the factory,
+# street, house and apartment meshes, lamps, and the camera route. 3dmppc-editor's
+# Scene layout edits it; the disc reads and draws it through the PDK.
+# The demo flies the route cam_00..cam_17. Camera rotation: pitch, yaw, roll in
+# degrees; the view direction is R * (0, 0, 1), R = Ry * Rx * Rz.
+
+[scene]
+version = "1.1"
+
+[[object]]
+id = "5ce00001"
+name = "factory"
+parent = ""
+kind = "mesh"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "factory.glb"
+texture = ""
+
+[[object]]
+id = "5ce00002"
+name = "board"
+parent = ""
+kind = "mesh"
+position = [-9.85, 2.5, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "board.glb"
+texture = ""
+
+[[object]]
+id = "5ce00003"
+name = "street"
+parent = ""
+kind = "mesh"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "street.glb"
+texture = ""
+
+[[object]]
+id = "5ce00004"
+name = "house"
+parent = ""
+kind = "mesh"
+position = [30, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "house.glb"
+texture = ""
+
+[[object]]
+id = "5ce00005"
+name = "apartment"
+parent = ""
+kind = "mesh"
+position = [30, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "apartment.glb"
+texture = ""
+
+[[object]]
+id = "5ce00006"
+name = "lamp_1"
+parent = ""
+kind = "mesh"
+position = [6, 0, 3]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "lamp.glb"
+texture = ""
+
+[[object]]
+id = "5ce00007"
+name = "lamp_2"
+parent = ""
+kind = "mesh"
+position = [12, 0, 3]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "lamp.glb"
+texture = ""
+
+[[object]]
+id = "5ce00008"
+name = "lamp_3"
+parent = ""
+kind = "mesh"
+position = [18, 0, 3]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "lamp.glb"
+texture = ""
+
+[[object]]
+id = "5ce00009"
+name = "lamp_4"
+parent = ""
+kind = "mesh"
+position = [24, 0, 3]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "lamp.glb"
+texture = ""
+
+[[object]]
+id = "5ce0000a"
+name = "route"
+parent = ""
+kind = "group"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10000"
+name = "cam_00"
+parent = "5ce0000a"
+kind = "camera"
+position = [-6.5, 2.4, 0]
+rotation = [-1.68, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10001"
+name = "cam_01"
+parent = "5ce0000a"
+kind = "camera"
+position = [-6, 2.2, 0]
+rotation = [-4.4, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10002"
+name = "cam_02"
+parent = "5ce0000a"
+kind = "camera"
+position = [-5, 2, 1]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10003"
+name = "cam_03"
+parent = "5ce0000a"
+kind = "camera"
+position = [-3, 1.9, 0]
+rotation = [0, 90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10004"
+name = "cam_04"
+parent = "5ce0000a"
+kind = "camera"
+position = [2, 2, 0]
+rotation = [-1.72, 90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10005"
+name = "cam_05"
+parent = "5ce0000a"
+kind = "camera"
+position = [12, 2.6, 0.5]
+rotation = [-1.91, 92.39, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10006"
+name = "cam_06"
+parent = "5ce0000a"
+kind = "camera"
+position = [22, 3.6, 0]
+rotation = [-4.29, 90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10007"
+name = "cam_07"
+parent = "5ce0000a"
+kind = "camera"
+position = [28.5, 4.2, 0]
+rotation = [0, 90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10008"
+name = "cam_08"
+parent = "5ce0000a"
+kind = "camera"
+position = [31.5, 4.2, 0]
+rotation = [4.57, 90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10009"
+name = "cam_09"
+parent = "5ce0000a"
+kind = "camera"
+position = [33, 4.2, -1.8]
+rotation = [18.43, 0, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000a"
+name = "cam_10"
+parent = "5ce0000a"
+kind = "camera"
+position = [34.8, 4.2, 0]
+rotation = [18.43, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000b"
+name = "cam_11"
+parent = "5ce0000a"
+kind = "camera"
+position = [33, 4.2, 1.8]
+rotation = [18.43, 180, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000c"
+name = "cam_12"
+parent = "5ce0000a"
+kind = "camera"
+position = [31.5, 4.2, 0]
+rotation = [0, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000d"
+name = "cam_13"
+parent = "5ce0000a"
+kind = "camera"
+position = [28.5, 4.2, 0]
+rotation = [4.71, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000e"
+name = "cam_14"
+parent = "5ce0000a"
+kind = "camera"
+position = [20, 3.2, 0]
+rotation = [3.81, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce1000f"
+name = "cam_15"
+parent = "5ce0000a"
+kind = "camera"
+position = [8, 2.4, 0]
+rotation = [2.86, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10010"
+name = "cam_16"
+parent = "5ce0000a"
+kind = "camera"
+position = [1.5, 2, 0]
+rotation = [0, -90, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
+
+[[object]]
+id = "5ce10011"
+name = "cam_17"
+parent = "5ce0000a"
+kind = "camera"
+position = [-3.5, 2.2, -0.8]
+rotation = [-2.66, -82.88, 0]
+scale = [1, 1, 1]
+mesh = ""
+texture = ""
