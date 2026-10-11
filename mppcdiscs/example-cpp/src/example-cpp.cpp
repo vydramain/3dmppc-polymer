@@ -11,6 +11,7 @@
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "example-cpp-board.hpp"
 #include "example-cpp-route.hpp"
 
 namespace example_cpp
@@ -21,10 +22,12 @@ namespace
 
 // The scene this disc draws, as scenes/main.scene.toml lands on the disc.
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
+// The scene object that carries the factory board lettering.
+constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 
-// Ordering-table keys: a larger key is nearer and drawn over a smaller one
-// (pdk/include/pdk/cv/rv_primitives.h). The world takes 0..959; the 2D layers
-// (the scoreboard, next step) take 960..1023, the top of ot_bucket_count (disc.toml).
+// Ordering-table keys: a larger key is nearer and drawn over a smaller one. The disc picks the
+// window of the world (0..959, the board's lettering too) itself; cv divides its own key window
+// into buckets (pdk/include/pdk/cv/rv_primitives.h), so the disc's numbers are only relative.
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_WORLD_MIN = 0;
 constexpr int32_t RV_EXAMPLE_CPP_DEPTH_WORLD_MAX = 959;
 
@@ -59,6 +62,9 @@ public:
             meshes_.clear();
             keys_.clear();
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
+        }
+        if (read_code == RV_OK && !board_found_) {
+            RV_LOG_WARN("scene", "no '{}' object: the board has no lettering", RV_EXAMPLE_CPP_BOARD_NAME);
         }
         return RV_OK;
     }
@@ -98,6 +104,9 @@ private:
     std::vector<rv_example_cpp_mesh> meshes_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
+    // World matrix of the board object, valid when board_found_.
+    float board_world_[16] = {};
+    bool board_found_ = false;
     // Frames updated while running: the demo's clock.
     int64_t frame_count_ = 0;
     bool draw_error_logged_ = false;
@@ -116,6 +125,10 @@ int rv_dmain::read_scene()
         const int64_t read_code = rv_cd_scene_object_read(cd, RV_EXAMPLE_CPP_SCENE_NAME, i, &object);
         if (read_code < 0) {
             return static_cast<int>(read_code);
+        }
+        if (std::strcmp(object.name, RV_EXAMPLE_CPP_BOARD_NAME) == 0) {
+            board_found_ = true;
+            std::memcpy(board_world_, object.world, sizeof(board_world_));
         }
         if (object.kind == RV_CD_SCENE_MESH) {
             add_mesh(object);
@@ -180,6 +193,12 @@ void rv_dmain::draw_world()
         const int64_t put_code = (addr < 0) ? addr : rv_cg_model_put(rv_pdko_cg(pdk_), addr, &mesh.put);
         if (put_code < 0) {
             log_draw_error(mesh.model.c_str(), put_code);
+        }
+    }
+    if (board_found_) {
+        const int64_t board_code = rv_board_draw(pdk_, board_world_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
+        if (board_code < 0) {
+            log_draw_error("board", board_code);
         }
     }
 }
