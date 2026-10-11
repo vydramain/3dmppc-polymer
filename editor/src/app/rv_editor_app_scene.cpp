@@ -7,6 +7,7 @@
 #include <cctype>
 #include <system_error>
 
+#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 
 #include "project/rv_editor_manifest_edit.hpp"
@@ -36,6 +37,9 @@ bool rv_editor_same_path(const std::filesystem::path &a, const std::filesystem::
 // Suffix for scene file names.
 constexpr std::string_view scene_suffix = ".scene.toml";
 
+// The drive refuses a scene whose "<name>.scene.toml" does not fit RV_CD_NAME_CAPACITY including its NUL.
+constexpr size_t scene_name_max = RV_CD_NAME_CAPACITY - 1 - scene_suffix.size();
+
 // Numbering of a copied scene name starts here.
 constexpr int first_copy_number = 2;
 
@@ -61,11 +65,16 @@ std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesyste
     return (ec || rel.empty() ? path : rel).string();
 }
 
-// Letters, digits, '_' or '-', non-empty: what scenes/<name>.scene.toml and the
-// generated header's identifier both need to start from.
-bool rv_editor_scene_name_valid(std::string_view name)
+} // namespace
+
+size_t rv_editor_app_scene_name_max()
 {
-    if (name.empty()) {
+    return scene_name_max;
+}
+
+bool rv_editor_app_scene_name_valid(std::string_view name)
+{
+    if (name.empty() || name.size() > scene_name_max) {
         return false;
     }
     for (const char c : name) {
@@ -75,8 +84,6 @@ bool rv_editor_scene_name_valid(std::string_view name)
     }
     return true;
 }
-
-} // namespace
 
 std::vector<std::filesystem::path> rv_editor_app_scene_files(const rv_editor_app &app)
 {
@@ -161,8 +168,9 @@ int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool w
             "them before creating a new scene";
         return RV_ERR_INVAL;
     }
-    if (!rv_editor_scene_name_valid(name)) {
-        error = "name must be non-empty letters, digits, _ or -";
+    if (!rv_editor_app_scene_name_valid(name)) {
+        const size_t max_bytes = scene_name_max;
+        error = rv_editor_text_format("scene_edit.invalid_scene_name", std::make_format_args(max_bytes));
         return RV_ERR_INVAL;
     }
     const std::string rel = std::string(scenes_dir) + "/" + std::string(name) + std::string(scene_suffix);

@@ -71,20 +71,6 @@ struct rv_editor_new_scene_state {
 
 rv_editor_new_scene_state g_new_scene;
 
-// Letters, digits, '_' or '-', non-empty: what rv_editor_app_scene_create checks too.
-bool rv_editor_new_scene_name_valid(std::string_view name)
-{
-    if (name.empty()) {
-        return false;
-    }
-    for (const char c : name) {
-        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-') {
-            return false;
-        }
-    }
-    return true;
-}
-
 // The header's identifier, mirroring rv_editor_scene_codegen_write's own rule
 // (scene/rv_editor_scene_codegen.cpp): non [A-Za-z0-9_] becomes '_', a leading
 // digit gets a '_' prefix, so the shown path is exactly the one it would write.
@@ -163,9 +149,12 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
 
     const std::string name = g_new_scene.name;
     std::error_code ec;
+    std::string invalid_reason;
     const char *disabled;
-    if (!rv_editor_new_scene_name_valid(name)) {
-        disabled = rv_editor_text("shell_menu_scene.invalid_name");
+    if (!rv_editor_app_scene_name_valid(name)) {
+        const size_t max_bytes = rv_editor_app_scene_name_max();
+        invalid_reason = rv_editor_text_format("shell_menu_scene.invalid_name", std::make_format_args(max_bytes));
+        disabled = invalid_reason.c_str();
     } else if (std::filesystem::exists(app.project.root / scenes_dir / (name + std::string(scene_file_suffix)), ec)) {
         disabled = rv_editor_text("shell_menu_scene.name_already_exists");
     } else {

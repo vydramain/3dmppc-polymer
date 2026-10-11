@@ -140,12 +140,15 @@ std::string rv_editor_app_scene_name(const rv_editor_app &app);
 int rv_editor_app_scene_open(rv_editor_app &app, const std::filesystem::path &path);
 // The next free name ("main", else "sceneN") a new scene would get today.
 std::string rv_editor_app_scene_free_name(const rv_editor_app &app);
+// Longest scene name in bytes, without ".scene.toml": the drive loads only names that fit RV_CD_NAME_CAPACITY.
+size_t rv_editor_app_scene_name_max();
+// Non-empty, at most rv_editor_app_scene_name_max() bytes, letters/digits/_/- only: the one name rule.
+bool rv_editor_app_scene_name_valid(std::string_view name);
 
-// Creates scenes/<name>.scene.toml (name: non-empty, letters/digits/_/-, must not
-// exist yet), puts it on the disc if no pattern already matches it, writes
-// src/<id>_scene.hpp when write_cpp and the disc is C++, then opens it. RV_OK on success,
-// RV_ERR_INVAL if name is invalid, RV_ERR_* from scene_save, code from manifest_add_pattern if
-// disc.toml update fails, or from codegen_write if C++ write fails; the scene file and whatever else
+// Creates scenes/<name>.scene.toml (name: rv_editor_app_scene_name_valid, at most rv_editor_app_scene_name_max() bytes, must
+// not exist yet), puts it on the disc if no pattern already matches it, writes src/<id>_scene.hpp when write_cpp and the disc
+// is C++, then opens it. RV_OK on success, RV_ERR_INVAL if name is invalid, RV_ERR_* from scene_save, code from
+// manifest_add_pattern if disc.toml update fails, or from codegen_write if C++ write fails; the scene file and whatever else
 // already succeeded stay. Reason in error.
 int rv_editor_app_scene_create(rv_editor_app &app, std::string_view name, bool write_cpp, std::string &error);
 // Saves the scene if dirty. RV_OK when successfully saved; RV_ERR_ALREADY when it was not dirty
