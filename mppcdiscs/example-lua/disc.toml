@@ -47,9 +47,13 @@ card_slots = 16
 card_slot_size = 8192
 
 [budget.pccl]
-# 256 KiB for the whole VM: LuaJIT's bootstrap (base, string, math and table
-# libraries) plus this chunk and its state. The state holds the scene copied
-# into plain tables - 9 meshes with 16 world numbers each, and 18 cam_NN keys -
-# a few KiB at most.
-script_memory_size = 262144
+# 512 KiB for the whole VM. The state holds the scene copied into plain tables:
+# the meshes, the cam_NN keys, the lamps and the board's world. The modules and
+# the per-frame garbage of cdata (rv_cg_put, int64 returns) are left to the
+# ordinary collector. Measured with the dev channel's status (lua_used, bytes): 259312
+# after disc_initialize, when the lamp schedule's garbage is not yet collected;
+# 148555-291043 over the frames (min and max of 122 readings), as the collector runs;
+# 176738 after a reload.
+# 256 KiB (262144 bytes) was too little: the largest reading over the frames is 291043.
+script_memory_size = 524288
 script_entry = "example-lua.luac"
