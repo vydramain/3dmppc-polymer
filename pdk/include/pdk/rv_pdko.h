@@ -3,6 +3,7 @@
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/cd/rv_cd.h"
+#include "pdk/cg/rv_cg.h"
 #include "pdk/cio/rv_cio.h"
 #include "pdk/cm/rv_cm.h"
 #include "pdk/cv/rv_cv.h"
@@ -23,6 +24,7 @@ rv_cd *rv_pdko_cd(rv_pdko *o);   // disc drive - reads the mounted .mppcdisc
 rv_cm *rv_pdko_cm(rv_pdko *o);   // memory card - persistent save slots
 rv_cio *rv_pdko_cio(rv_pdko *o); // gamepads + haptic output + mouse
 rv_cv *rv_pdko_cv(rv_pdko *o);   // GPU / rasterizer
+rv_cg *rv_pdko_cg(rv_pdko *o);   // geometry (GTE): models in, primitives to cv
 rv_cl *rv_pdko_cl(rv_pdko *o);
 
 /* RV_CDEF_END */

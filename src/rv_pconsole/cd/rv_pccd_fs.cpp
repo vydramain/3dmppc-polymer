@@ -351,6 +351,9 @@ int64_t rv_pccd_fs::resource_resolve_(rv_cd_resource_kind kind,
         return resident_texture_(resname, texture_out);
     case RV_CD_RESOURCE_AUDIO:
         return resident_audio_(resname, audio_out);
+    case RV_CD_RESOURCE_MODEL:
+        // the drive does not make models resident yet
+        return RV_ERR_INVAL;
     }
 
     // Neither kind this contract knows about: the same malformed-argument
