@@ -63,6 +63,12 @@ public:
 
     virtual int64_t resource_height(rv_cd_resource_kind kind, const char *resname) = 0;
 
+    // Scenes: see rv_cd.h. A scene is resident from its first query, so the
+    // count and the objects come from one cached copy.
+    virtual int64_t scene_object_count(const char *scene) = 0;
+
+    virtual int64_t scene_object_read(const char *scene, int64_t index, rv_cd_scene_object *out) = 0;
+
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 

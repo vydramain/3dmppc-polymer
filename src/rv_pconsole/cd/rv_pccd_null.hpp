@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 
+#include "pdk/rv_err.h"
 #include "rv_pconsole/cd/rv_pccd.hpp"
 #include "rv_pconsole/rv_pcbudget.hpp"
 
@@ -34,6 +35,16 @@ public:
     int64_t resource_width(rv_cd_resource_kind kind, const char *resname) override;
 
     int64_t resource_height(rv_cd_resource_kind kind, const char *resname) override;
+
+    // No drive, so no scene is ever known: a null argument is INVAL, any name is NOENT.
+    int64_t scene_object_count(const char *scene) override
+    {
+        return scene == nullptr ? RV_ERR_INVAL : RV_ERR_NOENT;
+    }
+    int64_t scene_object_read(const char *scene, int64_t /*index*/, rv_cd_scene_object *out) override
+    {
+        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
+    }
 
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
