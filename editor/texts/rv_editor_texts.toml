@@ -1342,8 +1342,8 @@ game_not_read_scene = "Game: has not read this scene"
 game_disc_not_opened = "The running disc did not open {}"
 status_line_format = "{} | {}"
 mesh_placeholder_format = "{} | {} | Mesh placeholder: {}"
-example_meshes_title = "Example draws meshes as boxes"
-example_meshes_tooltip = "The viewport draws .obj meshes, quads, billboards and volumes. The example disc, and every New Project made from it, draws each mesh object as a unit box, ignores its mesh file, and does not draw quads, billboards or volumes. A disc draws only what its own code draws. Drawing .obj meshes, quads, polygons and the rest in the game comes in the next version."
+example_meshes_title = "Example draws mesh objects as models"
+example_meshes_tooltip = "The viewport reads only .glb meshes (another mesh file shows a placeholder box), plus quad, billboard and volume objects. The example disc, and every New Project made from it, draws each mesh object that has a model through the console's geometry controller. Anything else on screen, such as the board's flickering letters and the street lamps' light, is drawn only by the disc's own code."
 
 [scene_tools]
 nothing_selected = "Nothing is selected"
