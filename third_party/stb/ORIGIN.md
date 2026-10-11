@@ -1,6 +1,6 @@
 # stb_image
 
-Single-header image decoder. Used by `pdk/tools/mppcbaker` to read the artist's
+Single-header image decoder. Used by `pdk/tools/mppctexbaker` to read the artist's
 PNG before quantizing it into console texels, and by `editor/` to read its icons.
 
 | | |
@@ -38,6 +38,6 @@ tools and why `src/` links nothing from here.
 
 Rarely needed — `stb_image` is stable and this project uses a fraction of it.
 When it is: download the new file, replace it, update the commit, version, date
-and hash above, and rerun `mppcbaker` over the disc assets to confirm the output
+and hash above, and rerun `mppctexbaker` over the disc assets to confirm the output
 is byte-identical (or to see deliberately what changed). A decoder that changes
 silently changes shipped art silently.
