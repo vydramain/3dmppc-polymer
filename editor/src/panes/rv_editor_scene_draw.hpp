@@ -139,6 +139,9 @@ void rv_editor_draw_filled(ImDrawList *dl,
     ImVec2 origin,
     ImVec2 size,
     bool textured);
+// Destroys every viewport's picture texture. Call after the last frame and before SDL_DestroyRenderer:
+// a texture is bound to the renderer that made it, and a new renderer may reuse its address.
+void rv_editor_scene_pictures_free();
 // The object whose drawing passes nearest the click, within a few pixels; empty for none.
 std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
 // The Move gizmo's axis under the mouse, or -1.

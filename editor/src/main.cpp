@@ -19,6 +19,7 @@
 #include "app/rv_editor_shell.hpp"
 #include "font/rv_editor_font.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "panes/rv_editor_scene_draw.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "prefs/rv_editor_prefs.hpp"
 #include "text/rv_editor_text.hpp"
@@ -483,6 +484,7 @@ int main(int argc, char **argv)
         std::fprintf(stderr, "3dmppc-editor: cannot save the view settings: %s\n", error.c_str());
     }
 
+    rv_editor::rv_editor_scene_pictures_free();
     rv_editor::rv_editor_icons_free();
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();

@@ -55,9 +55,8 @@ vec3 norm(const vec3 &a)
 }
 
 // A viewport's picture: the z-buffer, and the SDL texture its colour is copied to each frame.
-// Kept while the size and the renderer stay the same.
+// Kept while the size stays the same; its texture is destroyed by rv_editor_scene_pictures_free.
 struct rv_editor_scene_target {
-    SDL_Renderer *renderer = nullptr;
     int w = 0;
     int h = 0;
     rv_editor_zbuf buf;
@@ -80,10 +79,10 @@ void rv_editor_target_report(rv_editor_scene_target &t, int w, int h, const char
     std::fprintf(stderr, "3dmppc-editor: scene picture %dx%d: %s\n", w, h, reason);
 }
 
-// Makes the picture of `t` w x h on `renderer`, replacing the old one when either changes.
+// Makes the picture of `t` w x h on `renderer`, replacing the old one when its size changes.
 int rv_editor_target_make(rv_editor_scene_target &t, SDL_Renderer *renderer, int w, int h)
 {
-    if (t.texture != nullptr && t.renderer == renderer && t.w == w && t.h == h) {
+    if (t.texture != nullptr && t.w == w && t.h == h) {
         return RV_OK;
     }
     if (t.texture != nullptr) {
@@ -103,7 +102,6 @@ int rv_editor_target_make(rv_editor_scene_target &t, SDL_Renderer *renderer, int
     }
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
     SDL_SetTextureScaleMode(texture, SDL_SCALEMODE_NEAREST);
-    t.renderer = renderer;
     t.w = w;
     t.h = h;
     t.texture = texture;
@@ -282,6 +280,16 @@ void rv_editor_draw_filled(ImDrawList *dl,
     SDL_UpdateTexture(t.texture, nullptr, t.buf.colour.data(), w * rgba_channels);
     const ImTextureID id = static_cast<ImTextureID>(reinterpret_cast<intptr_t>(t.texture));
     dl->AddImage(ImTextureRef(id), origin, ImVec2(origin.x + size.x, origin.y + size.y));
+}
+
+void rv_editor_scene_pictures_free()
+{
+    for (auto &entry : rv_editor_targets) {
+        if (entry.second.texture != nullptr) {
+            SDL_DestroyTexture(entry.second.texture);
+        }
+    }
+    rv_editor_targets.clear();
 }
 
 } // namespace rv_editor
