@@ -44,6 +44,11 @@ struct rv_pccv_conf {
     int32_t depth_max = 32767;
 };
 
+struct rv_pccg_conf {
+    int64_t model_memory_size = rv_pdklib::rv_manifest_budget_pccg{}.model_memory_size;
+    int64_t triangle_capacity = rv_pdklib::rv_manifest_budget_pccg{}.triangle_capacity;
+};
+
 struct rv_pccio_conf {
     int64_t iport_count = rv_pdklib::rv_manifest_budget_pccio{}.iport_count;
 };
