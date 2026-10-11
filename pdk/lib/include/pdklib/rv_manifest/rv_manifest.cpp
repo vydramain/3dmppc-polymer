@@ -193,6 +193,10 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     out << "frame_capacity = " << budget.pccv.frame_capacity << "\n";
     out << "ot_bucket_count = " << budget.pccv.ot_bucket_count << "\n";
 
+    out << "\n[budget.pccg]\n";
+    out << "model_memory_size = " << budget.pccg.model_memory_size << "\n";
+    out << "triangle_capacity = " << budget.pccg.triangle_capacity << "\n";
+
     out << "\n[budget.pccio]\n";
     out << "iport_count = " << budget.pccio.iport_count << "\n";
 
@@ -346,6 +350,8 @@ static int validate_budget_positive(const rv_manifest &manifest, std::string &er
         { "[budget.pccv] video_memory_size", budget.pccv.video_memory_size },
         { "[budget.pccv] frame_capacity", budget.pccv.frame_capacity },
         { "[budget.pccv] ot_bucket_count", budget.pccv.ot_bucket_count },
+        { "[budget.pccg] model_memory_size", budget.pccg.model_memory_size },
+        { "[budget.pccg] triangle_capacity", budget.pccg.triangle_capacity },
         { "[budget.pccio] iport_count", budget.pccio.iport_count },
         { "[budget.pccm] card_slots", budget.pccm.card_slots },
         { "[budget.pccm] card_slot_size", budget.pccm.card_slot_size },

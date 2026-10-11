@@ -121,6 +121,16 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.budget.pccv.ot_bucket_count = v.num;
         } },
+    { rv_manifest_section_budget_pccg, // [budget.pccg] model_memory_size = N
+        rv_manifest_key_budget_pccg_model_memory_size,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccg.model_memory_size = v.num;
+        } },
+    { rv_manifest_section_budget_pccg, // [budget.pccg] triangle_capacity = N
+        rv_manifest_key_budget_pccg_triangle_capacity,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccg.triangle_capacity = v.num;
+        } },
     { rv_manifest_section_budget_pccio, // [budget.pccio] iport_count = N
         rv_manifest_key_budget_pccio_iport_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
