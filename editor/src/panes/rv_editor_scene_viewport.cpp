@@ -287,7 +287,10 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             doc.selected,
             rv_editor_col(theme.code_subtext),
             rv_editor_col(theme.selection),
-            cam.shading == rv_editor_scene_shading::textured ? renderer : nullptr);
+            renderer,
+            p0,
+            size,
+            cam.shading == rv_editor_scene_shading::textured);
     }
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         const std::string &kind = doc.scene.objects[i].kind;

@@ -106,8 +106,8 @@ std::vector<rv_editor_tri> rv_editor_clip_near(const rv_editor_view &v, const rv
 // An object's surface in scene space: a mesh's triangles, a .glb's (name ends in ".glb") or an
 // .obj's, or the unit cube while its mesh is empty or does not load (the reason in *error when
 // given); a quad's two triangles (rv_pdklib::rv_scene_quad_corners' layout, uv the object's
-// pixel rect); empty for other kinds (a billboard's corners depend on the view, built only in
-// rv_editor_draw_filled).
+// pixel rect); empty for other kinds (a billboard's corners depend on the view: see
+// rv_editor_billboard_triangles).
 // Each mesh triangle carries its uv: a .glb's as glTF has it, an .obj's vt (or 0,0 for a corner
 // without one; the whole unit square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
 // rv_editor_draw_filled once a texture's pixel size is known.
@@ -119,12 +119,20 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &sce
     int index,
     std::string *error = nullptr,
     SDL_Renderer *renderer = nullptr);
-// Every mesh, quad and billboard filled, far to near, flat-shaded by face normal (a billboard's
-// normal faces the camera by construction); the selected one tinted. Volumes are never filled.
-// `renderer` null: today's flat shading. Non-null: an object whose texture resolves and loads
-// draws textured (shade-multiplied, selected tinted instead of grey); others draw flat. A .glb's flat
-// parts are their colour and take the object's tint; the selected object keeps its selection colour.
-// Textures of .glb parts are created on `renderer` and cached (see rv_editor_object_triangles).
+// A billboard's two triangles: a card of world size scale.xy (a scaled parent included) centred on
+// the object's world position, facing the view's right/up (not the object's own rotation).
+std::vector<rv_editor_tri>
+rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o);
+// A flat disc texture name resolved to its project file under [textures]; empty when none matches.
+std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name);
+// Every mesh, quad and billboard filled into the viewport's picture (rv_editor_scene_raster.cpp):
+// a CPU z-buffer of `size` at `origin` in framebuffer pixels, drawn as one image on `dl`, transparent
+// where nothing is. Flat-shaded by face normal; the selected one tinted; volumes never filled.
+// `textured` false: flat colours only. True: a .glb part's picture, else the object's texture where
+// it resolves and loads. A .glb's flat parts are their colour and take the object's tint; the
+// selected object keeps its selection colour. `renderer` owns the picture's SDL texture, one per
+// viewport (keyed by the ImGui ID of the viewport's tile). `origin` and `size` are the viewport's frame: rv_editor_view
+// keeps only its centre and focal, so the frame is passed in.
 void rv_editor_draw_filled(ImDrawList *dl,
     const rv_editor_view &v,
     const rv_editor_scene &scene,
@@ -132,7 +140,10 @@ void rv_editor_draw_filled(ImDrawList *dl,
     const std::string &selected,
     ImU32 base,
     ImU32 selected_color,
-    SDL_Renderer *renderer);
+    SDL_Renderer *renderer,
+    ImVec2 origin,
+    ImVec2 size,
+    bool textured);
 // The object whose drawing passes nearest the click, within a few pixels; empty for none.
 std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
 // The Move gizmo's axis under the mouse, or -1.

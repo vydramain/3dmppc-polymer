@@ -1,9 +1,8 @@
 // A mesh object's real geometry: its .glb or .obj file, cached and transformed into scene
-// space, and the filled-polygon draw mode built on top of it.
+// space. The filled pass that draws it is rv_editor_scene_raster.cpp.
 
 #include "panes/rv_editor_scene_draw.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -17,7 +16,6 @@
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "pdklib/rv_math/rv_obj.hpp"
 
-#include "panes/rv_editor_asset_preview.hpp"
 #include "panes/rv_editor_scene_glb.hpp"
 #include "panes/rv_editor_walk.hpp"
 #include "text/rv_editor_text.hpp"
@@ -31,12 +29,6 @@ namespace
 
 // Half-extent of placeholder geometric primitives (unit cube and quad, local coordinates).
 constexpr double unit_half_extent = 0.5;
-// Minimum shade value for unlit triangle surfaces.
-constexpr float min_shade_value = 0.15f;
-// Maximum value for sRGB colour channel normalization.
-constexpr float color_channel_max = 255.0f;
-// Normalization threshold: minimum vector length before clamping to zero.
-constexpr double normalize_epsilon = 1e-12;
 // Corners of a unit cube.
 constexpr int cube_corner_count = 8;
 // Face definitions of a unit cube: six faces with four corner indices each.
@@ -52,19 +44,6 @@ constexpr std::array<std::array<int, 4>, 6> cube_faces = { {
 constexpr int quad_vertex_count = 4;
 // UV of a quad's corners: (0,0), (1,0), (1,1), (0,1).
 constexpr std::array<ImVec2, quad_vertex_count> quad_uv_corners = { { { 0, 0 }, { 1, 0 }, { 1, 1 }, { 0, 1 } } };
-// Number of vertices per triangle for depth averaging (derived from tri_vertices).
-constexpr double triangle_vertex_count = static_cast<double>(tri_vertices);
-
-vec3 cross(const vec3 &a, const vec3 &b)
-{
-    return { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
-}
-
-vec3 norm(const vec3 &a)
-{
-    const double l = std::sqrt(dot(a, a));
-    return l > normalize_epsilon ? mul(a, 1.0 / l) : a;
-}
 
 vec3 to_vec3(const rv_pdklib::rv_vec3 &v)
 {
@@ -178,34 +157,6 @@ std::filesystem::path rv_editor_resolve_mesh_name(const rv_editor_project &proje
     return {};
 }
 
-// A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
-// ".mppctex"), resolved to the project file under [textures] whose stem matches.
-std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
-{
-    const std::string stem = std::filesystem::path(name).stem().string();
-    const rv_editor_walk_result walk = rv_editor_walk_name(project, rv_editor_name_section::textures, true, stem);
-    return walk.matches.empty() ? std::filesystem::path() : walk.matches.front();
-}
-
-// A mesh object's texture, loaded on `renderer`; an empty icon when it has none, does not
-// resolve under [textures], or fails to load as a picture.
-rv_editor_icon
-rv_editor_object_texture(SDL_Renderer *renderer, const rv_editor_project &project, const rv_editor_scene_object &o)
-{
-    if (renderer == nullptr || o.texture.empty()) {
-        return {};
-    }
-    const std::filesystem::path path = rv_editor_resolve_texture_name(project, o.texture);
-    if (path.empty()) {
-        return {};
-    }
-    std::error_code rel_ec;
-    rv_editor_asset asset;
-    asset.path = path;
-    asset.rel = std::filesystem::relative(path, project.root, rel_ec).generic_string();
-    return rv_editor_asset_picture(renderer, asset);
-}
-
 // The four corners' pixel-rect uv, top-left, top-right, bottom-left, bottom-right, from an
 // object's `uv` (u0,v0,u1,v1). Raw pixels; rv_editor_draw_filled normalizes once a texture's
 // pixel size is known, or leaves them unused when the object draws flat.
@@ -239,9 +190,8 @@ double rv_editor_affine_column_length(const rv_editor_affine &m, int col)
     return std::sqrt(m[0][col] * m[0][col] + m[1][col] * m[1][col] + m[2][col] * m[2][col]);
 }
 
-// A billboard's two triangles: a card of world size scale.xy (a scaled parent included)
-// centred on the object's world position, built from the view's right/up (not the object's
-// own rotation) so it always faces the camera.
+} // namespace
+
 std::vector<rv_editor_tri>
 rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o)
 {
@@ -259,7 +209,14 @@ rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m
     };
 }
 
-} // namespace
+// A scene's `texture` is a flat disc texture name (mppcburner: the source's stem plus
+// ".mppctex"), resolved to the project file under [textures] whose stem matches.
+std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name)
+{
+    const std::string stem = std::filesystem::path(name).stem().string();
+    const rv_editor_walk_result walk = rv_editor_walk_name(project, rv_editor_name_section::textures, true, stem);
+    return walk.matches.empty() ? std::filesystem::path() : walk.matches.front();
+}
 
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,
@@ -315,126 +272,6 @@ std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &sce
         tris.push_back(tri);
     }
     return tris;
-}
-
-void rv_editor_draw_filled(ImDrawList *dl,
-    const rv_editor_view &v,
-    const rv_editor_scene &scene,
-    const rv_editor_project &project,
-    const std::string &selected,
-    ImU32 base,
-    ImU32 selected_color,
-    SDL_Renderer *renderer)
-{
-    struct rv_editor_shaded_tri {
-        ImVec2 s[3];
-        ImVec2 uv[3];
-        double depth;
-        float shade;
-        bool selected;
-        ImVec4 tint;     // the object's tint/255, 0..1; identity (1,1,1) for a mesh's default
-        ImTextureID tex; // 0: flat, drawn with ImGui's white texel; else textured
-        bool from_model; // a .glb's triangle: its base is white and the object's tint applies, flat too
-        ImVec4 part[3];  // each corner's colour, 0..1; identity when selected (the selection colour shows as is)
-    };
-    std::vector<rv_editor_shaded_tri> shaded;
-    for (size_t i = 0; i < scene.objects.size(); ++i) {
-        const rv_editor_scene_object &o = scene.objects[i];
-        if (o.kind != kind_mesh && o.kind != kind_quad && o.kind != kind_billboard) {
-            continue; // volumes, cameras, groups and other kinds are not filled
-        }
-        const bool is_selected = o.id == selected;
-        const rv_editor_icon tex = rv_editor_object_texture(renderer, project, o);
-        // quad/billboard uv is a pixel rect, normalized here once the texture's size is known;
-        // a mesh's is already 0..1 from rv_editor_object_triangles.
-        const bool pixel_uv = o.kind != kind_mesh && tex.id != ImTextureID{} && tex.w > 0 && tex.h > 0;
-        std::vector<rv_editor_tri> tris;
-        if (o.kind == kind_billboard) {
-            const rv_editor_affine world = rv_editor_scene_world(scene, static_cast<int>(i));
-            tris = rv_editor_billboard_triangles(v, world, o);
-        } else {
-            tris = rv_editor_object_triangles(scene, project, static_cast<int>(i), nullptr, renderer);
-        }
-        for (const rv_editor_tri &tri : tris) {
-            // Shade by the source triangle's normal; its cut pieces share it.
-            const vec3 n = norm(cross(sub(tri.p[1], tri.p[0]), sub(tri.p[2], tri.p[0])));
-            const float shade =
-                static_cast<float>(std::max(static_cast<double>(min_shade_value), std::abs(dot(n, mul(v.forward, -1.0)))));
-            const ImVec4 tint = { o.tint[0] / color_channel_max,
-                o.tint[1] / color_channel_max,
-                o.tint[2] / color_channel_max,
-                1.0f };
-            // A part's own texture wins. A .glb part without one stays flat, as in the console; other meshes keep the object's.
-            const ImTextureID piece_tex = tri.tex != ImTextureID{} ? tri.tex : (tri.from_model ? ImTextureID{} : tex.id);
-            // A piece's corners, already in view space, projected and queued.
-            auto emit = [&](const rv_editor_tri &piece, const vec3(&view_p)[tri_vertices]) {
-                rv_editor_shaded_tri st;
-                st.depth = 0.0;
-                for (int k = 0; k < tri_vertices; ++k) {
-                    st.depth += view_p[k][2];
-                    st.s[k] = v.to_screen(view_p[k]);
-                    st.uv[k] = pixel_uv ?
-                        ImVec2(piece.uv[k].x / static_cast<float>(tex.w), piece.uv[k].y / static_cast<float>(tex.h)) :
-                        piece.uv[k];
-                    st.part[k] = is_selected ? ImVec4(1, 1, 1, 1) : piece.color[k];
-                }
-                st.depth /= triangle_vertex_count;
-                st.shade = shade;
-                st.selected = is_selected;
-                st.tint = tint;
-                st.tex = piece_tex;
-                st.from_model = tri.from_model;
-                shaded.push_back(st);
-            };
-            vec3 view_p[tri_vertices];
-            bool in_front = true;
-            for (int k = 0; k < tri_vertices; ++k) {
-                view_p[k] = v.to_view(tri.p[k]);
-                in_front = in_front && view_p[k][2] >= rv_editor_near;
-            }
-            if (in_front) {
-                emit(tri, view_p);
-                continue;
-            }
-            // Behind the near plane: cut first, then each piece's corners are viewed.
-            for (const rv_editor_tri &piece : rv_editor_clip_near(v, tri)) {
-                vec3 piece_view[tri_vertices];
-                for (int k = 0; k < tri_vertices; ++k) {
-                    piece_view[k] = v.to_view(piece.p[k]);
-                }
-                emit(piece, piece_view);
-            }
-        }
-    }
-    // Painter's algorithm, no depth buffer. Intersecting triangles can sort wrong;
-    // the upgrade is a real depth test if that ever shows on screen.
-    std::sort(shaded.begin(), shaded.end(), [](const rv_editor_shaded_tri &a, const rv_editor_shaded_tri &b) {
-        return a.depth > b.depth;
-    });
-    for (const rv_editor_shaded_tri &st : shaded) {
-        // Base: the selection colour when selected (no tint); a plain flat fill (quad, billboard, mesh
-        // default) is its base colour, no tint; else white times the object's tint. A .glb's flat triangles
-        // take the tint as the console does. A push/pop per triangle keeps texture changes correct under the global sort.
-        const bool flat = st.tex == ImTextureID{};
-        const bool plain = flat && !st.from_model;
-        const ImVec4 over = st.selected ? ImGui::ColorConvertU32ToFloat4(selected_color) :
-                                          (plain ? ImGui::ColorConvertU32ToFloat4(base) : ImVec4(1, 1, 1, 1));
-        const ImVec4 tint = st.selected || plain ? ImVec4(1, 1, 1, 1) : st.tint;
-        const ImVec4 mod(over.x * tint.x, over.y * tint.y, over.z * tint.z, over.w);
-        // Flat triangles sample ImGui's white texel, so each corner shows its own colour.
-        const ImTextureRef texture = flat ? ImGui::GetIO().Fonts->TexRef : ImTextureRef(st.tex);
-        const ImVec2 white_uv = ImGui::GetFontTexUvWhitePixel();
-        dl->PushTexture(texture);
-        dl->PrimReserve(tri_vertices, tri_vertices);
-        for (int k = 0; k < tri_vertices; ++k) {
-            const ImU32 col = ImGui::ColorConvertFloat4ToU32(ImVec4(mod.x * st.shade * st.part[k].x,
-                mod.y * st.shade * st.part[k].y,
-                mod.z * st.shade * st.part[k].z,
-                mod.w));
-            dl->PrimVtx(st.s[k], flat ? white_uv : st.uv[k], col);
-        }
-        dl->PopTexture();
-    }
 }
 
 } // namespace rv_editor

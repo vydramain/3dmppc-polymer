@@ -105,11 +105,17 @@ int texel_index(double coord, int size)
     return std::clamp(static_cast<int>(std::floor(texel)), 0, size - 1);
 }
 
+// Bytes per texel in a texture: RGBA8.
+constexpr size_t RV_EDITOR_ZBUF_TEXEL_BYTES = 4;
+
+// Read byte by byte: the texture's bytes are not rv_editor_zbuf_rgba objects, so no reinterpret.
 rv_editor_zbuf_rgba texel_at(const rv_editor_zbuf_texture &texture, double u, double v)
 {
     const int x = texel_index(u, texture.width);
     const int y = texel_index(v, texture.height);
-    return texture.texels[static_cast<size_t>(y) * static_cast<size_t>(texture.width) + static_cast<size_t>(x)];
+    const size_t texel = static_cast<size_t>(y) * static_cast<size_t>(texture.width) + static_cast<size_t>(x);
+    const uint8_t *p = texture.texels + texel * RV_EDITOR_ZBUF_TEXEL_BYTES;
+    return { p[0], p[1], p[2], p[3] };
 }
 
 // A unit colour times a 0..255 texel channel, rounded to a byte.

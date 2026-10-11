@@ -19,9 +19,9 @@ struct rv_editor_zbuf_rgba {
     uint8_t a = 0;
 };
 
-// A CPU copy of a texture: RGBA8, row-major, the caller owns the pixels.
+// A CPU copy of a texture: RGBA8 bytes, four per texel, row-major from the top; the caller owns them.
 struct rv_editor_zbuf_texture {
-    const rv_editor_zbuf_rgba *texels = nullptr;
+    const uint8_t *texels = nullptr;
     int width = 0;
     int height = 0;
 };
