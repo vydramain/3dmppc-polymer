@@ -39,7 +39,7 @@ std::string rv_editor_status_where(const rv_editor_app &app)
 rv_editor_status_text rv_editor_status_text_make(const rv_editor_app &app)
 {
     // The project's name and the toolchain in brief; paths and versions are in
-    // Window > Project Settings, the build's lines in Output.
+    // Project > Project Settings, the build's lines in Output.
     const std::string where = rv_editor_status_where(app);
 
     int missing = 0;
