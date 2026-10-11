@@ -12,6 +12,8 @@
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-board.hpp"
+#include "example-cpp-draw.hpp"
+#include "example-cpp-lamps.hpp"
 #include "example-cpp-route.hpp"
 
 namespace example_cpp
@@ -24,12 +26,6 @@ namespace
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
 // The scene object that carries the factory board lettering.
 constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
-
-// Ordering-table keys: a larger key is nearer and drawn over a smaller one. The disc picks the
-// window of the world (0..959, the board's lettering too) itself; cv divides its own key window
-// into buckets (pdk/include/pdk/cv/rv_primitives.h), so the disc's numbers are only relative.
-constexpr int32_t RV_EXAMPLE_CPP_DEPTH_WORLD_MIN = 0;
-constexpr int32_t RV_EXAMPLE_CPP_DEPTH_WORLD_MAX = 959;
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
@@ -61,6 +57,7 @@ public:
         if (read_code != RV_OK) {
             meshes_.clear();
             keys_.clear();
+            lamps_.clear();
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
         }
         if (read_code == RV_OK && !board_found_) {
@@ -104,6 +101,8 @@ private:
     std::vector<rv_example_cpp_mesh> meshes_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
+    // The lamp_N objects, each with the frames it burns; filled after keys_ is sorted.
+    std::vector<rv_lamp> lamps_;
     // World matrix of the board object, valid when board_found_.
     float board_world_[16] = {};
     bool board_found_ = false;
@@ -135,6 +134,12 @@ int rv_dmain::read_scene()
         } else if (object.kind == RV_CD_SCENE_CAMERA) {
             add_route_key(object);
         }
+        if (object.kind == RV_CD_SCENE_MESH && rv_lamp_name(object.name)) {
+            rv_lamp lamp = {};
+            lamp.name = object.name;
+            std::memcpy(lamp.world, object.world, sizeof(lamp.world));
+            lamps_.push_back(lamp);
+        }
     }
     if (keys_.empty()) {
         return RV_ERR_NOENT;
@@ -142,6 +147,7 @@ int rv_dmain::read_scene()
     std::sort(keys_.begin(), keys_.end(), [](const rv_route_key &a, const rv_route_key &b) {
         return a.index < b.index;
     });
+    rv_lamps_schedule(keys_, lamps_);
     return RV_OK;
 }
 
@@ -154,8 +160,8 @@ void rv_dmain::add_mesh(const rv_cd_scene_object &object)
     rv_example_cpp_mesh mesh = {};
     mesh.model = object.model;
     std::memcpy(mesh.put.world, object.world, sizeof(mesh.put.world));
-    mesh.put.depth_min = RV_EXAMPLE_CPP_DEPTH_WORLD_MIN;
-    mesh.put.depth_max = RV_EXAMPLE_CPP_DEPTH_WORLD_MAX;
+    mesh.put.depth_min = RV_DRAW_DEPTH_WORLD_MIN;
+    mesh.put.depth_max = RV_DRAW_DEPTH_WORLD_MAX;
     mesh.put.cull = RV_CG_CULL_BACK;
     mesh.put.tint = object.tint;
     meshes_.push_back(mesh);
@@ -194,6 +200,10 @@ void rv_dmain::draw_world()
         if (put_code < 0) {
             log_draw_error(mesh.model.c_str(), put_code);
         }
+    }
+    const int64_t lamps_code = rv_lamps_draw(pdk_, lamps_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
+    if (lamps_code < 0) {
+        log_draw_error("lamps", lamps_code);
     }
     if (board_found_) {
         const int64_t board_code = rv_board_draw(pdk_, board_world_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);

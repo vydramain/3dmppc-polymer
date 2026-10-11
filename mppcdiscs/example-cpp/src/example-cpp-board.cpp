@@ -3,11 +3,9 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
 
-#include "pdk/cd/rv_cd.h"
-#include "pdk/cg/rv_cg.h"
 #include "pdk/rv_err.h"
+#include "example-cpp-draw.hpp"
 
 namespace example_cpp
 {
@@ -45,13 +43,6 @@ constexpr float RV_BOARD_TEXT_HALF_WIDTH = static_cast<float>(RV_BOARD_TEXT_LEN)
 constexpr float RV_BOARD_HALO_FORWARD = 0.005f;
 constexpr float RV_BOARD_LETTER_FORWARD = 0.010f;
 
-// Models are not tinted: SAMPLE_TEXTURE replaces the vertex colour with the texel.
-constexpr rv_color RV_BOARD_TINT = { 255, 255, 255 };
-
-// The world range of the scene meshes in the ordering table (example-cpp.cpp).
-constexpr int32_t RV_BOARD_DEPTH_MIN = 0;
-constexpr int32_t RV_BOARD_DEPTH_MAX = 959;
-
 // Flicker: letter i is lit when table[(frame / STEP + i * SHIFT) % size] > LIT_ABOVE.
 // The shift spreads the letters over the table so they do not blink in unison.
 constexpr int64_t RV_BOARD_FLICKER_STEP = 6; // frames per table step
@@ -87,25 +78,6 @@ void panel_world(const float *board, float forward, float along, float out[16])
     out[11] = board[11] + board[8] * forward + board[10] * along;
 }
 
-// Puts one model with the given world matrix; RV_OK or the error of the drive or cg.
-int64_t put_model(rv_pdko *pdk, const char *name, const float *world)
-{
-    const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_MODEL, name);
-    if (addr < 0) {
-        return addr;
-    }
-    rv_cg_put put = {};
-    for (int k = 0; k < 16; ++k) {
-        put.world[k] = world[k];
-    }
-    put.depth_min = RV_BOARD_DEPTH_MIN;
-    put.depth_max = RV_BOARD_DEPTH_MAX;
-    put.cull = RV_CG_CULL_BACK;
-    put.tint = RV_BOARD_TINT;
-    const int64_t count = rv_cg_model_put(rv_pdko_cg(pdk), addr, &put);
-    return count < 0 ? count : RV_OK;
-}
-
 } // namespace
 
 int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
@@ -126,7 +98,7 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float halo_world[16] = {};
         panel_world(world, RV_BOARD_HALO_FORWARD, along, halo_world);
-        const int64_t halo_code = put_model(pdk, RV_BOARD_HALO_MODEL, halo_world);
+        const int64_t halo_code = rv_draw_model(pdk, RV_BOARD_HALO_MODEL, halo_world);
         if (halo_code < 0) {
             return halo_code;
         }
@@ -139,7 +111,7 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float letter_world[16] = {};
         panel_world(world, RV_BOARD_LETTER_FORWARD, along, letter_world);
-        const int64_t letter_code = put_model(pdk, RV_BOARD_TEXT[i], letter_world);
+        const int64_t letter_code = rv_draw_model(pdk, RV_BOARD_TEXT[i], letter_world);
         if (letter_code < 0) {
             return letter_code;
         }
