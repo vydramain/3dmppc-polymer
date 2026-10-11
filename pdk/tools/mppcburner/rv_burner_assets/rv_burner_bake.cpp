@@ -19,6 +19,11 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
+// The program each kind of asset is baked by. Named once so the lookup and the
+// error text cannot disagree about which program ran.
+static constexpr const char *k_texture_baker = "mppcbaker";
+static constexpr const char *k_sound_baker = "mppcmusbaker";
+
 // S16 sample is 16 bits = 2 bytes; PCM size must be a whole multiple.
 static constexpr std::size_t k_pcm_sample_bytes = 2;
 
@@ -88,7 +93,7 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
 {
     // An empty texture range needs no baker, and the loop below then does nothing.
     std::string baker;
-    const int baker_err = plan.texture_count == 0 ? RV_OK : find_baker(baker_hint, baker, error);
+    const int baker_err = plan.texture_count == 0 ? RV_OK : find_baker(baker_hint, k_texture_baker, baker, error);
     if (baker_err != RV_OK) {
         return baker_err;
     }
@@ -111,7 +116,7 @@ int rv_pdktools::bake_textures(const std::string &baker_hint,
         const int status = run_capture(command, child_output);
         if (status != 0) {
             dump_child_output(child_output);
-            error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
+            error = std::string(k_texture_baker) + " failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
             return RV_ERR_IO;
         }
 
@@ -143,7 +148,7 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
 {
     // An empty sound range needs no baker, and the loop below then does nothing.
     std::string baker;
-    const int baker_err = plan.sound_count == 0 ? RV_OK : find_baker(baker_hint, baker, error);
+    const int baker_err = plan.sound_count == 0 ? RV_OK : find_baker(baker_hint, k_sound_baker, baker, error);
     if (baker_err != RV_OK) {
         return baker_err;
     }
@@ -158,7 +163,7 @@ int rv_pdktools::bake_sounds(const std::string &baker_hint,
         const int status = run_capture(command, child_output);
         if (status != 0) {
             dump_child_output(child_output);
-            error = "mppcbaker failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
+            error = std::string(k_sound_baker) + " failed on '" + item.source + "' (exit " + std::to_string(status) + ")";
             return RV_ERR_IO;
         }
 

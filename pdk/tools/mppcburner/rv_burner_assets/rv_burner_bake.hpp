@@ -36,7 +36,7 @@ namespace rv_pdktools
 /// texture: the baked dimensions against `texture_max_width`/`texture_max_height`.
 /// Nothing is accumulated across textures.
 ///
-/// @param baker_hint  value of `--baker`; empty means find mppcbaker
+/// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppcbaker
 /// @param manifest    the validated manifest; `textures.format` and `budget` are read
 /// @param disc_dir    absolute disc directory the sources are relative to
 /// @param plan        the planned archive; only its texture range is touched
@@ -54,7 +54,7 @@ int bake_textures(const std::string &baker_hint,
 /// lands at that entry's `payload`. A baked .pcm is checked only for a whole
 /// number of S16 samples; no budget applies to sounds.
 ///
-/// @param baker_hint  value of `--baker`; empty means find mppcbaker
+/// @param baker_hint  value of `--baker` (a directory, or a file in one); empty searches for mppcmusbaker
 /// @param disc_dir    absolute disc directory the sources are relative to
 /// @param plan        the planned archive; only its sound range is touched
 /// @param error       set with the refusal, naming the file

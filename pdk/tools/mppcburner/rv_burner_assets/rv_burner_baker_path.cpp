@@ -16,10 +16,6 @@ namespace fs = std::filesystem;
 namespace rv_pdktools
 {
 
-// The file name both tools are built under. Never spelled inline below, so the
-// three search roots cannot drift apart.
-static constexpr const char *k_baker_name = "mppcbaker";
-
 // Upper bound for the path read out of /proc/self/exe. Linux caps a path at
 // PATH_MAX (4096 on every configuration this tool runs on) and readlink does not
 // terminate what it writes, so one byte is left for the terminator below.
@@ -53,31 +49,55 @@ static fs::path executable_directory()
 
 } // namespace rv_pdktools
 
-int rv_pdktools::find_baker(const std::string &hint, std::string &out, std::string &error)
+int rv_pdktools::find_baker(const std::string &hint, const std::string &program, std::string &out, std::string &error)
 {
     // --- an explicit --baker wins ---
     //
-    // And it wins even when it is wrong: a hint that is not executable is an
-    // error rather than a reason to keep searching, because silently running a
-    // different mppcbaker than the one asked for is worse than not running one.
+    // A directory is searched as given; a file stands for the directory it lives in.
+    // And it wins even when it is wrong: a hint that does not name a directory or a
+    // file is an error rather than a reason to keep searching, because silently
+    // running a different program than the one asked for is worse than not running one.
     if (!hint.empty()) {
-        if (!is_executable(hint)) {
-            error = "--baker '" + hint + "' is not an executable file";
+        std::error_code ec;
+        const fs::file_status given_status = fs::status(hint, ec);
+        if (ec) {
+            error = "--baker '" + hint + "' cannot be read: " + ec.message();
             return RV_ERR_INVAL;
         }
-        out = hint;
+        if (!fs::is_directory(given_status) && !fs::is_regular_file(given_status)) {
+            error = "--baker '" + hint + "' is neither a directory nor a regular file";
+            return RV_ERR_INVAL;
+        }
+
+        // A file hint is resolved first, so a symlink searches the directory of its target.
+        fs::path dir = hint;
+        if (fs::is_regular_file(given_status)) {
+            dir = fs::canonical(hint, ec).parent_path();
+            if (ec) {
+                error = "--baker '" + hint + "' cannot be resolved: " + ec.message();
+                return RV_ERR_INVAL;
+            }
+        }
+
+        const fs::path candidate = dir / program;
+        if (!is_executable(candidate)) {
+            // A file that exists but cannot run is a bad hint (INVAL); a missing one is not found (NOENT).
+            const bool exists = fs::is_regular_file(candidate, ec);
+            error = exists ? "'" + program + "' in '" + dir.string() + "' is not executable (--baker)" :
+                             "'" + program + "' not found in '" + dir.string() + "' (--baker)";
+            return exists ? RV_ERR_INVAL : RV_ERR_NOENT;
+        }
+        out = candidate.string();
         return RV_OK;
     }
 
     // --- next to ourselves ---
     //
-    // Three shapes of build tree: both binaries side by side, and the two ways
+    // Three shapes of build tree: both programs side by side, and the two ways
     // cmake nests a target's output under its own subdirectory.
     const fs::path self = executable_directory();
     if (!self.empty()) {
-        const fs::path candidates[] = { self / k_baker_name,
-            self / k_baker_name / k_baker_name,
-            self.parent_path() / k_baker_name / k_baker_name };
+        const fs::path candidates[] = { self / program, self / program / program, self.parent_path() / program / program };
         for (const fs::path &candidate : candidates) {
             if (is_executable(candidate)) {
                 out = candidate.string();
@@ -98,7 +118,7 @@ int rv_pdktools::find_baker(const std::string &hint, std::string &out, std::stri
             const std::size_t colon = rest.find(':');
             const std::string_view head = rest.substr(0, colon);
             if (!head.empty()) {
-                const fs::path candidate = fs::path(std::string(head)) / k_baker_name;
+                const fs::path candidate = fs::path(std::string(head)) / program;
                 if (is_executable(candidate)) {
                     out = candidate.string();
                     return RV_OK;
@@ -111,6 +131,6 @@ int rv_pdktools::find_baker(const std::string &hint, std::string &out, std::stri
         }
     }
 
-    error = "mppcbaker not found next to mppcburner or in $PATH; pass --baker PATH";
+    error = "'" + program + "' not found next to mppcburner or in $PATH; pass --baker DIR";
     return RV_ERR_NOENT;
 }
