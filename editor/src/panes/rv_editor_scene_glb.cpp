@@ -58,6 +58,9 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
         const std::string stem = path.stem().string();
         entry.rc = rv_pdklib::rv_mppcmod_read_gltf(key, stem, model->model, model->images, entry.error);
         if (entry.rc == RV_OK) {
+            entry.rc = rv_pdklib::rv_mppcmod_validate(model->model, entry.error);
+        }
+        if (entry.rc == RV_OK) {
             entry.model = std::move(model);
         }
         it = rv_editor_glb_cache.insert_or_assign(key, std::move(entry)).first;

@@ -70,7 +70,7 @@ rv_editor_view rv_editor_view_make(const rv_editor_scene_camera &c, ImVec2 p0, I
 // A scene segment clipped to the near plane, drawn.
 void rv_editor_line(ImDrawList *dl, const rv_editor_view &v, const vec3 &a, const vec3 &b, ImU32 color, float width);
 float rv_editor_segment_distance(ImVec2 p, ImVec2 a, ImVec2 b);
-// Each object's edges in scene space: a mesh's real .obj triangles (or the unit cube while
+// Each object's edges in scene space: a mesh's real triangles, .glb or .obj (or the unit cube while
 // it does not resolve, with the reason in *error), a camera's body and lens, a group's corner
 // brackets and axis cross, a third marker for any other kind.
 std::vector<std::pair<vec3, vec3>>
@@ -81,12 +81,13 @@ struct rv_editor_tri {
     ImVec2 uv[3];
 };
 
-// An object's surface in scene space: a mesh's .obj triangles, or the unit cube while its
-// mesh is empty or does not load (the reason in *error when given); a quad's two triangles
-// (rv_pdklib::rv_scene_quad_corners' layout, uv the object's pixel rect); empty for other kinds
-// (a billboard's corners depend on the view, built only in rv_editor_draw_filled).
-// Each mesh triangle carries its .obj vt (or 0,0 for a corner without one; the whole unit
-// square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
+// An object's surface in scene space: a mesh's triangles, a .glb's (name ends in ".glb") or an
+// .obj's, or the unit cube while its mesh is empty or does not load (the reason in *error when
+// given); a quad's two triangles (rv_pdklib::rv_scene_quad_corners' layout, uv the object's
+// pixel rect); empty for other kinds (a billboard's corners depend on the view, built only in
+// rv_editor_draw_filled).
+// Each mesh triangle carries its uv: a .glb's as glTF has it, an .obj's vt (or 0,0 for a corner
+// without one; the whole unit square per face for the placeholder cube); a quad's uv is raw pixels, normalized in
 // rv_editor_draw_filled once a texture's pixel size is known.
 std::vector<rv_editor_tri> rv_editor_object_triangles(const rv_editor_scene &scene,
     const rv_editor_project &project,

@@ -96,7 +96,6 @@ constexpr std::string_view disc_section_models = "models";
 // File extensions for automatic section detection.
 constexpr std::string_view file_ext_png = ".png";
 constexpr std::string_view file_ext_wav = ".wav";
-constexpr std::string_view file_ext_glb = ".glb";
 
 // XDG environment variables and fallback paths for user directories per XDG Base Directory spec.
 constexpr std::string_view xdg_cache_var = "XDG_CACHE_HOME";

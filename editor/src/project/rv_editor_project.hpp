@@ -17,6 +17,9 @@ namespace rv_editor
 constexpr int64_t console_native_screen_width = 320;
 constexpr int64_t console_native_screen_height = 240;
 
+// A .glb file's extension: a mesh name ending in it names a [models] file, not an .obj.
+inline constexpr std::string_view file_ext_glb = ".glb";
+
 // Where the editor keeps what is not the game's.
 // `var` is an XDG variable; without it, or when it is not absolute,
 // $HOME/<home_fallback>. Empty when neither gives an absolute directory.
