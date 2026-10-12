@@ -7,7 +7,7 @@ local M = {}
 local LIGHT_MODEL = "lamp_light.mppcmod"
 -- Squared reach, metres: 8 m. Exact in float, so no rounding is needed.
 local REACH_SQUARED = 8 * 8
--- The outward half is frames [0, P/2); the turn at the far end belongs to the return half.
+-- The outward half is frames [0, P/2); the turn is in the flat at P/2 (key cam_10, frame 2160) and belongs to the return half.
 local OUTWARD_END = math.floor(mathx.PERIOD_FRAMES / 2)
 
 -- First frame in [from, to) whose eye is within the reach of at (1-based world column), -1 when none.

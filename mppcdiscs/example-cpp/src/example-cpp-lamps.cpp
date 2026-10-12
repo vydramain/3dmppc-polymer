@@ -19,15 +19,15 @@ namespace
 constexpr const char *RV_LAMP_LIGHT_MODEL = "lamp_light.mppcmod";
 constexpr std::string_view RV_LAMP_NAME_PREFIX = "lamp_";
 
-// A lamp burns while the eye is nearer than this, metres. Lamps stand 6 m apart on the street,
-// so the reach covers the lamp the camera is passing and its neighbours.
+// A lamp burns while the eye is nearer than this, metres. Lamps stand 8 m apart on the street (x 4, 12, 20, 28),
+// so the reach covers the lamp the camera is passing; a neighbour is in reach only while the eye is between them.
 constexpr float RV_LAMP_REACH = 8.0f;
 constexpr float RV_LAMP_REACH_SQUARED = RV_LAMP_REACH * RV_LAMP_REACH;
 
-// The route goes out along the street to the house (keys 00..09) and comes back (keys 09..17).
-// Frame 540 is key 09, where the route starts to turn at the far end (cam_10 is the top of the turn);
+// The route goes out along the street to the house (keys 00..09) and comes back (keys 10..19).
+// Frame 2160 (P/2) is key cam_10, inside the flat at (35.3, 7.4, 0), where the route turns back (cam_10..cam_12);
 // the turn belongs to the return half.
-// Ceiling: the split holds while no lamp is within RV_LAMP_REACH of the turn (cam_09..11). A lamp
+// Ceiling: the split holds while no lamp is within RV_LAMP_REACH of the turn keys (cam_10..cam_12). A lamp
 // there needs the split moved to the turn's frame.
 constexpr int64_t RV_LAMP_OUTWARD_END = RV_ROUTE_PERIOD_FRAMES / 2;
 
