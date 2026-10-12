@@ -206,6 +206,17 @@ private:
     // The last answer to a client that is still there. Bounded, best effort.
     void run_release_channel();
 
+    // What one iteration of the loop produced: a frame, an idle pause, or the end of the run.
+    enum class step_result {
+        frame,
+        idle,
+        stop
+    };
+
+    // One iteration of the frame loop; the order of its steps is commented in rv_pconsole_step.cpp.
+    // Holds no loop and no pacing: the caller decides when the next iteration runs and what waits between.
+    step_result frame_step(rv_de *disc, run_state &run);
+
     // Every one of these is a SLOT: rv_pconsole_cmd_devtools.cpp in a development build,
     // rv_pconsole_cmd_standard.cpp in a player build, chosen in CMakeLists.txt.
     // The frame loop calls them unconditionally so there is one loop and not

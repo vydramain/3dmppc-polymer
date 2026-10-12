@@ -387,56 +387,14 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     }
 
     for (;;) {
-        // One pump per frame turns the platform's event stream into the
-        // instantaneous port snapshots rv_cio hands the disc. It must happen
-        // before frame_update, or the disc reads input that is one frame stale.
-        platform_.pump();
-
-        // The power switch, and FIRST on purpose. A closed window or
-        // SIGINT/SIGTERM is the console's own shutdown path - rv_de::
-        // disc_release() is the disc ASKING to stop, and pulling the plug was
-        // never the disc's decision. Ahead of the pause below so that a stopped
-        // console is still killable the ordinary way.
-        if (platform_.quit_requested()) {
-            RV_LOG_INFO("pconsole", "shutdown requested (window closed or SIGINT/SIGTERM) after {} frame(s)", frames_);
+        const step_result step = frame_step(disc, run);
+        if (step == step_result::stop) {
             break;
         }
-
-        run_pause_key();
-
-        if (run_cmd_channel()) {
-            break;
+        // Only a frame is paced; an idle iteration has no frame to wait for.
+        if (step == step_result::frame) {
+            run_pace(run);
         }
-
-        // Checked here, before run_frame: a frame on a state the console can no longer vouch for is not run.
-        if (console_must_stop_) {
-            RV_LOG_ERR("pconsole",
-                "stopping after {} frame(s): the script state was not restored after a refused reload",
-                frames_);
-            break;
-        }
-
-        if (run_hold_paused(run)) {
-            continue;
-        }
-
-        run_frame(disc, run);
-        cmd_after_frame();
-
-        // Polled every frame, per the contract. Checked after the frame so the
-        // disc gets to draw the frame on which it decided to quit.
-        if (disc->disc_release(disc->self)) {
-            RV_LOG_INFO("pconsole", "mppcdisc released after {} frame(s)", frames_ + 1);
-            break;
-        }
-
-        ++frames_;
-        if (params_.max_frames && frames_ >= params_.max_frames) {
-            RV_LOG_INFO("pconsole", "frame budget of {} reached", params_.max_frames);
-            break;
-        }
-
-        run_pace(run);
     }
 
     run_finish(disc, run);
