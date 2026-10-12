@@ -1,6 +1,7 @@
--- The demo's music (example-cpp-sound.cpp, music part): the bars of the area the camera is in
+-- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in
 -- play on voice 1 and 2 in turn, one bar per second, and a bar starts only where the bar or the
--- area changes. A board clack plays on voice 4 when the lit letters change in the workshop.
+-- area changes. A board clack plays on voice 4 when the lit letters change in the workshop. Two
+-- loops play on voices 8 and 16 while the camera is in the workshop.
 -- The tables live in the entry's `state.sound`; the read buffer of write_slot is the one module local.
 local mathx = require("example-lua-math")
 local board = require("example-lua-board")
@@ -45,6 +46,38 @@ local scratch = nil
 local MUSIC_ENVELOPE = { ar = 0, dr = 0, sr = 0, rr = 0, sl = MAX_LEVEL, volume = 10000 }
 -- Clack: the shape example-lua gives its tone, at full volume.
 local CLACK_ENVELOPE = { ar = 5, dr = 40, sr = 0, rr = 120, sl = 26000, volume = MAX_LEVEL }
+
+-- The conveyor loop's voice, as Solid Maid sets it.
+local CONVEYOR_VOICE = 8
+-- The assembly loop's voice, as Solid Maid sets it.
+local ASSEMBLY_VOICE = 16
+-- The conveyor loop's volume, of 32767, as Solid Maid sets it.
+local CONVEYOR_VOLUME = 6600
+-- The assembly loop's volume, of 32767, as Solid Maid sets it.
+local ASSEMBLY_VOLUME = 12100
+-- The loops' ar, dr, sr and rr: 0, as Solid Maid sets no envelope.
+local LOOP_ENVELOPE = 0
+
+-- The workshop loops, as Solid Maid sets them (sm_sound.cpp:127-129, :410-452): no envelope, full sustain,
+-- looped forever. The volumes are 6600 and 12100 of 32767.
+local LOOPS = {
+    {
+        name = "sfx_loop_conveyor.pcm",
+        voice = CONVEYOR_VOICE,
+        env = {
+            ar = LOOP_ENVELOPE, dr = LOOP_ENVELOPE, sr = LOOP_ENVELOPE, rr = LOOP_ENVELOPE,
+            sl = MAX_LEVEL, volume = CONVEYOR_VOLUME,
+        },
+    },
+    {
+        name = "sfx_loop_assembly.pcm",
+        voice = ASSEMBLY_VOICE,
+        env = {
+            ar = LOOP_ENVELOPE, dr = LOOP_ENVELOPE, sr = LOOP_ENVELOPE, rr = LOOP_ENVELOPE,
+            sl = MAX_LEVEL, volume = ASSEMBLY_VOLUME,
+        },
+    },
+}
 
 local function area_of(eye_x)
     if eye_x < WORKSHOP_MAX_X then
@@ -229,6 +262,49 @@ local function play_clack(ca, cd, sound)
     return 0
 end
 
+-- Starts loop `index` when `on`, stops it otherwise. A stop is sent only to a loop this state started: the
+-- console refuses a stop on a voice not armed. A loop already in the wanted state does nothing.
+local function set_loop(ca, cd, sound, index, on)
+    local loop = LOOPS[index]
+    if on == sound.loop_armed[index] then
+        return 0
+    end
+    if not on then
+        local stop_code = tonumber(pdk.ca_voice_stop(ca, loop.voice))
+        if stop_code < 0 then
+            return fail(sound, loop.name, stop_code)
+        end
+        sound.loop_armed[index] = false
+        return 0
+    end
+    local addr = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_AUDIO, loop.name))
+    if addr < 0 then
+        return fail(sound, loop.name, addr)
+    end
+    local play_code = play_voice(ca, voice_conf(loop.voice, pdk.LOOP_FOREVER, addr, loop.env))
+    if play_code < 0 then
+        return fail(sound, loop.name, play_code)
+    end
+    sound.loop_armed[index] = true
+    return 0
+end
+
+-- Keeps both loops playing while `in_workshop`, silent otherwise. Both are tried; the first failure is returned
+-- with its asset.
+local function set_loops(ca, cd, sound, in_workshop)
+    local code = 0
+    local asset = ""
+    for index = 1, #LOOPS do
+        local loop_code = set_loop(ca, cd, sound, index, in_workshop)
+        if code == 0 and loop_code < 0 then
+            code = loop_code
+            asset = sound.error_asset
+        end
+    end
+    sound.error_asset = asset
+    return code
+end
+
 -- Frees the first `count` music slots of a failed init; a slot that will not free is logged, the init error is kept.
 local function free_slots(ca, sound, count)
     for index = 1, count do
@@ -289,6 +365,10 @@ function M.init(ca, cd, keys, state)
         starts[1] = 0
     end
     sound.starts = starts
+    sound.loop_armed = {}
+    for index = 1, #LOOPS do
+        sound.loop_armed[index] = false
+    end
     sound.ready = true
     return 0
 end
@@ -312,23 +392,39 @@ function M.update(ca, cd, keys, frame, board_present, state)
     -- A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
     local silent = first and span_offset % BAR_FRAMES ~= 0
     local clack = board_present and not first and area == WORKSHOP and letters_changed(sound.frame, frame)
+    -- Every new frame runs the loops. The clack runs only after the music step succeeded: otherwise the same clack would
+    -- repeat every frame. The first failure is returned with its asset.
+    local code = 0
+    local asset = ""
+    local music_code = 0
     if bar_starts then
-        local music_code = play_bar(ca, cd, sound, area, bar, frame, not silent)
-        if music_code < 0 then
-            return music_code
-        end
+        music_code = play_bar(ca, cd, sound, area, bar, frame, not silent)
     end
-    sound.frame = frame
-    sound.area = area
-    sound.bar = bar
-    -- The clack runs only after the music step succeeded: otherwise the same clack would repeat every frame.
-    if clack then
+    if music_code < 0 then
+        code = music_code
+        asset = sound.error_asset
+    end
+    -- Committed only after the music start: a failed start is retried on the next frame.
+    local music_ok = music_code == 0
+    if music_ok then
+        sound.frame = frame
+        sound.area = area
+        sound.bar = bar
+    end
+    local loops_code = set_loops(ca, cd, sound, area == WORKSHOP)
+    if code == 0 and loops_code < 0 then
+        code = loops_code
+        asset = sound.error_asset
+    end
+    if music_ok and clack then
         local clack_code = play_clack(ca, cd, sound)
-        if clack_code < 0 then
-            return clack_code
+        if code == 0 and clack_code < 0 then
+            code = clack_code
+            asset = sound.error_asset
         end
     end
-    return 0
+    sound.error_asset = asset
+    return code
 end
 
 return M
