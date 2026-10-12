@@ -128,12 +128,12 @@ end
 
 -- Logs the first failure of each step only: the same failure would repeat every frame.
 -- state.logged_errors is keyed by step (the camera, the lamps, the board, or a model name).
-local function log_error_once(step, code)
+local function log_error_once(step, code, failure)
     if state.logged_errors[step] then
         return
     end
     state.logged_errors[step] = true
-    print(string.format("example-lua: %s not drawn: rv_err %d", step, code))
+    print(string.format("example-lua: %s %s: rv_err %d", step, failure or "not drawn", code))
 end
 
 -- The disc's C++ side (src/example-lua.cpp) calls this with the organizer handle `o_`;
@@ -141,9 +141,8 @@ end
 function M.disc_initialize(o_)
     state.frame_count = 0
     state.logged_errors = {}
-    -- The last frame the sound played for (-1: none yet) and its area (0 = workshop).
-    state.sound_frame = -1
-    state.sound_area = 0
+    -- The music's tables (example-lua-sound.lua): ready after its init, frame -1 before the first frame.
+    state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "", write_ahead_logged = false }
     local mathx = require("example-lua-math")
     local scene, reason = scene_read(pdk.cd(o_), mathx)
     state.meshes = scene.meshes
@@ -156,6 +155,10 @@ function M.disc_initialize(o_)
     end
     if #state.keys > 0 then
         require("example-lua-lamps").schedule(state.keys, state.lamps)
+        local sound_code = require("example-lua-sound").init(pdk.ca(o_), pdk.cd(o_), state.keys, state)
+        if sound_code < 0 then
+            print(string.format("example-lua: sound off: %s rv_err %d", state.sound.error_asset, sound_code))
+        end
     end
 end
 
@@ -182,7 +185,7 @@ function M.frame_render(o_)
     -- The sound first, as in example-cpp's frame_render: the music and the clack, then the picture.
     local sound_code = require("example-lua-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
     if sound_code < 0 then
-        log_error_once("sound", sound_code)
+        log_error_once("sound " .. state.sound.error_asset, sound_code, "not played")
     end
     local eye, target = mathx.camera_of(state.keys, state.frame_count)
     local camera = pdk.new("rv_cg_camera")
