@@ -984,7 +984,7 @@ closed_channel = "nvim closed its channel"
 
 [templates]
 minimal_cpp_name = "Demo (C++)"
-minimal_cpp_desc = "The Solid Maid demo scene in C++: a flickering factory board, street lamps, an apartment, glTF models and music, looping every 18 seconds. Build and Restart to see a change."
+minimal_cpp_desc = "The Solid Maid demo scene in C++: a flickering factory board, street lamps, an apartment, glTF models and music, looping every 72 seconds. Build and Restart to see a change."
 minimal_lua_name = "Demo (Lua)"
 minimal_lua_desc = "The same Solid Maid demo scene with all its logic in Lua scripts that reload while the disc runs. The small C++ bridge still needs the C++ compiler."
 problem_name = "Give the project a name"
