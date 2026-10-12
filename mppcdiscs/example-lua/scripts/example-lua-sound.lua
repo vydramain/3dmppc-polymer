@@ -1,10 +1,11 @@
 -- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in
 -- play on voice 1 and 2 in turn, one bar per second, and a bar starts only where the bar or the
 -- area changes. A board clack plays on voice 4 when the lit letters change in the workshop. Two
--- loops play on voices 8 and 16 while the camera is in the workshop.
+-- loops play on voices 8 and 16 while the camera is in the workshop. The footsteps are in example-lua-steps.lua.
 -- The tables live in the entry's `state.sound`; the read buffer of write_slot is the one module local.
 local mathx = require("example-lua-math")
 local board = require("example-lua-board")
+local steps = require("example-lua-steps")
 local M = {}
 
 -- Eye x of the camera, metres, as scenes/main.scene.toml places the objects: the factory is at x < 0,
@@ -369,16 +370,26 @@ function M.init(ca, cd, keys, state)
     for index = 1, #LOOPS do
         sound.loop_armed[index] = false
     end
+    steps.init(keys)
     sound.ready = true
     return 0
 end
 
 -- Plays what frame `frame` (in [0, PERIOD)) needs after state.sound.frame. The same frame again plays
 -- nothing, and nothing plays before init. Returns 0 or the first error, with state.sound.error_asset
--- naming the asset. A failed music start is not committed, so the next frame retries it.
+-- naming the asset. A failed music start is not committed, so the next update call retries it: the next
+-- frame, or this frame again while paused.
 function M.update(ca, cd, keys, frame, board_present, state)
     local sound = state.sound
-    if not sound.ready or frame == sound.frame then
+    if not sound.ready then
+        return 0
+    end
+    -- Refused, as example-cpp refuses a table not period-sized: the steps would index past its end.
+    local table_of = steps.distance(keys)
+    if #table_of ~= mathx.PERIOD_FRAMES then
+        return fail(sound, "sound tables", ERR_INVAL)
+    end
+    if frame == sound.frame then
         return 0
     end
     local period = mathx.PERIOD_FRAMES
@@ -404,7 +415,7 @@ function M.update(ca, cd, keys, frame, board_present, state)
         code = music_code
         asset = sound.error_asset
     end
-    -- Committed only after the music start: a failed start is retried on the next frame.
+    -- Committed only after the music start: a failed start is retried by the next update call.
     local music_ok = music_code == 0
     if music_ok then
         sound.frame = frame
@@ -420,6 +431,15 @@ function M.update(ca, cd, keys, frame, board_present, state)
         local clack_code = play_clack(ca, cd, sound)
         if code == 0 and clack_code < 0 then
             code = clack_code
+            asset = sound.error_asset
+        end
+    end
+    -- Only once the frame is committed: a failed music start is retried by the next update call (the same frame
+    -- again while paused), and the step of a committed frame must not repeat.
+    if music_ok then
+        local steps_code = steps.update(ca, cd, table_of, frame, area, sound)
+        if code == 0 and steps_code < 0 then
+            code = steps_code
             asset = sound.error_asset
         end
     end
