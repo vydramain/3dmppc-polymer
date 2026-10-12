@@ -60,10 +60,12 @@ public:
             keys_.clear();
             lamps_.clear();
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
+            return RV_OK;
         }
-        if (read_code == RV_OK && !board_found_) {
+        if (!board_found_) {
             RV_LOG_WARN("scene", "no '{}' object: the board has no lettering", RV_EXAMPLE_CPP_BOARD_NAME);
         }
+        init_sound();
         return RV_OK;
     }
 
@@ -99,6 +101,7 @@ private:
     void add_route_key(const rv_cd_scene_object &object);
     void draw_world();
     void log_draw_error(const char *step, int64_t code);
+    void init_sound();
     void play_sound();
     void log_sound_error(int64_t code);
 
@@ -113,8 +116,9 @@ private:
     // Frames updated while running: the demo's clock.
     int64_t frame_count_ = 0;
     bool draw_error_logged_ = false;
-    // The music and the clack: the last frame played for and the area of its music.
+    // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
     rv_sound_state sound_state_;
+    bool sound_ready_ = false;
     bool sound_error_logged_ = false;
 };
 
@@ -230,13 +234,24 @@ void rv_dmain::log_draw_error(const char *step, int64_t code)
     RV_LOG_ERR("draw", "{} not drawn: rv_err {}", step, code);
 }
 
-// Plays the frame's sound; no keys means no camera and so no area, and read_scene has logged why.
-void rv_dmain::play_sound()
+// Loads the music and tabulates the areas; runs once, after read_scene found the camera keys.
+void rv_dmain::init_sound()
 {
-    if (keys_.empty()) {
+    const int64_t sound_code = rv_sound_init(pdk_, keys_, sound_state_);
+    if (sound_code < 0) {
+        RV_LOG_ERR("sound", "sound off: {} rv_err {}", sound_state_.error_asset, sound_code);
         return;
     }
-    const int64_t sound_code = rv_sound_update(pdk_, keys_, frame_count_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
+    sound_ready_ = true;
+}
+
+// Plays the frame's sound; without init_sound there is no music, and init_sound has logged why.
+void rv_dmain::play_sound()
+{
+    if (!sound_ready_) {
+        return;
+    }
+    const int64_t sound_code = rv_sound_update(pdk_, frame_count_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
     if (sound_code < 0) {
         log_sound_error(sound_code);
     }
@@ -249,7 +264,7 @@ void rv_dmain::log_sound_error(int64_t code)
         return;
     }
     sound_error_logged_ = true;
-    RV_LOG_ERR("sound", "sound not played: rv_err {}", code);
+    RV_LOG_ERR("sound", "sound not played: {} rv_err {}", sound_state_.error_asset, code);
 }
 
 } // namespace example_cpp
