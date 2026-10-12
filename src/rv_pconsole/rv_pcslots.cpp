@@ -9,8 +9,6 @@
 #include "rv_pconsole/cg/rv_pccg_sw.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_platform.hpp"
-#include "rv_pconsole/cl/rv_pccl_luajit.hpp"
-#include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv_null.hpp"
@@ -40,10 +38,6 @@ constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
     { "std", rv_pccio_impl::standard, &rv_pccio_platform::evaluate },
 };
-constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL_ROWS[] = {
-    { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
-    { "luajit", rv_pccl_impl::luajit, &rv_pccl_luajit::evaluate },
-};
 constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD_ROWS[] = {
     { "null", rv_pccd_impl::null, &rv_pccd_null::evaluate },
     { "fs", rv_pccd_impl::fs, &rv_pccd_fs::evaluate },
@@ -70,7 +64,6 @@ const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA = RV_PCSLOTS_C
 const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV = RV_PCSLOTS_CV_ROWS;
 const std::span<const rv_pcslots_row<rv_pccg_impl>> RV_PCSLOTS_CG = RV_PCSLOTS_CG_ROWS;
 const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO = RV_PCSLOTS_CIO_ROWS;
-const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL = RV_PCSLOTS_CL_ROWS;
 const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD = RV_PCSLOTS_CD_ROWS;
 const std::span<const rv_pcslots_row<rv_pccm_impl>> RV_PCSLOTS_CM = RV_PCSLOTS_CM_ROWS;
 
@@ -153,15 +146,6 @@ rv_pccl_impl rv_pccl_resolve(rv_pccl_impl requested, int64_t script_memory_size)
         return rv_pccl_impl::null;
     }
     return requested;
-}
-
-std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd)
-{
-    RV_LOG_INFO("pccl", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
-    if (impl == rv_pccl_impl::luajit) {
-        return std::make_unique<rv_pccl_luajit>(conf, cd);
-    }
-    return std::make_unique<rv_pccl_null>();
 }
 
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf)
