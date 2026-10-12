@@ -28,7 +28,7 @@ SDL_Texture *rv_editor_game_texture = nullptr;
 uint32_t rv_editor_game_w = 0, rv_editor_game_h = 0;
 uint64_t rv_editor_game_frame = 0;
 std::vector<uint32_t> rv_editor_game_pixels;
-int rv_editor_game_fd = -1;
+uint32_t rv_editor_game_session = 0;
 
 } // namespace
 
@@ -399,9 +399,9 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
             return;
         }
 
-        // A new session is a new memory object whose frames count from 1 again.
-        if (s.frame_memory().fd() != rv_editor_game_fd) {
-            rv_editor_game_fd = s.frame_memory().fd();
+        // A new session's frames count from 1 again.
+        if (s.number() != rv_editor_game_session) {
+            rv_editor_game_session = s.number();
             rv_editor_game_frame = 0;
         }
 
