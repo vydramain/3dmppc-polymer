@@ -24,6 +24,20 @@ option(3DMPPC_DEVTOOLS "Build the development runtime: the dev command channel a
 # by name at load; with none, rv_pccl_resolve maps it to null and it loads.
 option(3DMPPC_LUAJIT "Build the LuaJIT script slot and the PDK ffi.cdef bridge" ON)
 
+# The disc is linked into the console instead of dlopen-ed from a .mppcdisc (the web
+# build cannot dlopen). rv_pcloader_static.cpp replaces the dl half of rv_pcloader.
+option(3DMPPC_STATIC_DISC "Link the disc into the console statically: no dlopen, no ELF check" OFF)
+set(3DMPPC_STATIC_DISC_LIBRARY "" CACHE FILEPATH "Static library of the disc, linked into the console when 3DMPPC_STATIC_DISC is ON")
+if(3DMPPC_STATIC_DISC)
+  # The devtools directory route runs the ELF check, which a static disc does not have.
+  if(3DMPPC_DEVTOOLS)
+    message(FATAL_ERROR "3DMPPC_STATIC_DISC=ON needs 3DMPPC_DEVTOOLS=OFF")
+  endif()
+  if(NOT 3DMPPC_STATIC_DISC_LIBRARY)
+    message(FATAL_ERROR "3DMPPC_STATIC_DISC=ON needs 3DMPPC_STATIC_DISC_LIBRARY set to the disc's static library")
+  endif()
+endif()
+
 include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
@@ -93,6 +107,12 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/sdl3
 # there is nothing here for it to define - only the dev source is excluded
 # from the glob and added back by the option below.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_livedir_devtools\\.cpp")
+# The loader's dl half (dl, inspect, staging) or its static half, never both.
+if(3DMPPC_STATIC_DISC)
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_(dl|inspect|staging)\\.cpp")
+else()
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcloader_static\\.cpp")
+endif()
 # The positional disc's mount()/mount_dir() choice and the medium it hands
 # the drive - see src/rv_pboot/rv_pboot_discmedium.hpp for why it is two
 # functions rather than a filesystem check duplicated in rv_pboot.cpp and
@@ -236,9 +256,15 @@ target_link_libraries(3dmppc PRIVATE rv_dmain)
 
 target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
 
-# dlopen/dlsym: how a .mppcdisc's code enters the process. CMAKE_DL_LIBS is
-# "-ldl" where that is a separate library and empty where it is part of libc.
+# dlopen/dlsym: how a .mppcdisc's code enters the process. libluajit.a also
+# references dlopen/dlsym/dlerror/dlclose (ffi.load) but does not link libdl itself,
+# so this line supplies them. CMAKE_DL_LIBS is "-ldl" where that is a separate
+# library and empty where it is part of libc.
 target_link_libraries(3dmppc PRIVATE ${CMAKE_DL_LIBS})
+# With a static disc the disc is linked in as well; nothing is dlopen-ed for it.
+if(3DMPPC_STATIC_DISC)
+  target_link_libraries(3dmppc PRIVATE ${3DMPPC_STATIC_DISC_LIBRARY})
+endif()
 
 if(MSVC)
   target_compile_options(3dmppc PRIVATE /W4)

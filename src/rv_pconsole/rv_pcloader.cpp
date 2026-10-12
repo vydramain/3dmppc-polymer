@@ -1,6 +1,6 @@
 // rv_pcloader: the disc's load/unload lifecycle and the one safe teardown order.
 // The dlopen half (code extraction, dlopen/dlsym, dlclose, staging unlink) lives
-// in rv_pcloader_dl.cpp.
+// in rv_pcloader_dl.cpp; a static disc (3DMPPC_STATIC_DISC) uses rv_pcloader_static.cpp.
 #include "rv_pconsole/rv_pcloader.hpp"
 
 #include "pdk/rv_err.h"
@@ -80,10 +80,12 @@ int64_t rv_pcloader::load(const char *archive_path)
     return bring_up();
 }
 
-// RAII - the teardown order lives here and nowhere else, and it is the
-// exact reverse of construction:
+// RAII - the teardown order lives here and nowhere else. In the dl build (the
+// default) it is the exact reverse of construction:
 //
 //   disc_shutdown() -> mppc_disc_destroy() -> dlclose() -> unlink()
+//
+// (A static disc, 3DMPPC_STATIC_DISC, has no dlclose or unlink: see rv_pcloader_static.cpp.)
 //
 // dlclose AFTER destroy, never before: dlclose unmaps the library's text, and
 // the destructor is IN that text. Destroying afterwards calls a function whose
