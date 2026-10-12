@@ -63,14 +63,6 @@ local LOOP_ENVELOPE = 0
 -- looped forever. The volumes are 6600 and 12100 of 32767.
 local LOOPS = {
     {
-        name = "sfx_loop_conveyor.pcm",
-        voice = CONVEYOR_VOICE,
-        env = {
-            ar = LOOP_ENVELOPE, dr = LOOP_ENVELOPE, sr = LOOP_ENVELOPE, rr = LOOP_ENVELOPE,
-            sl = MAX_LEVEL, volume = CONVEYOR_VOLUME,
-        },
-    },
-    {
         name = "sfx_loop_assembly.pcm",
         voice = ASSEMBLY_VOICE,
         env = {
@@ -256,10 +248,11 @@ local function play_clack(ca, cd, sound)
     if addr < 0 then
         return fail(sound, CLACK, addr)
     end
-    local play_code = play_voice(ca, voice_conf(CLACK_VOICE, pdk.LOOP_NONE, addr, CLACK_ENVELOPE))
-    if play_code < 0 then
-        return fail(sound, CLACK, play_code)
-    end
+    local conf = voice_conf(CLACK_VOICE, pdk.LOOP_NONE, addr, CLACK_ENVELOPE)
+    -- local play_code = play_voice(ca, conf)
+    -- if play_code < 0 then
+    --     return fail(sound, CLACK, play_code)
+    -- end
     return 0
 end
 
@@ -437,7 +430,8 @@ function M.update(ca, cd, keys, frame, board_present, state)
     -- Only once the frame is committed: a failed music start is retried by the next update call (the same frame
     -- again while paused), and the step of a committed frame must not repeat.
     if music_ok then
-        local steps_code = steps.update(ca, cd, table_of, frame, area, sound)
+        -- local steps_code = steps.update(ca, cd, table_of, frame, area, sound)
+        local steps_code = 0
         if code == 0 and steps_code < 0 then
             code = steps_code
             asset = sound.error_asset
