@@ -18,8 +18,8 @@ M.f = f
 -- A world matrix is row-major 4x4: 16 numbers.
 M.MATRIX_LEN = 16
 
--- One period of the camera loop: 1080 frames = 18 s at 1/60 s per frame.
-M.PERIOD_FRAMES = 1080
+-- One period of the camera loop: 4320 frames = 72 s at 1/60 s per frame.
+M.PERIOD_FRAMES = 4320
 
 -- Below this length an interpolated direction has no heading; the camera looks down +z.
 local MIN_LENGTH = 1e-6
