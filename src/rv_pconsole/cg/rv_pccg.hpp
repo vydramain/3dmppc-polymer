@@ -38,7 +38,7 @@ public:
 
     virtual int64_t frame_camera(const rv_cg_camera *camera) = 0;
     virtual int64_t model_put(int64_t model_addr, const rv_cg_put *put) = 0;
-    virtual int64_t point(const rv_cg_vec3 *world, rv_cg_screen *out) = 0;
+    virtual int64_t point(const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out) = 0;
 
     // --- console-side: never reached through the extern "C" block ---
 

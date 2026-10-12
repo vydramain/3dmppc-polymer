@@ -36,12 +36,6 @@ constexpr float RV_PCCG_SW_CHANNEL_MAX = 255.0f;
 // rv_uv holds unsigned texels.
 constexpr float RV_PCCG_SW_TEXEL_MAX = 65535.0f;
 
-// The depth window for point(): a point has no put and so no range of its own. The manifest
-// does not configure the ordering-table window (rv_pboot_conf leaves it), so the rv_pccv_conf
-// defaults are the window the console runs with; rv_pccv does not expose it to cg.
-constexpr int32_t RV_PCCG_SW_POINT_DEPTH_MIN = rv_pccv_conf{}.depth_min;
-constexpr int32_t RV_PCCG_SW_POINT_DEPTH_MAX = rv_pccv_conf{}.depth_max;
-
 rv_pdklib::rv_vec3 to_vec3(const rv_cg_vec3 &value)
 {
     return { value.x, value.y, value.z };
@@ -342,7 +336,7 @@ int64_t rv_pccg_sw::model_put(int64_t model_addr, const rv_cg_put *put)
     return count;
 }
 
-int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, rv_cg_screen *out)
+int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out)
 {
     const bool no_point = world == nullptr || out == nullptr;
     if (no_point) {
@@ -354,10 +348,13 @@ int64_t rv_pccg_sw::point(const rv_cg_vec3 *world, rv_cg_screen *out)
         RV_LOG_WARN("pccg", "point refused: no camera this frame");
         return RV_ERR_INVAL;
     }
-    const rv_pdklib::rv_xform_conf conf = frame_conf(rv_pdklib::rv_mat4_identity(),
-        RV_PCCG_SW_POINT_DEPTH_MIN,
-        RV_PCCG_SW_POINT_DEPTH_MAX,
-        rv_pdklib::RV_CULL_NONE);
+    const bool depth_ordered = depth_min <= depth_max;
+    if (!depth_ordered) {
+        RV_LOG_WARN("pccg", "point refused: depth_min {} is above depth_max {}", depth_min, depth_max);
+        return RV_ERR_INVAL;
+    }
+    const rv_pdklib::rv_xform_conf conf =
+        frame_conf(rv_pdklib::rv_mat4_identity(), depth_min, depth_max, rv_pdklib::RV_CULL_NONE);
     rv_pdklib::rv_vec2 screen{};
     int32_t depth = 0;
     // A point nearer than the near plane is an ordinary answer: the HUD asks every frame.

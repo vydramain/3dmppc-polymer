@@ -24,7 +24,7 @@ extern "C" int64_t rv_cg_model_put(rv_cg *cg, int64_t model_addr, const rv_cg_pu
     return reinterpret_cast<rv_3dmppc::rv_pccg *>(cg)->model_put(model_addr, put);
 }
 
-extern "C" int64_t rv_cg_point(rv_cg *cg, const rv_cg_vec3 *world, rv_cg_screen *out)
+extern "C" int64_t rv_cg_point(rv_cg *cg, const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out)
 {
-    return reinterpret_cast<rv_3dmppc::rv_pccg *>(cg)->point(world, out);
+    return reinterpret_cast<rv_3dmppc::rv_pccg *>(cg)->point(world, depth_min, depth_max, out);
 }

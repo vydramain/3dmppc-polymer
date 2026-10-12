@@ -32,7 +32,7 @@ public:
 
     int64_t frame_camera(const rv_cg_camera *camera) override;
     int64_t model_put(int64_t model_addr, const rv_cg_put *put) override;
-    int64_t point(const rv_cg_vec3 *world, rv_cg_screen *out) override;
+    int64_t point(const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out) override;
 
     // --- console-side ---
 

@@ -72,7 +72,7 @@ int64_t rv_pccg_null::model_put(int64_t /*model_addr*/, const rv_cg_put *put)
     return 0;
 }
 
-int64_t rv_pccg_null::point(const rv_cg_vec3 * /*world*/, rv_cg_screen * /*out*/)
+int64_t rv_pccg_null::point(const rv_cg_vec3 * /*world*/, int32_t /*depth_min*/, int32_t /*depth_max*/, rv_cg_screen * /*out*/)
 {
     // no projection engine: always RV_ERR_INVAL, with or without a camera
     return RV_ERR_INVAL;

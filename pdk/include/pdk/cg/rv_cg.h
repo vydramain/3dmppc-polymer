@@ -76,10 +76,11 @@ int64_t rv_cg_frame_camera(rv_cg *cg, const rv_cg_camera *camera);
 int64_t rv_cg_model_put(rv_cg *cg, int64_t model_addr, const rv_cg_put *put);
 
 // Projects a world point with the frame's camera; no camera this frame answers
-// RV_ERR_INVAL, as put does. A point nearer than the near plane has no usable
-// screen position (the divide by w flips or blows up), so it also answers
-// RV_ERR_INVAL and writes nothing to out.
-int64_t rv_cg_point(rv_cg *cg, const rv_cg_vec3 *world, rv_cg_screen *out);
+// RV_ERR_INVAL, as put does. depth is keyed into [depth_min, depth_max], the window
+// of the put that it sorts with; depth_min > depth_max answers RV_ERR_INVAL.
+// A point nearer than the near plane has no usable screen position (the divide by
+// w flips or blows up), so it also answers RV_ERR_INVAL. Every refusal writes nothing to out.
+int64_t rv_cg_point(rv_cg *cg, const rv_cg_vec3 *world, int32_t depth_min, int32_t depth_max, rv_cg_screen *out);
 
 /* RV_CDEF_END */
 
