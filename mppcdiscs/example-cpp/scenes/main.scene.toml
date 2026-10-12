@@ -129,6 +129,17 @@ mesh = "furniture.glb"
 texture = ""
 
 [[object]]
+id = "5ce0000d"
+name = "yard"
+parent = ""
+kind = "mesh"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "yard.glb"
+texture = ""
+
+[[object]]
 id = "5ce0000a"
 name = "route"
 parent = ""
