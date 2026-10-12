@@ -186,7 +186,9 @@ void rv_pconsole::run_pause_key()
 
 bool rv_pconsole::run_cmd_channel()
 {
-    if (!cmd_) {
+    // A pending step is answered after its own frame. Taking another request before
+    // that frame would overwrite step_reply_id_ and lose the answer to the step.
+    if (!cmd_ || step_reply_id_ >= 0) {
         return false;
     }
     // The frame boundary, and the only place a command is executed. Here no
