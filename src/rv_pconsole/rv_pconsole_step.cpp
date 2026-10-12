@@ -42,6 +42,10 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
         return step_result::idle;
     }
 
+    if (run_hold_audio(run)) {
+        return step_result::idle;
+    }
+
     run_frame(disc, run);
     cmd_after_frame();
 

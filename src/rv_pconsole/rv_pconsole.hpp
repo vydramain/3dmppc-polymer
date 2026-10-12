@@ -158,6 +158,12 @@ private:
         // stale and has to be re-based before it is believed again.
         bool left_pause = false;
 
+        // An audio wait in progress: the queue was above its target at the last
+        // look. Progress (a smaller queue) restarts the stall count.
+        bool audio_waiting = false;
+        std::chrono::steady_clock::time_point audio_wait_since{};
+        int64_t audio_wait_queued = 0;
+
         int64_t audio_phase = 0;
         int64_t audio_written = 0;
         int64_t audio_underruns = 0;
@@ -186,6 +192,11 @@ private:
     // to the clock, because the two are the same fact seen twice.
     bool run_hold_paused(run_state &run);
 
+    // Audio pacing as a decision: true when the device still holds more than its
+    // target, so this iteration creates no frame. Never waits itself. On a stall
+    // it logs a warning and switches the run to clock pacing (sets its deadline).
+    bool run_hold_audio(run_state &run);
+
     // Show the pause overlay (build once, present every slice).
     void run_show_pause();
 
@@ -193,7 +204,7 @@ private:
     // exactly that step.
     void run_frame(rv_de *disc, run_state &run);
 
-    // Wait, however this run decides to wait.
+    // Clock pacing: sleep to the next deadline. Audio pacing never waits here.
     void run_pace(run_state &run);
 
     // The audio summary and the last hook, after the last frame.
@@ -206,7 +217,7 @@ private:
     // The last answer to a client that is still there. Bounded, best effort.
     void run_release_channel();
 
-    // What one iteration of the loop produced: a frame, an idle pause, or the end of the run.
+    // What one iteration of the loop produced: a frame, an idle iteration (paused or waiting for audio), or the end of the run.
     enum class step_result {
         frame,
         idle,

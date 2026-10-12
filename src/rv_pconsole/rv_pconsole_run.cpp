@@ -39,14 +39,16 @@ constexpr int64_t RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES = 2;
 // A device that has taken nothing for this long stopped draining.
 constexpr auto RV_PCONSOLE_AUDIO_STALL = std::chrono::milliseconds(250);
 
-// How long disc_run sleeps on an idle iteration (paused) before it calls the
-// step again. Short enough that the window stays responsive and a command is
-// acted on without a visible delay, long enough that a paused console is not a
-// core running flat out.
+// How long disc_run sleeps on an idle iteration while stopped with no step pending
+// (the condition of run_hold_paused's pause branch). Short enough that the window
+// stays responsive and a command is acted on without a visible delay, long enough
+// that a paused console is not a core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
-// Poll interval while waiting for audio drain; brief enough to stay responsive
-// to platform events without busy-looping.
+// How long disc_run sleeps on an idle iteration while waiting for the audio device
+// to drain. Those idle iterations also serve the pause key and the devtools channel
+// (a non-blocking read), so this is their polling rate: brief enough to stay
+// responsive, long enough not to spin a core.
 constexpr auto RV_PCONSOLE_AUDIO_POLL_INTERVAL = std::chrono::milliseconds(1);
 
 using rv_pcclock = std::chrono::steady_clock;
@@ -229,6 +231,8 @@ bool rv_pconsole::run_hold_paused(run_state &run)
     if (paused_ && step_reply_id_ < 0) {
         run_show_pause();
         run.left_pause = true;
+        // A pause is not a stall: an audio wait that straddles it starts over.
+        run.audio_waiting = false;
         return true;
     }
 
@@ -243,6 +247,43 @@ bool rv_pconsole::run_hold_paused(run_state &run)
         run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
         run.left_pause = false;
     }
+    return false;
+}
+
+bool rv_pconsole::run_hold_audio(run_state &run)
+{
+    // Only audio pacing is backpressure; every other mode skips the device query.
+    if (run.mode != pacing::audio) {
+        return false;
+    }
+    const int64_t queued = platform_.audio().queued_frames();
+    if (queued <= run.queue_target) {
+        run.audio_waiting = false;
+        return false;
+    }
+
+    const rv_pcclock::time_point now = rv_pcclock::now();
+    if (!run.audio_waiting) {
+        run.audio_waiting = true;
+        run.audio_wait_since = now;
+        run.audio_wait_queued = queued;
+    }
+    // The device took something: progress, so the stall count starts again.
+    if (queued < run.audio_wait_queued) {
+        run.audio_wait_since = now;
+        run.audio_wait_queued = queued;
+        return true;
+    }
+    if (now - run.audio_wait_since < RV_PCONSOLE_AUDIO_STALL) {
+        return true;
+    }
+
+    RV_LOG_WARN("pconsole", "audio output stopped draining, pacing by the steady clock from now on");
+    // Only the wait is abandoned: this frame runs, and the following ones are
+    // clock-paced. A closed window or a signal still ends the run through the
+    // quit check at the top of every step.
+    run.mode = pacing::clock;
+    run.deadline = now + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
     return false;
 }
 
@@ -283,57 +324,20 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
 
 void rv_pconsole::run_pace(run_state &run)
 {
-    if (run.mode == pacing::none) {
-        // Unpaced: the loop runs as fast as it can, and the audio output was
-        // never fed at all.
+    // Unpaced runs never wait; audio pacing was decided before the frame in run_hold_audio.
+    if (run.mode != pacing::clock) {
         return;
     }
 
-    if (run.mode == pacing::clock) {
-        const rv_pcclock::time_point after = rv_pcclock::now();
-        const bool behind = after >= run.deadline;
-        if (!behind) {
-            std::this_thread::sleep_until(run.deadline);
-        }
-        // Fell behind: re-base instead of letting missed deadlines pile up
-        // into a burst of zero-length frames.
-        const auto base = behind ? after : run.deadline;
-        run.deadline = base + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
-        return;
+    const rv_pcclock::time_point after = rv_pcclock::now();
+    const bool behind = after >= run.deadline;
+    if (!behind) {
+        std::this_thread::sleep_until(run.deadline);
     }
-
-    // Paced by backpressure: wait until the device has taken enough that the
-    // queue is back under its target.
-    rv_pcclock::time_point stall_since = rv_pcclock::now();
-    int64_t last_queued = platform_.audio().queued_frames();
-    bool stalled = false;
-    while (platform_.audio().queued_frames() > run.queue_target) {
-        platform_.pump();
-        if (platform_.quit_requested()) {
-            break;
-        }
-        std::this_thread::sleep_for(RV_PCONSOLE_AUDIO_POLL_INTERVAL);
-        const int64_t queued_now = platform_.audio().queued_frames();
-        if (queued_now < last_queued) {
-            stall_since = rv_pcclock::now();
-            last_queued = queued_now;
-            continue;
-        }
-        if (rv_pcclock::now() - stall_since < RV_PCONSOLE_AUDIO_STALL) {
-            continue;
-        }
-        RV_LOG_WARN("pconsole", "audio output stopped draining, pacing by the steady clock from now on");
-        stalled = true;
-        break;
-    }
-    if (stalled) {
-        // Switch pacing for every following frame; the run itself keeps going -
-        // only the wait ABOVE is abandoned. The next frame's quit_requested()
-        // check is what ends the run if the stall was actually a closed window
-        // or a signal.
-        run.mode = pacing::clock;
-        run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
-    }
+    // Fell behind: re-base instead of letting missed deadlines pile up
+    // into a burst of zero-length frames.
+    const auto base = behind ? after : run.deadline;
+    run.deadline = base + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
 }
 
 void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
@@ -393,11 +397,15 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         if (step == step_result::stop) {
             break;
         }
-        // The step never sleeps, so no caller is blocked inside it; this driver sleeps on idle to keep a pause off the CPU.
+        // The step never sleeps; this driver sleeps once per idle iteration, so a pause or an audio wait does not spin a core.
         switch (step) {
-        case step_result::idle:
-            std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
+        case step_result::idle: {
+            // Same condition as run_hold_paused's pause branch; a pending step makes it false.
+            const bool stopped = paused_ && step_reply_id_ < 0;
+            const auto nap = stopped ? RV_PCONSOLE_PAUSE_SLICE : RV_PCONSOLE_AUDIO_POLL_INTERVAL;
+            std::this_thread::sleep_for(nap);
             break;
+        }
         case step_result::frame:
             run_pace(run);
             break;
