@@ -119,7 +119,8 @@ private:
     // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
     rv_sound_state sound_state_;
     bool sound_ready_ = false;
-    bool sound_error_logged_ = false;
+    // Assets whose failure is logged already: one log per asset, so a later failure of another asset still shows.
+    std::vector<std::string> sound_errors_logged_;
 };
 
 // Fills meshes_ and keys_ from the scene. An error leaves them partly filled; the caller clears them.
@@ -257,14 +258,15 @@ void rv_dmain::play_sound()
     }
 }
 
-// Logs the first failure only, as log_draw_error does: the same failure would repeat in every frame.
+// Logs the first failure of each asset only: the same failure would repeat in every frame.
 void rv_dmain::log_sound_error(int64_t code)
 {
-    if (sound_error_logged_) {
+    const std::string asset = sound_state_.error_asset;
+    if (std::find(sound_errors_logged_.begin(), sound_errors_logged_.end(), asset) != sound_errors_logged_.end()) {
         return;
     }
-    sound_error_logged_ = true;
-    RV_LOG_ERR("sound", "sound not played: {} rv_err {}", sound_state_.error_asset, code);
+    sound_errors_logged_.push_back(asset);
+    RV_LOG_ERR("sound", "sound not played: {} rv_err {}", asset, code);
 }
 
 } // namespace example_cpp

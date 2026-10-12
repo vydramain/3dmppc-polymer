@@ -76,6 +76,28 @@ constexpr const char *RV_SOUND_CLACK = "sfx_board_clack.pcm";
 constexpr int64_t RV_SOUND_MUSIC_VOICE[RV_SOUND_SLOTS] = { 1, 2 };
 constexpr int64_t RV_SOUND_CLACK_VOICE = 4;
 
+// Volume, loop type and envelope as Solid Maid sets them for its factory loops (sm_sound.cpp:127-129, :410-452;
+// sm_game.cpp:934-936). The gating is this demo's: both loops run while the camera is in the workshop, with no
+// assembly-working state.
+constexpr int64_t RV_SOUND_CONVEYOR_VOICE = 8;
+constexpr int64_t RV_SOUND_ASSEMBLY_VOICE = 16;
+constexpr int16_t RV_SOUND_CONVEYOR_VOLUME = 6600;
+constexpr int16_t RV_SOUND_ASSEMBLY_VOLUME = 12100;
+constexpr int16_t RV_SOUND_LOOP_ENVELOPE = 0;
+constexpr const char *RV_SOUND_CONVEYOR_LOOP = "sfx_loop_conveyor.pcm";
+constexpr const char *RV_SOUND_ASSEMBLY_LOOP = "sfx_loop_assembly.pcm";
+
+struct rv_sound_loop {
+    const char *name;
+    int64_t voice;
+    int16_t volume;
+};
+constexpr rv_sound_loop RV_SOUND_LOOPS[] = {
+    { RV_SOUND_CONVEYOR_LOOP, RV_SOUND_CONVEYOR_VOICE, RV_SOUND_CONVEYOR_VOLUME },
+    { RV_SOUND_ASSEMBLY_LOOP, RV_SOUND_ASSEMBLY_VOICE, RV_SOUND_ASSEMBLY_VOLUME },
+};
+static_assert(std::size(RV_SOUND_LOOPS) == RV_SOUND_LOOP_COUNT, "one entry per loop");
+
 // Music voices: Solid Maid sets no envelope (sm_sound.cpp:348-373), so ar, dr, sr and rr are 0 and the
 // bar holds at full sustain; it is mixed at 10000 of 32767.
 constexpr int16_t RV_SOUND_MUSIC_ATTACK = 0;
@@ -266,6 +288,62 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     return RV_OK;
 }
 
+// Starts loop `index` when `on`, stops it otherwise. A stop is sent only to a loop this state started, since the
+// console refuses a stop on a voice not armed. A loop already in the wanted state does nothing.
+int64_t set_loop(rv_pdko *pdk, rv_sound_state &state, int index, bool on)
+{
+    const rv_sound_loop &loop = RV_SOUND_LOOPS[index];
+    if (on == state.loop_armed[index]) {
+        return RV_OK;
+    }
+    if (!on) {
+        const int64_t stop_code = rv_ca_voice_stop(rv_pdko_ca(pdk), loop.voice);
+        if (stop_code < 0) {
+            return fail(state, loop.name, stop_code);
+        }
+        state.loop_armed[index] = false;
+        return RV_OK;
+    }
+    const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_AUDIO, loop.name);
+    if (addr < 0) {
+        return fail(state, loop.name, addr);
+    }
+    rv_voice_conf conf = {};
+    conf.voice = loop.voice;
+    conf.loop_type = RV_LOOP_FOREVER;
+    conf.sample_address = addr;
+    conf.ar = RV_SOUND_LOOP_ENVELOPE;
+    conf.dr = RV_SOUND_LOOP_ENVELOPE;
+    conf.sr = RV_SOUND_LOOP_ENVELOPE;
+    conf.rr = RV_SOUND_LOOP_ENVELOPE;
+    conf.sl = RV_SOUND_MAX_LEVEL;
+    conf.volume = loop.volume;
+    conf.volume_l = RV_SOUND_MAX_LEVEL;
+    conf.volume_r = RV_SOUND_MAX_LEVEL;
+    const int64_t play_code = play_voice(pdk, conf);
+    if (play_code < 0) {
+        return fail(state, loop.name, play_code);
+    }
+    state.loop_armed[index] = true;
+    return RV_OK;
+}
+
+// Keeps both loops playing while `in_workshop`, and silent otherwise. Both are tried; the first failure is returned.
+int64_t set_loops(rv_pdko *pdk, rv_sound_state &state, bool in_workshop)
+{
+    int64_t code = RV_OK;
+    const char *asset = "";
+    for (int i = 0; i < RV_SOUND_LOOP_COUNT; ++i) {
+        const int64_t loop_code = set_loop(pdk, state, i, in_workshop);
+        if (code == RV_OK && loop_code < 0) {
+            code = loop_code;
+            asset = state.error_asset;
+        }
+    }
+    state.error_asset = asset;
+    return code;
+}
+
 // Frees the first `count` slots of a failed init; a slot that will not free is logged, the init error is kept.
 void free_slots(rv_ca *ca, const rv_sound_state &state, int count)
 {
@@ -361,23 +439,40 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     // A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
     const bool silent = first && span_offset % RV_SOUND_BAR_FRAMES != 0;
     const bool clack = board_present && !first && area == rv_sound_area::workshop && letters_changed(state.frame, frame);
+    // The loops always run. The clack runs only after the music step succeeded: otherwise the same clack would
+    // repeat every frame. The first failure is returned with its asset.
+    int64_t code = RV_OK;
+    const char *asset = "";
+    int64_t music_code = RV_OK;
     if (bar_starts) {
-        const int64_t music_code = play_bar(pdk, state, area, bar, frame, !silent);
-        if (music_code < 0) {
-            return music_code;
-        }
+        music_code = play_bar(pdk, state, area, bar, frame, !silent);
+    }
+    if (music_code < 0) {
+        code = music_code;
+        asset = state.error_asset;
     }
     // Recorded only after the music start: a failed start is retried on the next frame.
-    state.frame = frame;
-    state.area = area;
-    state.bar = bar;
-    if (clack) {
+    const bool music_ok = music_code == RV_OK;
+    if (music_ok) {
+        state.frame = frame;
+        state.area = area;
+        state.bar = bar;
+    }
+    // Checked every new frame, not only on a change: a failed start is then retried, and a loop already right does nothing.
+    const int64_t loops_code = set_loops(pdk, state, area == rv_sound_area::workshop);
+    if (code == RV_OK && loops_code < 0) {
+        code = loops_code;
+        asset = state.error_asset;
+    }
+    if (music_ok && clack) {
         const int64_t clack_code = play_clack(pdk, state);
-        if (clack_code < 0) {
-            return clack_code;
+        if (code == RV_OK && clack_code < 0) {
+            code = clack_code;
+            asset = state.error_asset;
         }
     }
-    return RV_OK;
+    state.error_asset = asset;
+    return code;
 }
 
 } // namespace example_cpp
