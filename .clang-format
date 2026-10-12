@@ -75,3 +75,10 @@ IndentPPDirectives: None
 # The logging macros are statement-like calls; let them be formatted as statements.
 StatementMacros:
   - RV_MPPC_DISC_ENTRY_DEF
+---
+# JS files of the web build (src/web) use the C++ indentation and line width.
+Language: JavaScript
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+ColumnLimit: 128

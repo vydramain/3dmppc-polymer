@@ -147,6 +147,12 @@ if(EMSCRIPTEN)
 else()
   list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pboot/rv_pboot_ram_web\\.cpp")
 endif()
+# The entry point: a browser has no command line, so main_web.cpp passes a fixed one.
+if(EMSCRIPTEN)
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/main\\.cpp$")
+else()
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/main_web\\.cpp$")
+endif()
 # The cl slot's pair: LuaJIT or the null half. Only one is compiled; without
 # LuaJIT none of its cl/rv_pccl_luajit* sources are.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcslots_cl_(luajit|null)\\.cpp")
@@ -276,6 +282,11 @@ target_link_libraries(3dmppc PRIVATE ${CMAKE_DL_LIBS})
 # With a static disc the disc is linked in as well; nothing is dlopen-ed for it.
 if(3DMPPC_STATIC_DISC)
   target_link_libraries(3dmppc PRIVATE ${3DMPPC_STATIC_DISC_LIBRARY})
+endif()
+
+# A browser build keeps /save on IndexedDB (IDBFS). The pre-js mounts it and loads it before main() runs.
+if(EMSCRIPTEN)
+  target_link_options(3dmppc PRIVATE -lidbfs.js --pre-js ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js)
 endif()
 
 if(MSVC)
