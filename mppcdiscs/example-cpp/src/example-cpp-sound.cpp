@@ -22,10 +22,10 @@ namespace example_cpp
 namespace
 {
 
-// Eye x of the camera, metres, as scenes/main.scene.toml places the objects: factory and street
-// start at x = 0, apartment at x = 30. Eye x < 0 is the workshop, x > 30 the flat, between them the street.
+// Eye x of the camera, metres, as scenes/main.scene.toml places the objects: the factory is at x < 0, the house
+// facade stands at x = 33.8 with the flat behind it. Eye x < 0 is the workshop, x > 33.8 the flat, between them the street.
 constexpr float RV_SOUND_WORKSHOP_MAX_X = 0.0f;
-constexpr float RV_SOUND_FLAT_MIN_X = 30.0f;
+constexpr float RV_SOUND_FLAT_MIN_X = 33.8f;
 
 // One bar is one second of music and the frame clock is 60 frames per second, so a bar starts on an exact
 // frame and needs no lead time: Solid Maid's 0.018 s lead covers the jitter of wall-clock time, not this.
@@ -415,13 +415,14 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
             state.span_start[static_cast<std::size_t>(f)] = start;
         }
     }
+    rv_steps_init(keys, state);
     return RV_OK;
 }
 
 int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state)
 {
     const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    if (state.areas.size() != static_cast<std::size_t>(period)) {
+    if (state.areas.size() != static_cast<std::size_t>(period) || state.distance.size() != static_cast<std::size_t>(period)) {
         return fail(state, "sound tables", RV_ERR_INVAL);
     }
     // The same frame again is no transition: a pause or a repeated render plays nothing.
@@ -470,6 +471,12 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
             code = clack_code;
             asset = state.error_asset;
         }
+    }
+    // Only once the frame is committed: a failed music start is retried on the same frame, and its step must not repeat.
+    const int64_t steps_code = music_ok ? rv_steps_update(pdk, frame, state) : RV_OK;
+    if (code == RV_OK && steps_code < 0) {
+        code = steps_code;
+        asset = state.error_asset;
     }
     state.error_asset = asset;
     return code;

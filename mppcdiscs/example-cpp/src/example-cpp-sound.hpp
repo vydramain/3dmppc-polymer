@@ -31,6 +31,8 @@ struct rv_sound_state {
     // Per frame of the period: its area, and the first frame of its area span (cyclic). Empty until built.
     std::vector<rv_sound_area> areas;
     std::vector<int64_t> span_start;
+    // Per frame of the period: the cumulative horizontal distance of the eye from frame 0, metres. Empty until built.
+    std::vector<double> distance;
     // Per music slot: sound RAM address, bar asset in it (nullptr when unknown), whether its voice was started,
     // and the frame it was started at (see sounding()).
     int64_t slot_addr[RV_SOUND_SLOTS] = {};
@@ -59,5 +61,11 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
 // slots and waits for the next bar start when it is mid-bar.
 // Needs rv_sound_init first. Returns RV_OK or the drive or ca error, with state.error_asset naming the asset.
 int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state);
+
+// Footsteps: one per 0.95 m of horizontal eye path, on the floor of the frame's area, A and B alternating.
+// rv_steps_init tabulates the distance (rv_sound_init calls it); rv_steps_update plays the step of a new frame
+// (rv_sound_update calls it). Both need state.areas, which rv_sound_init fills first.
+void rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state);
+int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
 } // namespace example_cpp
