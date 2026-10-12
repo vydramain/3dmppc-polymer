@@ -2,7 +2,6 @@
 
 #include <unistd.h>
 
-#include <array>
 #include <cstddef>
 #include <cstdlib>
 #include <filesystem>
@@ -10,16 +9,12 @@
 #include <system_error>
 
 #include "pdk/rv_err.h"
+#include "rv_burner_common/rv_burner_process.hpp"
 
 namespace fs = std::filesystem;
 
 namespace rv_pdktools
 {
-
-// Upper bound for the path read out of /proc/self/exe. Linux caps a path at
-// PATH_MAX (4096 on every configuration this tool runs on) and readlink does not
-// terminate what it writes, so one byte is left for the terminator below.
-static constexpr std::size_t k_path_buffer_bytes = 4096;
 
 // Is this a file the kernel would agree to execute? Both halves matter: a
 // directory can carry the execute bit too, and it means something else there.
@@ -27,24 +22,6 @@ static bool is_executable(const fs::path &path)
 {
     std::error_code ec;
     return fs::is_regular_file(path, ec) && ::access(path.c_str(), X_OK) == 0;
-}
-
-// The directory holding the RUNNING binary — not the working directory, which
-// the user chose, and not argv[0], which the caller can set to anything.
-//
-// /proc/self/exe is a Linux symlink pointing at the executable file of the
-// calling process, so reading it answers "where am I installed?" exactly. An
-// empty path means the answer is unavailable and the caller must fall back.
-static fs::path executable_directory()
-{
-    std::array<char, k_path_buffer_bytes> buffer{};
-    const ssize_t got = ::readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
-    if (got <= 0) {
-        return fs::path();
-    }
-
-    buffer[static_cast<std::size_t>(got)] = '\0';
-    return fs::path(buffer.data()).parent_path();
 }
 
 } // namespace rv_pdktools
