@@ -1,5 +1,5 @@
-# The scene of the Solid Maid demo (pdklib/rv_scene/rv_scene.hpp): the factory,
-# street, house and apartment meshes, lamps, and the camera route. 3dmppc-editor's
+# The scene of the Solid Maid demo (pdklib/rv_scene/rv_scene.hpp): the factory, machines,
+# street, house, apartment and furniture meshes, the board, lamps, and the camera route. 3dmppc-editor's
 # Scene layout edits it; the disc reads and draws it through the PDK.
 # The demo flies the route cam_00..cam_17. Camera rotation: pitch, yaw, roll in
 # degrees; the view direction is R * (0, 0, 1), R = Ry * Rx * Rz.
@@ -23,7 +23,7 @@ id = "5ce00002"
 name = "board"
 parent = ""
 kind = "mesh"
-position = [-9.85, 2.5, 0]
+position = [-13.94, 4.3, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
 mesh = "board.glb"
@@ -45,7 +45,7 @@ id = "5ce00004"
 name = "house"
 parent = ""
 kind = "mesh"
-position = [30, 0, 0]
+position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
 mesh = "house.glb"
@@ -56,7 +56,7 @@ id = "5ce00005"
 name = "apartment"
 parent = ""
 kind = "mesh"
-position = [30, 0, 0]
+position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
 mesh = "apartment.glb"
@@ -67,7 +67,7 @@ id = "5ce00006"
 name = "lamp_1"
 parent = ""
 kind = "mesh"
-position = [6, 0, 3]
+position = [4, 0, 3.6]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
 mesh = "lamp.glb"
@@ -78,8 +78,8 @@ id = "5ce00007"
 name = "lamp_2"
 parent = ""
 kind = "mesh"
-position = [12, 0, 3]
-rotation = [0, 0, 0]
+position = [12, 0, -3.6]
+rotation = [0, 180, 0]
 scale = [1, 1, 1]
 mesh = "lamp.glb"
 texture = ""
@@ -89,7 +89,7 @@ id = "5ce00008"
 name = "lamp_3"
 parent = ""
 kind = "mesh"
-position = [18, 0, 3]
+position = [20, 0, 3.6]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
 mesh = "lamp.glb"
@@ -100,10 +100,32 @@ id = "5ce00009"
 name = "lamp_4"
 parent = ""
 kind = "mesh"
-position = [24, 0, 3]
-rotation = [0, 0, 0]
+position = [28, 0, -3.6]
+rotation = [0, 180, 0]
 scale = [1, 1, 1]
 mesh = "lamp.glb"
+texture = ""
+
+[[object]]
+id = "5ce0000b"
+name = "machines"
+parent = ""
+kind = "mesh"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "machines.glb"
+texture = ""
+
+[[object]]
+id = "5ce0000c"
+name = "furniture"
+parent = ""
+kind = "mesh"
+position = [0, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "furniture.glb"
 texture = ""
 
 [[object]]
