@@ -33,8 +33,21 @@ if(3DMPPC_STATIC_DISC)
   if(3DMPPC_DEVTOOLS)
     message(FATAL_ERROR "3DMPPC_STATIC_DISC=ON needs 3DMPPC_DEVTOOLS=OFF")
   endif()
-  if(NOT 3DMPPC_STATIC_DISC_LIBRARY)
+  # A web kit leaves the disc to mppcburner, which links it into the page.
+  if(NOT 3DMPPC_WEB_KIT AND NOT 3DMPPC_STATIC_DISC_LIBRARY)
     message(FATAL_ERROR "3DMPPC_STATIC_DISC=ON needs 3DMPPC_STATIC_DISC_LIBRARY set to the disc's static library")
+  endif()
+endif()
+
+# The web kit is the browser firmware that mppcburner links a disc into: the console
+# as static libraries plus kit.txt, with no executable. See cmake/rv_webkit.cmake.
+option(3DMPPC_WEB_KIT "Build the web kit: the console as static libraries and kit.txt for mppcburner, no executable" OFF)
+if(3DMPPC_WEB_KIT)
+  if(NOT EMSCRIPTEN)
+    message(FATAL_ERROR "3DMPPC_WEB_KIT=ON needs an Emscripten build (emcmake)")
+  endif()
+  if(3DMPPC_DEVTOOLS OR 3DMPPC_LUAJIT OR NOT 3DMPPC_STATIC_DISC)
+    message(FATAL_ERROR "3DMPPC_WEB_KIT=ON needs 3DMPPC_DEVTOOLS=OFF, 3DMPPC_LUAJIT=OFF and 3DMPPC_STATIC_DISC=ON")
   endif()
 endif()
 
@@ -239,14 +252,25 @@ if(3DMPPC_LUAJIT)
   set(3DMPPC_PDK_CDEF_SOURCES ${RV_PDK_CDEF_OUTPUT})
 endif()
 
-add_executable(3dmppc
-  # console (game-agnostic)
-  ${3DMPPC_CONSOLE_SOURCES}
-  # generated: not part of the glob above on purpose, so it can never leak
-  # into rv_dmain or 3dmppc_pdklib - only the console links against LuaJIT's
-  # ffi that way.
-  ${3DMPPC_PDK_CDEF_SOURCES}
-)
+# generated: not part of the glob above on purpose, so it can never leak
+# into rv_dmain or 3dmppc_pdklib - only the console links against LuaJIT's
+# ffi that way.
+if(3DMPPC_WEB_KIT)
+  # A library: the kit's disc is linked by mppcburner, so there is no link step here.
+  add_library(3dmppc STATIC
+    # console (game-agnostic)
+    ${3DMPPC_CONSOLE_SOURCES}
+    # generated: see above
+    ${3DMPPC_PDK_CDEF_SOURCES}
+  )
+else()
+  add_executable(3dmppc
+    # console (game-agnostic)
+    ${3DMPPC_CONSOLE_SOURCES}
+    # generated: see above
+    ${3DMPPC_PDK_CDEF_SOURCES}
+  )
+endif()
 
 # A disc looks the contract's functions up in the executable through dlsym, and
 # the LuaJIT FFI will look for them in the same place. Without ENABLE_EXPORTS
@@ -255,9 +279,11 @@ add_executable(3dmppc
 #
 # The binary lands in build/pconsole/, next to its modes.toml and its default
 # memory card.
-set_target_properties(3dmppc PROPERTIES
-  ENABLE_EXPORTS ON
-  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
+if(NOT 3DMPPC_WEB_KIT)
+  set_target_properties(3dmppc PROPERTIES
+    ENABLE_EXPORTS ON
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/pconsole)
+endif()
 
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE 3dmppc_platform_sdl3)
@@ -270,7 +296,9 @@ target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # output stack - pdklib/rv_stdio/rv_stdio.hpp and pdklib/rv_logs/rv_logs.hpp on
 # top of it.
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdklib)
-target_link_libraries(3dmppc PRIVATE rv_dmain)
+if(NOT 3DMPPC_WEB_KIT)
+  target_link_libraries(3dmppc PRIVATE rv_dmain)
+endif()
 
 target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
 
@@ -280,13 +308,15 @@ target_compile_definitions(3dmppc PRIVATE RV_LOG_ORIGIN="mppc")
 # library and empty where it is part of libc.
 target_link_libraries(3dmppc PRIVATE ${CMAKE_DL_LIBS})
 # With a static disc the disc is linked in as well; nothing is dlopen-ed for it.
-if(3DMPPC_STATIC_DISC)
+if(3DMPPC_STATIC_DISC AND NOT 3DMPPC_WEB_KIT)
   target_link_libraries(3dmppc PRIVATE ${3DMPPC_STATIC_DISC_LIBRARY})
 endif()
 
 # A browser build keeps /save on IndexedDB (IDBFS). The pre-js mounts it and loads it before main() runs.
-if(EMSCRIPTEN)
-  target_link_options(3dmppc PRIVATE -lidbfs.js --pre-js ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js)
+set(RV_WEB_LINK_FLAGS -lidbfs.js)
+set(RV_WEB_PRE_JS ${CMAKE_CURRENT_SOURCE_DIR}/src/web/rv_web_pre.js)
+if(EMSCRIPTEN AND NOT 3DMPPC_WEB_KIT)
+  target_link_options(3dmppc PRIVATE ${RV_WEB_LINK_FLAGS} --pre-js ${RV_WEB_PRE_JS})
 endif()
 
 if(MSVC)
@@ -368,5 +398,10 @@ if(3DMPPC_DEVTOOLS)
     DEPENDEES build
     ALWAYS 1
   )
+endif()
+
+# --- the web kit --------------------------------------------------------------
+if(3DMPPC_WEB_KIT)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_webkit.cmake)
 endif()
 
