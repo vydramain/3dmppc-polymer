@@ -52,13 +52,11 @@ card_slots = 16
 card_slot_size = 8192
 
 [budget.pccl]
-# 512 KiB for the whole VM. The state holds the scene copied into plain tables:
+# 1 MiB for the whole VM. The state holds the scene copied into plain tables:
 # the meshes, the cam_NN keys, the lamps and the board's world. The modules and
 # the per-frame garbage of cdata (rv_cg_put, int64 returns) are left to the
-# ordinary collector. Measured with the dev channel's status (lua_used, bytes, with the
-# sound module): 262548 after disc_initialize, when the lamp schedule's garbage is not yet
-# collected; 164803-300692 over the frames (min and max of 122 readings), as the collector
-# runs; 222393 after a reload.
-# 256 KiB (262144 bytes) was too little: the largest reading over the frames is 300692.
-script_memory_size = 524288
+# ordinary collector. Measured with the dev channel's status (lua_used, bytes) over 4400 stepped frames
+# with the music module: 273151 to 510371 (peak at frame 2875), as the collector runs; 512 KiB left
+# about 3% headroom, so the budget is 1 MiB.
+script_memory_size = 1048576
 script_entry = "example-lua.luac"
