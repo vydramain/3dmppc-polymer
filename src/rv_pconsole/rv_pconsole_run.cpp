@@ -39,9 +39,10 @@ constexpr int64_t RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES = 2;
 // A device that has taken nothing for this long stopped draining.
 constexpr auto RV_PCONSOLE_AUDIO_STALL = std::chrono::milliseconds(250);
 
-// How long a paused frame sleeps before looking again. Short enough that the
-// window stays responsive and a command is acted on without a visible delay,
-// long enough that a paused console is not a core running flat out.
+// How long disc_run sleeps on an idle iteration (paused) before it calls the
+// step again. Short enough that the window stays responsive and a command is
+// acted on without a visible delay, long enough that a paused console is not a
+// core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
 // Poll interval while waiting for audio drain; brief enough to stay responsive
@@ -225,7 +226,6 @@ bool rv_pconsole::run_hold_paused(run_state &run)
     // close button are never trapped behind a pause.
     if (paused_ && step_reply_id_ < 0) {
         run_show_pause();
-        std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
         run.left_pause = true;
         return true;
     }
@@ -391,9 +391,16 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         if (step == step_result::stop) {
             break;
         }
-        // Only a frame is paced; an idle iteration has no frame to wait for.
-        if (step == step_result::frame) {
+        // The step never sleeps, so no caller is blocked inside it; this driver sleeps on idle to keep a pause off the CPU.
+        switch (step) {
+        case step_result::idle:
+            std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
+            break;
+        case step_result::frame:
             run_pace(run);
+            break;
+        case step_result::stop:
+            break;
         }
     }
 
