@@ -10,9 +10,8 @@ sources = ["src/*.cpp"]
 files = ["scenes/*.scene.toml"]
 
 [textures]
-# The demo's pictures are inside the models; light_pool stays here only because the
-# manifest (pdklib rv_manifest, validate_required_sections) requires a non-empty [textures].
-files = ["assets/tex/*.png"]
+# The pictures are inside the models; format is the format their textures are baked in.
+files = []
 format = "idx8"
 
 [sounds]

@@ -13,7 +13,8 @@ sources = ["scripts/*.lua"]
 files = ["scenes/*.scene.toml"]
 
 [textures]
-files = ["assets/tex/*.png"]
+# The pictures are inside the models; format is the format their textures are baked in.
+files = []
 format = "idx8"
 
 [sounds]
