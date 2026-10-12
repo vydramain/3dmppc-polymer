@@ -85,7 +85,7 @@ function M.draw(cg, cd, board, frame)
     local letter_forward = mathx.f(LETTER_FORWARD)
     for i = 0, CELL_COUNT - 1 do
         if M.cell_lit(i, frame) then
-            local code = draw.put(cg, cd, HALO_MODEL, panel_world(board, halo_forward, along_of(half, i, cell)), draw.WHITE)
+            local code = draw.decal(cg, cd, HALO_MODEL, panel_world(board, halo_forward, along_of(half, i, cell)), draw.WHITE)
             if code < 0 then
                 return code
             end
@@ -94,7 +94,7 @@ function M.draw(cg, cd, board, frame)
     for i = 0, CELL_COUNT - 1 do
         if M.cell_lit(i, frame) then
             local world = panel_world(board, letter_forward, along_of(half, i, cell))
-            local code = draw.put(cg, cd, TEXT[i + 1], world, draw.WHITE)
+            local code = draw.decal(cg, cd, TEXT[i + 1], world, draw.WHITE)
             if code < 0 then
                 return code
             end

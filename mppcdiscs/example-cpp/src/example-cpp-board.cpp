@@ -103,7 +103,7 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float halo_world[16] = {};
         panel_world(world, RV_BOARD_HALO_FORWARD, along, halo_world);
-        const int64_t halo_code = rv_draw_model(pdk, RV_BOARD_HALO_MODEL, halo_world);
+        const int64_t halo_code = rv_draw_decal(pdk, RV_BOARD_HALO_MODEL, halo_world);
         if (halo_code < 0) {
             return halo_code;
         }
@@ -116,7 +116,7 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float letter_world[16] = {};
         panel_world(world, RV_BOARD_LETTER_FORWARD, along, letter_world);
-        const int64_t letter_code = rv_draw_model(pdk, RV_BOARD_TEXT[i], letter_world);
+        const int64_t letter_code = rv_draw_decal(pdk, RV_BOARD_TEXT[i], letter_world);
         if (letter_code < 0) {
             return letter_code;
         }
