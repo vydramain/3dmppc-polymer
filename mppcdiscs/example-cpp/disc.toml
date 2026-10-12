@@ -36,9 +36,9 @@ ot_bucket_count = 1024
 
 [budget.pccg]
 model_memory_size = 524288
-# Worst frame: 2678 triangles (each model once, glb counts: factory 1348, street 642, house 244, apartment 164,
+# Worst frame: 2706 triangles (each model once, glb counts: factory 1348, street 642, house 272, apartment 164,
 # machines 144, furniture 76, lamp 28, lamp_light 12, glyphs 16, board and halo 2 each) + 3 x 40 for the three
-# extra lamp instances (lamp 28 and lit lamp_light 12) = 2798 <= 4096.
+# extra lamp instances (lamp 28 and lit lamp_light 12) = 2826 <= 4096.
 triangle_capacity = 4096
 
 [budget.pccio]
