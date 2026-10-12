@@ -13,8 +13,10 @@
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include <getopt.h>
@@ -24,6 +26,7 @@
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_build/rv_burner_build_runner.hpp"
+#include "rv_burner_common/rv_burner_process.hpp"
 #include "rv_burner_options.hpp"
 #include "rv_burner_print.hpp"
 #include "rv_burner_inspect/rv_burner_inspect_runner.hpp"
@@ -38,10 +41,64 @@ constexpr int k_min_argc = 2;
 
 // Base 10 for decimal number parsing in strtol.
 constexpr int k_decimal_base = 10;
+
+// The copies tools/build puts beside mppcburner (see mppcburner_pdk in CMakeLists.txt).
+constexpr const char *k_default_pdk_subdir = "pdk/include";
+constexpr const char *k_default_pdklib_subdir = "pdk/lib/include";
 } // namespace
 
 namespace rv_pdktools
 {
+// One default include directory: the copy beside the binary, the option that replaces it, and
+// the field it fills.
+struct rv_default_dir {
+    const char *subdir;
+    const char *flag;
+    std::string rv_burner_options::*field;
+};
+
+constexpr rv_default_dir k_default_dirs[] = {
+    { k_default_pdk_subdir, "pdk", &rv_burner_options::pdk_dir },
+    { k_default_pdklib_subdir, "pdklib", &rv_burner_options::pdklib_dir },
+};
+
+// A default directory must exist: a missing copy is a broken package, not a path to trust.
+static int take_default_dir(const std::filesystem::path &dir, const char *flag, std::string &field)
+{
+    std::error_code ec;
+    const bool is_dir = std::filesystem::is_directory(dir, ec);
+    if (!is_dir) {
+        const std::string reason = ec ? ec.message() : "not a directory";
+        rv_burner_print_error("cannot use " + dir.string() + " beside mppcburner (" + reason + "); pass --" + flag + " PATH");
+        return RV_ERR_NOENT;
+    }
+
+    field = dir.string();
+    return RV_OK;
+}
+
+// Fills the include directories the command line did not name, from the copies beside
+// this binary. A path the user gave is used as it is.
+static int resolve_pdk_dirs(rv_burner_options &options)
+{
+    const std::filesystem::path bin_dir = executable_directory();
+    for (const rv_default_dir &entry : k_default_dirs) {
+        if (!(options.*entry.field).empty()) {
+            continue;
+        }
+        if (bin_dir.empty()) {
+            rv_burner_print_error(std::string("cannot find the directory of mppcburner; pass --") + entry.flag + " PATH");
+            return RV_ERR_NOENT;
+        }
+
+        const int rc = take_default_dir(bin_dir / entry.subdir, entry.flag, options.*entry.field);
+        if (RV_OK != rc) {
+            return rc;
+        }
+    }
+    return RV_OK;
+}
+
 static void print_usage(std::FILE *stream)
 {
     rv_pdklib::rv_fprintf(stream,
@@ -72,9 +129,9 @@ static void print_usage(std::FILE *stream)
         "                           being compiled/copied, so the console sees a live\n"
         "                           edit without a rebuild. Exclusive with -o.\n"
         "  -p, --pdk PATH           PDK include directory the disc compiles\n"
-        "                           against. Default: " RV_BURNER_DEFAULT_PDK "\n"
+        "                           against. Default: pdk/include next to mppcburner.\n"
         "  -l, --pdklib PATH        Disc-side SDK include directory.\n"
-        "                           Default: " RV_BURNER_DEFAULT_PDKLIB "\n"
+        "                           Default: pdk/lib/include next to mppcburner.\n"
         "  -b, --baker PATH         directory of the bakers (mppctexbaker, mppcmusbaker, mppcmodbaker),\n"
         "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
@@ -215,10 +272,18 @@ int main(int argc, char **argv)
             break;
         }
         case 'p': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--pdk needs a PATH");
+                return RV_ERR_INVAL;
+            }
             burner_options.pdk_dir = optarg;
             break;
         }
         case 'l': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--pdklib needs a PATH");
+                return RV_ERR_INVAL;
+            }
             burner_options.pdklib_dir = optarg;
             break;
         }
@@ -277,6 +342,14 @@ int main(int argc, char **argv)
     if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BAKE) && burner_options.output.empty()) {
         rv_pdktools::rv_burner_print_error("bake-texture requires -o <output.mppctex>");
         return RV_ERR_INVAL;
+    }
+
+    // Only build compiles against the PDK; the other commands never read these paths.
+    if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BUILD)) {
+        const int rc = rv_pdktools::resolve_pdk_dirs(burner_options);
+        if (RV_OK != rc) {
+            return rc;
+        }
     }
 
     return cmd->handler(burner_options);

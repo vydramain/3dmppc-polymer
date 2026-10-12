@@ -74,15 +74,6 @@ target_link_libraries(mppcburner PRIVATE libluajit)
 # Stamps every log line with its origin; see pdklib/rv_logs/rv_logs.hpp.
 target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")
 
-# Where a GENERATED disc project should look for the contract and the disc-side
-# SDK. Baked in so the tool works out of the box inside this repository, and
-# overridable at run time (--pdk / --pdklib) so a disc directory living anywhere
-# else builds just as well.
-target_compile_definitions(mppcburner PRIVATE
-  RV_BURNER_DEFAULT_PDK="${RV_REPO_ROOT}/pdk/include"
-  RV_BURNER_DEFAULT_PDKLIB="${RV_REPO_ROOT}/pdk/lib/include"
-)
-
 # Copies the contract (pdk/include) and pdklib (pdk/lib/include) into <bindir>/pdk, so
 # the tools package is one portable directory; the burner will take its defaults from there.
 # Runs on every build, not only on relink: a header change the burner does not include

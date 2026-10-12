@@ -3,16 +3,6 @@
 #include <string>
 #include <cstdint>
 
-// Include directories a generated disc project compiles against. CMake bakes in
-// absolute paths; these fallbacks only keep the header standalone, and are wrong
-// often enough that --pdk and --pdklib exist.
-#ifndef RV_BURNER_DEFAULT_PDK
-#define RV_BURNER_DEFAULT_PDK "pdk/include"
-#endif
-#ifndef RV_BURNER_DEFAULT_PDKLIB
-#define RV_BURNER_DEFAULT_PDKLIB "pdklib/include"
-#endif
-
 namespace rv_pdktools
 {
 
@@ -26,8 +16,10 @@ struct rv_burner_options {
     std::string output;                                // -o
     std::string unpacked;                              // -u, an unpacked disc directory instead
                                                        // of a .mppcdisc; exclusive with -o
-    std::string pdk_dir = RV_BURNER_DEFAULT_PDK;       // -p
-    std::string pdklib_dir = RV_BURNER_DEFAULT_PDKLIB; // -l
+    // -p, -l: include directories a generated disc project compiles against. Empty
+    // means not given; main fills it with the copy beside mppcburner.
+    std::string pdk_dir = "";                          // -p
+    std::string pdklib_dir = "";                       // -l
     std::string baker = "";                            // -b, empty: find the bakers next to mppcburner, then $PATH
     std::string build_dir = "";                        // -k=PATH, empty: <operand>/.mppcburn
     int jobs = 0;                                      // -j, 0: let cmake decide
