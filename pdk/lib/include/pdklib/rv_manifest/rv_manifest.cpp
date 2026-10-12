@@ -137,8 +137,9 @@ std::string rv_manifest_render(const rv_manifest &manifest)
 {
     std::ostringstream out;
 
-    // EVERY key is written, including empty arrays and zero counts - no
-    // section is an exception and none is omitted. This is the copy that goes
+    // Every key of a present section is written, including empty arrays and zero
+    // counts; the optional sections ([textures], [sounds], [models]) are left off
+    // when they carry nothing. This is the copy that goes
     // ONTO THE DISC, and there it has to say what the burner actually used
     // rather than leaning on a default a later version of the tool might
     // change.
@@ -167,11 +168,14 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     // one would render as, and it fails to parse back rather than lying.
     const rv_pdklib::rv_texfmt_name *texfmt = rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format);
 
-    out << "\n[textures]\n";
-    render_array(out, "files", manifest.textures_files.files);
-    out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
+    // [textures] is optional: no images and no format is a disc without textures, so the section is left off.
+    if (!manifest.textures_files.files.empty() || texfmt != nullptr) {
+        out << "\n[textures]\n";
+        render_array(out, "files", manifest.textures_files.files);
+        out << "format = " << quote(texfmt != nullptr ? texfmt->text : "") << "\n";
+    }
 
-    // Unlike [textures], [sounds] is optional: a disc with no sound assets
+    // [sounds] is optional, like [textures]: a disc with no sound assets
     // states nothing and the section is left off the rendered copy entirely.
     if (!manifest.sounds_files.empty()) {
         out << "\n[sounds]\n";
@@ -268,8 +272,11 @@ static int validate_disc_id(const rv_manifest &manifest, std::string &error)
 }
 
 // The rest of what a disc cannot be built without. Everything NOT listed
-// here has a reference value and may be left unsaid; these five have none,
-// because no answer the tool could invent would be the author's.
+// here has a reference value and may be left unsaid; these three have none,
+// because no answer the tool could invent would be the author's. [textures] is
+// not here: a disc may have no textures at all, like [sounds]. Its format has no
+// reference value either, so validate_texture_format requires it when [textures]
+// lists files or [models] lists models.
 static int validate_required_sections(const rv_manifest &manifest, std::string &error)
 {
     if (manifest.disc_title.empty()) {
@@ -282,10 +289,6 @@ static int validate_required_sections(const rv_manifest &manifest, std::string &
     }
     if (manifest.assets_files.empty()) {
         error = "[assets] files is empty - state the files the disc carries";
-        return RV_ERR_INVAL;
-    }
-    if (manifest.textures_files.files.empty()) {
-        error = "[textures] files is empty - state the images the disc carries";
         return RV_ERR_INVAL;
     }
     return RV_OK;
@@ -320,6 +323,11 @@ static int validate_entry_names(const rv_manifest &manifest, std::string &error)
 // that string does not survive binding.
 static int validate_texture_format(const rv_manifest &manifest, std::string &error)
 {
+    // Nothing is baked without textures or models, so no format is asked for. Models bake through the
+    // [textures] format too, so a models-only disc is checked as well: without one, they are refused.
+    if (manifest.textures_files.files.empty() && manifest.models_files.empty()) {
+        return RV_OK;
+    }
     if (rv_pdklib::rv_texfmt_name::by_format(manifest.textures_files.format) != nullptr) {
         return RV_OK;
     }
@@ -330,7 +338,11 @@ static int validate_texture_format(const rv_manifest &manifest, std::string &err
         }
         known += row.text;
     }
-    error = std::format("[textures] format is missing or unknown - expected one of {}", known);
+    // Without files the format is asked for by the models alone, so the reason says so.
+    const bool models_only = manifest.textures_files.files.empty();
+    const std::string reason = models_only ? "[textures] format is required by [models] - files may stay empty" :
+                                             "[textures] format is missing or unknown";
+    error = std::format("{} - expected one of {}", reason, known);
     return RV_ERR_INVAL;
 }
 
