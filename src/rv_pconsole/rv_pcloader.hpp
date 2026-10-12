@@ -224,6 +224,14 @@ private:
     // A member (unlike its sibling stages) because it writes code_hash_.
     int checksum_verify_(std::vector<unsigned char> &buffer, const char *info_entry, const rv_mppc_note_desc &version_info);
 
+    // The dl half of bring_up() (rv_pcloader_dl.cpp): extract the code, dlopen it,
+    // look up both ABI symbols. Returns RV_OK with create/destroy set, or the rv_err;
+    // staging, dlopen and symbol failures unload() first, an unreadable entry does not.
+    int open_code_(rv_mppc_disc_create_fn &create, rv_mppc_disc_destroy_fn &destroy);
+
+    // The dl half of unload() (rv_pcloader_dl.cpp): dlclose the handle, then unlink the staging file.
+    void close_code_();
+
     // Filled by pre_dlopen_check_bytes once the checksum has been recomputed
     // and found to match the note - so a non-empty value also means "these
     // bytes passed inspection", never "this is what the file claims".
