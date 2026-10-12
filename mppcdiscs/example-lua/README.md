@@ -2,7 +2,7 @@
 
 The Solid Maid demo as a Lua disc: the same scene, models, sounds and frames as
 [`example-cpp`](../example-cpp/README.md), with the logic in Lua scripts instead
-of C++. The demo loops every 1080 frames (18 s at 60 frames per second) through
+of C++. The demo loops every 4320 frames (72 s at 60 frames per second) through
 the factory, the street and the flat. A frame's camera, board letters, lamps and
 music are pure functions of its number in the period.
 
@@ -16,15 +16,22 @@ script.
 
 | Episode | Files | What to change | Apply |
 | --- | --- | --- | --- |
-| Camera flight: a closed spline through the 18 keys | `scenes/main.scene.toml` (`cam_00`..`cam_17`), `scripts/example-lua-math.lua` (`camera_of`, `PERIOD_FRAMES`) | move a `cam_NN` object to change the path; change the spline or the lens in the math module | Build and Restart for the scene; Reload Module `example-lua-math` for the per-frame camera. The lamp schedule also calls `camera_of` once in `M.disc_initialize`, so a spline change moves lamp timing only after Build and Restart |
-| World meshes: factory, street, house, apartment | `scenes/main.scene.toml`, `scripts/example-lua.lua` (`add_mesh`, `read_objects`) | position, rotation or scale of a mesh object | Build and Restart |
-| Model geometry and pictures | `models/*.glb` | replace the .glb in `models/` | Build and Restart |
+| Camera flight: a closed spline through the 20 keys | `scenes/main.scene.toml` (`cam_00`..`cam_19`), `scripts/example-lua-math.lua` (`camera_of`, `PERIOD_FRAMES`) | move a `cam_NN` object to change the path; change the spline or the lens in the math module | Build and Restart for the scene; Reload Module `example-lua-math` for the per-frame camera. The lamp schedule also calls `camera_of` once in `M.disc_initialize`, so a spline change moves lamp timing only after Build and Restart |
+| World meshes: factory, machines, street, house, apartment, furniture | `scenes/main.scene.toml`, `scripts/example-lua.lua` (`add_mesh`, `read_objects`) | position, rotation or scale of a mesh object | Build and Restart |
+| Model geometry and pictures: Solid Maid's places, as in example-cpp | `models/*.glb`, drawn by `draw.put` (`scripts/example-lua-draw.lua`) | replace the .glb in `models/`; the models are built from Solid Maid's level code, one atlas cell per surface and Solid Maid's tess subdivision; the flat's window has no frame card, since Solid Maid's frame cell has no cut-out texels; the pictures are the PNGs inside the .glb | Build and Restart |
+| Depth order | `scripts/example-lua-draw.lua` (`DECAL_BIAS`, `WORLD_DEPTH_MIN`, `WORLD_DEPTH_MAX`) | the world spans the ordering-table window `pdk.DEPTH_MIN`..`pdk.DEPTH_MAX` minus `DECAL_BIAS` (260); the board's halos and letters are lifted by the bias | Reload Module `example-lua-draw` |
 | Board "ОСТАЛОСЬ: 5": glyphs, flicker, halo | `scripts/example-lua-board.lua` (`TEXT`, `FLICKER_TABLE`, `FLICKER_STEP`, `HALO_MODEL`), mesh `board` in the scene | glyph order, flicker table, step in frames | Reload Module `example-lua-board`; move of the `board` object needs Build and Restart |
-| Street lamps: lit on the way out, dark on the way back | `scripts/example-lua-lamps.lua` (`REACH_SQUARED`, `LIGHT_MODEL`), `lamp_N` meshes in the scene, `models/lamp_light.glb` | reach of a lamp, the light model, lamp positions | Reload Module `example-lua-lamps` for `LIGHT_MODEL` and the drawing; `REACH_SQUARED` and the schedule run only in `M.disc_initialize`, so a reach or threshold change needs Build and Restart; lamp positions come from the scene: Build and Restart |
-| Music per area and board clack | `scripts/example-lua-sound.lua` (`WORKSHOP_MAX_X`, `FLAT_MIN_X`, `MUSIC`, `CLACK`), `assets/snd/*.wav` | area borders on the camera's x, track files | Reload Module `example-lua-sound` for the constants; track files need Build and Restart |
+| Street lamps: lit on the way out, dark on the way back | `scripts/example-lua-lamps.lua` (`REACH_SQUARED`, `LIGHT_MODEL`), `lamp_1`..`lamp_4` meshes in the scene, `models/lamp_light.glb` | reach of a lamp, the light model, lamp positions; 4 lamps 8 m apart, alternately on both kerbs | Reload Module `example-lua-lamps` for `LIGHT_MODEL` and the drawing; `REACH_SQUARED` and the schedule run only in `M.disc_initialize`, so a reach change needs Build and Restart; lamp positions come from the scene: Build and Restart |
+| Music per area: 1-s bars through two slots (factory 3 bars, street 5, home 10) | `scripts/example-lua-sound.lua` (`WORKSHOP_MAX_X`, `FLAT_MIN_X`, `BARS`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists | Reload Module `example-lua-sound` for the constants; track files need Build and Restart |
+| Workshop loops and board clack | `scripts/example-lua-sound.lua` (`LOOPS`, `CLACK`), `assets/snd/*.wav` | loop voices and volumes, clack envelope and file | Reload Module `example-lua-sound`; track files need Build and Restart |
+| Footsteps per floor | `scripts/example-lua-steps.lua` (`STRIDE`, `ASSETS`, `VOICES`, `VOLUME`), `assets/snd/sfx_step_*.wav` | step stride (0.95 m of the eye's horizontal path), step pairs per floor | Reload Module `example-lua-steps`; sample files need Build and Restart |
 | Frame clock and background | `scripts/example-lua.lua` (`frame_update`, `BACKGROUND`) | the clock counts only frames with dt > 0 | Reload (F8) |
 | Disc setup and budgets | `disc.toml` | sections and `[budget.*]`, including `script_memory_size` | Build and Restart |
 | C++ bridge | `src/example-lua.cpp` | the disc class and entry points | Build and Restart |
+
+The terms in the table (atlas cell, tess, cut-out texels) are explained in
+[`example-cpp`'s README](../example-cpp/README.md#where-to-change-what), under the
+same table.
 
 Build and Restart is the editor's Restart button (tooltip "Build and Restart").
 Ctrl+B builds, F5 runs. The editor's scene check says it plainly: "Scenes are
@@ -48,44 +55,55 @@ disc runs from a directory (live medium), and the console reports
 `entry_reloadable` (`rv_editor_app_can_reload`). Otherwise it is off. A reload
 that is still in flight also holds it.
 
-The scene, the sounds, the models and `disc.toml` are read when the disc
-starts (`disc_initialize` reads the scene and builds the lamp schedule), so
-they need Build and Restart. The drive refreshes textures in place (the `asset`
-command), but not model geometry: a changed .glb needs Build and Restart. The
-same holds for the C++ bridge.
+The scene, the sounds, the models and `disc.toml` are read when the disc starts
+(`disc_initialize` reads the scene, builds the lamp schedule and the music's
+tables), so they need Build and Restart. A changed .glb needs Build and Restart
+too, as does the C++ bridge. The drive can refresh a texture asset in place (the
+`asset` command, root README), but this demo's pictures live inside its models,
+so a picture change needs Build and Restart as well.
 
 ## Code layout
 
 - `scripts/example-lua.lua` - the entry chunk. It returns a module table with
   the hooks (`disc_initialize`, `frame_update`, `frame_render`,
   `disc_shutdown`). It reads the scene through the drive (`pdk.cd_scene_object_read`)
-  and draws in this order: sound, world meshes, lamps, board.
+  and draws in this order: sound, camera, world meshes, lamps, board.
 - `scripts/example-lua-math.lua` - the camera loop. Every step is rounded to
   float32 (`f()`) in the operation order of `example-cpp-route.cpp`, which is
   why the frames match the C++ disc bit for bit.
-- `scripts/example-lua-draw.lua` - the model put shared by the world, board and lamps.
-- `scripts/example-lua-board.lua`, `scripts/example-lua-lamps.lua`,
-  `scripts/example-lua-sound.lua` - one episode each.
+- `scripts/example-lua-draw.lua` - the model put shared by the world, board and lamps,
+  with the two depth windows.
+- `scripts/example-lua-board.lua`, `scripts/example-lua-lamps.lua` - one episode each.
+- `scripts/example-lua-sound.lua` - the music, the loops and the clack; the bars
+  of an area play on two voices in turn.
+- `scripts/example-lua-steps.lua` - the footsteps, one per 0.95 m of the eye's path.
 - `scenes/main.scene.toml` - the scene the drive reads; edit it in the editor's
   Scene layout.
 - `models/*.glb` - glTF models, baked by the build.
-- `assets/snd/*.wav` - the music and the clack, baked to `.pcm`.
-- `assets/tex/light_pool.png` - baked, not drawn by the demo; it stays in
-  `[textures]` because the manifest rule requires a non-empty section.
+- `assets/snd/*.wav` - the music, the loops, the footsteps and the clack, baked to `.pcm`.
+- `[textures]` in `disc.toml` lists no files; it keeps only `format = "idx8"`, the
+  format the models' textures are baked in.
 
 ## Scripts and state
 
 A chunk local or a field of the module table dies with the code on reload.
 Only the `state` table survives, so the entry keeps the scene copies, the frame
-counter and the sound's last frame and area there. `state` holds plain numbers,
-strings, booleans and tables only; a function or a coroutine in it would keep
-the old bytecode alive after a reload.
+counter and the music's tables (last frame, area, bar, slots) there. `state` holds
+plain numbers, strings, booleans and tables only; a function or a coroutine in it
+would keep the old bytecode alive after a reload, and cdata is refused by the
+console's state walk, which also caps its nodes. For that reason the read buffer of
+the music (`scripts/example-lua-sound.lua`) and the footstep distance table
+(`scripts/example-lua-steps.lua`, 4320 numbers) are module locals: a reload drops
+them, and the next call rebuilds them.
 
-A per-frame script failure is logged to stderr and the loop keeps running; with
-`--dev` the console stops at the first failure so a reload can fix it.
+A failing step returns its code, and the script logs it once (`log_error_once`); the
+loop keeps running, and a camera failure skips the picture of that frame. A Lua error
+in a call is logged by the console on every failed call. With `--dev` the console
+pauses at the first one and sends `event=script_error`, so a reload can fix it.
 
 ## Memory
 
-`[budget.pccl]` in `disc.toml` sets `script_memory_size` for the whole Lua
-machine, bootstrap included. Its comment has the measured figures and why the
-budget is 512 KiB.
+`[budget.pccl]` in `disc.toml` sets `script_memory_size` to 1 MiB (1048576 bytes)
+for the whole Lua machine, bootstrap included. Its comment has the measured
+range: 358332 to 659645 bytes over 4400 stepped frames with the music, loops and
+footsteps. The peak is 659645 bytes.
