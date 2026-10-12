@@ -83,6 +83,19 @@ target_compile_definitions(mppcburner PRIVATE
   RV_BURNER_DEFAULT_PDKLIB="${RV_REPO_ROOT}/pdk/lib/include"
 )
 
+# Copies the contract (pdk/include) and pdklib (pdk/lib/include) into <bindir>/pdk, so
+# the tools package is one portable directory; the burner will take its defaults from there.
+# Runs on every build, not only on relink: a header change the burner does not include
+# still changes the copy the discs are built against. The old copy is removed first, so
+# a header deleted from pdk/ does not survive beside the binary.
+add_custom_target(mppcburner_pdk ALL
+  COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mppcburner>/pdk
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/include $<TARGET_FILE_DIR:mppcburner>/pdk/include
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/lib/include $<TARGET_FILE_DIR:mppcburner>/pdk/lib/include
+  VERBATIM
+)
+add_dependencies(mppcburner_pdk mppcburner)
+
 if(MSVC)
   target_compile_options(mppcburner PRIVATE /W4)
 else()
