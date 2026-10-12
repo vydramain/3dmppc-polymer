@@ -57,9 +57,13 @@ int evaluate_slot(const Table &table,
     const auto found = std::ranges::find_if(table, [impl](const auto &row) {
         return row.impl == impl;
     });
-    // Every rv_pcslots field is one of that table's enumerators, so this never fires.
+    // A build leaves the rows of implementations it does not compile out of the
+    // table (see the slot pairs in CMakeLists.txt), so this fires then.
     if (found == std::ranges::end(table)) {
-        RV_LOG_ERR("pccheck", "{}: no implementation row matches this slot", slot);
+        RV_LOG_ERR("pccheck",
+            "this console is built without the '{}' implementation for slot '{}'",
+            rv_pcslots_name(impl),
+            slot);
         return RV_ERR_INVAL;
     }
 

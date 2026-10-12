@@ -19,10 +19,17 @@ endif()
 # exist - OFF is the ordinary player console; ON costs nothing a player needs.
 option(3DMPPC_DEVTOOLS "Build the development runtime: the dev command channel and booting a game from a loose directory" OFF)
 
+# LuaJIT is the script slot (cl=luajit) and the PDK ffi.cdef bridge. OFF builds a
+# console without Lua: a disc that asks for luajit with script memory > 0 is refused
+# by name at load; with none, rv_pccl_resolve maps it to null and it loads.
+option(3DMPPC_LUAJIT "Build the LuaJIT script slot and the PDK ffi.cdef bridge" ON)
+
 include(FetchContent)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl.cmake)
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
+if(3DMPPC_LUAJIT)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/luajit.cmake)
+endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake)
 
 # stb_image is gone with the demo that used it. The console never decodes an
@@ -62,7 +69,6 @@ file(GLOB_RECURSE 3DMPPC_DISC_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/src/
 add_library(rv_dmain STATIC ${3DMPPC_DISC_SOURCES})
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdk)
 target_link_libraries(rv_dmain PRIVATE 3dmppc_pdklib)
-target_link_libraries(rv_dmain PRIVATE libluajit)
 
 # Stamps every log line this target emits with its origin, so game lines are
 # told apart from console lines without anyone passing an argument. Four
@@ -109,15 +115,26 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdhex_devtools\\.cpp")
 # The embedded screen: --frame-fd exists only in a development build.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcframe_(devtools|standard)\\.cpp")
+# The cl slot's pair: LuaJIT or the null half. Only one is compiled; without
+# LuaJIT none of its cl/rv_pccl_luajit* sources are.
+list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcslots_cl_(luajit|null)\\.cpp")
+if(3DMPPC_LUAJIT)
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcslots_cl_luajit.cpp)
+else()
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cl/rv_pccl_luajit")
+  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcslots_cl_null.cpp)
+endif()
 if(3DMPPC_DEVTOOLS)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pcloader_livedir_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_state_devtools.cpp)
-  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_devtools.cpp)
-  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patch_devtools.cpp)
-  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patchwalk_devtools.cpp)
+  if(3DMPPC_LUAJIT)
+    list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_devtools.cpp)
+    list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patch_devtools.cpp)
+    list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_patchwalk_devtools.cpp)
+  endif()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdhex_devtools.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_devtools.cpp)
@@ -126,7 +143,9 @@ else()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_discmedium_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pboot/rv_pboot_args_cmd_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/rv_pconsole_cmd_standard.cpp)
-  list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_standard.cpp)
+  if(3DMPPC_LUAJIT)
+    list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cl/rv_pccl_luajit_reload_standard.cpp)
+  endif()
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pccmdchan_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/cd/rv_pccd_fs_reload_standard.cpp)
   list(APPEND 3DMPPC_CONSOLE_SOURCES ${CMAKE_SOURCE_DIR}/src/rv_pconsole/platform/rv_pcframe_standard.cpp)
@@ -163,20 +182,24 @@ endif()
 # CONFIGURE_DEPENDS here (not just on the ordered list): rv_pdk_consts scrapes
 # #define constants from every PDK header, not only the ones that carry a cdef
 # region, so any header change must be able to invalidate the generated file.
-file(GLOB_RECURSE RV_PDK_ALL_HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/pdk/include/pdk/*.h)
+set(3DMPPC_PDK_CDEF_SOURCES "")
+if(3DMPPC_LUAJIT)
+  file(GLOB_RECURSE RV_PDK_ALL_HEADERS CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/pdk/include/pdk/*.h)
 
-set(RV_PDK_CDEF_OUTPUT ${CMAKE_BINARY_DIR}/rv_pdk_cdef.cpp)
+  set(RV_PDK_CDEF_OUTPUT ${CMAKE_BINARY_DIR}/rv_pdk_cdef.cpp)
 
-add_custom_command(
-  OUTPUT ${RV_PDK_CDEF_OUTPUT}
-  COMMAND ${CMAKE_COMMAND}
-          -DRV_PDK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/pdk/include
-          -DRV_CDEF_OUTPUT=${RV_PDK_CDEF_OUTPUT}
-          -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
-  DEPENDS ${RV_PDK_ALL_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
-  COMMENT "Generating LuaJIT ffi.cdef declarations from the PDK headers"
-  VERBATIM
-)
+  add_custom_command(
+    OUTPUT ${RV_PDK_CDEF_OUTPUT}
+    COMMAND ${CMAKE_COMMAND}
+            -DRV_PDK_INCLUDE_DIR=${CMAKE_SOURCE_DIR}/pdk/include
+            -DRV_CDEF_OUTPUT=${RV_PDK_CDEF_OUTPUT}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
+    DEPENDS ${RV_PDK_ALL_HEADERS} ${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_cdef_gen.cmake
+    COMMENT "Generating LuaJIT ffi.cdef declarations from the PDK headers"
+    VERBATIM
+  )
+  set(3DMPPC_PDK_CDEF_SOURCES ${RV_PDK_CDEF_OUTPUT})
+endif()
 
 add_executable(3dmppc
   # console (game-agnostic)
@@ -184,7 +207,7 @@ add_executable(3dmppc
   # generated: not part of the glob above on purpose, so it can never leak
   # into rv_dmain or 3dmppc_pdklib - only the console links against LuaJIT's
   # ffi that way.
-  ${RV_PDK_CDEF_OUTPUT}
+  ${3DMPPC_PDK_CDEF_SOURCES}
 )
 
 # A disc looks the contract's functions up in the executable through dlsym, and
@@ -200,7 +223,9 @@ set_target_properties(3dmppc PROPERTIES
 
 target_include_directories(3dmppc PRIVATE src)
 target_link_libraries(3dmppc PRIVATE 3dmppc_platform_sdl3)
-target_link_libraries(3dmppc PRIVATE libluajit)
+if(3DMPPC_LUAJIT)
+  target_link_libraries(3dmppc PRIVATE libluajit)
+endif()
 target_link_libraries(3dmppc PRIVATE 3dmppc_pdk)
 # Its own line, next to the contract and not folded into it: pdklib is a
 # separate tree with a separate purpose, and the console takes from it only the

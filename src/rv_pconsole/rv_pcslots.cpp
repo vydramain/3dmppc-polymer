@@ -1,5 +1,8 @@
 #include "rv_pcslots.hpp"
 
+#include <cstddef>
+#include <iterator>
+
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
 #include "rv_pconsole/ca/rv_pcca_sw.hpp"
@@ -85,7 +88,12 @@ const char *rv_pcslots_name(rv_pccio_impl impl)
 }
 const char *rv_pcslots_name(rv_pccl_impl impl)
 {
-    return impl_name(RV_PCSLOTS_CL, impl);
+    // From the enum, not RV_PCSLOTS_CL: a build without the luajit row must still
+    // name luajit in its refusal and logs.
+    constexpr const char *RV_PCCL_NAMES[] = { "null", "luajit" };
+    // A new enumerator must add its name above; this fails to build until it does.
+    static_assert(std::size(RV_PCCL_NAMES) == static_cast<std::size_t>(rv_pccl_impl::luajit) + 1);
+    return RV_PCCL_NAMES[static_cast<std::size_t>(impl)];
 }
 const char *rv_pcslots_name(rv_pccd_impl impl)
 {
