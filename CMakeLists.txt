@@ -283,5 +283,41 @@ if(3DMPPC_DEVTOOLS)
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
+
+  # The player console is the firmware that goes into the burned discs; the dev
+  # console above is not it. DEVTOOLS is one option per build tree, so the firmware
+  # is a nested build with it OFF. It reuses the SDL3 and LuaJIT sources fetched
+  # here instead of downloading them again.
+  set(RV_FIRMWARE_CMAKE_ARGS
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -D3DMPPC_DEVTOOLS=OFF
+    -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
+  )
+  if(DEFINED sdl3_SOURCE_DIR)
+    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
+  endif()
+  if(DEFINED luajit_SOURCE_DIR)
+    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
+  endif()
+
+  # DEPENDS 3dmppc: LuaJIT is built in its source tree by the dev build, and the
+  # nested build must not run its make at the same time.
+  ExternalProject_Add(3dmppc_firmware
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}
+    BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build
+    CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+    DEPENDS 3dmppc
+  )
+  # The nested console lands in its own pconsole/ dir; copy it to the firmware dir.
+  ExternalProject_Add_Step(3dmppc_firmware copy_firmware
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
+            ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc
+    DEPENDEES build
+    ALWAYS 1
+  )
 endif()
 
