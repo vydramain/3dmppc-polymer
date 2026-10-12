@@ -20,7 +20,7 @@ enum class rv_sound_area : int {
 constexpr int RV_SOUND_SLOTS = 2;
 
 // The factory loops: both run while the camera is in the workshop.
-constexpr int RV_SOUND_LOOP_COUNT = 2;
+constexpr int RV_SOUND_LOOP_COUNT = 1;
 
 // Music, clack and loop state. Filled once by rv_sound_init; frame = -1 before the first frame.
 struct rv_sound_state {

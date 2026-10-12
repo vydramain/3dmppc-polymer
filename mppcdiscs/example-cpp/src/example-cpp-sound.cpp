@@ -93,7 +93,6 @@ struct rv_sound_loop {
     int16_t volume;
 };
 constexpr rv_sound_loop RV_SOUND_LOOPS[] = {
-    { RV_SOUND_CONVEYOR_LOOP, RV_SOUND_CONVEYOR_VOICE, RV_SOUND_CONVEYOR_VOLUME },
     { RV_SOUND_ASSEMBLY_LOOP, RV_SOUND_ASSEMBLY_VOICE, RV_SOUND_ASSEMBLY_VOLUME },
 };
 static_assert(std::size(RV_SOUND_LOOPS) == RV_SOUND_LOOP_COUNT, "one entry per loop");
@@ -281,10 +280,10 @@ int64_t play_clack(rv_pdko *pdk, rv_sound_state &state)
     conf.volume = RV_SOUND_MAX_LEVEL;
     conf.volume_l = RV_SOUND_MAX_LEVEL;
     conf.volume_r = RV_SOUND_MAX_LEVEL;
-    const int64_t play_code = play_voice(pdk, conf);
-    if (play_code < 0) {
-        return fail(state, RV_SOUND_CLACK, play_code);
-    }
+    // const int64_t play_code = play_voice(pdk, conf);
+    // if (play_code < 0) {
+    //     return fail(state, RV_SOUND_CLACK, play_code);
+    // }
     return RV_OK;
 }
 
@@ -475,7 +474,8 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     }
     // Only once the frame is committed: a failed music start is retried on the next rv_sound_update call
     // (the next frame, or the same frame again while paused), and its step must not repeat.
-    const int64_t steps_code = music_ok ? rv_steps_update(pdk, frame, state) : RV_OK;
+    // const int64_t steps_code = music_ok ? rv_steps_update(pdk, frame, state) : RV_OK;
+    const int64_t steps_code = RV_OK;
     if (code == RV_OK && steps_code < 0) {
         code = steps_code;
         asset = state.error_asset;
