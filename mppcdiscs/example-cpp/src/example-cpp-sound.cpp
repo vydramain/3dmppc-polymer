@@ -452,7 +452,8 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
         code = music_code;
         asset = state.error_asset;
     }
-    // Recorded only after the music start: a failed start is retried on the next frame.
+    // Recorded only after the music start: a failed start is retried on the next rv_sound_update call
+    // (the next frame, or the same frame again while paused).
     const bool music_ok = music_code == RV_OK;
     if (music_ok) {
         state.frame = frame;
@@ -472,7 +473,8 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
             asset = state.error_asset;
         }
     }
-    // Only once the frame is committed: a failed music start is retried on the same frame, and its step must not repeat.
+    // Only once the frame is committed: a failed music start is retried on the next rv_sound_update call
+    // (the next frame, or the same frame again while paused), and its step must not repeat.
     const int64_t steps_code = music_ok ? rv_steps_update(pdk, frame, state) : RV_OK;
     if (code == RV_OK && steps_code < 0) {
         code = steps_code;

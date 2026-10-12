@@ -32,6 +32,7 @@ constexpr int64_t RV_STEP_VARIANTS = static_cast<int64_t>(std::size(RV_STEP_VOIC
 // level is 22000 and the envelope is flat.
 constexpr int16_t RV_STEP_VOLUME = 22000;
 constexpr int16_t RV_STEP_ENVELOPE = 0;
+// Full level of the int16 sl, volume_l and volume_r fields: the loudest value a step can carry without wrapping.
 constexpr int16_t RV_STEP_MAX_LEVEL = 32767;
 
 // The two samples of each area's floor, in rv_sound_area order: workshop concrete, street asphalt, flat linoleum.
