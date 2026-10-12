@@ -337,15 +337,21 @@ PSX-faithful in structure:
   triangle or quad, `rv_sprite`), then `frame_flush()`. The console sorts
   primitives by `rv_primitive::depth` into a hardware **ordering table**
   (larger = nearer / on top; equal depth keeps submission order; out-of-range
-  clamps) and renders far-to-near. The optional per-pixel Z test
-  (`RV_PIPELINE_BUFFER_CONFIG_TYPE_Z`) layers on top of that ordering — the
-  ordering table itself is never off.
+  clamps) and renders far-to-near. The keys run over the window
+  `RV_DEPTH_MIN`..`RV_DEPTH_MAX`, spread linearly over the disc's
+  `ot_bucket_count` buckets, so a disc splits the window into layers (world,
+  overlays, HUD). A range too narrow collapses into few buckets: keys `0..959`
+  with 1024 buckets over the 65536-key window touch only 15 buckets. The
+  optional per-pixel Z test (`RV_PIPELINE_BUFFER_CONFIG_TYPE_Z`) layers on top
+  of that ordering — the ordering table itself is never off.
 
 Because the console re-orders primitives, there is **no global drawing state**:
 texture address, palette address, fill mode and wrap mode all travel inside the
 primitive (the PSX texpage/CLUT attributes, generalized).
 
-**Hardware geometry is implementation-defined — the PDK carries no numbers.**
+**Hardware geometry is implementation-defined — the PDK carries no numbers,
+except the ordering-table key window `RV_DEPTH_MIN`..`RV_DEPTH_MAX`:** a disc
+defines its layers in those keys, so the window is contract.
 Whatever a concrete machine answers is a **virtual** budget it imposes on
 itself, not a measurement of the host it runs on; the console is expected to
 hold the line it names, which is why the pool calls can answer `RV_ERR_NOMEM` at
@@ -358,9 +364,9 @@ returns a negative `rv_err` on a mismatch — the console then refuses to run it
 The reference console's defaults live in `rv_manifest_budget_*` in
 `pdklib/rv_manifest/rv_manifest.hpp`.
 
-One number stays hidden on purpose: the ordering-table bucket count. The game
-hands depth VALUES, never bucket indices — how finely the console quantizes is
-its own business.
+The bucket count is a budget the disc declares in `[budget.pccv]
+ot_bucket_count`. The game hands depth VALUES, never bucket indices: how the
+console quantizes them is its own business.
 
 **Dropped on purpose** (PSX features that do not cross into this contract):
 drawing area / drawing offset registers (a frame is always the whole 320×240),

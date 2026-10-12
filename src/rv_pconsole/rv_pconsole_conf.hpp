@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <string>
 
+#include "pdk/cv/rv_primitives.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_3dmppc
@@ -37,11 +38,10 @@ struct rv_pccv_conf {
     int64_t frame_capacity = rv_pdklib::rv_manifest_budget_pccv{}.frame_capacity;
     int64_t ot_bucket_count = rv_pdklib::rv_manifest_budget_pccv{}.ot_bucket_count;
 
-    // The depth window the ordering table spans, also hidden from the contract:
-    // a disc hands rv_primitive::depth as a VALUE and never learns how it is
-    // quantized. Values outside clamp to the nearest bucket (rv_primitives.hpp).
-    int32_t depth_min = -32768;
-    int32_t depth_max = 32767;
+    // The depth window the ordering table spans. Part of the cv contract
+    // (rv_primitives.h), so the console takes it from there and cannot differ.
+    int32_t depth_min = RV_DEPTH_MIN;
+    int32_t depth_max = RV_DEPTH_MAX;
 };
 
 struct rv_pccg_conf {

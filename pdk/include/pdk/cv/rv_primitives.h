@@ -56,9 +56,20 @@ struct rv_sprite {
     uint16_t width, height; // extent in pixels
 };
 
+// The ordering table as on the PSX. Keys in [RV_DEPTH_MIN, RV_DEPTH_MAX] are
+// spread linearly over the disc's [budget.pccv] ot_bucket_count buckets, so about
+// (MAX - MIN + 1) / ot_bucket_count keys share one bucket (exact when the count
+// divides the window). Larger = nearer, drawn later. Primitives in one bucket draw in submission order. Keys outside the
+// window clamp to the end buckets. A disc splits the window into layers
+// (world, overlays, HUD) by the keys it picks.
+enum rv_depth_window {
+    RV_DEPTH_MIN = -32768, // lowest ordering-table key
+    RV_DEPTH_MAX = 32767,  // highest ordering-table key
+};
+
 struct rv_primitive {
     uint32_t type; // one of RV_PRIMITIVE_*: selects the union member
-    int32_t depth; // ordering-table sort key (larger = nearer / on top)
+    int32_t depth; // ordering-table key in [RV_DEPTH_MIN, RV_DEPTH_MAX]; see rv_depth_window
 
     union {
         struct rv_line line;
@@ -74,6 +85,7 @@ typedef struct rv_line rv_line;
 typedef enum rv_texture_mapping_type rv_texture_mapping_type;
 typedef struct rv_polygon rv_polygon;
 typedef struct rv_sprite rv_sprite;
+typedef enum rv_depth_window rv_depth_window;
 typedef struct rv_primitive rv_primitive;
 
 /* RV_CDEF_END */
