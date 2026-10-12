@@ -135,6 +135,12 @@ list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/cd/rv_pccd_fs
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pccmdhex_devtools\\.cpp")
 # The embedded screen: --frame-fd exists only in a development build.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/platform/rv_pcframe_(devtools|standard)\\.cpp")
+# The frame driver: native sleeps between frames, a browser calls the frame from requestAnimationFrame and must not sleep.
+if(EMSCRIPTEN)
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_drive\\.cpp")
+else()
+  list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pconsole_drive_web\\.cpp")
+endif()
 # The cl slot's pair: LuaJIT or the null half. Only one is compiled; without
 # LuaJIT none of its cl/rv_pccl_luajit* sources are.
 list(FILTER 3DMPPC_CONSOLE_SOURCES EXCLUDE REGEX "/src/rv_pconsole/rv_pcslots_cl_(luajit|null)\\.cpp")
