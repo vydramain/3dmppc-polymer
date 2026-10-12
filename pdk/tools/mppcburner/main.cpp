@@ -30,6 +30,7 @@
 #include "rv_burner_options.hpp"
 #include "rv_burner_print.hpp"
 #include "rv_burner_inspect/rv_burner_inspect_runner.hpp"
+#include "rv_burner_setup/rv_burner_setup.hpp"
 
 namespace
 {
@@ -108,6 +109,7 @@ static void print_usage(std::FILE *stream)
         "  mppcburner build <disc-directory> -o <output.mppcdisc> [options]\n"
         "  mppcburner inspect <file.mppcdisc>\n"
         "  mppcburner bake-texture <disc-directory> <source> -o <output.mppctex> [--baker PATH]\n"
+        "  mppcburner setup <tool>\n"
         "  mppcburner help\n"
         "\n"
         "Commands:\n"
@@ -118,6 +120,9 @@ static void print_usage(std::FILE *stream)
         "  bake-texture  Bake one [textures] source of the disc into a standalone\n"
         "                .mppctex, the way build's own plan would. The baked\n"
         "                entry's archive name is the only thing on stdout.\n"
+        "  setup         Install a pinned tool once, per user, under\n"
+        "                ${XDG_DATA_HOME:-~/.local/share}/3dmppc. Tools: web (Emscripten).\n"
+        "                A second run installs nothing.\n"
         "  help          Print this text.\n"
         "\n"
         "Options (build):\n"
@@ -159,11 +164,17 @@ static void print_usage(std::FILE *stream)
 // bake-texture's own bit; not in rv_burner_options.hpp because no other file
 // needs to test for it.
 constexpr uint32_t RV_BURNER_MASK_BAKE = 1u << 2;
+// setup's own bit, for the same reason.
+constexpr uint32_t RV_BURNER_MASK_SETUP = 1u << 3;
 
 // Every option the tool has, declared once. Letters are unique tool-wide, which
 // is what lets a single switch store the options of every subcommand.
 constexpr rv_burner_option_spec OPTIONS[] = {
-    { 'h', "help", no_argument, "print this text", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE },
+    { 'h',
+        "help",
+        no_argument,
+        "print this text",
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE | RV_BURNER_MASK_SETUP },
     { 'o',
         "output",
         required_argument,
@@ -191,6 +202,7 @@ constexpr rv_burner_command_spec COMMANDS[] = {
     { "build", RV_BURNER_MASK_BUILD, 1, rv_burner_build_run },
     { "inspect", RV_BURNER_MASK_INSPECT, 1, rv_burner_inspect_run },
     { "bake-texture", RV_BURNER_MASK_BAKE, k_bake_texture_operands, rv_burner_bake_texture_run },
+    { "setup", RV_BURNER_MASK_SETUP, 1, rv_burner_setup_run },
     { "help", 0, 0, nullable_handler },
     { "-h", 0, 0, nullable_handler },
     { "--help", 0, 0, nullable_handler },

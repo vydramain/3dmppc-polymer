@@ -39,11 +39,11 @@ inline void rv_burner_print_warning(const std::string &message)
     rv_pdklib::rv_fprintf(stderr, "%s: warning: %s\n", rv_burner_progname(), message.c_str());
 }
 
-// One rung of the [n/4] ladder. No program prefix: this is progress, not a
-// diagnostic, and the prefix would repeat four times for nothing.
-inline void rv_burner_print_step(int step, const char *label, const std::string &detail)
+// One rung of the [n/total] ladder; total is 4 for a burn, other ladders pass their own. No program
+// prefix: this is progress, not a diagnostic, and the prefix would repeat on every rung for nothing.
+inline void rv_burner_print_step(int step, const char *label, const std::string &detail, int total = 4)
 {
-    rv_pdklib::rv_fprintf(stderr, "[%d/4] %-11s %s\n", step, label, detail.c_str());
+    rv_pdklib::rv_fprintf(stderr, "[%d/%d] %-11s %s\n", step, total, label, detail.c_str());
 }
 
 inline std::string rv_burner_human_size(int64_t bytes)
