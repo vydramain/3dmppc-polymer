@@ -13,6 +13,7 @@
 
 #include "pdk/rv_err.h"
 #include "rv_burner_build/rv_burner_build_assets.hpp"
+#include "rv_burner_build/rv_burner_target.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
 #include "rv_burner_build/rv_burner_map.hpp"
 #include "rv_burner_burn/rv_burner_burn.hpp"
@@ -236,28 +237,26 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return RV_ERR_NOENT;
     }
 
-    // --unpacked and -o pick the same slot in the pipeline (where the burned
-    // result goes) but produce different mediums, so exactly one of them names
-    // the output.
-    if (options.output.empty() == options.unpacked.empty()) {
-        rv_burner_print_error("build needs exactly one of -o/--output or -u/--unpacked");
+    // Looked up before the manifest is read: an unknown name is refused with the names that exist.
+    const rv_burner_target_spec *target = find_target(options.target);
+    if (nullptr == target) {
+        rv_burner_print_error(std::format("unknown target '{}'; expected one of: {}", options.target, target_names()));
         return RV_ERR_INVAL;
-    }
-    // Resolved once: every later stage asks `destination` what to do, instead
-    // of re-testing which flag was given.
-    const std::string &destination_operand = options.unpacked.empty() ? options.output : options.unpacked;
-    const rv_burner_destination destination{ options.unpacked.empty() ? rv_burner_destination_kind::archive :
-                                                                        rv_burner_destination_kind::directory,
-        fs::absolute(fs::path(destination_operand), ec) };
-    if (ec) {
-        rv_burner_print_error(std::format("cannot resolve output path '{}'", destination_operand));
-        return RV_ERR_IO;
     }
 
     rv_pdklib::rv_manifest manifest;
     const int manifest_err = rv_burner_build_manifest(disc_dir, manifest, error);
     if (manifest_err != RV_OK) {
         return manifest_err;
+    }
+
+    // Resolved once: every later stage asks `destination` what to do, instead
+    // of re-testing which flag was given.
+    rv_burner_destination destination{};
+    const int resolve_err = target->resolve(options, manifest, destination, error);
+    if (resolve_err != RV_OK) {
+        rv_burner_print_error(error);
+        return resolve_err;
     }
 
     // --- the disc's own sources ---
@@ -343,6 +342,13 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
     if (burn_err != RV_OK) {
         rv_burner_print_error(error);
         return burn_err;
+    }
+    if (nullptr != target->finish) {
+        const int finish_err = target->finish(destination, error);
+        if (finish_err != RV_OK) {
+            rv_burner_print_error(error);
+            return finish_err;
+        }
     }
     // Only a build that succeeded replaces the map.
     const int map_err = options.map.empty() ? RV_OK : write_map(fs::absolute(options.map, ec), manifest, sources, plan, error);

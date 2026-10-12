@@ -25,6 +25,7 @@ struct rv_burner_options {
     int jobs = 0;                                      // -j, 0: let cmake decide
     bool keep_build = false;                           // -k
     std::string map = "";                              // -m, where to write the source-to-entry map
+    std::string target = "";                           // -t, empty: disc
 };
 
 // One bit per subcommand. Lets an option name the commands that accept it.

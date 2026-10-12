@@ -139,6 +139,10 @@ static void print_usage(std::FILE *stream)
         "                           deleting it. PATH must be attached with '='.\n"
         "  -m, --map PATH           After a build that succeeded, write which entry\n"
         "                           of the disc each of its files became to PATH.\n"
+        "  -t, --target NAME        What to write: disc (default): one .mppcdisc at -o, or\n"
+        "                           an unpacked directory at -u; player: a directory at -o\n"
+        "                           with the player console and the .mppcdisc. player takes\n"
+        "                           no -u.\n"
         "\n"
         "Options (bake-texture):\n"
         "  -o, --output PATH        .mppctex file to write. Required.\n"
@@ -172,6 +176,7 @@ constexpr rv_burner_option_spec OPTIONS[] = {
     { 'j', "jobs", required_argument, "parallel compile jobs", RV_BURNER_MASK_BUILD },
     { 'k', "keep-build", optional_argument, "keep the generated CMake project, optionally at PATH", RV_BURNER_MASK_BUILD },
     { 'm', "map", required_argument, "write the source-to-entry map to PATH", RV_BURNER_MASK_BUILD },
+    { 't', "target", required_argument, "what to write: disc (default) or player", RV_BURNER_MASK_BUILD },
 };
 
 static int nullable_handler(const rv_burner_options &)
@@ -303,6 +308,14 @@ int main(int argc, char **argv)
         }
         case 'm': {
             burner_options.map = optarg;
+            break;
+        }
+        case 't': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--target needs a NAME");
+                return RV_ERR_INVAL;
+            }
+            burner_options.target = optarg;
             break;
         }
         case 'k': {

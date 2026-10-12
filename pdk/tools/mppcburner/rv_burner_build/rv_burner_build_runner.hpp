@@ -31,11 +31,13 @@ int rv_burner_build_manifest(const std::filesystem::path &disc_dir, rv_pdklib::r
 // reports by returning RV_OK or an RV_ERR_* kind and setting an error string, and does not print:
 // the wrappers in rv_burner_build_runner.cpp print the reason before they return the same code.
 
-/// Burn a disc directory into one .mppcdisc image.
+/// Burn a disc directory into the target options.target names.
 ///
-/// Reads `options.operand` as the disc directory and `options.output` as the
-/// image to write. Progress and diagnostics go to stderr; nothing goes to
-/// stdout, because the product of this command is a file, not a stream.
+/// Reads `options.operand` as the disc directory. What it writes is the target
+/// `options.target` names (rv_burner_target.hpp): disc writes the image at
+/// `options.output`, or an unpacked directory at `options.unpacked`; player
+/// writes a directory at `options.output` holding the image and the console.
+/// Progress and diagnostics go to stderr; nothing goes to stdout.
 ///
 /// The generated build tree is removed afterwards unless `--keep-build` was
 /// given, and is always kept after a failure, where it is the thing a developer
