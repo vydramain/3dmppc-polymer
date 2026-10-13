@@ -1,8 +1,10 @@
 #include "rv_burner_cmake.hpp"
 
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <ios>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -20,6 +22,9 @@ namespace rv_pdktools
 // against into the module. The long name is deliberate: it shares a directory
 // with the author's own sources and must not collide with any of them.
 static constexpr const char *k_version_unit_name = "custom_version_plus_hash_for_evade_collisions.cpp";
+
+// Build type when the caller names none: the native disc build has always used it.
+static constexpr const char *k_default_build_type = "RelWithDebInfo";
 
 // --- quoting ---
 
@@ -41,6 +46,35 @@ static std::string cmake_quote(const std::string &text)
     return out;
 }
 
+namespace
+{
+
+// What differs between the two project kinds; everything else in the generated
+// text is shared. Rows follow rv_disc_project_kind order.
+struct kind_text {
+    const char *target_type;   // cmake library type of `disc`
+    const char *artifact;      // file the target leaves in the binary directory
+    const char *compiler_line; // pins clang++; a web build takes its compiler from the toolchain file
+    const char *output_props;  // set_target_properties lines; the web archive needs none
+    const char *position_flag; // -fPIC line of target_compile_options
+};
+
+static constexpr kind_text k_kind_table[] = {
+    // A dlopen'd plugin, so position independent and named disc.so.
+    { "MODULE",
+        "disc.so",
+        "set(CMAKE_CXX_COMPILER clang++)\n",
+        "  PREFIX \"\"\n  SUFFIX \".so\"\n  OUTPUT_NAME \"disc\"\n  POSITION_INDEPENDENT_CODE ON\n",
+        "  -fPIC\n" },
+    // Linked into the page with the web kit. A name ending in .so would make cmake pass -ldisc.
+    { "STATIC", "libdisc.a", "", "", "" },
+};
+
+// Fails the build when a value is added to the enum without a row in the table.
+static_assert(std::size(k_kind_table) == static_cast<std::size_t>(rv_disc_project_kind::web_static) + 1);
+
+} // namespace
+
 } // namespace rv_pdktools
 
 // The project is assembled as text rather than through a cmake-file-writing
@@ -52,9 +86,11 @@ std::string rv_pdktools::cmake_project_text(const rv_pdklib::rv_manifest &manife
     const std::string &pdk_dir,
     const std::string &pdklib_dir,
     const std::vector<std::string> &absolute_includes,
-    const std::vector<std::string> &absolute_sources)
+    const std::vector<std::string> &absolute_sources,
+    rv_disc_project_kind project_kind)
 {
     std::string text;
+    const kind_text &parts = k_kind_table[static_cast<std::size_t>(project_kind)];
 
     // --- preamble ---
 
@@ -62,9 +98,8 @@ std::string rv_pdktools::cmake_project_text(const rv_pdklib::rv_manifest &manife
 # It exists so a disc is compiled by cmake+ninja rather than by a compiler
 # driver written inside the burner. See rv_burner_cmake.hpp for the reasoning.
 cmake_minimum_required(VERSION 3.20)
-set(CMAKE_CXX_COMPILER clang++)
-project(mppcdisc_)cmake" +
-        manifest.disc_id + R"cmake( CXX)
+)cmake" +
+        std::string(parts.compiler_line) + R"cmake(project(mppcdisc_)cmake" + manifest.disc_id + R"cmake( CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -77,10 +112,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
     // MODULE, not SHARED. A SHARED library is something other targets link
     // against, so cmake maintains a link interface for it. A MODULE is a plugin,
     // loaded at run time with dlopen and never linked by anybody — which is
-    // exactly what a disc is. Saying MODULE makes the relationship unlinkable by
+    // exactly what a disc is. For native, saying MODULE makes the relationship unlinkable by
     // construction: nothing can add `disc` to a target_link_libraries and start
     // depending on its symbols.
-    text += "add_library(disc MODULE\n";
+    text += std::string("add_library(disc ") + parts.target_type + "\n";
     for (const std::string &source : absolute_sources) {
         text += "  " + cmake_quote(source) + "\n";
     }
@@ -91,12 +126,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
     // loader looks for inside the archive. Without PREFIX "" cmake writes
     // `libdisc.so` and the disc is unloadable for a reason that looks like
     // nothing at all.
-    text += R"cmake(set_target_properties(disc PROPERTIES
-  PREFIX ""
-  SUFFIX ".so"
-  OUTPUT_NAME "disc"
-  POSITION_INDEPENDENT_CODE ON
-  CXX_VISIBILITY_PRESET hidden
+    text += std::string(R"cmake(set_target_properties(disc PROPERTIES
+)cmake") +
+        parts.output_props +
+        R"cmake(  CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
 )
 
@@ -127,15 +160,18 @@ target_include_directories(disc PRIVATE
 
     // --- options ---
     //
-    // -fPIC because the result is dlopen'd and must be position independent.
+    // Native only: -fPIC because the result is dlopen'd and must be position independent.
     // -fvisibility=hidden because a disc exports exactly two symbols —
     // mppc_disc_create and mppc_disc_destroy, marked default by RV_DISC_EXPORT —
     // and everything else is its own business. Default visibility would put the
     // whole game's symbol table into the console's process, where it can collide,
-    // be interposed, or be found by a dlsym that meant something else.
-    text += R"cmake(target_compile_options(disc PRIVATE
-  -fPIC
-  -fvisibility=hidden
+    // be interposed, or be found by a dlsym that meant something else. For web the
+    // archive is linked into the page's wasm with the kit, where default visibility
+    // could collide with the kit's own symbols.
+    text += std::string(R"cmake(target_compile_options(disc PRIVATE
+)cmake") +
+        parts.position_flag +
+        R"cmake(  -fvisibility=hidden
   -Wall
   -Wextra
 )
@@ -144,18 +180,24 @@ target_include_directories(disc PRIVATE
     return text;
 }
 
+const char *rv_pdktools::disc_artifact_name(rv_disc_project_kind project_kind)
+{
+    return k_kind_table[static_cast<std::size_t>(project_kind)].artifact;
+}
+
 int rv_pdktools::create_cmakelists(const rv_burner_options &options,
     const rv_pdklib::rv_manifest &manifest,
     const fs::path &project_dir,
     const std::vector<std::string> &absolute_includes,
     const std::vector<std::string> &absolute_sources,
-    std::string &error)
+    std::string &error,
+    rv_disc_project_kind project_kind)
 {
     // --- CMakeLists.txt ---
 
     const fs::path cmakelists_path = project_dir / "CMakeLists.txt";
     const std::string project_text =
-        cmake_project_text(manifest, options.pdk_dir, options.pdklib_dir, absolute_includes, absolute_sources);
+        cmake_project_text(manifest, options.pdk_dir, options.pdklib_dir, absolute_includes, absolute_sources, project_kind);
 
     {
         std::ofstream out(cmakelists_path, std::ios::binary | std::ios::trunc);
@@ -197,13 +239,23 @@ int rv_pdktools::create_cmakelists(const rv_burner_options &options,
     return RV_OK;
 }
 
-int rv_pdktools::configure_cmake(const fs::path &binary_dir, const fs::path &project_dir, std::string &error)
+int rv_pdktools::configure_cmake(const fs::path &binary_dir,
+    const fs::path &project_dir,
+    std::string &error,
+    const fs::path &toolchain_file,
+    const std::string &build_type)
 {
+    // Empty build_type keeps the native default, bare as it always was; a given one is shell-quoted.
+    const std::string effective_build_type = build_type.empty() ? std::string(k_default_build_type) : shell_quote(build_type);
+    const std::string toolchain_arg =
+        toolchain_file.empty() ? std::string() : " -DCMAKE_TOOLCHAIN_FILE=" + shell_quote(toolchain_file.string());
+
     // -DCMAKE_EXPORT_COMPILE_COMMANDS=ON: the standard cmake way to get a
     // compile_commands.json for clangd. rv_burner_build_runner.cpp copies it
     // out of binary_dir before this build tree is deleted.
     const std::string configure = "cmake -G Ninja -S " + shell_quote(project_dir.string()) + " -B " +
-        shell_quote(binary_dir.string()) + " -DCMAKE_BUILD_TYPE=RelWithDebInfo" + " -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
+        shell_quote(binary_dir.string()) + toolchain_arg + " -DCMAKE_BUILD_TYPE=" + effective_build_type +
+        " -DCMAKE_EXPORT_COMPILE_COMMANDS=ON";
 
     std::string child_output;
     const int status = run_capture(configure, child_output);
