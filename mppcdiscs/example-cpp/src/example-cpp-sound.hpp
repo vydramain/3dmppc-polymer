@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "pdk/ca/rv_voice_conf.h"
 #include "pdk/rv_pdko.h"
 #include "example-cpp-route.hpp"
 
@@ -21,6 +22,9 @@ constexpr int RV_SOUND_SLOTS = 2;
 
 // The factory loops: both run while the camera is in the workshop.
 constexpr int RV_SOUND_LOOP_COUNT = 1;
+
+// Full level of a voice's sustain and volume: the sound module's maximum, shared by the music and the loops.
+constexpr int16_t RV_SOUND_MAX_LEVEL = 32767;
 
 // Music, clack and loop state. Filled once by rv_sound_init; frame = -1 before the first frame.
 struct rv_sound_state {
@@ -61,6 +65,18 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
 // slots and waits for the next bar start when it is mid-bar.
 // Needs rv_sound_init first. Returns RV_OK or the drive or ca error, with state.error_asset naming the asset.
 int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_sound_state &state);
+
+// Records `asset` as the failure's name for the caller's log and returns `code`.
+int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
+// Sets up and starts conf.voice (defined in example-cpp-sound.cpp).
+int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
+
+// Music, in example-cpp-music.cpp. rv_music_init allocates the music slots and measures the bars; rv_sound_init
+// calls it first. rv_music_update starts the bar of frame's area at each bar start and, on success, records the
+// frame's area and bar; rv_sound_update calls it. Only rv_music_update needs the sound tables of rv_sound_init
+// (areas, span_start).
+int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state);
+int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
 // Footsteps: one per 0.95 m of horizontal eye path, on the floor of the frame's area, A and B alternating.
 // rv_steps_init tabulates the distance (rv_sound_init calls it); rv_steps_update plays the step of a new frame
