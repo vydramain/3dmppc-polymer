@@ -241,6 +241,19 @@ public:
         return block ? block->size : RV_ERR_INVAL;
     }
 
+    // Start of the live region that contains `addr` (`addr` may point inside it,
+    // as a loop point or a voice position does), or RV_ERR_INVAL. The span is the
+    // same one region_size() reports.
+    int64_t region_containing(int64_t addr) const
+    {
+        for (const rv_pcpool_block &block : blocks_) {
+            if (block.used && !block.reserved && addr >= block.offset && addr < block.offset + block.size) {
+                return block.offset;
+            }
+        }
+        return RV_ERR_INVAL;
+    }
+
     // Read-only view of a region's bytes, or nullptr when `addr` is not live.
     const uint8_t *region_data(int64_t addr) const
     {
