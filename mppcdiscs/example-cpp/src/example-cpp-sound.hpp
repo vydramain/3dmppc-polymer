@@ -37,16 +37,19 @@ struct rv_sound_state {
     std::vector<int64_t> span_start;
     // Per frame of the period: the cumulative horizontal distance of the eye from frame 0, metres. Empty until built.
     std::vector<double> distance;
-    // Per music slot: sound RAM address, bar asset in it (nullptr when unknown), whether its voice was started,
-    // and the frame it was started at (see sounding()).
+    // Per music slot: sound RAM address, bar asset in it (nullptr when unknown).
     int64_t slot_addr[RV_SOUND_SLOTS] = {};
     const char *slot_name[RV_SOUND_SLOTS] = {};
-    bool slot_armed[RV_SOUND_SLOTS] = {};
-    int64_t slot_frame[RV_SOUND_SLOTS] = {};
+    // The music chain: the voice reads the slot before music_slot and goes on into music_slot, where its mark is
+    // set. music_bar is the bar in music_slot and music_name its asset; music_on is set once a bar is played,
+    // music_armed once the repeat and mark on music_slot are set.
+    bool music_on = false;
+    bool music_armed = false;
+    int music_slot = 0;
+    int64_t music_bar = 0;
+    const char *music_name = nullptr;
     // Per factory loop: whether its voice was started and not stopped since.
     bool loop_armed[RV_SOUND_LOOP_COUNT] = {};
-    // Set once the first write-ahead failure is logged; a failure that persists would log every bar.
-    bool write_ahead_logged = false;
     // One bar read from the disc, slot-sized.
     std::vector<uint8_t> scratch;
     // The asset of the last failure, for the caller's log.
@@ -58,8 +61,8 @@ struct rv_sound_state {
 // error, with state.error_asset naming the asset.
 int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state);
 
-// Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame: the bar of its area
-// at each bar start, the board clack in the workshop when the lit letters differ from state.frame's, and
+// Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame: the music of its area
+// (rv_music_update), the board clack in the workshop when the lit letters differ from state.frame's, and
 // only when the scene has the board (board_present). The two factory loops run while the frame is in the
 // workshop. The same frame again (a pause, a repeated render) plays nothing. The first frame fills the
 // slots and waits for the next bar start when it is mid-bar.
@@ -72,9 +75,9 @@ int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
 int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 
 // Music, in example-cpp-music.cpp. rv_music_init allocates the music slots and measures the bars; rv_sound_init
-// calls it first. rv_music_update starts the bar of frame's area at each bar start and, on success, records the
-// frame's area and bar; rv_sound_update calls it. Only rv_music_update needs the sound tables of rv_sound_init
-// (areas, span_start).
+// calls it first. rv_music_update starts the chain at an area change and at a bar start while it is not running,
+// moves it on at each mark, and on success records the frame's area and bar; rv_sound_update calls it. Only
+// rv_music_update needs the sound tables of rv_sound_init (areas, span_start).
 int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state);
 int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
