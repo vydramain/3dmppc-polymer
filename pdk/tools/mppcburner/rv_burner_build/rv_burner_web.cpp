@@ -75,8 +75,9 @@ static int locate_web_tools(const rv_burner_options &options, rv_burner_kit &kit
         return dir_err;
     }
     const fs::path compiler = emsdk / k_emsdk_compiler;
+    // exists() clears ec for a missing path, so ec is set only when the path cannot be inspected.
     std::error_code ec;
-    const bool found = fs::is_regular_file(compiler, ec);
+    const bool found = fs::exists(compiler, ec) && fs::is_regular_file(compiler, ec);
     if (ec) {
         error = std::format("cannot check '{}': {}", compiler.string(), ec.message());
         return RV_ERR_IO;
