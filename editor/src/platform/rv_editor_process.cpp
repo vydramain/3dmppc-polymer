@@ -93,6 +93,88 @@ void rv_editor_kill_reap(pid_t pid)
     }
 }
 
+// Exit status of a detached child that failed: its errno is in the report pipe.
+constexpr int detached_failed_exit_code = 127;
+
+// Child side, after fork: errno to the report pipe, then exit. Only async-signal-safe calls.
+[[noreturn]] void rv_editor_detach_fail(int report_fd, int err)
+{
+    (void)!::write(report_fd, &err, sizeof(err));
+    ::_exit(detached_failed_exit_code);
+}
+
+// Grandchild, after fork: stdio to /dev/null, then exec. argv is built before fork.
+[[noreturn]] void rv_editor_detach_exec(char *const argv[], int report_fd)
+{
+    const int null_fd = ::open("/dev/null", O_RDWR | O_CLOEXEC);
+    if (null_fd < 0) {
+        rv_editor_detach_fail(report_fd, errno);
+    }
+    for (int fd : { STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO }) {
+        // With fd closed, null_fd is fd: dup2 would be a no-op that keeps close-on-exec.
+        const int rc = null_fd == fd ? ::fcntl(fd, F_SETFD, 0) : ::dup2(null_fd, fd);
+        if (rc < 0) {
+            rv_editor_detach_fail(report_fd, errno);
+        }
+    }
+    sigset_t none;
+    ::sigemptyset(&none);
+    if (::sigprocmask(SIG_SETMASK, &none, nullptr) != 0) {
+        rv_editor_detach_fail(report_fd, errno);
+    }
+    // The editor ignores SIGPIPE; the launched program gets the default back.
+    ::signal(SIGPIPE, SIG_DFL);
+    ::execv(argv[0], argv);
+    rv_editor_detach_fail(report_fd, errno);
+}
+
+// Middle child, after fork: a session of its own, then the grandchild. Exits 0 at once,
+// so the parent reaps it without waiting for the launched program.
+[[noreturn]] void rv_editor_detach_middle(char *const argv[], int report_fd)
+{
+    // Above fd 2: the grandchild's dup2 onto 0-2 would overwrite a lower report end.
+    const int lifted = ::fcntl(report_fd, F_DUPFD_CLOEXEC, STDERR_FILENO + 1);
+    if (lifted < 0) {
+        rv_editor_detach_fail(report_fd, errno);
+    }
+    report_fd = lifted;
+    if (::setsid() < 0) {
+        rv_editor_detach_fail(report_fd, errno);
+    }
+    const pid_t grandchild = ::fork();
+    if (grandchild < 0) {
+        rv_editor_detach_fail(report_fd, errno);
+    }
+    if (grandchild == 0) {
+        rv_editor_detach_exec(argv, report_fd);
+    }
+    ::_exit(0);
+}
+
+// Reads the report after the middle is reaped. EOF: no errno was written: the grandchild exec'd
+// (or died before writing). An errno: it failed before exec.
+int rv_editor_detach_report(int fd, const std::string &program, std::string &error)
+{
+    int child_errno = 0;
+    ssize_t n = 0;
+    do {
+        n = ::read(fd, &child_errno, sizeof(child_errno));
+    } while (n < 0 && errno == EINTR);
+    if (n == 0) {
+        return RV_OK;
+    }
+    if (n < 0) {
+        error = std::string("exec report: ") + std::strerror(errno);
+        return RV_ERR_IO;
+    }
+    if (n != static_cast<ssize_t>(sizeof(child_errno))) {
+        error = program + ": exec report incomplete";
+        return RV_ERR_IO;
+    }
+    error = program + ": " + std::strerror(child_errno);
+    return RV_ERR_IO;
+}
+
 } // namespace
 
 rv_editor_process::~rv_editor_process()
@@ -363,6 +445,61 @@ std::filesystem::path rv_editor_process_find(const char *name)
         }
     }
     return {};
+}
+
+int rv_editor_launch_detached(const std::vector<std::string> &argv, std::string &error)
+{
+    if (argv.empty()) {
+        error = "nothing to run";
+        return RV_ERR_INVAL;
+    }
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(argv[0], ec) || ::access(argv[0].c_str(), X_OK) != 0) {
+        error = argv[0] + ": not an executable file";
+        return RV_ERR_NOENT;
+    }
+    std::vector<char *> args;
+    for (const std::string &a : argv) {
+        args.push_back(const_cast<char *>(a.c_str()));
+    }
+    args.push_back(nullptr);
+
+    int fds[2] = { -1, -1 };
+    if (::pipe2(fds, O_CLOEXEC) != 0) {
+        error = std::string("pipe: ") + std::strerror(errno);
+        return RV_ERR_IO;
+    }
+    const pid_t middle = ::fork();
+    if (middle < 0) {
+        const int fork_errno = errno;
+        ::close(fds[0]);
+        ::close(fds[1]);
+        error = std::string("fork: ") + std::strerror(fork_errno);
+        return RV_ERR_IO;
+    }
+    if (middle == 0) {
+        ::close(fds[0]);
+        rv_editor_detach_middle(args.data(), fds[1]);
+    }
+    ::close(fds[1]);
+    int status = 0;
+    while (::waitpid(middle, &status, 0) < 0) {
+        if (errno != EINTR) {
+            ::close(fds[0]);
+            error = std::string("waitpid: ") + std::strerror(errno);
+            return RV_ERR_IO;
+        }
+    }
+    const int rc = rv_editor_detach_report(fds[0], argv[0], error);
+    ::close(fds[0]);
+    if (rc != RV_OK) {
+        return rc;
+    }
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        error = argv[0] + ": the launcher child ended abnormally";
+        return RV_ERR_IO;
+    }
+    return RV_OK;
 }
 
 } // namespace rv_editor
