@@ -5,8 +5,8 @@
 // frame; nothing reaches the mixer from a second thread any more - the
 // platform only plays PCM this already produced, queued.
 //
-// DECISION (do not re-litigate): setup/play/stop/status and render() still go
-// through ONE MUTEX, not a lock-free command queue. The critical section is a
+// DECISION (do not re-litigate): every call that touches voice state, and render(),
+// go through ONE MUTEX, not a lock-free command queue. The critical section is a
 // few dozen microseconds of arithmetic over 24 fixed-size voice structs - it
 // does not allocate, it does not block, it cannot recurse, and it holds no
 // lock while calling anything else.
@@ -76,6 +76,17 @@ public:
     // Mask of the voices in `mask` that are still busy.
     int64_t status(int64_t mask) const;
 
+    // Set the repeat / mark of every voice in `mask`; see rv_pcvoice for the meaning.
+    // addr == 0 in mark() clears it. RV_ERR_INVAL when some voice in the mask was never
+    // armed - then NOTHING changes.
+    int repeat(int64_t mask, int64_t addr, const uint8_t *data, int64_t frames, int64_t offset);
+    int mark(int64_t mask, int64_t addr, int64_t offset);
+
+    // Mask of the voices in `mask` whose ended() / marked() flag is raised. RV_ERR_INVAL
+    // (negative) when some voice in the mask was never armed.
+    int64_t ended(int64_t mask) const;
+    int64_t marked(int64_t mask) const;
+
     // --- the console timeline's side ---
 
     // Sum every sounding voice into `out`, which holds `frames` INTERLEAVED
@@ -93,19 +104,39 @@ public:
     // the compound operations need not try.
     [[nodiscard]] std::unique_lock<std::mutex> acquire();
 
-    // Is any voice sounding out of the region at `addr`? This is the question
-    // behind rv_ca::sound_asset_free returning RV_ERR_BUSY. Caller holds
-    // acquire().
+    // Is the region at `addr` in use? This is the question behind
+    // rv_ca::sound_asset_free returning RV_ERR_BUSY. A busy voice uses it as its
+    // start, current or repeat region. ANY voice's mark may point at it, busy or
+    // not: a mark must name a live region, because a voice compares it with its
+    // current region in mix() and after the next play(); a freed and reused address
+    // would raise a false mark. So the disc moves or clears the mark before it frees
+    // the region. Address 0 is never a region. Caller holds acquire().
     bool region_busy_locked(int64_t addr) const;
 
-    // Disarm every voice pointing at `addr`, called once that region has been
-    // released. The voices are provably idle by then (region_busy_locked said
-    // so), and leaving them armed would let a later voice_play() read bytes the
-    // pool has already handed to somebody else. Caller holds acquire().
+    // Disarm every voice whose start region is `addr`, called once that region has
+    // been released. Those voices are idle by then (region_busy_locked said so), and
+    // leaving them armed would let a later voice_play() read bytes the pool has
+    // already handed to somebody else. Caller holds acquire().
     void disarm_region_locked(int64_t addr);
+
+    // Set the frame length of region `addr` on every voice, called when the pool
+    // resizes it. Caller holds acquire().
+    void resize_region_locked(int64_t addr, int64_t frames);
 
 private:
     int for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)());
+
+    // Validate-then-apply over `mask` for the repeat/mark setters: every voice must be
+    // armed, otherwise nothing is applied. Caller holds lock_.
+    template <typename Action>
+    int apply_armed_locked(int64_t mask, Action action);
+
+    // Is every voice in `mask` armed? Caller holds lock_.
+    bool all_armed_locked(int64_t mask) const;
+
+    // Mask of the voices in `mask` whose `flag` is raised, or RV_ERR_INVAL when some
+    // voice in `mask` is unarmed. Caller holds lock_.
+    int64_t flags_locked(int64_t mask, bool (rv_pcvoice::*flag)() const) const;
 
     mutable std::mutex lock_;
     std::vector<rv_pcvoice> voices_;

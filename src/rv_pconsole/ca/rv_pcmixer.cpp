@@ -59,16 +59,7 @@ void rv_pcmixer::setup(int64_t mask, const rv_voice_conf &conf, const uint8_t *d
 // only shows up as an occasional stuck note.
 int rv_pcmixer::for_each_locked(int64_t mask, bool require_armed, void (rv_pcvoice::*action)())
 {
-    const auto all_armed = [this, mask]() {
-        for (std::size_t i = 0; i < voices_.size(); ++i) {
-            if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
-                return false;
-            }
-        }
-        return true;
-    };
-
-    if (require_armed && !all_armed()) {
+    if (require_armed && !all_armed_locked(mask)) {
         return RV_ERR_INVAL;
     }
 
@@ -95,12 +86,7 @@ int rv_pcmixer::stop(int64_t mask)
 bool rv_pcmixer::armed(int64_t mask) const
 {
     std::lock_guard<std::mutex> guard(lock_);
-    for (std::size_t i = 0; i < voices_.size(); ++i) {
-        if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
-            return false;
-        }
-    }
-    return true;
+    return all_armed_locked(mask);
 }
 
 int64_t rv_pcmixer::status(int64_t mask) const
@@ -117,6 +103,81 @@ int64_t rv_pcmixer::status(int64_t mask) const
     return busy;
 }
 
+bool rv_pcmixer::all_armed_locked(int64_t mask) const
+{
+    for (std::size_t i = 0; i < voices_.size(); ++i) {
+        if (mask_has(mask, static_cast<int64_t>(i)) && !voices_[i].armed()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Validate the whole mask first: one unarmed voice must not leave it half retargeted.
+template <typename Action>
+int rv_pcmixer::apply_armed_locked(int64_t mask, Action action)
+{
+    if (!all_armed_locked(mask)) {
+        return RV_ERR_INVAL;
+    }
+
+    for (std::size_t i = 0; i < voices_.size(); ++i) {
+        if (mask_has(mask, static_cast<int64_t>(i))) {
+            action(voices_[i]);
+        }
+    }
+    return RV_OK;
+}
+
+int64_t rv_pcmixer::flags_locked(int64_t mask, bool (rv_pcvoice::*flag)() const) const
+{
+    if (!all_armed_locked(mask)) {
+        return static_cast<int64_t>(RV_ERR_INVAL);
+    }
+
+    int64_t raised = 0;
+    for (std::size_t i = 0; i < voices_.size(); ++i) {
+        const int64_t bit = static_cast<int64_t>(i);
+        if (mask_has(mask, bit) && (voices_[i].*flag)()) {
+            raised |= static_cast<int64_t>(1) << bit;
+        }
+    }
+    return raised;
+}
+
+int rv_pcmixer::repeat(int64_t mask, int64_t addr, const uint8_t *data, int64_t frames, int64_t offset)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return apply_armed_locked(mask, [addr, data, frames, offset](rv_pcvoice &voice) {
+        voice.set_repeat(addr, data, frames, offset);
+    });
+}
+
+int rv_pcmixer::mark(int64_t mask, int64_t addr, int64_t offset)
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    if (addr == 0) {
+        return apply_armed_locked(mask, [](rv_pcvoice &voice) {
+            voice.clear_mark();
+        });
+    }
+    return apply_armed_locked(mask, [addr, offset](rv_pcvoice &voice) {
+        voice.set_mark(addr, offset);
+    });
+}
+
+int64_t rv_pcmixer::ended(int64_t mask) const
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return flags_locked(mask, &rv_pcvoice::ended);
+}
+
+int64_t rv_pcmixer::marked(int64_t mask) const
+{
+    std::lock_guard<std::mutex> guard(lock_);
+    return flags_locked(mask, &rv_pcvoice::marked);
+}
+
 std::unique_lock<std::mutex> rv_pcmixer::acquire()
 {
     return std::unique_lock<std::mutex>(lock_);
@@ -124,8 +185,17 @@ std::unique_lock<std::mutex> rv_pcmixer::acquire()
 
 bool rv_pcmixer::region_busy_locked(int64_t addr) const
 {
+    // Address 0 is "no region", and an idle mark reads as 0: without this guard
+    // every voice without a mark would report the region busy.
+    if (addr == 0) {
+        return false;
+    }
+
     for (const rv_pcvoice &voice : voices_) {
-        if (voice.busy() && voice.region() == addr) {
+        if (voice.mark_region() == addr) {
+            return true;
+        }
+        if (voice.busy() && (voice.region() == addr || voice.current_region() == addr || voice.repeat_region() == addr)) {
             return true;
         }
     }
@@ -138,6 +208,13 @@ void rv_pcmixer::disarm_region_locked(int64_t addr)
         if (voice.region() == addr) {
             voice.disarm();
         }
+    }
+}
+
+void rv_pcmixer::resize_region_locked(int64_t addr, int64_t frames)
+{
+    for (rv_pcvoice &voice : voices_) {
+        voice.resize_region(addr, frames);
     }
 }
 
