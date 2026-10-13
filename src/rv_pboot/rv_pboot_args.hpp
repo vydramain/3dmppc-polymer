@@ -81,6 +81,7 @@ struct rv_pboot_args {
     std::string medium_path;
     std::string memcard_path;
     std::string dump_frame_path;
+    std::string dump_audio_path;
     std::string mode = "default";
 
     // Per-slot overrides of the preset named by `mode`. Empty = not given.

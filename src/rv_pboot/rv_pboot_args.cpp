@@ -126,6 +126,9 @@ void rv_console_print_usage(std::FILE *stream)
         "  -M, --mute           Silence the audio output stage.\n"
         "  -D, --dump-frame P   Write the last rendered frame to P as a binary\n"
         "                       PPM. Refused when cv is null.\n"
+        "      --dump-audio P   Write everything the sound module computes to P as\n"
+        "                       raw S16LE stereo PCM at 44.1 kHz, as it is\n"
+        "                       computed. Not supported in the browser.\n"
         // Empty in a player build: an option that build cannot parse is not
         // an option it may advertise (rv_pboot_args_cmd.hpp).
         "%s"
@@ -207,6 +210,7 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
         { "memcard", required_argument, 0, 'm' },
         { "mute", no_argument, 0, 'M' },
         { "dump-frame", required_argument, 0, 'D' },
+        { "dump-audio", required_argument, 0, 'U' },
         { "mode", required_argument, 0, 'o' },
         { "mode_platform", required_argument, 0, 'p' },
         { "mode_ca", required_argument, 0, 'a' },
@@ -288,6 +292,9 @@ int rv_pboot_args_parse(int argc, char **argv, rv_pboot_args &args, int &exit_co
             break;
         case 'D':
             args.dump_frame_path = optarg;
+            break;
+        case 'U':
+            args.dump_audio_path = optarg;
             break;
         case 'o':
             args.mode = optarg;
