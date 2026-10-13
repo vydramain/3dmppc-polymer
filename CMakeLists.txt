@@ -398,6 +398,9 @@ if(3DMPPC_DEVTOOLS)
     DEPENDEES build
     ALWAYS 1
   )
+
+  # The web kit, built with a pinned emsdk; see cmake/rv_emsdk.cmake.
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_emsdk.cmake)
 endif()
 
 # --- the web kit --------------------------------------------------------------
