@@ -63,6 +63,11 @@ public:
     {
         return proc_.output_cut();
     }
+    // The first line_max bytes of the last non-blank stderr line of this run; empty when there is none.
+    const std::string &last_stderr_line() const
+    {
+        return err_last_line_;
+    }
 
 private:
     rv_editor_process proc_;
@@ -71,6 +76,10 @@ private:
     uint32_t run_ = 0;
     std::string out_partial_;
     std::string err_partial_;
+    // The unfinished stderr line: add_stream clears err_partial_ at each line end and flush_stream at the end,
+    // so the job keeps its own line for the bytes still waiting for their '\n'.
+    std::string err_line_;
+    std::string err_last_line_;
     std::chrono::steady_clock::time_point cancel_at_{};
     bool cancelled_ = false;
     bool ended_ = false;
