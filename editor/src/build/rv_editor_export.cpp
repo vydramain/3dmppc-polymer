@@ -31,6 +31,12 @@ constexpr std::string_view export_flag_target = "--target";
 constexpr std::string_view export_flag_output = "-o";
 constexpr std::string_view export_flag_baker = "--baker";
 
+// The export's build tree: a build may run at the same time and the burner deletes its tree at the end
+// unless it is kept. A kept tree with a path also lets the next export build incrementally:
+// cmake reconfigures it and ninja reuses its objects.
+constexpr std::string_view export_flag_keep_build = "--keep-build=";
+constexpr std::string_view export_build_subdir = "export-build";
+
 // The disc file's extension: a disc export writes dest/<disc_id>.mppcdisc.
 constexpr std::string_view disc_suffix = ".mppcdisc";
 
@@ -128,6 +134,10 @@ int rv_editor_export::start(const rv_editor_project &project,
         error = rv_editor_text("export.bad_disc_id");
         return RV_ERR_INVAL;
     }
+    if (project.cache_dir.empty()) {
+        error = rv_editor_text("build.no_cache_dir");
+        return RV_ERR_INVAL;
+    }
 
     std::error_code ec;
     std::filesystem::create_directories(dest_dir, ec);
@@ -139,6 +149,7 @@ int rv_editor_export::start(const rv_editor_project &project,
         row.output_suffix.empty() ? dest_dir : dest_dir / (project.disc_id + std::string(row.output_suffix));
     const std::filesystem::path result_path = row.result_name.empty() ? output : dest_dir / std::string(row.result_name);
     const uint32_t run = runs_ + 1;
+    const std::filesystem::path build_dir = project.cache_dir / std::string(export_build_subdir);
 
     const std::vector<std::string> argv = { tools.burner.path.string(),
         std::string(export_command),
@@ -148,7 +159,8 @@ int rv_editor_export::start(const rv_editor_project &project,
         std::string(export_flag_output),
         output.string(),
         std::string(export_flag_baker),
-        tools.baker.path.string() };
+        tools.baker.path.string(),
+        std::string(export_flag_keep_build) + build_dir.string() };
     const int err = job_.start(argv, project.root, std::string(burner_name), rv_editor_log_source::build, run, error);
     if (err != RV_OK) {
         return err;
