@@ -385,6 +385,23 @@ void rv_editor_app_shutdown(rv_editor_app &app)
         }
         std::this_thread::sleep_for(shutdown_poll_interval);
     }
+    // The export is stopped the same way, with its own wait.
+    const bool export_cancel_needed = app.exporter.state() == rv_editor_build_state::building;
+    if (export_cancel_needed) {
+        std::string export_cancel_error;
+        if (app.exporter.cancel(export_cancel_error) != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "not cancelled: " + export_cancel_error);
+        }
+    }
+    const auto export_until = std::chrono::steady_clock::now() + shutdown_wait_timeout;
+    while (app.exporter.busy() && std::chrono::steady_clock::now() < export_until) {
+        std::string export_error;
+        const int export_result = app.exporter.update(app.log, export_error);
+        if (export_result != RV_OK) {
+            app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "burner: " + export_error);
+        }
+        std::this_thread::sleep_for(shutdown_poll_interval);
+    }
     std::string session_error;
     const int session_result = app.session.shutdown(app.log, session_error);
     if (session_result != RV_OK) {

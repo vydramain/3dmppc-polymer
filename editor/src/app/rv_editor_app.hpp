@@ -15,6 +15,7 @@
 #include "ui/rv_editor_field_sizes.hpp"
 #include "build/rv_editor_build.hpp"
 #include "build/rv_editor_build_map.hpp"
+#include "build/rv_editor_export.hpp"
 #include "files/rv_editor_files.hpp"
 #include "layout/rv_editor_tile.hpp"
 #include "log/rv_editor_log.hpp"
@@ -41,6 +42,8 @@ struct rv_editor_app {
     // Writes the chosen processes' lines to files; the app decides which (rv_editor_app_logs.cpp).
     rv_editor_log_file log_files;
     rv_editor_build build;
+    // The export job (mppcburner writes a disc, a player or a web page); the Export pane starts it.
+    rv_editor_export exporter;
     rv_editor_session session;
     rv_editor_files files;
     std::map<rv_editor_pane_id, rv_editor_output_view> outputs;

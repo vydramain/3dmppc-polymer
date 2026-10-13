@@ -137,6 +137,18 @@ int rv_editor_app_update_build(rv_editor_app &app)
     return RV_OK;
 }
 
+// The export's update; a failure is logged as the burner's, as the build's is.
+int rv_editor_app_update_export(rv_editor_app &app)
+{
+    std::string error;
+    const int result = app.exporter.update(app.log, error);
+    if (result != RV_OK) {
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, "burner: " + error);
+        return result;
+    }
+    return RV_OK;
+}
+
 // The session's update; a failure is logged as the runtime's.
 int rv_editor_app_update_session(rv_editor_app &app)
 {
@@ -263,6 +275,7 @@ void rv_editor_app_update(rv_editor_app &app)
 
     const bool was_busy = app.build.busy();
     (void)rv_editor_app_update_build(app);
+    (void)rv_editor_app_update_export(app);
     (void)rv_editor_app_update_session(app);
 
     // A build just ended: old builds go, the time is noted, a waiting Run runs.
