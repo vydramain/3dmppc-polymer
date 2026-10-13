@@ -1270,6 +1270,14 @@ already_running = "a build is already running"
 no_project = "no project is open"
 no_cache_dir = "no cache directory: neither XDG_CACHE_HOME nor HOME is set"
 
+[export]
+busy = "an export is already running"
+no_project = "no project is open"
+no_destination = "no destination directory is chosen"
+bad_disc_id = "disc.toml's id is empty or not a file name: letters, digits, '-' and '_' only"
+already_cancelling = "the export is already being cancelled"
+no_export_running = "no export is running"
+
 [scene_codegen]
 could_not_create = "could not create {}: {}"
 could_not_open = "could not open {} for writing"
