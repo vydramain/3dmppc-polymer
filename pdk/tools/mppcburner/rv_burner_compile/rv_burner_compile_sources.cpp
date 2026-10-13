@@ -99,21 +99,24 @@ static int stamp_checksum(const fs::path &disc_module, std::string &error)
 
 } // namespace rv_pdktools
 
-int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::path &binary_dir, std::string &error)
+int rv_pdktools::build_cmake_project(const fs::path &binary_dir, int jobs, std::string &child_output)
 {
-    // --- build ---
-    //
     // `cmake --build` rather than `ninja` by name: the generator is cmake's
     // business, and this line stays correct if it ever changes. It is also the
     // only portable spelling — a Windows port replaces what cmake drives
     // underneath, not this command.
     std::string build = "cmake --build " + shell_quote(binary_dir.string());
-    if (options.jobs > 0) {
-        build += " --parallel " + std::to_string(options.jobs);
+    if (jobs > 0) {
+        build += " --parallel " + std::to_string(jobs);
     }
+    return run_capture(build, child_output);
+}
 
+int rv_pdktools::compile_sources(const rv_burner_options &options, const fs::path &binary_dir, std::string &error)
+{
+    // --- build ---
     std::string child_output;
-    const int status = run_capture(build, child_output);
+    const int status = build_cmake_project(binary_dir, options.jobs, child_output);
     if (status != 0) {
         dump_child_output(child_output);
         error = "compiling the disc failed (exit " + std::to_string(status) + ")";

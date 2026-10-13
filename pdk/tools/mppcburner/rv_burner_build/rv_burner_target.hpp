@@ -50,4 +50,13 @@ const rv_burner_target_spec *find_target(std::string_view name);
 /// The names find_target() accepts, comma separated, for a refusal message.
 std::string target_names();
 
+// --- web target, rv_burner_web.cpp ---
+//
+// The two functions of the web row, declared like the other targets; only the table calls them.
+int resolve_web(const rv_burner_options &options,
+    const rv_pdklib::rv_manifest &manifest,
+    rv_burner_destination &destination,
+    std::string &error);
+int finish_web(const rv_burner_finish_input &input, std::string &error);
+
 } // namespace rv_pdktools
