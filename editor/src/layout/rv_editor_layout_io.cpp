@@ -53,7 +53,8 @@ constexpr std::string_view kind_names[] = { "empty",
     "settings",
     "help",
     "review_changes",
-    "manual" };
+    "manual",
+    "export" };
 
 // Tree checks below. Each refusal sets `error` with its reason. Indices passed to check_not_free and check_link
 // must be in range; the callers check that first.

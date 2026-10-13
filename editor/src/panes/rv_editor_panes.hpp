@@ -119,6 +119,9 @@ void rv_editor_pane_toolchest(rv_editor_app &app, const rv_editor_theme &theme, 
 // The last build job's outcome and diagnostics, and the next action.
 void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &theme);
 
+// Export: the open project as a disc, a player or a web page into a chosen directory, and its state.
+void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme);
+
 // The latest build's diagnostics with a place, opening it.
 void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme);
 

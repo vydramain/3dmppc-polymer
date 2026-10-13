@@ -68,10 +68,11 @@ enum class rv_editor_pane_kind : uint32_t {
     help,             // Help, as a tab
     review_changes,   // the unsaved files quitting, opening, building or running waits on
     manual,           // the embedded user manual, as a tab
+    export_,          // Export: mppcburner writes a disc, a player or a web page
 };
 
 // The last kind, for loops over all of them.
-inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::manual;
+inline constexpr rv_editor_pane_kind rv_editor_pane_kind_last = rv_editor_pane_kind::export_;
 
 struct rv_editor_pane {
     rv_editor_pane_kind kind;

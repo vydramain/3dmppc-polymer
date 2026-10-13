@@ -91,6 +91,8 @@ const char *rv_editor_pane_title(rv_editor_pane_kind kind)
         return rv_editor_text("workspace.pane_review_changes");
     case rv_editor_pane_kind::manual:
         return rv_editor_text("workspace.pane_manual");
+    case rv_editor_pane_kind::export_:
+        return rv_editor_text("workspace.pane_export");
     }
     return rv_editor_text("workspace.pane_unknown");
 }

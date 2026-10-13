@@ -55,6 +55,9 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     case rv_editor_pane_kind::run_config:
         rv_editor_pane_run_config(shell.app, theme);
         return;
+    case rv_editor_pane_kind::export_:
+        rv_editor_pane_export(shell.app, theme);
+        return;
     case rv_editor_pane_kind::controls:
     case rv_editor_pane_kind::release_controls:
     case rv_editor_pane_kind::toolchest: {
