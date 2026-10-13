@@ -31,7 +31,9 @@ install(FILES $<TARGET_FILE:SDL3::SDL3> DESTINATION lib)
 install(FILES ${RV_WEB_PRE_JS} DESTINATION .)
 get_filename_component(RV_KIT_PRE_JS_NAME ${RV_WEB_PRE_JS} NAME)
 
-# kit.txt: "key = value" lines. Paths are relative to the kit directory.
+# kit.txt: "key = value" lines. Paths are relative to the kit directory. A CMake list would
+# reach the burner as one word, so link_flags is written as one space-separated line.
+string(REPLACE ";" " " RV_KIT_LINK_FLAGS "${RV_WEB_LINK_FLAGS}")
 file(GENERATE
   OUTPUT ${CMAKE_BINARY_DIR}/web-kit/kit.txt
   CONTENT "# 3dmppc web kit. Written by the build; read by mppcburner.
@@ -41,13 +43,13 @@ file(GENERATE
 # link_group: yes = the libs and the game disc's archive go between -Wl,--start-group and
 #   -Wl,--end-group, so the disc's position among them does not matter. Without it the
 #   disc must come after the console and before pdklib.
-# link_flags: emcc flags of the console's link line.
+# link_flags: emcc flags of the console's link line, separated by spaces.
 # pre_js: the --pre-js file of the console's link line.
 pdk_version = ${RV_KIT_VER_MAJOR}.${RV_KIT_VER_MINOR}
 build_type = ${CMAKE_BUILD_TYPE}
 libs = lib/$<TARGET_FILE_NAME:3dmppc> lib/$<TARGET_FILE_NAME:rv_dmain> lib/$<TARGET_FILE_NAME:3dmppc_platform_sdl3> lib/$<TARGET_FILE_NAME:3dmppc_pdklib> lib/$<TARGET_FILE_NAME:SDL3::SDL3>
 link_group = yes
-link_flags = ${RV_WEB_LINK_FLAGS}
+link_flags = ${RV_KIT_LINK_FLAGS}
 pre_js = ${RV_KIT_PRE_JS_NAME}
 "
 )
