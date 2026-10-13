@@ -10,6 +10,7 @@
 #include "rv_burner_common/rv_burner_process.hpp"
 #include "rv_burner_compile/rv_burner_cmake.hpp"
 #include "rv_burner_compile/rv_burner_compile_sources.hpp"
+#include "rv_burner_zip/rv_burner_zipwrite.hpp"
 #include "rv_burner_kit.hpp"
 #include "rv_burner_setup/rv_burner_setup.hpp"
 #include "rv_burner_target.hpp"
@@ -37,6 +38,8 @@ static constexpr const char *k_embed_suffix = "@/disc.mppcdisc";      // the dis
 static constexpr const char *k_no_growth = "-sALLOW_MEMORY_GROWTH=0"; // the heap never grows past its start
 static constexpr const char *k_math_lib = "-lm";
 static constexpr const char *k_output_flag = "-o";
+static constexpr const char *k_licenses_subdir = "licenses"; // the kit's license files, beside index.html
+static constexpr const char *k_zip_extension = ".zip";       // DIR.zip beside DIR: the page and its licenses in one file
 // 256 MiB: a fixed budget several times the console's measured needs (about 22 MB, 15 MB and 3 MB, plus the disc).
 // The console sizes its RAM from the heap maximum, so k_no_growth keeps that maximum equal to this start.
 static constexpr std::size_t k_initial_memory = std::size_t{ 256 } * 1024 * 1024;
@@ -245,8 +248,83 @@ link_web_page(const rv_burner_finish_input &input, const rv_burner_kit &kit, con
         error = std::format("linking the web page failed (exit {})", status);
         return RV_ERR_IO;
     }
-    const std::string dir_name = page_dir.string();
-    rv_pdklib::rv_fprintf(stderr, "web: %s (%s)\n", dir_name.c_str(), k_page_name);
+    return RV_OK;
+}
+
+// Copies each license the kit names into DIR/licenses/, under its own file name.
+static int copy_licenses(const rv_burner_kit &kit, const fs::path &page_dir, std::string &error)
+{
+    const fs::path dir = page_dir / k_licenses_subdir;
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    if (ec) {
+        error = std::format("cannot create '{}': {}", dir.string(), ec.message());
+        return RV_ERR_IO;
+    }
+    for (const fs::path &license : kit.licenses) {
+        const fs::path dest = dir / license.filename();
+        fs::copy_file(license, dest, fs::copy_options::overwrite_existing, ec);
+        if (ec) {
+            error = std::format("cannot copy license '{}' to '{}': {}", license.string(), dest.string(), ec.message());
+            return RV_ERR_IO;
+        }
+    }
+    return RV_OK;
+}
+
+// The image is embedded in the page, so it is not kept beside it. A missing image is not an error.
+static int remove_image(const fs::path &image, std::string &error)
+{
+    std::error_code ec;
+    fs::remove(image, ec);
+    if (ec) {
+        error = std::format("cannot remove '{}': {}", image.string(), ec.message());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+// DIR.zip beside DIR: the page and its licenses in one file.
+static fs::path web_zip_path(const fs::path &page_dir)
+{
+    return page_dir.parent_path() / (page_dir.filename().string() + k_zip_extension);
+}
+
+// Adds index.html, then each license copied into licenses/.
+static int add_page_entries(rv_zipwriter &zip, const fs::path &page_dir, const rv_burner_kit &kit, std::string &error)
+{
+    const int page_err = zip.add_file(k_page_name, (page_dir / k_page_name).string(), error);
+    if (RV_OK != page_err) {
+        return page_err;
+    }
+    for (const fs::path &license : kit.licenses) {
+        const std::string name = std::string(k_licenses_subdir) + "/" + license.filename().string();
+        const fs::path source = page_dir / k_licenses_subdir / license.filename();
+        const int add_err = zip.add_file(name, source.string(), error);
+        if (RV_OK != add_err) {
+            return add_err;
+        }
+    }
+    return RV_OK;
+}
+
+// Writes DIR.zip; an existing one is replaced by the writer's truncating open.
+static int write_zip(const fs::path &page_dir, const rv_burner_kit &kit, std::string &error)
+{
+    const fs::path zip_path = web_zip_path(page_dir);
+    rv_zipwriter zip(zip_path.string());
+    if (!zip.ok()) {
+        error = "cannot write '" + zip_path.string() + "'";
+        return RV_ERR_IO;
+    }
+    const int entries_err = add_page_entries(zip, page_dir, kit, error);
+    if (RV_OK != entries_err) {
+        return entries_err;
+    }
+    const int finish_err = zip.finish(error);
+    if (RV_OK != finish_err) {
+        return finish_err;
+    }
     return RV_OK;
 }
 
@@ -267,6 +345,27 @@ int finish_web(const rv_burner_finish_input &input, std::string &error)
     if (RV_OK != link_err) {
         return link_err;
     }
+    const fs::path page_dir = input.destination.path.parent_path();
+    const int licenses_err = copy_licenses(kit, page_dir, error);
+    if (RV_OK != licenses_err) {
+        return licenses_err;
+    }
+    const int remove_err = remove_image(input.destination.path, error);
+    if (RV_OK != remove_err) {
+        return remove_err;
+    }
+    const int zip_err = write_zip(page_dir, kit, error);
+    if (RV_OK != zip_err) {
+        return zip_err;
+    }
+    const std::string dir_name = page_dir.string();
+    const std::string zip_name = web_zip_path(page_dir).string();
+    rv_pdklib::rv_fprintf(stderr,
+        "web: %s (%s, %s/) and %s\n",
+        dir_name.c_str(),
+        k_page_name,
+        k_licenses_subdir,
+        zip_name.c_str());
     return RV_OK;
 }
 
