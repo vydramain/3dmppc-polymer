@@ -87,6 +87,9 @@ private:
     // Host scratch of the console, sized by target_fps; outside every module budget.
     std::vector<int16_t> pcm_;
 
+    // Stereo frames the device has pulled from audio_fill this run; logged at the end.
+    int64_t audio_device_frames_ = 0;
+
     // --- the development runtime ------------------------------------------
     //
     // Constructed only when the run asked for it. Everything below is inert
@@ -138,40 +141,40 @@ private:
     // device; pacing only decides when that frame runs.
     enum class pacing {
         none,
-        audio,
         clock
+    };
+
+    // Where a frame's sound goes, decided once per run. The device pulls its own
+    // sound from audio_fill; without one the frame loop advances the machine itself.
+    enum class sound_out {
+        device,
+        frames
     };
 
     // One run's bookkeeping. A struct handed between the steps below rather
     // than a row of members: none of it outlives disc_run, and as members a
-    // second run would inherit the first one's audio counters and its stale
-    // deadline.
+    // second run would inherit the first one's stale deadline.
     struct run_state {
         uint64_t target_fps = 60;
         float dt = 0.0f;
         std::chrono::duration<double> frame_budget{};
         pacing mode = pacing::none;
-        int64_t queue_target = 0;
+        sound_out sound = sound_out::frames;
         std::chrono::steady_clock::time_point deadline{};
 
         // The previous iteration created no frame, so the pacing deadline is
         // stale and has to be re-based before it is believed again.
         bool left_pause = false;
 
-        // An audio wait in progress: the queue was above its target at the last
-        // look. Progress (a smaller queue) restarts the stall count.
-        bool audio_waiting = false;
-        std::chrono::steady_clock::time_point audio_wait_since{};
-        int64_t audio_wait_queued = 0;
-
+        // Bresenham remainder for sound_out::frames: keeps the sample count exact.
         int64_t audio_phase = 0;
-        int64_t audio_written = 0;
-        int64_t audio_underruns = 0;
-        int64_t audio_peak_queued = 0;
-        bool audio_paced_ever = false;
     };
 
     static const char *pacing_name(pacing mode);
+    static const char *sound_name(sound_out sound);
+
+    // The device asks for the sound it is owed: fills exactly `frames` stereo frames.
+    static void audio_fill(void *context, int16_t *interleaved, int64_t frames);
 
     // Open the window, start the disc, settle the timeline and arm the
     // development runtime. A negative return means the disc refused to start
@@ -192,11 +195,6 @@ private:
     // to the clock, because the two are the same fact seen twice.
     bool run_hold_paused(run_state &run);
 
-    // Audio pacing as a decision: true when the device still holds more than its
-    // target, so this iteration creates no frame. Never waits itself. On a stall
-    // it logs a warning and switches the run to clock pacing (sets its deadline).
-    bool run_hold_audio(run_state &run);
-
     // Show the pause overlay (build once, present every slice).
     void run_show_pause();
 
@@ -204,10 +202,10 @@ private:
     // exactly that step.
     void run_frame(rv_de *disc, run_state &run);
 
-    // Clock pacing: sleep to the next deadline. Audio pacing never waits here.
+    // Clock pacing: sleep to the next deadline. Unpaced runs never wait.
     void run_pace(run_state &run);
 
-    // The audio summary and the last hook, after the last frame.
+    // Detach the device source, log the audio summary and the last hook, after the last frame.
     void run_finish(rv_de *disc, const run_state &run);
 
     // Write the last frame the machine produced to the requested path. Called only
@@ -217,7 +215,7 @@ private:
     // The last answer to a client that is still there. Bounded, best effort.
     void run_release_channel();
 
-    // What one iteration of the loop produced: a frame, an idle iteration (paused or waiting for audio), or the end of the run.
+    // What one iteration of the loop produced: a frame, an idle iteration (paused), or the end of the run.
     enum class step_result {
         frame,
         idle,

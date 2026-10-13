@@ -42,9 +42,8 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
         return step_result::idle;
     }
 
-    if (run_hold_audio(run)) {
-        return step_result::idle;
-    }
+    // Only a pass that runs a frame pulls sound: a stopped machine must not advance pcca through the device.
+    platform_.audio().service();
 
     run_frame(disc, run);
     cmd_after_frame();

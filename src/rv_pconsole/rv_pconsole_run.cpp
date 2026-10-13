@@ -17,7 +17,6 @@
 // never be trapped behind one, and the step is answered only after its frame.
 #include "rv_pconsole/rv_pconsole.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <format>
 #include <thread>
@@ -30,14 +29,6 @@ namespace rv_3dmppc
 {
 namespace
 {
-
-// PCM the audio output may hold ahead of the device, in frames of the
-// timeline, ~33 ms at 60 fps. Absorbs a late frame without an audible gap and
-// bounds voice_play-to-ear latency.
-constexpr int64_t RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES = 2;
-
-// A device that has taken nothing for this long stopped draining.
-constexpr auto RV_PCONSOLE_AUDIO_STALL = std::chrono::milliseconds(250);
 
 using rv_pcclock = std::chrono::steady_clock;
 
@@ -64,12 +55,30 @@ const char *rv_pconsole::pacing_name(pacing mode)
     switch (mode) {
     case pacing::none:
         return "nothing (fixed step)";
-    case pacing::audio:
-        return "audio output";
     case pacing::clock:
         return "steady clock";
     }
     return "?";
+}
+
+const char *rv_pconsole::sound_name(sound_out sound)
+{
+    switch (sound) {
+    case sound_out::device:
+        return "audio device";
+    case sound_out::frames:
+        return "frame steps";
+    }
+    return "?";
+}
+
+void rv_pconsole::audio_fill(void *context, int16_t *interleaved, int64_t frames)
+{
+    // The device's demand, not the frame's: the machine advances exactly what the
+    // device asks for, so its sound stays in step with what the device plays.
+    auto *console = static_cast<rv_pconsole *>(context);
+    console->ca_->advance(interleaved, frames);
+    console->audio_device_frames_ += frames;
 }
 
 int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
@@ -116,18 +125,25 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     // reproducible frame for frame.
     run.dt = 1.0f / static_cast<float>(run.target_fps);
 
-    // Not fixed for the run: a stall of the audio device switches this to clock
-    // pacing mid-run (see run_pace).
-    run.mode = params_.fixed_step ? pacing::none : (platform_.audio().available() ? pacing::audio : pacing::clock);
-    run.queue_target = RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES * (RV_PCCA_PCM_RATE / static_cast<int64_t>(run.target_fps));
+    // Two decisions, each made once. The frame clock is never the audio device:
+    // -F steps by count, every other run by the clock. The device pulls its sound
+    // only when the run is not fixed-step and a device exists; otherwise the frame
+    // loop advances the machine itself.
+    run.mode = params_.fixed_step ? pacing::none : pacing::clock;
+    run.sound = (!params_.fixed_step && platform_.audio().available()) ? sound_out::device : sound_out::frames;
+    audio_device_frames_ = 0;
     run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
+    if (run.sound == sound_out::device) {
+        platform_.audio().attach_source(&rv_pconsole::audio_fill, this);
+    }
 
     RV_LOG_INFO("pconsole",
-        "running mppcdisc '{}' ({}, dt 1/{} s, paced by {})",
+        "running mppcdisc '{}' ({}, dt 1/{} s, paced by {}, sound from {})",
         disc->disc_title(disc->self),
         platform_.window().presenting() ? "presented" : "unpresented",
         run.target_fps,
-        pacing_name(run.mode));
+        pacing_name(run.mode),
+        sound_name(run.sound));
 
     // The channel opens AFTER disc_initialize: a run that refused to start must
     // not have put stdin into non-blocking mode and announced a protocol on
@@ -218,9 +234,12 @@ bool rv_pconsole::run_hold_paused(run_state &run)
     // close button are never trapped behind a pause.
     if (paused_ && step_reply_id_ < 0) {
         run_show_pause();
+        // Only the first stopped pass holds the device: pcca does not advance while the
+        // machine is stopped, so the device must not pull from it either.
+        if (!run.left_pause && run.sound == sound_out::device && platform_.audio().pause() != RV_OK) {
+            RV_LOG_WARN("pconsole", "audio device refused to pause, it may keep playing what it holds");
+        }
         run.left_pause = true;
-        // A pause is not a stall: an audio wait that straddles it starts over.
-        run.audio_waiting = false;
         return true;
     }
 
@@ -233,45 +252,14 @@ bool rv_pconsole::run_hold_paused(run_state &run)
         // burst of frames as fast as it could to catch up - a visible jump,
         // which is exactly what a pause must not cause.
         run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
+        // A step lifts the device for this frame's window, on the clock. The sound of a
+        // step is what the device played and pulled in that window, not "this frame's"
+        // sound; with -F (sound_out::frames) the sound goes frame by frame.
+        if (run.sound == sound_out::device && platform_.audio().resume() != RV_OK) {
+            RV_LOG_WARN("pconsole", "audio device refused to resume, the run goes on but its sound may stay paused");
+        }
         run.left_pause = false;
     }
-    return false;
-}
-
-bool rv_pconsole::run_hold_audio(run_state &run)
-{
-    // Only audio pacing is backpressure; every other mode skips the device query.
-    if (run.mode != pacing::audio) {
-        return false;
-    }
-    const int64_t queued = platform_.audio().queued_frames();
-    if (queued <= run.queue_target) {
-        run.audio_waiting = false;
-        return false;
-    }
-
-    const rv_pcclock::time_point now = rv_pcclock::now();
-    if (!run.audio_waiting) {
-        run.audio_waiting = true;
-        run.audio_wait_since = now;
-        run.audio_wait_queued = queued;
-    }
-    // The device took something: progress, so the stall count starts again.
-    if (queued < run.audio_wait_queued) {
-        run.audio_wait_since = now;
-        run.audio_wait_queued = queued;
-        return true;
-    }
-    if (now - run.audio_wait_since < RV_PCONSOLE_AUDIO_STALL) {
-        return true;
-    }
-
-    RV_LOG_WARN("pconsole", "audio output stopped draining, pacing by the steady clock from now on");
-    // Only the wait is abandoned: this frame runs, and the following ones are
-    // clock-paced. A closed window or a signal still ends the run through the
-    // quit check at the top of every step.
-    run.mode = pacing::clock;
-    run.deadline = now + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
     return false;
 }
 
@@ -290,6 +278,10 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
         platform_.window().present(argb);
     }
 
+    // With a device the sound is pulled in audio_fill, not stepped here.
+    if (run.sound != sound_out::frames) {
+        return;
+    }
     // Bresenham accumulator. N frames give exactly floor(N * rate / fps)
     // samples, with zero drift, because the remainder of every division is
     // carried forward instead of dropped.
@@ -297,22 +289,11 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
     const int64_t samples = run.audio_phase / static_cast<int64_t>(run.target_fps);
     run.audio_phase %= static_cast<int64_t>(run.target_fps);
     ca_->advance(pcm_.data(), samples);
-
-    if (run.mode != pacing::audio) {
-        return;
-    }
-    run.audio_paced_ever = true;
-    if (frames_ >= RV_PCONSOLE_AUDIO_QUEUE_TIMELINE_FRAMES && platform_.audio().queued_frames() == 0) {
-        ++run.audio_underruns;
-    }
-    platform_.audio().write(pcm_.data(), samples);
-    run.audio_written += samples;
-    run.audio_peak_queued = std::max(run.audio_peak_queued, platform_.audio().queued_frames());
 }
 
 void rv_pconsole::run_pace(run_state &run)
 {
-    // Unpaced runs never wait; audio pacing was decided before the frame in run_hold_audio.
+    // Unpaced runs never wait.
     if (run.mode != pacing::clock) {
         return;
     }
@@ -330,12 +311,10 @@ void rv_pconsole::run_pace(run_state &run)
 
 void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
 {
-    if (run.audio_paced_ever) {
-        RV_LOG_INFO("pconsole",
-            "audio output: {} frame(s) written, {} underrun(s), peak queue {} frame(s)",
-            run.audio_written,
-            run.audio_underruns,
-            run.audio_peak_queued);
+    // Before the last hook: no device pull may reach a disc that is already shut down.
+    platform_.audio().attach_source(nullptr, nullptr);
+    if (run.sound == sound_out::device) {
+        RV_LOG_INFO("pconsole", "audio output: {} frame(s) handed to the device", audio_device_frames_);
     }
 
     // The last hook, after the last frame. For a LOADED disc it is deliberately
