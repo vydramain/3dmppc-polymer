@@ -1,4 +1,4 @@
-// Native driver of the frame loop: calls frame_step and sleeps only on idle iterations (paused, waiting for audio).
+// Native driver of the frame loop: calls frame_step and sleeps only on idle iterations (paused).
 // The pacing between frames is run_pace's job, not this driver's.
 #include "rv_pconsole/rv_pconsole.hpp"
 
@@ -18,12 +18,6 @@ namespace
 // that a paused console is not a core running flat out.
 constexpr auto RV_PCONSOLE_PAUSE_SLICE = std::chrono::milliseconds(2);
 
-// How long disc_run sleeps on an idle iteration while waiting for the audio device
-// to drain. Those idle iterations also serve the pause key and the devtools channel
-// (a non-blocking read), so this is their polling rate: brief enough to stay
-// responsive, long enough not to spin a core.
-constexpr auto RV_PCONSOLE_AUDIO_POLL_INTERVAL = std::chrono::milliseconds(1);
-
 } // namespace
 
 int64_t rv_pconsole::disc_run(rv_de *disc)
@@ -39,15 +33,11 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
         if (step == step_result::stop) {
             break;
         }
-        // The step never sleeps; this driver sleeps once per idle iteration, so a pause or an audio wait does not spin a core.
+        // The step never sleeps; this driver sleeps once per idle iteration, so a pause does not spin a core.
         switch (step) {
-        case step_result::idle: {
-            // Same condition as run_hold_paused's pause branch; a pending step makes it false.
-            const bool stopped = paused_ && step_reply_id_ < 0;
-            const auto nap = stopped ? RV_PCONSOLE_PAUSE_SLICE : RV_PCONSOLE_AUDIO_POLL_INTERVAL;
-            std::this_thread::sleep_for(nap);
+        case step_result::idle:
+            std::this_thread::sleep_for(RV_PCONSOLE_PAUSE_SLICE);
             break;
-        }
         case step_result::frame:
             run_pace(run);
             break;

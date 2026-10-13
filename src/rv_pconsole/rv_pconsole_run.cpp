@@ -17,6 +17,7 @@
 // never be trapped behind one, and the step is answered only after its frame.
 #include "rv_pconsole/rv_pconsole.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
 #include <thread>
@@ -31,6 +32,11 @@ namespace
 {
 
 using rv_pcclock = std::chrono::steady_clock;
+
+// Longest single wait in run_pace. Before each slice run_pace tops up the audio
+// device, on top of the top-up once per frame in frame_step. Price: about 1000
+// wakeups per second while a frame waits; a shorter slice refills sooner and costs more CPU.
+constexpr auto RV_PCONSOLE_PACE_SLICE = std::chrono::milliseconds(1);
 
 // Belt and braces: a player build never declares the --dev field that could
 // set this true (rv_pboot_args.hpp), so the null factory is unreachable from
@@ -120,9 +126,8 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
 
     // One timeline. Frame N is exactly N/target_fps of machine time in every
     // mode: dt never varies with wall clock or with the audio device. The wall
-    // clock and the audio device only decide WHEN the next tick runs, never how
-    // long it is - a host too slow gets slow motion, never a jump, and -F is
-    // reproducible frame for frame.
+    // clock alone decides WHEN the next tick runs, never how long it is - a host
+    // too slow gets slow motion, never a jump, and -F is reproducible frame for frame.
     run.dt = 1.0f / static_cast<float>(run.target_fps);
 
     // Two decisions, each made once. The frame clock is never the audio device:
@@ -298,14 +303,16 @@ void rv_pconsole::run_pace(run_state &run)
         return;
     }
 
-    const rv_pcclock::time_point after = rv_pcclock::now();
-    const bool behind = after >= run.deadline;
-    if (!behind) {
-        std::this_thread::sleep_until(run.deadline);
+    const rv_pcclock::time_point start = rv_pcclock::now();
+    const bool behind = start >= run.deadline;
+    // Wait in slices; the last one stops at the deadline, never past it.
+    for (rv_pcclock::time_point now = start; !behind && now < run.deadline; now = rv_pcclock::now()) {
+        platform_.audio().service();
+        std::this_thread::sleep_until(std::min(now + RV_PCONSOLE_PACE_SLICE, run.deadline));
     }
     // Fell behind: re-base instead of letting missed deadlines pile up
     // into a burst of zero-length frames.
-    const auto base = behind ? after : run.deadline;
+    const auto base = behind ? start : run.deadline;
     run.deadline = base + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
 }
 
