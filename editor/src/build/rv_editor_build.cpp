@@ -8,7 +8,6 @@
 #include "text/rv_editor_text.hpp"
 
 #include <algorithm>
-#include <cerrno>
 #include <charconv>
 #include <system_error>
 #include <vector>
@@ -19,11 +18,8 @@ namespace rv_editor
 namespace
 {
 
-// Bytes read from the build process per poll.
-constexpr size_t read_chunk_bytes = 1 << 20;
-
-// A cancelled burner gets this long to stop by itself before it is killed.
-constexpr auto rv_editor_cancel_grace = std::chrono::seconds(3);
+// The burner's name in the job's messages.
+constexpr std::string_view burner_name = "burner";
 
 // Build log file extension.
 constexpr std::string_view build_log_ext = ".log";
@@ -156,19 +152,22 @@ int rv_editor_build::start(const rv_editor_project &project,
             tools.baker.path.string(),
             std::string(build_flag_map),
             rv_editor_build_map_path(image_).string() };
-        const int err = proc_.start(argv, project.root, error);
+        const int err = job_.start(argv,
+            project.root,
+            std::string(burner_name),
+            rv_editor_log_source::candidate,
+            rv_editor_image_number(image_),
+            error);
         if (err != RV_OK) {
             return err;
         }
         state_ = rv_editor_build_state::building;
-        out_partial_.clear();
-        err_partial_.clear();
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::info,
             "candidate image started: " + tools.burner.path.string() + " build " + project.root.string() + " -o " +
                 image_.string(),
             rv_editor_log_channel::none,
-            proc_.pid(),
+            job_.pid(),
             rv_editor_image_number(image_));
         return RV_OK;
     }
@@ -191,19 +190,17 @@ int rv_editor_build::start(const rv_editor_project &project,
         tools.baker.path.string(),
         std::string(build_flag_map),
         rv_editor_build_map_path(dir_).string() };
-    const int err = proc_.start(argv, project.root, error);
+    const int err = job_.start(argv, project.root, std::string(burner_name), rv_editor_log_source::build, number_, error);
     if (err != RV_OK) {
         return err;
     }
     state_ = rv_editor_build_state::building;
-    out_partial_.clear();
-    err_partial_.clear();
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
         "build #" + std::to_string(number_) + " started: " + tools.burner.path.string() + " build " + project.root.string() +
             " --unpacked " + dir_.string(),
         rv_editor_log_channel::none,
-        proc_.pid(),
+        job_.pid(),
         number_);
     return RV_OK;
 }
@@ -219,15 +216,7 @@ int rv_editor_build::cancel(std::string &error)
         return RV_ERR_ALREADY;
     }
     state_ = rv_editor_build_state::cancelling;
-    cancel_at_ = std::chrono::steady_clock::now();
-    kill_failure_reported_ = false;
-    // A failed SIGTERM still leaves the cancel running: update() escalates to SIGKILL after the grace.
-    const int stop_result = proc_.stop(false);
-    if (stop_result == RV_ERR_IO) {
-        error = "SIGTERM not delivered: " + std::generic_category().message(errno) + "; SIGKILL follows after the grace";
-        return RV_ERR_IO;
-    }
-    return RV_OK;
+    return job_.cancel(error);
 }
 
 int rv_editor_build::update(rv_editor_log &log, std::string &error)
@@ -235,47 +224,13 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
     if (!busy()) {
         return RV_OK;
     }
-    std::string out;
-    std::string err;
-    const rv_editor_log_source source = image_.empty() ? rv_editor_log_source::build : rv_editor_log_source::candidate;
-    const int64_t pid = proc_.pid();
     const uint32_t run = image_.empty() ? number_ : rv_editor_image_number(image_);
-    // The first failure is the one reported: a later one must not hide why the first happened.
-    int result = RV_OK;
-    const auto note = [&result, &error](int rc, const std::string &why) {
-        if (result == RV_OK && rc != RV_OK) {
-            result = rc;
-            error = why;
-        }
-    };
-    std::string read_error;
-    const int read_result = proc_.read(out, err, read_chunk_bytes, read_error);
-    note(read_result, read_error);
-    log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
-    log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
-
-    if (state_ == rv_editor_build_state::cancelling && std::chrono::steady_clock::now() - cancel_at_ > rv_editor_cancel_grace) {
-        const int stop_result = proc_.stop(true);
-        // RV_ERR_ALREADY: the burner has already ended, nothing to kill.
-        if (stop_result != RV_OK && stop_result != RV_ERR_ALREADY && !kill_failure_reported_) {
-            kill_failure_reported_ = true;
-            note(stop_result, "burner not killed after cancel");
-        }
-    }
-    if (!proc_.poll() || !proc_.output_done()) {
+    const int result = job_.pump(log, error);
+    if (!job_.ended()) {
         return result;
     }
-    // Whatever the pipes still held when output completed.
-    out.clear();
-    err.clear();
-    std::string tail_error;
-    const int tail_result = proc_.read(out, err, read_chunk_bytes, tail_error);
-    note(tail_result, tail_error);
-    log.add_stream(source, out_partial_, out, rv_editor_log_channel::out, pid, run);
-    log.add_stream(source, err_partial_, err, rv_editor_log_channel::err, pid, run);
-    log.flush_stream(source, out_partial_, rv_editor_log_channel::out, pid, run);
-    log.flush_stream(source, err_partial_, rv_editor_log_channel::err, pid, run);
-    if (proc_.output_cut()) {
+    const int64_t pid = job_.pid();
+    if (job_.output_cut()) {
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::warning,
             "burner output after exit was not fully read: a process it started kept a pipe open past the grace",
@@ -284,13 +239,12 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
             run);
     }
 
-    const rv_editor_process::rv_editor_exit &exit = proc_.exit_status();
-    // The build succeeded: it was not cancelled, and the process exited with code 0, not by a signal.
-    const bool ok = state_ == rv_editor_build_state::building && exit.signal == 0 && exit.code == 0;
+    const rv_editor_process::rv_editor_exit &exit = job_.exit_status();
+    const bool ok = job_.succeeded();
     if (!image_.empty()) {
-        state_ = ok                                     ? rv_editor_build_state::succeeded :
-            state_ == rv_editor_build_state::cancelling ? rv_editor_build_state::cancelled :
-                                                          rv_editor_build_state::failed;
+        state_ = ok          ? rv_editor_build_state::succeeded :
+            job_.cancelled() ? rv_editor_build_state::cancelled :
+                               rv_editor_build_state::failed;
         if (!ok) {
             // A partial image is never a candidate.
             std::error_code ec;
@@ -321,7 +275,7 @@ int rv_editor_build::update(rv_editor_log &log, std::string &error)
     // A partial output is never a disc: it goes.
     std::error_code ec;
     std::filesystem::remove_all(dir_, ec);
-    if (state_ == rv_editor_build_state::cancelling) {
+    if (job_.cancelled()) {
         state_ = rv_editor_build_state::cancelled;
         dev_state_ = state_;
         log.add(rv_editor_log_source::editor,

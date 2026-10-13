@@ -1,11 +1,11 @@
 #pragma once
 
-#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
 
+#include "build/rv_editor_job.hpp"
 #include "log/rv_editor_log.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_project.hpp"
@@ -86,17 +86,17 @@ public:
     // The burner's pid while a build runs; stale once it has ended.
     pid_t pid() const
     {
-        return proc_.pid();
+        return job_.pid();
     }
     // How the burner ended; only meaningful once the job is no longer building.
     const rv_editor_process::rv_editor_exit &exit_status() const
     {
-        return proc_.exit_status();
+        return job_.exit_status();
     }
     // True once the burner's output was cut short of end of file.
     bool output_cut() const
     {
-        return proc_.output_cut();
+        return job_.output_cut();
     }
 
     // Deletes published builds except the newest few and `in_use`. Only numbered
@@ -104,7 +104,7 @@ public:
     void prune(const std::filesystem::path &in_use);
 
 private:
-    rv_editor_process proc_;
+    rv_editor_job job_;
     rv_editor_build_state state_ = rv_editor_build_state::idle;
     rv_editor_build_state dev_state_ = rv_editor_build_state::idle;
     std::filesystem::path image_;
@@ -112,11 +112,6 @@ private:
     std::filesystem::path dir_;
     uint32_t number_ = 0;
     std::optional<rv_editor_artifact> last_success_;
-    std::string out_partial_;
-    std::string err_partial_;
-    std::chrono::steady_clock::time_point cancel_at_{};
-    // The SIGKILL failure of this cancel is reported once, not every frame.
-    bool kill_failure_reported_ = false;
 };
 
 } // namespace rv_editor
