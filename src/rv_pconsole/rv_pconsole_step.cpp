@@ -44,6 +44,8 @@ rv_pconsole::step_result rv_pconsole::frame_step(rv_de *disc, run_state &run)
 
     // Only a pass that runs a frame pulls sound: a stopped machine must not advance pcca through the device.
     platform_.audio().service();
+    // After the pump: a healthy device has refilled and stamped its pull; a hung one has not.
+    run_audio_stall(run);
 
     run_frame(disc, run);
     cmd_after_frame();

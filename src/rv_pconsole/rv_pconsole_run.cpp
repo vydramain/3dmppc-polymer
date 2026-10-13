@@ -42,6 +42,11 @@ using rv_pcclock = std::chrono::steady_clock;
 // wakeups per second while a frame waits; a shorter slice refills sooner and costs more CPU.
 constexpr auto RV_PCONSOLE_PACE_SLICE = std::chrono::milliseconds(1);
 
+// A device that has taken nothing for this long has stopped draining (web before the
+// click, or a hung native device). Why 250 ms: the native queue holds 1470 frames, about
+// 33 ms at 44100 Hz, so 250 ms is about 7.5 times that; silence that long is not a normal gap between pulls.
+constexpr auto RV_PCONSOLE_AUDIO_STALL = std::chrono::milliseconds(250);
+
 // Belt and braces: a player build never declares the --dev field that could
 // set this true (rv_pboot_args.hpp), so the null factory is unreachable from
 // here in practice - but an unchecked null would be a crash, not a refusal.
@@ -90,6 +95,7 @@ void rv_pconsole::audio_fill(void *context, int16_t *interleaved, int64_t frames
     console->ca_->advance(interleaved, frames);
     console->audio_dump_write(interleaved, frames);
     console->audio_device_frames_ += frames;
+    console->audio_pull_ = rv_pcclock::now();
 }
 
 // The dump is raw S16LE, written by copying memory: that is the file format only on a little-endian host.
@@ -205,6 +211,8 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     audio_device_frames_ = 0;
     run.deadline = rv_pcclock::now() + std::chrono::duration_cast<rv_pcclock::duration>(run.frame_budget);
     if (run.sound == sound_out::device) {
+        // The stall clock starts with the device, so a device that is not yet running is not stalled before it begins.
+        audio_pull_ = rv_pcclock::now();
         platform_.audio().attach_source(&rv_pconsole::audio_fill, this);
     }
 
@@ -326,12 +334,34 @@ bool rv_pconsole::run_hold_paused(run_state &run)
         // A step lifts the device for this frame's window, on the clock. The sound of a
         // step is what the device played and pulled in that window, not "this frame's"
         // sound; with -F (sound_out::frames) the sound goes frame by frame.
+        // The pause is not a stall: the device's silence clock restarts with its resume.
+        audio_pull_ = rv_pcclock::now();
         if (run.sound == sound_out::device && platform_.audio().resume() != RV_OK) {
             RV_LOG_WARN("pconsole", "audio device refused to resume, the run goes on but its sound may stay paused");
         }
         run.left_pause = false;
     }
     return false;
+}
+
+void rv_pconsole::run_audio_stall(run_state &run)
+{
+    // Only a device that owns the sound can stall; frame steps wait on nothing.
+    if (run.sound != sound_out::device) {
+        return;
+    }
+    const auto silent = rv_pcclock::now() - audio_pull_;
+    if (silent < RV_PCONSOLE_AUDIO_STALL) {
+        return;
+    }
+    // One source at a time: detached, the device pulls nothing, and the sound never goes back to it in this run.
+    platform_.audio().attach_source(nullptr, nullptr);
+    run.sound = sound_out::frames;
+    run.device_stalled = true;
+    RV_LOG_WARN("pconsole",
+        "audio device pulled nothing for {} ms: the sound goes on by frame steps from frame {}, the device stays silent",
+        std::chrono::duration_cast<std::chrono::milliseconds>(silent).count(),
+        frames_);
 }
 
 void rv_pconsole::run_frame(rv_de *disc, run_state &run)
@@ -387,7 +417,7 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
 {
     // Before the last hook: no device pull may reach a disc that is already shut down.
     platform_.audio().attach_source(nullptr, nullptr);
-    if (run.sound == sound_out::device) {
+    if (run.sound == sound_out::device || run.device_stalled) {
         RV_LOG_INFO("pconsole", "audio output: {} frame(s) handed to the device", audio_device_frames_);
     }
     if (!params_.dump_audio_path.empty()) {

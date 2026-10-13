@@ -91,6 +91,10 @@ private:
     // Stereo frames the device has pulled from audio_fill this run; logged at the end.
     int64_t audio_device_frames_ = 0;
 
+    // Time of the device's last pull, or of the run's start, or of its last resume from pause.
+    // The console is single-threaded, so the device's pulls reach it on this thread only.
+    std::chrono::steady_clock::time_point audio_pull_{};
+
     // --dump-audio: raw S16LE stereo of every block the sound module produced, device or frames.
     // Open only during a run that asked for it; a write error closes it and ends the dump.
     std::FILE *audio_dump_ = nullptr;
@@ -175,6 +179,9 @@ private:
 
         // Bresenham remainder for sound_out::frames: keeps the sample count exact.
         int64_t audio_phase = 0;
+
+        // The device went silent and the frame loop took the sound; run_finish still reports the device.
+        bool device_stalled = false;
     };
 
     static const char *pacing_name(pacing mode);
@@ -208,6 +215,10 @@ private:
     // True when this iteration creates NO frame. Also owns what a pause does
     // to the clock, because the two are the same fact seen twice.
     bool run_hold_paused(run_state &run);
+
+    // A device that pulled nothing for RV_PCONSOLE_AUDIO_STALL hands the sound to the
+    // frame loop for the rest of the run. Logs the switch; a device never gets it back.
+    void run_audio_stall(run_state &run);
 
     // Show the pause overlay (build once, present every slice).
     void run_show_pause();
