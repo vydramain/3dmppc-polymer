@@ -357,7 +357,13 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return burn_err;
     }
     if (nullptr != target->finish) {
-        const int finish_err = target->finish(destination, error);
+        const rv_burner_finish_input finish_input{ options,
+            manifest,
+            destination,
+            project_dir,
+            absolute_includes,
+            absolute_sources };
+        const int finish_err = target->finish(finish_input, error);
         if (finish_err != RV_OK) {
             rv_burner_print_error(error);
             return finish_err;

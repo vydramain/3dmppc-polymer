@@ -102,14 +102,14 @@ static int resolve_player(const rv_burner_options &options,
 }
 
 // Copies the player console beside the image, executable, and says what landed in the directory.
-static int finish_player(const rv_burner_destination &destination, std::string &error)
+static int finish_player(const rv_burner_finish_input &input, std::string &error)
 {
     fs::path firmware;
     const int firmware_err = locate_firmware(firmware, error);
     if (RV_OK != firmware_err) {
         return firmware_err;
     }
-    const fs::path dir = destination.path.parent_path();
+    const fs::path dir = input.destination.path.parent_path();
     const fs::path dest = dir / k_firmware_name;
     std::error_code ec;
     fs::copy_file(firmware, dest, fs::copy_options::overwrite_existing, ec);
@@ -121,7 +121,7 @@ static int finish_player(const rv_burner_destination &destination, std::string &
         return RV_ERR_IO;
     }
     const std::string dir_name = dir.string();
-    const std::string file_name = destination.path.filename().string();
+    const std::string file_name = input.destination.path.filename().string();
     rv_pdklib::rv_fprintf(stderr, "player: %s (%s, %s)\n", dir_name.c_str(), k_firmware_name, file_name.c_str());
     return RV_OK;
 }
