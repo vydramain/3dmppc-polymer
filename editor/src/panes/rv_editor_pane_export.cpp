@@ -98,6 +98,15 @@ std::string rv_editor_export_state_line(const rv_editor_export &exporter, rv_edi
     }
 }
 
+// The failure reason under a failed state line: the burner's last stderr line, or the exit text when it printed none.
+void rv_editor_export_reason(const std::string &reason, const rv_editor_theme &theme)
+{
+    const std::string text = rv_editor_text_format("pane_export.state_failed_reason", std::make_format_args(reason));
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
+    ImGui::TextWrapped("%s", text.c_str());
+    ImGui::PopStyleColor();
+}
+
 void rv_editor_export_kinds(rv_editor_export_form &form, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
@@ -268,6 +277,10 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const std::string line = rv_editor_export_state_line(exporter, form.op);
     rv_editor_status(line.c_str(), rv_editor_export_lamp(exporter.state()), theme);
+    const std::string &reason = exporter.failure_reason();
+    if (!reason.empty()) {
+        rv_editor_export_reason(reason, theme);
+    }
 }
 
 } // namespace rv_editor
