@@ -58,6 +58,9 @@ int64_t rv_pconsole::disc_run(rv_de *disc)
     if (dumped != RV_OK) {
         return dumped;
     }
+    if (audio_dump_failed_) {
+        return RV_ERR_IO;
+    }
     return RV_OK;
 }
 

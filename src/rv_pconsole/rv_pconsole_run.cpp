@@ -18,7 +18,11 @@
 #include "rv_pconsole/rv_pconsole.hpp"
 
 #include <algorithm>
+#include <bit>
+#include <cerrno>
 #include <chrono>
+#include <cstdio>
+#include <cstring>
 #include <format>
 #include <thread>
 
@@ -84,11 +88,72 @@ void rv_pconsole::audio_fill(void *context, int16_t *interleaved, int64_t frames
     // device asks for, so its sound stays in step with what the device plays.
     auto *console = static_cast<rv_pconsole *>(context);
     console->ca_->advance(interleaved, frames);
+    console->audio_dump_write(interleaved, frames);
     console->audio_device_frames_ += frames;
+}
+
+// The dump is raw S16LE, written by copying memory: that is the file format only on a little-endian host.
+static_assert(std::endian::native == std::endian::little, "--dump-audio writes S16LE by copying memory");
+
+int rv_pconsole::audio_dump_open()
+{
+    audio_dump_frames_ = 0;
+    audio_dump_failed_ = false;
+    if (params_.dump_audio_path.empty()) {
+        return RV_OK;
+    }
+    audio_dump_ = std::fopen(params_.dump_audio_path.c_str(), "wb");
+    if (audio_dump_ == nullptr) {
+        const int err = errno;
+        RV_LOG_ERR("pconsole",
+            "audio dump not written: cannot open '{}': {}",
+            rv_pdklib::rv_log_escape(params_.dump_audio_path.c_str()),
+            std::strerror(err));
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+void rv_pconsole::audio_dump_write(const int16_t *interleaved, int64_t frames)
+{
+    if (audio_dump_ == nullptr) {
+        return;
+    }
+    const size_t count = static_cast<size_t>(frames * RV_PCCA_PCM_CHANNELS);
+    if (std::fwrite(interleaved, sizeof(int16_t), count, audio_dump_) != count) {
+        const int err = errno;
+        RV_LOG_ERR("pconsole", "audio dump stopped after {} stereo frame(s): {}", audio_dump_frames_, std::strerror(err));
+        // The cause is logged already; the close adds nothing to report.
+        std::fclose(audio_dump_);
+        audio_dump_ = nullptr;
+        audio_dump_failed_ = true;
+        return;
+    }
+    audio_dump_frames_ += frames;
+}
+
+void rv_pconsole::audio_dump_close()
+{
+    if (audio_dump_ == nullptr) {
+        return;
+    }
+    // fclose is where buffered bytes reach the disk, so its failure may be a lost tail.
+    if (std::fclose(audio_dump_) != 0) {
+        const int err = errno;
+        RV_LOG_ERR("pconsole", "audio dump not completed, the end may be lost: {}", std::strerror(err));
+        audio_dump_failed_ = true;
+    }
+    audio_dump_ = nullptr;
 }
 
 int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
 {
+    // The dump file opens before anything starts, so a refused path leaves nothing to undo.
+    const int dump_opened = audio_dump_open();
+    if (dump_opened != RV_OK) {
+        return dump_opened;
+    }
+
     // Everything a disc needs must be ready before its code runs, so the
     // window is opened HERE, before disc_initialize() below - never after.
     // disc_title() is a plain accessor (pdk/de/rv_de.h) with no dependency
@@ -109,6 +174,7 @@ int64_t rv_pconsole::run_start(rv_de *disc, run_state &run)
     const int64_t dir = disc->disc_initialize(disc->self, reinterpret_cast<rv_pdko *>(this));
     if (0 > dir) {
         RV_LOG_ERR("pconsole", "Can't initialize mppcdisc in console. Please check mppcdisc consistency: {}", dir);
+        audio_dump_close();
         return RV_ERR_INVAL;
     }
 
@@ -294,6 +360,7 @@ void rv_pconsole::run_frame(rv_de *disc, run_state &run)
     const int64_t samples = run.audio_phase / static_cast<int64_t>(run.target_fps);
     run.audio_phase %= static_cast<int64_t>(run.target_fps);
     ca_->advance(pcm_.data(), samples);
+    audio_dump_write(pcm_.data(), samples);
 }
 
 void rv_pconsole::run_pace(run_state &run)
@@ -322,6 +389,16 @@ void rv_pconsole::run_finish(rv_de *disc, const run_state &run)
     platform_.audio().attach_source(nullptr, nullptr);
     if (run.sound == sound_out::device) {
         RV_LOG_INFO("pconsole", "audio output: {} frame(s) handed to the device", audio_device_frames_);
+    }
+    if (!params_.dump_audio_path.empty()) {
+        audio_dump_close();
+        // A failed dump has already logged its cause and the frames it kept; "written" would read as success.
+        if (!audio_dump_failed_) {
+            RV_LOG_INFO("pconsole",
+                "audio dump: {} stereo frame(s) written to '{}'",
+                audio_dump_frames_,
+                rv_pdklib::rv_log_escape(params_.dump_audio_path.c_str()));
+        }
     }
 
     // The last hook, after the last frame. For a LOADED disc it is deliberately

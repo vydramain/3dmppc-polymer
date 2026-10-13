@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
@@ -90,6 +91,12 @@ private:
     // Stereo frames the device has pulled from audio_fill this run; logged at the end.
     int64_t audio_device_frames_ = 0;
 
+    // --dump-audio: raw S16LE stereo of every block the sound module produced, device or frames.
+    // Open only during a run that asked for it; a write error closes it and ends the dump.
+    std::FILE *audio_dump_ = nullptr;
+    int64_t audio_dump_frames_ = 0;
+    bool audio_dump_failed_ = false;
+
     // --- the development runtime ------------------------------------------
     //
     // Constructed only when the run asked for it. Everything below is inert
@@ -175,6 +182,13 @@ private:
 
     // The device asks for the sound it is owed: fills exactly `frames` stereo frames.
     static void audio_fill(void *context, int16_t *interleaved, int64_t frames);
+
+    // Open the --dump-audio file if one was asked for. A refusal names the path and the cause.
+    int audio_dump_open();
+    // Append one block of stereo frames; a write error logs its cause and ends the dump.
+    void audio_dump_write(const int16_t *interleaved, int64_t frames);
+    // Close the dump file; a failed close ends the dump with a logged cause.
+    void audio_dump_close();
 
     // Open the window, start the disc, settle the timeline and arm the
     // development runtime. A negative return means the disc refused to start
@@ -280,7 +294,7 @@ public:
     // frame budget ran out, or the user powered the machine off), a negative
     // rv_err if the disc refused to initialize, RV_ERR_IO if a refused reload left
     // the script state unrestored, or the rv_err of a requested frame dump that
-    // failed. A display that would not come up is a warning, not a stop.
+    // failed, or RV_ERR_IO if a requested audio dump failed. A display that would not come up is a warning, not a stop.
     int64_t disc_run(rv_de *disc);
 
     // Did every resource this console was built from actually come into
