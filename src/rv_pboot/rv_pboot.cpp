@@ -39,6 +39,12 @@ namespace rv_3dmppc
 namespace
 {
 
+#if defined(__EMSCRIPTEN__)
+inline constexpr bool web_build = true;
+#else
+inline constexpr bool web_build = false;
+#endif
+
 // Parses the command line, resolves the mode/slots and the pause/dump
 // combination, and learns the machine - all of it before any disc code, any
 // archive and any allocation. Returns RV_OK to continue booting; on error,
@@ -75,6 +81,13 @@ int rv_pboot_preflight(int argc,
     // --mode_cv.
     if (slots.cv == rv_pccv_impl::null && !args.dump_frame_path.empty()) {
         rv_console_print_error("cv is null, nothing to dump");
+        exit_code = EXIT_CODE_INVALID_ARGS;
+        return RV_ERR_INVAL;
+    }
+
+    // The browser has no file on disk to write the sound dump to.
+    if (web_build && !args.dump_audio_path.empty()) {
+        rv_console_print_error("--dump-audio is not supported in the browser: there is no file on disk");
         exit_code = EXIT_CODE_INVALID_ARGS;
         return RV_ERR_INVAL;
     }

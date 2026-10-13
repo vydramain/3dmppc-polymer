@@ -31,6 +31,7 @@ void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget,
     conf.params.scale = args.scale;
     conf.params.max_frames = args.max_frames;
     conf.params.dump_frame_path = args.dump_frame_path;
+    conf.params.dump_audio_path = args.dump_audio_path;
     conf.params.dev = args.dev;
     conf.params.loop_paused = args.loop_paused;
     conf.ca.mute = args.mute;
