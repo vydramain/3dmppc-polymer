@@ -45,6 +45,9 @@ enum class rv_pcvoice_phase {
     release,
 };
 
+// Repeat lets the read head jump from one sound-RAM region into another at its end,
+// so a song can run across two regions with no gap. The mark is a flag raised when
+// the read head reads one chosen frame, for the sequencer to poll.
 class rv_pcvoice
 {
 public:
@@ -68,6 +71,33 @@ public:
     // the region a voice was armed with is released back to the pool.
     void disarm();
 
+    // Set the repeat: at the end of the current region under RV_LOOP_FOREVER the read
+    // head jumps to `offset` frames into this region. Called after play(), which
+    // resets the repeat to the start region. A negative offset counts as 0.
+    void set_repeat(int64_t addr, const uint8_t *data, int64_t frames, int64_t offset);
+
+    // Raise marked() when the read head reads frame `offset` of the region at `addr`,
+    // including a frame reached by a repeat jump. Setting or clearing resets marked().
+    void set_mark(int64_t addr, int64_t offset);
+    void clear_mark();
+
+    // Did the read head pass the end of its current region since the last play()?
+    bool ended() const
+    {
+        return ended_;
+    }
+
+    // Has the mark frame been read since it was set?
+    bool marked() const
+    {
+        return marked_;
+    }
+
+    // Set the frame length of every region of this voice that starts at `addr`. The
+    // caller guarantees `frames` does not exceed the region's allocated size; the
+    // voice does not check it. Length 0 retires a voice that is reading that region.
+    void resize_region(int64_t addr, int64_t frames);
+
     // Has a config ever been loaded? rv_ca::voice_play must refuse a voice that
     // was never set up, and this is the question it asks.
     bool armed() const
@@ -81,10 +111,28 @@ public:
         return phase_ != rv_pcvoice_phase::idle;
     }
 
-    // The sound-RAM address this voice was armed with, or 0 when never armed.
+    // The sound-RAM address this voice was armed with (the start region), or 0 when
+    // not configured (never armed, or after disarm).
     int64_t region() const
     {
-        return region_;
+        return start_.addr;
+    }
+
+    // The region being read now, and the repeat region. Only meaningful while busy().
+    int64_t current_region() const
+    {
+        return cur_.addr;
+    }
+
+    int64_t repeat_region() const
+    {
+        return repeat_.addr;
+    }
+
+    // The marked region's address, or 0 when no mark is set.
+    int64_t mark_region() const
+    {
+        return mark_on_ ? mark_region_ : 0;
     }
 
     // Accumulate `frames` stereo frames into `out` (interleaved L, R), advancing
@@ -113,17 +161,35 @@ private:
     // correct on a big-endian host and legal under the aliasing rules.
     int32_t frame_at(int64_t index) const;
 
+    // Jump to the repeat region at its repeat offset. False when there is nothing to
+    // jump to, and the caller retires the voice.
+    bool wrap_to_repeat();
+
+    // A region as the voice sees it: its address, its first byte, and its length in frames.
+    struct sram_region {
+        int64_t addr = 0;
+        const uint8_t *data = nullptr;
+        int64_t frames = 0;
+    };
+
     bool armed_ = false;
-    int64_t region_ = 0;
 
     // Borrowed, NOT owned: the bytes live in the rv_pcpool inside rv_pcca. The
     // pool's storage is allocated once in its constructor and never resized, so
-    // this pointer stays valid for as long as the region is not freed - and a
+    // these pointers stay valid for as long as the region is not freed - and a
     // region a voice is reading from cannot be freed (rv_ca RV_ERR_BUSY).
-    const uint8_t *data_ = nullptr;
-    int64_t frames_ = 0;
+    sram_region start_;  // what setup() named; play() rewinds to it
+    sram_region cur_;    // the region being read now
+    sram_region repeat_; // where the read head jumps at the end of cur_ under RV_LOOP_FOREVER
+    int64_t repeat_offset_ = 0;
     int64_t position_ = 0;
     rv_loop loop_ = RV_LOOP_NONE;
+
+    bool ended_ = false;
+    bool mark_on_ = false;
+    int64_t mark_region_ = 0;
+    int64_t mark_offset_ = 0;
+    bool marked_ = false;
 
     rv_pcvoice_phase phase_ = rv_pcvoice_phase::idle;
     float envelope_ = 0.0f; // 0 .. 1, the current gain of the envelope
