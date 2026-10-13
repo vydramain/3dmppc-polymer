@@ -30,6 +30,10 @@ struct rv_burner_kit {
     std::vector<std::string> link_flags;
     /// The --pre-js file.
     std::filesystem::path pre_js;
+    /// The HTML page shell of the disc's index.html.
+    std::filesystem::path shell;
+    /// License files of the third-party parts the kit ships.
+    std::vector<std::filesystem::path> licenses;
 };
 
 /// Find the kit: firmware/web beside the running burner, as the build installs it.

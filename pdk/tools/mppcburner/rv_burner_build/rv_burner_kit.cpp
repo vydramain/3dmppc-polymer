@@ -32,6 +32,8 @@ constexpr std::string_view kKeyLibs = "libs";
 constexpr std::string_view kKeyLinkGroup = "link_group";
 constexpr std::string_view kKeyLinkFlags = "link_flags";
 constexpr std::string_view kKeyPreJs = "pre_js";
+constexpr std::string_view kKeyShell = "shell";
+constexpr std::string_view kKeyLicenses = "licenses";
 
 constexpr std::string_view kLinkGroupYes = "yes";
 constexpr std::string_view kLinkGroupNo = "no";
@@ -121,24 +123,46 @@ int check_kit_relative(const std::string &word, std::string_view key, std::strin
     return RV_OK;
 }
 
-int apply_libs(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+// Resolves the kit file @p word names to @p out, with the same checks for every key.
+int resolve_kit_file(const fs::path &dir, const std::string &word, std::string_view key, fs::path &out, std::string &error)
+{
+    if (const int rv = check_kit_relative(word, key, error); rv != RV_OK) {
+        return rv;
+    }
+    out = dir / word;
+    return require_kit_file(out, key, error);
+}
+
+// A non-empty list of kit files, appended to @p out in order.
+int apply_kit_file_list(const fs::path &dir,
+    const std::string &value,
+    std::string_view key,
+    std::vector<fs::path> &out,
+    std::string &error)
 {
     const std::vector<std::string> words = split_words(value);
     if (words.empty()) {
-        error = "kit.txt: 'libs' is empty";
+        error = "kit.txt: '" + std::string(key) + "' is empty";
         return RV_ERR_INVAL;
     }
     for (const std::string &word : words) {
-        if (const int rv = check_kit_relative(word, kKeyLibs, error); rv != RV_OK) {
+        fs::path file;
+        if (const int rv = resolve_kit_file(dir, word, key, file, error); rv != RV_OK) {
             return rv;
         }
-        const fs::path lib = kit.dir / word;
-        if (const int rv = require_kit_file(lib, kKeyLibs, error); rv != RV_OK) {
-            return rv;
-        }
-        kit.libs.push_back(lib);
+        out.push_back(file);
     }
     return RV_OK;
+}
+
+int apply_libs(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return apply_kit_file_list(kit.dir, value, kKeyLibs, kit.libs, error);
+}
+
+int apply_licenses(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return apply_kit_file_list(kit.dir, value, kKeyLicenses, kit.licenses, error);
 }
 
 int apply_link_group(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
@@ -159,11 +183,12 @@ int apply_link_flags(rv_pdktools::rv_burner_kit &kit, const std::string &value, 
 
 int apply_pre_js(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
 {
-    if (const int rv = check_kit_relative(value, kKeyPreJs, error); rv != RV_OK) {
-        return rv;
-    }
-    kit.pre_js = kit.dir / value;
-    return require_kit_file(kit.pre_js, kKeyPreJs, error);
+    return resolve_kit_file(kit.dir, value, kKeyPreJs, kit.pre_js, error);
+}
+
+int apply_shell(rv_pdktools::rv_burner_kit &kit, const std::string &value, std::string &error)
+{
+    return resolve_kit_file(kit.dir, value, kKeyShell, kit.shell, error);
 }
 
 // Key -> field table. Adding a key is one row here and one field in the struct.
@@ -179,6 +204,8 @@ constexpr std::array kKitFields{
     kit_field{ kKeyLinkGroup, apply_link_group },
     kit_field{ kKeyLinkFlags, apply_link_flags },
     kit_field{ kKeyPreJs, apply_pre_js },
+    kit_field{ kKeyShell, apply_shell },
+    kit_field{ kKeyLicenses, apply_licenses },
 };
 
 const kit_field *find_field(std::string_view key)
