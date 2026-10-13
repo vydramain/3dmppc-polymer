@@ -61,11 +61,11 @@ public:
     // RV_ERR_INVAL for a bad mask or an unset voice.
     virtual int64_t voice_marked(int64_t voice_mask) = 0;
 
-    // Console-side: advance the SPU by `frames` output frames of the console
-    // timeline and write the stereo PCM they produced into `out` (2 * frames
-    // interleaved int16). The ONLY thing that moves voices: envelopes, read
-    // heads and voice_status() change here and nowhere else. Not reached
-    // through the extern "C" block.
+    // Console-side: advance the SPU by `frames` output frames - what the sound device
+    // asks for, or one console frame without a device - and write the stereo PCM into
+    // `out` (2 * frames interleaved int16). The ONLY thing that moves voices: envelopes,
+    // read heads and voice_status() change here and nowhere else. Not reached through
+    // the extern "C" block.
     virtual void advance(int16_t *out, int64_t frames) = 0;
 
     // Does the memory this controller owns actually exist? Console-side only -

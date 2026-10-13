@@ -1,9 +1,9 @@
 // The console's mixing stage: it owns the voices and turns them into the stereo
-// stream the console timeline asks for.
+// stream advance() produces for the sound device or, without one, the frame loop.
 //
-// render() is called on the console thread by rv_pcca::advance() once per
-// frame; nothing reaches the mixer from a second thread any more - the
-// platform only plays PCM this already produced, queued.
+// render() is called on the console thread by rv_pcca::advance(), for the number
+// of frames the sound device asks for or, without a device, one console frame at
+// a time. There is no second thread: the platform never reaches the mixer.
 //
 // DECISION (do not re-litigate): every call that touches voice state, and render(),
 // go through ONE MUTEX, not a lock-free command queue. The critical section is a
@@ -87,7 +87,7 @@ public:
     int64_t ended(int64_t mask) const;
     int64_t marked(int64_t mask) const;
 
-    // --- the console timeline's side ---
+    // --- the advance() side ---
 
     // Sum every sounding voice into `out`, which holds `frames` INTERLEAVED
     // stereo frames (2 * frames int16 values). Overwrites; does not accumulate.
