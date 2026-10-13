@@ -54,11 +54,10 @@ read-only in the editor; a 1.0 disc refuses it at runtime
 (`rv_scene_parse`). Raise its `[scene]` `version` to "1.0" with the
 rebuild. `.mppccard` saves migrate automatically.
 
-At PDK 1.1 the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor `rv_pdko_cg()`)
-arrives, with its `[budget.pccg]` manifest section (`model_memory_size`,
-`triangle_capacity`), the drive's `RV_CD_RESOURCE_MODEL` kind and the scene queries
-`rv_cd_scene_object_count()` / `rv_cd_scene_object_read()`. This is a minor bump:
-a disc built for 1.0 runs unchanged.
+PDK 1.0 also brings the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor
+`rv_pdko_cg()`), with its `[budget.pccg]` manifest section (`model_memory_size`,
+`triangle_capacity`), the drive's `RV_CD_RESOURCE_MODEL` kind and the scene
+queries `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()`.
 
 ---
 
