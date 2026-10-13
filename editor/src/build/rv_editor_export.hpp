@@ -58,11 +58,17 @@ public:
     {
         return result_;
     }
+    // Why the last run failed: the burner's last stderr line, or the exit text when it printed none. Empty otherwise.
+    const std::string &failure_reason() const
+    {
+        return failure_reason_;
+    }
 
 private:
     rv_editor_job job_;
     rv_editor_build_state state_ = rv_editor_build_state::idle;
     std::filesystem::path result_;
+    std::string failure_reason_;
     // The started operation's name in the log: "export" or "web setup".
     std::string label_;
     uint32_t runs_ = 0;

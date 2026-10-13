@@ -182,6 +182,7 @@ int rv_editor_export::start(const rv_editor_project &project,
     }
     runs_ = run;
     result_ = result_path;
+    failure_reason_.clear();
     label_ = std::string(export_label);
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
@@ -216,6 +217,7 @@ int rv_editor_export::start_setup(const rv_editor_toolchain &tools, rv_editor_lo
     }
     runs_ = run;
     result_.clear();
+    failure_reason_.clear();
     label_ = std::string(web_setup_label);
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
@@ -284,9 +286,14 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
             run);
         return rc;
     }
+    // The burner's error is its last stderr line; a process that printed none has only its exit text.
+    const bool stderr_reason = !job_.last_stderr_line().empty();
+    const std::string exit_text = rv_editor_exit_text(job_.exit_status());
+    failure_reason_ = stderr_reason ? job_.last_stderr_line() : exit_text;
+    const std::string exit_detail = stderr_reason ? " (" + exit_text + ")" : std::string();
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::error,
-        label + " failed: " + rv_editor_exit_text(job_.exit_status()),
+        label + " failed: " + failure_reason_ + exit_detail,
         rv_editor_log_channel::none,
         pid,
         run);
