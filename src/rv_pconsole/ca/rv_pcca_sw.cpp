@@ -154,6 +154,28 @@ int64_t rv_pcca_sw::validate_mask(int64_t voice_mask) const
     return RV_OK;
 }
 
+int64_t rv_pcca_sw::locate(int64_t addr, rv_pcca_place &place) const
+{
+    const int64_t start = sram_.region_containing(addr);
+    if (start < 0) {
+        return RV_ERR_INVAL;
+    }
+
+    // A mid-frame address would make the read head start between two samples.
+    const int64_t byte_offset = addr - start;
+    if (byte_offset % RV_PCA_FRAME_BYTES != 0) {
+        return RV_ERR_INVAL;
+    }
+
+    // Same length rule as voice_setup: only written frames are readable.
+    const rv_pcca_meta *meta = sram_.region_meta(start);
+    place.start = start;
+    place.data = sram_.region_data(start);
+    place.frames = meta && meta->written ? meta->frames : 0;
+    place.offset = byte_offset / RV_PCA_FRAME_BYTES;
+    return RV_OK;
+}
+
 int64_t rv_pcca_sw::sound_asset_malloc(int64_t size)
 {
     return sram_.malloc(size);
@@ -191,6 +213,9 @@ int64_t rv_pcca_sw::sound_asset_write(int64_t addr, const rv_sample *sample)
     // half a frame and is dropped: the console plays whole frames only.
     meta->written = true;
     meta->frames = sample->size / RV_PCA_FRAME_BYTES;
+
+    // Voices already armed on this region read its new length without re-arming.
+    mixer_.resize_region_locked(addr, meta->frames);
 
     return RV_OK;
 }
@@ -280,6 +305,63 @@ int64_t rv_pcca_sw::voice_status(int64_t voice_mask)
     // Always >= 0: the mask only ever carries bits 0..62, so the contract's
     // "a valid mask is never negative" holds by construction.
     return mixer_.status(voice_mask);
+}
+
+int64_t rv_pcca_sw::voice_repeat(int64_t voice_mask, int64_t addr)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    rv_pcca_place place;
+    const int64_t place_rc = locate(addr, place);
+    if (place_rc < 0) {
+        return place_rc;
+    }
+
+    return mixer_.repeat(voice_mask, place.start, place.data, place.frames, place.offset);
+}
+
+int64_t rv_pcca_sw::voice_ended(int64_t voice_mask)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    return mixer_.ended(voice_mask);
+}
+
+int64_t rv_pcca_sw::voice_mark(int64_t voice_mask, int64_t addr)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    // Address 0 is the contract's "no mark": it clears rather than naming a region.
+    if (addr == 0) {
+        return mixer_.mark(voice_mask, 0, 0);
+    }
+
+    rv_pcca_place place;
+    const int64_t place_rc = locate(addr, place);
+    if (place_rc < 0) {
+        return place_rc;
+    }
+
+    return mixer_.mark(voice_mask, place.start, place.offset);
+}
+
+int64_t rv_pcca_sw::voice_marked(int64_t voice_mask)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    return mixer_.marked(voice_mask);
 }
 
 void rv_pcca_sw::advance(int16_t *out, int64_t frames)

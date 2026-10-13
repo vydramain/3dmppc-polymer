@@ -50,6 +50,19 @@ private:
     // RV_ERR_INVAL.
     int64_t validate_mask(int64_t voice_mask) const;
 
+    // A sound address resolved to the live region holding it. `start` is the
+    // identity voices remember; `offset` counts frames from that start.
+    struct rv_pcca_place {
+        int64_t start = 0;
+        const uint8_t *data = nullptr;
+        int64_t frames = 0;
+        int64_t offset = 0;
+    };
+
+    // RV_ERR_INVAL when `addr` is not inside a live region or is not on a frame
+    // boundary of it. Address 0 is never a region.
+    int64_t locate(int64_t addr, rv_pcca_place &place) const;
+
 public:
     explicit rv_pcca_sw(const rv_pcca_conf &conf);
 
@@ -80,6 +93,15 @@ public:
     int64_t voice_stop(int64_t voice_mask) override;
 
     int64_t voice_status(int64_t voice_mask) override;
+
+    // addr may point inside a region (see locate()). voice_mark(addr 0) clears the mark.
+    int64_t voice_repeat(int64_t voice_mask, int64_t addr);
+
+    int64_t voice_ended(int64_t voice_mask);
+
+    int64_t voice_mark(int64_t voice_mask, int64_t addr);
+
+    int64_t voice_marked(int64_t voice_mask);
 
     void advance(int16_t *out, int64_t frames) override;
 
