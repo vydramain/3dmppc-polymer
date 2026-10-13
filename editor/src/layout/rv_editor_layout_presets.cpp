@@ -117,11 +117,14 @@ void rv_editor_preset_debug(rv_editor_preset_builder &b)
 }
 
 // Burn (reference 0007): the release controls over the candidate beside its
-// playtest, the build's and the playtest's logs underneath (68/32, 35/65).
+// playtest, the build's and the playtest's logs underneath (68/32, 35/65),
+// and an Export tab beside the candidate.
 void rv_editor_preset_burn(rv_editor_preset_builder &b)
 {
     const rv_editor_pane_id controls = 0;
     const rv_editor_pane_id candidate = b.add(rv_editor_pane_kind::candidate, controls, rv_editor_tile_dock::bottom, 0.0f);
+    b.add(rv_editor_pane_kind::export_, candidate, rv_editor_tile_dock::tab, 0.0f);
+    (void)rv_editor_tile_activate(b.layout, candidate);
     const rv_editor_pane_id log = b.add(rv_editor_pane_kind::build_log, candidate, rv_editor_tile_dock::bottom, burn_log_ratio);
     b.add(rv_editor_pane_kind::game, candidate, rv_editor_tile_dock::right, burn_game_ratio);
     b.add(rv_editor_pane_kind::runtime_log, log, rv_editor_tile_dock::tab, 0.0f);
