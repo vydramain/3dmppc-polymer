@@ -142,7 +142,7 @@ function M.disc_initialize(o_)
     state.frame_count = 0
     state.logged_errors = {}
     -- The music's tables (example-lua-sound.lua): ready after its init, frame -1 before the first frame.
-    state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "", write_ahead_logged = false }
+    state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "" }
     local mathx = require("example-lua-math")
     local scene, reason = scene_read(pdk.cd(o_), mathx)
     state.meshes = scene.meshes

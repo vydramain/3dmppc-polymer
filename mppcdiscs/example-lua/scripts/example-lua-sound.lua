@@ -1,7 +1,7 @@
--- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in
--- play on voice 1 and 2 in turn, one bar per second, and a bar starts only where the bar or the
--- area changes. A board clack plays on voice 4 when the lit letters change in the workshop. Two
--- loops play on voices 8 and 16 while the camera is in the workshop. The footsteps are in example-lua-steps.lua.
+-- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in play on
+-- voice 1, one bar per second, two slots in turn; the voice's repeat and mark hand it on, and a new area restarts.
+-- A board clack plays on voice 4 when the lit letters change in the workshop. Two loops play on voices 8 and 16
+-- while the camera is in the workshop. The footsteps are in example-lua-steps.lua.
 -- The tables live in the entry's `state.sound`; the read buffer of write_slot is the one module local.
 local mathx = require("example-lua-math")
 local board = require("example-lua-board")
@@ -29,8 +29,9 @@ local BARS = {
 }
 local CLACK = "sfx_board_clack.pcm"
 
--- Music slot s is voice s; a bar goes to the slot of its index parity. The clack has its own voice.
+-- Two music slots: the music voice reads one while the other is filled with the next bar. The clack has its own voice.
 local SLOT_COUNT = 2
+local MUSIC_VOICE = 1 -- voice 1 is mask value 1 (bit 0): at_mark tests it as `marked % (2 * MUSIC_VOICE) >= MUSIC_VOICE`
 local CLACK_VOICE = 4
 
 -- rv_err.h codes the module returns itself.
@@ -154,29 +155,11 @@ local function voice_conf(voice, loop, addr, env)
     return conf
 end
 
--- True when the slot's voice is still playing at `frame`: a bar lasts one bar, the last frame included,
--- since the sample runs a little past 60 frames.
--- Only a playing voice can be stopped.
-local function sounding(slot, frame)
-    if not slot.armed then
-        return false
-    end
-    return (frame - slot.frame + mathx.PERIOD_FRAMES) % mathx.PERIOD_FRAMES <= BAR_FRAMES
-end
-
--- Makes slot `index` hold bar `name`. A voice still playing may read the slot, so it is stopped
--- before the slot is overwritten. The slot is unknown while the write runs, so a failed write is retried.
-local function write_slot(ca, cd, sound, index, frame, name)
+-- Makes slot `index` hold bar `name`; callers write only a slot the music voice is not reading. A failed write is retried.
+local function write_slot(ca, cd, sound, index, name)
     local slot = sound.slots[index]
     if slot.name == name then
         return 0
-    end
-    if sounding(slot, frame) then
-        local stop_code = tonumber(pdk.ca_voice_stop(ca, index))
-        if stop_code < 0 then
-            return fail(sound, name, stop_code)
-        end
-        slot.armed = false
     end
     slot.name = nil
     local handle = tonumber(pdk.cd_asset_open(cd, name))
@@ -211,35 +194,105 @@ local function write_slot(ca, cd, sound, index, frame, name)
     return 0
 end
 
--- Starts bar `bar` of the area's song when `play` is set, counted from the area span's first frame, and
--- fills the other slot with the next bar. The bar's own slot is filled first when it is not yet.
-local function play_bar(ca, cd, sound, area, bar, frame, play)
-    local song = BARS[area + 1]
-    local index = bar % SLOT_COUNT + 1
-    local next_index = index % SLOT_COUNT + 1
-    local now_name = song[bar % #song + 1]
-    local next_name = song[(bar + 1) % #song + 1]
+local function other_slot(index)
+    return index % SLOT_COUNT + 1
+end
 
-    local now_code = write_slot(ca, cd, sound, index, frame, now_name)
+local function bar_name(song, bar)
+    return song[bar % #song + 1]
+end
+
+-- Sets the voice to go on into slot `index` at its bar end and marks that slot's start; both are repeated on a retry.
+local function arm(ca, sound, index)
+    local slot = sound.slots[index]
+    local repeat_code = tonumber(pdk.ca_voice_repeat(ca, MUSIC_VOICE, slot.addr))
+    if repeat_code < 0 then
+        return fail(sound, slot.name, repeat_code)
+    end
+    local mark_code = tonumber(pdk.ca_voice_mark(ca, MUSIC_VOICE, slot.addr))
+    if mark_code < 0 then
+        return fail(sound, slot.name, mark_code)
+    end
+    return 0
+end
+
+-- Writes the queued bar into music_slot and arms its mark: the last step of a chain start. Retried until both succeed.
+local function arm_chain(ca, cd, sound)
+    local write_code = write_slot(ca, cd, sound, sound.music_slot, sound.music_name)
+    if write_code < 0 then
+        return write_code
+    end
+    local arm_code = arm(ca, sound, sound.music_slot)
+    if arm_code < 0 then
+        return arm_code
+    end
+    sound.music_armed = true
+    return 0
+end
+
+-- Reads whether the music voice has reached its mark: its bit of the marked mask. Returns the code and the flag.
+local function at_mark(ca, sound)
+    local marked = tonumber(pdk.ca_voice_marked(ca, MUSIC_VOICE))
+    if marked < 0 then
+        return fail(sound, "music mark", marked), false
+    end
+    return 0, marked % (2 * MUSIC_VOICE) >= MUSIC_VOICE
+end
+
+-- Starts bar `bar` of the area's song; without `play` it only fills the slots. A running chain restarts on the free slot.
+local function start_chain(ca, cd, sound, area, bar, play)
+    local song = BARS[area + 1]
+    local free = bar % SLOT_COUNT + 1
+    if sound.music_on then
+        local mark_code, reached = at_mark(ca, sound)
+        if mark_code < 0 then
+            return mark_code
+        end
+        if reached then
+            free = other_slot(sound.music_slot)
+        else
+            free = sound.music_slot
+        end
+    end
+    local next_slot = other_slot(free)
+    local now_code = write_slot(ca, cd, sound, free, bar_name(song, bar))
     if now_code < 0 then
         return now_code
     end
-    if play then
-        local slot = sound.slots[index]
-        local play_code = play_voice(ca, voice_conf(index, pdk.LOOP_NONE, slot.addr, MUSIC_ENVELOPE))
-        if play_code < 0 then
-            return fail(sound, now_name, play_code)
-        end
-        slot.armed = true
-        slot.frame = frame
+    if not play then
+        return write_slot(ca, cd, sound, next_slot, bar_name(song, bar + 1))
     end
-    -- Written ahead: a failure costs nothing now, since the slot is filled at the next bar start.
-    local next_code = write_slot(ca, cd, sound, next_index, frame, next_name)
-    if next_code < 0 and not sound.write_ahead_logged then
-        sound.write_ahead_logged = true
-        print(string.format("example-lua: %s not written ahead: rv_err %d, filled at the next bar start",
-            next_name, next_code))
+    local slot = sound.slots[free]
+    local play_code = play_voice(ca, voice_conf(MUSIC_VOICE, pdk.LOOP_FOREVER, slot.addr, MUSIC_ENVELOPE))
+    if play_code < 0 then
+        return fail(sound, slot.name, play_code)
     end
+    -- The voice reads `free` from here: a failed step is finished by arm_chain, a restart could write that slot.
+    sound.music_on = true
+    sound.music_area = area
+    sound.music_armed = false
+    sound.music_slot = next_slot
+    sound.music_bar = bar + 1
+    sound.music_name = bar_name(song, bar + 1)
+    return arm_chain(ca, cd, sound)
+end
+
+-- The voice reached its mark: the slot it left takes the bar after the queued one; the mark moves once armed.
+local function advance(ca, cd, sound, area)
+    local song = BARS[area + 1]
+    local free = other_slot(sound.music_slot)
+    local queued = sound.music_bar + 1
+    local write_code = write_slot(ca, cd, sound, free, bar_name(song, queued))
+    if write_code < 0 then
+        return write_code
+    end
+    local arm_code = arm(ca, sound, free)
+    if arm_code < 0 then
+        return arm_code
+    end
+    sound.music_slot = free
+    sound.music_bar = queued
+    sound.music_name = bar_name(song, queued)
     return 0
 end
 
@@ -342,7 +395,7 @@ function M.init(ca, cd, keys, state)
             free_slots(ca, sound, index - 1)
             return fail(sound, "music slot", addr)
         end
-        sound.slots[index] = { addr = addr, armed = false, frame = 0 }
+        sound.slots[index] = { addr = addr }
     end
 
     -- The frames where an area span starts, ascending. A span starts where its area differs from the
@@ -359,6 +412,8 @@ function M.init(ca, cd, keys, state)
         starts[1] = 0
     end
     sound.starts = starts
+    sound.music_on = false
+    sound.music_armed = false
     sound.loop_armed = {}
     for index = 1, #LOOPS do
         sound.loop_armed[index] = false
@@ -392,17 +447,28 @@ function M.update(ca, cd, keys, frame, board_present, state)
     -- Both are decided against the previous frame before sound takes this one.
     local first = sound.frame < 0
     local area_changed = first or area ~= sound.area
-    local bar_starts = area_changed or bar ~= sound.bar
-    -- A first frame mid-bar fills the slots and waits: the bar it is in is not played from its head.
-    local silent = first and span_offset % BAR_FRAMES ~= 0
+    -- A first frame mid-bar fills the slots and waits (a running chain restarts instead): the bar is not played from its head.
+    local silent = first and not sound.music_on and span_offset % BAR_FRAMES ~= 0
     local clack = board_present and not first and area == WORKSHOP and letters_changed(sound.frame, frame)
     -- Every new frame runs the loops. The clack runs only after the music step succeeded: otherwise the same clack would
     -- repeat every frame. The first failure is returned with its asset.
     local code = 0
     local asset = ""
     local music_code = 0
-    if bar_starts then
-        music_code = play_bar(ca, cd, sound, area, bar, frame, not silent)
+    if sound.music_on and not sound.music_armed then
+        -- A failed start is finished, not restarted; if the area changed since it started, it starts again.
+        music_code = arm_chain(ca, cd, sound)
+        if music_code == 0 and area ~= sound.music_area then
+            music_code = start_chain(ca, cd, sound, area, bar, true)
+        end
+    elseif area_changed or (not sound.music_on and bar ~= sound.bar) then
+        music_code = start_chain(ca, cd, sound, area, bar, not silent)
+    elseif sound.music_on then
+        local reached = false
+        music_code, reached = at_mark(ca, sound)
+        if music_code == 0 and reached then
+            music_code = advance(ca, cd, sound, area)
+        end
     end
     if music_code < 0 then
         code = music_code
