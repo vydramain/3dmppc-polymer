@@ -20,10 +20,13 @@ using rv_burner_target_resolve = int (*)(const rv_burner_options &options,
     std::string &error);
 using rv_burner_target_finish = int (*)(const rv_burner_destination &destination, std::string &error);
 
+// needs_native_code: the compile phase builds disc.so for this target. A target
+// that links the disc in elsewhere skips it, and its image carries no code entry.
 struct rv_burner_target_spec {
     const char *name;
     rv_burner_target_resolve resolve;
     rv_burner_target_finish finish;
+    bool needs_native_code;
 };
 
 /// The target a -t name selects. An empty name is the default, disc.

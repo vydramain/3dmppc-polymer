@@ -127,8 +127,8 @@ static int finish_player(const rv_burner_destination &destination, std::string &
 }
 
 constexpr rv_burner_target_spec TARGETS[] = {
-    { k_target_disc, resolve_disc, nullptr },
-    { k_target_player, resolve_player, finish_player },
+    { k_target_disc, resolve_disc, nullptr, true },
+    { k_target_player, resolve_player, finish_player, true },
 };
 
 const rv_burner_target_spec *find_target(std::string_view name)

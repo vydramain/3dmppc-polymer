@@ -259,6 +259,14 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         return resolve_err;
     }
 
+    // burn_directory writes disc.so beside the disc, so a target without native code has nothing to put there.
+    const bool no_native_directory = !target->needs_native_code && destination.kind == rv_burner_destination_kind::directory;
+    if (no_native_directory) {
+        rv_burner_print_error(
+            std::format("--target {} has no native code, so it cannot write a directory: give -o PATH", target->name));
+        return RV_ERR_INVAL;
+    }
+
     // --- the disc's own sources ---
     //
     // Expanded before anything is created, so a manifest that names no code is
@@ -311,24 +319,29 @@ int rv_pdktools::rv_burner_build_run(const rv_burner_options &options)
         }
     }
 
-    const int compile_err = rv_burner_build_compile(options,
-        manifest,
-        project_dir,
-        binary_dir,
-        absolute_includes,
-        absolute_sources,
-        sources.size(),
-        error);
-    if (compile_err != RV_OK) {
-        return compile_err;
+    if (target->needs_native_code) {
+        const int compile_err = rv_burner_build_compile(options,
+            manifest,
+            project_dir,
+            binary_dir,
+            absolute_includes,
+            absolute_sources,
+            sources.size(),
+            error);
+        if (compile_err != RV_OK) {
+            return compile_err;
+        }
+    } else {
+        rv_burner_print_step(k_step_compile, "compile", "skipped: this target has no native code");
     }
 
-    // Read now, while binary_dir still exists; written out only after cleanup.
+    // Read now, while binary_dir still exists; written out only after cleanup. No compile, no database.
     std::string compile_database;
-    const bool have_compile_database = rv_burner_read_compile_database(binary_dir, compile_database);
+    const bool have_compile_database =
+        target->needs_native_code && rv_burner_read_compile_database(binary_dir, compile_database);
 
-    // The phase above proved this file exists; the burn phase carries it.
-    const fs::path disc_module = binary_dir / k_disc_module_name;
+    // The phase above proved this file exists; the burn phase carries it. Empty when there is no compile.
+    const fs::path disc_module = target->needs_native_code ? binary_dir / k_disc_module_name : fs::path();
 
     archive_plan plan;
     const int assets_err = rv_burner_build_assets(options, manifest, asset_paths, destination, plan, error);
