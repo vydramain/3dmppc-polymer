@@ -21,6 +21,7 @@
 
 #include "pdk/cio/rv_imouse.h"
 #include "pdk/cio/rv_isource.h"
+#include "pdk/rv_err.h"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 
 namespace rv_3dmppc
@@ -144,12 +145,22 @@ protected:
 };
 
 // Where finished PCM goes. The sink plays what it is given at the device's
-// own rate and never produces or advances anything. Its only influence on the
-// machine is backpressure: the console does not produce the next frame while
+// own rate and never advances the machine. Its only influence on the machine
+// is backpressure: the console does not produce the next frame while
 // queued_frames() is above its target.
+//
+// Pull is the other seam: the device asks for audio on its own schedule. The
+// console attaches one fill function once and service() runs on every pass
+// of its loop. write() and queued_frames() remain until the console moves over.
 class rv_pcaudio_sink
 {
 public:
+    // Fills exactly `frames` stereo frames into `interleaved` (2 * frames int16
+    // values in the RV_PCPLATFORM_PCM_* format). On web it runs inside SDL's get
+    // callback under the stream lock: it must not call back into the sink
+    // (write, pause, resume, attach_source) or any SDL audio API.
+    using rv_pcaudio_fill_fn = void (*)(void *context, int16_t *interleaved, int64_t frames);
+
     virtual ~rv_pcaudio_sink() = default;
 
     rv_pcaudio_sink(const rv_pcaudio_sink &) = delete;
@@ -164,6 +175,30 @@ public:
     // Queue `frames` stereo frames (2 * frames int16 values in the
     // RV_PCPLATFORM_PCM_* format). Discarded when !available().
     virtual void write(const int16_t *interleaved, int64_t frames) = 0;
+
+    // Attach the source the device pulls from; called once by the console.
+    // nullptr detaches it. Without a device this stores nothing.
+    virtual void attach_source(rv_pcaudio_fill_fn, void *)
+    {
+    }
+
+    // Called on every pass of the console loop; native tops the device queue
+    // up from the attached source. Without a device this does nothing.
+    virtual void service()
+    {
+    }
+
+    // Hold the device; its queue is kept. RV_OK; RV_ERR_IO when the device refused.
+    virtual int pause()
+    {
+        return RV_OK;
+    }
+
+    // Undo pause(). RV_OK; RV_ERR_IO when the device refused.
+    virtual int resume()
+    {
+        return RV_OK;
+    }
 
 protected:
     rv_pcaudio_sink() = default;

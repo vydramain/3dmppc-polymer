@@ -1,9 +1,9 @@
-// The SDL3 audio sink. PUSH model: the platform never advances audio, it only
-// queues what the console already produced onto a device-bound stream. No
-// callback and no mixer pointer live here - that is the opposite direction
-// from the old design, which pulled from the mixer on the device's own
-// thread.
+// The SDL3 audio sink. Push: write() queues what the caller produced. Pull:
+// the attached source is asked for audio - native from service() on the
+// console's loop, web from SDL's get callback on the main thread.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
+
+#include <algorithm>
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
@@ -32,7 +32,8 @@ int rv_pcaudio_sdl3::open()
     spec.channels = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS);
     spec.freq = static_cast<int>(RV_PCPLATFORM_PCM_RATE);
 
-    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
+    const SDL_AudioStreamCallback get = RV_PCAUDIO_SDL3_CALLBACK_PULL ? &rv_pcaudio_sdl3::pull_callback : nullptr;
+    stream_ = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, get, this);
     if (!stream_) {
         RV_LOG_ERR("pcplatform", "SDL_OpenAudioDeviceStream failed: {}", SDL_GetError());
         return RV_ERR_IO;
@@ -45,7 +46,23 @@ int rv_pcaudio_sdl3::open()
         return RV_ERR_IO;
     }
 
-    RV_LOG_INFO("pcplatform", "audio out at {} Hz, {} ch", RV_PCPLATFORM_PCM_RATE, RV_PCPLATFORM_PCM_CHANNELS);
+    // The device block size is logged for latency estimates; not needed to play.
+    SDL_AudioSpec device_spec{};
+    int sample_frames = 0;
+    if (SDL_GetAudioDeviceFormat(SDL_GetAudioStreamDevice(stream_), &device_spec, &sample_frames)) {
+        RV_LOG_INFO("pcplatform",
+            "audio out at {} Hz, {} ch; device {} Hz, {} sample frames per block",
+            RV_PCPLATFORM_PCM_RATE,
+            RV_PCPLATFORM_PCM_CHANNELS,
+            device_spec.freq,
+            sample_frames);
+    } else {
+        RV_LOG_WARN("pcplatform", "SDL_GetAudioDeviceFormat failed: {}", SDL_GetError());
+        RV_LOG_INFO("pcplatform",
+            "audio out at {} Hz, {} ch; device format unknown",
+            RV_PCPLATFORM_PCM_RATE,
+            RV_PCPLATFORM_PCM_CHANNELS);
+    }
     return RV_OK;
 }
 
@@ -61,8 +78,7 @@ int64_t rv_pcaudio_sdl3::queued_frames() const
     }
 
     const int queued_bytes = SDL_GetAudioStreamQueued(stream_);
-    const int frame_bytes = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
-    return queued_bytes / frame_bytes;
+    return queued_bytes / RV_PCAUDIO_SDL3_FRAME_BYTES;
 }
 
 void rv_pcaudio_sdl3::write(const int16_t *interleaved, int64_t frames)
@@ -71,14 +87,69 @@ void rv_pcaudio_sdl3::write(const int16_t *interleaved, int64_t frames)
         return;
     }
 
-    const int bytes =
-        static_cast<int>(frames) * static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS) * static_cast<int>(sizeof(int16_t));
+    const int bytes = static_cast<int>(frames) * RV_PCAUDIO_SDL3_FRAME_BYTES;
     if (!SDL_PutAudioStreamData(stream_, interleaved, bytes) && !warned_once_) {
         // Losing one write is not worth spinning over; the caller writes
         // again next frame. Warned once rather than every frame: a failing
         // device would otherwise flood the log at the console's frame rate.
         RV_LOG_WARN("pcplatform", "SDL_PutAudioStreamData failed: {}", SDL_GetError());
         warned_once_ = true;
+    }
+}
+
+void rv_pcaudio_sdl3::attach_source(rv_pcaudio_fill_fn fill, void *context)
+{
+    fill_ = fill;
+    fill_context_ = context;
+}
+
+void rv_pcaudio_sdl3::service()
+{
+    if (RV_PCAUDIO_SDL3_CALLBACK_PULL || !stream_ || !fill_) {
+        return;
+    }
+    pull_frames(RV_PCAUDIO_SDL3_NATIVE_TARGET_FRAMES - queued_frames());
+}
+
+int rv_pcaudio_sdl3::pause()
+{
+    if (!stream_) {
+        return RV_OK;
+    }
+    if (!SDL_PauseAudioStreamDevice(stream_)) {
+        RV_LOG_WARN("pcplatform", "SDL_PauseAudioStreamDevice failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+int rv_pcaudio_sdl3::resume()
+{
+    if (!stream_) {
+        return RV_OK;
+    }
+    if (!SDL_ResumeAudioStreamDevice(stream_)) {
+        RV_LOG_WARN("pcplatform", "SDL_ResumeAudioStreamDevice failed: {}", SDL_GetError());
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
+void SDLCALL rv_pcaudio_sdl3::pull_callback(void *userdata, SDL_AudioStream *, int additional_amount, int)
+{
+    static_cast<rv_pcaudio_sdl3 *>(userdata)->pull_frames(additional_amount / RV_PCAUDIO_SDL3_FRAME_BYTES);
+}
+
+void rv_pcaudio_sdl3::pull_frames(int64_t frames)
+{
+    if (!fill_) {
+        return;
+    }
+    while (frames > 0) {
+        const int64_t chunk = std::min(frames, RV_PCAUDIO_SDL3_CHUNK_FRAMES);
+        fill_(fill_context_, fill_buffer_, chunk);
+        write(fill_buffer_, chunk);
+        frames -= chunk;
     }
 }
 

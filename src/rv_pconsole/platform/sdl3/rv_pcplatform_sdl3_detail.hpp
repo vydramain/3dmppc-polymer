@@ -101,12 +101,38 @@ private:
     rv_istate empty_state_{};
 };
 
+// Web has one thread: SDL calls the get callback from onaudioprocess on the
+// main thread, so the web device pulls through it. Native pulls from
+// service() on the console's loop instead, and its stream has no callback.
+#if defined(__EMSCRIPTEN__)
+constexpr bool RV_PCAUDIO_SDL3_CALLBACK_PULL = true;
+#else
+constexpr bool RV_PCAUDIO_SDL3_CALLBACK_PULL = false;
+#endif
+
+// Stereo frames per call into the attached source. The web callback asks for
+// whatever SDL needs, so it is served in pieces of this size.
+constexpr int64_t RV_PCAUDIO_SDL3_CHUNK_FRAMES = 512;
+
+// Bytes in one interleaved stereo int16 frame. SDL counts bytes; the console
+// counts frames, so every conversion goes through this.
+constexpr int RV_PCAUDIO_SDL3_FRAME_BYTES = static_cast<int>(RV_PCPLATFORM_PCM_CHANNELS * sizeof(int16_t));
+
+// Native queue target, in stereo frames: 2 frames of 735 at 60 Hz, the
+// console's old queue target. A constant on purpose, not derived from the
+// device block size.
+constexpr int64_t RV_PCAUDIO_SDL3_NATIVE_TARGET_FRAMES = 1470;
+
 class rv_pcaudio_sdl3 final : public rv_pcaudio_sink
 {
 public:
     bool available() const override;
     int64_t queued_frames() const override;
     void write(const int16_t *interleaved, int64_t frames) override;
+    void attach_source(rv_pcaudio_fill_fn fill, void *context) override;
+    void service() override;
+    int pause() override;
+    int resume() override;
 
     ~rv_pcaudio_sdl3() override;
 
@@ -116,8 +142,18 @@ public:
     int open();
 
 private:
+    // SDL's get callback for the web device; `userdata` is this sink.
+    static void SDLCALL pull_callback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
+
+    // Fills `frames` from the source in chunks and queues them with write().
+    // Nothing without an attached source.
+    void pull_frames(int64_t frames);
+
     SDL_AudioStream *stream_ = nullptr;
     bool warned_once_ = false;
+    rv_pcaudio_fill_fn fill_ = nullptr;
+    void *fill_context_ = nullptr;
+    int16_t fill_buffer_[RV_PCAUDIO_SDL3_CHUNK_FRAMES * RV_PCPLATFORM_PCM_CHANNELS]{};
 };
 
 // RAII guard for SDL_Quit(). Declared as rv_pcplatform_sdl3's FIRST member so
