@@ -43,6 +43,14 @@ constexpr std::string_view disc_suffix = ".mppcdisc";
 // The web export's page: the result the user opens in a browser.
 constexpr std::string_view web_index_name = "index.html";
 
+// The job's names in the log: an export, or the setup that installs the web tools.
+constexpr std::string_view export_label = "export";
+constexpr std::string_view web_setup_label = "web setup";
+
+// mppcburner setup <tool>: installs a pinned tool once per user. It needs no project, so it runs in the burner's directory.
+constexpr std::string_view setup_command = "setup";
+constexpr std::string_view setup_tool_web = "web";
+
 // One export kind. The rows follow rv_editor_export_kind's order.
 struct rv_editor_export_row {
     rv_editor_export_kind kind;
@@ -174,11 +182,46 @@ int rv_editor_export::start(const rv_editor_project &project,
     }
     runs_ = run;
     result_ = result_path;
+    label_ = std::string(export_label);
     state_ = rv_editor_build_state::building;
     log.add(rv_editor_log_source::editor,
         rv_editor_log_level::info,
-        "export #" + std::to_string(run) + " started: " + tools.burner.path.string() + " build " + project.root.string() +
+        label_ + " #" + std::to_string(run) + " started: " + tools.burner.path.string() + " build " + project.root.string() +
             " --target " + std::string(row.target) + " -o " + output.string(),
+        rv_editor_log_channel::none,
+        job_.pid(),
+        run);
+    return RV_OK;
+}
+
+int rv_editor_export::start_setup(const rv_editor_toolchain &tools, rv_editor_log &log, std::string &error)
+{
+    if (busy()) {
+        error = rv_editor_text("export.busy");
+        return RV_ERR_BUSY;
+    }
+    if (!tools.burner.problem.empty()) {
+        error = tools.burner.problem;
+        return RV_ERR_INVAL;
+    }
+
+    const uint32_t run = runs_ + 1;
+    const std::filesystem::path burner_dir = tools.burner.path.parent_path();
+    const std::vector<std::string> argv = { tools.burner.path.string(),
+        std::string(setup_command),
+        std::string(setup_tool_web) };
+    const int err = job_.start(argv, burner_dir, std::string(burner_name), rv_editor_log_source::build, run, error);
+    if (err != RV_OK) {
+        return err;
+    }
+    runs_ = run;
+    result_.clear();
+    label_ = std::string(web_setup_label);
+    state_ = rv_editor_build_state::building;
+    log.add(rv_editor_log_source::editor,
+        rv_editor_log_level::info,
+        label_ + " #" + std::to_string(run) + " started: " + tools.burner.path.string() + " " + std::string(setup_command) +
+            " " + std::string(setup_tool_web),
         rv_editor_log_channel::none,
         job_.pid(),
         run);
@@ -220,11 +263,13 @@ int rv_editor_export::update(rv_editor_log &log, std::string &error)
     }
 
     state_ = rv_editor_export_end_state(job_);
-    const std::string label = "export #" + std::to_string(run);
+    const std::string label = label_ + " #" + std::to_string(run);
     if (state_ == rv_editor_build_state::succeeded) {
+        // A setup has no result path: it only reports that it is done.
+        const std::string outcome = result_.empty() ? std::string(" done") : " written: " + result_.string();
         log.add(rv_editor_log_source::editor,
             rv_editor_log_level::info,
-            label + " written: " + result_.string(),
+            label + outcome,
             rv_editor_log_channel::none,
             pid,
             run);

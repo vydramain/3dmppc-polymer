@@ -34,6 +34,9 @@ public:
         const std::filesystem::path &dest_dir,
         rv_editor_log &log,
         std::string &error);
+    // RV_OK if the setup starts, or an rv_err code with the reason in `error`: busy or the burner's problem.
+    // Installs the web tools once per user; it needs no project.
+    int start_setup(const rv_editor_toolchain &tools, rv_editor_log &log, std::string &error);
     // Once a frame while busy: moves output into the log and notices the end.
     // RV_ERR_IO: a read or the kill failed, the reason is in `error`; the rest of the frame still runs.
     int update(rv_editor_log &log, std::string &error);
@@ -50,6 +53,7 @@ public:
         return state_ == rv_editor_build_state::building || state_ == rv_editor_build_state::cancelling;
     }
     // The path the current or last export writes; the finished file or directory once state() is succeeded.
+    // Empty after a setup.
     const std::filesystem::path &result() const
     {
         return result_;
@@ -59,6 +63,8 @@ private:
     rv_editor_job job_;
     rv_editor_build_state state_ = rv_editor_build_state::idle;
     std::filesystem::path result_;
+    // The started operation's name in the log: "export" or "web setup".
+    std::string label_;
     uint32_t runs_ = 0;
 };
 
