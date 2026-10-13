@@ -54,15 +54,20 @@ int rv_pdktools::burn_archive(const fs::path &output_path,
     //
     // The manifest names the entry the module is stored under; a blank value
     // means the conventional name. The file compiled to disk is always
-    // disc_module - only the name it gets inside the archive changes.
+    // disc_module - only the name it gets inside the archive changes. An empty
+    // disc_module writes no module at all: the code is linked into the console.
 
-    const std::string entry_module =
-        manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
+    if (!disc_module.empty()) {
+        const std::string entry_module =
+            manifest.budget.pccd.code_entry.empty() ? k_default_entry_module : manifest.budget.pccd.code_entry;
 
-    if (const int rc = writer.add_file(entry_module, disc_module.string(), error); rc != RV_OK) {
-        return rc;
+        if (const int rc = writer.add_file(entry_module, disc_module.string(), error); rc != RV_OK) {
+            return rc;
+        }
+        rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
+    } else {
+        rv_pdklib::rv_fprintf(stderr, "no disc module entry - the disc's code is linked into the console\n");
     }
-    rv_pdklib::rv_fprintf(stderr, "disc module entry: %s\n", entry_module.c_str());
 
     // --- everything the plan named ---
 

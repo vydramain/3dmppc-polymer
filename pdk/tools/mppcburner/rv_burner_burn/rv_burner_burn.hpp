@@ -27,7 +27,8 @@ namespace rv_pdktools
 ///
 /// @param output_path  the .mppcdisc to create; its directory is created too
 /// @param manifest     the validated manifest, re-rendered into the archive
-/// @param disc_module  the disc.so compile_sources() produced
+/// @param disc_module  the disc.so compile_sources() produced; an empty path writes
+///                     an archive without code, for a disc linked statically into the console (web)
 /// @param plan         the planned archive, written in its own order
 /// @param burned_size  receives the size of the finished image, in bytes
 /// @param error        set on any failure; a partial image is removed
