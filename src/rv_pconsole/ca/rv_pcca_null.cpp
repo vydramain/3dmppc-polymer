@@ -71,6 +71,28 @@ int64_t rv_pcca_null::voice_status(int64_t /*voice_mask*/)
     return 0;
 }
 
+int64_t rv_pcca_null::voice_repeat(int64_t /*voice_mask*/, int64_t /*addr*/)
+{
+    return RV_OK;
+}
+
+int64_t rv_pcca_null::voice_ended(int64_t voice_mask)
+{
+    // Nothing plays, so each voice is idle: it has reached its end since key-on, as voice_status = 0 says.
+    return voice_mask;
+}
+
+int64_t rv_pcca_null::voice_mark(int64_t /*voice_mask*/, int64_t /*addr*/)
+{
+    return RV_OK;
+}
+
+int64_t rv_pcca_null::voice_marked(int64_t /*voice_mask*/)
+{
+    // Nobody reads a mark and no flag is raised, so none is reported.
+    return 0;
+}
+
 void rv_pcca_null::advance(int16_t *out, int64_t frames)
 {
     // No mixer exists: the console timeline still gets PCM-shaped silence.

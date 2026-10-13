@@ -45,6 +45,14 @@ public:
 
     int64_t voice_status(int64_t voice_mask) override;
 
+    int64_t voice_repeat(int64_t voice_mask, int64_t addr);
+
+    int64_t voice_ended(int64_t voice_mask);
+
+    int64_t voice_mark(int64_t voice_mask, int64_t addr);
+
+    int64_t voice_marked(int64_t voice_mask);
+
     void advance(int16_t *out, int64_t frames) override;
 
     bool valid() const override
