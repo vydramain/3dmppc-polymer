@@ -101,15 +101,6 @@ public:
     {
         return false;
     }
-
-    int64_t queued_frames() const override
-    {
-        return 0;
-    }
-
-    void write(const int16_t * /*interleaved*/, int64_t /*frames*/) override
-    {
-    }
 };
 
 class rv_pcplatform_null final : public rv_pcplatform

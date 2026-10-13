@@ -170,11 +170,16 @@ public:
     virtual bool available() const = 0;
 
     // Stereo frames queued and not yet played; 0 when !available().
-    virtual int64_t queued_frames() const = 0;
+    virtual int64_t queued_frames() const
+    {
+        return 0;
+    }
 
     // Queue `frames` stereo frames (2 * frames int16 values in the
     // RV_PCPLATFORM_PCM_* format). Discarded when !available().
-    virtual void write(const int16_t *interleaved, int64_t frames) = 0;
+    virtual void write(const int16_t * /*interleaved*/, int64_t /*frames*/)
+    {
+    }
 
     // Attach the source the device pulls from; called once by the console.
     // nullptr detaches it. Without a device this stores nothing.
