@@ -8,6 +8,8 @@ include_guard(GLOBAL)
 
 # The PDK version is read from the contract header, so the number lives in one place.
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h RV_KIT_DV_HEADER)
+# A version change in the header reconfigures the kit; otherwise kit.txt keeps the old pdk_version and the burner refuses it.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pdk/include/pdk/de/rv_dv.h)
 string(REGEX MATCH "#define RV_MPPC_VER_MAJOR ([0-9]+)" _ "${RV_KIT_DV_HEADER}")
 set(RV_KIT_VER_MAJOR "${CMAKE_MATCH_1}")
 string(REGEX MATCH "#define RV_MPPC_VER_MINOR ([0-9]+)" _ "${RV_KIT_DV_HEADER}")
