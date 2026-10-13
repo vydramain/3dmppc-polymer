@@ -16,7 +16,7 @@ music are pure functions of its number in the period.
 | Depth order | `src/example-cpp-draw.hpp` (`RV_DRAW_DEPTH_WORLD_MIN`, `RV_DRAW_DEPTH_WORLD_MAX`, `RV_DRAW_DECAL_BIAS`) | the world spans the ordering-table window `RV_DEPTH_MIN`..`RV_DEPTH_MAX` minus Solid Maid's decal bias; the board's halos and letters are lifted by it | Build and Restart |
 | Board "ОСТАЛОСЬ: 5": glyphs, flicker, halo | `src/example-cpp-board.cpp` (`RV_BOARD_TEXT`, `RV_BOARD_FLICKER_TABLE`, `RV_BOARD_FLICKER_STEP`, `RV_BOARD_HALO_MODEL`), `src/example-cpp-board.hpp`, mesh `board` in the scene | glyph order, flicker table, step in frames | Build and Restart |
 | Street lamps: lit on the way out, dark on the way back | `src/example-cpp-lamps.cpp` (`RV_LAMP_REACH`, `RV_LAMP_LIGHT_MODEL`), `lamp_1`..`lamp_4` meshes in the scene, `models/lamp_light.glb` | reach of a lamp, the light model, lamp positions; 4 lamps 8 m apart on both kerbs | Build and Restart |
-| Music per area (1-s bars through two slots: factory 3 bars, street 5, home 10), workshop loops, footsteps, board clack | `src/example-cpp-sound.cpp` (`RV_SOUND_WORKSHOP_MAX_X`, `RV_SOUND_FLAT_MIN_X`, `RV_SOUND_SONGS`, `RV_SOUND_LOOPS`, `RV_SOUND_CLACK`), `src/example-cpp-steps.cpp` (`RV_STEP_ASSETS`, `RV_STEP_STRIDE`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists, loops, footstep pairs, step stride | Build and Restart |
+| Music per area (1-s bars through two slots: factory 3 bars, street 5, home 10), workshop loops, footsteps, board clack | `src/example-cpp-sound.cpp` (`RV_SOUND_WORKSHOP_MAX_X`, `RV_SOUND_FLAT_MIN_X`, `RV_SOUND_LOOPS`, `RV_SOUND_CLACK`), `src/example-cpp-music.cpp` (`RV_SOUND_SONGS`), `src/example-cpp-steps.cpp` (`RV_STEP_ASSETS`, `RV_STEP_STRIDE`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists, loops, footstep pairs, step stride | Build and Restart |
 | Frame clock and background | `src/example-cpp.cpp` (`frame_update`, `RV_EXAMPLE_CPP_BACKGROUND`) | the clock counts only frames with dt > 0 | Build and Restart |
 | Disc setup and budgets | `disc.toml` | sections and `[budget.*]`; `[budget.pccg]` allows 4096 triangles; `[textures]` has no files and keeps only the format its models' textures are baked in (`idx8`) | Build and Restart |
 
@@ -44,6 +44,7 @@ Restart. See "What still needs a restart" in the root README.
 - `src/example-cpp-route.*` - the camera loop.
 - `src/example-cpp-board.*`, `src/example-cpp-lamps.*`,
   `src/example-cpp-sound.*` - one episode each.
+- `src/example-cpp-music.cpp` - the music: the bars of each area, one voice through two slots.
 - `src/example-cpp-steps.cpp` - the footsteps, one per 0.95 m of the eye's path.
 - `src/example-cpp-draw.hpp` - the model put shared by the world, board and lamps.
 - `scenes/main.scene.toml` - the scene the drive reads; edit it in the
