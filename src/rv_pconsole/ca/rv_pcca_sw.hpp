@@ -9,8 +9,8 @@
 // different Meta - see rv_pconsole/cv/rv_pcvram.hpp, which is the same idea for
 // textures.
 //
-// Built whenever ca=sw. Needs no audio device: the console timeline advances it
-// through rv_pcca::advance() and a platform only plays what it produced.
+// Built whenever ca=sw. Needs no audio device: rv_pcca::advance() is called for
+// what the sound device asks for or, without one, by the frame loop.
 #pragma once
 
 #include <cstdint>
