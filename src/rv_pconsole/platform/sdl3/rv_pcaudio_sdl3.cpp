@@ -1,6 +1,5 @@
-// The SDL3 audio sink. Push: write() queues what the caller produced. Pull:
-// the attached source is asked for audio - native from service() on the
-// console's loop, web from SDL's get callback on the main thread.
+// The SDL3 audio sink. It only pulls from the attached source: native from
+// service() on the console's loop, web from SDL's get callback on the main thread.
 #include "rv_pconsole/platform/sdl3/rv_pcplatform_sdl3_detail.hpp"
 
 #include <algorithm>
@@ -71,7 +70,7 @@ bool rv_pcaudio_sdl3::available() const
     return stream_ != nullptr;
 }
 
-int64_t rv_pcaudio_sdl3::queued_frames() const
+int64_t rv_pcaudio_sdl3::queued() const
 {
     if (!stream_) {
         return 0;
@@ -81,7 +80,7 @@ int64_t rv_pcaudio_sdl3::queued_frames() const
     return queued_bytes / RV_PCAUDIO_SDL3_FRAME_BYTES;
 }
 
-void rv_pcaudio_sdl3::write(const int16_t *interleaved, int64_t frames)
+void rv_pcaudio_sdl3::put(const int16_t *interleaved, int64_t frames)
 {
     if (!stream_ || !interleaved || frames <= 0) {
         return;
@@ -108,7 +107,7 @@ void rv_pcaudio_sdl3::service()
     if (RV_PCAUDIO_SDL3_CALLBACK_PULL || !stream_ || !fill_) {
         return;
     }
-    pull_frames(RV_PCAUDIO_SDL3_NATIVE_TARGET_FRAMES - queued_frames());
+    pull_frames(RV_PCAUDIO_SDL3_NATIVE_TARGET_FRAMES - queued());
 }
 
 int rv_pcaudio_sdl3::pause()
@@ -148,7 +147,7 @@ void rv_pcaudio_sdl3::pull_frames(int64_t frames)
     while (frames > 0) {
         const int64_t chunk = std::min(frames, RV_PCAUDIO_SDL3_CHUNK_FRAMES);
         fill_(fill_context_, fill_buffer_, chunk);
-        write(fill_buffer_, chunk);
+        put(fill_buffer_, chunk);
         frames -= chunk;
     }
 }

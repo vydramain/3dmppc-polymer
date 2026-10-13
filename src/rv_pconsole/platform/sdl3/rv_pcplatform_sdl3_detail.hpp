@@ -127,8 +127,6 @@ class rv_pcaudio_sdl3 final : public rv_pcaudio_sink
 {
 public:
     bool available() const override;
-    int64_t queued_frames() const override;
-    void write(const int16_t *interleaved, int64_t frames) override;
     void attach_source(rv_pcaudio_fill_fn fill, void *context) override;
     void service() override;
     int pause() override;
@@ -142,10 +140,15 @@ public:
     int open();
 
 private:
+    // Stereo frames waiting in the device stream's queue; 0 without a stream.
+    int64_t queued() const;
+    // Queues interleaved stereo frames into the device stream; one warning on the first failure.
+    void put(const int16_t *interleaved, int64_t frames);
+
     // SDL's get callback for the web device; `userdata` is this sink.
     static void SDLCALL pull_callback(void *userdata, SDL_AudioStream *stream, int additional_amount, int total_amount);
 
-    // Fills `frames` from the source in chunks and queues them with write().
+    // Fills `frames` from the source in chunks and queues them with put().
     // Nothing without an attached source.
     void pull_frames(int64_t frames);
 
