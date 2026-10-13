@@ -26,7 +26,7 @@ class rv_editor_export
 {
 public:
     // RV_OK if the export starts, or an rv_err code with the reason in `error`: busy, no project,
-    // no burner or baker, no destination directory, no disc id or one that is not a file name for a
+    // no burner or baker, no firmware for a player, no destination directory, no disc id or one that is not a file name for a
     // disc export, no cache directory. The destination is created if it is missing.
     int start(const rv_editor_project &project,
         const rv_editor_toolchain &tools,

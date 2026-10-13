@@ -38,11 +38,14 @@ struct rv_editor_tool_row {
 constexpr rv_editor_tool_row tool_rows[] = {
     { &rv_editor_toolchain::console, "panes.tool_runtime" },
     { &rv_editor_toolchain::burner, "panes.tool_burner" },
+    { &rv_editor_toolchain::firmware, "panes.tool_firmware" },
     { &rv_editor_toolchain::texbaker, "panes.tool_texbaker" },
     { &rv_editor_toolchain::musbaker, "panes.tool_musbaker" },
     { &rv_editor_toolchain::modbaker, "panes.tool_modbaker" },
 };
-static_assert(std::size(tool_rows) == std::size(rv_editor_toolchain_tools));
+// Rows shown in the pane but not counted by the status bar: firmware.
+constexpr size_t unlisted_tool_rows = 1;
+static_assert(std::size(tool_rows) == std::size(rv_editor_toolchain_tools) + unlisted_tool_rows);
 
 rv_editor_status_kind rv_editor_run_lamp(const rv_editor_session &session)
 {

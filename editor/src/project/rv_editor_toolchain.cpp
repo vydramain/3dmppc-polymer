@@ -27,6 +27,9 @@ constexpr std::string_view proc_self_exe = "/proc/self/exe";
 constexpr std::string_view tool_console_name = "3dmppc";
 constexpr std::string_view tool_burner_name = "mppcburner";
 constexpr std::string_view tool_player_name = "player";
+// The firmware is the console the burner packs into a player: firmware/3dmppc beside the burner, never on PATH.
+constexpr std::string_view tool_firmware_name = "3dmppc";
+constexpr std::string_view tool_firmware_dir = "firmware";
 
 // The bakers, one per asset kind: the burner runs each by this name from the bakers' directory.
 constexpr std::string_view tool_texbaker_name = "mppctexbaker"; // PNG
@@ -85,6 +88,7 @@ constexpr std::string_view settings_tools_section = "tools";
 // Origin descriptions for tools loaded from different sources.
 constexpr std::string_view tool_origin_settings = "settings.toml";
 constexpr std::string_view tool_origin_next_to_editor = "next to the editor";
+constexpr std::string_view tool_origin_next_to_burner = "next to the burner";
 
 // XDG config variable and fallback: the editor's config directory holds settings.toml.
 constexpr std::string_view xdg_config_var = "XDG_CONFIG_HOME";
@@ -285,8 +289,18 @@ rv_editor_toolchain rv_editor_toolchain_find()
 
     read_tool_settings(tc);
 
+    // The burner finds firmware/ beside its real binary (symlinks resolved); on error keep the configured path.
+    std::error_code ec;
+    const std::filesystem::path burner_real = std::filesystem::canonical(tc.burner.path, ec);
+    const std::filesystem::path burner_dir = (ec ? tc.burner.path : burner_real).parent_path();
+    const std::filesystem::path firmware_path = tc.burner.path.empty() ?
+        std::filesystem::path() :
+        burner_dir / std::string(tool_firmware_dir) / std::string(tool_firmware_name);
+    tc.firmware = { firmware_path, std::string(tool_origin_next_to_burner), "", "", {} };
+
     rv_editor_tool_check(tc.console, tool_console_name.data());
     rv_editor_tool_check(tc.burner, tool_burner_name.data());
+    rv_editor_tool_check(tc.firmware, tool_firmware_name.data());
     rv_editor_tool_check(tc.player, tool_player_name.data());
     rv_editor_bakers_fill(tc);
     if (tc.player.path.empty()) {

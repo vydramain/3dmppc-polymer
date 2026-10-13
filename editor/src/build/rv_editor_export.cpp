@@ -51,12 +51,15 @@ struct rv_editor_export_row {
     std::string_view output_suffix;
     // The result is dest/<result_name>; empty: the result is the output itself.
     std::string_view result_name;
+    // A player is burnt with the firmware beside the burner's real binary (symlinks resolved), the file the
+    // burner packs; a missing one is refused before the burner starts.
+    bool needs_firmware;
 };
 
 constexpr rv_editor_export_row export_rows[] = {
-    { rv_editor_export_kind::disc, "disc", disc_suffix, "" },
-    { rv_editor_export_kind::player, "player", "", "" },
-    { rv_editor_export_kind::web, "web", "", web_index_name },
+    { rv_editor_export_kind::disc, "disc", disc_suffix, "", false },
+    { rv_editor_export_kind::player, "player", "", "", true },
+    { rv_editor_export_kind::web, "web", "", web_index_name, false },
 };
 
 // Every row sits at its kind's index, so export_rows[kind] is that kind's row.
@@ -117,6 +120,7 @@ int rv_editor_export::start(const rv_editor_project &project,
         error = rv_editor_text("export.no_project");
         return RV_ERR_INVAL;
     }
+    const rv_editor_export_row &row = export_rows[static_cast<std::size_t>(kind)];
     if (!tools.burner.problem.empty()) {
         error = tools.burner.problem;
         return RV_ERR_INVAL;
@@ -125,11 +129,14 @@ int rv_editor_export::start(const rv_editor_project &project,
         error = tools.baker.problem;
         return RV_ERR_INVAL;
     }
+    if (row.needs_firmware && !tools.firmware.problem.empty()) {
+        error = tools.firmware.problem;
+        return RV_ERR_INVAL;
+    }
     if (dest_dir.empty()) {
         error = rv_editor_text("export.no_destination");
         return RV_ERR_INVAL;
     }
-    const rv_editor_export_row &row = export_rows[static_cast<std::size_t>(kind)];
     if (!row.output_suffix.empty() && !rv_editor_disc_id_is_file_name(project.disc_id)) {
         error = rv_editor_text("export.bad_disc_id");
         return RV_ERR_INVAL;

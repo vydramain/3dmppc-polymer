@@ -56,6 +56,8 @@ struct rv_editor_toolchain {
     rv_editor_tool musbaker; // WAV
     rv_editor_tool modbaker; // .glb
     rv_editor_tool player;
+    // The console a player is burnt with: firmware/3dmppc beside the burner, which takes it from there.
+    rv_editor_tool firmware;
     std::filesystem::path settings_path;
     std::string settings_error; // settings.toml exists and does not parse
 };
