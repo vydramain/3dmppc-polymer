@@ -127,7 +127,7 @@ asks the organizer for one.
 | Symbol     | File               | Subsystem                           | Realized surface                                    |
 | ---------- | ------------------ | ----------------------------------- | --------------------------------------------------- |
 | `rv_pdko`  | `rv_pdko.h`        | organizer / façade                  | `rv_pdko_ca()`, `rv_pdko_cv()`, `rv_pdko_cg()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`, `rv_pdko_cl()` — free functions, opaque handle in, controller pointer out |
-| `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status` |
+| `rv_ca`    | `ca/rv_ca.h`       | **C**ontroller **A**udio (SPU)      | low-level: `sound_asset_malloc`/`sound_asset_write`/`sound_asset_free`, `voice_setup`/`voice_play`/`voice_stop`/`voice_status`/`voice_repeat`/`voice_ended`/`voice_mark`/`voice_marked` |
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cg`    | `cg/rv_cg.h`       | **C**ontroller **G**eometry (GTE)   | model memory (`rv_cg_model_memory_size()`, `rv_cg_triangle_capacity()`, budget `[budget.pccg]`), `rv_cg_frame_camera()`, `rv_cg_model_put()` (a model made resident by the drive: transformed, cut at the near plane, culled per put, keyed into the ordering-table range the disc gives, put into the frame of `rv_cv`), `rv_cg_point()` (world point → screen position and a key in the window the caller gives, so it sorts with the puts of that window) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
@@ -259,6 +259,47 @@ high-level sequencer built on top of it:
   / `voice_status` by voice bitmask). This is the hardware boundary the console
   implements. Sample data crosses as `rv_sample` (POD), voice settings as
   `rv_voice_conf` (POD), loop behaviour as `rv_loop`.
+
+  The module plays by itself, on the sound device's clock. The frame only sends
+  commands (`voice_play` / `voice_stop`) as soon as it can, and the module does
+  the exact timing on its own samples. With `-F`, or without a sound device,
+  sound advances per frame, 735 samples per frame at 60 fps. The console also
+  switches to frames for the rest of the run if the device stops taking sound.
+
+  Four functions report what a voice does while it plays:
+
+  - `voice_repeat(mask, addr)` — at the end of a sample under `RV_LOOP_FOREVER`
+    the voice continues from `addr`, sample to sample, also into another region.
+    `voice_play` and `voice_setup` reset it to the sample start.
+  - `voice_ended(mask)` — the mask of voices that reached the end of their sample
+    at least once since the last `voice_play`. Only `voice_play` clears the flag.
+  - `voice_mark(mask, addr)` — one mark per voice; its flag is raised when the
+    voice reads the frame at `addr`, also when it arrives there by repeat. `addr`
+    0 clears the mark. Setting or clearing resets the flag; `voice_setup` clears it.
+  - `voice_marked(mask)` — the mask of voices that have read their mark since it
+    was set.
+
+  Addresses are byte offsets on a 2-byte frame boundary, and may point anywhere
+  inside a live sound region. A bad mask or an unset voice answers `RV_ERR_INVAL`;
+  so does a bad address for `voice_repeat` and `voice_mark`.
+
+  Music pattern — one voice, two regions: the voice plays a bar in region A,
+  `voice_repeat` points at the start of region B, and `voice_mark` puts a mark on
+  B. The frame polls `voice_marked`. Once the voice has moved into B, the disc
+  refills A with the next bar and sets repeat and mark back to A. The join
+  between the two regions has no gap: the module makes it sample to sample.
+  The pattern needs a real sound module: with the null module (`ca=null`)
+  nothing plays and `voice_marked` always answers 0.
+
+  Precision and reaction: with a sound device, the disc sees `ended` and
+  `marked` with the device's block granularity. It reacts within one game frame
+  plus one block (about 60 ms on web), so a stream chunk paged in on a mark must
+  be longer than that, or the voice catches up with data not yet filled. In
+  frame mode the events are seen per frame instead.
+
+  Busy: `sound_asset_free` answers `RV_ERR_BUSY` while a region is the current,
+  start or repeat target of a busy voice, or the target of any voice's mark. Move
+  the repeat and the marks first, then free.
 
 **Deferred within the audio layer** (tracked so they are conscious omissions, not
 oversights): per-voice **pitch/playback rate**, **reverb**, **master volume**, and
@@ -711,7 +752,8 @@ Tracked here so they are chosen deliberately rather than by drift:
   `rv_pdko_cv()`, `rv_pdko_cg()`, `rv_pdko_cio()`, `rv_pdko_cd()`, `rv_pdko_cm()`,
   `rv_pdko_cl()`).
 - **`rv_ca` (audio, low-level)** — surface defined and in progress (sound-RAM
-  management + voices + geometry queries `voice_count`/`sound_memory_size`).
+  management + voices + repeat / ended / mark / marked + geometry queries
+  `voice_count`/`sound_memory_size`).
   Pitch, reverb, master volume, and ADPCM are deferred.
 - **`rv_cio` (input/output)** — surface defined: per-port input snapshot,
   capabilities, mouse, and haptic output (the memory card lives in `rv_cm`).
