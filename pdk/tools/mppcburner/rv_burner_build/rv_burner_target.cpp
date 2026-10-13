@@ -19,6 +19,7 @@ namespace rv_pdktools
 // declared: a new target is a row, never a branch in rv_burner_build_run.
 static constexpr const char *k_target_disc = "disc";
 static constexpr const char *k_target_player = "player";
+static constexpr const char *k_target_web = "web";
 
 // The player target: the console the discs run in, copied beside the image.
 static constexpr const char *k_firmware_subdir = "firmware";
@@ -129,6 +130,7 @@ static int finish_player(const rv_burner_finish_input &input, std::string &error
 constexpr rv_burner_target_spec TARGETS[] = {
     { k_target_disc, resolve_disc, nullptr, true },
     { k_target_player, resolve_player, finish_player, true },
+    { k_target_web, resolve_web, finish_web, false },
 };
 
 const rv_burner_target_spec *find_target(std::string_view name)

@@ -126,8 +126,8 @@ static void print_usage(std::FILE *stream)
         "  help          Print this text.\n"
         "\n"
         "Options (build):\n"
-        "  -o, --output PATH        Image to write. Required unless --unpacked is\n"
-        "                           given; exclusive with it.\n"
+        "  -o, --output PATH        Where to write: the image, or the directory for -t player/web.\n"
+        "                           Required unless --unpacked is given; exclusive with it.\n"
         "  -u, --unpacked PATH      Write an unpacked disc directory at PATH instead\n"
         "                           of a .mppcdisc image. Scripts and copied assets\n"
         "                           are symlinked back to their source instead of\n"
@@ -139,6 +139,8 @@ static void print_usage(std::FILE *stream)
         "                           Default: pdk/lib/include next to mppcburner.\n"
         "  -b, --baker PATH         directory of the bakers (mppctexbaker, mppcmusbaker, mppcmodbaker),\n"
         "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
+        "  -e, --emsdk PATH         Emscripten SDK the web target builds with. Default:\n"
+        "                           the directory setup web installs.\n"
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
         "  -k, --keep-build[=PATH]  Keep the generated CMake project instead of\n"
         "                           deleting it. PATH must be attached with '='.\n"
@@ -147,7 +149,8 @@ static void print_usage(std::FILE *stream)
         "  -t, --target NAME        What to write: disc (default): one .mppcdisc at -o, or\n"
         "                           an unpacked directory at -u; player: a directory at -o\n"
         "                           with the player console and the .mppcdisc. player takes\n"
-        "                           no -u.\n"
+        "                           no -u. web: -o DIR receives index.html, one page holding the console\n"
+        "                           and the disc. C++ discs only: a disc with scripts is refused.\n"
         "\n"
         "Options (bake-texture):\n"
         "  -o, --output PATH        .mppctex file to write. Required.\n"
@@ -178,16 +181,17 @@ constexpr rv_burner_option_spec OPTIONS[] = {
     { 'o',
         "output",
         required_argument,
-        "image to write (required unless --unpacked)",
+        "image, or directory for player/web (required unless --unpacked)",
         RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
     { 'u', "unpacked", required_argument, "write an unpacked disc directory instead", RV_BURNER_MASK_BUILD },
     { 'p', "pdk", required_argument, "PDK include directory the disc compiles against", RV_BURNER_MASK_BUILD },
     { 'l', "pdklib", required_argument, "disc-side SDK include directory", RV_BURNER_MASK_BUILD },
     { 'b', "baker", required_argument, "directory of the bakers, or a file in it", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
+    { 'e', "emsdk", required_argument, "emsdk directory the web target builds with", RV_BURNER_MASK_BUILD },
     { 'j', "jobs", required_argument, "parallel compile jobs", RV_BURNER_MASK_BUILD },
     { 'k', "keep-build", optional_argument, "keep the generated CMake project, optionally at PATH", RV_BURNER_MASK_BUILD },
     { 'm', "map", required_argument, "write the source-to-entry map to PATH", RV_BURNER_MASK_BUILD },
-    { 't', "target", required_argument, "what to write: disc (default) or player", RV_BURNER_MASK_BUILD },
+    { 't', "target", required_argument, "what to write: disc (default), player or web", RV_BURNER_MASK_BUILD },
 };
 
 static int nullable_handler(const rv_burner_options &)
@@ -306,6 +310,10 @@ int main(int argc, char **argv)
         }
         case 'b': {
             burner_options.baker = optarg;
+            break;
+        }
+        case 'e': {
+            burner_options.emsdk = optarg;
             break;
         }
         case 'j': {

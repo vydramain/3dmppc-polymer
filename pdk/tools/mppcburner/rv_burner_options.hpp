@@ -26,6 +26,7 @@ struct rv_burner_options {
     bool keep_build = false;                           // -k
     std::string map = "";                              // -m, where to write the source-to-entry map
     std::string target = "";                           // -t, empty: disc
+    std::string emsdk = "";                            // -e, empty: the directory setup web installs
 };
 
 // One bit per subcommand. Lets an option name the commands that accept it.
