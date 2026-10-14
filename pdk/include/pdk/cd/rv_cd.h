@@ -110,7 +110,7 @@ typedef enum rv_cd_scene_kind rv_cd_scene_kind;
 // A scene is a .scene.toml on the disc, resident from its first query and
 // freed when the disc unloads. A name longer than RV_CD_NAME_CAPACITY-1 is
 // not loaded at all (RV_ERR_INVAL; the reason goes to the console log). A mesh
-// is named "x.glb" in the scene; the drive maps it to x.mppcmod.
+// is named "x.glb" or "x.gltf" in the scene; the drive serves it as x.mppcmod.
 //
 // One object as a plain copy. Names are NUL-terminated inside their arrays;
 // an empty model or texture means none.
