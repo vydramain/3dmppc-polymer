@@ -152,23 +152,6 @@ std::string rv_scene_tint(const rv_color &c)
     return rv_scene_array(parts, color_channels);
 }
 
-std::string rv_scene_value(const rv_manifest_mvalue &v)
-{
-    switch (v.kind) {
-    case rv_manifest_value_kind::string:
-        return rv_scene_quote(v.str);
-    case rv_manifest_value_kind::integer:
-        return std::to_string(v.num);
-    case rv_manifest_value_kind::real:
-        return rv_scene_number(v.real);
-    case rv_manifest_value_kind::array:
-        return rv_scene_array(v.arr.data(), v.arr.size());
-    case rv_manifest_value_kind::numbers:
-        return rv_scene_array(v.nums.data(), v.nums.size());
-    }
-    return rv_scene_quote(std::string());
-}
-
 // One `key = value` line.
 void rv_scene_field(std::string &t, const std::string &key, const std::string &value)
 {
@@ -178,7 +161,7 @@ void rv_scene_field(std::string &t, const std::string &key, const std::string &v
 void rv_scene_entries(std::string &t, const std::vector<rv_manifest_tree_entry> &entries)
 {
     for (const rv_manifest_tree_entry &e : entries) {
-        rv_scene_field(t, e.key, rv_scene_value(e.value));
+        rv_scene_field(t, e.key, rv_scene_value_text(e.value));
     }
 }
 
@@ -260,6 +243,23 @@ void rv_scene_component_text(std::string &t, const std::string &object_id, const
 }
 
 } // namespace
+
+std::string rv_scene_value_text(const rv_manifest_mvalue &v)
+{
+    switch (v.kind) {
+    case rv_manifest_value_kind::string:
+        return rv_scene_quote(v.str);
+    case rv_manifest_value_kind::integer:
+        return std::to_string(v.num);
+    case rv_manifest_value_kind::real:
+        return rv_scene_number(v.real);
+    case rv_manifest_value_kind::array:
+        return rv_scene_array(v.arr.data(), v.arr.size());
+    case rv_manifest_value_kind::numbers:
+        return rv_scene_array(v.nums.data(), v.nums.size());
+    }
+    return rv_scene_quote(std::string());
+}
 
 std::string rv_scene_render(const rv_scene &scene)
 {
