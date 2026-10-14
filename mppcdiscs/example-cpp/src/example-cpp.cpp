@@ -181,7 +181,10 @@ int rv_dmain::read_scene()
     std::sort(keys_.begin(), keys_.end(), [](const rv_route_key &a, const rv_route_key &b) {
         return a.index < b.index;
     });
-    rv_lamps_schedule(keys_, lamps_);
+    const int lamp_code = rv_lamps_schedule(keys_, lamps_);
+    if (lamp_code != RV_OK) {
+        return lamp_code;
+    }
     return RV_OK;
 }
 

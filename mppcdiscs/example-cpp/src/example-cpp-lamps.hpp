@@ -24,7 +24,9 @@ bool rv_lamp_name(const char *name);
 
 // Sets on_frame and off_frame of each lamp from the route keys (sorted by index). A lamp the route
 // does not pass in both halves of the period stays dark and gets one warning.
-void rv_lamps_schedule(const std::vector<rv_route_key> &keys, std::vector<rv_lamp> &lamps);
+// Returns RV_OK or the first error (a lamp base leaves Q20.12, or the route math fails); the lamps
+// after it keep their schedule.
+int rv_lamps_schedule(const std::vector<rv_route_key> &keys, std::vector<rv_lamp> &lamps);
 
 // Puts the light model of each lamp that burns at frame (within the period). Returns RV_OK or the
 // first drive or cg error.
