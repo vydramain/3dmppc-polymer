@@ -5,15 +5,18 @@
 #include <vector>
 
 #include "pdk/cd/rv_cd.h"
-#include "pdk/cg/rv_cg.h"
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
+#include "pdklib/rv_ecs/rv_ecs.hpp"
+#include "pdklib/rv_ecs/rv_ecs_component.hpp"
+#include "pdklib/rv_ecs/rv_ecs_entity.hpp"
+#include "pdklib/rv_ecs/rv_ecs_frame.hpp"
+#include "pdklib/rv_ecs/rv_ecs_loads.hpp"
+#include "pdklib/rv_ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-board.hpp"
-#include "example-cpp-draw.hpp"
 #include "example-cpp-lamps.hpp"
 #include "example-cpp-route.hpp"
 #include "example-cpp-sound.hpp"
@@ -28,31 +31,10 @@ namespace
 constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
 // The scene object that carries the factory board lettering.
 constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
+// The frame system that sets the camera from the route keys.
+constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
-
-// A mesh of the scene, ready to put: its model name and the put without the model address.
-struct rv_example_cpp_mesh {
-    std::string model; // .mppcmod name on the disc
-    rv_cg_put put;
-};
-
-// A position or direction from the float world matrix to Q20.12: the float contract ends here.
-int fx_vec3_from_floats(float x, float y, float z, rv_pdklib::fx_vec3 &out)
-{
-    rv_pdklib::fx_vec3 v = {};
-    if (rv_pdklib::fx_from_double(x, v.x) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_from_double(y, v.y) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    if (rv_pdklib::fx_from_double(z, v.z) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    out = v;
-    return RV_OK;
-}
 
 } // namespace
 
@@ -74,7 +56,6 @@ public:
         // No scene, or one that does not read: the disc runs without it and says why.
         const int read_code = read_scene();
         if (read_code != RV_OK) {
-            meshes_.clear();
             keys_.clear();
             lamps_.clear();
             board_found_ = false;
@@ -116,15 +97,17 @@ public:
 
 private:
     int read_scene();
-    void add_mesh(const rv_cd_scene_object &object);
-    int add_route_key(const rv_cd_scene_object &object);
+    int register_ecs();
+    int collect_parts();
     void draw_world();
     void log_draw_error(const char *step, int64_t code);
     void init_sound();
     void play_sound();
     void log_sound_error(int64_t code);
 
-    std::vector<rv_example_cpp_mesh> meshes_;
+    // Declared before world_: the world keeps a pointer to the type, so the type must outlive it.
+    example_cpp::ecs_entity_route route_type_;
+    rv_pdklib::ecs_world world_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
     // The lamp_N objects, each with the frames it burns; filled after keys_ is sorted.
@@ -142,45 +125,46 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Fills meshes_ and keys_ from the scene. An error leaves them partly filled; the caller clears them.
+// Registers the route's entity type and frame system; a scene refers to the type by name.
+int rv_dmain::register_ecs()
+{
+    const int type_code = rv_pdklib::ecs_entity_register(world_, route_type_);
+    if (type_code != RV_OK) {
+        return type_code;
+    }
+    const int system_code = rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp::ecs_system_route);
+    if (system_code != RV_OK) {
+        return system_code;
+    }
+    return RV_OK;
+}
+
+// Loads the scene into world_, then fills keys_, lamps_ and the board from its entities. An error leaves them partly
+// filled; the caller clears them.
 int rv_dmain::read_scene()
 {
+    const int register_code = register_ecs();
+    if (register_code != RV_OK) {
+        return register_code;
+    }
     rv_cd *cd = rv_pdko_cd(pdk_);
-    const int64_t count = rv_cd_scene_object_count(cd, RV_EXAMPLE_CPP_SCENE_NAME);
-    if (count < 0) {
-        return static_cast<int>(count);
+    uint32_t load_number = 0;
+    const int load_code = rv_pdklib::ecs_scene_load(world_, cd, RV_EXAMPLE_CPP_SCENE_NAME, rv_pdklib::ecs_id{}, load_number);
+    if (load_code != RV_OK) {
+        return load_code;
     }
-    for (int64_t i = 0; i < count; ++i) {
-        rv_cd_scene_object object = {};
-        const int64_t read_code = rv_cd_scene_object_read(cd, RV_EXAMPLE_CPP_SCENE_NAME, i, &object);
-        if (read_code < 0) {
-            return static_cast<int>(read_code);
-        }
-        if (std::strcmp(object.name, RV_EXAMPLE_CPP_BOARD_NAME) == 0) {
-            board_found_ = true;
-            std::memcpy(board_world_, object.world, sizeof(board_world_));
-        }
-        if (object.kind == RV_CD_SCENE_MESH) {
-            add_mesh(object);
-        } else if (object.kind == RV_CD_SCENE_CAMERA) {
-            const int key_code = add_route_key(object);
-            if (key_code != RV_OK) {
-                return key_code;
-            }
-        }
-        if (object.kind == RV_CD_SCENE_MESH && rv_lamp_name(object.name)) {
-            rv_lamp lamp = {};
-            lamp.name = object.name;
-            std::memcpy(lamp.world, object.world, sizeof(lamp.world));
-            lamps_.push_back(lamp);
-        }
+    const int transform_code = rv_pdklib::ecs_system_transform(world_);
+    if (transform_code != RV_OK) {
+        return transform_code;
     }
-    if (keys_.empty()) {
-        return RV_ERR_NOENT;
+    const int route_code = rv_route_collect(world_, keys_);
+    if (route_code != RV_OK) {
+        return route_code;
     }
-    std::sort(keys_.begin(), keys_.end(), [](const rv_route_key &a, const rv_route_key &b) {
-        return a.index < b.index;
-    });
+    const int parts_code = collect_parts();
+    if (parts_code != RV_OK) {
+        return parts_code;
+    }
     const int lamp_code = rv_lamps_schedule(keys_, lamps_);
     if (lamp_code != RV_OK) {
         return lamp_code;
@@ -188,73 +172,48 @@ int rv_dmain::read_scene()
     return RV_OK;
 }
 
-void rv_dmain::add_mesh(const rv_cd_scene_object &object)
+// Lamps and the board from the scene's entities, in file order. Their matrices come from the transform system.
+int rv_dmain::collect_parts()
 {
-    if (object.model[0] == '\0') {
-        RV_LOG_WARN("scene", "mesh '{}' has no model, not drawn", object.name);
-        return;
+    for (const rv_pdklib::ecs_load &load : world_.loads) {
+        for (const rv_pdklib::ecs_id id : load.made) {
+            const auto *name = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_name>(world_, id);
+            const auto *place = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_world>(world_, id);
+            if (name == nullptr || place == nullptr) {
+                RV_LOG_ERR("scene", "scene refused: an entity has no name or no world matrix");
+                return RV_ERR_INVAL;
+            }
+            const bool is_board = name->text == RV_EXAMPLE_CPP_BOARD_NAME;
+            // A lamp is a mesh: the entity has a model, as a mesh object of the scene does.
+            const bool meshed = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_model>(world_, id) != nullptr;
+            const bool is_lamp = meshed && rv_lamp_name(name->text.c_str());
+            if (is_board) {
+                board_found_ = true;
+                std::memcpy(board_world_, place->matrix.m, sizeof(board_world_));
+            }
+            if (is_lamp) {
+                rv_lamp lamp = {};
+                lamp.name = name->text;
+                std::memcpy(lamp.world, place->matrix.m, sizeof(lamp.world));
+                lamps_.push_back(lamp);
+            }
+        }
     }
-    rv_example_cpp_mesh mesh = {};
-    mesh.model = object.model;
-    std::memcpy(mesh.put.world, object.world, sizeof(mesh.put.world));
-    mesh.put.depth_min = RV_DRAW_DEPTH_WORLD_MIN;
-    mesh.put.depth_max = RV_DRAW_DEPTH_WORLD_MAX;
-    mesh.put.cull = RV_CG_CULL_BACK;
-    mesh.put.tint = object.tint;
-    meshes_.push_back(mesh);
-}
-
-// The camera object's eye is world * (0,0,0) and its view direction world * (0,0,1)
-// minus the eye: the translation column and the z column of the affine world.
-int rv_dmain::add_route_key(const rv_cd_scene_object &object)
-{
-    int32_t index = 0;
-    if (!rv_route_key_name(object.name, index)) {
-        return RV_OK; // a camera outside the route is not part of the loop
-    }
-    rv_route_key key = {};
-    key.index = index;
-    rv_pdklib::fx_vec3 dir = {};
-    if (fx_vec3_from_floats(object.world[3], object.world[7], object.world[11], key.eye) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", object.name);
-        return RV_ERR_INVAL;
-    }
-    if (fx_vec3_from_floats(object.world[2], object.world[6], object.world[10], dir) != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", object.name);
-        return RV_ERR_INVAL;
-    }
-    const int unit_code = rv_route_unit(dir, key.dir);
-    if (unit_code != RV_OK) {
-        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", object.name);
-        return unit_code;
-    }
-    keys_.push_back(key);
     return RV_OK;
 }
 
 void rv_dmain::draw_world()
 {
-    // No keys means no camera; read_scene has already logged why, so nothing is drawn.
+    // No keys means no route: read_scene has already logged why, so nothing is drawn.
     if (keys_.empty()) {
         return;
     }
-    rv_cg_camera camera = {};
-    const int route_code = rv_route_camera_at(keys_, frame_count_, camera);
-    if (route_code != RV_OK) {
-        log_draw_error("camera", route_code);
+    // The world frame fails on the route camera or on a put. Lamps and board are then skipped too: drawn now
+    // they would sit under the last frame's camera.
+    const int frame_code = rv_pdklib::ecs_world_frame(world_, rv_pdklib::ecs_frame{ pdk_, frame_count_ });
+    if (frame_code != RV_OK) {
+        log_draw_error("world", frame_code);
         return;
-    }
-    const int64_t camera_code = rv_cg_frame_camera(rv_pdko_cg(pdk_), &camera);
-    if (camera_code < 0) {
-        log_draw_error("camera", camera_code);
-        return;
-    }
-    for (rv_example_cpp_mesh &mesh : meshes_) {
-        const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk_), RV_CD_RESOURCE_MODEL, mesh.model.c_str());
-        const int64_t put_code = (addr < 0) ? addr : rv_cg_model_put(rv_pdko_cg(pdk_), addr, &mesh.put);
-        if (put_code < 0) {
-            log_draw_error(mesh.model.c_str(), put_code);
-        }
     }
     const int64_t lamps_code = rv_lamps_draw(pdk_, lamps_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
     if (lamps_code < 0) {
