@@ -71,8 +71,9 @@ in their shortest fixed form.
 `rv_cd_scene_entity`); an empty name is the base type. A component has at most
 `RV_CD_COMPONENT_FIELD_CAPACITY` (8) fields and each value at most
 `RV_CD_VALUE_CAPACITY` (64) bytes; a key is at most `RV_CD_NAME_CAPACITY` (64)
-bytes. A scene with a component past any of these three limits does not load
-(`RV_ERR_INVAL`, the reason goes to the console log). The scene
+bytes. A scene with a component past any of these three limits, or with a name,
+key or value holding a NUL byte, does not load (`RV_ERR_INVAL`, the reason goes
+to the console log). The scene
 file gains an `entity` key on an object and `[[component]]` sections: `object`
 is the object's `id`, `name` is the component's name, and the other keys are
 field values, holding only those that differ from the defaults in the disc's
@@ -93,6 +94,17 @@ name = "flicker"
 rate = 2.5
 color = [1, 0.5, 0]
 ```
+
+`rv_cd_scene_object_local_read()` gives an object's transform relative to its
+parent (`rv_cd_scene_object.parent`, -1 for a root: scene space) as POD
+`rv_cd_scene_local`: `position` in scene units, `rotation` as pitch (x), yaw
+(y) and roll (z) in degrees with R = Ry * Rx * Rz, and `scale` (dimensionless),
+each three `int32` values in Q20.12 (`RV_CD_Q_ONE` is 1.0,
+`RV_CD_Q_FRACTION_BITS` is 12). The scene file holds `position`, `rotation`,
+`scale`, `uv` and `tess` as decimal units, rounded to the nearest Q20.12 value
+on load and written back as the shortest decimal that reads as the same value.
+A value outside [-524288, 524288) units after that rounding refuses the scene
+(`RV_ERR_INVAL`, the reason goes to the console log).
 
 ---
 
@@ -166,7 +178,7 @@ asks the organizer for one.
 | `rv_cv`    | `cv/rv_cv.h`       | **C**ontroller **V**ideo (GPU)      | low-level: `video_asset_malloc`/`video_asset_write`/`video_asset_free` (textures + palettes), `frame_configure`/`frame_put`/`frame_flush` (primitives, sorted by the hardware ordering table) |
 | `rv_cg`    | `cg/rv_cg.h`       | **C**ontroller **G**eometry (GTE)   | model memory (`rv_cg_model_memory_size()`, `rv_cg_triangle_capacity()`, budget `[budget.pccg]`), `rv_cg_frame_camera()`, `rv_cg_model_put()` (a model made resident by the drive: transformed, cut at the near plane, culled per put, keyed into the ordering-table range the disc gives, put into the frame of `rv_cv`), `rv_cg_point()` (world point → screen position and a key in the window the caller gives, so it sorts with the puts of that window) |
 | `rv_cio`   | `cio/rv_cio.h`     | **C**ontroller **I**nput/**O**utput | input snapshot (`iport_state`) + capabilities (`iport_abilities`) + mouse (`imouse`) + haptic out (`ohaptic`) |
-| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()` list a scene's objects by scene name (POD `rv_cd_scene_object`), `rv_cd_scene_component_count()` / `rv_cd_scene_component_read()` list its components the same way (POD `rv_cd_scene_component`), and `rv_cd_scene_object_entity_read()` gives an object's entity type (POD `rv_cd_scene_entity`) |
+| `rv_cd`    | `cd/rv_cd.h`       | **C**ontroller **D**isk (drive)     | `asset_open` (name → handle) / `asset_size` / `asset_read` into the game's buffer, `resource_addr`/`_size`/`_palette_addr`/`_width`/`_height` (kind + name → the address the resource now lives at; `rv_cd_resource_kind` says which kind is meant, `RV_CD_RESOURCE_TEXTURE` for video RAM or `RV_CD_RESOURCE_AUDIO` for sound RAM, `RV_CD_RESOURCE_MODEL` for cg's model memory, and a query that means nothing for the named kind answers `RV_ERR_INVAL` rather than a zero; the drive makes it resident on first ask and frees it itself when the disc unloads), `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()` list a scene's objects by scene name (POD `rv_cd_scene_object`), `rv_cd_scene_component_count()` / `rv_cd_scene_component_read()` list its components the same way (POD `rv_cd_scene_component`), `rv_cd_scene_object_entity_read()` gives an object's entity type (POD `rv_cd_scene_entity`), and `rv_cd_scene_object_local_read()` gives its local transform relative to its parent (POD `rv_cd_scene_local`) |
 | `rv_cm`    | `cm/rv_cm.h`       | **C**ontroller **M**emory card      | persistent save slots: `card_slots` (count from console config) / `card_size` / `card_read` / `card_write` (atomic) / `card_erase` |
 | `rv_cl`    | `cl/rv_cl.h`       | **C**ontroller **L**ua (script machine) | chunk lifecycle: `script_load`/`script_free`/`script_entry`; a shared value stack: `stack_push_*`/`stack_drop`/`stack_count`/`value_*`; one call primitive, `script_call` |
 

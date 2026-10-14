@@ -190,9 +190,9 @@ int64_t rv_cd_scene_object_entity_read(rv_cd *cd, const char *scene, int64_t ind
 // (rv_cd_scene_object.parent; -1 is scene space). position is x, y, z in scene
 // units; rotation is pitch (x), yaw (y), roll (z) in degrees, R = Ry * Rx * Rz as
 // pdklib rv_scene; scale is dimensionless. Values are Q20.12 numbers of the scene
-// document: the file's decimals round to the nearest one on load. An integer part
-// outside [-524288, 524287] does not load the scene (RV_ERR_INVAL, reason in the
-// console log).
+// document: the file's decimals round to the nearest one on load. A value outside
+// [-524288, 524288) units after rounding does not load the scene (RV_ERR_INVAL, reason
+// in the console log).
 struct rv_cd_scene_local {
     int32_t position[3];
     int32_t rotation[3];
