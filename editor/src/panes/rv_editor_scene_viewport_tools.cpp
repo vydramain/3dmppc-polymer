@@ -50,6 +50,26 @@ static_assert(std::size(snap_step_labels) == std::size(snap_step_values),
 // Default snap step choice index (0.25 matches camera_snap_step_default in rv_editor_app.hpp).
 constexpr int default_snap_step_index = 1;
 
+// One checkbox per layer of the scene; a layer switched off is not drawn or selected.
+void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
+{
+    const std::vector<std::string> layers = rv_editor_scene_layers(doc.scene);
+    if (layers.empty()) {
+        ImGui::TextUnformatted(rv_editor_text("scene_tools.layers_none"));
+        return;
+    }
+    for (const std::string &layer : layers) {
+        bool on = !doc.off_layers.contains(layer);
+        if (rv_editor_checkbox(layer.c_str(), &on, theme)) {
+            if (on) {
+                doc.off_layers.erase(layer);
+            } else {
+                doc.off_layers.insert(layer);
+            }
+        }
+    }
+}
+
 } // namespace
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
@@ -191,6 +211,25 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
         cam.seeking = seek_val;
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_seek_tooltip"));
+    const char *hidden_label = rv_editor_text("scene_tools.toolbar_hidden");
+    rv_editor_flow(rv_editor_button_width(hidden_label));
+    bool hidden_val = app.scene->show_hidden;
+    if (rv_editor_toggle(hidden_label, &hidden_val, theme)) {
+        app.scene->show_hidden = hidden_val;
+    }
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_hidden_tooltip"));
+    const char *layers_label = rv_editor_text("scene_tools.toolbar_layers");
+    rv_editor_flow(rv_editor_button_width(layers_label));
+    if (rv_editor_button(layers_label, theme)) {
+        ImGui::OpenPopup("##scene_layers");
+    }
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_layers_tooltip"));
+    rv_editor_menu_style_push();
+    if (ImGui::BeginPopup("##scene_layers")) {
+        rv_editor_scene_layers_menu(*app.scene, theme);
+        ImGui::EndPopup();
+    }
+    rv_editor_menu_style_pop();
     const struct {
         const char *label_id;
         const char *tip_id;

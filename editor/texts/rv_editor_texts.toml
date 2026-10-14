@@ -1425,6 +1425,11 @@ snap_label = "Snap"
 snap_tooltip = "Move by the step below, turn by 15 degrees, scale by 0.1"
 grid_label = "Grid"
 snap_step_tooltip = "The Move snap step, in scene units"
+toolbar_hidden = "Hidden"
+toolbar_hidden_tooltip = "Hidden objects: on = outlines, selectable; off = not drawn, not selectable"
+toolbar_layers = "Layers"
+toolbar_layers_tooltip = "Layers drawn and selectable; the scene file keeps no layer state"
+layers_none = "The scene has no layers"
 
 [run_state]
 stopped = "Stopped"

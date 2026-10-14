@@ -29,9 +29,6 @@ constexpr const char *rv_editor_scene_payload = "RV_SCENE_OBJECT";
 // Kinds the Add menu offers, in menu order
 constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
 
-// The component that dims a row and shows the eye mark; it is not named beside the row.
-constexpr std::string_view component_hidden = "hidden";
-
 // The frame's tree, by id: a context-menu Delete shifts the objects mid-frame, so indices would go stale.
 // Ids whose object is gone are skipped when drawn.
 struct rv_editor_hierarchy_tree {

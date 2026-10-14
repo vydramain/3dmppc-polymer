@@ -21,6 +21,9 @@ inline constexpr std::string_view kind_quad = "quad";
 inline constexpr std::string_view kind_billboard = "billboard";
 inline constexpr std::string_view kind_volume = "volume";
 
+// The component that marks an object hidden: its row is dimmed, and it is drawn as an outline or not at all.
+inline constexpr std::string_view component_hidden = "hidden";
+
 // A scene document as the editor edits it: pdklib's rv_scene with numbers as doubles and
 // parents as ids. The file is read and written by pdklib/rv_scene. Unknown keys and sections
 // are written back; the legacy `format` key is not (the file is written with `version`).
