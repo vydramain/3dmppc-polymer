@@ -1,0 +1,425 @@
+#pragma once
+
+// Loads a scene of the disc into the ECS world. The disc parses nothing: the scene comes through the PDK's rv_cd_scene_*
+// reads. A failed load destroys its own entities and components: live ones are as before the call, while slot numbers
+// and generations may differ.
+
+#include <cstddef>
+#include <cstdint>
+#include <new>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "pdk/cd/rv_cd.h"
+#include "pdk/rv_err.h"
+#include "pdklib/rv_ecs/rv_ecs.hpp"
+#include "pdklib/rv_ecs/rv_ecs_component.hpp"
+#include "pdklib/rv_ecs/rv_ecs_entity.hpp"
+#include "pdklib/rv_ecs/rv_ecs_store.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
+
+namespace rv_pdklib
+{
+
+inline constexpr const char *ecs_scene_tag = "ecs-scene";
+
+// Factories the loader knows itself. They take precedence over a registered factory of the same name.
+struct ecs_scene_builtin {
+    std::string_view name;
+    ecs_component_factory make;
+};
+
+inline constexpr ecs_scene_builtin ecs_scene_builtins[] = {
+    { "hidden", ecs_hidden_factory },
+    { "decal", ecs_decal_factory },
+};
+
+// State of one load. made holds one entity per object, in file order.
+struct ecs_scene_reading {
+    ecs_world &world;
+    rv_cd *cd;
+    const char *scene;
+    int64_t objects;
+    int64_t components;
+    std::vector<ecs_id> &made;
+};
+
+// Boundary: a float of the PDK contract to fx (uv in pixels, tess as subdivision density, rv_cd.h). The only float entry.
+inline int ecs_scene_unit_from_float(float value, fx &out)
+{
+    return fx_from_double(static_cast<double>(value), out);
+}
+
+// Boundary: a float array of the PDK contract to fx. On error out may be partly written; the load then rolls back.
+template <std::size_t N>
+int ecs_scene_units_from_float(const float (&in)[N], fx (&out)[N])
+{
+    for (std::size_t i = 0; i < N; ++i) {
+        const int converted = ecs_scene_unit_from_float(in[i], out[i]);
+        if (converted != RV_OK) {
+            return converted;
+        }
+    }
+    return RV_OK;
+}
+
+// Name from a NUL-terminated scene array.
+template <std::size_t N>
+std::string ecs_scene_text(const char (&text)[N])
+{
+    return std::string(text, ecs_name_length(text));
+}
+
+// Logged once: an entity the load has just made is not alive.
+inline int ecs_scene_no_entity(const char *scene)
+{
+    RV_LOG_ERR(ecs_scene_tag, "scene '{}': entity is not alive", rv_log_escape(scene));
+    return RV_ERR_NOENT;
+}
+
+// Capacity for the whole load and its rollback, taken before the first change, so the rollback never allocates.
+inline void ecs_scene_reserve(ecs_scene_reading &load)
+{
+    const std::size_t objects = static_cast<std::size_t>(load.objects);
+    load.world.slots.reserve(load.world.slots.size() + objects);
+    load.world.free_slots.reserve(load.world.slots.size() + objects);
+    load.made.reserve(objects);
+}
+
+// Object `index` as a plain copy; a failed read is logged with its index.
+inline int ecs_scene_read_object(const ecs_scene_reading &load, int64_t index, rv_cd_scene_object &out)
+{
+    const int64_t read = rv_cd_scene_object_read(load.cd, load.scene, index, &out);
+    if (read != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}' object {}: read failed ({})", rv_log_escape(load.scene), index, read);
+        return static_cast<int>(read);
+    }
+    return RV_OK;
+}
+
+// Marker component T: no data, kept when already present.
+template <typename T>
+int ecs_scene_mark(ecs_scene_reading &load, ecs_id id)
+{
+    if (ecs_component_ensure<T>(load.world, id) == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    return RV_OK;
+}
+
+// A mesh's model with its tint. A mesh without a model gets none, with a warning.
+inline int ecs_scene_add_model(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id)
+{
+    const bool named = object.model[0] != '\0';
+    if (!named) {
+        RV_LOG_WARN(ecs_scene_tag,
+            "scene '{}' object '{}': mesh has no model",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name));
+        return RV_OK;
+    }
+    ecs_component_model *model = ecs_component_ensure<ecs_component_model>(load.world, id);
+    if (model == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    model->name = ecs_scene_text(object.model);
+    model->tint = object.tint;
+    return RV_OK;
+}
+
+// Sprite of a quad or billboard. uv (pixels) and tess (subdivision density) convert at the boundary.
+inline int ecs_scene_add_sprite(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id, ecs_sprite_kind kind)
+{
+    ecs_component_sprite *sprite = ecs_component_ensure<ecs_component_sprite>(load.world, id);
+    if (sprite == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    const int uv_status = ecs_scene_units_from_float(object.uv, sprite->uv);
+    if (uv_status != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': uv does not fit ({})",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            uv_status);
+        return uv_status;
+    }
+    const int tess_status = ecs_scene_unit_from_float(object.tess, sprite->tess);
+    if (tess_status != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': tess does not fit ({})",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            tess_status);
+        return tess_status;
+    }
+    sprite->kind = kind;
+    sprite->texture = ecs_scene_text(object.texture);
+    sprite->tint = object.tint;
+    return RV_OK;
+}
+
+// Components of an object's kind. Groups have none.
+inline int ecs_scene_add_kind(ecs_scene_reading &load, const rv_cd_scene_object &object, ecs_id id)
+{
+    switch (object.kind) {
+    case RV_CD_SCENE_GROUP:
+        return RV_OK;
+    case RV_CD_SCENE_CAMERA:
+        return ecs_scene_mark<ecs_component_camera>(load, id);
+    case RV_CD_SCENE_MESH:
+        return ecs_scene_add_model(load, object, id);
+    case RV_CD_SCENE_QUAD:
+        return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::quad);
+    case RV_CD_SCENE_BILLBOARD:
+        return ecs_scene_add_sprite(load, object, id, ecs_sprite_kind::billboard);
+    case RV_CD_SCENE_VOLUME:
+        return ecs_scene_mark<ecs_component_volume>(load, id);
+    }
+    RV_LOG_ERR(ecs_scene_tag,
+        "scene '{}' object '{}': unknown kind {}",
+        rv_log_escape(load.scene),
+        ecs_scene_text(object.name),
+        static_cast<int>(object.kind));
+    return RV_ERR_INVAL;
+}
+
+// Transform from the local Q20.12 values. The parent is set later, once every object has an entity.
+inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_id id)
+{
+    rv_cd_scene_local local{};
+    const int64_t read = rv_cd_scene_object_local_read(load.cd, load.scene, index, &local);
+    if (read != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object {}: local transform read failed ({})",
+            rv_log_escape(load.scene),
+            index,
+            read);
+        return static_cast<int>(read);
+    }
+    ecs_component_transform *transform = ecs_component_ensure<ecs_component_transform>(load.world, id);
+    if (transform == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    // Q20.12 int32 is fx: the values are copied as they are.
+    transform->position = fx_vec3{ local.position[0], local.position[1], local.position[2] };
+    transform->rotation = fx_vec3{ local.rotation[0], local.rotation[1], local.rotation[2] };
+    transform->scale = fx_vec3{ local.scale[0], local.scale[1], local.scale[2] };
+    return RV_OK;
+}
+
+// Creates the entity of object `index` with its type, transform, name and kind components.
+inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
+{
+    rv_cd_scene_object object{};
+    const int read = ecs_scene_read_object(load, index, object);
+    if (read != RV_OK) {
+        return read;
+    }
+    rv_cd_scene_entity type{};
+    const int64_t typed = rv_cd_scene_object_entity_read(load.cd, load.scene, index, &type);
+    if (typed != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': entity type read failed ({})",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            typed);
+        return static_cast<int>(typed);
+    }
+    ecs_id id{};
+    const std::string_view type_name{ type.type, ecs_name_length(type.type) };
+    const int created = ecs_entity_create_as(load.world, type_name, id);
+    if (created != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': entity type '{}' failed ({})",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            rv_log_escape(type.type),
+            created);
+        return created;
+    }
+    load.made.push_back(id); // reserved in advance: no allocation
+    const int placed = ecs_scene_add_transform(load, index, id);
+    if (placed != RV_OK) {
+        return placed;
+    }
+    ecs_component_name *name = ecs_component_ensure<ecs_component_name>(load.world, id);
+    if (name == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    name->text = ecs_scene_text(object.name);
+    return ecs_scene_add_kind(load, object, id);
+}
+
+// Parent of object `index`: the entity of its parent object, or `parent` for a root.
+inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
+{
+    rv_cd_scene_object object{};
+    const int read = ecs_scene_read_object(load, index, object);
+    if (read != RV_OK) {
+        return read;
+    }
+    const bool outside = object.parent >= load.objects;
+    if (outside) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object '{}': parent index {} is out of range",
+            rv_log_escape(load.scene),
+            ecs_scene_text(object.name),
+            object.parent);
+        return RV_ERR_INVAL;
+    }
+    const bool root = object.parent < 0;
+    const ecs_id entity_parent = root ? parent : load.made[static_cast<std::size_t>(object.parent)];
+    ecs_component_transform *transform =
+        ecs_component_get<ecs_component_transform>(load.world, load.made[static_cast<std::size_t>(index)]);
+    if (transform == nullptr) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    transform->parent = entity_parent;
+    return RV_OK;
+}
+
+// Factory of a name: a built-in first, then the world's registry. nullptr when neither has it.
+inline ecs_component_factory ecs_scene_factory(const ecs_world &world, std::string_view name)
+{
+    for (const ecs_scene_builtin &builtin : ecs_scene_builtins) {
+        if (builtin.name == name) {
+            return builtin.make;
+        }
+    }
+    return ecs_component_find(world, name);
+}
+
+// One [[component]] of the scene, given to its object's factory. An unknown name is skipped with a warning.
+inline int ecs_scene_component(ecs_scene_reading &load, int64_t index)
+{
+    rv_cd_scene_component component{};
+    const int64_t read = rv_cd_scene_component_read(load.cd, load.scene, index, &component);
+    if (read != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}' component {}: read failed ({})", rv_log_escape(load.scene), index, read);
+        return static_cast<int>(read);
+    }
+    const bool outside = component.object < 0 || component.object >= load.objects;
+    if (outside) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' component '{}': object index {} is out of range",
+            rv_log_escape(load.scene),
+            rv_log_escape(component.name),
+            component.object);
+        return RV_ERR_INVAL;
+    }
+    const std::string_view name{ component.name, ecs_name_length(component.name) };
+    const ecs_component_factory make = ecs_scene_factory(load.world, name);
+    if (make == nullptr) {
+        RV_LOG_WARN(ecs_scene_tag,
+            "scene '{}' object {}: unknown component '{}' skipped",
+            rv_log_escape(load.scene),
+            component.object,
+            rv_log_escape(component.name));
+        return RV_OK;
+    }
+    const ecs_id id = load.made[static_cast<std::size_t>(component.object)];
+    const int filled = make(load.world, id, component);
+    if (filled != RV_OK) {
+        RV_LOG_ERR(ecs_scene_tag,
+            "scene '{}' object {}: component '{}' failed ({})",
+            rv_log_escape(load.scene),
+            component.object,
+            rv_log_escape(component.name),
+            filled);
+        return filled;
+    }
+    return RV_OK;
+}
+
+// Objects in file order, then parents, then components. Every step returns its failure as is.
+inline int ecs_scene_load_all(ecs_scene_reading &load, ecs_id parent)
+{
+    ecs_scene_reserve(load);
+    for (int64_t index = 0; index < load.objects; ++index) {
+        const int spawned = ecs_scene_spawn(load, index);
+        if (spawned != RV_OK) {
+            return spawned;
+        }
+    }
+    for (int64_t index = 0; index < load.objects; ++index) {
+        const int linked = ecs_scene_link(load, index, parent);
+        if (linked != RV_OK) {
+            return linked;
+        }
+    }
+    for (int64_t index = 0; index < load.components; ++index) {
+        const int filled = ecs_scene_component(load, index);
+        if (filled != RV_OK) {
+            return filled;
+        }
+    }
+    return RV_OK;
+}
+
+// Destroys the entities of a failed load. Each id is alive, and the slots were reserved, so nothing here allocates.
+inline void ecs_scene_rollback(ecs_world &world, const std::vector<ecs_id> &made)
+{
+    for (const ecs_id id : made) {
+        ecs_entity_destroy(world, id);
+    }
+}
+
+// Parent and counts are checked before any entity exists; then the load runs into made.
+inline int ecs_scene_read_into(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, std::vector<ecs_id> &made)
+{
+    const bool root = parent == ecs_id{};
+    const bool alive = root || ecs_entity_alive(world, parent);
+    if (!alive) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': parent entity is not alive", rv_log_escape(scene));
+        return RV_ERR_NOENT;
+    }
+    const int64_t objects = rv_cd_scene_object_count(cd, scene);
+    if (objects < 0) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': object count failed ({})", rv_log_escape(scene), objects);
+        return static_cast<int>(objects);
+    }
+    const int64_t components = rv_cd_scene_component_count(cd, scene);
+    if (components < 0) {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': component count failed ({})", rv_log_escape(scene), components);
+        return static_cast<int>(components);
+    }
+    ecs_scene_reading load{ world, cd, scene, objects, components, made };
+    return ecs_scene_load_all(load, parent);
+}
+
+// Best effort: the returned status is the result. Formatting may need the memory that just ran out, and then the line is lost.
+inline void ecs_scene_log_failure(const char *scene, int status)
+{
+    try {
+        RV_LOG_ERR(ecs_scene_tag, "scene '{}': not loaded, world restored ({})", rv_log_escape(scene), status);
+    } catch (const std::bad_alloc &) {
+        // the line is lost; the caller still returns status
+    }
+}
+
+// Loads scene `scene` of cd into world. Objects become entities in file order in out; roots take `parent`
+// (ecs_id{} is the world root, else it must be alive). On failure the load's entities are destroyed, out is
+// empty, and the reason is logged. A bad_alloc anywhere in the call rolls back the same way and gives RV_ERR_NOMEM.
+inline int ecs_scene_read(ecs_world &world, rv_cd *cd, const char *scene, ecs_id parent, std::vector<ecs_id> &out)
+{
+    out.clear();
+    std::vector<ecs_id> made;
+    int status = RV_OK;
+    try {
+        status = ecs_scene_read_into(world, cd, scene, parent, made);
+    } catch (const std::bad_alloc &) {
+        status = RV_ERR_NOMEM;
+    }
+    if (status != RV_OK) {
+        ecs_scene_rollback(world, made);
+        ecs_scene_log_failure(scene, status);
+        return status;
+    }
+    out = std::move(made);
+    return RV_OK;
+}
+
+} // namespace rv_pdklib
