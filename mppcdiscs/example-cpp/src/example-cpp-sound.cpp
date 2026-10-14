@@ -222,7 +222,10 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
             state.span_start[static_cast<std::size_t>(f)] = start;
         }
     }
-    rv_steps_init(keys, state);
+    const int64_t steps_code = rv_steps_init(keys, state);
+    if (steps_code < 0) {
+        return steps_code;
+    }
     return RV_OK;
 }
 
