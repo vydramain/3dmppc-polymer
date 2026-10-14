@@ -40,6 +40,45 @@ constexpr std::string_view default_volume_name = "Volume";
 constexpr std::string_view default_group_name = "Group";
 // Suffix appended to duplicated object names.
 constexpr std::string_view duplicate_suffix = " copy";
+struct kind_layer {
+    std::string_view kind;
+    std::string_view layer;
+};
+// Built-in layer of each kind; a group has none. Layer names are the scene's own vocabulary
+// (ECS component names), shown as they are in the Layers menu, not interface text.
+constexpr kind_layer kind_layers[] = { { kind_mesh, "model" },
+    { kind_quad, "sprite" },
+    { kind_billboard, "sprite" },
+    { kind_camera, "camera" },
+    { kind_volume, "volume" } };
+
+// The object's built-in layer and its component names, hidden left out.
+std::vector<std::string> rv_editor_object_layers(const rv_editor_scene_object &o)
+{
+    std::vector<std::string> layers;
+    const auto found = std::ranges::find(kind_layers, o.kind, &kind_layer::kind);
+    if (found != std::end(kind_layers)) {
+        layers.emplace_back(found->layer);
+    }
+    for (const rv_editor_scene_component &c : o.components) {
+        if (c.name != component_hidden) {
+            layers.push_back(c.name);
+        }
+    }
+    return layers;
+}
+
+// True when one of the object's layers is switched off; looks up without building the names.
+bool rv_editor_object_layer_off(const rv_editor_scene_doc &doc, const rv_editor_scene_object &o)
+{
+    const auto built_in = std::ranges::find(kind_layers, o.kind, &kind_layer::kind);
+    if (built_in != std::end(kind_layers) && doc.off_layers.contains(built_in->layer)) {
+        return true;
+    }
+    return std::ranges::any_of(o.components, [&doc](const rv_editor_scene_component &c) {
+        return c.name != component_hidden && doc.off_layers.contains(c.name);
+    });
+}
 
 using mat3 = std::array<std::array<double, 3>, 3>;
 
@@ -261,6 +300,31 @@ bool rv_editor_scene_under(const rv_editor_scene &scene, const std::string &id, 
         at = i < 0 ? std::string() : scene.objects[static_cast<size_t>(i)].parent;
     }
     return false;
+}
+
+std::vector<std::string> rv_editor_scene_layers(const rv_editor_scene &scene)
+{
+    std::vector<std::string> layers;
+    for (const rv_editor_scene_object &o : scene.objects) {
+        for (std::string &layer : rv_editor_object_layers(o)) {
+            if (std::ranges::find(layers, layer) == layers.end()) {
+                layers.push_back(std::move(layer));
+            }
+        }
+    }
+    return layers;
+}
+
+rv_editor_visibility rv_editor_scene_visibility(const rv_editor_scene_doc &doc, const rv_editor_scene_object &o)
+{
+    const bool hidden = rv_editor_scene_has_component(o, component_hidden);
+    if (rv_editor_object_layer_off(doc, o) || (hidden && !doc.show_hidden)) {
+        return rv_editor_visibility::absent;
+    }
+    if (hidden) {
+        return rv_editor_visibility::outline;
+    }
+    return rv_editor_visibility::shown;
 }
 
 void rv_editor_scene_step(rv_editor_scene_doc &doc)

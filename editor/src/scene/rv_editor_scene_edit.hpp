@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+#include <functional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -19,9 +21,16 @@ enum class rv_editor_hierarchy_sort {
 // The Hierarchy search text's buffer size; an empty query shows the tree.
 constexpr size_t hierarchy_query_size = 128;
 
+// How an object is drawn: as is, as an outline, or not at all.
+enum class rv_editor_visibility {
+    shown,
+    outline,
+    absent
+};
+
 // A scene being edited: the document, its undo and redo, and the selection,
 // which Hierarchy, the viewport and Inspector share by id. The Hierarchy search and
-// sort are view state, kept here but not written to the scene file.
+// sort, and the Scene's Hidden and layers, are view state, kept here but not written to the scene file.
 struct rv_editor_scene_doc {
     rv_editor_scene scene;
     std::vector<std::vector<rv_editor_scene_object>> undo;
@@ -30,6 +39,8 @@ struct rv_editor_scene_doc {
     std::string selected;
     rv_editor_hierarchy_sort hierarchy_sort = rv_editor_hierarchy_sort::file_order;
     char hierarchy_query[hierarchy_query_size] = {};
+    bool show_hidden = true;
+    std::set<std::string, std::less<>> off_layers; // layers switched off by name; lookup by string_view
 };
 
 // Before a change: the state as it is becomes one undo step. A drag calls it once, at its start.
@@ -64,5 +75,11 @@ std::array<double, 3> rv_editor_affine_solve(const rv_editor_affine &a, const st
 
 // True when `ancestor` is `id` or above it.
 bool rv_editor_scene_under(const rv_editor_scene &scene, const std::string &id, const std::string &ancestor);
+
+// The scene's layers: each object's built-in layer by kind and its components but hidden, unique, in order of first use.
+std::vector<std::string> rv_editor_scene_layers(const rv_editor_scene &scene);
+// Visibility of `o`, an object of doc.scene: absent when a layer of it is off, or it is hidden with Hidden off;
+// an outline when it is hidden with Hidden on. Allocates nothing: called per object per frame.
+rv_editor_visibility rv_editor_scene_visibility(const rv_editor_scene_doc &doc, const rv_editor_scene_object &o);
 
 } // namespace rv_editor
