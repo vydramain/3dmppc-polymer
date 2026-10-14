@@ -56,3 +56,18 @@ extern "C" int64_t rv_cd_scene_object_read(rv_cd *cd, const char *scene, int64_t
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_read(scene, index, out);
 }
+
+extern "C" int64_t rv_cd_scene_component_count(rv_cd *cd, const char *scene)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_component_count(scene);
+}
+
+extern "C" int64_t rv_cd_scene_component_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_component *out)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_component_read(scene, index, out);
+}
+
+extern "C" int64_t rv_cd_scene_object_entity_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_entity *out)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_entity_read(scene, index, out);
+}
