@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <map>
+#include <set>
 #include <utility>
 
 #include "pdk/rv_err.h"
@@ -157,6 +158,44 @@ int rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
     return RV_OK;
 }
 
+// A [[component]] as read: the id of the object it names, resolved to an index after all objects.
+struct rv_scene_component_ref {
+    std::string object;
+    int line = 0;
+    rv_scene_component component;
+};
+
+// `object` and `name` are required strings; every other key is a field of the component.
+int rv_scene_component_read(const std::string &origin,
+    const rv_manifest_tree_section &section,
+    rv_scene_component_ref &out,
+    std::string &problems)
+{
+    out.line = section.line;
+    bool ok = true;
+    for (const rv_manifest_tree_entry &e : section.entries) {
+        const bool text_value = e.value.kind == rv_manifest_value_kind::string;
+        std::string *field = e.key == "object" ? &out.object : e.key == "name" ? &out.component.name : nullptr;
+        if (field == nullptr) {
+            out.component.fields.push_back(e);
+        } else if (!text_value) {
+            problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be a string\n";
+            ok = false;
+        } else {
+            *field = e.value.str;
+        }
+    }
+    if (out.object.empty()) {
+        problems += rv_scene_at(origin, section.line) + "component without an object\n";
+        ok = false;
+    }
+    if (out.component.name.empty()) {
+        problems += rv_scene_at(origin, section.line) + "component without a name\n";
+        ok = false;
+    }
+    return ok ? RV_OK : RV_ERR_INVAL;
+}
+
 } // namespace
 
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error)
@@ -170,6 +209,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     std::string problems;
     std::vector<std::pair<std::string, int>> parents; // each object's parent id and line
     std::map<std::string, int32_t> index;
+    std::vector<rv_scene_component_ref> components;
     bool has_version = false;
     bool has_legacy_format = false;
     std::string version_str;
@@ -187,6 +227,13 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
             }
             continue;
         }
+        if (section.name == "component" && section.array) {
+            rv_scene_component_ref c;
+            if (rv_scene_component_read(origin, section, c, problems) == RV_OK) {
+                components.push_back(std::move(c));
+            }
+            continue;
+        }
         if (section.name != "object" || !section.array) {
             out.other_sections.push_back(section);
             continue;
@@ -198,6 +245,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
             std::string *field = e.key == "id" ? &o.id :
                 e.key == "name"                ? &o.name :
                 e.key == "kind"                ? &o.kind :
+                e.key == "entity"              ? &o.entity :
                 e.key == "mesh"                ? &o.mesh :
                 e.key == "texture"             ? &o.texture :
                 e.key == "parent"              ? &parent :
@@ -295,6 +343,23 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     }
     for (const size_t i : cyclic) {
         out.objects[i].parent = -1;
+    }
+    // A component names its object by id, so it resolves only once every object is read.
+    std::set<std::pair<int32_t, std::string>> named;
+    for (rv_scene_component_ref &c : components) {
+        const auto it = index.find(c.object);
+        if (it == index.end()) {
+            problems += rv_scene_at(origin, c.line) + "component '" + c.component.name + "' names an unknown object '" +
+                c.object + "'\n";
+            continue;
+        }
+        c.component.object = it->second;
+        if (!named.emplace(it->second, c.component.name).second) {
+            problems +=
+                rv_scene_at(origin, c.line) + "object '" + c.object + "' has component '" + c.component.name + "' twice\n";
+            continue;
+        }
+        out.components.push_back(std::move(c.component));
     }
     if (!problems.empty()) {
         error = problems;

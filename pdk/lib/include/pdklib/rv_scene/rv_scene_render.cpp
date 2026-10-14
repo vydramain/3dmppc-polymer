@@ -26,6 +26,7 @@ constexpr const char *object_id_key = "id";
 constexpr const char *object_name_key = "name";
 constexpr const char *object_parent_key = "parent";
 constexpr const char *object_kind_key = "kind";
+constexpr const char *object_entity_key = "entity";
 constexpr const char *object_position_key = "position";
 constexpr const char *object_rotation_key = "rotation";
 constexpr const char *object_scale_key = "scale";
@@ -34,6 +35,9 @@ constexpr const char *object_texture_key = "texture";
 constexpr const char *object_uv_key = "uv";
 constexpr const char *object_tint_key = "tint";
 constexpr const char *object_tess_key = "tess";
+constexpr const char *component_section_name = "component";
+constexpr const char *component_object_key = "object";
+constexpr const char *component_name_key = "name";
 constexpr const char *kind_quad = "quad";
 constexpr const char *kind_billboard = "billboard";
 
@@ -225,6 +229,9 @@ void rv_scene_object_text(std::string &t, const rv_scene &scene, const rv_scene_
     rv_scene_field(t, object_name_key, rv_scene_quote(o.name));
     rv_scene_field(t, object_parent_key, rv_scene_quote(rv_scene_parent_id(scene, o.parent)));
     rv_scene_field(t, object_kind_key, rv_scene_quote(o.kind));
+    if (!o.entity.empty()) {
+        rv_scene_field(t, object_entity_key, rv_scene_quote(o.entity));
+    }
     rv_scene_field(t, object_position_key, rv_scene_vec3(o.position));
     rv_scene_field(t, object_rotation_key, rv_scene_vec3(o.rotation));
     rv_scene_field(t, object_scale_key, rv_scene_vec3(o.scale));
@@ -242,6 +249,16 @@ void rv_scene_object_text(std::string &t, const rv_scene &scene, const rv_scene_
     rv_scene_entries(t, o.extra);
 }
 
+// The component's block, written after its object's.
+void rv_scene_component_text(std::string &t, const std::string &object_id, const rv_scene_component &c)
+{
+    t += line_end;
+    rv_scene_header(t, component_section_name, true);
+    rv_scene_field(t, component_object_key, rv_scene_quote(object_id));
+    rv_scene_field(t, component_name_key, rv_scene_quote(c.name));
+    rv_scene_entries(t, c.fields);
+}
+
 } // namespace
 
 std::string rv_scene_render(const rv_scene &scene)
@@ -257,8 +274,13 @@ std::string rv_scene_render(const rv_scene &scene)
     rv_scene_header(t, scene_section_name, false);
     rv_scene_field(t, scene_version_key, rv_scene_quote(std::to_string(major) + "." + std::to_string(minor)));
     rv_scene_entries(t, scene.scene_extra);
-    for (const rv_scene_object &o : scene.objects) {
-        rv_scene_object_text(t, scene, o);
+    for (size_t i = 0; i < scene.objects.size(); ++i) {
+        rv_scene_object_text(t, scene, scene.objects[i]);
+        for (const rv_scene_component &c : scene.components) {
+            if (c.object == static_cast<int32_t>(i)) {
+                rv_scene_component_text(t, scene.objects[i].id, c);
+            }
+        }
     }
     for (const rv_manifest_tree_section &s : scene.other_sections) {
         t += line_end;
