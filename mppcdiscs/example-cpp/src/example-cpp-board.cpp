@@ -13,8 +13,8 @@ namespace example_cpp
 namespace
 {
 
-// The models of the disc (models/*.glb): one quad per glyph, and the halo quad. Each faces +X,
-// so the panel's front (+X) shows them; the textures are inside the models.
+// The models of the disc (assets/models/*.gltf): one quad per glyph, and the halo quad. Each faces +X,
+// so the panel's front (+X) shows them; their pictures are the PNGs in assets/tex.
 constexpr const char *RV_BOARD_HALO_MODEL = "halo.mppcmod";
 
 // "ОСТАЛОСЬ: 5", one model per cell; nullptr is the space between the colon and the digit.
