@@ -1,11 +1,12 @@
 #pragma once
 
-// Entity world of the scene ECS: numbered slots with generations. Components,
-// entity types and systems live elsewhere.
+// Entity world of the scene ECS: numbered slots with generations. Components live in
+// rv_ecs_store.hpp; entity types and systems live elsewhere.
 
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
 #include <vector>
 
 #include "pdk/rv_err.h"
@@ -23,6 +24,8 @@ inline constexpr uint32_t ecs_generation_max = std::numeric_limits<uint32_t>::ma
 struct ecs_id {
     uint32_t index = 0;      // slot number in ecs_world::slots
     uint32_t generation = 0; // equals the slot's generation while the entity lives
+
+    bool operator==(const ecs_id &) const = default;
 };
 
 struct ecs_slot {
@@ -30,11 +33,19 @@ struct ecs_slot {
     bool live = false;
 };
 
+// Type-erased component pool, so the world can drop an entity's components without their types.
+struct ecs_pool_base {
+    virtual ~ecs_pool_base() = default;
+    virtual void drop(ecs_id id) = 0; // does nothing when id holds no component here
+    virtual const std::vector<ecs_id> &holders() const = 0;
+};
+
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
     std::vector<ecs_slot> slots;
     std::vector<uint32_t> free_slots; // destroyed slots, reused by the next create
     uint32_t live_count = 0;
+    std::vector<std::unique_ptr<ecs_pool_base>> pools; // indexed by component type number
 };
 
 // Index for the next entity: the newest free slot, else a new slot appended.
@@ -86,13 +97,18 @@ inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
     return slot.live && slot.generation == id.generation;
 }
 
-// RV_ERR_NOENT for an unknown or stale id.
+// RV_ERR_NOENT for an unknown or stale id. Drops the entity's components from every pool.
 inline int ecs_entity_destroy(ecs_world &world, ecs_id id)
 {
     if (!ecs_entity_alive(world, id)) {
         return RV_ERR_NOENT;
     }
     ecs_release_slot(world, id.index);
+    for (const std::unique_ptr<ecs_pool_base> &pool : world.pools) {
+        if (pool) {
+            pool->drop(id);
+        }
+    }
     ecs_slot &slot = world.slots[id.index];
     slot.live = false;
     --world.live_count;
