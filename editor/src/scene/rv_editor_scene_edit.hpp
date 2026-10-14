@@ -9,14 +9,27 @@
 namespace rv_editor
 {
 
+// How Hierarchy lists siblings: the file's order, or sorted by name, or by entity type then kind.
+enum class rv_editor_hierarchy_sort {
+    file_order,
+    name,
+    kind
+};
+
+// The Hierarchy search text's buffer size; an empty query shows the tree.
+constexpr size_t hierarchy_query_size = 128;
+
 // A scene being edited: the document, its undo and redo, and the selection,
-// which Hierarchy, the viewport and Inspector share by id.
+// which Hierarchy, the viewport and Inspector share by id. The Hierarchy search and
+// sort are view state, kept here but not written to the scene file.
 struct rv_editor_scene_doc {
     rv_editor_scene scene;
     std::vector<std::vector<rv_editor_scene_object>> undo;
     std::vector<std::vector<rv_editor_scene_object>> redo;
     bool dirty = false;
     std::string selected;
+    rv_editor_hierarchy_sort hierarchy_sort = rv_editor_hierarchy_sort::file_order;
+    char hierarchy_query[hierarchy_query_size] = {};
 };
 
 // Before a change: the state as it is becomes one undo step. A drag calls it once, at its start.
