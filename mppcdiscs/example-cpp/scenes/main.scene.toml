@@ -446,3 +446,483 @@ name = "lamp_light"
 [[component]]
 object = "5ce20004"
 name = "hidden"
+
+[[object]]
+id = "5ce30000"
+name = "halo_0"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, -1.199951171875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30000"
+name = "decal"
+
+[[component]]
+object = "5ce30000"
+name = "flicker"
+cell = 0
+
+[[component]]
+object = "5ce30000"
+name = "hidden"
+
+[[object]]
+id = "5ce30001"
+name = "halo_1"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, -0.9599609375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30001"
+name = "decal"
+
+[[component]]
+object = "5ce30001"
+name = "flicker"
+cell = 1
+
+[[component]]
+object = "5ce30001"
+name = "hidden"
+
+[[object]]
+id = "5ce30002"
+name = "halo_2"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, -0.719970703125]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30002"
+name = "decal"
+
+[[component]]
+object = "5ce30002"
+name = "flicker"
+cell = 2
+
+[[component]]
+object = "5ce30002"
+name = "hidden"
+
+[[object]]
+id = "5ce30003"
+name = "halo_3"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, -0.47998046875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30003"
+name = "decal"
+
+[[component]]
+object = "5ce30003"
+name = "flicker"
+cell = 3
+
+[[component]]
+object = "5ce30003"
+name = "hidden"
+
+[[object]]
+id = "5ce30004"
+name = "halo_4"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, -0.239990234375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30004"
+name = "decal"
+
+[[component]]
+object = "5ce30004"
+name = "flicker"
+cell = 4
+
+[[component]]
+object = "5ce30004"
+name = "hidden"
+
+[[object]]
+id = "5ce30005"
+name = "halo_5"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30005"
+name = "decal"
+
+[[component]]
+object = "5ce30005"
+name = "flicker"
+cell = 5
+
+[[component]]
+object = "5ce30005"
+name = "hidden"
+
+[[object]]
+id = "5ce30006"
+name = "halo_6"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, 0.239990234375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30006"
+name = "decal"
+
+[[component]]
+object = "5ce30006"
+name = "flicker"
+cell = 6
+
+[[component]]
+object = "5ce30006"
+name = "hidden"
+
+[[object]]
+id = "5ce30007"
+name = "halo_7"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, 0.47998046875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30007"
+name = "decal"
+
+[[component]]
+object = "5ce30007"
+name = "flicker"
+cell = 7
+
+[[component]]
+object = "5ce30007"
+name = "hidden"
+
+[[object]]
+id = "5ce30008"
+name = "halo_8"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, 0.719970703125]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30008"
+name = "decal"
+
+[[component]]
+object = "5ce30008"
+name = "flicker"
+cell = 8
+
+[[component]]
+object = "5ce30008"
+name = "hidden"
+
+[[object]]
+id = "5ce30010"
+name = "halo_10"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.0048828125, 0, 1.199951171875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "halo.gltf"
+texture = ""
+
+[[component]]
+object = "5ce30010"
+name = "decal"
+
+[[component]]
+object = "5ce30010"
+name = "flicker"
+cell = 10
+
+[[component]]
+object = "5ce30010"
+name = "hidden"
+
+[[object]]
+id = "5ce31000"
+name = "glyph_0"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, -1.199951171875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_o.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31000"
+name = "decal"
+
+[[component]]
+object = "5ce31000"
+name = "flicker"
+cell = 0
+
+[[component]]
+object = "5ce31000"
+name = "hidden"
+
+[[object]]
+id = "5ce31001"
+name = "glyph_1"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, -0.9599609375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_s.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31001"
+name = "decal"
+
+[[component]]
+object = "5ce31001"
+name = "flicker"
+cell = 1
+
+[[component]]
+object = "5ce31001"
+name = "hidden"
+
+[[object]]
+id = "5ce31002"
+name = "glyph_2"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, -0.719970703125]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_t.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31002"
+name = "decal"
+
+[[component]]
+object = "5ce31002"
+name = "flicker"
+cell = 2
+
+[[component]]
+object = "5ce31002"
+name = "hidden"
+
+[[object]]
+id = "5ce31003"
+name = "glyph_3"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, -0.47998046875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_a.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31003"
+name = "decal"
+
+[[component]]
+object = "5ce31003"
+name = "flicker"
+cell = 3
+
+[[component]]
+object = "5ce31003"
+name = "hidden"
+
+[[object]]
+id = "5ce31004"
+name = "glyph_4"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, -0.239990234375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_l.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31004"
+name = "decal"
+
+[[component]]
+object = "5ce31004"
+name = "flicker"
+cell = 4
+
+[[component]]
+object = "5ce31004"
+name = "hidden"
+
+[[object]]
+id = "5ce31005"
+name = "glyph_5"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, 0]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_o.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31005"
+name = "decal"
+
+[[component]]
+object = "5ce31005"
+name = "flicker"
+cell = 5
+
+[[component]]
+object = "5ce31005"
+name = "hidden"
+
+[[object]]
+id = "5ce31006"
+name = "glyph_6"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, 0.239990234375]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_s.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31006"
+name = "decal"
+
+[[component]]
+object = "5ce31006"
+name = "flicker"
+cell = 6
+
+[[component]]
+object = "5ce31006"
+name = "hidden"
+
+[[object]]
+id = "5ce31007"
+name = "glyph_7"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, 0.47998046875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_soft.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31007"
+name = "decal"
+
+[[component]]
+object = "5ce31007"
+name = "flicker"
+cell = 7
+
+[[component]]
+object = "5ce31007"
+name = "hidden"
+
+[[object]]
+id = "5ce31008"
+name = "glyph_8"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, 0.719970703125]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_colon.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31008"
+name = "decal"
+
+[[component]]
+object = "5ce31008"
+name = "flicker"
+cell = 8
+
+[[component]]
+object = "5ce31008"
+name = "hidden"
+
+[[object]]
+id = "5ce31010"
+name = "glyph_10"
+parent = "5ce00002"
+kind = "mesh"
+position = [0.010009765625, 0, 1.199951171875]
+rotation = [0, 0, 0]
+scale = [1, 1, 1]
+mesh = "glyph_5.gltf"
+texture = ""
+
+[[component]]
+object = "5ce31010"
+name = "decal"
+
+[[component]]
+object = "5ce31010"
+name = "flicker"
+cell = 10
+
+[[component]]
+object = "5ce31010"
+name = "hidden"

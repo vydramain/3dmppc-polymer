@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cstdint>
-#include <cstring>
 #include <string>
 #include <vector>
 
@@ -35,6 +34,8 @@ constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 constexpr const char *RV_EXAMPLE_CPP_ROUTE_SYSTEM = "route";
 // The scene component of a lamp_N_light object; its factory and frame system are registered under this name.
 constexpr const char *RV_EXAMPLE_CPP_LAMP_LIGHT = "lamp_light";
+// The scene component of a board halo or letter; its factory and frame system are registered under this name.
+constexpr const char *RV_EXAMPLE_CPP_FLICKER = "flicker";
 
 constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
 
@@ -111,8 +112,7 @@ private:
     rv_pdklib::ecs_world world_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
-    // World matrix of the board object, valid when board_found_.
-    float board_world_[16] = {};
+    // The scene has the board object; the sound takes it into account.
     bool board_found_ = false;
     // Frames updated while running: the demo's clock.
     int64_t frame_count_ = 0;
@@ -124,8 +124,8 @@ private:
     std::vector<std::string> sound_errors_logged_;
 };
 
-// Registers the route's entity type and frame system, and the lamp_light component and its frame system; a scene
-// refers to them by name.
+// Registers the route's entity type and frame system, and the lamp_light and flicker components with their frame
+// systems; a scene refers to them by name.
 int rv_dmain::register_ecs()
 {
     const int type_code = rv_pdklib::ecs_entity_register(world_, route_type_);
@@ -145,6 +145,16 @@ int rv_dmain::register_ecs()
         rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp::ecs_system_lamp_light);
     if (lamp_system_code != RV_OK) {
         return lamp_system_code;
+    }
+    const int flicker_factory_code =
+        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp::ecs_flicker_factory);
+    if (flicker_factory_code != RV_OK) {
+        return flicker_factory_code;
+    }
+    const int flicker_system_code =
+        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp::ecs_system_flicker);
+    if (flicker_system_code != RV_OK) {
+        return flicker_system_code;
     }
     return RV_OK;
 }
@@ -182,21 +192,18 @@ int rv_dmain::read_scene()
     return RV_OK;
 }
 
-// The board from the scene's entities, in file order. Its matrix comes from the transform system.
+// The board from the scene's entities, in file order.
 int rv_dmain::collect_parts()
 {
     for (const rv_pdklib::ecs_load &load : world_.loads) {
         for (const rv_pdklib::ecs_id id : load.made) {
             const auto *name = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_name>(world_, id);
-            const auto *place = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_world>(world_, id);
-            if (name == nullptr || place == nullptr) {
-                RV_LOG_ERR("scene", "scene refused: an entity has no name or no world matrix");
+            if (name == nullptr) {
+                RV_LOG_ERR("scene", "scene refused: an entity has no name");
                 return RV_ERR_INVAL;
             }
-            const bool is_board = name->text == RV_EXAMPLE_CPP_BOARD_NAME;
-            if (is_board) {
+            if (name->text == RV_EXAMPLE_CPP_BOARD_NAME) {
                 board_found_ = true;
-                std::memcpy(board_world_, place->matrix.m, sizeof(board_world_));
             }
         }
     }
@@ -209,18 +216,9 @@ void rv_dmain::draw_world()
     if (keys_.empty()) {
         return;
     }
-    // The world frame fails on the route camera or on a put. The board is then skipped too: drawn now
-    // it would sit under the last frame's camera.
     const int frame_code = rv_pdklib::ecs_world_frame(world_, rv_pdklib::ecs_frame{ pdk_, frame_count_ });
     if (frame_code != RV_OK) {
         log_draw_error("world", frame_code);
-        return;
-    }
-    if (board_found_) {
-        const int64_t board_code = rv_board_draw(pdk_, board_world_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
-        if (board_code < 0) {
-            log_draw_error("board", board_code);
-        }
     }
 }
 
