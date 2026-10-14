@@ -7,10 +7,23 @@
 
 #include "pdk/cv/rv_vertex.h"
 #include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
+#include "pdk/de/rv_dv.h"
 
 namespace rv_pdklib
 {
+
+// First minor of the PDK major whose numbers are raw Q20.12 units; 1.0 and older hold
+// decimal units, read with rounding. The writer stamps this version on what it writes.
+constexpr uint32_t rv_scene_raw_minor = 1;
+
+// True for a file version that holds raw Q20.12 numbers; 0.0 (legacy) and 1.0 do not.
+inline constexpr bool rv_scene_numbers_raw(uint32_t major, uint32_t minor)
+{
+    return major > static_cast<uint32_t>(RV_MPPC_VER_MAJOR) ||
+        (major == static_cast<uint32_t>(RV_MPPC_VER_MAJOR) && minor >= rv_scene_raw_minor);
+}
 
 // A scene document as a disc reads it:
 // objects in file order with their parents resolved. It takes the file's BYTES,
@@ -29,14 +42,14 @@ struct rv_scene_object {
     int32_t parent = -1; // index into rv_scene::objects; -1 at the root
     std::string kind;    // "group", "camera", "mesh", "quad", "billboard" or "volume"
     std::string entity;  // entity type name; empty: the base type
-    rv_vec3 position{ 0.0f, 0.0f, 0.0f };
-    rv_vec3 rotation{ 0.0f, 0.0f, 0.0f }; // degrees; R = Ry * Rx * Rz (yaw, pitch, roll)
-    rv_vec3 scale{ 1.0f, 1.0f, 1.0f };
-    std::string mesh;                      // a disc asset for kind "mesh"; empty: a unit cube
-    std::string texture;                   // a disc texture, or empty
-    float uv[4]{ 0.0f, 0.0f, 0.0f, 0.0f }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
-    rv_color tint{ 255, 255, 255 };        // quad/billboard modulation
-    float tess = 2.0f;                     // quad/billboard subdivision density
+    fx_vec3 position{ 0, 0, 0 };               // Q20.12 scene units
+    fx_vec3 rotation{ 0, 0, 0 };               // Q20.12 degrees; R = Ry * Rx * Rz; [x (pitch), y (yaw), z (roll)]
+    fx_vec3 scale{ fx_one, fx_one, fx_one };   // Q20.12, 1.0 is fx_one
+    std::string mesh;                          // a disc asset for kind "mesh"; empty: a unit cube
+    std::string texture;                       // a disc texture, or empty
+    fx uv[4]{ 0, 0, 0, 0 };                    // Q20.12 quad/billboard texture rect, pixels: u0,v0,u1,v1
+    rv_color tint{ 255, 255, 255 };            // quad/billboard modulation
+    fx tess = 2 * fx_one;                      // Q20.12 quad/billboard subdivision density, 2.0
     std::vector<rv_manifest_tree_entry> extra; // keys the loader does not know, in file order
 };
 
@@ -60,7 +73,8 @@ struct rv_scene {
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
 // `origin`: syntax, a missing/malformed/non-compatible version, a missing or
 // repeated id, an unknown parent, a parent cycle, an unknown kind, a vector
-// that is not three numbers, a malformed `uv`/`tint`/`tess`, a non-string `entity`,
+// that is not three numbers, a malformed `uv`/`tint`/`tess`, a number outside Q20.12 or
+// (from version 1.1) not whole, a non-string `entity`,
 // a [[component]] without a string `object` or `name`, one on an unknown object,
 // or a name repeated on one object. Unknown keys are kept
 // in `extra`/`scene_extra` and unknown sections in `other_sections`, each list in file

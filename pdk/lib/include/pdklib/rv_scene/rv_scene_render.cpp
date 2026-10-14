@@ -108,11 +108,6 @@ std::string rv_scene_number(T v)
     return std::string(buf.data(), r.ptr);
 }
 
-std::string rv_scene_element(float v)
-{
-    return rv_scene_number(v);
-}
-
 std::string rv_scene_element(double v)
 {
     return rv_scene_number(v);
@@ -140,9 +135,10 @@ std::string rv_scene_array(const T *items, size_t count)
     return out + array_end;
 }
 
-std::string rv_scene_vec3(const rv_vec3 &v)
+// Q20.12 raw values, whole numbers as the file version 1.1 holds them.
+std::string rv_scene_vec3(const fx_vec3 &v)
 {
-    const float parts[vec3_size] = { v.x, v.y, v.z };
+    const fx parts[vec3_size] = { v.x, v.y, v.z };
     return rv_scene_array(parts, vec3_size);
 }
 
@@ -227,7 +223,7 @@ void rv_scene_object_text(std::string &t, const rv_scene &scene, const rv_scene_
         rv_scene_field(t, object_tint_key, rv_scene_tint(o.tint));
     }
     if (rv_scene_writes_tess(o)) {
-        rv_scene_field(t, object_tess_key, rv_scene_number(o.tess));
+        rv_scene_field(t, object_tess_key, rv_scene_element(o.tess));
     }
     rv_scene_entries(t, o.extra);
 }
@@ -267,10 +263,10 @@ std::string rv_scene_render(const rv_scene &scene)
     if (!t.empty() && t.back() != '\n') {
         t += line_end;
     }
-    // A 0.0 scene, legacy header or version = "0.0", is written as the current PDK version.
-    const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
-    const uint32_t major = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MAJOR) : scene.version_major;
-    const uint32_t minor = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MINOR) : scene.version_minor;
+    // Written numbers are raw Q20.12, so a file below the raw version is written as that version.
+    const bool old = !rv_scene_numbers_raw(scene.version_major, scene.version_minor);
+    const uint32_t major = old ? static_cast<uint32_t>(RV_MPPC_VER_MAJOR) : scene.version_major;
+    const uint32_t minor = old ? rv_scene_raw_minor : scene.version_minor;
     rv_scene_header(t, scene_section_name, false);
     rv_scene_field(t, scene_version_key, rv_scene_quote(std::to_string(major) + "." + std::to_string(minor)));
     rv_scene_entries(t, scene.scene_extra);

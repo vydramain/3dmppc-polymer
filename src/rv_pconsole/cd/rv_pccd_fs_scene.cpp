@@ -2,6 +2,7 @@
 // and flattened into rv_cd_scene_object copies the disc reads by index. Kept out
 // of rv_pccd_fs.cpp, which is at its size limit.
 #include <cstring>
+#include <iterator>
 #include <new>
 #include <string>
 #include <string_view>
@@ -113,10 +114,13 @@ int64_t build_object_(const std::string &scene, const rv_pdklib::rv_scene &loade
     const rv_pdklib::rv_mat4 world = rv_pdklib::rv_scene_world(loaded, index);
     static_assert(sizeof(out.world) == sizeof(world.m), "scene world is 16 floats");
     std::memcpy(out.world, world.m, sizeof(out.world));
-    static_assert(sizeof(out.uv) == sizeof(object.uv), "scene uv is 4 floats");
-    std::memcpy(out.uv, object.uv, sizeof(out.uv));
+    // The document keeps uv and tess as Q20.12 fixed point; the console contract is float.
+    static_assert(sizeof(out.uv) / sizeof(out.uv[0]) == sizeof(object.uv) / sizeof(object.uv[0]), "scene uv element count");
+    for (size_t i = 0; i < std::size(out.uv); ++i) {
+        out.uv[i] = rv_pdklib::fx_to_float(object.uv[i]);
+    }
     out.tint = object.tint;
-    out.tess = object.tess;
+    out.tess = rv_pdklib::fx_to_float(object.tess);
     return RV_OK;
 }
 

@@ -2,7 +2,9 @@
 
 #include "rv_scene.hpp"
 
+#include <array>
 #include <cmath>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -104,24 +106,85 @@ std::string rv_scene_preamble(const std::string &text, const rv_manifest_tree &t
     return text.substr(0, at);
 }
 
-int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
+// Why a scene number was refused; the texts below follow this order, none first.
+enum class rv_scene_fault {
+    none,
+    not_three_numbers,
+    not_four_numbers,
+    not_a_number,
+    not_whole,
+    out_of_range,
+    not_positive,
+    rounds_to_zero,
+};
+
+// The message tail of each fault: raw for version 1.1 and newer, decimal before it.
+struct rv_scene_fault_text_row {
+    const char *raw;
+    const char *decimal;
+};
+constexpr std::array<rv_scene_fault_text_row, 8> rv_scene_fault_texts = { {
+    { "", "" },
+    { "must be three numbers", "must be three numbers" },
+    { "must be four numbers", "must be four numbers" },
+    { "must be a number", "must be a number" },
+    { "must be whole raw Q20.12 values (version 1.1 and newer)", "" },
+    { "is outside the int32 raw Q20.12 range", "is outside [-524288, 524288) units" },
+    { "must be greater than zero", "must be greater than zero" },
+    { "is below the Q20.12 step 1/4096 and rounds to 0", "is below the Q20.12 step 1/4096 and rounds to 0" },
+} };
+
+std::string rv_scene_fault_text(rv_scene_fault f, bool raw)
 {
-    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
-        return RV_ERR_INVAL;
-    }
-    out = { static_cast<float>(e.value.nums[0]), static_cast<float>(e.value.nums[1]), static_cast<float>(e.value.nums[2]) };
-    return RV_OK;
+    const rv_scene_fault_text_row &row = rv_scene_fault_texts[static_cast<size_t>(f)];
+    return raw ? row.raw : row.decimal;
 }
 
-int rv_scene_uv(const rv_manifest_tree_entry &e, float out[rv_scene_uv_components])
+// One number of a scene file: raw Q20.12 from version 1.1 (whole, int32), decimal units before it.
+rv_scene_fault rv_scene_number_value(double v, bool raw, fx &out)
+{
+    if (!raw) {
+        return fx_from_double(v, out) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
+    }
+    const bool fits =
+        v >= static_cast<double>(std::numeric_limits<fx>::min()) && v <= static_cast<double>(std::numeric_limits<fx>::max());
+    if (!fits) {
+        return rv_scene_fault::out_of_range;
+    }
+    if (v != std::floor(v)) {
+        return rv_scene_fault::not_whole;
+    }
+    return fx_from_raw(static_cast<int64_t>(v), out) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
+}
+
+rv_scene_fault rv_scene_vector(const rv_manifest_tree_entry &e, bool raw, fx_vec3 &out)
+{
+    if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
+        return rv_scene_fault::not_three_numbers;
+    }
+    fx v[rv_scene_vector_components] = {};
+    for (int i = 0; i < rv_scene_vector_components; ++i) {
+        const rv_scene_fault f = rv_scene_number_value(e.value.nums[static_cast<size_t>(i)], raw, v[i]);
+        if (f != rv_scene_fault::none) {
+            return f;
+        }
+    }
+    out = { v[0], v[1], v[2] };
+    return rv_scene_fault::none;
+}
+
+rv_scene_fault rv_scene_uv(const rv_manifest_tree_entry &e, bool raw, fx out[rv_scene_uv_components])
 {
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_uv_components) {
-        return RV_ERR_INVAL;
+        return rv_scene_fault::not_four_numbers;
     }
     for (int i = 0; i < rv_scene_uv_components; ++i) {
-        out[i] = static_cast<float>(e.value.nums[i]);
+        const rv_scene_fault f = rv_scene_number_value(e.value.nums[static_cast<size_t>(i)], raw, out[i]);
+        if (f != rv_scene_fault::none) {
+            return f;
+        }
     }
-    return RV_OK;
+    return rv_scene_fault::none;
 }
 
 int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
@@ -141,21 +204,74 @@ int rv_scene_tint(const rv_manifest_tree_entry &e, rv_color &out)
     return RV_OK;
 }
 
-int rv_scene_tess(const rv_manifest_tree_entry &e, float &out)
+rv_scene_fault rv_scene_tess(const rv_manifest_tree_entry &e, bool raw, fx &out)
 {
-    double v;
+    fx q = 0;
+    double v = 0.0;
+    rv_scene_fault f = rv_scene_fault::not_a_number;
     if (e.value.kind == rv_manifest_value_kind::integer) {
         v = static_cast<double>(e.value.num);
+        if (raw) {
+            f = rv_scene_number_value(v, true, q);
+        } else {
+            f = fx_from_units(e.value.num, q) == RV_OK ? rv_scene_fault::none : rv_scene_fault::out_of_range;
+        }
     } else if (e.value.kind == rv_manifest_value_kind::real) {
         v = e.value.real;
-    } else {
-        return RV_ERR_INVAL;
+        f = rv_scene_number_value(v, raw, q);
+    }
+    if (f != rv_scene_fault::none) {
+        return f;
     }
     if (v <= 0.0) {
-        return RV_ERR_INVAL;
+        return rv_scene_fault::not_positive;
     }
-    out = static_cast<float>(v);
-    return RV_OK;
+    if (q == 0) {
+        return rv_scene_fault::rounds_to_zero;
+    }
+    out = q;
+    return rv_scene_fault::none;
+}
+
+// The [scene] version, or the pre-version `format` header, into `out`; a version that is
+// missing, malformed or not compatible is reported in `problems`.
+void rv_scene_read_version(const rv_manifest_tree &tree, const std::string &origin, rv_scene &out, std::string &problems)
+{
+    bool has_version = false;
+    bool has_legacy_format = false;
+    std::string version_str;
+    for (const rv_manifest_tree_section &section : tree.sections) {
+        if (section.name != "scene" || section.array) {
+            continue;
+        }
+        for (const rv_manifest_tree_entry &e : section.entries) {
+            if (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) {
+                version_str = e.value.str;
+                has_version = true;
+            } else if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
+                has_legacy_format = true;
+            }
+        }
+    }
+    if (has_version) {
+        uint32_t major = 0, minor = 0;
+        if (rv_version_parse(version_str, major, minor) != RV_OK) {
+            problems += origin + ": malformed [scene] version '" + version_str + "'\n";
+        } else if (!rv_version_compatible(major, minor)) {
+            problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
+                " is not compatible with this PDK's " + rv_version_str + "\n";
+        } else {
+            out.version_major = major;
+            out.version_minor = minor;
+        }
+    } else if (has_legacy_format) {
+        // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
+        if (!rv_version_compatible(0, 0)) {
+            problems += origin + ": scene version 0.0 is not compatible with this PDK's " + std::string(rv_version_str) + "\n";
+        }
+    } else {
+        problems += origin + ": no [scene] version\n";
+    }
 }
 
 // A [[component]] as read: the id of the object it names, resolved to an index after all objects.
@@ -210,18 +326,15 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
     std::vector<std::pair<std::string, int>> parents; // each object's parent id and line
     std::map<std::string, int32_t> index;
     std::vector<rv_scene_component_ref> components;
-    bool has_version = false;
-    bool has_legacy_format = false;
-    std::string version_str;
+    // The numbers of the objects depend on the version, so it is read before them.
+    rv_scene_read_version(tree, origin, out, problems);
+    const bool raw = rv_scene_numbers_raw(out.version_major, out.version_minor);
     for (const rv_manifest_tree_section &section : tree.sections) {
         if (section.name == "scene" && !section.array) {
             for (const rv_manifest_tree_entry &e : section.entries) {
-                if (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) {
-                    version_str = e.value.str;
-                    has_version = true;
-                } else if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
-                    has_legacy_format = true;
-                } else {
+                const bool version_key = (e.key == "version" && e.value.kind == rv_manifest_value_kind::string) ||
+                    (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer);
+                if (!version_key) {
                     out.scene_extra.push_back(e);
                 }
             }
@@ -250,7 +363,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
                 e.key == "texture"             ? &o.texture :
                 e.key == "parent"              ? &parent :
                                                  nullptr;
-            rv_vec3 *vec = e.key == "position" ? &o.position :
+            fx_vec3 *vec = e.key == "position" ? &o.position :
                 e.key == "rotation"            ? &o.rotation :
                 e.key == "scale"               ? &o.scale :
                                                  nullptr;
@@ -259,20 +372,23 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
             } else if (field != nullptr) {
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be a string\n";
             } else if (vec != nullptr) {
-                if (rv_scene_vector(e, *vec) != RV_OK) {
-                    problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be three numbers\n";
+                const rv_scene_fault f = rv_scene_vector(e, raw, *vec);
+                if (f != rv_scene_fault::none) {
+                    problems += rv_scene_at(origin, e.line) + "'" + e.key + "' " + rv_scene_fault_text(f, raw) + "\n";
                 }
             } else if (e.key == "uv") {
-                if (rv_scene_uv(e, o.uv) != RV_OK) {
-                    problems += rv_scene_at(origin, e.line) + "'uv' must be four numbers\n";
+                const rv_scene_fault f = rv_scene_uv(e, raw, o.uv);
+                if (f != rv_scene_fault::none) {
+                    problems += rv_scene_at(origin, e.line) + "'uv' " + rv_scene_fault_text(f, raw) + "\n";
                 }
             } else if (e.key == "tint") {
                 if (rv_scene_tint(e, o.tint) != RV_OK) {
                     problems += rv_scene_at(origin, e.line) + "'tint' must be three integers from 0 to 255\n";
                 }
             } else if (e.key == "tess") {
-                if (rv_scene_tess(e, o.tess) != RV_OK) {
-                    problems += rv_scene_at(origin, e.line) + "'tess' must be a number greater than zero\n";
+                const rv_scene_fault f = rv_scene_tess(e, raw, o.tess);
+                if (f != rv_scene_fault::none) {
+                    problems += rv_scene_at(origin, e.line) + "'tess' " + rv_scene_fault_text(f, raw) + "\n";
                 }
             } else {
                 o.extra.push_back(e);
@@ -293,25 +409,6 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         }
         parents.emplace_back(parent, section.line);
         out.objects.push_back(std::move(o));
-    }
-    if (has_version) {
-        uint32_t major = 0, minor = 0;
-        if (rv_version_parse(version_str, major, minor) != RV_OK) {
-            problems += origin + ": malformed [scene] version '" + version_str + "'\n";
-        } else if (!rv_version_compatible(major, minor)) {
-            problems += origin + ": scene version " + std::to_string(major) + "." + std::to_string(minor) +
-                " is not compatible with this PDK's " + rv_version_str + "\n";
-        } else {
-            out.version_major = major;
-            out.version_minor = minor;
-        }
-    } else if (has_legacy_format) {
-        // The pre-version header: read as 0.0, compatible only while the PDK major is 0.
-        if (!rv_version_compatible(0, 0)) {
-            problems += origin + ": scene version 0.0 is not compatible with this PDK's " + std::string(rv_version_str) + "\n";
-        }
-    } else {
-        problems += origin + ": no [scene] version\n";
     }
     for (size_t i = 0; i < out.objects.size(); ++i) {
         const std::string &parent = parents[i].first;
@@ -371,9 +468,12 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
 
 rv_mat4 rv_scene_local(const rv_scene_object &o)
 {
-    const rv_mat4 r = rv_mat4_mul(rv_scene_rotate_y(o.rotation.y),
-        rv_mat4_mul(rv_scene_rotate_x(o.rotation.x), rv_scene_rotate_z(o.rotation.z)));
-    return rv_mat4_mul(rv_mat4_translate(o.position), rv_mat4_mul(r, rv_mat4_scale(o.scale)));
+    const rv_vec3 position = fx_vec3_to_float(o.position);
+    const rv_vec3 rotation = fx_vec3_to_float(o.rotation);
+    const rv_vec3 scale = fx_vec3_to_float(o.scale);
+    const rv_mat4 r =
+        rv_mat4_mul(rv_scene_rotate_y(rotation.y), rv_mat4_mul(rv_scene_rotate_x(rotation.x), rv_scene_rotate_z(rotation.z)));
+    return rv_mat4_mul(rv_mat4_translate(position), rv_mat4_mul(r, rv_mat4_scale(scale)));
 }
 
 rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
