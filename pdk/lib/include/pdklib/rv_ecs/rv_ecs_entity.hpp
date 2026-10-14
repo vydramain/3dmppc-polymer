@@ -9,6 +9,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_ecs/rv_ecs.hpp"
+#include "pdklib/rv_ecs/rv_ecs_store.hpp"
 
 namespace rv_pdklib
 {
@@ -77,7 +78,8 @@ inline int ecs_entity_register(ecs_world &world, const ecs_entity &type)
 inline int ecs_entity_register(ecs_world &world, const ecs_entity &&type) = delete;
 
 // RV_ERR_NOENT for an unknown name, RV_ERR_NOMEM when no index is left, the failed default add's code,
-// or RV_ERR_INVAL when add_defaults destroyed the entity. Only success writes out.
+// or RV_ERR_INVAL when add_defaults destroyed the entity. Only success writes out. A throwing add_defaults
+// destroys the entity and rethrows, so the caller never sees a half-made entity.
 inline int ecs_entity_create_as(ecs_world &world, std::string_view name, ecs_id &out)
 {
     const bool base = name.empty();
@@ -85,12 +87,23 @@ inline int ecs_entity_create_as(ecs_world &world, std::string_view name, ecs_id 
     if (type == nullptr) {
         return RV_ERR_NOENT;
     }
+    // The catch below frees id, and that free-list push must not allocate: capacity grows ahead of the slot count.
+    const std::size_t needed = world.slots.size() + 1;
+    if (world.free_slots.capacity() < needed) {
+        world.free_slots.reserve(std::max(needed, ecs_pool_growth_factor * world.free_slots.capacity()));
+    }
     ecs_id id{};
     const int created = ecs_entity_create(world, id);
     if (created != RV_OK) {
         return created;
     }
-    const int added = type->add_defaults(world, id);
+    int added = RV_OK;
+    try {
+        added = type->add_defaults(world, id);
+    } catch (...) {
+        ecs_entity_destroy(world, id); // alive: add_defaults must not destroy it
+        throw;
+    }
     if (added != RV_OK) {
         ecs_entity_destroy(world, id); // NOENT when add_defaults already destroyed id: nothing to undo
         return added;
