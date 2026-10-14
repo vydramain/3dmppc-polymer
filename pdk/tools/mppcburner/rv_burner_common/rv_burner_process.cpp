@@ -1,11 +1,15 @@
 #include "rv_burner_process.hpp"
 
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <array>
 #include <cstddef>
 #include <cstdio>
+#include <filesystem>
 #include <string>
+
+namespace fs = std::filesystem;
 
 namespace rv_pdktools
 {
@@ -18,6 +22,11 @@ static constexpr std::size_t k_capture_chunk_bytes = 4096;
 // signal number. WEXITSTATUS is meaningless in that case, so this is what a
 // caller comparing against 0 gets instead.
 static constexpr int k_status_killed_by_signal = 128;
+
+// Upper bound for the path read out of /proc/self/exe. Linux caps a path at
+// PATH_MAX (4096 on every configuration this tool runs on) and readlink does not
+// terminate what it writes, so one byte is left for the terminator below.
+static constexpr std::size_t k_path_buffer_bytes = 4096;
 
 } // namespace rv_pdktools
 
@@ -88,4 +97,22 @@ void rv_pdktools::dump_child_output(const std::string &output)
     if (output.back() != '\n') {
         std::fputc('\n', stderr);
     }
+}
+
+// The directory holding the RUNNING binary — not the working directory, which
+// the user chose, and not argv[0], which the caller can set to anything.
+//
+// /proc/self/exe is a Linux symlink pointing at the executable file of the
+// calling process, so reading it answers "where am I installed?" exactly. An
+// empty path means the answer is unavailable and the caller must fall back.
+std::filesystem::path rv_pdktools::executable_directory()
+{
+    std::array<char, k_path_buffer_bytes> buffer{};
+    const ssize_t got = ::readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+    if (got <= 0) {
+        return fs::path();
+    }
+
+    buffer[static_cast<std::size_t>(got)] = '\0';
+    return fs::path(buffer.data()).parent_path();
 }

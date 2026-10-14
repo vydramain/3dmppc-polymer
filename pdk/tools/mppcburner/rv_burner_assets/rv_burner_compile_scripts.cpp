@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "lua.hpp"
+#include "pdk/rv_err.h"
 
 namespace fs = std::filesystem;
 
@@ -38,10 +39,7 @@ static int bytecode_writer(lua_State *, const void *p, size_t sz, void *ud)
 
 } // namespace rv_pdktools
 
-int rv_pdktools::compile_simple_script(
-    const std::string &lua_path,
-    const std::string &out_path,
-    std::string &error)
+int rv_pdktools::compile_simple_script(const std::string &lua_path, const std::string &out_path, std::string &error)
 {
     // --- a vm to compile in ---
     //
@@ -55,7 +53,7 @@ int rv_pdktools::compile_simple_script(
     lua_State *L = luaL_newstate();
     if (L == nullptr) {
         error = "cannot initialize a local lua vm";
-        return 1;
+        return RV_ERR_NOMEM;
     }
 
     // --- parse ---
@@ -67,7 +65,9 @@ int rv_pdktools::compile_simple_script(
         // Never NULL: every failure path in lj_load.c leaves a string here.
         error = lua_tostring(L, -1);
         lua_close(L);
-        return 1;
+        // A file that cannot be read is I/O, an exhausted VM is NOMEM, the rest is Lua syntax.
+        const int load_code = load_status == LUA_ERRFILE ? RV_ERR_IO : load_status == LUA_ERRMEM ? RV_ERR_NOMEM : RV_ERR_INVAL;
+        return load_code;
     }
 
     // --- dump ---
@@ -83,10 +83,9 @@ int rv_pdktools::compile_simple_script(
     lua_close(L);
 
     if (dump_status != 0) {
-        error = "luajit could not dump '" + lua_path + "' (status " +
-            std::to_string(dump_status) +
+        error = "luajit could not dump '" + lua_path + "' (status " + std::to_string(dump_status) +
             "): the loaded chunk is not a lua function, or the vm failed while writing bytecode";
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     // --- write ---
@@ -94,11 +93,10 @@ int rv_pdktools::compile_simple_script(
     std::ofstream out(out_path, std::ios::binary | std::ios::trunc);
     if (!out) {
         error = "cannot open '" + out_path + "' for writing";
-        return 1;
+        return RV_ERR_IO;
     }
 
-    out.write(reinterpret_cast<const char *>(sink.data()),
-        static_cast<std::streamsize>(sink.size()));
+    out.write(reinterpret_cast<const char *>(sink.data()), static_cast<std::streamsize>(sink.size()));
 
     // Closed explicitly: the tail of the buffer reaches the disk here, and a
     // failure at that moment would otherwise be swallowed by the destructor.
@@ -110,17 +108,13 @@ int rv_pdktools::compile_simple_script(
         // half-written artifact is removed rather than left to be picked up.
         std::error_code removal_failed;
         fs::remove(out_path, removal_failed);
-        return 1;
+        return RV_ERR_IO;
     }
 
-    return 0;
+    return RV_OK;
 }
 
-int rv_pdktools::prepare_scripts(
-    archive_plan &plan,
-    rv_pdklib::rv_manifest &manifest,
-    const fs::path &disc_dir,
-    std::string &)
+int rv_pdktools::prepare_scripts(archive_plan &plan, rv_pdklib::rv_manifest &manifest, const fs::path &disc_dir, std::string &)
 {
     // Two roots meet here, same as in compile_scripts: `source` is relative to
     // the disc directory, where the author's .lua lives; the payload rebuilt
@@ -135,13 +129,10 @@ int rv_pdktools::prepare_scripts(
         item.payload = (disc_dir / item.source).string();
     }
 
-    return 0;
+    return RV_OK;
 }
 
-int rv_pdktools::compile_scripts(
-    const archive_plan &plan,
-    const fs::path &disc_dir,
-    std::string &error)
+int rv_pdktools::compile_scripts(const archive_plan &plan, const fs::path &disc_dir, std::string &error)
 {
     // Two roots meet here. `source` is relative to the disc directory, where the
     // author's .lua lives; `payload` is already absolute, under the build tree,
@@ -150,12 +141,12 @@ int rv_pdktools::compile_scripts(
         const archive_item &item = plan.items[i];
 
         std::string lua_error;
-        if (compile_simple_script((disc_dir / item.source).string(), item.payload,
-                lua_error) != 0) {
+        const int status = compile_simple_script((disc_dir / item.source).string(), item.payload, lua_error);
+        if (status != RV_OK) {
             error = "cannot compile '" + item.source + "': " + lua_error;
-            return 1;
+            return status;
         }
     }
 
-    return 0;
+    return RV_OK;
 }

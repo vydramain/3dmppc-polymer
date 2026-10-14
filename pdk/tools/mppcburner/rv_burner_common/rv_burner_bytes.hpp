@@ -21,17 +21,13 @@ namespace rv_pdktools
 /// Read a little-endian uint16 from two bytes at @p p.
 inline uint16_t read_le_u16(const unsigned char *p)
 {
-    return static_cast<uint16_t>(
-        static_cast<uint16_t>(p[0]) |
-        static_cast<uint16_t>(static_cast<uint16_t>(p[1]) << 8));
+    return static_cast<uint16_t>(static_cast<uint16_t>(p[0]) | static_cast<uint16_t>(static_cast<uint16_t>(p[1]) << 8));
 }
 
 /// Read a little-endian uint32 from four bytes at @p p.
 inline uint32_t read_le_u32(const unsigned char *p)
 {
-    return static_cast<uint32_t>(p[0]) |
-        (static_cast<uint32_t>(p[1]) << 8) |
-        (static_cast<uint32_t>(p[2]) << 16) |
+    return static_cast<uint32_t>(p[0]) | (static_cast<uint32_t>(p[1]) << 8) | (static_cast<uint32_t>(p[2]) << 16) |
         (static_cast<uint32_t>(p[3]) << 24);
 }
 

@@ -1,14 +1,21 @@
+#include <algorithm>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <vector>
 
 #include "pdk/cd/rv_cd.h"
-#include "pdk/cio/rv_cio.h"
-#include "pdk/cv/rv_cv.h"
-#include "pdk/de/rv_de.h"
-#include "pdk/rv_err.h"
+#include "pdk/cg/rv_cg.h"
 #include "pdk/de/rv_dv.h"
+#include "pdk/rv_err.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "example-cpp-board.hpp"
+#include "example-cpp-draw.hpp"
+#include "example-cpp-lamps.hpp"
+#include "example-cpp-route.hpp"
+#include "example-cpp-sound.hpp"
 
 namespace example_cpp
 {
@@ -16,20 +23,24 @@ namespace example_cpp
 namespace
 {
 
-constexpr int32_t RV_EXAMPLE_CPP_DEPTH_SPRITE = 0;
-constexpr int32_t RV_EXAMPLE_CPP_DEPTH_BAR = 400;
+// The scene this disc draws, as scenes/main.scene.toml lands on the disc.
+constexpr const char *RV_EXAMPLE_CPP_SCENE_NAME = "main.scene.toml";
+// The scene object that carries the factory board lettering.
+constexpr const char *RV_EXAMPLE_CPP_BOARD_NAME = "board";
 
-// The one texture this disc draws. Never acquired or released, only ever
-// named - the drive makes it resident the first time frame_render asks for
-// this name, and frees it itself when this disc unloads.
-constexpr const char *RV_EXAMPLE_CPP_TEXTURE_NAME = "example-sprite.mppctex";
+constexpr rv_color RV_EXAMPLE_CPP_BACKGROUND = { 20, 24, 40 };
+
+// A mesh of the scene, ready to put: its model name and the put without the model address.
+struct rv_example_cpp_mesh {
+    std::string model; // .mppcmod name on the disc
+    rv_cg_put put;
+};
 
 } // namespace
 
 // rv_dmain_base_ carries everything pdklib/rv_cppdisc/rv_cppdisc.hpp
 // considers the same for any C++ disc: the startup guards, MENU-button
-// press-edge tracking and read_asset(). rv_dmain adds exactly what makes
-// this disc THIS game - the sprite grid, the text bar and their layout.
+// press-edge tracking, read_asset() and the frame plumbing.
 RV_MPPC_DISC_CPP_DEF(rv_dmain_base_)
 
 class rv_dmain : public rv_dmain_base_
@@ -42,11 +53,19 @@ public:
             return base_result;
         }
 
-        std::vector<uint8_t> text;
-        if (read_asset("example-text.txt", text)) {
-            text_bytes_ = static_cast<int64_t>(text.size());
+        // No scene, or one that does not read: the disc runs without it and says why.
+        const int read_code = read_scene();
+        if (read_code != RV_OK) {
+            meshes_.clear();
+            keys_.clear();
+            lamps_.clear();
+            RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
+            return RV_OK;
         }
-
+        if (!board_found_) {
+            RV_LOG_WARN("scene", "no '{}' object: the board has no lettering", RV_EXAMPLE_CPP_BOARD_NAME);
+        }
+        init_sound();
         return RV_OK;
     }
 
@@ -54,17 +73,21 @@ public:
     {
         rv_dmain_base_::frame_update(dt);
         if (dt > 0.0f) {
-            phase_ += dt;
+            ++frame_count_;
         }
     }
 
-    void frame_render();
+    void frame_render()
+    {
+        frame_begin(RV_EXAMPLE_CPP_BACKGROUND);
+        play_sound();
+        draw_world();
+        frame_end();
+    }
 
     void disc_shutdown()
     {
-        // Nothing to release: this disc never acquired the texture it drew, only
-        // named it, and the drive frees everything it made resident on its own
-        // when this disc unloads.
+        // Nothing to release: the drive frees the scene and models when this disc unloads.
     }
 
     const char *disc_title() const
@@ -73,58 +96,177 @@ public:
     }
 
 private:
-    int64_t text_bytes_ = 0;
-    float phase_ = 0.0f;
+    int read_scene();
+    void add_mesh(const rv_cd_scene_object &object);
+    void add_route_key(const rv_cd_scene_object &object);
+    void draw_world();
+    void log_draw_error(const char *step, int64_t code);
+    void init_sound();
+    void play_sound();
+    void log_sound_error(int64_t code);
+
+    std::vector<rv_example_cpp_mesh> meshes_;
+    // The cam_NN keys, in NN order.
+    std::vector<rv_route_key> keys_;
+    // The lamp_N objects, each with the frames it burns; filled after keys_ is sorted.
+    std::vector<rv_lamp> lamps_;
+    // World matrix of the board object, valid when board_found_.
+    float board_world_[16] = {};
+    bool board_found_ = false;
+    // Frames updated while running: the demo's clock.
+    int64_t frame_count_ = 0;
+    bool draw_error_logged_ = false;
+    // The music and the clack; sound_ready_ is false when init_sound failed, and then nothing plays.
+    rv_sound_state sound_state_;
+    bool sound_ready_ = false;
+    // Assets whose failure is logged already: one log per asset, so a later failure of another asset still shows.
+    std::vector<std::string> sound_errors_logged_;
 };
 
-void rv_dmain::frame_render()
+// Fills meshes_ and keys_ from the scene. An error leaves them partly filled; the caller clears them.
+int rv_dmain::read_scene()
 {
-    frame_begin(rv_color{ 20, 24, 40 });
-
-    int64_t addr_texture = 0;
-    int64_t addr_palette = 0;
-    if (texture_resident(RV_EXAMPLE_CPP_TEXTURE_NAME, addr_texture, addr_palette)) {
-        const rv_texture_mapping_type modes[3] = {
-            RV_TEXWRAP_CLAMP, RV_TEXWRAP_TILE, RV_TEXWRAP_STRETCH
-        };
-        const float size = 48.0f;
-        const float gap = 12.0f;
-        const float total = 3.0f * size + 2.0f * gap;
-        const float x0 = (static_cast<float>(screen_width_) - total) * 0.5f;
-        const float y0 = (static_cast<float>(screen_height_) - size) * 0.5f;
-
-        for (int i = 0; i < 3; ++i) {
-            rv_sprite sprite = {};
-            sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE;
-            sprite.addr_texture = addr_texture;
-            sprite.addr_palette = addr_palette;
-            sprite.color = rv_color{ 255, 255, 255 };
-            sprite.mapping = modes[i];
-            sprite.x = static_cast<int16_t>(x0 + static_cast<float>(i) * (size + gap));
-            sprite.y = static_cast<int16_t>(y0);
-            sprite.width = static_cast<uint16_t>(size);
-            sprite.height = static_cast<uint16_t>(size);
-
-            draw_sprite(sprite, RV_EXAMPLE_CPP_DEPTH_SPRITE);
+    rv_cd *cd = rv_pdko_cd(pdk_);
+    const int64_t count = rv_cd_scene_object_count(cd, RV_EXAMPLE_CPP_SCENE_NAME);
+    if (count < 0) {
+        return static_cast<int>(count);
+    }
+    for (int64_t i = 0; i < count; ++i) {
+        rv_cd_scene_object object = {};
+        const int64_t read_code = rv_cd_scene_object_read(cd, RV_EXAMPLE_CPP_SCENE_NAME, i, &object);
+        if (read_code < 0) {
+            return static_cast<int>(read_code);
+        }
+        if (std::strcmp(object.name, RV_EXAMPLE_CPP_BOARD_NAME) == 0) {
+            board_found_ = true;
+            std::memcpy(board_world_, object.world, sizeof(board_world_));
+        }
+        if (object.kind == RV_CD_SCENE_MESH) {
+            add_mesh(object);
+        } else if (object.kind == RV_CD_SCENE_CAMERA) {
+            add_route_key(object);
+        }
+        if (object.kind == RV_CD_SCENE_MESH && rv_lamp_name(object.name)) {
+            rv_lamp lamp = {};
+            lamp.name = object.name;
+            std::memcpy(lamp.world, object.world, sizeof(lamp.world));
+            lamps_.push_back(lamp);
         }
     }
-
-    if (text_bytes_ > 0) {
-        rv_sprite sprite = {};
-        sprite.fill_mode = RV_PRIMITIVE_FILL_MODE_FLAT_COLOURED;
-        sprite.addr_texture = 0;
-        sprite.addr_palette = 0;
-        sprite.color = rv_color{ 90, 210, 220 };
-        sprite.mapping = RV_TEXWRAP_CLAMP;
-        sprite.x = 8;
-        sprite.y = static_cast<int16_t>(screen_height_ - 16);
-        sprite.width = static_cast<uint16_t>(text_bytes_ * 4);
-        sprite.height = 8;
-
-        draw_sprite(sprite, RV_EXAMPLE_CPP_DEPTH_BAR);
+    if (keys_.empty()) {
+        return RV_ERR_NOENT;
     }
+    std::sort(keys_.begin(), keys_.end(), [](const rv_route_key &a, const rv_route_key &b) {
+        return a.index < b.index;
+    });
+    rv_lamps_schedule(keys_, lamps_);
+    return RV_OK;
+}
 
-    frame_end();
+void rv_dmain::add_mesh(const rv_cd_scene_object &object)
+{
+    if (object.model[0] == '\0') {
+        RV_LOG_WARN("scene", "mesh '{}' has no model, not drawn", object.name);
+        return;
+    }
+    rv_example_cpp_mesh mesh = {};
+    mesh.model = object.model;
+    std::memcpy(mesh.put.world, object.world, sizeof(mesh.put.world));
+    mesh.put.depth_min = RV_DRAW_DEPTH_WORLD_MIN;
+    mesh.put.depth_max = RV_DRAW_DEPTH_WORLD_MAX;
+    mesh.put.cull = RV_CG_CULL_BACK;
+    mesh.put.tint = object.tint;
+    meshes_.push_back(mesh);
+}
+
+// The camera object's eye is world * (0,0,0) and its view direction world * (0,0,1)
+// minus the eye: the translation column and the z column of the affine world.
+void rv_dmain::add_route_key(const rv_cd_scene_object &object)
+{
+    int32_t index = 0;
+    if (!rv_route_key_name(object.name, index)) {
+        return; // a camera outside the route is not part of the loop
+    }
+    rv_route_key key = {};
+    key.index = index;
+    key.eye = { object.world[3], object.world[7], object.world[11] };
+    key.dir = rv_route_unit({ object.world[2], object.world[6], object.world[10] });
+    keys_.push_back(key);
+}
+
+void rv_dmain::draw_world()
+{
+    // No keys means no camera; read_scene has already logged why, so nothing is drawn.
+    if (keys_.empty()) {
+        return;
+    }
+    const rv_cg_camera camera = rv_route_camera_at(keys_, frame_count_);
+    const int64_t camera_code = rv_cg_frame_camera(rv_pdko_cg(pdk_), &camera);
+    if (camera_code < 0) {
+        log_draw_error("camera", camera_code);
+        return;
+    }
+    for (rv_example_cpp_mesh &mesh : meshes_) {
+        const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk_), RV_CD_RESOURCE_MODEL, mesh.model.c_str());
+        const int64_t put_code = (addr < 0) ? addr : rv_cg_model_put(rv_pdko_cg(pdk_), addr, &mesh.put);
+        if (put_code < 0) {
+            log_draw_error(mesh.model.c_str(), put_code);
+        }
+    }
+    const int64_t lamps_code = rv_lamps_draw(pdk_, lamps_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
+    if (lamps_code < 0) {
+        log_draw_error("lamps", lamps_code);
+    }
+    if (board_found_) {
+        const int64_t board_code = rv_board_draw(pdk_, board_world_, frame_count_ % RV_ROUTE_PERIOD_FRAMES);
+        if (board_code < 0) {
+            log_draw_error("board", board_code);
+        }
+    }
+}
+
+// Logs the first failure only: the same failure would repeat in every frame.
+void rv_dmain::log_draw_error(const char *step, int64_t code)
+{
+    if (draw_error_logged_) {
+        return;
+    }
+    draw_error_logged_ = true;
+    RV_LOG_ERR("draw", "{} not drawn: rv_err {}", step, code);
+}
+
+// Loads the music and tabulates the areas; runs once, after read_scene found the camera keys.
+void rv_dmain::init_sound()
+{
+    const int64_t sound_code = rv_sound_init(pdk_, keys_, sound_state_);
+    if (sound_code < 0) {
+        RV_LOG_ERR("sound", "sound off: {} rv_err {}", sound_state_.error_asset, sound_code);
+        return;
+    }
+    sound_ready_ = true;
+}
+
+// Plays the frame's sound; without init_sound there is no music, and init_sound has logged why.
+void rv_dmain::play_sound()
+{
+    if (!sound_ready_) {
+        return;
+    }
+    const int64_t sound_code = rv_sound_update(pdk_, frame_count_ % RV_ROUTE_PERIOD_FRAMES, board_found_, sound_state_);
+    if (sound_code < 0) {
+        log_sound_error(sound_code);
+    }
+}
+
+// Logs the first failure of each asset only: the same failure would repeat in every frame.
+void rv_dmain::log_sound_error(int64_t code)
+{
+    const std::string asset = sound_state_.error_asset;
+    if (std::find(sound_errors_logged_.begin(), sound_errors_logged_.end(), asset) != sound_errors_logged_.end()) {
+        return;
+    }
+    sound_errors_logged_.push_back(asset);
+    RV_LOG_ERR("sound", "sound not played: {} rv_err {}", asset, code);
 }
 
 } // namespace example_cpp

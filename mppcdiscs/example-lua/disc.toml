@@ -9,18 +9,24 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-# .pcm is copied verbatim: raw PCM is read straight off the disc and made
-# resident through RV_CD_RESOURCE_AUDIO - there is no baker and no container
-# for sound, so unlike [textures] below there is nothing to bake it into.
-files = ["assets/*.pcm"]
+# The scene is copied verbatim, as in example-cpp.
+files = ["scenes/*.scene.toml"]
 
 [textures]
-files = ["assets/*.png"]
+# The pictures are inside the models; format is the format their textures are baked in.
+files = []
 format = "idx8"
+
+[sounds]
+files = ["assets/snd/*.wav"]
+
+[models]
+files = ["models/*.glb"]
 
 [budget.pcca]
 voice_count = 24
-sound_memory_size = 524288
+# The same 1 MiB Solid Maid declares (solid-maid/disc.toml [budget.pcca]); music slots, clack, loops and footsteps fit in it.
+sound_memory_size = 1048576
 
 [budget.pccv]
 screen_width = 320
@@ -31,6 +37,13 @@ video_memory_size = 1048576
 frame_capacity = 4096
 ot_bucket_count = 1024
 
+[budget.pccg]
+model_memory_size = 524288
+# Worst frame: 2818 triangles (each model once, glb counts: factory 1324, street 642, yard 140, house 272,
+# apartment 160, machines 144, furniture 76, lamp 28, lamp_light 12, glyphs 16, board and halo 2 each) + 3 x 40
+# for the three extra lamp instances (lamp 28 and lit lamp_light 12) = 2938 <= 4096.
+triangle_capacity = 4096
+
 [budget.pccio]
 iport_count = 2
 
@@ -39,13 +52,11 @@ card_slots = 16
 card_slot_size = 8192
 
 [budget.pccl]
-# 256 KiB. The whole script is one module table with a handful of tiny
-# closures and a few numeric locals - LuaJIT's own bootstrap (the base,
-# string, math and table libraries opened by rv_pccl) plus that module easily
-# fit in a few tens of KiB. 262144 leaves comfortable headroom over what this
-# example could ever allocate without reserving memory nobody here needs; same
-# order of magnitude as [budget.pcca] sound_memory_size above, for the same
-# reason - honest for what this disc actually does, not a guess at a "real"
-# budget.
-script_memory_size = 262144
+# 1 MiB for the whole VM. The state holds the scene copied into plain tables: the meshes,
+# the cam_NN keys, the lamps and the board's world. Module locals hold the footstep distance
+# table (4320 numbers) and the music read buffer. The modules and the per-frame garbage of
+# cdata (rv_cg_put, int64 returns) are left to the ordinary collector. Measured lua_used,
+# bytes, over 4400 stepped frames with the music, loops and footsteps: 358332 to 659645,
+# as the collector runs.
+script_memory_size = 1048576
 script_entry = "example-lua.luac"

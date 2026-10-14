@@ -1,10 +1,19 @@
 #include "rv_pconsole/ca/rv_pcvoice.hpp"
 
+#include "rv_pconsole/ca/rv_pcca.hpp"
+
 namespace rv_3dmppc
 {
 
 namespace
 {
+
+// Milliseconds per second: used in envelope ramp time-to-frame calculation.
+constexpr float RV_PCA_MS_PER_SECOND = 1000.0f;
+
+// Bits to shift when assembling a 16-bit sample from two bytes (S16LE: low byte in [0],
+// high byte in [1]).
+constexpr int RV_PCA_BITS_PER_BYTE = 8;
 
 // Normalize one rv_voice_conf volume field into a linear gain. Negative volumes
 // would mean phase inversion, which the contract never promises, so they read as
@@ -31,7 +40,7 @@ float rv_pcvoice::ramp(float from, float to, int16_t ms)
         return 0.0f;
     }
 
-    const float frames = static_cast<float>(ms) * static_cast<float>(RV_PCA_SAMPLE_RATE) / 1000.0f;
+    const float frames = static_cast<float>(ms) * static_cast<float>(RV_PCA_SAMPLE_RATE) / RV_PCA_MS_PER_SECOND;
     if (frames < 1.0f) {
         return 0.0f;
     }
@@ -39,15 +48,17 @@ float rv_pcvoice::ramp(float from, float to, int16_t ms)
     return (to - from) / frames;
 }
 
-void rv_pcvoice::setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames,
-    int64_t addr)
+void rv_pcvoice::setup(const rv_voice_conf &conf, const uint8_t *data, int64_t frames, int64_t addr)
 {
     armed_ = true;
-    region_ = addr;
-    data_ = data;
-    frames_ = frames > 0 ? frames : 0;
+    start_ = { addr, data, frames > 0 ? frames : 0 };
+    cur_ = start_;
+    repeat_ = start_;
+    repeat_offset_ = 0;
     position_ = 0;
     loop_ = conf.loop_type;
+    mark_on_ = false;
+    marked_ = false;
 
     attack_ms_ = non_negative(conf.ar);
     decay_ms_ = non_negative(conf.dr);
@@ -73,14 +84,21 @@ void rv_pcvoice::play()
         return;
     }
 
+    // Key-on always starts from the start region; a repeat set before this is dropped.
+    cur_ = start_;
+    position_ = 0;
+    repeat_ = start_;
+    repeat_offset_ = 0;
+    ended_ = false;
+
     // An empty region is a legal thing to name (the disc reserved it and never
     // uploaded), and the only honest way to play zero frames is to stay idle.
-    if (!data_ || frames_ <= 0) {
+    if (!cur_.data || cur_.frames <= 0) {
+        ended_ = true;
         enter(rv_pcvoice_phase::idle);
         return;
     }
 
-    position_ = 0;
     envelope_ = 0.0f;
     enter(rv_pcvoice_phase::attack);
 }
@@ -96,11 +114,68 @@ void rv_pcvoice::stop()
 void rv_pcvoice::disarm()
 {
     armed_ = false;
-    region_ = 0;
-    data_ = nullptr;
-    frames_ = 0;
+    start_ = {};
+    cur_ = {};
+    repeat_ = {};
+    repeat_offset_ = 0;
     position_ = 0;
+    loop_ = RV_LOOP_NONE;
+    ended_ = false;
+    mark_on_ = false;
+    mark_region_ = 0;
+    mark_offset_ = 0;
+    marked_ = false;
     enter(rv_pcvoice_phase::idle);
+}
+
+void rv_pcvoice::set_repeat(int64_t addr, const uint8_t *data, int64_t frames, int64_t offset)
+{
+    repeat_ = { addr, data, frames > 0 ? frames : 0 };
+    repeat_offset_ = offset > 0 ? offset : 0;
+}
+
+void rv_pcvoice::set_mark(int64_t addr, int64_t offset)
+{
+    mark_on_ = true;
+    mark_region_ = addr;
+    mark_offset_ = offset;
+    marked_ = false;
+}
+
+void rv_pcvoice::clear_mark()
+{
+    mark_on_ = false;
+    mark_region_ = 0;
+    mark_offset_ = 0;
+    marked_ = false;
+}
+
+void rv_pcvoice::resize_region(int64_t addr, int64_t frames)
+{
+    const int64_t length = frames > 0 ? frames : 0;
+
+    // One address can be the start, the current and the repeat region at once; each copy is resized.
+    sram_region *const regions[] = { &start_, &cur_, &repeat_ };
+    for (sram_region *r : regions) {
+        // A region with no bytes is never matched: the unarmed voice's 0 address must not hit.
+        if (r->data && r->addr == addr) {
+            r->frames = length;
+        }
+    }
+}
+
+bool rv_pcvoice::wrap_to_repeat()
+{
+    // A repeat that starts at or past its own end has no frame to read. Without this
+    // check the voice would call frame_at() past the repeat region's end: the mix loop
+    // is bounded by the frame count, not by the region.
+    if (!repeat_.data || repeat_offset_ >= repeat_.frames) {
+        return false;
+    }
+
+    cur_ = repeat_;
+    position_ = repeat_offset_;
+    return true;
 }
 
 // THEOREM: piecewise-linear envelope. The ADSR is one automaton over four
@@ -192,9 +267,9 @@ void rv_pcvoice::advance()
 
 int32_t rv_pcvoice::frame_at(int64_t index) const
 {
-    const uint8_t *frame = data_ + index * RV_PCA_FRAME_BYTES;
-    const uint16_t raw = static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) |
-        static_cast<uint16_t>(frame[1] << 8));
+    const uint8_t *frame = cur_.data + index * RV_PCA_FRAME_BYTES;
+    const uint16_t raw =
+        static_cast<uint16_t>(static_cast<uint16_t>(frame[0]) | static_cast<uint16_t>(frame[1] << RV_PCA_BITS_PER_BYTE));
     return static_cast<int16_t>(raw);
 }
 
@@ -212,25 +287,31 @@ void rv_pcvoice::mix(int32_t *out, int64_t frames)
         return;
     }
 
-    if (!data_ || frames_ <= 0) {
-        // Nothing to read: retiring here is what keeps a looping voice over an
-        // empty region from spinning forever on a zero-length wrap.
+    if (!cur_.data || cur_.frames <= 0) {
+        // An empty current region has no end to read to: it counts as ended and the
+        // voice retires, without reading or jumping.
+        ended_ = true;
         enter(rv_pcvoice_phase::idle);
         return;
     }
 
     for (int64_t i = 0; i < frames; ++i) {
-        if (position_ >= frames_) {
-            if (loop_ != RV_LOOP_FOREVER) {
+        if (position_ >= cur_.frames) {
+            ended_ = true;
+            if (loop_ != RV_LOOP_FOREVER || !wrap_to_repeat()) {
                 enter(rv_pcvoice_phase::idle);
                 return;
             }
-            position_ = 0;
+        }
+
+        // After the wrap, so a repeat that lands on the mark frame raises it too.
+        if (mark_on_ && cur_.addr == mark_region_ && position_ == mark_offset_) {
+            marked_ = true;
         }
 
         const float value = static_cast<float>(frame_at(position_)) * envelope_;
-        out[2 * i] += static_cast<int32_t>(value * gain_l_);
-        out[2 * i + 1] += static_cast<int32_t>(value * gain_r_);
+        out[RV_PCCA_PCM_CHANNELS * i] += static_cast<int32_t>(value * gain_l_);
+        out[RV_PCCA_PCM_CHANNELS * i + 1] += static_cast<int32_t>(value * gain_r_);
 
         ++position_;
         advance();

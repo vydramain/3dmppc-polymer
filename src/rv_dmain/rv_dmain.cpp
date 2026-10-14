@@ -84,12 +84,15 @@ int64_t rv_dmain::disc_initialize(rv_pdko *pdk)
     // allocate, and the port count is session-stable.
     prev_buttons_.assign(static_cast<std::size_t>(iport_count_), 0ULL);
 
-    build_texture();
-    build_idx4_texture();
-    build_font();
-    probe_drive();
-    load_save();
-    build_beep();
+    // A refused step is kept as its code and the setup goes on: the screen shows
+    // the gap, the disc does not stop.
+    texture_result_ = build_texture();
+    idx4_result_ = build_idx4_texture();
+    font_result_ = build_font();
+    drive_result_ = probe_drive();
+    save_result_ = load_save();
+    beep_result_ = build_beep();
+    setup_done_ = true;
 
     return RV_OK;
 }
@@ -150,8 +153,7 @@ void rv_dmain::frame_render()
     // The Z flag is on because the cut-out row depends on it: a hole must write
     // neither colour nor depth, and that is only observable when per-pixel depth
     // resolves primitives sharing an ordering-table bucket.
-    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z,
-        rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
+    rv_cv_frame_configure(cv, RV_PIPELINE_BUFFER_CONFIG_TYPE_Z, rv_pdklib::rv_hsv_to_rgb(hue_, 0.5f, 0.35f));
 
     draw_test_grid();
     draw_post();
@@ -209,7 +211,7 @@ void rv_dmain::disc_shutdown()
 
 const char *rv_dmain::disc_title() const
 {
-    return "rv_dmain - service test";
+    return "rv_dmain - default disc for checking the console";
 }
 
 } // namespace rv_service

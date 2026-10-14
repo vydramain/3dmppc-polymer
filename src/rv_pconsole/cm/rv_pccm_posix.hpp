@@ -30,7 +30,7 @@ public:
     // or a refusal when that image would be over
     // rv_pccard::RV_PCCARD_MAX_IMAGE_BYTES, the same refusal rv_pccard would
     // otherwise only log after construction.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t card_slots() override;
 

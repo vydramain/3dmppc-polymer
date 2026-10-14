@@ -13,21 +13,93 @@
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include <getopt.h>
 
+#include "pdk/de/rv_dv.h"
+#include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_build/rv_burner_build_runner.hpp"
+#include "rv_burner_common/rv_burner_process.hpp"
 #include "rv_burner_options.hpp"
 #include "rv_burner_print.hpp"
 #include "rv_burner_inspect/rv_burner_inspect_runner.hpp"
+#include "rv_burner_setup/rv_burner_setup.hpp"
+
+namespace
+{
+// Commands with bake-texture need 2 operands: disc directory and source to bake.
+constexpr int k_bake_texture_operands = 2;
+
+// Minimum argc: program name plus command.
+constexpr int k_min_argc = 2;
+
+// Base 10 for decimal number parsing in strtol.
+constexpr int k_decimal_base = 10;
+
+// The copies tools/build puts beside mppcburner (see mppcburner_pdk in CMakeLists.txt).
+constexpr const char *k_default_pdk_subdir = "pdk/include";
+constexpr const char *k_default_pdklib_subdir = "pdk/lib/include";
+} // namespace
 
 namespace rv_pdktools
 {
+// One default include directory: the copy beside the binary, the option that replaces it, and
+// the field it fills.
+struct rv_default_dir {
+    const char *subdir;
+    const char *flag;
+    std::string rv_burner_options::*field;
+};
+
+constexpr rv_default_dir k_default_dirs[] = {
+    { k_default_pdk_subdir, "pdk", &rv_burner_options::pdk_dir },
+    { k_default_pdklib_subdir, "pdklib", &rv_burner_options::pdklib_dir },
+};
+
+// A default directory must exist: a missing copy is a broken package, not a path to trust.
+static int take_default_dir(const std::filesystem::path &dir, const char *flag, std::string &field)
+{
+    std::error_code ec;
+    const bool is_dir = std::filesystem::is_directory(dir, ec);
+    if (!is_dir) {
+        const std::string reason = ec ? ec.message() : "not a directory";
+        rv_burner_print_error("cannot use " + dir.string() + " beside mppcburner (" + reason + "); pass --" + flag + " PATH");
+        return RV_ERR_NOENT;
+    }
+
+    field = dir.string();
+    return RV_OK;
+}
+
+// Fills the include directories the command line did not name, from the copies beside
+// this binary. A path the user gave is used as it is.
+static int resolve_pdk_dirs(rv_burner_options &options)
+{
+    const std::filesystem::path bin_dir = executable_directory();
+    for (const rv_default_dir &entry : k_default_dirs) {
+        if (!(options.*entry.field).empty()) {
+            continue;
+        }
+        if (bin_dir.empty()) {
+            rv_burner_print_error(std::string("cannot find the directory of mppcburner; pass --") + entry.flag + " PATH");
+            return RV_ERR_NOENT;
+        }
+
+        const int rc = take_default_dir(bin_dir / entry.subdir, entry.flag, options.*entry.field);
+        if (RV_OK != rc) {
+            return rc;
+        }
+    }
+    return RV_OK;
+}
+
 static void print_usage(std::FILE *stream)
 {
     rv_pdklib::rv_fprintf(stream,
@@ -36,66 +108,97 @@ static void print_usage(std::FILE *stream)
         "Usage:\n"
         "  mppcburner build <disc-directory> -o <output.mppcdisc> [options]\n"
         "  mppcburner inspect <file.mppcdisc>\n"
+        "  mppcburner bake-texture <disc-directory> <source> -o <output.mppctex> [--baker PATH]\n"
+        "  mppcburner setup <tool>\n"
         "  mppcburner help\n"
         "\n"
         "Commands:\n"
-        "  build     Compile the disc directory and burn the image. Progress goes\n"
-        "            to stderr, nothing to stdout.\n"
-        "  inspect   Print the manifest and the entry sizes to stdout. Nothing is\n"
-        "            unpacked and nothing is written.\n"
-        "  help      Print this text.\n"
+        "  build         Compile the disc directory and burn the image. Progress\n"
+        "                goes to stderr, nothing to stdout.\n"
+        "  inspect       Print the manifest and the entry sizes to stdout. Nothing\n"
+        "                is unpacked and nothing is written.\n"
+        "  bake-texture  Bake one [textures] source of the disc into a standalone\n"
+        "                .mppctex, the way build's own plan would. The baked\n"
+        "                entry's archive name is the only thing on stdout.\n"
+        "  setup         Install a pinned tool once, per user, under\n"
+        "                ${XDG_DATA_HOME:-~/.local/share}/3dmppc. Tools: web (Emscripten).\n"
+        "                A second run installs nothing.\n"
+        "  help          Print this text.\n"
         "\n"
         "Options (build):\n"
-        "  -o, --output PATH        Image to write. Required unless --unpacked is\n"
-        "                           given; exclusive with it.\n"
+        "  -o, --output PATH        Where to write: the image, or the directory for -t player/web.\n"
+        "                           Required unless --unpacked is given; exclusive with it.\n"
         "  -u, --unpacked PATH      Write an unpacked disc directory at PATH instead\n"
         "                           of a .mppcdisc image. Scripts and copied assets\n"
         "                           are symlinked back to their source instead of\n"
         "                           being compiled/copied, so the console sees a live\n"
         "                           edit without a rebuild. Exclusive with -o.\n"
         "  -p, --pdk PATH           PDK include directory the disc compiles\n"
-        "                           against. Default: " RV_BURNER_DEFAULT_PDK
-        "\n"
+        "                           against. Default: pdk/include next to mppcburner.\n"
         "  -l, --pdklib PATH        Disc-side SDK include directory.\n"
-        "                           Default: " RV_BURNER_DEFAULT_PDKLIB
-        "\n"
-        "  -b, --baker PATH         mppcbaker used to bake textures. Default: the\n"
-        "                           copy next to mppcburner, then $PATH.\n"
+        "                           Default: pdk/lib/include next to mppcburner.\n"
+        "  -b, --baker PATH         directory of the bakers (mppctexbaker, mppcmusbaker, mppcmodbaker),\n"
+        "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
+        "  -e, --emsdk PATH         Emscripten SDK the web target builds with. Default:\n"
+        "                           the directory setup web installs.\n"
         "  -j, --jobs N             Parallel compile jobs. Default: cmake decides.\n"
         "  -k, --keep-build[=PATH]  Keep the generated CMake project instead of\n"
         "                           deleting it. PATH must be attached with '='.\n"
+        "  -m, --map PATH           After a build that succeeded, write which entry\n"
+        "                           of the disc each of its files became to PATH.\n"
+        "  -t, --target NAME        What to write: disc (default): one .mppcdisc at -o, or\n"
+        "                           an unpacked directory at -u; player: a directory at -o\n"
+        "                           with the player console and the .mppcdisc. player takes\n"
+        "                           no -u. web: -o DIR receives index.html, one page holding the console\n"
+        "                           and the disc, and licenses/; DIR.zip beside it packs both. C++ discs\n"
+        "                           only: a disc with scripts is refused.\n"
+        "\n"
+        "Options (bake-texture):\n"
+        "  -o, --output PATH        .mppctex file to write. Required.\n"
+        "  -b, --baker PATH         directory of the texture baker (mppctexbaker),\n"
+        "                           or a file in it. Default: next to mppcburner, then $PATH.\n"
         "\n"
         "Options (any command):\n"
-        "  -h, --help               Print this text.\n");
+        "  -h, --help               Print this text.\n"
+        "\n"
+        "  mppcburner --version prints one line, `mppcburner <major>.<minor>`: the\n"
+        "  PDK version the discs it builds are stamped with.\n");
 }
+
+// bake-texture's own bit; not in rv_burner_options.hpp because no other file
+// needs to test for it.
+constexpr uint32_t RV_BURNER_MASK_BAKE = 1u << 2;
+// setup's own bit, for the same reason.
+constexpr uint32_t RV_BURNER_MASK_SETUP = 1u << 3;
 
 // Every option the tool has, declared once. Letters are unique tool-wide, which
 // is what lets a single switch store the options of every subcommand.
 constexpr rv_burner_option_spec OPTIONS[] = {
-    { 'h', "help", no_argument, "print this text",
-        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT },
-    { 'o', "output", required_argument, "image to write (required unless --unpacked)",
-        RV_BURNER_MASK_BUILD },
-    { 'u', "unpacked", required_argument, "write an unpacked disc directory instead",
-        RV_BURNER_MASK_BUILD },
-    { 'p', "pdk", required_argument,
-        "PDK include directory the disc compiles against",
-        RV_BURNER_MASK_BUILD },
-    { 'l', "pdklib", required_argument, "disc-side SDK include directory",
-        RV_BURNER_MASK_BUILD },
-    { 'b', "baker", required_argument, "mppcbaker used to bake textures",
-        RV_BURNER_MASK_BUILD },
-    { 'j', "jobs", required_argument, "parallel compile jobs",
-        RV_BURNER_MASK_BUILD },
-    { 'k', "keep-build", optional_argument,
-        "keep the generated CMake project, optionally at PATH",
-        RV_BURNER_MASK_BUILD },
+    { 'h',
+        "help",
+        no_argument,
+        "print this text",
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_INSPECT | RV_BURNER_MASK_BAKE | RV_BURNER_MASK_SETUP },
+    { 'o',
+        "output",
+        required_argument,
+        "image, or directory for player/web (required unless --unpacked)",
+        RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
+    { 'u', "unpacked", required_argument, "write an unpacked disc directory instead", RV_BURNER_MASK_BUILD },
+    { 'p', "pdk", required_argument, "PDK include directory the disc compiles against", RV_BURNER_MASK_BUILD },
+    { 'l', "pdklib", required_argument, "disc-side SDK include directory", RV_BURNER_MASK_BUILD },
+    { 'b', "baker", required_argument, "directory of the bakers, or a file in it", RV_BURNER_MASK_BUILD | RV_BURNER_MASK_BAKE },
+    { 'e', "emsdk", required_argument, "emsdk directory the web target builds with", RV_BURNER_MASK_BUILD },
+    { 'j', "jobs", required_argument, "parallel compile jobs", RV_BURNER_MASK_BUILD },
+    { 'k', "keep-build", optional_argument, "keep the generated CMake project, optionally at PATH", RV_BURNER_MASK_BUILD },
+    { 'm', "map", required_argument, "write the source-to-entry map to PATH", RV_BURNER_MASK_BUILD },
+    { 't', "target", required_argument, "what to write: disc (default), player or web", RV_BURNER_MASK_BUILD },
 };
 
 static int nullable_handler(const rv_burner_options &)
 {
     rv_pdktools::print_usage(stderr);
-    return -1;
+    return RV_OK;
 }
 
 // Every subcommand, plus the three spellings of help. A new command is a row
@@ -103,6 +206,8 @@ static int nullable_handler(const rv_burner_options &)
 constexpr rv_burner_command_spec COMMANDS[] = {
     { "build", RV_BURNER_MASK_BUILD, 1, rv_burner_build_run },
     { "inspect", RV_BURNER_MASK_INSPECT, 1, rv_burner_inspect_run },
+    { "bake-texture", RV_BURNER_MASK_BAKE, k_bake_texture_operands, rv_burner_bake_texture_run },
+    { "setup", RV_BURNER_MASK_SETUP, 1, rv_burner_setup_run },
     { "help", 0, 0, nullable_handler },
     { "-h", 0, 0, nullable_handler },
     { "--help", 0, 0, nullable_handler },
@@ -111,12 +216,17 @@ constexpr rv_burner_command_spec COMMANDS[] = {
 
 int main(int argc, char **argv)
 {
-    if (argc < 2) {
+    if (argc < k_min_argc) {
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     const std::string_view command_name = argv[1];
+    // One line a front end can show and compare (the editor's diagnostics).
+    if (command_name == "--version") {
+        rv_pdklib::rv_fprintf(stdout, "mppcburner %d.%d\n", RV_MPPC_VER_MAJOR, RV_MPPC_VER_MINOR);
+        return RV_OK;
+    }
 
     const rv_pdktools::rv_burner_command_spec *cmd = nullptr;
     for (const rv_pdktools::rv_burner_command_spec &command_intern : rv_pdktools::COMMANDS) {
@@ -129,7 +239,7 @@ int main(int argc, char **argv)
     if (nullptr == cmd) {
         rv_pdktools::rv_burner_print_error("unknown subcommand '" + std::string(command_name) + "'");
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     std::vector<struct option> opts;
@@ -173,7 +283,7 @@ int main(int argc, char **argv)
         switch (c) {
         case 'h': {
             rv_pdktools::print_usage(stdout);
-            return 0;
+            return RV_OK;
         }
         case 'o': {
             burner_options.output = optarg;
@@ -184,10 +294,18 @@ int main(int argc, char **argv)
             break;
         }
         case 'p': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--pdk needs a PATH");
+                return RV_ERR_INVAL;
+            }
             burner_options.pdk_dir = optarg;
             break;
         }
         case 'l': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--pdklib needs a PATH");
+                return RV_ERR_INVAL;
+            }
             burner_options.pdklib_dir = optarg;
             break;
         }
@@ -195,14 +313,30 @@ int main(int argc, char **argv)
             burner_options.baker = optarg;
             break;
         }
+        case 'e': {
+            burner_options.emsdk = optarg;
+            break;
+        }
         case 'j': {
             char *end = nullptr;
-            const long value = std::strtol(optarg, &end, 10);
+            const long value = std::strtol(optarg, &end, k_decimal_base);
             if (*optarg == '\0' || *end != '\0' || value <= 0 || value > INT_MAX) {
                 rv_pdktools::rv_burner_print_error("invalid --jobs value '" + std::string(optarg) + "'");
-                return 1;
+                return RV_ERR_INVAL;
             }
             burner_options.jobs = static_cast<int>(value);
+            break;
+        }
+        case 'm': {
+            burner_options.map = optarg;
+            break;
+        }
+        case 't': {
+            if (*optarg == '\0') {
+                rv_pdktools::rv_burner_print_error("--target needs a NAME");
+                return RV_ERR_INVAL;
+            }
+            burner_options.target = optarg;
             break;
         }
         case 'k': {
@@ -217,21 +351,39 @@ int main(int argc, char **argv)
         default: {
             // No message here: getopt already printed one (opterr defaults to 1).
             rv_pdktools::print_usage(stderr);
-            return 1;
+            return RV_ERR_INVAL;
         }
         }
     }
 
     // Exactly the declared number of operands: getopt left them from optind on.
     if (cmd->operands != local_argc - optind) {
-        rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) + " operand(s), got " + std::to_string(local_argc - optind));
+        rv_pdktools::rv_burner_print_error(std::string(command_name) + " expects " + std::to_string(cmd->operands) +
+            " operand(s), got " + std::to_string(local_argc - optind));
         rv_pdktools::print_usage(stderr);
-        return 1;
+        return RV_ERR_INVAL;
     }
 
     // Nothing to read for an operandless command: argv[optind] is its nullptr.
-    if (0 != local_argc - optind) {
+    // A second operand (bake-texture only) is the source to bake.
+    if (cmd->operands >= 1) {
         burner_options.operand = local_argv[optind];
+    }
+    if (cmd->operands >= k_bake_texture_operands) {
+        burner_options.bake_source = local_argv[optind + 1];
+    }
+
+    if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BAKE) && burner_options.output.empty()) {
+        rv_pdktools::rv_burner_print_error("bake-texture requires -o <output.mppctex>");
+        return RV_ERR_INVAL;
+    }
+
+    // Only build compiles against the PDK; the other commands never read these paths.
+    if (0 != (cmd->mask & rv_pdktools::RV_BURNER_MASK_BUILD)) {
+        const int rc = rv_pdktools::resolve_pdk_dirs(burner_options);
+        if (RV_OK != rc) {
+            return rc;
+        }
     }
 
     return cmd->handler(burner_options);

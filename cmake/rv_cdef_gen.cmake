@@ -56,7 +56,6 @@ set(RV_CDEF_ORDERED_HEADERS
   ca/rv_loop.h # rv_loop                                     - no PDK type deps
   ca/rv_voice_conf.h # rv_voice_conf.loop_type: enum rv_loop - after rv_loop.h
   ca/rv_ca.h # uses rv_sample*, rv_voice_conf*               - after both above
-  cd/rv_cd.h # rv_cd                                         - no PDK type deps
   cio/rv_imouse.h # rv_imouse                                - no PDK type deps
   cio/rv_isource.h # rv_isource/rv_iaxes/rv_imotion/rv_istate - no PDK type deps
   cio/rv_ohaptic.h # rv_ohrumble/rv_ohpulse/rv_oheffect       - no PDK type deps
@@ -64,14 +63,16 @@ set(RV_CDEF_ORDERED_HEADERS
   cl/rv_cl.h # rv_cl                                          - no PDK type deps
   cm/rv_cm.h # rv_cm                                          - no PDK type deps
   cv/rv_vertex.h # rv_color/rv_uv/rv_vertex                   - no PDK type deps
+  cd/rv_cd.h # rv_cd (rv_color tint)                         - after rv_vertex.h
   cv/rv_texel.h # rv_color5                                   - no PDK type deps
   cv/rv_texture.h # rv_texfmt/rv_texture                      - no PDK type deps
   cv/rv_primitives.h # rv_polygon/rv_sprite use rv_vertex/rv_color - after rv_vertex.h
   cv/rv_cv.h # uses rv_vertex(rv_color), rv_texture, rv_primitive - after all three above
+  cg/rv_cg.h # rv_cg (rv_color tint)                          - after rv_vertex.h
   de/rv_de.h # rv_de forward-declares its own rv_pdko         - no cross-header deps
   de/rv_dv.h # rv_mppc_disc_create_fn/destroy_fn use rv_de*   - after rv_de.h
   rv_err.h # rv_err                                           - no PDK type deps
-  rv_pdko.h # uses rv_ca*, rv_cd*, rv_cm*, rv_cio*, rv_cv*, rv_cl* - after all six controllers
+  rv_pdko.h # uses rv_ca*, rv_cd*, rv_cm*, rv_cio*, rv_cv*, rv_cg*, rv_cl* - after all seven controllers
 )
 
 if(NOT CMAKE_SCRIPT_MODE_FILE)

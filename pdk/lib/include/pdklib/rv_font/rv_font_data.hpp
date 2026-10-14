@@ -39,6 +39,10 @@ inline constexpr int rv_font_last_code = 126;  // '~'
 inline constexpr int rv_font_glyph_count = 96; // 95 printable + notdef
 inline constexpr int rv_font_notdef_index = 95;
 
+// Glyph blocks a disc adds to its atlas. ASCII and notdef are always in; each bit
+// adds a block after them, so a disc pays video RAM only for the scripts it shows.
+inline constexpr uint32_t rv_font_block_cyrillic = 1U << 0; // rv_font_cyrillic.hpp
+
 // One glyph per line, and that line IS the glyph: eight row bytes, TOP ROW
 // FIRST, then the glyph's index in this table, its ASCII code and the character.
 // Reading a line left to right is reading the glyph top to bottom.
@@ -58,7 +62,7 @@ inline constexpr int rv_font_notdef_index = 95;
 //        y=0   y=1   y=2   y=3   y=4   y=5   y=6   y=7
 //        +------------ ink, 7 rows ------------+   +-+ blank
 //
-// clang-format off - the table is a PICTURE. One byte per line, which is what
+// clang-format off: the table is a PICTURE. One byte per line, which is what
 // the formatter does to it, hides the shape of every letter in the font.
 inline constexpr uint8_t rv_font_bits[rv_font_glyph_count * rv_font_cell_height] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //   0  32     ' ' (space)

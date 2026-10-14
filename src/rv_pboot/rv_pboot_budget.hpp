@@ -2,8 +2,8 @@
 //
 // A disc declares what it needs in its manifest [budget], and that declaration
 // is what it gets: the numbers become the machine it runs on. The built-in
-// service test carries no manifest, so its requirements live here instead:
-// the reference console's own answers, copied verbatim from
+// default disc for checking the console carries no manifest, so its requirements
+// live here instead: the reference console's own answers, copied verbatim from
 // rv_manifest_budget's defaults (pdklib/rv_manifest/rv_manifest.hpp).
 //
 // This is not a ceiling on what other discs may ask for. What a disc may ask
@@ -38,7 +38,9 @@ inline const rv_pdklib::rv_manifest_budget &rv_pboot_budget_builtin()
 // came from a directory - false, always, when there is no disc path. Returns
 // RV_OK with `out` (and `medium_live`) set, or a negative rv_err after
 // logging the refusal.
-int64_t rv_pboot_budget_select(const rv_pboot_args &args, rv_pcloader &loader,
-    const rv_pdklib::rv_manifest_budget *&out, bool &medium_live);
+int64_t rv_pboot_budget_select(const rv_pboot_args &args,
+    rv_pcloader &loader,
+    const rv_pdklib::rv_manifest_budget *&out,
+    bool &medium_live);
 
 } // namespace rv_3dmppc

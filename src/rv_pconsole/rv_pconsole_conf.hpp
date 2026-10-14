@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <string>
 
+#include "pdk/cv/rv_primitives.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
 
 namespace rv_3dmppc
@@ -37,11 +38,15 @@ struct rv_pccv_conf {
     int64_t frame_capacity = rv_pdklib::rv_manifest_budget_pccv{}.frame_capacity;
     int64_t ot_bucket_count = rv_pdklib::rv_manifest_budget_pccv{}.ot_bucket_count;
 
-    // The depth window the ordering table spans, also hidden from the contract:
-    // a disc hands rv_primitive::depth as a VALUE and never learns how it is
-    // quantized. Values outside clamp to the nearest bucket (rv_primitives.hpp).
-    int32_t depth_min = -32768;
-    int32_t depth_max = 32767;
+    // The depth window the ordering table spans. Part of the cv contract
+    // (rv_primitives.h), so the console takes it from there and cannot differ.
+    int32_t depth_min = RV_DEPTH_MIN;
+    int32_t depth_max = RV_DEPTH_MAX;
+};
+
+struct rv_pccg_conf {
+    int64_t model_memory_size = rv_pdklib::rv_manifest_budget_pccg{}.model_memory_size;
+    int64_t triangle_capacity = rv_pdklib::rv_manifest_budget_pccg{}.triangle_capacity;
 };
 
 struct rv_pccio_conf {
@@ -91,21 +96,47 @@ struct rv_pccl_conf {
 // the built-in preset "default" (one copy of it, the same idiom as
 // rv_manifest_budget's defaults being the reference machine). Chosen at boot
 // (rv_pboot_modes.hpp) and branched on nowhere but rv_pcslots.cpp.
-enum class rv_pcplatform_impl { null, sdl3 };
-enum class rv_pcca_impl { null, sw };
-enum class rv_pccv_impl { null, sw };
-enum class rv_pccio_impl { null, standard };
-enum class rv_pccl_impl { null, luajit };
-enum class rv_pccd_impl { null, fs };
-enum class rv_pccm_impl { null, posix };
+enum class rv_pcplatform_impl {
+    null,
+    sdl3
+};
+enum class rv_pcca_impl {
+    null,
+    sw
+};
+enum class rv_pccv_impl {
+    null,
+    sw
+};
+enum class rv_pccg_impl {
+    null,
+    sw
+};
+enum class rv_pccio_impl {
+    null,
+    standard
+};
+enum class rv_pccl_impl {
+    null,
+    luajit
+};
+enum class rv_pccd_impl {
+    null,
+    fs
+};
+enum class rv_pccm_impl {
+    null,
+    posix
+};
 
 struct rv_pcslots {
     // Not a slot itself (see rv_pcslots.hpp), but the first field: it decides
-    // whether the six slots below get real endpoints to talk to at all.
+    // whether the slots below get real endpoints to talk to at all.
     rv_pcplatform_impl platform = rv_pcplatform_impl::sdl3;
 
     rv_pcca_impl ca = rv_pcca_impl::sw;
     rv_pccv_impl cv = rv_pccv_impl::sw;
+    rv_pccg_impl cg = rv_pccg_impl::sw;
     rv_pccio_impl cio = rv_pccio_impl::standard;
     rv_pccl_impl cl = rv_pccl_impl::luajit;
     rv_pccd_impl cd = rv_pccd_impl::fs;
@@ -119,16 +150,20 @@ struct rv_pconsole_params {
 
     // Every frame advances the machine by exactly 1/target_fps: the disc's
     // dt, the SPU sample count and the frame counter all come from that one
-    // clock. Only WHEN the next frame runs differs by mode: fixed_step runs
-    // unpaced and does not feed the audio output; otherwise the audio output
-    // paces by backpressure when there is one, the steady clock when there
-    // is not.
+    // clock. Frames run on the steady clock, except fixed_step, which runs
+    // them unpaced. The audio device pulls what it needs from the sound module
+    // on its own; fixed_step does not feed the device, so sound follows frames.
     uint64_t target_fps = 60;
 
     // Where to write the last presented frame as a binary PPM when the run
     // ends. Empty = never. Devkit only - it is how "what did the console draw"
     // becomes a file that can be diffed instead of a screenshot that cannot.
     std::string dump_frame_path;
+
+    // Where to write everything the sound module mixed during the run, as raw
+    // S16LE stereo at 44.1 kHz, appended as it is produced. Empty = never.
+    // Devkit only - the same role as dump_frame_path, for sound.
+    std::string dump_audio_path;
 
     // `dev` is the only thing that makes the console read stdin at all. It
     // defaults to false, so a run that was not asked to be controllable is byte
@@ -154,6 +189,7 @@ struct rv_pconsole_conf {
     rv_pccd_conf cd;
     rv_pccl_conf cl;
     rv_pccv_conf cv;
+    rv_pccg_conf cg;
     rv_pccio_conf cio;
     rv_pccm_conf cm;
 

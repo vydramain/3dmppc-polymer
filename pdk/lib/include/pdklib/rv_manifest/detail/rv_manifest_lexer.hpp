@@ -15,31 +15,31 @@ namespace rv_pdklib
 // so the scanner never talks to the error handler.
 class rv_manifest_lexer
 {
-	const std::string &text_;
-	std::size_t pos_ = 0;
-	int line_ = 1;
+    const std::string &text_;
+    std::size_t pos_ = 0;
+    int line_ = 1;
 
 public:
-	explicit rv_manifest_lexer(const std::string &text)
-		: text_(text)
-	{
-	}
+    explicit rv_manifest_lexer(const std::string &text)
+        : text_(text)
+    {
+    }
 
-	// One token per call; END_OF_FILE for ever after.
-	rv_manifest_token next();
+    // One token per call; END_OF_FILE for ever after.
+    rv_manifest_token next();
 
 private:
-	bool eof() const;
-	char peek(std::size_t ahead = 0) const;
-	char get();
+    bool eof() const;
+    char peek(std::size_t ahead = 0) const;
+    char get();
 
-	// Spaces, tabs and stray carriage returns — never a newline.
-	void skip_inline();
-	void skip_comment();
+    // Spaces, tabs and stray carriage returns — never a newline.
+    void skip_inline();
+    void skip_comment();
 
-	rv_manifest_token lex_ident();
-	rv_manifest_token lex_string();
-	rv_manifest_token lex_integer();
+    rv_manifest_token lex_ident();
+    rv_manifest_token lex_string();
+    rv_manifest_token lex_integer();
 };
 
 // Drains a lexer into a vector that always ends with exactly one END_OF_FILE,

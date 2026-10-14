@@ -13,6 +13,7 @@
 
 #include "rv_burner_zipwrite.hpp"
 
+#include "pdk/rv_err.h"
 #include "rv_burner_common/rv_burner_bytes.hpp"
 #include "pdklib/rv_zip/rv_zip_format.hpp"
 
@@ -29,7 +30,6 @@
 namespace rv_pdktools
 {
 // --- constants ----------------------------------------------------------------
-
 
 // 2.0 - the version that introduced the deflate method and the folder entry.
 // Nothing here needs more, and claiming more would refuse readers that could
@@ -59,7 +59,6 @@ constexpr uint16_t RV_BURNER_ZIP_VERSION_MADE_BY = (3 << 8) | RV_BURNER_ZIP_VERS
 // is the trap this constant exists to avoid.)
 constexpr uint32_t RV_BURNER_ZIP_EXTERNAL_ATTRS = 0100644u << 16;
 
-
 // Deterministic timestamp. The MS-DOS date/time in every header is a
 // fixed constant instead of the current clock, so burning the same directory
 // twice produces a BYTE-IDENTICAL .mppcdisc. That is what makes an artefact
@@ -84,44 +83,18 @@ constexpr std::size_t RV_BURNER_ZIP_MAX_NAME_LENGTH = 0xFFFFu;
 
 // --- CRC32 --------------------------------------------------------------------
 //
-// Every entry carries a CRC-32 of its uncompressed bytes, and the console-side
-// reader recomputes it and refuses the entry when it disagrees. This is not
-// ceremony. The failure mode a disc actually has is SILENT corruption: a burn
-// interrupted midway, a truncated copy over a flaky transfer, a texture blob
-// half-overwritten by a tool that crashed. None of those break the zip
-// structure - the offsets still point somewhere, the sizes still add up - so
-// without a checksum the reader hands the game plausible garbage and the bug
-// surfaces as a texture full of noise or a mesh with a spike through it,
-// arbitrarily far from the actual damage. A 32-bit CRC turns "wrong pixels
-// somewhere" into "entry 'hero.mppctex' is corrupt", which is a diagnosis.
-//
-// The polynomial is 0xEDB88320: the standard CRC-32 (IEEE 802.3) polynomial
-// 0x04C11DB7 written REFLECTED - its bits reversed. That is not a different
-// algorithm, it is the same one arranged for the direction the bytes arrive in.
-// The mathematical definition shifts the register towards the most significant
-// bit and feeds each byte MSB-first; reflecting the polynomial lets the register
-// shift RIGHT instead and consume each byte LSB-first, so a whole byte can be
-// folded in with one table lookup and one shift, with no bit-reversal at either
-// end. Both forms compute the same remainder over GF(2), and only the reflected
-// form matches what the zip specification's test vectors and every other zip
-// implementation produce - a "CRC32" built from the unreflected polynomial
-// would be self-consistent and rejected by everyone.
-//
-// The pre-inversion (~0) and post-inversion of the register are also part of the
-// standard: they are what makes leading zero bytes and trailing zero bytes
-// change the result, so a truncation to zeros - the exact shape of an
-// interrupted burn - cannot pass unnoticed.
-constexpr uint32_t RV_BURNER_ZIP_CRC_POLYNOMIAL = 0xEDB88320u;
+// The CRC-32 constants and design rationale are documented in
+// pdklib/rv_zip/rv_zip_format.hpp; the table is built here at compile time.
 
 struct crc32_table {
-    uint32_t entry[256] = {};
+    uint32_t entry[rv_pdklib::rv_zip_crc_table_size] = {};
 
     constexpr crc32_table()
     {
-        for (uint32_t i = 0; i < 256; ++i) {
+        for (uint32_t i = 0; i < rv_pdklib::rv_zip_crc_table_size; ++i) {
             uint32_t c = i;
-            for (int bit = 0; bit < 8; ++bit) {
-                c = (c & 1u) ? (RV_BURNER_ZIP_CRC_POLYNOMIAL ^ (c >> 1)) : (c >> 1);
+            for (int bit = 0; bit < rv_pdklib::rv_zip_crc_bits_per_byte; ++bit) {
+                c = (c & 1u) ? (rv_pdklib::rv_zip_crc_polynomial ^ (c >> 1)) : (c >> 1);
             }
             entry[i] = c;
         }
@@ -133,11 +106,12 @@ constexpr crc32_table RV_BURNER_ZIP_CRC_TABLE{};
 static uint32_t crc32_of(const void *data, std::size_t size)
 {
     const uint8_t *p = static_cast<const uint8_t *>(data);
-    uint32_t crc = 0xFFFFFFFFu;
+    uint32_t crc = rv_pdklib::rv_zip_crc_init_xor;
     for (std::size_t i = 0; i < size; ++i) {
-        crc = RV_BURNER_ZIP_CRC_TABLE.entry[(crc ^ p[i]) & 0xFFu] ^ (crc >> 8);
+        uint32_t idx = (crc ^ p[i]) & rv_pdklib::rv_zip_crc_byte_mask;
+        crc = RV_BURNER_ZIP_CRC_TABLE.entry[idx] ^ (crc >> rv_pdklib::rv_zip_crc_bits_per_byte);
     }
-    return crc ^ 0xFFFFFFFFu;
+    return crc ^ rv_pdklib::rv_zip_crc_init_xor;
 }
 
 // --- byte-exact serialisation -------------------------------------------------
@@ -174,21 +148,21 @@ struct rv_zipwriter::rv_zipwriter_impl {
     std::vector<zip_write_entry> entries;
     std::vector<std::string> names;
 
-    bool write(const void *data, std::size_t size)
+    int write(const void *data, std::size_t size)
     {
         if (size == 0) {
-            return true;
+            return RV_OK;
         }
         out.write(static_cast<const char *>(data), static_cast<std::streamsize>(size));
         if (!out) {
             broken = true;
-            return false;
+            return RV_ERR_IO;
         }
         offset += size;
-        return true;
+        return RV_OK;
     }
 
-    bool write(const std::vector<uint8_t> &bytes)
+    int write(const std::vector<uint8_t> &bytes)
     {
         return write(bytes.data(), bytes.size());
     }
@@ -230,29 +204,28 @@ bool rv_zipwriter::ok() const
     return impl_->opened && !impl_->broken && !impl_->finished;
 }
 
-bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t size,
-    std::string &error)
+int rv_zipwriter::add(const std::string &name, const void *data, std::size_t size, std::string &error)
 {
     error.clear();
     if (!impl_->opened) {
         error = "archive '" + impl_->path + "' is not open";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->finished) {
         error = "archive '" + impl_->path + "' is already finished";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->broken) {
         error = "archive '" + impl_->path + "' already failed to write";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (name.empty()) {
         error = "entry name is empty";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (name.size() > RV_BURNER_ZIP_MAX_NAME_LENGTH) {
         error = "entry name is longer than 65535 bytes";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     // A duplicate is refused rather than appended. Every reader resolves a name
@@ -262,22 +235,22 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     // explains nothing when it finally shows up.
     if (std::find(impl_->names.begin(), impl_->names.end(), name) != impl_->names.end()) {
         error = "duplicate entry name '" + name + "'";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     if (impl_->entries.size() >= RV_BURNER_ZIP_MAX_ENTRIES) {
         error = "too many entries for a classic zip (limit 65535)";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (static_cast<uint64_t>(size) > RV_BURNER_ZIP_MAX_SIZE) {
         error = "entry '" + name + "' is larger than 4 GiB, which needs zip64";
-        return false;
+        return RV_ERR_INVAL;
     }
     // Local header + name + data must also stay inside a 32-bit offset, because
     // that is the width of the field the central directory points back with.
     if (impl_->offset + rv_pdklib::rv_zip_local_header_size + name.size() + size > RV_BURNER_ZIP_MAX_SIZE) {
         error = "archive would exceed 4 GiB, which needs zip64";
-        return false;
+        return RV_ERR_INVAL;
     }
 
     zip_write_entry entry;
@@ -289,10 +262,10 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     // Local file header, 30 bytes plus the name. Stored, so the compressed and
     // uncompressed sizes are the same number written twice.
     std::vector<uint8_t> header;
-    header.reserve(30 + name.size());
+    header.reserve(rv_pdklib::rv_zip_local_header_size + name.size());
     put_le_u32(header, rv_pdklib::rv_zip_sig_local);
-    put_le_u16(header, RV_BURNER_ZIP_VERSION);     // version needed to extract
-    put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);    // general purpose flags
+    put_le_u16(header, RV_BURNER_ZIP_VERSION);          // version needed to extract
+    put_le_u16(header, RV_BURNER_ZIP_FLAG_UTF8);        // general purpose flags
     put_le_u16(header, rv_pdklib::rv_zip_method_store); // compression method
     put_le_u16(header, RV_BURNER_ZIP_DOS_TIME);
     put_le_u16(header, RV_BURNER_ZIP_DOS_DATE);
@@ -303,49 +276,54 @@ bool rv_zipwriter::add(const std::string &name, const void *data, std::size_t si
     put_le_u16(header, 0); // extra field length
     put_bytes(header, name);
 
-    if (!impl_->write(header) || !impl_->write(data, size)) {
+    int result = impl_->write(header);
+    if (result != RV_OK) {
         error = "cannot write entry '" + name + "' to '" + impl_->path + "'";
-        return false;
+        return result;
+    }
+    result = impl_->write(data, size);
+    if (result != RV_OK) {
+        error = "cannot write entry '" + name + "' to '" + impl_->path + "'";
+        return result;
     }
 
     impl_->entries.push_back(entry);
     impl_->names.push_back(name);
-    return true;
+    return RV_OK;
 }
 
-bool rv_zipwriter::add_file(const std::string &name, const std::string &source_path,
-    std::string &error)
+int rv_zipwriter::add_file(const std::string &name, const std::string &source_path, std::string &error)
 {
     error.clear();
     std::ifstream in(source_path, std::ios::binary);
     if (!in) {
         error = "cannot open '" + source_path + "'";
-        return false;
+        return RV_ERR_IO;
     }
     std::vector<char> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
     if (in.bad()) {
         error = "cannot read '" + source_path + "'";
-        return false;
+        return RV_ERR_IO;
     }
     return add(name, data.data(), data.size(), error);
 }
 
-bool rv_zipwriter::finish(std::string &error)
+int rv_zipwriter::finish(std::string &error)
 {
     error.clear();
     if (!impl_->opened) {
         error = "archive '" + impl_->path + "' is not open";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->finished) {
         error = "archive '" + impl_->path + "' is already finished";
-        return false;
+        return RV_ERR_INVAL;
     }
     if (impl_->broken) {
         error = "archive '" + impl_->path + "' failed to write earlier";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     const uint64_t directory_offset = impl_->offset;
@@ -364,10 +342,10 @@ bool rv_zipwriter::finish(std::string &error)
         put_le_u32(directory, e.size); // compressed size
         put_le_u32(directory, e.size); // uncompressed size
         put_le_u16(directory, static_cast<uint16_t>(e.name.size()));
-        put_le_u16(directory, 0);              // extra field length
-        put_le_u16(directory, 0);              // file comment length
-        put_le_u16(directory, 0);              // disk number start
-        put_le_u16(directory, 0);              // internal file attributes
+        put_le_u16(directory, 0);                            // extra field length
+        put_le_u16(directory, 0);                            // file comment length
+        put_le_u16(directory, 0);                            // disk number start
+        put_le_u16(directory, 0);                            // internal file attributes
         put_le_u32(directory, RV_BURNER_ZIP_EXTERNAL_ATTRS); // external file attributes
         put_le_u32(directory, e.local_offset);
         put_bytes(directory, e.name);
@@ -377,7 +355,7 @@ bool rv_zipwriter::finish(std::string &error)
         error = "archive would exceed 4 GiB, which needs zip64";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_INVAL;
     }
 
     std::vector<uint8_t> eocd;
@@ -391,11 +369,19 @@ bool rv_zipwriter::finish(std::string &error)
     put_le_u32(eocd, static_cast<uint32_t>(directory_offset));
     put_le_u16(eocd, 0); // archive comment length
 
-    if (!impl_->write(directory) || !impl_->write(eocd)) {
+    int result = impl_->write(directory);
+    if (result != RV_OK) {
         error = "cannot write central directory of '" + impl_->path + "'";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return result;
+    }
+    result = impl_->write(eocd);
+    if (result != RV_OK) {
+        error = "cannot write central directory of '" + impl_->path + "'";
+        impl_->discard();
+        impl_->finished = true;
+        return result;
     }
 
     impl_->out.flush();
@@ -407,11 +393,11 @@ bool rv_zipwriter::finish(std::string &error)
         error = "cannot close '" + impl_->path + "'";
         impl_->discard();
         impl_->finished = true;
-        return false;
+        return RV_ERR_IO;
     }
 
     impl_->finished = true;
-    return true;
+    return RV_OK;
 }
 
 const std::vector<std::string> &rv_zipwriter::entries() const

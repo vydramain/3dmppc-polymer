@@ -16,7 +16,7 @@ public:
     explicit rv_pccio_null(const rv_pccio_conf &conf);
 
     // No ports: always 0 bytes.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t iport_count() override;
 
@@ -28,7 +28,10 @@ public:
 
     int64_t ohaptic(int64_t, rv_oheffect) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 
 private:
     rv_pccio_conf conf_;

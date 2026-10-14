@@ -136,8 +136,8 @@ struct shape_capture_ctx {
 };
 
 // The structural walk from _shapewalk.cpp, called by capture_state_shape_ in
-// _shape.cpp.
-bool capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth);
+// _shape.cpp. Returns RV_OK on success, RV_ERR_INVAL on invalid state structure.
+int capture_walk(shape_capture_ctx &ctx, int table_idx, const std::string &path, int depth);
 
 // The in-place patch (dev slot): patch_trampoline_ in _patch_devtools.cpp runs the
 // passes, _patchwalk_devtools.cpp holds the two walks it calls.
@@ -168,6 +168,6 @@ struct patch_ctx {
     const char *refuse_message = nullptr;
 };
 
-bool patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth);
-bool patch_reach(patch_ctx &ctx, int n_idx, int depth);
+int patch_pair(patch_ctx &ctx, int o_idx, int n_idx, int depth);
+int patch_reach(patch_ctx &ctx, int n_idx, int depth);
 } // namespace rv_3dmppc

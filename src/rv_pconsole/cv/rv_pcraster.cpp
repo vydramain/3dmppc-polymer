@@ -77,8 +77,11 @@ void rv_pcraster::draw_line(rv_pcfbuf &fbuf, const rv_line &line, int32_t depth,
     }
 }
 
-void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv_pctexview &texture,
-    int32_t depth, bool z_enabled)
+void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf,
+    const rv_sprite &sprite,
+    const rv_pctexview &texture,
+    int32_t depth,
+    bool z_enabled)
 {
     if (sprite.width == 0 || sprite.height == 0) {
         return;
@@ -103,8 +106,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
     // that was allocated and never uploaded into) falls back to the flat fill
     // below: a solid rectangle in the wrong colour is a far better bug report
     // than a primitive that silently disappears.
-    const bool textured =
-        sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE && texture.valid();
+    const bool textured = sprite.fill_mode == RV_PRIMITIVE_FILL_MODE_SAMPLE_TEXTURE && texture.valid();
 
     if (textured) {
         // The texture is laid down from the sprite's UPPER-LEFT corner, one
@@ -127,8 +129,8 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
         for (int64_t y = cy0; y < cy1; ++y) {
             int64_t u_fx = u_start;
             for (int64_t x = cx0; x < cx1; ++x) {
-                const rv_pctexel_sample texel = rv_pctexel::sample(
-                    texture, u_fx >> RV_UV_FX_SHIFT, v_row >> RV_UV_FX_SHIFT, sprite.mapping);
+                const rv_pctexel_sample texel =
+                    rv_pctexel::sample(texture, u_fx >> RV_UV_FX_SHIFT, v_row >> RV_UV_FX_SHIFT, sprite.mapping);
                 if (texel.drawn) {
                     emit(fbuf, x, y, dither_rgb555(texel.value, x, y), depth, z_enabled);
                 }
@@ -149,8 +151,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
                 emit(fbuf, x0, y, pack_rgb555_dithered(sprite.color, x0, y), depth, z_enabled);
             }
             if (x1 - 1 >= cx0 && x1 - 1 < cx1) {
-                emit(fbuf, x1 - 1, y, pack_rgb555_dithered(sprite.color, x1 - 1, y), depth,
-                    z_enabled);
+                emit(fbuf, x1 - 1, y, pack_rgb555_dithered(sprite.color, x1 - 1, y), depth, z_enabled);
             }
             continue;
         }
@@ -161,8 +162,7 @@ void rv_pcraster::draw_sprite(rv_pcfbuf &fbuf, const rv_sprite &sprite, const rv
     }
 }
 
-void rv_pcraster::draw(rv_pcfbuf &fbuf, const rv_primitive &primitive, const rv_pctexview &texture,
-    bool z_enabled)
+void rv_pcraster::draw(rv_pcfbuf &fbuf, const rv_primitive &primitive, const rv_pctexview &texture, bool z_enabled)
 {
     // Dispatch on the variant tag. rv_primitive is a tagged union (the
     // PDK is a C-shaped ABI, so no std::variant), and this is the one place that

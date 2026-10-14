@@ -67,8 +67,7 @@ extern "C" int64_t rv_cl_value_string(rv_cl *cl, int64_t index, char *baddr, int
 {
     return reinterpret_cast<rv_3dmppc::rv_pccl *>(cl)->value_string(index, baddr, baddr_size);
 }
-extern "C" int64_t rv_cl_script_call(rv_cl *cl, int64_t handle, const char *fname, int64_t argc,
-    int64_t retc)
+extern "C" int64_t rv_cl_script_call(rv_cl *cl, int64_t handle, const char *fname, int64_t argc, int64_t retc)
 {
     return reinterpret_cast<rv_3dmppc::rv_pccl *>(cl)->script_call(handle, fname, argc, retc);
 }

@@ -1,7 +1,7 @@
-// The skeleton disc, grown into the console's SERVICE TEST. It is still not a
-// game: it is the smallest thing that touches every subsystem the machine
-// claims to have, so a broken one shows up on screen or in the speakers rather
-// than staying buried in a log.
+// The skeleton disc, grown into the built-in default disc for checking the
+// console. It is still not a game: it is the smallest thing that touches every
+// subsystem the machine claims to have, so a broken one shows up on screen or
+// in the speakers rather than staying buried in a log.
 //
 //   rv_cv  — a spinning textured cube, plus three sprites showing the wrap
 //            modes and the cut-out transparency rule
@@ -65,12 +65,14 @@ private:
         uint32_t boot_count;
     };
 
-    void build_texture();
-    void build_idx4_texture();
-    void build_font();
-    void probe_drive();
-    void load_save();
-    void build_beep();
+    // Each setup step returns RV_OK or the code of its refusal, and logs a WARN
+    // with the cause. A refused step leaves the rest of the setup running.
+    int build_texture();
+    int build_idx4_texture();
+    int build_font();
+    int probe_drive();
+    int load_save();
+    int build_beep();
     void draw_post();
     void draw_test_grid();
 
@@ -83,13 +85,11 @@ private:
 
     // A textured sprite filling the given rect. `addr_palette` is 0 for the
     // direct format, which carries its colour in the texel.
-    void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette,
-        rv_texture_mapping_type mapping);
+    void draw_textured(int x, int y, int w, int h, int64_t addr_texture, int64_t addr_palette, rv_texture_mapping_type mapping);
 
     // One line of the POST list: a label, what was found, and whether it
     // answered. Drawn by draw_post().
-    void draw_post_row(int row, const char *label, const char *detail, const char *status,
-        bool good);
+    void draw_post_row(int row, const char *label, const char *detail, const char *status, bool good);
 
     // Borrowed facade — the console owns it and it stays valid until the disc
     // is torn down. Never deleted here.
@@ -125,6 +125,13 @@ private:
     // like any other disc-side convenience.
     int64_t addr_font_ = 0;
 
+    // The codes each setup step returned. They mean something only once
+    // setup_done_ is set; before that the step has not run.
+    bool setup_done_ = false;
+    int texture_result_ = RV_ERR_INVAL;
+    int idx4_result_ = RV_ERR_INVAL;
+    int font_result_ = RV_ERR_INVAL;
+
     // Two palettes over ONE atlas: the console has no vertex-colour modulation
     // yet, so a second colour of text means a second palette and a different
     // addr_palette — 32 bytes, not another 3 KiB of glyphs. Red is worth it: a
@@ -138,10 +145,12 @@ private:
     int64_t asset_bytes_ = 0;          // what we read off the medium, 0 = nothing
     bool asset_ok_ = false;            // the read round-tripped and looked like itself
     bool drive_rejects_paths_ = false; // the traversal probe answered correctly
+    int drive_result_ = RV_ERR_INVAL;
 
     // --- memory card ---
     uint32_t boot_count_ = 0;
     bool card_ok_ = false;
+    int save_result_ = RV_ERR_INVAL;
 
     // --- input ---
     // Ports that report a device. Counted once: the contract calls the port
@@ -152,6 +161,7 @@ private:
     // --- audio ---
     int64_t addr_beep_ = 0;
     bool beep_ok_ = false;
+    int beep_result_ = RV_ERR_INVAL;
 
     // Previous frame's live button mask, one entry per port. The contract hands
     // out LEVELS only, so a disc that wants edges keeps the previous snapshot

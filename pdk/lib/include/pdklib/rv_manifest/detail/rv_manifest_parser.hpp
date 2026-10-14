@@ -18,46 +18,52 @@ namespace rv_pdklib
 // names every broken line instead of only the first.
 class rv_manifest_parser
 {
-	const std::vector<rv_manifest_token> &tokens_;
-	rv_manifest_failer &failer_;
-	std::size_t pos_ = 0;
-	rv_manifest_tree tree_;
+    const std::vector<rv_manifest_token> &tokens_;
+    rv_manifest_failer &failer_;
+    std::size_t pos_ = 0;
+    rv_manifest_tree tree_;
 
 public:
-	rv_manifest_parser(const std::vector<rv_manifest_token> &tokens,
-		rv_manifest_failer &failer)
-		: tokens_(tokens)
-		, failer_(failer)
-	{
-	}
+    rv_manifest_parser(const std::vector<rv_manifest_token> &tokens, rv_manifest_failer &failer)
+        : tokens_(tokens)
+        , failer_(failer)
+    {
+    }
 
-	// The tree, however much of it survived. Ask the failer whether it is sound.
-	rv_manifest_tree run();
+    // The tree, however much of it survived. Ask the failer whether it is sound.
+    rv_manifest_tree run();
 
 private:
-	// --- cursor ---------------------------------------------------------------
+    // --- cursor ---------------------------------------------------------------
 
-	const rv_manifest_token &peek() const;
-	const rv_manifest_token &get();
-	bool at(rv_manifest_token_kind kind) const;
+    const rv_manifest_token &peek() const;
+    const rv_manifest_token &get();
+    bool at(rv_manifest_token_kind kind) const;
 
-	// --- grammar --------------------------------------------------------------
+    // --- grammar --------------------------------------------------------------
 
-	bool parse_section();
-	bool parse_assignment();
-	bool parse_value(rv_manifest_mvalue &out);
-	bool parse_array(rv_manifest_mvalue &out);
-	bool expect_line_end(const char *what);
+    int parse_section();
+    int parse_assignment();
+    int parse_value(rv_manifest_mvalue &out);
+    int parse_array(rv_manifest_mvalue &out);
+    int expect_line_end(const char *what);
 
-	// --- recovery -------------------------------------------------------------
+    // Newlines between array items carry no meaning.
+    void skip_newlines();
+    // One value of an array; the first decides strings or numbers.
+    int parse_array_element(rv_manifest_mvalue &out);
+    // After an item: ',' continues, ']' closes (closed = true), anything else is a diagnostic.
+    int parse_array_separator(int array_start, bool &closed);
 
-	// Drops lines until one looks like a statement again. Without this an
-	// unterminated array turns into one complaint per element.
-	void recover();
-	bool starts_statement() const;
+    // --- recovery -------------------------------------------------------------
 
-	void open_section(std::string name, int line, bool poisoned);
-	rv_manifest_tree_section &current_section();
+    // Drops lines until one looks like a statement again. Without this an
+    // unterminated array turns into one complaint per element.
+    void recover();
+    bool starts_statement() const;
+
+    void open_section(std::string name, int line, bool poisoned);
+    rv_manifest_tree_section &current_section();
 };
 
 } // namespace rv_pdklib

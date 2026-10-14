@@ -21,6 +21,7 @@
 
 #include "pdk/cio/rv_imouse.h"
 #include "pdk/cio/rv_isource.h"
+#include "pdk/rv_err.h"
 #include "rv_pconsole/platform/rv_pcsignals.hpp"
 
 namespace rv_3dmppc
@@ -53,8 +54,7 @@ public:
     // Create the window for a screen_width x screen_height frame magnified by
     // `scale`. RV_OK when a window now exists or none was wanted; RV_ERR_IO
     // when one was wanted and could not be made.
-    virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height,
-        uint64_t scale) = 0;
+    virtual int64_t open(const char *title, int64_t screen_width, int64_t screen_height, uint64_t scale) = 0;
 
     // True while present() reaches a surface.
     virtual bool presenting() const = 0;
@@ -63,6 +63,13 @@ public:
     // 0xAARRGGBB, row-major, in the geometry given to open(). No-op when
     // !presenting().
     virtual void present(const uint32_t *argb) = 0;
+
+    // True when another program shows the frames and says itself that the
+    // machine is paused (--frame-fd): a pause then presents nothing over them.
+    virtual bool embedded() const
+    {
+        return false;
+    }
 
     // Sticky: the user asked to close the window.
     virtual bool close_requested() const = 0;
@@ -82,10 +89,9 @@ public:
 
     // How many times the operator pressed the physical Pause key since this
     // was last called; clears the counter. A COUNT and not a bool, because
-    // two presses landing in the same frame (e.g. a pump() called both at the
-    // top of the frame and again while waiting on the audio queue) must not
-    // collapse into one toggle - the console has to see both edges to end up
-    // paused/unpaused the same way it would have if the frames had not
+    // two presses landing in the same frame (e.g. two presses between two
+    // consume_pause_requests() calls) must not collapse into one toggle - the
+    // console has to see both edges to end up paused/unpaused the same way it would have if the frames had not
     // coalesced. An EDGE and not a level like close_requested(): pause is a
     // request to flip a state the console owns, not a fact about the key
     // itself, so a held key must not re-request sixty times a second, and the
@@ -131,34 +137,58 @@ public:
     // for `duration_ms`. RV_OK; RV_ERR_INVAL for an unknown id; RV_ERR_IO when
     // the device refused.
     virtual int64_t rumble(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
-    virtual int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right,
-        uint16_t duration_ms) = 0;
+    virtual int64_t rumble_triggers(uint32_t id, uint16_t left, uint16_t right, uint16_t duration_ms) = 0;
 
 protected:
     rv_pcgamepads() = default;
 };
 
-// Where finished PCM goes. The sink plays what it is given at the device's
-// own rate and never produces or advances anything. Its only influence on the
-// machine is backpressure: the console does not produce the next frame while
-// queued_frames() is above its target.
+// Where finished PCM goes. The sink plays on the device, pulling what the
+// console attached as its source (attach_source); native tops the device up in
+// service() on the console loop, web from an SDL callback. Without a device it
+// does nothing and never advances the machine.
 class rv_pcaudio_sink
 {
 public:
+    // Fills exactly `frames` stereo frames into `interleaved` (2 * frames int16
+    // values in the RV_PCPLATFORM_PCM_* format). On web it runs inside SDL's get
+    // callback under the stream lock: it must not call back into the sink
+    // (pause, resume, attach_source) or any SDL audio API.
+    using rv_pcaudio_fill_fn = void (*)(void *context, int16_t *interleaved, int64_t frames);
+
     virtual ~rv_pcaudio_sink() = default;
 
     rv_pcaudio_sink(const rv_pcaudio_sink &) = delete;
     rv_pcaudio_sink &operator=(const rv_pcaudio_sink &) = delete;
 
-    // True while a physical device is consuming what write() queues.
+    // True while a physical device is pulling from the attached source.
     virtual bool available() const = 0;
 
-    // Stereo frames queued and not yet played; 0 when !available().
-    virtual int64_t queued_frames() const = 0;
+    // Attach the source the device pulls from; called once by the console.
+    // nullptr detaches it. Without a device this stores nothing.
+    virtual void attach_source(rv_pcaudio_fill_fn, void *)
+    {
+    }
 
-    // Queue `frames` stereo frames (2 * frames int16 values in the
-    // RV_PCPLATFORM_PCM_* format). Discarded when !available().
-    virtual void write(const int16_t *interleaved, int64_t frames) = 0;
+    // Called on every pass of the console loop that runs a frame, and before
+    // each 1 ms slice of the frame wait; not while paused. Native tops the
+    // device queue up from the attached source. Without a device this does
+    // nothing.
+    virtual void service()
+    {
+    }
+
+    // Hold the device; its queue is kept. RV_OK; RV_ERR_IO when the device refused.
+    virtual int pause()
+    {
+        return RV_OK;
+    }
+
+    // Undo pause(). RV_OK; RV_ERR_IO when the device refused.
+    virtual int resume()
+    {
+        return RV_OK;
+    }
 
 protected:
     rv_pcaudio_sink() = default;
@@ -174,9 +204,9 @@ public:
 
     // Drain the platform's event queue and re-read every device: window close,
     // pad arrival and removal, mouse motion, then pad and keyboard snapshots.
-    // Called at the top of every frame by rv_pconsole::disc_run and again on
-    // each step of its audio-queue wait, so a close request ends the wait;
-    // still the only place platform state changes. Pads keep updating
+    // Called at the top of every pass of the console loop (frame_step), paused
+    // or not; the loop is driven by rv_pconsole::disc_run (native) or the web
+    // main-loop callback. Still the only place platform state changes. Pads keep updating
     // without a window: pumping is a platform duty, not a window one.
     virtual void pump() = 0;
 

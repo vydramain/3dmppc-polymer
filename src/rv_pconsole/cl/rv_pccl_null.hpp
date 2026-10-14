@@ -21,8 +21,8 @@ class rv_pccl_null final : public rv_pccl
 public:
     rv_pccl_null();
 
-    // No VM: always 0 bytes.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    // No VM: RV_OK, bytes = 0.
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t script_load(const void *bytecode, int64_t size, const char *name) override;
     int64_t script_free(int64_t handle) override;
@@ -49,15 +49,12 @@ public:
     // a refusal with a named phase rather than pretending to succeed: a console
     // booted with --mode_cl=null and asked for a reload must say why, not report
     // ok on a machine that never ran a script.
-    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name,
-        rv_pccl_reload_report &report) override;
+    int64_t script_reload_entry(const void *bytecode, int64_t size, const char *name, rv_pccl_reload_report &report) override;
     int64_t script_reload_entry_from_drive(rv_pccl_reload_report &report) override;
-    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size,
-        rv_pccl_reload_report &report) override;
+    int64_t script_reload_module(const char *name, const void *bytecode, int64_t size, rv_pccl_reload_report &report) override;
     int64_t script_reload_module_from_drive(const char *name, rv_pccl_reload_report &report) override;
     int64_t state_get(const std::vector<std::string> &path, rv_pccl_value &out) override;
-    int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target,
-        std::vector<rv_pccl_key> &out) override;
+    int64_t state_keys(const std::vector<std::string> &path, rv_pccl_value &target, std::vector<rv_pccl_key> &out) override;
     int64_t state_collect(int64_t *used_out) override;
     void script_status(rv_pccl_status &out) const override;
 

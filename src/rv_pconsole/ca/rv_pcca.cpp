@@ -51,3 +51,23 @@ extern "C" int64_t rv_ca_voice_status(rv_ca *ca, int64_t voice_mask)
 {
     return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_status(voice_mask);
 }
+
+extern "C" int64_t rv_ca_voice_repeat(rv_ca *ca, int64_t voice_mask, int64_t addr)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_repeat(voice_mask, addr);
+}
+
+extern "C" int64_t rv_ca_voice_ended(rv_ca *ca, int64_t voice_mask)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_ended(voice_mask);
+}
+
+extern "C" int64_t rv_ca_voice_mark(rv_ca *ca, int64_t voice_mask, int64_t addr)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_mark(voice_mask, addr);
+}
+
+extern "C" int64_t rv_ca_voice_marked(rv_ca *ca, int64_t voice_mask)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pcca *>(ca)->voice_marked(voice_mask);
+}

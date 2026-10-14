@@ -12,7 +12,13 @@ should be justifiable in a sentence.
 
 | Directory | What | Used by | License |
 | --- | --- | --- | --- |
-| [`stb/`](stb/) | `stb_image.h` — PNG/JPG/… decoder | `pdk/tools/mppcbaker` | public domain / MIT |
+| [`stb/`](stb/) | `stb_image.h` — PNG/JPG/… decoder | `pdk/tools/mppctexbaker`, `editor/` | public domain / MIT |
+| [`imgui/`](imgui/) | Dear ImGui `v1.92.9b` - core, SDL3 and SDL_Renderer backends | `editor/` | MIT |
+| [`win55-icons/`](win55-icons/) | six 30x30 icons from win-55-ui | `editor/` | MIT |
+| [`libvterm/`](libvterm/) | libvterm `0.3.3` - terminal emulator library (C) | `editor/` | MIT |
+| [`pxplus-ibm-vga/`](pxplus-ibm-vga/) | PxPlus IBM VGA 9x16 font (TTF) | `editor/`; pdklib's Cyrillic block is redrawn after it | CC BY-SA 4.0 |
+| [`catppuccin-palette/`](catppuccin-palette/) | Catppuccin palette `v1.8.0` - colour values as JSON | `editor/` (Mocha) | MIT |
+| [`cgltf/`](cgltf/) | `cgltf` `1.15` - single-file glTF 2.0 parser (C99) | used by `pdk/tools` mppcmodbaker; `editor/` later (glTF models; never the console) | MIT |
 
 ## Rules for adding something
 

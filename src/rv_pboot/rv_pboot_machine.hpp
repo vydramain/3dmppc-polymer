@@ -31,7 +31,6 @@ int64_t rv_pboot_mode_prepare(const rv_pboot_args &args, rv_pboot_mode_info &out
 // Reports the preparation. States what the mode is ready to offer; it must
 // not be read as any disc having been found compatible yet. The platform's
 // own endpoints (window/gamepads/audio) are logged by the platform itself.
-void rv_pboot_mode_report(
-    const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine);
+void rv_pboot_mode_report(const rv_pboot_args &args, const rv_pcslots &slots, const rv_pboot_mode_info &machine);
 
 } // namespace rv_3dmppc

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 
 namespace rv_pdktools
@@ -8,7 +9,7 @@ namespace rv_pdktools
 // --- child processes ---
 //
 // The burner does not compile or bake anything itself: it drives cmake, ninja
-// and mppcbaker as child processes. Everything needed to do that safely — quote
+// and the bakers as child processes. Everything needed to do that safely — quote
 // a path, run a command, show what the child said — lives here, because every
 // phase that spawns a child needs the same three things.
 
@@ -43,5 +44,14 @@ int run_capture(const std::string &command, std::string &output);
 ///
 /// @param output  a capture from run_capture(); an empty one prints nothing
 void dump_child_output(const std::string &output);
+
+// --- the running program ---
+
+/// Directory holding the running burner binary, read from /proc/self/exe.
+///
+/// Not the working directory and not argv[0], which the user or caller chose.
+///
+/// @return that directory, or an empty path if the OS does not say; the caller decides how to fall back
+std::filesystem::path executable_directory();
 
 } // namespace rv_pdktools

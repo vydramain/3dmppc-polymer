@@ -16,20 +16,22 @@ static_assert(rv_3dmppc::RV_PCCA_PCM_RATE == rv_3dmppc::RV_PCPLATFORM_PCM_RATE,
 static_assert(rv_3dmppc::RV_PCCA_PCM_CHANNELS == rv_3dmppc::RV_PCPLATFORM_PCM_CHANNELS,
     "the mixer's channel count and the platform's PCM sink must agree");
 
-
 rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
-    rv_3dmppc::rv_pcplatform &platform, rv_3dmppc::rv_pcloader *loader)
+    rv_3dmppc::rv_pcplatform &platform,
+    rv_3dmppc::rv_pcloader *loader)
     : params_(conf.params)
     , platform_(platform)
     , ca_(rv_pcca_make(conf.slots.ca, conf.ca))
     , cio_(rv_pccio_make(conf.slots.cio, conf.cio, platform_))
     , cm_(rv_pccm_make(conf.slots.cm, conf.cm))
     , cv_(rv_pccv_make(conf.slots.cv, conf.cv))
+    , cg_(rv_pccg_make(conf.slots.cg, conf.cg, *cv_))
     , cd_(rv_pccd_make(conf.slots.cd, conf.cd))
     , cl_(rv_pccl_make(conf.slots.cl, conf.cl, *cd_))
     , loader_(loader)
     , pcm_(static_cast<size_t>(
-          (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : 60) + 1) *
+          (RV_PCCA_PCM_RATE / static_cast<int64_t>(params_.target_fps ? params_.target_fps : RV_PCONSOLE_DEFAULT_TARGET_FPS) +
+              1) *
           RV_PCCA_PCM_CHANNELS))
     , script_entry_(conf.cl.script_entry)
 {
@@ -40,6 +42,7 @@ rv_3dmppc::rv_pconsole::rv_pconsole(const rv_3dmppc::rv_pconsole_conf &conf,
     // seam for ca_ - see rv_pccd.hpp's own comment on audio_attach().
     cd_->video_attach(*cv_);
     cd_->audio_attach(*ca_);
+    cd_->geometry_attach(*cg_);
 }
 
 // This is where the contract meets the machine. reinterpret_cast is mandatory
@@ -68,14 +71,42 @@ rv_cv *rv_3dmppc::rv_pconsole::cv()
 {
     return reinterpret_cast<rv_cv *>(cv_.get());
 }
+rv_cg *rv_3dmppc::rv_pconsole::cg()
+{
+    return reinterpret_cast<rv_cg *>(cg_.get());
+}
 rv_cl *rv_3dmppc::rv_pconsole::cl()
 {
     return reinterpret_cast<rv_cl *>(cl_.get());
 }
 
-bool rv_3dmppc::rv_pconsole::ready() const
+int rv_3dmppc::rv_pconsole::check_ready() const
 {
-    return ca_->valid() && cd_->valid() && cio_->valid() && cm_->valid() && cv_->valid() && cl_->valid();
+    // The reason a controller is not usable was logged by its constructor; this names
+    // which one refused the start. The first one in this order is the one reported.
+    // code: what the refusal means. Memory reservations fail with RV_ERR_NOMEM; the card
+    // image is a file the console reads, so a bad one is a device failure, RV_ERR_IO.
+    struct slot_check {
+        const char *name;
+        bool valid;
+        int code;
+    };
+    const slot_check slots[] = {
+        { "ca", ca_->valid(), RV_ERR_NOMEM },
+        { "cd", cd_->valid(), RV_ERR_NOMEM },
+        { "cio", cio_->valid(), RV_ERR_NOMEM },
+        { "cm", cm_->valid(), RV_ERR_IO },
+        { "cv", cv_->valid(), RV_ERR_NOMEM },
+        { "cg", cg_->valid(), RV_ERR_NOMEM },
+        { "cl", cl_->valid(), RV_ERR_NOMEM },
+    };
+    for (const auto &slot : slots) {
+        if (!slot.valid) {
+            RV_LOG_ERR("pconsole", "controller '{}' is not usable, the console does not start", slot.name);
+            return slot.code;
+        }
+    }
+    return RV_OK;
 }
 
 // --- C contract (pdk/rv_pdko.h) ----------------------------------------------
@@ -110,4 +141,8 @@ extern "C" rv_cm *rv_pdko_cm(rv_pdko *o)
 extern "C" rv_cv *rv_pdko_cv(rv_pdko *o)
 {
     return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cv();
+}
+extern "C" rv_cg *rv_pdko_cg(rv_pdko *o)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pconsole *>(o)->cg();
 }

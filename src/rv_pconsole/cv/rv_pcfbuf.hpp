@@ -13,30 +13,40 @@
 #include <limits>
 #include <vector>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-class rv_pcfbuf {
-   public:
+class rv_pcfbuf
+{
+public:
     // One pixel's cost in the three pages below: color_ (uint16_t) + depth_
     // (int32_t) + argb_ (uint32_t). Public so the boot budget check
     // (rv_pccv_sw::evaluate) can cost a framebuffer before one is built.
-    static constexpr int64_t RV_PCFBUF_BYTES_PER_PIXEL =
-        sizeof(uint16_t) + sizeof(int32_t) + sizeof(uint32_t);
+    static constexpr int64_t RV_PCFBUF_BYTES_PER_PIXEL = sizeof(uint16_t) + sizeof(int32_t) + sizeof(uint32_t);
 
     rv_pcfbuf(int64_t width, int64_t height)
-        : width_(width > 0 ? width : 0),
-          height_(height > 0 ? height : 0),
-          color_(static_cast<size_t>(width_ * height_), 0),
-          depth_(static_cast<size_t>(width_ * height_), std::numeric_limits<int32_t>::min()),
-          argb_(static_cast<size_t>(width_ * height_), 0) {}
+        : width_(width > 0 ? width : 0)
+        , height_(height > 0 ? height : 0)
+        , color_(static_cast<size_t>(width_ * height_), 0)
+        , depth_(static_cast<size_t>(width_ * height_), std::numeric_limits<int32_t>::min())
+        , argb_(static_cast<size_t>(width_ * height_), 0)
+    {
+    }
 
-    int64_t width() const { return width_; }
-    int64_t height() const { return height_; }
+    int64_t width() const
+    {
+        return width_;
+    }
+    int64_t height() const
+    {
+        return height_;
+    }
 
     // Start a new frame. `rgb555` is the background; the depth page is only
     // touched when the frame asked for per-pixel rejection, because clearing it
     // is a full screen-sized write the Z-less path has no use for.
-    void clear(uint16_t rgb555, int32_t depth_value, bool clear_depth) {
+    void clear(uint16_t rgb555, int32_t depth_value, bool clear_depth)
+    {
         for (size_t i = 0; i < color_.size(); ++i) {
             color_[i] = rgb555;
         }
@@ -50,11 +60,15 @@ class rv_pcfbuf {
     // UNCHECKED write: the caller has already clipped to the screen. Every
     // rasterizer path here intersects its bounding box with the screen before
     // it starts stepping, so a bounds test per pixel would be pure waste.
-    void plot(int64_t x, int64_t y, uint16_t rgb555) { color_[index(x, y)] = rgb555; }
+    void plot(int64_t x, int64_t y, uint16_t rgb555)
+    {
+        color_[index(x, y)] = rgb555;
+    }
 
     // Checked variant for the paths that walk a parametric curve instead of a
     // box - the DDA line, whose endpoints may sit far off-screen.
-    void plot_checked(int64_t x, int64_t y, uint16_t rgb555) {
+    void plot_checked(int64_t x, int64_t y, uint16_t rgb555)
+    {
         if (inside(x, y)) {
             color_[index(x, y)] = rgb555;
         }
@@ -65,13 +79,18 @@ class rv_pcfbuf {
     // depths are accepted on purpose: same-depth primitives must keep their
     // submission order (later put = drawn on top), and rejecting ties would
     // invert it.
-    bool depth_accept(int64_t x, int64_t y, int32_t depth) const {
+    bool depth_accept(int64_t x, int64_t y, int32_t depth) const
+    {
         return depth >= depth_[index(x, y)];
     }
 
-    void depth_store(int64_t x, int64_t y, int32_t depth) { depth_[index(x, y)] = depth; }
+    void depth_store(int64_t x, int64_t y, int32_t depth)
+    {
+        depth_[index(x, y)] = depth;
+    }
 
-    bool inside(int64_t x, int64_t y) const {
+    bool inside(int64_t x, int64_t y) const
+    {
         return x >= 0 && y >= 0 && x < width_ && y < height_;
     }
 
@@ -83,7 +102,8 @@ class rv_pcfbuf {
     // repeating group c5c5c5..., so copying the top bits of c5 down into the
     // low bits is literally truncating that expansion. A plain c5 << 3 would
     // instead cap white at 248 and tint the whole picture dark.
-    const uint32_t* expand_argb() {
+    const uint32_t *expand_argb()
+    {
         for (size_t i = 0; i < color_.size(); ++i) {
             const uint32_t texel = color_[i];
             const uint32_t r5 = texel & 0x1FU;
@@ -101,15 +121,18 @@ class rv_pcfbuf {
         return argb_.data();
     }
 
-   private:
-    size_t index(int64_t x, int64_t y) const { return static_cast<size_t>(y * width_ + x); }
+private:
+    size_t index(int64_t x, int64_t y) const
+    {
+        return static_cast<size_t>(y * width_ + x);
+    }
 
     int64_t width_;
     int64_t height_;
 
-    std::vector<uint16_t> color_;  // RGB555: 0-4 R, 5-9 G, 10-14 B, 15 STP
+    std::vector<uint16_t> color_; // RGB555: 0-4 R, 5-9 G, 10-14 B, 15 STP
     std::vector<int32_t> depth_;
-    std::vector<uint32_t> argb_;  // scratch page handed to the host at present
+    std::vector<uint32_t> argb_; // scratch page handed to the host at present
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

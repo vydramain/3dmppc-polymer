@@ -6,16 +6,16 @@
 namespace rv_3dmppc
 {
 
-rv_pcbudget_cost rv_pccv_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/)
+int rv_pccv_null::evaluate(const rv_pdklib::rv_manifest_budget & /*budget*/, int64_t &bytes, std::string & /*error*/)
 {
-    return {};
+    bytes = 0;
+    return RV_OK;
 }
 
 rv_pccv_null::rv_pccv_null(const rv_pccv_conf &conf)
     : conf_(conf)
 {
-    RV_LOG_INFO("pccv", "video off ({}x{} declared, no rasterizer, no-op)", conf_.screen_width,
-        conf_.screen_height);
+    RV_LOG_INFO("pccv", "video off ({}x{} declared, no rasterizer, no-op)", conf_.screen_width, conf_.screen_height);
 }
 
 // --- hardware geometry -------------------------------------------------------
@@ -84,10 +84,16 @@ int64_t rv_pccv_null::frame_flush()
 
 // --- console-side --------------------------------------------------------------
 
-void rv_pccv_null::dump_last_frame(const std::string & /*path*/) const
+int rv_pccv_null::dump_last_frame(const std::string &path, std::string &error) const
 {
-    // Unreachable with a non-empty path: the boot refuses cv=null together
-    // with --dump-frame before this console exists.
+    // The caller asks only when a path is set, so an empty one is a caller bug.
+    if (path.empty()) {
+        error = "no frame dump path";
+        return RV_ERR_INVAL;
+    }
+    // cv=null never flushes a frame; the boot also refuses cv=null with --dump-frame.
+    error = "no frame: cv=null never flushes one";
+    return RV_ERR_NOENT;
 }
 
 } // namespace rv_3dmppc

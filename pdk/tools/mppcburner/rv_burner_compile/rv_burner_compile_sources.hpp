@@ -18,10 +18,16 @@ namespace rv_pdktools
 /// @param options     parsed command line; only `jobs` is read here
 /// @param binary_dir  cmake binary directory to build in
 /// @param error       set with this tool's one-line summary on failure
-/// @return 0 on success, 1 on refusal
-int compile_sources(
-    const rv_burner_options &options,
-    const std::filesystem::path &binary_dir,
-    std::string &error);
+/// @return RV_OK on success; RV_ERR_IO if the build fails, RV_ERR_NOENT if it
+///         produced no module, otherwise the code from stamping the checksum
+int compile_sources(const rv_burner_options &options, const std::filesystem::path &binary_dir, std::string &error);
+
+/// Run `cmake --build` on a configured project, the same line for every disc target.
+///
+/// @param binary_dir    cmake binary directory to build in
+/// @param jobs          --parallel count; 0 leaves it to cmake
+/// @param child_output  receives the child's merged output, for dump_child_output() on failure
+/// @return the child's exit status, as run_capture() reports it
+int build_cmake_project(const std::filesystem::path &binary_dir, int jobs, std::string &child_output);
 
 } // namespace rv_pdktools

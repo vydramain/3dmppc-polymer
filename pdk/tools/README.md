@@ -10,12 +10,16 @@ cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 A separate command from the console's build on purpose: the console is firmware,
 and building firmware must not drag in a compiler driver or an image decoder.
-These ship as their own package.
+These ship as their own package. The development console build
+(`-D3DMPPC_DEVTOOLS=ON`) also builds this project, as a project of its own, and
+puts the tools next to the console in `build-dev/pconsole/`.
 
 | Tool | Does | Produces |
 | --- | --- | --- |
-| [`mppcburner`](mppcburner/) | compiles a disc directory and packs it | `.mppcdisc` |
-| [`mppcbaker`](mppcbaker/) | quantizes and packs an image into console texels | `.mppctex` |
+| [`mppcburner`](mppcburner/) | compiles a disc directory, bakes its assets with the bakers and packs it | `.mppcdisc` |
+| [`mppctexbaker`](mppctexbaker/) | quantizes and packs a PNG into console texels | `.mppctex` |
+| [`mppcmusbaker`](mppcmusbaker/) | converts a 16-bit 44100 Hz WAV into the console's sound | `.pcm` (headerless S16LE mono) |
+| [`mppcmodbaker`](mppcmodbaker/) | bakes a glTF 2.0 `.glb` into a console model and its embedded PNG textures | `.mppcmod` + `.png` |
 
 Tools are named for the **act**, artifacts for the **thing**. `mppcdisc` is a
 disc, so no tool may be called that — otherwise every sentence in the
@@ -42,6 +46,7 @@ host would happily pack far more than the console will ever accept.
 
 ## Usage
 
-See [`mppcbaker/README.md`](mppcbaker/README.md) for the `.mppctex` layout and
+See [`mppctexbaker/README.md`](mppctexbaker/README.md) for the `.mppctex` layout and
 the palette traps, and the repository [`README.md`](../README.md) for the whole
-authoring flow. Both tools print `--help`.
+authoring flow. Every tool prints `--help`, and `--version` prints one line,
+`<tool> <major>.<minor>`: the PDK version they build for.

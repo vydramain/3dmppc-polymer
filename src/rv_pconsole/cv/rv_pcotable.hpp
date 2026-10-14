@@ -17,10 +17,12 @@
 #include <cstdint>
 #include <vector>
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-class rv_pcotable {
-   public:
+class rv_pcotable
+{
+public:
     // head_ + tail_ per bucket, and one next_ link per filed primitive (up to
     // frame_capacity - see insert()). Public so the boot budget check
     // (rv_pccv_sw::evaluate) can cost a table before one is built.
@@ -36,7 +38,10 @@ class rv_pcotable {
     // File `primitive_index` under `depth`.
     void insert(int32_t depth, int32_t primitive_index);
 
-    int64_t bucket_count() const { return bucket_count_; }
+    int64_t bucket_count() const
+    {
+        return bucket_count_;
+    }
 
     // Which bucket `depth` lands in. Exposed for tests and diagnostics; the
     // disc never sees a bucket index (rv_primitives.hpp: quantization is
@@ -47,7 +52,8 @@ class rv_pcotable {
     // the last bucket (nearest) last, and inside a bucket in submission order.
     // `fn` is called with the primitive index.
     template <typename F>
-    void for_each_far_to_near(F&& fn) const {
+    void for_each_far_to_near(F &&fn) const
+    {
         for (size_t bucket = 0; bucket < head_.size(); ++bucket) {
             for (int32_t node = head_[bucket]; node >= 0; node = next_[static_cast<size_t>(node)]) {
                 fn(node);
@@ -55,14 +61,14 @@ class rv_pcotable {
         }
     }
 
-   private:
+private:
     int64_t bucket_count_;
     int32_t depth_min_;
     int32_t depth_max_;
 
-    std::vector<int32_t> head_;  // first primitive of each bucket, -1 = empty
-    std::vector<int32_t> tail_;  // last primitive, so append is O(1)
-    std::vector<int32_t> next_;  // intrusive links, indexed by primitive index
+    std::vector<int32_t> head_; // first primitive of each bucket, -1 = empty
+    std::vector<int32_t> tail_; // last primitive, so append is O(1)
+    std::vector<int32_t> next_; // intrusive links, indexed by primitive index
 };
 
-}  // namespace rv_3dmppc
+} // namespace rv_3dmppc

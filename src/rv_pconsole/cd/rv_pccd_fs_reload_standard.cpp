@@ -6,10 +6,20 @@
 
 #include "pdk/rv_err.h"
 
-namespace rv_3dmppc {
+namespace rv_3dmppc
+{
 
-int64_t rv_pccd_fs::asset_reload(const char* /*resname*/, rv_cd_resource_kind& /*kind_out*/) {
+int64_t rv_pccd_fs::asset_reload(const char * /*resname*/, rv_cd_resource_kind & /*kind_out*/)
+{
     return RV_ERR_NOENT;
 }
 
-}  // namespace rv_3dmppc
+int64_t rv_pccd_fs::asset_refresh(const char * /*resname*/,
+    const void * /*bytes*/,
+    int64_t /*nbytes*/,
+    rv_cd_resource_kind & /*kind_out*/)
+{
+    return RV_ERR_NOENT;
+}
+
+} // namespace rv_3dmppc

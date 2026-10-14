@@ -1,155 +1,109 @@
-# example-lua — Example mppcdisc with Lua scripting
+# example-lua
 
-The Lua sibling of [`example-cpp/`](../example-cpp/): same disc lifecycle, but
-every hook is written in Lua and reached through `rv_cl` — the console's
-script contract
-([`pdk/include/pdk/cl/rv_cl.h`](../../pdk/include/pdk/cl/rv_cl.h)) — instead
-of linked directly into `disc.so`. It exists to prove that path end to end: a
-script that reads real hardware state back through the console and draws a
-frame with it, not just a "hello world" print.
+The Solid Maid demo as a Lua disc: the same scene, models, sounds and frames as
+[`example-cpp`](../example-cpp/README.md), with the logic in Lua scripts instead
+of C++. The demo loops every 4320 frames (72 s at 60 frames per second) through
+the factory, the street and the flat. A frame's camera, board letters, lamps and
+music are pure functions of its number in the period.
 
-## The two halves
+The C++ side is one line of disc code: `src/example-lua.cpp` plants the
+pdklib script disc (`RV_MPPC_DISC_LUA_DEF`, `pdklib/rv_dscript/rv_dscript.hpp`)
+and its entry points (`RV_MPPC_DISC_ENTRY_DEF`, `pdk/include/pdk/de/rv_dv.h`).
+Every lifecycle hook is forwarded into the same-named function of the entry
+script.
 
-```
-example-lua/
-  disc.toml               manifest — declares [scripts] and [budget.pccl]
-  src/example-lua.cpp      the disc: a pdklib macro that forwards every hook into Lua, and the entry points
-  scripts/example-lua.lua  the entry chunk: mirrors the disc's hook shape
-```
+## Where to change what
 
-- **`src/example-lua.cpp`** is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua")`
-  from `pdklib/rv_dscript/rv_dscript.hpp`, which defines the disc class and its
-  hook-to-Lua forwarding, and `RV_MPPC_DISC_ENTRY_DEF` from `pdk/de/rv_dv.h`,
-  which plants that class's entry points — the one line no disc may leave out,
-  which is why it is written here rather than hidden inside the pdklib macro.
-  Lua is a convenience: a disc that wants its hooks in C++ or anything else
-  writes its own class and plants it the same way, with no pdklib at all.
-  The generated `disc_initialize` raises the entry chunk with
-  `rv_cl_script_entry()`, and from then on every lifecycle hook
-  (`disc_initialize`, `frame_update`, `frame_render`, `disc_shutdown`) is one
-  `rv_cl_script_call()` into the same-named Lua function, handed the organizer
-  (`rv_pdko*`) as light userdata. There is no fallback: a disc that declares no
-  lua machine gets the null one, `rv_cl_script_entry()` answers
-  `RV_ERR_INVAL`, and the disc refuses to start. This generated
-  `disc_initialize` is only that wiring, though - it never picks what the
-  game starts as. That choice belongs to `M.disc_initialize` in the script
-  below, which this macro forwards into; see that function's own comment for
-  what it does and what the organizer handle it receives is for.
-- **`scripts/example-lua.lua`** is compiled by `mppcburner` into
-  `example-lua.luac` in an archive (an `--unpacked` directory symlinks the
-  `.lua` source instead) and is the chunk named above. It returns a module table
-  (`M.disc_initialize`, `M.frame_update`, ...) instead of touching `_G`, and
-  reaches hardware through the global `pdk` table — `pdk.cv(o)` for the video
-  controller, then `pdk.cv_screen_width`, `pdk.cv_frame_configure`,
-  `pdk.cv_frame_put`. It reads the real
-  screen size back from the console and logs it, then fills the frame with
-  one triangle every `frame_render` — `FLAT_COLOURED` contrasts with
-  `SAMPLE_TEXTURE` (vertex colour vs. texel), not with shading, so its three
-  differently-coloured vertices Gouraud-interpolate into a red→green→blue
-  gradient — the same configure-then-`cv_frame_put` shape `example-cpp.cpp`
-  uses for its own
-  sprites, built from an `rv_primitive` that `pdk.primitive_polygon(3)`
-  (pdklib, not this script) hands back with every field the console requires
-  already set; the script only ever sets what that helper leaves alone —
-  depth and the three vertices' positions and colours. The C++ side flushes the frame right after the hook returns: the
-  macro's `frame_render()` is one `rv_cl_script_call()` followed by one
-  `rv_cv_frame_flush()`, and a failed call skips the flush.
+| Episode | Files | What to change | Apply |
+| --- | --- | --- | --- |
+| Camera flight: a closed spline through the 20 keys | `scenes/main.scene.toml` (`cam_00`..`cam_19`), `scripts/example-lua-math.lua` (`camera_of`, `PERIOD_FRAMES`) | move a `cam_NN` object to change the path; change the spline or the lens in the math module | Build and Restart for the scene; Reload Module `example-lua-math` for the per-frame camera. The lamp schedule also calls `camera_of` once in `M.disc_initialize`, so a spline change moves lamp timing only after Build and Restart |
+| World meshes: factory, machines, street, house, apartment, furniture | `scenes/main.scene.toml`, `scripts/example-lua.lua` (`add_mesh`, `read_objects`) | position, rotation or scale of a mesh object | Build and Restart |
+| Model geometry and pictures: Solid Maid's places, as in example-cpp | `models/*.glb`, drawn by `draw.put` (`scripts/example-lua-draw.lua`) | replace the .glb in `models/`; the models are built from Solid Maid's level code, one atlas cell per surface and Solid Maid's tess subdivision; the flat's window has no frame card, since Solid Maid's frame cell has no cut-out texels; the pictures are the PNGs inside the .glb | Build and Restart |
+| Depth order | `scripts/example-lua-draw.lua` (`DECAL_BIAS`, `WORLD_DEPTH_MIN`, `WORLD_DEPTH_MAX`) | the world spans the ordering-table window `pdk.DEPTH_MIN`..`pdk.DEPTH_MAX` minus `DECAL_BIAS` (260); the board's halos and letters are lifted by the bias | Reload Module `example-lua-draw` |
+| Board "ОСТАЛОСЬ: 5": glyphs, flicker, halo | `scripts/example-lua-board.lua` (`TEXT`, `FLICKER_TABLE`, `FLICKER_STEP`, `HALO_MODEL`), mesh `board` in the scene | glyph order, flicker table, step in frames | Reload Module `example-lua-board`; move of the `board` object needs Build and Restart |
+| Street lamps: lit on the way out, dark on the way back | `scripts/example-lua-lamps.lua` (`REACH_SQUARED`, `LIGHT_MODEL`), `lamp_1`..`lamp_4` meshes in the scene, `models/lamp_light.glb` | reach of a lamp, the light model, lamp positions; 4 lamps 8 m apart, alternately on both kerbs | Reload Module `example-lua-lamps` for `LIGHT_MODEL` and the drawing; `REACH_SQUARED` and the schedule run only in `M.disc_initialize`, so a reach change needs Build and Restart; lamp positions come from the scene: Build and Restart |
+| Music per area: 1-s bars through two slots (factory 3 bars, street 5, home 10) | `scripts/example-lua-sound.lua` (`WORKSHOP_MAX_X`, `FLAT_MIN_X`, `BARS`), `assets/snd/*.wav` | area borders on the camera's x (workshop x < 0, flat x > 33.8), bar lists | Reload Module `example-lua-sound` for the constants; track files need Build and Restart |
+| Workshop loops and board clack | `scripts/example-lua-sound.lua` (`LOOPS`, `CLACK`), `assets/snd/*.wav` | loop voices and volumes, clack envelope and file | Reload Module `example-lua-sound`; track files need Build and Restart |
+| Footsteps per floor | `scripts/example-lua-steps.lua` (`STRIDE`, `ASSETS`, `VOICES`, `VOLUME`), `assets/snd/sfx_step_*.wav` | step stride (0.95 m of the eye's horizontal path), step pairs per floor | Reload Module `example-lua-steps`; sample files need Build and Restart |
+| Frame clock and background | `scripts/example-lua.lua` (`frame_update`, `BACKGROUND`) | the clock counts only frames with dt > 0 | Reload (F8) |
+| Disc setup and budgets | `disc.toml` | sections and `[budget.*]`, including `script_memory_size` | Build and Restart |
+| C++ bridge | `src/example-lua.cpp` | the disc class and entry points | Build and Restart |
 
-## Asking for a texture
+The terms in the table (atlas cell, tess, cut-out texels) are explained in
+[`example-cpp`'s README](../example-cpp/README.md#where-to-change-what), under the
+same table.
 
-Past the triangle, the script also draws `example-sprite.mppctex` from the
-drive. It never acquires or releases the texture - it only names it. Every
-`frame_render`, it asks `pdk.resource_resolve(o, name)` (pdklib) for that
-name, which folds the drive's four separate queries - address, palette
-address, width, height, each against `pdk.CD_RESOURCE_TEXTURE` - behind one
-call and one name; a nil result is the script's own signal to skip the
-sprite for this frame rather than a crash. The drive makes the texture
-resident the first time anything names it, keeps it resident and
-refreshes it in place on a dev reload - the name is stable, the addresses
-change, and the game picks the new texture up by resolving it fresh
-each draw - and frees it itself when the disc unloads. `pdk.primitive_sprite`
-(pdklib) then turns that resolved table into an `rv_primitive` with every
-field the console requires already set, leaving only screen position, depth
-and colour for the script.
+Build and Restart is the editor's Restart button (tooltip "Build and Restart").
+Ctrl+B builds, F5 runs. The editor's scene check says it plainly: "Scenes are
+not reloaded yet. Save, then Build and Restart."
 
-## Code != state
+## Reload and Build and Restart
 
-The console keeps one persistent table alive for the whole run, independent
-of whatever chunk is currently loaded, and places it in the entry chunk's own
-environment under the plain name `state` — once at boot, right after the
-entry chunk is raised, and again after every successful reload of that
-chunk's code, always before any hook of the new code runs. A chunk local or a
-field of `M` dies with the code; only a field of `state` survives a reload,
-so that is where this script keeps the screen size and a frame counter it
-increments once per `frame_update`. Nothing here declares that shape: the
-console learns it by itself, once, right after `disc_initialize` (below) has
-returned for the first time — by then `state` holds exactly the fields this
-script keeps, and that is what a later reload candidate is held to, field by
-field. Boot the `--unpacked` directory with `--dev`, change `frame_render`'s
-colours in `scripts/example-lua.lua` and send `reload entry` - the picture
-changes but the counter keeps climbing instead of resetting to 0, which is
-the whole point: the code changed, the state did not. A reload is atomic in
-code - either the candidate passes the shape check and takes over, or it is
-refused and the old chunk keeps running, with `state` itself put back exactly
-as it was before the candidate's body ran; the console hands `state` over, it
-does not ask the script to accept it, so there is no further, script-side
-veto over a structurally valid state. Neither a Lua function nor a coroutine
-is ever stored in `state`: either would keep the old chunk's bytecode alive
-after a reload was supposed to have replaced it.
+Reload (F8) acts on the file open in the code pane:
 
-A per-frame script failure does not disable scripting for the rest of the run
-either: the macro keeps calling `frame_update`/`frame_render` every frame, and
-the machine logs every failed call to stderr. With `--dev` the console stops
-the loop at the first failure instead and reports it as a `0 event=script_error`
-line, so a reload can fix the script before the next frame runs.
+- with `scripts/example-lua.lua` open, the button reads "Reload Entry Script"
+  and reloads the entry chunk. Its `state` table survives the reload, so the
+  frame counter keeps counting;
+- with a module open, the button reads "Reload Module: <name>", where `<name>`
+  is the file name without `.lua`, the name `require` uses. The module is
+  updated in place: every file that requires it sees the new code. A module
+  keeps no state of its own;
+- a reload that the console refuses leaves the old code running.
 
-`pdk` is not a wrapper: it is a LuaJIT FFI table whose `__index` resolves
-`pdk.cv_frame_put` to `ffi.C.rv_cv_frame_put` the first time it is touched —
-the exact same exported symbol `example-cpp.cpp` calls as a plain C function.
-Confirm it yourself:
+The button is on only when all three hold: the editor session is connected, the
+disc runs from a directory (live medium), and the console reports
+`entry_reloadable` (`rv_editor_app_can_reload`). Otherwise it is off. A reload
+that is still in flight also holds it.
 
-```sh
-$ nm -D --defined-only build/pconsole/3dmppc | grep rv_cv_frame_put
-00000000000f64b0 T rv_cv_frame_put
-```
+The scene, the sounds, the models and `disc.toml` are read when the disc starts
+(`disc_initialize` reads the scene, builds the lamp schedule and the music's
+tables), so they need Build and Restart. A changed .glb needs Build and Restart
+too, as does the C++ bridge. The drive can refresh a texture asset in place (the
+`asset` command, root README), but this demo's pictures live inside its models,
+so a picture change needs Build and Restart as well.
 
-That symbol is exported once, by the console binary; both a C++ disc and a
-Lua script land on it.
+## Code layout
 
-## `[budget.pccl]`
+- `scripts/example-lua.lua` - the entry chunk. It returns a module table with
+  the hooks (`disc_initialize`, `frame_update`, `frame_render`,
+  `disc_shutdown`). It reads the scene through the drive (`pdk.cd_scene_object_read`)
+  and draws in this order: sound, camera, world meshes, lamps, board.
+- `scripts/example-lua-math.lua` - the camera loop. Every step is rounded to
+  float32 (`f()`) in the operation order of `example-cpp-route.cpp`, which is
+  why the frames match the C++ disc bit for bit.
+- `scripts/example-lua-draw.lua` - the model put shared by the world, board and lamps,
+  with the two depth windows.
+- `scripts/example-lua-board.lua`, `scripts/example-lua-lamps.lua` - one episode each.
+- `scripts/example-lua-sound.lua` - the music, the loops and the clack; the bars
+  of an area play on two voices in turn.
+- `scripts/example-lua-steps.lua` - the footsteps, one per 0.95 m of the eye's path.
+- `scenes/main.scene.toml` - the scene the drive reads; edit it in the editor's
+  Scene layout.
+- `models/*.glb` - glTF models, baked by the build.
+- `assets/snd/*.wav` - the music, the loops, the footsteps and the clack, baked to `.pcm`.
+- `[textures]` in `disc.toml` lists no files; it keeps only `format = "idx8"`, the
+  format the models' textures are baked in.
 
-```toml
-[budget.pccl]
-script_memory_size = 262144
-script_entry = "example-lua.luac"
-```
+## Scripts and state
 
-`script_memory_size` is the byte ceiling for the *whole* Lua machine this
-disc gets — LuaJIT's own bootstrap (base/string/math/table plus the `pdk`
-bridge) and everything the script itself allocates. The console's `lua_Alloc`
-refuses growth past it; there is no other RAM budget backing scripts.
-`script_entry` names the asset `mppcburner` compiled `scripts/*.lua` into —
-the console resolves and verifies it against the packaged disc while loading
-the manifest, so `rv_cl_script_entry()` never takes a name from the disc
-itself, only asks for "the one you already checked".
+A chunk local or a field of the module table dies with the code on reload.
+Only the `state` table survives, so the entry keeps the scene copies, the frame
+counter and the music's tables (last frame, area, bar, slots) there. `state` holds
+plain numbers, strings, booleans and tables only; a function or a coroutine in it
+would keep the old bytecode alive after a reload, and cdata is refused by the
+console's state walk, which also caps its nodes. For that reason the read buffer of
+the music (`scripts/example-lua-sound.lua`) and the footstep distance table
+(`scripts/example-lua-steps.lua`, 4320 numbers) are module locals: a reload drops
+them, and the next call rebuilds them.
 
-## Burning and running
+A failing step returns its code, and the script logs it once (`log_error_once`); the
+loop keeps running, and a camera failure skips the picture of that frame. A Lua error
+in a call is logged by the console on every failed call. With `--dev` the console
+pauses at the first one and sends `event=script_error`, so a reload can fix it.
 
-```sh
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-lua -o build/example-lua.mppcdisc \
-    --baker pdk/tools/build/mppcbaker/mppcbaker
-./build/pconsole/3dmppc build/example-lua.mppcdisc
-```
+## Memory
 
-Watch stderr for `pccl: lua machine up, 262144 byte(s) budgeted` on load,
-followed by:
-
-```
-Hello from example lua!
-example-lua: screen is 320x240 (read through pdk)
-```
-
-`print()` is routed into the console's stderr logger, not stdout, so both
-lines land there. The second one is the proof: it only prints once
-`pdk.cv_screen_width` has round-tripped into the console's real video
-controller and back.
+`[budget.pccl]` in `disc.toml` sets `script_memory_size` to 1 MiB (1048576 bytes)
+for the whole Lua machine, bootstrap included. Its comment has the measured
+range: 358332 to 659645 bytes over 4400 stepped frames with the music, loops and
+footsteps. The peak is 659645 bytes.

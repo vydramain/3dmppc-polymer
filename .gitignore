@@ -3,6 +3,7 @@
 # so there is more than one of these.
 /build/
 /pdk/tools/build/
+/editor/build/
 /out/
 cmake-build-*/
 build-*/
@@ -32,7 +33,7 @@ compile_commands.json
 # texture from its PNG, a save from playing. Game SOURCES and source assets are
 # not in this list — nothing regenerates those.
 
-# Burned discs (mppcburner) and baked textures (mppcbaker)
+# Burned discs (mppcburner) and baked textures (mppctexbaker)
 *.mppcdisc
 *.mppctex
 

@@ -5,8 +5,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 
 static_assert(rv_3dmppc::RV_PCA_SAMPLE_RATE == rv_3dmppc::RV_PCCA_PCM_RATE, "sw SPU mixes at the ca contract rate");
-static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCCA_PCM_CHANNELS,
-    "sw SPU mixes the ca contract channel count");
+static_assert(rv_3dmppc::RV_PCMIXER_CHANNELS == rv_3dmppc::RV_PCCA_PCM_CHANNELS, "sw SPU mixes the ca contract channel count");
 
 namespace rv_3dmppc
 {
@@ -52,38 +51,58 @@ int64_t voices_mask(int64_t count)
 
 } // namespace
 
-rv_pcbudget_cost rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget)
+int rv_pcca_sw::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error)
 {
-    rv_pcbudget_cost cost;
+    int64_t total = 0;
 
     // sram_ (rv_pcpool<rv_pcca_meta>): the pool region is exactly sound_memory_size
     // bytes.
-    if (rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size)) {
-        return cost;
+    const int region_rc = rv_pcbudget_add(total, "budget.pcca.sound_memory_size", budget.pcca.sound_memory_size, error);
+    if (region_rc != RV_OK) {
+        return region_rc;
     }
 
     // sram_'s block bookkeeping, reserved once at construction (rv_pcpool.hpp).
     int64_t sram_blocks_bytes = 0;
-    if (rv_pcbudget_mul(cost, "budget.pcca.sound_memory_size",
-            rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
-            rv_pcpool<rv_pcca_meta>::block_bytes(), sram_blocks_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.sound_memory_size", sram_blocks_bytes)) {
-        return cost;
+    const int sram_blocks_mul_rc = rv_pcbudget_mul("budget.pcca.sound_memory_size",
+        rv_pcpool<rv_pcca_meta>::max_blocks(budget.pcca.sound_memory_size, RV_PCCA_ALIGN),
+        rv_pcpool<rv_pcca_meta>::block_bytes(),
+        sram_blocks_bytes,
+        error);
+    if (sram_blocks_mul_rc != RV_OK) {
+        return sram_blocks_mul_rc;
+    }
+
+    const int sram_blocks_add_rc = rv_pcbudget_add(total, "budget.pcca.sound_memory_size", sram_blocks_bytes, error);
+    if (sram_blocks_add_rc != RV_OK) {
+        return sram_blocks_add_rc;
     }
 
     // mixer_ (rv_pcmixer): one rv_pcvoice per voice, plus its fixed render
     // accumulator (RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS int32_t).
     int64_t voices_bytes = 0;
-    const int64_t accumulator_bytes =
-        RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
-    if (rv_pcbudget_mul(cost, "budget.pcca.voice_count", budget.pcca.voice_count,
-            static_cast<int64_t>(sizeof(rv_pcvoice)), voices_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", voices_bytes) ||
-        rv_pcbudget_add(cost, "budget.pcca.voice_count", accumulator_bytes)) {
-        return cost;
+    const int64_t accumulator_bytes = RV_PCMIXER_BLOCK_FRAMES * RV_PCMIXER_CHANNELS * static_cast<int64_t>(sizeof(int32_t));
+    const int voices_mul_rc = rv_pcbudget_mul("budget.pcca.voice_count",
+        budget.pcca.voice_count,
+        static_cast<int64_t>(sizeof(rv_pcvoice)),
+        voices_bytes,
+        error);
+    if (voices_mul_rc != RV_OK) {
+        return voices_mul_rc;
     }
 
-    return cost;
+    const int voices_add_rc = rv_pcbudget_add(total, "budget.pcca.voice_count", voices_bytes, error);
+    if (voices_add_rc != RV_OK) {
+        return voices_add_rc;
+    }
+
+    const int accumulator_add_rc = rv_pcbudget_add(total, "budget.pcca.voice_count", accumulator_bytes, error);
+    if (accumulator_add_rc != RV_OK) {
+        return accumulator_add_rc;
+    }
+
+    bytes = total;
+    return RV_OK;
 }
 
 rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
@@ -95,9 +114,8 @@ rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
         RV_LOG_ERR("pcca", "failed to reserve {} byte(s) of sound RAM", conf.sound_memory_size);
     }
 
-    if (clamp_voice_count(conf_.voice_count) != conf_.voice_count) {
-        RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count,
-            clamp_voice_count(conf_.voice_count));
+    if (mixer_.voice_count() != conf_.voice_count) {
+        RV_LOG_WARN("pcca", "conf asks for {} voices, the mask fits {}", conf_.voice_count, mixer_.voice_count());
     }
 
     mixer_.set_muted(conf_.mute);
@@ -105,8 +123,11 @@ rv_pcca_sw::rv_pcca_sw(const rv_pcca_conf &conf)
     // "virtual" is worth the four extra characters here: the byte count sits
     // next to a real audio device in the log, and a reader must not take it for
     // one of the host's numbers. It is this machine's self-imposed budget.
-    RV_LOG_INFO("pcca", "{} voice(s), {} byte(s) of virtual sound RAM{}", mixer_.voice_count(),
-        sram_.capacity(), conf_.mute ? ", muted" : "");
+    RV_LOG_INFO("pcca",
+        "{} voice(s), {} byte(s) of virtual sound RAM{}",
+        mixer_.voice_count(),
+        sram_.capacity(),
+        conf_.mute ? ", muted" : "");
 }
 
 int64_t rv_pcca_sw::voice_count()
@@ -130,6 +151,28 @@ int64_t rv_pcca_sw::validate_mask(int64_t voice_mask) const
     if ((voice_mask & ~voices_mask(mixer_.voice_count())) != 0) {
         return RV_ERR_INVAL;
     }
+    return RV_OK;
+}
+
+int64_t rv_pcca_sw::locate(int64_t addr, rv_pcca_place &place) const
+{
+    const int64_t start = sram_.region_containing(addr);
+    if (start < 0) {
+        return RV_ERR_INVAL;
+    }
+
+    // A mid-frame address would make the read head start between two samples.
+    const int64_t byte_offset = addr - start;
+    if (byte_offset % RV_PCA_FRAME_BYTES != 0) {
+        return RV_ERR_INVAL;
+    }
+
+    // Same length rule as voice_setup: only written frames are readable.
+    const rv_pcca_meta *meta = sram_.region_meta(start);
+    place.start = start;
+    place.data = sram_.region_data(start);
+    place.frames = meta && meta->written ? meta->frames : 0;
+    place.offset = byte_offset / RV_PCA_FRAME_BYTES;
     return RV_OK;
 }
 
@@ -170,6 +213,9 @@ int64_t rv_pcca_sw::sound_asset_write(int64_t addr, const rv_sample *sample)
     // half a frame and is dropped: the console plays whole frames only.
     meta->written = true;
     meta->frames = sample->size / RV_PCA_FRAME_BYTES;
+
+    // Voices already armed on this region read its new length without re-arming.
+    mixer_.resize_region_locked(addr, meta->frames);
 
     return RV_OK;
 }
@@ -221,16 +267,11 @@ int64_t rv_pcca_sw::voice_setup(const rv_voice_conf *conf)
     }
 
     const rv_pcca_meta *meta = sram_.region_meta(conf->sample_address);
+    // The address is real, so this is not RV_ERR_INVAL - the disc reserved a
+    // region and armed a voice at it before uploading anything. The voice arms
+    // and plays nothing.
     const int64_t frames = meta && meta->written ? meta->frames : 0;
-    if (frames <= 0) {
-        // The address is real, so this is not RV_ERR_INVAL - the disc reserved
-        // a region and armed a voice at it before uploading anything. The voice
-        // arms and plays nothing.
-        RV_LOG_WARN("pcca", "voice setup on empty region {}", conf->sample_address);
-    }
-
-    mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames,
-        conf->sample_address);
+    mixer_.setup(conf->voice, *conf, sram_.region_data(conf->sample_address), frames, conf->sample_address);
     return RV_OK;
 }
 
@@ -241,7 +282,7 @@ int64_t rv_pcca_sw::voice_play(int64_t voice_mask)
         return mask_rc;
     }
 
-    return mixer_.play(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_.play(voice_mask);
 }
 
 int64_t rv_pcca_sw::voice_stop(int64_t voice_mask)
@@ -251,7 +292,7 @@ int64_t rv_pcca_sw::voice_stop(int64_t voice_mask)
         return mask_rc;
     }
 
-    return mixer_.stop(voice_mask) ? RV_OK : RV_ERR_INVAL;
+    return mixer_.stop(voice_mask);
 }
 
 int64_t rv_pcca_sw::voice_status(int64_t voice_mask)
@@ -264,6 +305,63 @@ int64_t rv_pcca_sw::voice_status(int64_t voice_mask)
     // Always >= 0: the mask only ever carries bits 0..62, so the contract's
     // "a valid mask is never negative" holds by construction.
     return mixer_.status(voice_mask);
+}
+
+int64_t rv_pcca_sw::voice_repeat(int64_t voice_mask, int64_t addr)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    rv_pcca_place place;
+    const int64_t place_rc = locate(addr, place);
+    if (place_rc < 0) {
+        return place_rc;
+    }
+
+    return mixer_.repeat(voice_mask, place.start, place.data, place.frames, place.offset);
+}
+
+int64_t rv_pcca_sw::voice_ended(int64_t voice_mask)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    return mixer_.ended(voice_mask);
+}
+
+int64_t rv_pcca_sw::voice_mark(int64_t voice_mask, int64_t addr)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    // Address 0 is the contract's "no mark": it clears rather than naming a region.
+    if (addr == 0) {
+        return mixer_.mark(voice_mask, 0, 0);
+    }
+
+    rv_pcca_place place;
+    const int64_t place_rc = locate(addr, place);
+    if (place_rc < 0) {
+        return place_rc;
+    }
+
+    return mixer_.mark(voice_mask, place.start, place.offset);
+}
+
+int64_t rv_pcca_sw::voice_marked(int64_t voice_mask)
+{
+    const int64_t mask_rc = validate_mask(voice_mask);
+    if (mask_rc < 0) {
+        return mask_rc;
+    }
+
+    return mixer_.marked(voice_mask);
 }
 
 void rv_pcca_sw::advance(int16_t *out, int64_t frames)

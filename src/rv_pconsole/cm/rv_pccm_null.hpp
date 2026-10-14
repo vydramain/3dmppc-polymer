@@ -19,8 +19,8 @@ private:
 public:
     explicit rv_pccm_null(const rv_pccm_conf &conf);
 
-    // No card image: always 0 bytes.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    // No card image: RV_OK, bytes = 0.
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t card_slots() override;
 
@@ -34,7 +34,10 @@ public:
 
     int64_t card_erase(int64_t slot) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 };
 
 } // namespace rv_3dmppc

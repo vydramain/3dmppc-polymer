@@ -14,7 +14,16 @@ add_executable(mppcburner
 
   # the two subcommands, named for what the user types
   rv_burner_build/rv_burner_build_runner.cpp
+  rv_burner_build/rv_burner_target.cpp
+  rv_burner_build/rv_burner_web.cpp
+  rv_burner_build/rv_burner_build_assets.cpp
+  rv_burner_build/rv_burner_bake_texture.cpp
+  rv_burner_build/rv_burner_map.cpp
+  rv_burner_build/rv_burner_kit.cpp
   rv_burner_inspect/rv_burner_inspect_runner.cpp
+
+  # the setup subcommand: pinned tools installed once per user, not shipped in the package
+  rv_burner_setup/rv_burner_setup.cpp
 
   # shared by every phase
   rv_burner_common/rv_burner_archive.cpp
@@ -30,6 +39,7 @@ add_executable(mppcburner
   rv_burner_assets/rv_burner_plan.cpp
   rv_burner_assets/rv_burner_baker_path.cpp
   rv_burner_assets/rv_burner_bake.cpp
+  rv_burner_assets/rv_burner_bake_models.cpp
   rv_burner_assets/rv_burner_compile_scripts.cpp
 
   # [4/4] burn
@@ -51,7 +61,7 @@ target_include_directories(mppcburner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(mppcburner PRIVATE ${RV_REPO_ROOT}/pdk/include)
 
 # pdklib: the output adapter (rv_stdio.hpp), the texel format names, and
-# rv_mppctex.hpp — the one description of the container mppcbaker writes and this
+# rv_mppctex.hpp — the one description of the container mppctexbaker writes and this
 # tool reads back. Separate from the contract above because it is a separate tree.
 #
 # LINKED, not merely included: the manifest lexer/parser/semantic/binder are
@@ -70,14 +80,18 @@ target_link_libraries(mppcburner PRIVATE libluajit)
 # Stamps every log line with its origin; see pdklib/rv_logs/rv_logs.hpp.
 target_compile_definitions(mppcburner PRIVATE RV_LOG_ORIGIN="tool")
 
-# Where a GENERATED disc project should look for the contract and the disc-side
-# SDK. Baked in so the tool works out of the box inside this repository, and
-# overridable at run time (--pdk / --pdklib) so a disc directory living anywhere
-# else builds just as well.
-target_compile_definitions(mppcburner PRIVATE
-  RV_BURNER_DEFAULT_PDK="${RV_REPO_ROOT}/pdk/include"
-  RV_BURNER_DEFAULT_PDKLIB="${RV_REPO_ROOT}/pdk/lib/include"
+# Copies the contract (pdk/include) and pdklib (pdk/lib/include) into <bindir>/pdk, so
+# the tools package is one portable directory; the burner will take its defaults from there.
+# Runs on every build, not only on relink: a header change the burner does not include
+# still changes the copy the discs are built against. The old copy is removed first, so
+# a header deleted from pdk/ does not survive beside the binary.
+add_custom_target(mppcburner_pdk ALL
+  COMMAND ${CMAKE_COMMAND} -E remove_directory $<TARGET_FILE_DIR:mppcburner>/pdk
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/include $<TARGET_FILE_DIR:mppcburner>/pdk/include
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${RV_REPO_ROOT}/pdk/lib/include $<TARGET_FILE_DIR:mppcburner>/pdk/lib/include
+  VERBATIM
 )
+add_dependencies(mppcburner_pdk mppcburner)
 
 if(MSVC)
   target_compile_options(mppcburner PRIVATE /W4)

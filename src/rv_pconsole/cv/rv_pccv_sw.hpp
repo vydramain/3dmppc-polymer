@@ -62,7 +62,7 @@ public:
     // (screen_width * screen_height * bytes-per-pixel) + otable_ (bucket
     // links plus one next_ link per primitive up to frame_capacity) +
     // primitives_.reserve(frame_capacity).
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     // --- hardware geometry: straight out of the configuration ---
 
@@ -88,8 +88,8 @@ public:
     // Write the most recently flushed frame to `path` as a binary PPM. A
     // developer convenience: it makes "what did the console actually draw" a
     // file that can be diffed, instead of a screen capture that cannot.
-    // No-op when `path` is empty or nothing was ever flushed.
-    void dump_last_frame(const std::string &path) const override;
+    // Result and `error` as in rv_pccv::dump_last_frame.
+    int dump_last_frame(const std::string &path, std::string &error) const override;
 
     // The most recently flushed frame: screen_width * screen_height pixels of
     // 0xAARRGGBB, row-major; nullptr before the first flush. Borrowed, valid
@@ -131,8 +131,7 @@ private:
     // The texture / palette pair a primitive samples, or (0, 0) when it does not
     // sample at all. Shared by polygons and sprites, which name their assets
     // identically.
-    static void texture_addresses(const rv_primitive &primitive, int64_t &addr_texture,
-        int64_t &addr_palette);
+    static void texture_addresses(const rv_primitive &primitive, int64_t &addr_texture, int64_t &addr_palette);
 
     // Drop the frame's commands and their ordering. Does NOT touch the clear
     // colour or the Z flag - frame_configure sets those and then calls this.

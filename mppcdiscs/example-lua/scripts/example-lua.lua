@@ -1,229 +1,225 @@
--- example-lua's entry chunk. The disc's own hooks (src/example-lua.cpp) each
--- forward one-to-one into a same-named function here, so this file mirrors
--- the disc's shape instead of inventing one of its own.
---
--- Nothing here touches _G: the chunk returns a module table instead, and the
--- disc calls into it by name through rv_cl_script_call(cl, chunk_, "...").
--- A global would work by accident today (one script, one VM) but would
--- collide the moment a disc raises more than one chunk into the same
--- machine.
+-- example-lua's entry chunk: the demo world of example-cpp in Lua - the scene's meshes,
+-- the camera route, the street lamps and the factory board. The disc's own hooks
+-- (src/example-lua.cpp) forward one-to-one into the same-named functions here.
+-- Nothing touches _G: the chunk returns a module table, and the disc calls into it by name
+-- through rv_cl_script_call. The route math, the draw put, the lamps and the board are
+-- modules (example-lua-*.lua), loaded with require inside the hooks; a module holds no state.
 local M = {}
 
--- `state` is not declared anywhere in this file: the console places its ONE
--- persistent table into this chunk's own environment, under this plain name,
--- before any hook of this chunk ever runs - once at boot, right after this
--- chunk is raised, and again after every successful code reload. An
--- undeclared identifier is exactly how Lua spells "look this up in my
--- environment", and the console's environment for this chunk resolves
--- `state` to that one table; nothing here has to ask for it. This is the
--- ONLY thing that survives a reload: a chunk local or a field of M dies with
--- the code that reload replaces. Everything this script needs to keep is a
--- field of `state`, never a local and never a field of M.
+-- `state` is not declared here: the console places its ONE persistent table
+-- into this chunk's environment under this name, before any hook runs - at
+-- boot and after every successful code reload. It is the only thing that
+-- survives a reload: a chunk local or a field of M dies with the code.
+-- Keep only numbers, strings, booleans and tables in it. A function or a
+-- coroutine would keep the OLD bytecode alive after a reload; cdata is
+-- userdata, which the console refuses. Copy plain values out of cdata first
+-- (see scene_read). The console learns the shape of `state` right after
+-- disc_initialize and holds every later reload candidate to it.
 --
--- This script declares no shape for it: the console learns one for itself,
--- once, right after disc_initialize below has returned - by then `state`
--- holds exactly the fields this script keeps, which is all the console needs
--- to hold a later reload candidate to (see README.md's "Code != state").
---
--- Not stored: a function or a coroutine. Either would keep the OLD chunk's
--- bytecode alive and callable after the swap - the state table would quietly
--- carry a piece of code the reload was supposed to have replaced. This
--- script has no closure worth surviving a reload (set_vertex below is
--- recreated each frame_render, cheaply, from data already in state).
-
--- The one texture this script draws. It never acquires or releases it - it
--- only ever names it. The drive makes it resident the first time
--- pdk.resource_resolve (pdklib, called below in frame_render) asks for this
--- name, keeps it resident and refreshes it in place on a dev reload, and
--- frees it itself when this disc unloads, so this script has nothing to
--- hold onto but the name.
-local ASSET_TEXTURE_NAME = "example-sprite.mppctex"
-
--- The one sound this script plays. Same idea as ASSET_TEXTURE_NAME above,
--- but AUDIO has no baked container (disc.toml lists it under [assets], not
--- [textures] - the PR review's decision was raw PCM with no baker), so the
--- bytes on the disc ARE the bytes the drive makes resident; nothing decodes
--- them first. This name is asked for once, in disc_initialize below, not
--- every frame like the sprite: a voice, once armed, keeps its own resolved
--- address and does not need re-resolving the way a per-frame sprite draw
--- does.
-local ASSET_TONE_NAME = "example-tone.pcm"
-
--- Printed while the CHUNK BODY runs, i.e. already during rv_cl_script_entry's
--- first raise - before disc_initialize or any other hook is ever called.
--- print() is routed into the console's stderr logger, not stdout, so this is
--- a "the bytecode executed" breadcrumb, never something a test reads.
---
--- Nothing else runs here: the body must stay PURE (no pdk call, no write to
--- `state`) because it also runs to VALIDATE a reload candidate, before the
--- console knows whether the candidate will pass its shape check. `state` is
--- the SAME table the currently running code depends on, reachable here too,
--- so a write at this level does not merely "leave an effect" - it corrupts
--- the old code's own data. The console can undo that if this candidate is
--- then refused, but a body that stays pure never needs it to.
+-- The body stays PURE (no pdk call, no require, no write to `state`): it also runs to
+-- validate a reload candidate before the console knows whether it will pass.
 print("Hello from example lua!")
 
--- The disc author's decision point: this is where a game picks what it
--- STARTS AS - a menu, a saved game's last scene, a character-creation
--- screen, a demo loop - by calling or setting up whatever that requires.
--- Nothing above this function makes that choice, and nothing else in this
--- chunk runs before it does.
---
--- Not the same thing as RV_MPPC_LUA_DISC_DEF("example-lua")'s own generated
--- disc_initialize (src/example-lua.cpp), which shares this name but does a
--- different job: it raises this chunk with rv_cl_script_entry() and then
--- forwards every lifecycle hook into its same-named Lua function, this one
--- included. That macro IS the technical wiring - legal names, the rv_cl call
--- shape, handing the organizer handle across - Lua exists so a disc author
--- never has to write it. This function is the first place that wiring hands
--- control to actual game content.
---
--- `o_` is that organizer handle (an rv_pdko*), passed into EVERY hook of
--- this chunk by the console, not something this script asked for. It is not
--- a controller itself: pdk.cv(o_), pdk.cd(o_), and pdk.ca(o_)/pdk.cio(o_)
--- the same way, resolve it into the actual controller a call needs, so each
--- hook only reaches for the ones it uses. Explained here, once, because
--- every hook below takes the same `o_` for the same reason.
-function M.disc_initialize(o_)
-	local cv = pdk.cv(o_)
+-- Same values as example-cpp (example-cpp-route.hpp, example-cpp.cpp).
+local SCENE_NAME = "main.scene.toml"
+-- Lens and clip planes; the far plane is a margin past the scene's extent.
+-- As RV_ROUTE_FOV_Y in example-cpp-route.cpp: 60 degrees, converted to radians in float.
+local FOV_DEGREES = 60
+local DEGREES_PER_HALF_TURN = 180
+local NEAR_PLANE = 0.1
+local FAR_PLANE = 100.0
+local UP = { x = 0, y = 1, z = 0 }
+local BACKGROUND = { 20, 24, 40 }
+-- The scene object that carries the factory board lettering, and the prefix of the street lamps.
+local BOARD_NAME = "board"
+local LAMP_PREFIX = "lamp_"
 
-	-- Nothing inserts a default for this any more - the console only WATCHES
-	-- `state`'s shape now, it does not manufacture values for it - so the
-	-- field this example exists to demonstrate has to start at 0 here, the
-	-- one time disc_initialize ever runs, or frame_update below finds nil.
-	state.frame_count = 0
-
-	-- Read something real back through pdk and log it: the headless-
-	-- verifiable proof that a Lua call reached the console's own
-	-- rv_cv_screen_width and got its real answer, not a stub. Stored in
-	-- state, not a local, because frame_render (below) needs it and a local
-	-- set here would not survive a reload.
-	state.screen_width = tonumber(pdk.cv_screen_width(cv))
-	state.screen_height = tonumber(pdk.cv_screen_height(cv))
-	print(string.format("example-lua: screen is %dx%d (read through pdk)", state.screen_width, state.screen_height))
-
-	-- Nothing to acquire here: the drive makes ASSET_TEXTURE_NAME resident
-	-- the first time frame_render names it, not before.
-
-	-- The tone, by contrast, is acquired right here: rv_cd_resource_addr and
-	-- rv_cd_resource_size (both against RV_CD_RESOURCE_AUDIO) are what makes
-	-- ASSET_TONE_NAME resident in sound RAM - this script never calls
-	-- rv_ca_sound_asset_malloc itself, the drive owns that the same way it
-	-- owns video RAM for a texture. tonumber() unwraps the cdata int64_t
-	-- both calls return, the same way state.screen_width did above.
-	local cd = pdk.cd(o_)
-	local ca = pdk.ca(o_)
-	local addr_tone = tonumber(pdk.cd_resource_addr(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
-	local size_tone = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_AUDIO, ASSET_TONE_NAME))
-	print(string.format("example-lua: tone resident at addr=%d size=%d byte(s)", addr_tone, size_tone))
-
-	-- The cross-kind proof this task exists to make: a query that does not
-	-- describe the kind it was asked of must answer a negative rv_err, not a
-	-- fabricated 0 that would read back as "no palette" or "0 bytes". Both
-	-- probes below are expected to be negative.
-	local texture_query_on_audio_name = tonumber(pdk.cd_resource_palette_addr(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TONE_NAME))
-	local size_query_on_texture_name = tonumber(pdk.cd_resource_size(cd, pdk.CD_RESOURCE_TEXTURE, ASSET_TEXTURE_NAME))
-	print(string.format(
-		"example-lua: cross-kind probe: texture-query(audio name)=%d size-query(texture name)=%d",
-		texture_query_on_audio_name, size_query_on_texture_name))
-
-	if addr_tone >= 0 and ca ~= nil and tonumber(pdk.ca_voice_count(ca)) >= 1 then
-		-- Same ADSR shape rv_dmain_setup.cpp's own build_beep() uses for its
-		-- built-in beep - a known-good envelope, not a value this example
-		-- invented. Set field by field, the way set_vertex above fills a
-		-- vertex, rather than a positional pdk.new(...) table: a voice
-		-- config has eleven fields and reads better named than counted.
-		local voice = pdk.new("rv_voice_conf")
-		voice.voice = 1 -- voice 0
-		voice.loop_type = pdk.LOOP_NONE
-		voice.sample_address = addr_tone
-		voice.ar = 5
-		voice.dr = 40
-		voice.sr = 0
-		voice.rr = 120
-		voice.sl = 26000
-		voice.volume = 32767
-		voice.volume_l = 32767
-		voice.volume_r = 32767
-		if tonumber(pdk.ca_voice_setup(ca, voice)) >= 0 then
-			pdk.ca_voice_play(ca, 1)
-		end
-	end
+-- A NUL-terminated char array of the drive's scene record, as a Lua string.
+local function cstring(chars)
+    local out = {}
+    for i = 0, pdk.CD_NAME_CAPACITY - 1 do
+        local c = chars[i]
+        if c == 0 then
+            break
+        end
+        out[#out + 1] = string.char(c % 256)
+    end
+    return table.concat(out)
 end
-function M.frame_update(dt, o_)
-	-- The frame counter: the one field this example exists to demonstrate.
-	-- It lives in `state`, so a code reload (the console re-wires `state`
-	-- into the new code's environment; this chunk's locals do not survive)
-	-- leaves it exactly where it was - the count CONTINUES instead of
-	-- restarting at 0.
-	state.frame_count = state.frame_count + 1
 
-	-- Should the disc stop? this example does not wire a button up to check
-	-- - false every frame is still the honest answer for a script that
-	-- raises no stop condition of its own.
-	return false
+-- The 16 numbers of a scene object's world, row-major, as a 1-based Lua table.
+local function world_of(object)
+    local MATRIX_LEN = require("example-lua-math").MATRIX_LEN
+    local world = {}
+    for k = 0, MATRIX_LEN - 1 do
+        world[k + 1] = object.world[k]
+    end
+    return world
+end
+
+local function add_mesh(meshes, object, name)
+    local model = cstring(object.model)
+    if model == "" then
+        print("warning: example-lua: mesh '" .. name .. "' has no model, not drawn")
+        return
+    end
+    local tint = { r = object.tint.r, g = object.tint.g, b = object.tint.b }
+    meshes[#meshes + 1] = { model = model, world = world_of(object), tint = tint }
+end
+
+-- The camera's eye is world * (0,0,0) and its view direction world * (0,0,1) minus the eye.
+local function add_key(keys, object, name, mathx)
+    local digits = name:match("^cam_(%d%d)$")
+    if digits == nil then
+        return -- a camera outside the route is not part of the loop
+    end
+    local w = object.world
+    keys[#keys + 1] = {
+        index = tonumber(digits),
+        eye = { x = w[3], y = w[7], z = w[11] },
+        dir = mathx.unit({ x = w[2], y = w[6], z = w[10] }),
+    }
+end
+
+-- Fills `scene` from the objects of the scene. Returns nil, or the reason it stopped.
+local function read_objects(cd, mathx, scene)
+    local count = tonumber(pdk.cd_scene_object_count(cd, SCENE_NAME))
+    if count < 0 then
+        return string.format("%s not used: rv_err %d", SCENE_NAME, count)
+    end
+    local object = pdk.new("rv_cd_scene_object")
+    for i = 0, count - 1 do
+        local read = tonumber(pdk.cd_scene_object_read(cd, SCENE_NAME, i, object))
+        if read < 0 then
+            return string.format("%s not used: object %d rv_err %d", SCENE_NAME, i, read)
+        end
+        local name = cstring(object.name)
+        if name == BOARD_NAME then
+            scene.board = world_of(object)
+        end
+        if object.kind == pdk.CD_SCENE_MESH then
+            add_mesh(scene.meshes, object, name)
+            if #name > #LAMP_PREFIX and name:sub(1, #LAMP_PREFIX) == LAMP_PREFIX then
+                scene.lamps[#scene.lamps + 1] = { name = name, world = world_of(object), on_frame = 0, off_frame = 0 }
+            end
+        elseif object.kind == pdk.CD_SCENE_CAMERA then
+            add_key(scene.keys, object, name, mathx)
+        end
+    end
+    return nil
+end
+
+-- Copies the meshes, the cam_NN keys (in NN order), the lamps and the board out of the scene.
+-- On failure the lists come back empty with the reason, so the disc runs without the scene.
+local function scene_read(cd, mathx)
+    local scene = { meshes = {}, keys = {}, lamps = {} }
+    local reason = read_objects(cd, mathx, scene)
+    if reason == nil and #scene.keys == 0 then
+        reason = SCENE_NAME .. " not used: no cam_NN keys"
+    end
+    if reason ~= nil then
+        return { meshes = {}, keys = {}, lamps = {} }, reason
+    end
+    table.sort(scene.keys, function(a, b)
+        return a.index < b.index
+    end)
+    return scene
+end
+
+-- Logs the first failure of each step only: the same failure would repeat every frame.
+-- state.logged_errors is keyed by step (the camera, the lamps, the board, or a model name).
+local function log_error_once(step, code, failure)
+    if state.logged_errors[step] then
+        return
+    end
+    state.logged_errors[step] = true
+    print(string.format("example-lua: %s %s: rv_err %d", step, failure or "not drawn", code))
+end
+
+-- The disc's C++ side (src/example-lua.cpp) calls this with the organizer handle `o_`;
+-- pdk.cv(o_), pdk.cd(o_) and pdk.cg(o_) resolve it into the controller a call needs.
+function M.disc_initialize(o_)
+    state.frame_count = 0
+    state.logged_errors = {}
+    -- The music's tables (example-lua-sound.lua): ready after its init, frame -1 before the first frame.
+    state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "" }
+    local mathx = require("example-lua-math")
+    local scene, reason = scene_read(pdk.cd(o_), mathx)
+    state.meshes = scene.meshes
+    state.keys = scene.keys
+    state.lamps = scene.lamps
+    state.board_world = scene.board or {}
+    state.board_found = scene.board ~= nil
+    if reason ~= nil then
+        print("example-lua: " .. reason)
+    end
+    if #state.keys > 0 then
+        require("example-lua-lamps").schedule(state.keys, state.lamps)
+        local sound_code = require("example-lua-sound").init(pdk.ca(o_), pdk.cd(o_), state.keys, state)
+        if sound_code < 0 then
+            print(string.format("example-lua: sound off: %s rv_err %d", state.sound.error_asset, sound_code))
+        end
+    end
+end
+
+function M.frame_update(dt, o_)
+    -- The demo's clock: frames updated while running, not while paused.
+    if dt > 0 then
+        state.frame_count = state.frame_count + 1
+    end
+    return false
 end
 
 function M.frame_render(o_)
-	local cv = pdk.cv(o_)
+    local cv = pdk.cv(o_)
+    local cg = pdk.cg(o_)
+    local cd = pdk.cd(o_)
+    -- The flush is left to the disc's C++ side, right after this hook returns.
+    pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", BACKGROUND))
+    if #state.keys == 0 then
+        return -- disc_initialize has already said why
+    end
 
-	-- Same shape as example-cpp.cpp's own frame_render: configure the frame
-	-- (clear colour), fill it with a primitive, and leave the flush to the
-	-- disc's C++ side (src/example-lua.cpp), which calls rv_cv_frame_flush
-	-- right after this hook returns.
-	pdk.cv_frame_configure(cv, 0, pdk.new("rv_color", { 20, 24, 40 }))
+    local mathx = require("example-lua-math")
+    local at = state.frame_count % mathx.PERIOD_FRAMES
+    -- The sound first, as in example-cpp's frame_render: the music and the clack, then the picture.
+    local sound_code = require("example-lua-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
+    if sound_code < 0 then
+        log_error_once("sound " .. state.sound.error_asset, sound_code, "not played")
+    end
+    local eye, target = mathx.camera_of(state.keys, state.frame_count)
+    local camera = pdk.new("rv_cg_camera")
+    camera.eye.x, camera.eye.y, camera.eye.z = eye.x, eye.y, eye.z
+    camera.target.x, camera.target.y, camera.target.z = target.x, target.y, target.z
+    camera.up.x, camera.up.y, camera.up.z = UP.x, UP.y, UP.z
+    -- FOV_DEGREES * pi_v<float> / DEGREES_PER_HALF_TURN, each step rounded to float as in C++
+    camera.fov_y = mathx.f(mathx.f(FOV_DEGREES * mathx.f(math.pi)) / DEGREES_PER_HALF_TURN)
+    camera.near_plane = NEAR_PLANE
+    camera.far_plane = FAR_PLANE
+    local camera_code = tonumber(pdk.cg_frame_camera(cg, camera))
+    if camera_code < 0 then
+        log_error_once("camera", camera_code)
+        return
+    end
 
-	-- pdk.primitive_polygon(3) (pdklib) hands back an rv_primitive with
-	-- every field the console requires from a flat-coloured triangle
-	-- already set - type, fill_mode, mapping, the zeroed texture/palette
-	-- pair, vertex_count; see that helper's own comment for why those are
-	-- its job and not this script's. depth and the three vertices - their
-	-- positions and their colours - are this game's content, so they are
-	-- set right here, not in pdklib.
-	local primitive = pdk.primitive_polygon(3)
-	primitive.depth = 0
-	local polygon = primitive.data.polygon
-
-	local function set_vertex(i, x, y, r, g, b)
-		local v = polygon.vertexes[i]
-		v.x, v.y = math.floor(x), math.floor(y)
-		v.color.r, v.color.g, v.color.b = r, g, b
-	end
-
-	local w, h = state.screen_width, state.screen_height
-	set_vertex(0, w / 2, 40, 255, 80, 80)
-	set_vertex(1, 40, h - 40, 80, 255, 80)
-	set_vertex(2, w - 40, h - 40, 80, 80, 255)
-
-	pdk.cv_frame_put(cv, primitive)
-
-	-- The sprite next to the triangle: SAMPLE_TEXTURE against ASSET_TEXTURE_NAME,
-	-- resolved by name through pdk.resource_resolve (pdklib), which is now
-	-- the one place that speaks RV_CD_RESOURCE_TEXTURE and makes the four
-	-- separate drive calls - see that helper's comment for why the kind is
-	-- pdklib's business and the name stays this script's. Resolved fresh
-	-- every frame, not cached, because an address is only valid until that
-	-- texture is reloaded. A nil result (the asset missing) is this script's
-	-- own decision to skip the sprite rather than crash - disc_initialize
-	-- never has to refuse to start over it, and the triangle above still
-	-- draws either way.
-	local resolved = pdk.resource_resolve(o_, ASSET_TEXTURE_NAME)
-	if resolved ~= nil then
-		-- pdk.primitive_sprite (pdklib) fills in type, fill_mode, mapping
-		-- and the resolved addr_texture/addr_palette, and defaults
-		-- width/height to the texture's own size; see that helper's
-		-- comment for why. depth, position and colour are this game's to
-		-- set, so they are set right here, not in pdklib.
-		local sprite_primitive = pdk.primitive_sprite(resolved)
-		sprite_primitive.depth = 1
-
-		local sprite = sprite_primitive.data.sprite
-		sprite.color.r, sprite.color.g, sprite.color.b = 255, 255, 255
-		sprite.x = 16
-		sprite.y = 16
-
-		pdk.cv_frame_put(cv, sprite_primitive)
-	end
+    -- The order of example-cpp's draw_world: meshes, then lamps, then the board.
+    local draw = require("example-lua-draw")
+    for _, mesh in ipairs(state.meshes) do
+        local code = draw.put(cg, cd, mesh.model, mesh.world, mesh.tint)
+        if code < 0 then
+            log_error_once(mesh.model, code)
+        end
+    end
+    local lamps_code = require("example-lua-lamps").draw(cg, cd, state.lamps, at)
+    if lamps_code < 0 then
+        log_error_once("lamps", lamps_code)
+    end
+    if state.board_found then
+        local board_code = require("example-lua-board").draw(cg, cd, state.board_world, at)
+        if board_code < 0 then
+            log_error_once("board", board_code)
+        end
+    end
 end
 
 function M.disc_shutdown(o_) end

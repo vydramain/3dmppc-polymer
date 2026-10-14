@@ -1,14 +1,17 @@
 #include "rv_pcslots.hpp"
 
+#include <cstddef>
+#include <iterator>
+
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "rv_pconsole/ca/rv_pcca_null.hpp"
 #include "rv_pconsole/ca/rv_pcca_sw.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cd/rv_pccd_null.hpp"
+#include "rv_pconsole/cg/rv_pccg_null.hpp"
+#include "rv_pconsole/cg/rv_pccg_sw.hpp"
 #include "rv_pconsole/cio/rv_pccio_null.hpp"
 #include "rv_pconsole/cio/rv_pccio_platform.hpp"
-#include "rv_pconsole/cl/rv_pccl_luajit.hpp"
-#include "rv_pconsole/cl/rv_pccl_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_null.hpp"
 #include "rv_pconsole/cm/rv_pccm_posix.hpp"
 #include "rv_pconsole/cv/rv_pccv_null.hpp"
@@ -30,13 +33,13 @@ constexpr rv_pcslots_row<rv_pccv_impl> RV_PCSLOTS_CV_ROWS[] = {
     { "null", rv_pccv_impl::null, &rv_pccv_null::evaluate },
     { "sw", rv_pccv_impl::sw, &rv_pccv_sw::evaluate },
 };
+constexpr rv_pcslots_row<rv_pccg_impl> RV_PCSLOTS_CG_ROWS[] = {
+    { "null", rv_pccg_impl::null, &rv_pccg_null::evaluate },
+    { "sw", rv_pccg_impl::sw, &rv_pccg_sw::evaluate },
+};
 constexpr rv_pcslots_row<rv_pccio_impl> RV_PCSLOTS_CIO_ROWS[] = {
     { "null", rv_pccio_impl::null, &rv_pccio_null::evaluate },
     { "std", rv_pccio_impl::standard, &rv_pccio_platform::evaluate },
-};
-constexpr rv_pcslots_row<rv_pccl_impl> RV_PCSLOTS_CL_ROWS[] = {
-    { "null", rv_pccl_impl::null, &rv_pccl_null::evaluate },
-    { "luajit", rv_pccl_impl::luajit, &rv_pccl_luajit::evaluate },
 };
 constexpr rv_pcslots_row<rv_pccd_impl> RV_PCSLOTS_CD_ROWS[] = {
     { "null", rv_pccd_impl::null, &rv_pccd_null::evaluate },
@@ -62,8 +65,8 @@ const char *impl_name(const Table &table, Impl impl)
 
 const std::span<const rv_pcslots_row<rv_pcca_impl>> RV_PCSLOTS_CA = RV_PCSLOTS_CA_ROWS;
 const std::span<const rv_pcslots_row<rv_pccv_impl>> RV_PCSLOTS_CV = RV_PCSLOTS_CV_ROWS;
+const std::span<const rv_pcslots_row<rv_pccg_impl>> RV_PCSLOTS_CG = RV_PCSLOTS_CG_ROWS;
 const std::span<const rv_pcslots_row<rv_pccio_impl>> RV_PCSLOTS_CIO = RV_PCSLOTS_CIO_ROWS;
-const std::span<const rv_pcslots_row<rv_pccl_impl>> RV_PCSLOTS_CL = RV_PCSLOTS_CL_ROWS;
 const std::span<const rv_pcslots_row<rv_pccd_impl>> RV_PCSLOTS_CD = RV_PCSLOTS_CD_ROWS;
 const std::span<const rv_pcslots_row<rv_pccm_impl>> RV_PCSLOTS_CM = RV_PCSLOTS_CM_ROWS;
 
@@ -75,13 +78,22 @@ const char *rv_pcslots_name(rv_pccv_impl impl)
 {
     return impl_name(RV_PCSLOTS_CV, impl);
 }
+const char *rv_pcslots_name(rv_pccg_impl impl)
+{
+    return impl_name(RV_PCSLOTS_CG, impl);
+}
 const char *rv_pcslots_name(rv_pccio_impl impl)
 {
     return impl_name(RV_PCSLOTS_CIO, impl);
 }
 const char *rv_pcslots_name(rv_pccl_impl impl)
 {
-    return impl_name(RV_PCSLOTS_CL, impl);
+    // From the enum, not RV_PCSLOTS_CL: a build without the luajit row must still
+    // name luajit in its refusal and logs.
+    constexpr const char *RV_PCCL_NAMES[] = { "null", "luajit" };
+    // A new enumerator must add its name above; this fails to build until it does.
+    static_assert(std::size(RV_PCCL_NAMES) == static_cast<std::size_t>(rv_pccl_impl::luajit) + 1);
+    return RV_PCCL_NAMES[static_cast<std::size_t>(impl)];
 }
 const char *rv_pcslots_name(rv_pccd_impl impl)
 {
@@ -114,6 +126,15 @@ std::unique_ptr<rv_pccv> rv_pccv_make(rv_pccv_impl impl, const rv_pccv_conf &con
     return std::make_unique<rv_pccv_null>(conf);
 }
 
+std::unique_ptr<rv_pccg> rv_pccg_make(rv_pccg_impl impl, const rv_pccg_conf &conf, rv_pccv &cv)
+{
+    RV_LOG_INFO("pccg", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
+    if (impl == rv_pccg_impl::sw) {
+        return std::make_unique<rv_pccg_sw>(conf, cv);
+    }
+    return std::make_unique<rv_pccg_null>(conf);
+}
+
 std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf &conf, rv_pcplatform &platform)
 {
     RV_LOG_INFO("pccio", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
@@ -126,20 +147,13 @@ std::unique_ptr<rv_pccio> rv_pccio_make(rv_pccio_impl impl, const rv_pccio_conf 
 rv_pccl_impl rv_pccl_resolve(rv_pccl_impl requested, int64_t script_memory_size)
 {
     if (requested == rv_pccl_impl::luajit && script_memory_size == 0) {
-        RV_LOG_INFO("pccl", "requested {}, resolved to {} (the disc declares no script memory)",
-            rv_pcslots_name(requested), rv_pcslots_name(rv_pccl_impl::null));
+        RV_LOG_INFO("pccl",
+            "requested {}, resolved to {} (the disc declares no script memory)",
+            rv_pcslots_name(requested),
+            rv_pcslots_name(rv_pccl_impl::null));
         return rv_pccl_impl::null;
     }
     return requested;
-}
-
-std::unique_ptr<rv_pccl> rv_pccl_make(rv_pccl_impl impl, const rv_pccl_conf &conf, rv_pccd &cd)
-{
-    RV_LOG_INFO("pccl", "requested {}, got {}", rv_pcslots_name(impl), rv_pcslots_name(impl));
-    if (impl == rv_pccl_impl::luajit) {
-        return std::make_unique<rv_pccl_luajit>(conf, cd);
-    }
-    return std::make_unique<rv_pccl_null>();
 }
 
 std::unique_ptr<rv_pccd> rv_pccd_make(rv_pccd_impl impl, const rv_pccd_conf &conf)

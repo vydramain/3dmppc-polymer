@@ -9,8 +9,8 @@
 // different Meta - see rv_pconsole/cv/rv_pcvram.hpp, which is the same idea for
 // textures.
 //
-// Built whenever ca=sw. Needs no audio device: the console timeline advances it
-// through rv_pcca::advance() and a platform only plays what it produced.
+// Built whenever ca=sw. Needs no audio device: rv_pcca::advance() is called for
+// what the sound device asks for or, without one, by the frame loop.
 #pragma once
 
 #include <cstdint>
@@ -50,6 +50,19 @@ private:
     // RV_ERR_INVAL.
     int64_t validate_mask(int64_t voice_mask) const;
 
+    // A sound address resolved to the live region holding it. `start` is the
+    // identity voices remember; `offset` counts frames from that start.
+    struct rv_pcca_place {
+        int64_t start = 0;
+        const uint8_t *data = nullptr;
+        int64_t frames = 0;
+        int64_t offset = 0;
+    };
+
+    // RV_ERR_INVAL when `addr` is not inside a live region or is not on a frame
+    // boundary of it. Address 0 is never a region.
+    int64_t locate(int64_t addr, rv_pcca_place &place) const;
+
 public:
     explicit rv_pcca_sw(const rv_pcca_conf &conf);
 
@@ -58,10 +71,10 @@ public:
 
     // The peak host bytes this class allocates for `budget`: sram_
     // (sound_memory_size) + the pool's block bookkeeping + mixer_'s voices
-    // (one rv_pcvoice each) and its fixed render accumulator. Never fails -
-    // every field it reads was already validated as non-negative by
-    // rv_pboot_check_budget() before it calls any evaluate().
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    // (one rv_pcvoice each) and its fixed render accumulator. Overflow fails
+    // with RV_ERR_INVAL and `error` set; every field it reads was already
+    // validated as non-negative by rv_pboot_check_budget() before any evaluate().
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t voice_count() override;
 
@@ -80,6 +93,14 @@ public:
     int64_t voice_stop(int64_t voice_mask) override;
 
     int64_t voice_status(int64_t voice_mask) override;
+
+    int64_t voice_repeat(int64_t voice_mask, int64_t addr) override;
+
+    int64_t voice_ended(int64_t voice_mask) override;
+
+    int64_t voice_mark(int64_t voice_mask, int64_t addr) override;
+
+    int64_t voice_marked(int64_t voice_mask) override;
 
     void advance(int16_t *out, int64_t frames) override;
 

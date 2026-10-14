@@ -3,6 +3,13 @@
 
 #include <stdint.h>
 
+#include "pdk/cv/rv_vertex.h" // rv_color: scene object tint
+
+// Bytes per name in rv_cd_scene_object, NUL included. The arrays of
+// rv_cd_scene_object use the same number; ffi.cdef cannot expand a #define.
+// Lua sees it as pdk.CD_NAME_CAPACITY.
+#define RV_CD_NAME_CAPACITY 64
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,11 +25,12 @@ int64_t rv_cd_asset_read(rv_cd *cd, int64_t handle, void *baddr, int64_t baddr_s
 // What a resource query names. A disc's resources are not only textures -
 // the PR review that added this `kind` parameter asked for sound next, and
 // model is still the obvious kind after that - so AUDIO is the second
-// enumerator, refused nowhere but the one gate named on rv_cd_resource_addr
-// below, the same way TEXTURE alone was until now.
+// enumerator and MODEL the third, refused nowhere but the one gate named on
+// rv_cd_resource_addr below, the same way TEXTURE alone was until now.
 enum rv_cd_resource_kind {
     RV_CD_RESOURCE_TEXTURE = 1,
     RV_CD_RESOURCE_AUDIO = 2,
+    RV_CD_RESOURCE_MODEL = 3,
 };
 
 /* Plain name: without a typedef, C demands `enum rv_x` at every mention and
@@ -36,22 +44,24 @@ typedef enum rv_cd_resource_kind rv_cd_resource_kind;
 // the asset, decoding its container and uploading it to video RAM; for the
 // audio kind: reading the asset's raw PCM bytes - there is no container to
 // decode, the game supplies none and none is baked - and uploading them to
-// sound RAM), and every later call for the same name and kind reuses that
-// upload. The drive keeps a resource resident until the disc that named it
-// is unloaded, at which point the drive frees everything it made resident -
-// the disc never frees anything itself.
+// sound RAM; for the model kind: reading the .mppcmod and handing it to the
+// geometry controller's model memory, making its textures resident with it),
+// and every later call for the same name and kind reuses that upload. The
+// drive keeps a resource resident until the disc that named it is unloaded,
+// at which point the drive frees everything it made resident - the disc never
+// frees anything itself.
 //
 // Not every one of these five means something for every kind:
-//   * rv_cd_resource_addr          - meaningful for TEXTURE and AUDIO alike:
-//                                    where the resident bytes now live.
+//   * rv_cd_resource_addr          - meaningful for TEXTURE, AUDIO and MODEL
+//                                    alike: where the resident bytes now live.
 //   * rv_cd_resource_size          - AUDIO only: its resident byte length,
 //                                    the counterpart of a sample's rv_sample.size.
 //                                    A texture's "size" is its width/height
 //                                    below, not a byte count a game reads back.
 //   * rv_cd_resource_palette_addr,
 //     rv_cd_resource_width,
-//     rv_cd_resource_height        - TEXTURE only: a sound has no palette and
-//                                    no pixel dimensions.
+//     rv_cd_resource_height        - TEXTURE only: a sound or a model has no
+//                                    palette and no pixel dimensions.
 // Asking a kind for a query that does not describe it is exactly as
 // malformed as asking with a `kind` this enum has never heard of, and
 // answers the same RV_ERR_INVAL rather than a bogus 0 that would read back
@@ -63,11 +73,13 @@ typedef enum rv_cd_resource_kind rv_cd_resource_kind;
 // A palette is texture-specific in the other direction too: palette_addr
 // answers 0, not an error, for a texture FORMAT that has no palette - that
 // is a real fact about a resident texture, not a malformed query - and only
-// the kind mismatch above (asking palette_addr of an AUDIO name) is refused.
-// A name that is not on the disc, or a texture resource that fails to
-// decode (AUDIO has nothing to decode), also answers a negative rv_err from
-// any of the five (RV_ERR_NOENT for the unknown name, distinct from the
-// RV_ERR_INVAL a bad kind or a meaningless query gets).
+// the kind mismatch above (asking palette_addr of an AUDIO or MODEL name) is
+// refused.
+// A name that is not on the disc, or a resource that fails to become
+// resident (a texture that fails to decode; AUDIO and MODEL have nothing to
+// decode), also answers a negative rv_err from any of the five (RV_ERR_NOENT
+// for the unknown name, distinct from the RV_ERR_INVAL a bad kind or a
+// meaningless query gets).
 // Addresses are valid until that resource is reloaded - ask again rather
 // than caching across a reload.
 int64_t rv_cd_resource_addr(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
@@ -76,7 +88,63 @@ int64_t rv_cd_resource_palette_addr(rv_cd *cd, rv_cd_resource_kind kind, const c
 int64_t rv_cd_resource_width(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 int64_t rv_cd_resource_height(rv_cd *cd, rv_cd_resource_kind kind, const char *resname);
 
+// Kinds of objects in a scene: the object kinds of the editor's scene.
+enum rv_cd_scene_kind {
+    RV_CD_SCENE_GROUP = 1,
+    RV_CD_SCENE_CAMERA,
+    RV_CD_SCENE_MESH,
+    RV_CD_SCENE_QUAD,
+    RV_CD_SCENE_BILLBOARD,
+    RV_CD_SCENE_VOLUME,
+};
+
+typedef enum rv_cd_scene_kind rv_cd_scene_kind;
+
+// A scene is a .scene.toml on the disc, resident from its first query and
+// freed when the disc unloads. A name longer than RV_CD_NAME_CAPACITY-1 is
+// not loaded at all (RV_ERR_INVAL; the reason goes to the console log). A mesh
+// is named "x.glb" in the scene; the drive maps it to x.mppcmod.
+//
+// One object as a plain copy. Names are NUL-terminated inside their arrays;
+// an empty model or texture means none.
+struct rv_cd_scene_object {
+    char id[64]; // RV_CD_NAME_CAPACITY, spelled out for ffi.cdef
+    char name[64];
+    int64_t parent; // index of the parent object, -1 for a root
+    rv_cd_scene_kind kind;
+    // row-major: element (row, col) is world[row*4+col]; column vectors multiplied
+    // from the right, the layout of pdklib's rv_mat4
+    float world[16];
+    char model[64]; // .mppcmod name on the disc
+    char texture[64];
+    float uv[4]; // u0, v0, u1, v1 in pixels; quad and billboard only
+    struct rv_color tint;
+    float tess; // quad/billboard subdivision density, as the editor's scene
+};
+
+typedef struct rv_cd_scene_object rv_cd_scene_object;
+
+// Number of objects in the scene, or a negative rv_err (RV_ERR_NOENT for an
+// unknown scene).
+int64_t rv_cd_scene_object_count(rv_cd *cd, const char *scene);
+
+// Copies object `index` into `out`. RV_ERR_INVAL for an index out of range or
+// a null argument, RV_ERR_NOENT for an unknown scene.
+int64_t rv_cd_scene_object_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_object *out);
+
 /* RV_CDEF_END */
+
+// Every name array of the struct must match the name capacity (the cdef carries
+// the literal, so only C and C++ can check it).
+#ifdef __cplusplus
+#define RV_CD_STATIC_ASSERT_ static_assert
+#else
+#define RV_CD_STATIC_ASSERT_ _Static_assert
+#endif
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->id) == RV_CD_NAME_CAPACITY, "scene id capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->name) == RV_CD_NAME_CAPACITY, "scene name capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->model) == RV_CD_NAME_CAPACITY, "scene model capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->texture) == RV_CD_NAME_CAPACITY, "scene texture capacity");
 
 #ifdef __cplusplus
 } /* extern "C" */

@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <string>
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
 
 #include "rv_burner_print.hpp"
@@ -23,9 +24,10 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
     std::string error;
 
     zip_archive archive;
-    if (!zip_open(options.operand, archive, error)) {
+    const int open_rc = zip_open(options.operand, archive, error);
+    if (open_rc != RV_OK) {
         rv_burner_print_error(options.operand + ": " + error);
-        return 1;
+        return open_rc;
     }
 
     // --- the manifest, verbatim ---
@@ -37,13 +39,13 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
 
     const zip_read_entry *manifest = zip_find(archive, k_entry_manifest);
     if (manifest == nullptr) {
-        rv_burner_print_warning(
-            options.operand + " has no " + k_entry_manifest + "; the console would refuse it");
+        rv_burner_print_warning(options.operand + " has no " + k_entry_manifest + "; the console would refuse it");
     } else {
         std::string text;
-        if (!zip_entry_bytes(archive, *manifest, text, error)) {
+        const int bytes_rc = zip_entry_bytes(archive, *manifest, text, error);
+        if (bytes_rc != RV_OK) {
             rv_burner_print_error(error);
-            return 1;
+            return bytes_rc;
         }
         std::fwrite(text.data(), 1, text.size(), stdout);
         if (!text.empty() && text.back() != '\n') {
@@ -57,8 +59,7 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
 
     int64_t total = 0;
     for (const zip_read_entry &entry : archive.entries) {
-        rv_pdklib::rv_fprintf(stdout, "%s\t%lld\n", entry.name.c_str(),
-            static_cast<long long>(entry.size));
+        rv_pdklib::rv_fprintf(stdout, "%s\t%lld\n", entry.name.c_str(), static_cast<long long>(entry.size));
         total += entry.size;
     }
 
@@ -72,5 +73,5 @@ int rv_pdktools::rv_burner_inspect_run(const rv_burner_options &options)
     rv_pdklib::rv_fprintf(stdout, "bytes\t%lld\n", static_cast<long long>(total));
     rv_pdklib::rv_fprintf(stdout, "file\t%lld\n", static_cast<long long>(archive.bytes.size()));
 
-    return 0;
+    return RV_OK;
 }

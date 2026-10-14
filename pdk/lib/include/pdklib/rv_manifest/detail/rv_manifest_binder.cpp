@@ -71,6 +71,16 @@ constexpr bind_rule RULES[] = {
                 m.textures_files.format = row->format;
             }
         } },
+    { rv_manifest_section_sounds, // [sounds] files = [ … ]
+        rv_manifest_key_sounds_files,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.sounds_files = v.arr;
+        } },
+    { rv_manifest_section_models, // [models] files = [ … ]
+        rv_manifest_key_models_files,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.models_files = v.arr;
+        } },
     { rv_manifest_section_budget_pcca, // [budget.pcca] voice_count = N
         rv_manifest_key_budget_pcca_voice_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
@@ -115,6 +125,16 @@ constexpr bind_rule RULES[] = {
         rv_manifest_key_budget_pccv_ot_bucket_count,
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.budget.pccv.ot_bucket_count = v.num;
+        } },
+    { rv_manifest_section_budget_pccg, // [budget.pccg] model_memory_size = N
+        rv_manifest_key_budget_pccg_model_memory_size,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccg.model_memory_size = v.num;
+        } },
+    { rv_manifest_section_budget_pccg, // [budget.pccg] triangle_capacity = N
+        rv_manifest_key_budget_pccg_triangle_capacity,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.budget.pccg.triangle_capacity = v.num;
         } },
     { rv_manifest_section_budget_pccio, // [budget.pccio] iport_count = N
         rv_manifest_key_budget_pccio_iport_count,

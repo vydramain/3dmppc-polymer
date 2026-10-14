@@ -12,18 +12,16 @@ __attribute__((format(printf, 2, 3)))
 
 inline int rv_fprintf(std::FILE *stream, const char *format, ...)
 {
-#if defined(__EMSCRIPTEN__)
-	// TODO: Browser interpretation
-	return -1;
-#elif defined(_WIN32)
-	// TODO: Windows interpretation
-	return -1;
-#elif defined(__unix__) || defined(__APPLE__)
-	std::va_list _va_list;
-	va_start(_va_list, format);
-	int res = std::vfprintf(stream, format, _va_list);
-	va_end(_va_list);
-	return res;
+#if defined(_WIN32)
+    // TODO: Windows interpretation
+    return -1;
+#elif defined(__unix__) || defined(__APPLE__) || defined(__EMSCRIPTEN__)
+    // Emscripten routes stdio to the browser console.
+    std::va_list _va_list;
+    va_start(_va_list, format);
+    int res = std::vfprintf(stream, format, _va_list);
+    va_end(_va_list);
+    return res;
 #else
 #error "rv_stdio.hpp: unsupported platform, add a branch to rv_fprintf"
 #endif

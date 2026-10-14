@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3dmppc</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; }
+  /* Largest 4:3 box that fits the window; the console is 320x240. */
+  #stage { position: relative; width: min(100vw, calc(100vh * 4 / 3)); }
+  #canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 3; image-rendering: pixelated; background: #000; outline: none; }
+  /* Covers the canvas until the first click or key: browsers allow audio only after a user gesture. */
+  #start { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); color: #ddd; font: 16px monospace; cursor: pointer; user-select: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+<canvas id="canvas" width="320" height="240" tabindex="0"></canvas>
+<div id="start">Loading...</div>
+</div>
+<script>
+  // Keeps the Module that pre-js extends (Module.preRun) if one already exists.
+  var Module = typeof Module != 'undefined' ? Module : {};
+  // The console waits for the gesture: noInitialRun skips the automatic callMain.
+  Module.noInitialRun = true;
+  Module.canvas = document.getElementById('canvas');
+
+  var start = document.getElementById('start');
+  // callMain is valid only after the runtime is initialized (preRun and the save load are done).
+  var ready = false;
+
+  // Starts from the gesture itself: callMain creates the AudioContext, and browsers allow audio only inside a user gesture.
+  function startConsole() {
+    window.removeEventListener('keydown', onGesture);
+    start.remove();
+    Module.canvas.focus();
+    Module.callMain();
+  }
+
+  // Gestures before the runtime is ready are ignored, so the console never starts outside one.
+  function onGesture() {
+    if (ready) {
+      startConsole();
+    }
+  }
+
+  Module.onRuntimeInitialized = function() {
+    ready = true;
+    start.textContent = 'Click to start';
+  };
+
+  start.addEventListener('click', onGesture);
+  window.addEventListener('keydown', onGesture);
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

@@ -10,16 +10,27 @@
 namespace rv_3dmppc
 {
 
-rv_pcbudget_cost rv_pccio_platform::evaluate(const rv_pdklib::rv_manifest_budget &budget)
+int rv_pccio_platform::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error)
 {
-    rv_pcbudget_cost cost;
+    int64_t port_bytes = 0;
     int64_t total = 0;
-    if (rv_pcbudget_mul(cost, "budget.pccio.iport_count", budget.pccio.iport_count,
-            static_cast<int64_t>(sizeof(rv_pccio_platform_port)), total) ||
-        rv_pcbudget_add(cost, "budget.pccio.iport_count", total)) {
-        return cost;
+
+    const int mul_err = rv_pcbudget_mul("budget.pccio.iport_count",
+        budget.pccio.iport_count,
+        static_cast<int64_t>(sizeof(rv_pccio_platform_port)),
+        port_bytes,
+        error);
+    if (mul_err != RV_OK) {
+        return mul_err;
     }
-    return cost;
+
+    const int add_err = rv_pcbudget_add(total, "budget.pccio.iport_count", port_bytes, error);
+    if (add_err != RV_OK) {
+        return add_err;
+    }
+
+    bytes = total;
+    return RV_OK;
 }
 
 int64_t rv_pccio_platform::iport_count()
@@ -64,8 +75,7 @@ void rv_pccio_platform::reconcile()
         for (auto &port : ports_) {
             if (port.pad == 0) {
                 port.pad = id;
-                RV_LOG_INFO("pccio", "gamepad {} adopted into port {}", id,
-                    static_cast<int64_t>(&port - &ports_[0]));
+                RV_LOG_INFO("pccio", "gamepad {} adopted into port {}", id, static_cast<int64_t>(&port - &ports_[0]));
                 placed = true;
                 break;
             }
@@ -174,13 +184,16 @@ int64_t rv_pccio_platform::ohaptic(int64_t port, rv_oheffect effect)
         // Body actuators: constant strength per side, held for a duration.
         // gamepads_.rumble reports RV_ERR_INVAL for an unknown id, which is
         // exactly the code the contract asks for.
-        return gamepads_.rumble(slot.pad, effect.data.rumble.strength_left,
-            effect.data.rumble.strength_right, effect.data.rumble.duration_ms);
+        return gamepads_.rumble(slot.pad,
+            effect.data.rumble.strength_left,
+            effect.data.rumble.strength_right,
+            effect.data.rumble.duration_ms);
 
     case RV_HAPTIC_EFFECT_TRIGGER_RUMBLE:
         // Same payload, different actuators (the trigger motors of a
         // DualSense / Steam Deck style pad).
-        return gamepads_.rumble_triggers(slot.pad, effect.data.rumble.strength_left,
+        return gamepads_.rumble_triggers(slot.pad,
+            effect.data.rumble.strength_left,
             effect.data.rumble.strength_right,
             effect.data.rumble.duration_ms);
 
@@ -199,8 +212,7 @@ int64_t rv_pccio_platform::ohaptic(int64_t port, rv_oheffect effect)
         return RV_ERR_INVAL;
 
     default:
-        RV_LOG_WARN("pccio", "ohaptic with unknown effect tag {} on port {}", effect.type,
-            port);
+        RV_LOG_WARN("pccio", "ohaptic with unknown effect tag {} on port {}", effect.type, port);
         return RV_ERR_INVAL;
     }
 }

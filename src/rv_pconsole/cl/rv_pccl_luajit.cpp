@@ -8,6 +8,7 @@
 // boundary has leaked.
 #include "lua.hpp"
 
+#include "pdk/rv_err.h"
 #include "pdklib/rv_dscript/rv_dscript_lua.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 
@@ -85,7 +86,7 @@ setmetatable(pdk, {
 -- is not an allocation) and the accessor is the same exported function the
 -- long form called, so this is a shorter spelling of the identical path, not
 -- a layer in front of it.
-for _, slot in ipairs({ "ca", "cd", "cio", "cl", "cm", "cv" }) do
+for _, slot in ipairs({ "ca", "cd", "cg", "cio", "cl", "cm", "cv" }) do
     local accessor = pdk["pdko_" .. slot]
     pdk[slot] = function(o) return accessor(pdk.cast("rv_pdko*", o)) end
 end
@@ -93,10 +94,11 @@ local _ = pdk.cv_screen_width -- boot-time proof the wiring actually resolves
 )lua";
 } // namespace
 
-rv_pcbudget_cost rv_pccl_luajit::evaluate(const rv_pdklib::rv_manifest_budget &budget)
+int rv_pccl_luajit::evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string & /* error */)
 {
     // budget_ (this class's own lua_Alloc ceiling): exactly script_memory_size.
-    return { budget.pccl.script_memory_size, {} };
+    bytes = budget.pccl.script_memory_size;
+    return RV_OK;
 }
 
 rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
@@ -126,7 +128,7 @@ rv_pccl_luajit::rv_pccl_luajit(const rv_pccl_conf &conf, rv_pccd &cd)
     // debugs a difference that exists only when the channel is open.
     lua_pushcfunction(L_, print_to_log);
     lua_setglobal(L_, "print");
-    if (!bootstrap_pdk()) {
+    if (bootstrap_pdk() != RV_OK) {
         RV_LOG_ERR("pccl", "pdk bootstrap failed, lua machine going down");
         lua_close(L_);
         L_ = nullptr; // same shape as a failed lua_newstate: valid() below goes false
@@ -227,19 +229,19 @@ int rv_pccl_luajit::panic(lua_State *L)
 // console's own, installed by the constructor and reading modules off the
 // drive - see rv_pccl_luajit_require.cpp), and glue rv_pdk_cdef /
 // rv_pdk_consts into the pieces that Lua chunk needs.
-bool rv_pccl_luajit::bootstrap_pdk()
+int rv_pccl_luajit::bootstrap_pdk()
 {
     const int top = lua_gettop(L_);
     // A failed lua_pcall leaves its error string on top; log and unwind to it.
     auto fail_err = [&](const char *what) {
         RV_LOG_ERR("pccl", "pdk bootstrap: {}: {}", what, lua_tostring(L_, -1));
         lua_settop(L_, top);
-        return false;
+        return RV_ERR_INVAL;
     };
     auto fail = [&](const char *why) {
         RV_LOG_ERR("pccl", "pdk bootstrap: {}", why);
         lua_settop(L_, top);
-        return false;
+        return RV_ERR_INVAL;
     };
 
     // Unlike open_lib() above, this keeps luaopen_ffi's return value
@@ -276,8 +278,7 @@ bool rv_pccl_luajit::bootstrap_pdk()
     }
     const int pdk_idx = lua_gettop(L_); // this table becomes `pdk` itself
 
-    if (luaL_loadbuffer(L_, RV_PCCL_PDK_BOOTSTRAP_SRC, std::strlen(RV_PCCL_PDK_BOOTSTRAP_SRC),
-            "pdk_bootstrap") != 0) {
+    if (luaL_loadbuffer(L_, RV_PCCL_PDK_BOOTSTRAP_SRC, std::strlen(RV_PCCL_PDK_BOOTSTRAP_SRC), "pdk_bootstrap") != 0) {
         return fail_err("pdk bootstrap chunk (compile)");
     }
     lua_pushvalue(L_, ffi_idx);
@@ -292,8 +293,10 @@ bool rv_pccl_luajit::bootstrap_pdk()
     // this method only RAISES them, the same loadbuffer-then-pcall shape the
     // chunk above used, into the same `pdk` table right after that chunk
     // finished building it.
-    if (luaL_loadbuffer(L_, rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC,
-            std::strlen(rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC), "pdk_lua_helpers") != 0) {
+    if (luaL_loadbuffer(L_,
+            rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC,
+            std::strlen(rv_pdklib::RV_PDKLIB_LUA_HELPERS_SRC),
+            "pdk_lua_helpers") != 0) {
         return fail_err("pdk lua helpers chunk (compile)");
     }
     lua_pushvalue(L_, pdk_idx);
@@ -308,7 +311,7 @@ bool rv_pccl_luajit::bootstrap_pdk()
     lua_pushvalue(L_, pdk_idx);
     lua_setglobal(L_, "pdk");
     lua_settop(L_, top);
-    return true;
+    return RV_OK;
 }
 
 int rv_pccl_luajit::protected_invoke_(lua_State *L)

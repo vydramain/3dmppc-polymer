@@ -5,8 +5,7 @@
 namespace rv_3dmppc
 {
 
-void rv_pboot_conf_build(
-    const rv_pdklib::rv_manifest_budget &budget,
+void rv_pboot_conf_build(const rv_pdklib::rv_manifest_budget &budget,
     const rv_pboot_args &args,
     const rv_pcslots &slots,
     rv_pconsole_conf &conf)
@@ -22,6 +21,8 @@ void rv_pboot_conf_build(
     conf.cv.video_memory_size = budget.pccv.video_memory_size;
     conf.cv.frame_capacity = budget.pccv.frame_capacity;
     conf.cv.ot_bucket_count = budget.pccv.ot_bucket_count;
+    conf.cg.model_memory_size = budget.pccg.model_memory_size;
+    conf.cg.triangle_capacity = budget.pccg.triangle_capacity;
     conf.cio.iport_count = budget.pccio.iport_count;
     conf.cm.card_slots = budget.pccm.card_slots;
     conf.cm.card_slot_size = budget.pccm.card_slot_size;
@@ -30,13 +31,13 @@ void rv_pboot_conf_build(
     conf.params.scale = args.scale;
     conf.params.max_frames = args.max_frames;
     conf.params.dump_frame_path = args.dump_frame_path;
+    conf.params.dump_audio_path = args.dump_audio_path;
     conf.params.dev = args.dev;
     conf.params.loop_paused = args.loop_paused;
     conf.ca.mute = args.mute;
     conf.cd.medium_path = args.medium_path;
     // No --memcard: the card next to the binary, never in the start directory.
-    conf.cm.image_path =
-        args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
+    conf.cm.image_path = args.memcard_path.empty() ? (rv_pboot_exe_dir() / "memcard.mppccard").string() : args.memcard_path;
     conf.slots = slots;
 }
 

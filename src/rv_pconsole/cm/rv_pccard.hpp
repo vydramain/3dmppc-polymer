@@ -6,13 +6,16 @@
 // the disk, and a write rewrites the entire image - which is what makes the
 // contract's atomicity promise implementable (see the note in rv_pccard.cpp).
 //
-// This class knows nothing about rv_err: it answers bool / -1 and leaves the
-// contract vocabulary to rv_pccm.
+// Operations that can fail return rv_err codes; yes/no questions (medium_ok(), valid())
+// stay bool. rv_pccm maps error codes to the public contract vocabulary.
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <vector>
+
+#include "pdk/rv_err.h"
 
 namespace rv_3dmppc
 {
@@ -41,9 +44,8 @@ public:
     // i64 + slot_size i64) and one length entry (i64) per slot, ahead of the
     // slot payloads. Public so the boot budget check
     // (rv_pccm_posix::evaluate) can cost a card image before one is built.
-    static constexpr int64_t RV_PCCARD_HEADER_BYTES =
-        8 /* magic */ + sizeof(uint32_t) /* version */ + sizeof(uint32_t) /* reserved */ +
-        sizeof(int64_t) /* slot_count */ + sizeof(int64_t) /* slot_size */;
+    static constexpr int64_t RV_PCCARD_HEADER_BYTES = 8 /* magic */ + sizeof(uint32_t) /* version */ +
+        sizeof(uint32_t) /* reserved */ + sizeof(int64_t) /* slot_count */ + sizeof(int64_t) /* slot_size */;
     static constexpr int64_t RV_PCCARD_LENGTH_ENTRY_BYTES = sizeof(int64_t);
 
     // Loads `image_path`; boot always passes one (rv_pboot_conf.cpp).
@@ -85,26 +87,58 @@ public:
     const uint8_t *slot_data(int64_t slot) const;
 
     // Replace `slot` with `size` bytes of `data` and persist the image.
-    // Returns false on a medium failure, and then the slot - in memory and on
-    // disk alike - still holds exactly what it held before the call.
-    bool slot_write(int64_t slot, const void *data, int64_t size);
+    // Returns RV_OK on success; RV_ERR_IO on a medium failure, and then the slot -
+    // in memory and on disk alike - still holds exactly what it held before the call.
+    int slot_write(int64_t slot, const void *data, int64_t size);
 
     // Empty `slot` and persist. Erasing an already-empty slot touches nothing
-    // and succeeds, so it never brings a file into existence.
-    bool slot_erase(int64_t slot);
+    // and succeeds, so it never brings a file into existence. Returns RV_OK or RV_ERR_IO.
+    int slot_erase(int64_t slot);
 
 private:
-    // Reads the file into image_. Returns false only for a file that exists and
-    // cannot be trusted; a missing file yields a freshly formatted RAM image.
-    bool load();
+    // Reads the file into image_. Returns RV_OK on success, RV_ERR_IO on a read failure,
+    // or RV_ERR_INVAL for a file that exists and cannot be trusted. A missing file yields
+    // a freshly formatted RAM image and returns RV_OK.
+    int load();
 
-    // Writes image_ out atomically (temp file + fsync + rename).
-    bool flush();
+    // Read entire file of `want` bytes into `out`, or return error.
+    int read_full(int64_t want, std::vector<uint8_t> &out, const std::filesystem::path &path);
+
+    // Move old image aside and log the refusal.
+    int set_aside(uint32_t old_version, const std::filesystem::path &path, std::string &aside_path);
+
+    // Load a same-major older-minor compatible image (restamp to current version in RAM).
+    int load_compatible_(uint32_t version,
+        int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        int64_t expected,
+        const std::filesystem::path &path);
+
+    // Load an older-major image (migrate layout to current version, set old file aside, flush).
+    int load_migrate_(uint32_t version,
+        int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        const std::filesystem::path &path);
+
+    // Handle an incompatible image (newer major or same major newer minor).
+    int load_incompatible_(uint32_t version, const std::filesystem::path &path);
+
+    // Load a current-version image (validate geometry and size, read and check slots).
+    int load_current_(int64_t file_slots,
+        int64_t file_slot_size,
+        uintmax_t on_disk,
+        int64_t expected,
+        const std::filesystem::path &path);
+
+    // Writes image_ out atomically (temp file + fsync + rename). Returns RV_OK or RV_ERR_IO.
+    int flush();
 
     // Apply one slot mutation (`new_length` < 0 empties the slot) and persist
     // it, undoing the in-RAM change when the persist fails. The single place
-    // where the contract's "old content intact" promise is kept.
-    bool commit(int64_t slot, int64_t new_length, const void *data);
+    // where the contract's "old content intact" promise is kept. Returns RV_OK or RV_ERR_IO.
+    int commit(int64_t slot, int64_t new_length, const void *data);
 
     void format_empty();
     int64_t length_at(int64_t slot) const;

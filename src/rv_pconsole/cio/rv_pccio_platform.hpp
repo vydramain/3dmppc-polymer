@@ -32,7 +32,7 @@ public:
     // The peak host bytes this class allocates for `budget`:
     // iport_count * sizeof(rv_pccio_platform_port) - ports_, one rv_pccio_platform_port
     // per port.
-    static rv_pcbudget_cost evaluate(const rv_pdklib::rv_manifest_budget &budget);
+    static int evaluate(const rv_pdklib::rv_manifest_budget &budget, int64_t &bytes, std::string &error);
 
     int64_t iport_count() override;
 
@@ -44,7 +44,10 @@ public:
 
     int64_t ohaptic(int64_t port, rv_oheffect effect) override;
 
-    bool valid() const override { return true; }
+    bool valid() const override
+    {
+        return true;
+    }
 
 private:
     // True when `port` names one of the console's fixed slots. Out of range is

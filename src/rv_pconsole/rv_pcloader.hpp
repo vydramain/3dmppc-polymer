@@ -38,7 +38,11 @@ int64_t rv_pcloader_probe_staging();
 
 // PATTERN: RAII — one object owns the whole loaded-disc state (temporary file,
 // dlopen handle, the disc object) and its destructor is the ONLY teardown path,
-// so the order below cannot be got wrong by a caller taking an early return:
+// so the order below cannot be got wrong by a caller taking an early return.
+// The static build (3DMPPC_STATIC_DISC, rv_pcloader_static.cpp) has the same
+// class with no handle and no temporary file: steps 3 and 4 are empty there.
+//
+// Dl build:
 //
 //   1. disc_shutdown()          the disc's last chance to touch the facade
 //   2. mppc_disc_destroy(disc)  the disc's own destructor, from the disc's code
@@ -67,19 +71,20 @@ public:
     rv_pcloader &operator=(rv_pcloader &&) = delete;
 
     // Pre-dlopen inspection of the code entry `info_entry` inside the mounted
-    // archive. dlopen runs the library's constructors before returning, so any
+    // archive. Dl build: dlopen runs the library's constructors before returning, so any
     // compatibility verdict must come from the FILE'S BYTES, never from loaded
     // code: the entry is read whole (CRC-checked by the zip reader) and its ELF
-    // structure is parsed in memory, per elf(5). Today it validates the ELF64
-    // header (magic, class, byte order, e_type/e_machine, program-header
-    // stride); the walk to the RV_MPPC version note (PT_NOTE segments) is the
-    // part still to be written. Returns RV_OK or a negative rv_err, logging the
-    // exact refusal reason.
+    // structure is parsed in memory, per elf(5): the ELF header, the PT_NOTE walk
+    // to the RV_MPPC version note, the checksum and the version verdict, all in
+    // rv_pcloader_inspect.cpp. Static build: the version is checked against the
+    // linked disc's note symbol instead (rv_pcloader_static.cpp). Returns RV_OK or a
+    // negative rv_err, logging the exact refusal reason.
     int64_t pre_dlopen_check(rv_zipreader *zip, const char *info_entry);
 
     // STAGE 1 of load(): check the file, open the archive as a zip, read and
     // parse its manifest, and run the pre-dlopen version check on the code
-    // entry the manifest names — all straight from bytes, no dlopen. On
+    // entry the manifest names — all straight from bytes, no dlopen (dl build;
+    // a static build checks the linked note instead). On
     // success the archive is left open (owned by this object, as `zip_`) and
     // info() becomes valid; the caller may then wait however long it likes
     // before calling bring_up() to actually load the code. Returns RV_OK, or
@@ -141,7 +146,8 @@ public:
 
     // The disc code checksum of the disc.so that is actually LOADED, as the
     // same 16 hex characters the burner prints when it stamps it. Empty for the
-    // built-in disc, which has no note and no archive.
+    // built-in disc, which has no note and no archive, and empty in a static
+    // build (3DMPPC_STATIC_DISC), which does not checksum the linked code.
     //
     // It exists for one question the development channel has to answer: has the
     // C++ been rebuilt since this process started? Native code cannot be hot
@@ -216,14 +222,21 @@ private:
     // walk and version stages are free functions in rv_pcloader_inspect.cpp,
     // since none of them touch this object's state. Returns RV_OK or a
     // negative rv_err after logging the exact refusal.
-    int64_t pre_dlopen_check_bytes(std::vector<unsigned char> &buffer,
-        const char *info_entry, const char *origin);
+    int64_t pre_dlopen_check_bytes(std::vector<unsigned char> &buffer, const char *info_entry, const char *origin);
 
     // Recomputes the disc code checksum and compares it against version_info;
     // on a match, also sets code_hash_ (see its comment for why only then).
+    // Returns RV_OK on match, RV_ERR_INVAL on hash compute failure or mismatch.
     // A member (unlike its sibling stages) because it writes code_hash_.
-    bool checksum_matches_(std::vector<unsigned char> &buffer, const char *info_entry,
-        const rv_mppc_note_desc &version_info);
+    int checksum_verify_(std::vector<unsigned char> &buffer, const char *info_entry, const rv_mppc_note_desc &version_info);
+
+    // The dl half of bring_up() (rv_pcloader_dl.cpp): extract the code, dlopen it,
+    // look up both ABI symbols. Returns RV_OK with create/destroy set, or the rv_err;
+    // staging, dlopen and symbol failures unload() first, an unreadable entry does not.
+    int open_code_(rv_mppc_disc_create_fn &create, rv_mppc_disc_destroy_fn &destroy);
+
+    // The dl half of unload() (rv_pcloader_dl.cpp): dlclose the handle, then unlink the staging file.
+    void close_code_();
 
     // Filled by pre_dlopen_check_bytes once the checksum has been recomputed
     // and found to match the note - so a non-empty value also means "these

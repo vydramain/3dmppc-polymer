@@ -26,7 +26,7 @@ void rv_pcsignals_handler(int /*signum*/)
 
 void rv_pcsignals_install()
 {
-    struct sigaction action {};
+    struct sigaction action{};
     action.sa_handler = rv_pcsignals_handler;
     sigemptyset(&action.sa_mask);
     // SA_RESETHAND: one shot per signal. A second Ctrl+C while shutdown is

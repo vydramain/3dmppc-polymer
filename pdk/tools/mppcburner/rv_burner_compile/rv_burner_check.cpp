@@ -3,10 +3,11 @@
 #include <filesystem>
 #include <system_error>
 
+#include "pdk/rv_err.h"
+
 namespace fs = std::filesystem;
 
-int rv_pdktools::check_sources_outside_disc(
-    const rv_pdklib::rv_manifest &manifest,
+int rv_pdktools::check_sources_outside_disc(const rv_pdklib::rv_manifest &manifest,
     const fs::path &disc_dir,
     const std::vector<std::string> &sources,
     std::vector<std::string> &absolute_includes,
@@ -34,7 +35,7 @@ int rv_pdktools::check_sources_outside_disc(
         const fs::path resolved = fs::weakly_canonical(disc_dir / include, ec);
         if (ec) {
             error = "cannot resolve '" + include + "': " + ec.message();
-            return 1;
+            return RV_ERR_IO;
         }
 
         const std::string resolved_text = resolved.string();
@@ -43,11 +44,11 @@ int rv_pdktools::check_sources_outside_disc(
             error = "'" + include +
                 "' points outside the disc directory. A disc may only include its own "
                 "headers, the PDK and the SDK.";
-            return 1;
+            return RV_ERR_INVAL;
         }
 
         absolute_includes.push_back(resolved_text);
     }
 
-    return 0;
+    return RV_OK;
 }

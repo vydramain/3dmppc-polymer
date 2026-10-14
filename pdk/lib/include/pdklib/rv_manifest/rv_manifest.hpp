@@ -52,6 +52,17 @@ struct rv_manifest_budget_pccv {
     bool operator==(const rv_manifest_budget_pccv &) const = default;
 };
 
+// The geometry controller. triangle_capacity counts triangles per frame. The
+// default is half of cv's frame_capacity because the rv_cg_model_put contract
+// splits a triangle cut by the near plane into two primitives; the 2:1 ratio
+// is not checked anywhere.
+struct rv_manifest_budget_pccg {
+    int64_t model_memory_size = 512 * 1024;
+    int64_t triangle_capacity = 2048;
+
+    bool operator==(const rv_manifest_budget_pccg &) const = default;
+};
+
 struct rv_manifest_budget_pccio {
     int64_t iport_count = 2;
 
@@ -112,6 +123,7 @@ struct rv_manifest_budget_pccl {
 struct rv_manifest_budget {
     rv_manifest_budget_pcca pcca;
     rv_manifest_budget_pccv pccv;
+    rv_manifest_budget_pccg pccg;
     rv_manifest_budget_pccio pccio;
     rv_manifest_budget_pccm pccm;
     rv_manifest_budget_pccd pccd;
@@ -134,8 +146,15 @@ struct rv_manifest {
     // [assets] - globs copied into the archive verbatim
     std::vector<std::string> assets_files;
 
-    // [textures] - globs baked through mppcbaker on the way in
+    // [textures] - globs baked through mppctexbaker on the way in
     rv_manifest_textures textures_files;
+
+    // [sounds] - WAV globs baked into headerless S16LE mono 44100 "<name>.pcm"
+    // by mppcmusbaker on the way in; no format key yet, there is only one output.
+    std::vector<std::string> sounds_files;
+
+    // [models] - .glb globs baked by mppcmodbaker into "<name>.mppcmod" and its textures
+    std::vector<std::string> models_files;
 
     // [budget]
     rv_manifest_budget budget;
@@ -147,20 +166,13 @@ struct rv_manifest {
 // reports every mistake it can, one per line: a manifest is written by hand, and
 // "line 14: unknown key 'source' (did you mean 'sources'?)" is the difference
 // between a fixed typo and an afternoon.
-int rv_manifest_parse(const std::string &text,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, rv_manifest &manifest, std::string &error);
 
 // Same, with the file name to stamp on each diagnostic: `disc.toml:14: ...`.
-int rv_manifest_parse(const std::string &text,
-    const std::string &origin,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_parse(const std::string &text, const std::string &origin, rv_manifest &manifest, std::string &error);
 
 // Read `path` and parse it. Same contract, plus an I/O error message.
-int rv_manifest_load(const std::string &path,
-    rv_manifest &manifest,
-    std::string &error);
+int rv_manifest_load(const std::string &path, rv_manifest &manifest, std::string &error);
 
 // Render a manifest back to text, for the `inspect` subcommand and for writing
 // the copy that goes into the archive.
@@ -168,8 +180,8 @@ std::string rv_manifest_render(const rv_manifest &manifest);
 
 // Check the manifest describes a disc that can be burned at all: non-empty id,
 // an id that is a safe filename, a known texture format, and a [budget] that
-// is present with every field positive. Returns true when sound, otherwise
-// fills `error`.
-bool rv_manifest_validate(const rv_manifest &manifest, std::string &error);
+// is present with every field positive. Returns RV_OK when sound, otherwise
+// fills `error` and returns RV_ERR_INVAL.
+int rv_manifest_validate(const rv_manifest &manifest, std::string &error);
 
 } // namespace rv_pdklib

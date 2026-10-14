@@ -68,8 +68,8 @@ GTE was a coprocessor the programmer drove by hand. `pdklib/` is that hand.
 
 ## Why the disc-side parsers do not read files
 
-**Nothing a disc can call opens a file.** `rv_obj_parse` takes `const void*
-data, size_t size` — bytes, never a path.
+**Nothing a disc can call opens a file.** `rv_mppctex_parse` takes a
+`std::span<const std::byte>` — bytes, never a path.
 
 Reading is the drive's privilege. A disc calls `rv_cd::asset_open` /
 `asset_size` / `asset_read` into a buffer it owns, then hands those bytes to a
@@ -95,10 +95,10 @@ upload as-is.
 | `pdklib/rv_math/rv_math.hpp` | `rv_vec2/3/4`, `rv_mat4`; dot, cross, length, normalize; translate / rotate / scale; matrix and matrix-vector products |
 | `pdklib/rv_camera/rv_camera.hpp` | `rv_look_at`, `rv_perspective` (both left-handed), the `rv_camera` bundle, world → clip |
 | `pdklib/rv_math/rv_xform.hpp` | geometry → `rv_primitive`: near-plane rejection, perspective divide, screen mapping with `int16` saturation, screen-space back-face culling, the ordering-table depth key |
-| `pdklib/rv_math/rv_obj.hpp` | Wavefront `.obj` from a memory buffer (`v` / `vt` / `vn` / `f`, fan triangulation, negative indices) |
 | `pdklib/rv_color/rv_color.hpp` | HSV→RGB, lerp / scale / modulate / add, Lambert shading into vertex colours |
-| `pdklib/rv_font/rv_font.hpp` | text: builds the font atlas and palette for upload, lays a string out as one textured quad per glyph, measures it |
-| `pdklib/rv_font/rv_font_data.hpp` | the bitmap font itself — 5×7 ink in an 8×8 cell, ASCII 32..126 plus a notdef block |
+| `pdklib/rv_font/rv_font.hpp` | text: builds the font atlas and palette for upload, lays a UTF-8 string out as one textured quad per glyph, measures it |
+| `pdklib/rv_font/rv_font_data.hpp` | the bitmap font itself — 5×7 ink in an 8×8 cell, ASCII 32..126 plus a notdef block, and the mask of optional blocks |
+| `pdklib/rv_font/rv_font_cyrillic.hpp` | the Cyrillic block (U+0410..U+044F, Ё, ё), added to an atlas with `rv_font_block_cyrillic`; redrawn after PxPlus IBM VGA 9x16, CC BY-SA 4.0 (`third_party/pxplus-ibm-vga/ORIGIN.md`) |
 | `pdklib/rv_dscript/rv_dscript.hpp` | `RV_MPPC_DISC_LUA_DEF`; the whole rv_de-hook-to-Lua forwarding, a fixed title and a post-`frame_render` flush. Defines the class only: the disc plants it with pdk's `RV_MPPC_DISC_ENTRY_DEF` |
 | `pdklib/rv_cppdisc/rv_cppdisc.hpp` | `RV_MPPC_DISC_CPP_DEF`; a base class a hand-written C++ disc derives from for the startup guards, MENU-button press-edge tracking, `read_asset()`, the screen's size and the frame plumbing (`frame_begin`/`frame_end`, `texture_resident`, `draw_sprite`) every such disc repeats |
 | `pdklib/rv_manifest/rv_manifest.hpp` | manifest data model plus parse / load / render / validate entry points; the parser implementation is compiled into `3dmppc_pdklib` |
@@ -129,6 +129,5 @@ vertex colour the contract cannot yet modulate.
   plane is rejected whole, so a large polygon vanishes the instant one corner
   passes the eye. Splitting it into new interpolated vertices is future work.
 - **Inverse-transpose normals** under non-uniform scale.
-- **Ear-clipping** for concave `.obj` faces (fan triangulation assumes convex).
 - **Quaternions**, frustum culling, and any scene graph — a disc that wants those
   is describing a game engine, and this is not one.

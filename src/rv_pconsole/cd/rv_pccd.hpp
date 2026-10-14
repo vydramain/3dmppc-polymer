@@ -13,6 +13,7 @@ namespace rv_3dmppc
 
 class rv_pccv;
 class rv_pcca;
+class rv_pccg;
 
 // asset_reload result meaning nothing holds that name resident, so there
 // was nothing to refresh.
@@ -23,6 +24,15 @@ constexpr int64_t RV_PCCD_NOT_RESIDENT = 1;
 // read head would follow bytes that moved). Told apart from NOT_RESIDENT so
 // the answer can say "restart" instead of "nothing to refresh".
 constexpr int64_t RV_PCCD_UNSUPPORTED_KIND = 2;
+
+// asset_refresh result meaning this drive has no bytes-refresh path at all;
+// the base class's default body returns it.
+constexpr int64_t RV_PCCD_REFRESH_UNSUPPORTED = 3;
+
+// asset_reload / asset_refresh result meaning the name IS resident as a scene,
+// which is never refreshed in place (its objects are read once and cached). Its
+// own code so the answer can say "restart" the same way it does for a sound.
+constexpr int64_t RV_PCCD_SCENE_RESIDENT = 4;
 
 class rv_pccd
 {
@@ -58,6 +68,12 @@ public:
 
     virtual int64_t resource_height(rv_cd_resource_kind kind, const char *resname) = 0;
 
+    // Scenes: see rv_cd.h. A scene is resident from its first query, so the
+    // count and the objects come from one cached copy.
+    virtual int64_t scene_object_count(const char *scene) = 0;
+
+    virtual int64_t scene_object_read(const char *scene, int64_t index, rv_cd_scene_object *out) = 0;
+
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 
@@ -65,10 +81,23 @@ public:
     // that holds `resname` resident and naming that kind in `kind_out`.
     // Returns RV_OK when refreshed, RV_PCCD_NOT_RESIDENT when nothing holds
     // the name (nothing to refresh - the next name query reads the current
-    // bytes), RV_PCCD_UNSUPPORTED_KIND when its kind cannot be refreshed, a
-    // negative rv_err when the refresh failed and the old copy stays.
+    // bytes), RV_PCCD_UNSUPPORTED_KIND (a sound) or RV_PCCD_SCENE_RESIDENT when
+    // its kind cannot be refreshed, a negative rv_err when the refresh failed
+    // and the old copy stays.
     // Console-side only, reached by the dev channel, never by a game.
     virtual int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) = 0;
+
+    // asset_reload's twin for bytes the request carried, not the medium: same
+    // result codes plus RV_PCCD_REFRESH_UNSUPPORTED, and works on a fixed
+    // medium too. The base body refuses unconditionally.
+    virtual int64_t asset_refresh(const char *resname, const void *bytes, int64_t nbytes, rv_cd_resource_kind &kind_out)
+    {
+        (void)resname;
+        (void)bytes;
+        (void)nbytes;
+        (void)kind_out;
+        return RV_PCCD_REFRESH_UNSUPPORTED;
+    }
 
     // Where a resident texture uploads to. Borrowed - cv_ outlives cd_ for the
     // whole run - because rv_pconsole builds cd_ before cv_ exists (cl_'s
@@ -81,6 +110,11 @@ public:
     // the whole run, and rv_pconsole builds cd_ after ca_ already exists but
     // still cannot take it by constructor reference (see video_attach above).
     virtual void audio_attach(rv_pcca &ca) = 0;
+
+    // audio_attach's twin: where a resident model is uploaded to. Borrowed
+    // the same way and for the same reason - cg_ is built before cd_ and
+    // outlives it, so the drive never holds a dangling controller.
+    virtual void geometry_attach(rv_pccg &cg) = 0;
 
     virtual bool valid() const = 0;
 
