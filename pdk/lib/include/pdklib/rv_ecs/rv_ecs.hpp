@@ -1,7 +1,7 @@
 #pragma once
 
-// Entity world of the scene ECS: numbered slots with generations. Components live in
-// rv_ecs_store.hpp; entity types and systems live elsewhere.
+// Entity world of the scene ECS: numbered slots with generations, the scene loads, and the registries of entity types,
+// component factories and frame systems. Component storage is in rv_ecs_store.hpp; system bodies are in other headers.
 
 #include <cstddef>
 #include <cstdint>
@@ -27,6 +27,9 @@ inline constexpr uint32_t ecs_first_generation = 1;
 inline constexpr std::size_t ecs_slot_limit = std::numeric_limits<uint32_t>::max();
 // Last generation that is issued. A slot destroyed while at it is retired, so it never wraps to 0.
 inline constexpr uint32_t ecs_generation_max = std::numeric_limits<uint32_t>::max();
+// Load numbers start at 1; a load is refused at ecs_load_number_limit, so the counter never wraps to 0.
+inline constexpr uint32_t ecs_first_load_number = 1;
+inline constexpr uint32_t ecs_load_number_limit = std::numeric_limits<uint32_t>::max();
 
 struct ecs_id {
     uint32_t index = 0;      // slot number in ecs_world::slots
@@ -59,11 +62,25 @@ using ecs_component_factory = int (*)(ecs_world &, ecs_id, const rv_cd_scene_com
 // Frame system: returns RV_OK or RV_ERR_*. Run by ecs_world_frame in registration order.
 using ecs_system = int (*)(ecs_world &, const ecs_frame &);
 
+// One scene load: its number and its entities in file order.
+struct ecs_load {
+    uint32_t number = 0;
+    std::vector<ecs_id> made;
+};
+
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
     std::vector<ecs_slot> slots;
     std::vector<uint32_t> free_slots; // destroyed slots, reused by the next create
     uint32_t live_count = 0;
+    std::vector<ecs_load> loads; // in load order
+    uint32_t next_load_number = ecs_first_load_number;
+    // The frame's draw order, rebuilt each frame; the buffer keeps its capacity.
+    std::vector<ecs_id> draw_order;
+    // Set while ecs_world_frame runs its systems, transform and draw.
+    bool in_frame = false;
+    // Numbers unloaded after the frame, in request order.
+    std::vector<uint32_t> pending_unloads;
     std::vector<std::unique_ptr<ecs_pool_base>> pools; // indexed by component type number
     // Non-owning entity types; each type object must outlive the world. Component type numbers
     // are template statics, so one world belongs to one .so: another .so numbers types differently.
