@@ -1,35 +1,34 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
 #include <vector>
 
-#include "pdk/rv_pdko.h"
+#include "pdk/cd/rv_cd.h"
+#include "pdklib/rv_ecs/rv_ecs.hpp"
+#include "pdklib/rv_ecs/rv_ecs_frame.hpp"
 #include "example-cpp-route.hpp"
 
 namespace example_cpp
 {
 
-// A lamp of the scene (lamp_N): its world matrix, row-major as rv_cg_put, and the frames of the
-// route period in which it burns, [on_frame, off_frame). Both 0 means it never burns.
-struct rv_lamp {
-    std::string name;
-    float world[16] = {};
+// Light of a lamp_N_light object: the frames of the route period in which it burns, [on_frame, off_frame).
+// Both 0 means it never burns. rv_lamps_schedule fills it.
+struct ecs_component_lamp_light {
     int64_t on_frame = 0;
     int64_t off_frame = 0;
 };
 
-// True when name is "lamp_" followed by at least one character.
-bool rv_lamp_name(const char *name);
+// Factory of lamp_light: it has no fields, so any field is RV_ERR_INVAL.
+int ecs_lamp_light_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const rv_cd_scene_component &component);
 
-// Sets on_frame and off_frame of each lamp from the route keys (sorted by index). A lamp the route
-// does not pass in both halves of the period stays dark and gets one warning.
-// Returns RV_OK or the first error (a lamp base leaves Q20.12, or the route math fails); the lamps
-// after it keep their schedule.
-int rv_lamps_schedule(const std::vector<rv_route_key> &keys, std::vector<rv_lamp> &lamps);
+// Frame system: shows each lamp_light entity that burns at the frame's place in the period, hides the others.
+// Error: RV_ERR_NOENT when a dark lamp cannot take its hidden mark (a stale id). Not logged.
+int ecs_system_lamp_light(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame);
 
-// Puts the light model of each lamp that burns at frame (within the period). Returns RV_OK or the
-// first drive or cg error.
-int64_t rv_lamps_draw(rv_pdko *pdk, const std::vector<rv_lamp> &lamps, int64_t frame);
+// Sets on_frame and off_frame of each lamp_light entity from the world matrix of its parent (lamp_N) and the route
+// keys (sorted by index). A lamp the route does not pass in both halves of the period stays dark and gets one warning.
+// Returns RV_OK or the first error (a base leaves Q20.12, the route math fails, or a parent lacks a name or a world
+// matrix); the lamps after it keep their schedule.
+int rv_lamps_schedule(rv_pdklib::ecs_world &world, const std::vector<rv_route_key> &keys);
 
 } // namespace example_cpp
