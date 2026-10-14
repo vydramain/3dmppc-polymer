@@ -74,6 +74,12 @@ public:
 
     virtual int64_t scene_object_read(const char *scene, int64_t index, rv_cd_scene_object *out) = 0;
 
+    virtual int64_t scene_component_count(const char *scene) = 0;
+
+    virtual int64_t scene_component_read(const char *scene, int64_t index, rv_cd_scene_component *out) = 0;
+
+    virtual int64_t scene_object_entity_read(const char *scene, int64_t index, rv_cd_scene_entity *out) = 0;
+
     // Console-side only - neither is reached through the extern "C" block.
     virtual void medium_insert(std::unique_ptr<rv_pcmedium> medium) = 0;
 

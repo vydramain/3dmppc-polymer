@@ -59,10 +59,11 @@ std::string scene_model_name_(const std::string &mesh)
     return mesh;
 }
 
-// Copies `value` into `dst`, NUL included. False when it does not fit.
-bool copy_name_(const std::string &value, char *dst)
+// Copies `value` into `dst` of `capacity` bytes, NUL included. False when it does not fit,
+// or holds a NUL byte: a C reader would see the text cut short.
+bool copy_text_(const std::string &value, char *dst, size_t capacity)
 {
-    if (value.size() >= RV_CD_NAME_CAPACITY) {
+    if (value.size() >= capacity || value.find('\0') != std::string::npos) {
         return false;
     }
     std::memcpy(dst, value.data(), value.size());
@@ -87,9 +88,9 @@ int64_t build_object_(const std::string &scene, const rv_pdklib::rv_scene &loade
         { "texture", &object.texture, out.texture },
     };
     for (const auto &field : fields) {
-        if (!copy_name_(*field.value, field.dst)) {
+        if (!copy_text_(*field.value, field.dst, RV_CD_NAME_CAPACITY)) {
             RV_LOG_WARN("pccd",
-                "scene '{}' refused: object '{}' {} is longer than {} bytes",
+                "scene '{}' refused: object '{}' {} is longer than {} bytes or with a NUL",
                 rv_pdklib::rv_log_escape(scene.c_str()),
                 rv_pdklib::rv_log_escape(object.id.c_str()),
                 field.label,
@@ -116,6 +117,68 @@ int64_t build_object_(const std::string &scene, const rv_pdklib::rv_scene &loade
     std::memcpy(out.uv, object.uv, sizeof(out.uv));
     out.tint = object.tint;
     out.tess = object.tess;
+    return RV_OK;
+}
+
+// The entity type of `object` into `out`; a type that does not fit refuses the scene.
+int64_t build_entity_(const std::string &scene, const rv_pdklib::rv_scene_object &object, rv_cd_scene_entity &out)
+{
+    if (!copy_text_(object.entity, out.type, RV_CD_NAME_CAPACITY)) {
+        RV_LOG_WARN("pccd",
+            "scene '{}' refused: object '{}' entity type is longer than {} bytes or with a NUL",
+            rv_pdklib::rv_log_escape(scene.c_str()),
+            rv_pdklib::rv_log_escape(object.id.c_str()),
+            RV_CD_NAME_CAPACITY - 1);
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
+// Flattens `component` into `out`: its object, name and fields as text. Too many fields,
+// or a name, key or value that does not fit, refuses the scene.
+int64_t build_component_(const std::string &scene, const rv_pdklib::rv_scene_component &component, rv_cd_scene_component &out)
+{
+    const int64_t field_count = static_cast<int64_t>(component.fields.size());
+    if (field_count > RV_CD_COMPONENT_FIELD_CAPACITY) {
+        RV_LOG_WARN("pccd",
+            "scene '{}' refused: component '{}' has {} fields, the limit is {}",
+            rv_pdklib::rv_log_escape(scene.c_str()),
+            rv_pdklib::rv_log_escape(component.name.c_str()),
+            field_count,
+            RV_CD_COMPONENT_FIELD_CAPACITY);
+        return RV_ERR_INVAL;
+    }
+    if (!copy_text_(component.name, out.name, RV_CD_NAME_CAPACITY)) {
+        RV_LOG_WARN("pccd",
+            "scene '{}' refused: component of object {} has a name longer than {} bytes or with a NUL",
+            rv_pdklib::rv_log_escape(scene.c_str()),
+            component.object,
+            RV_CD_NAME_CAPACITY - 1);
+        return RV_ERR_INVAL;
+    }
+    out.object = component.object;
+    out.field_count = field_count;
+    for (size_t i = 0; i < component.fields.size(); ++i) {
+        const rv_pdklib::rv_manifest_tree_entry &entry = component.fields[i];
+        if (!copy_text_(entry.key, out.fields[i].key, RV_CD_NAME_CAPACITY)) {
+            RV_LOG_WARN("pccd",
+                "scene '{}' refused: component '{}' has a field key longer than {} bytes or with a NUL",
+                rv_pdklib::rv_log_escape(scene.c_str()),
+                rv_pdklib::rv_log_escape(component.name.c_str()),
+                RV_CD_NAME_CAPACITY - 1);
+            return RV_ERR_INVAL;
+        }
+        const std::string value = rv_pdklib::rv_scene_value_text(entry.value);
+        if (!copy_text_(value, out.fields[i].value, RV_CD_VALUE_CAPACITY)) {
+            RV_LOG_WARN("pccd",
+                "scene '{}' refused: component '{}' field '{}' value is longer than {} bytes or with a NUL",
+                rv_pdklib::rv_log_escape(scene.c_str()),
+                rv_pdklib::rv_log_escape(component.name.c_str()),
+                rv_pdklib::rv_log_escape(entry.key.c_str()),
+                RV_CD_VALUE_CAPACITY - 1);
+            return RV_ERR_INVAL;
+        }
+    }
     return RV_OK;
 }
 
@@ -155,6 +218,64 @@ int64_t rv_pccd_fs::scene_object_read(const char *scene, int64_t index, rv_cd_sc
         return RV_ERR_INVAL;
     }
     *out = record->objects[static_cast<size_t>(index)];
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::scene_component_count(const char *scene)
+{
+    scene_record *record = nullptr;
+    const int64_t rc = scene_resolve_(scene, record);
+    if (rc < 0) {
+        return rc;
+    }
+    return static_cast<int64_t>(record->components.size());
+}
+
+int64_t rv_pccd_fs::scene_component_read(const char *scene, int64_t index, rv_cd_scene_component *out)
+{
+    if (out == nullptr) {
+        RV_LOG_WARN("pccd", "scene_component_read with a null out");
+        return RV_ERR_INVAL;
+    }
+    scene_record *record = nullptr;
+    const int64_t rc = scene_resolve_(scene, record);
+    if (rc < 0) {
+        return rc;
+    }
+    const int64_t count = static_cast<int64_t>(record->components.size());
+    if (index < 0 || index >= count) {
+        RV_LOG_WARN("pccd",
+            "scene '{}' has {} components, index {} is out of range",
+            rv_pdklib::rv_log_escape(scene),
+            count,
+            index);
+        return RV_ERR_INVAL;
+    }
+    *out = record->components[static_cast<size_t>(index)];
+    return RV_OK;
+}
+
+int64_t rv_pccd_fs::scene_object_entity_read(const char *scene, int64_t index, rv_cd_scene_entity *out)
+{
+    if (out == nullptr) {
+        RV_LOG_WARN("pccd", "scene_object_entity_read with a null out");
+        return RV_ERR_INVAL;
+    }
+    scene_record *record = nullptr;
+    const int64_t rc = scene_resolve_(scene, record);
+    if (rc < 0) {
+        return rc;
+    }
+    const int64_t count = static_cast<int64_t>(record->entities.size());
+    if (index < 0 || index >= count) {
+        RV_LOG_WARN("pccd",
+            "scene '{}' has {} objects, index {} is out of range",
+            rv_pdklib::rv_log_escape(scene),
+            count,
+            index);
+        return RV_ERR_INVAL;
+    }
+    *out = record->entities[static_cast<size_t>(index)];
     return RV_OK;
 }
 
@@ -229,7 +350,21 @@ int64_t rv_pccd_fs::scene_load_(const char *scene, scene_record &record)
             if (rc < 0) {
                 return rc;
             }
+            rv_cd_scene_entity entity{};
+            const int64_t entity_rc = build_entity_(scene, loaded.objects[i], entity);
+            if (entity_rc < 0) {
+                return entity_rc;
+            }
             record.objects.push_back(object);
+            record.entities.push_back(entity);
+        }
+        for (const rv_pdklib::rv_scene_component &component : loaded.components) {
+            rv_cd_scene_component flat{};
+            const int64_t component_rc = build_component_(scene, component, flat);
+            if (component_rc < 0) {
+                return component_rc;
+            }
+            record.components.push_back(flat);
         }
     } catch (const std::bad_alloc &) {
         return RV_ERR_NOMEM;
