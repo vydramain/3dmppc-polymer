@@ -11,6 +11,7 @@
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_cppdisc/rv_cppdisc.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-board.hpp"
 #include "example-cpp-draw.hpp"
 #include "example-cpp-lamps.hpp"
@@ -36,6 +37,23 @@ struct rv_example_cpp_mesh {
     rv_cg_put put;
 };
 
+// A position or direction from the float world matrix to Q20.12: the float contract ends here.
+int fx_vec3_from_floats(float x, float y, float z, rv_pdklib::fx_vec3 &out)
+{
+    rv_pdklib::fx_vec3 v = {};
+    if (rv_pdklib::fx_from_double(x, v.x) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (rv_pdklib::fx_from_double(y, v.y) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (rv_pdklib::fx_from_double(z, v.z) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = v;
+    return RV_OK;
+}
+
 } // namespace
 
 // rv_dmain_base_ carries everything pdklib/rv_cppdisc/rv_cppdisc.hpp
@@ -59,6 +77,7 @@ public:
             meshes_.clear();
             keys_.clear();
             lamps_.clear();
+            board_found_ = false;
             RV_LOG_ERR("scene", "{} not used: rv_err {}", RV_EXAMPLE_CPP_SCENE_NAME, read_code);
             return RV_OK;
         }
@@ -98,7 +117,7 @@ public:
 private:
     int read_scene();
     void add_mesh(const rv_cd_scene_object &object);
-    void add_route_key(const rv_cd_scene_object &object);
+    int add_route_key(const rv_cd_scene_object &object);
     void draw_world();
     void log_draw_error(const char *step, int64_t code);
     void init_sound();
@@ -144,7 +163,10 @@ int rv_dmain::read_scene()
         if (object.kind == RV_CD_SCENE_MESH) {
             add_mesh(object);
         } else if (object.kind == RV_CD_SCENE_CAMERA) {
-            add_route_key(object);
+            const int key_code = add_route_key(object);
+            if (key_code != RV_OK) {
+                return key_code;
+            }
         }
         if (object.kind == RV_CD_SCENE_MESH && rv_lamp_name(object.name)) {
             rv_lamp lamp = {};
@@ -181,17 +203,30 @@ void rv_dmain::add_mesh(const rv_cd_scene_object &object)
 
 // The camera object's eye is world * (0,0,0) and its view direction world * (0,0,1)
 // minus the eye: the translation column and the z column of the affine world.
-void rv_dmain::add_route_key(const rv_cd_scene_object &object)
+int rv_dmain::add_route_key(const rv_cd_scene_object &object)
 {
     int32_t index = 0;
     if (!rv_route_key_name(object.name, index)) {
-        return; // a camera outside the route is not part of the loop
+        return RV_OK; // a camera outside the route is not part of the loop
     }
     rv_route_key key = {};
     key.index = index;
-    key.eye = { object.world[3], object.world[7], object.world[11] };
-    key.dir = rv_route_unit({ object.world[2], object.world[6], object.world[10] });
+    rv_pdklib::fx_vec3 dir = {};
+    if (fx_vec3_from_floats(object.world[3], object.world[7], object.world[11], key.eye) != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", object.name);
+        return RV_ERR_INVAL;
+    }
+    if (fx_vec3_from_floats(object.world[2], object.world[6], object.world[10], dir) != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", object.name);
+        return RV_ERR_INVAL;
+    }
+    const int unit_code = rv_route_unit(dir, key.dir);
+    if (unit_code != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", object.name);
+        return unit_code;
+    }
     keys_.push_back(key);
+    return RV_OK;
 }
 
 void rv_dmain::draw_world()
@@ -200,7 +235,12 @@ void rv_dmain::draw_world()
     if (keys_.empty()) {
         return;
     }
-    const rv_cg_camera camera = rv_route_camera_at(keys_, frame_count_);
+    rv_cg_camera camera = {};
+    const int route_code = rv_route_camera_at(keys_, frame_count_, camera);
+    if (route_code != RV_OK) {
+        log_draw_error("camera", route_code);
+        return;
+    }
     const int64_t camera_code = rv_cg_frame_camera(rv_pdko_cg(pdk_), &camera);
     if (camera_code < 0) {
         log_draw_error("camera", camera_code);
