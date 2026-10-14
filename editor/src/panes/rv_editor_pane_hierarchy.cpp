@@ -1,11 +1,14 @@
 // Hierarchy: the scene's objects as a tree. Selection is by id and shared with the
 // viewport and Inspector; dragging one onto another moves it there keeping where
-// it is in the scene, or says why it cannot.
+// it is in the scene, or says why it cannot. Dragging is only in the file's order.
 
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <map>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "imgui.h"
@@ -25,6 +28,16 @@ constexpr const char *rv_editor_scene_payload = "RV_SCENE_OBJECT";
 
 // Kinds the Add menu offers, in menu order
 constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
+
+// The component that dims a row and shows the eye mark; it is not named beside the row.
+constexpr std::string_view component_hidden = "hidden";
+
+// The frame's tree, by id: a context-menu Delete shifts the objects mid-frame, so indices would go stale.
+// Ids whose object is gone are skipped when drawn.
+struct rv_editor_hierarchy_tree {
+    std::vector<std::string> roots;
+    std::map<std::string, std::vector<std::string>> children;
+};
 
 const char *rv_editor_scene_kind_label(const std::string &kind)
 {
@@ -59,6 +72,95 @@ void rv_editor_hierarchy_note(rv_editor_app &app, const rv_editor_theme &theme)
     if (dismiss_clicked) {
         (void)rv_editor_app_request(app, { .kind = rv_editor_pane_request_kind::dismiss_scene_note });
     }
+}
+
+// Lower case copy. Only ASCII letters change, so the comparison ignores case for ASCII only.
+std::string rv_editor_hierarchy_lower(const std::string &text)
+{
+    std::string out = text;
+    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return out;
+}
+
+// Order of two objects under a sort other than the file's.
+bool rv_editor_hierarchy_less(const rv_editor_scene_object &a, const rv_editor_scene_object &b, rv_editor_hierarchy_sort sort)
+{
+    if (sort == rv_editor_hierarchy_sort::name) {
+        return rv_editor_hierarchy_lower(a.name) < rv_editor_hierarchy_lower(b.name);
+    }
+    return a.entity != b.entity ? a.entity < b.entity : a.kind < b.kind;
+}
+
+// The indices in the order the pane shows them: the file's order, or stably sorted.
+std::vector<size_t> rv_editor_hierarchy_order(const rv_editor_scene_doc &doc, std::vector<size_t> indices)
+{
+    if (doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order) {
+        return indices;
+    }
+    std::stable_sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
+        return rv_editor_hierarchy_less(doc.scene.objects[a], doc.scene.objects[b], doc.hierarchy_sort);
+    });
+    return indices;
+}
+
+// Built once per frame. Sorting all objects first keeps each sibling group in the chosen order.
+// An object whose parent is missing is a root, so the tree does not hide it.
+rv_editor_hierarchy_tree rv_editor_hierarchy_build(const rv_editor_scene_doc &doc)
+{
+    std::vector<size_t> all;
+    for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
+        all.push_back(i);
+    }
+    std::unordered_set<std::string> ids;
+    for (const rv_editor_scene_object &o : doc.scene.objects) {
+        ids.insert(o.id);
+    }
+    rv_editor_hierarchy_tree tree;
+    for (const size_t i : rv_editor_hierarchy_order(doc, all)) {
+        const rv_editor_scene_object &o = doc.scene.objects[i];
+        if (o.parent.empty() || ids.count(o.parent) == 0) {
+            tree.roots.push_back(o.id);
+        } else {
+            tree.children[o.parent].push_back(o.id);
+        }
+    }
+    return tree;
+}
+
+// The row's name: the name, kind and entity type, behind the eye mark when hidden.
+std::string rv_editor_hierarchy_name(const rv_editor_scene_object &o)
+{
+    const char *node_name = o.name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : o.name.c_str();
+    const char *kind_label_str = rv_editor_scene_kind_label(o.kind);
+    std::string name = o.entity.empty() ?
+        rv_editor_text_format("pane_hierarchy.node_label", std::make_format_args(node_name, kind_label_str)) :
+        rv_editor_text_format("pane_hierarchy.node_label_entity", std::make_format_args(node_name, kind_label_str, o.entity));
+    if (!rv_editor_scene_has_component(o, component_hidden)) {
+        return name;
+    }
+    const char *mark = rv_editor_text("pane_hierarchy.hidden_mark");
+    return rv_editor_text_format("pane_hierarchy.joined", std::make_format_args(mark, name));
+}
+
+// The components by name, dim, on the same line as the row's name.
+void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_theme &theme)
+{
+    std::string marks;
+    for (const rv_editor_scene_component &c : o.components) {
+        if (c.name == component_hidden) {
+            continue;
+        }
+        marks += marks.empty() ? c.name : std::string(rv_editor_text("pane_hierarchy.components_sep")) + c.name;
+    }
+    if (marks.empty()) {
+        return;
+    }
+    ImGui::SameLine();
+    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    ImGui::TextUnformatted(marks.c_str());
+    ImGui::PopStyleColor();
 }
 
 // Context menu for a scene object: add children, duplicate, delete, reparent
@@ -98,16 +200,22 @@ void rv_editor_hierarchy_node_context_menu(rv_editor_app &app,
     ImGui::EndPopup();
 }
 
-void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
+// One tree row by id, then its children when open. An id whose object is gone is skipped.
+void rv_editor_hierarchy_node(rv_editor_app &app,
+    const std::string &id,
+    bool read_only,
+    const rv_editor_theme &theme,
+    const rv_editor_hierarchy_tree &tree)
 {
     rv_editor_scene_doc &doc = *app.scene;
-    const rv_editor_scene_object o = doc.scene.objects[index];
-    std::vector<size_t> children;
-    for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-        if (doc.scene.objects[i].parent == o.id) {
-            children.push_back(i);
-        }
+    const int index = rv_editor_scene_find(doc.scene, id);
+    if (index < 0) {
+        return;
     }
+    const rv_editor_scene_object o = doc.scene.objects[static_cast<size_t>(index)];
+    const auto found = tree.children.find(o.id);
+    const std::vector<std::string> no_children;
+    const std::vector<std::string> &children = found == tree.children.end() ? no_children : found->second;
     ImGuiTreeNodeFlags flags =
         ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
     if (children.empty()) {
@@ -116,33 +224,119 @@ void rv_editor_hierarchy_node(rv_editor_app &app, size_t index, bool read_only)
     if (doc.selected == o.id) {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
-    const char *node_name = o.name.empty() ? rv_editor_text("pane_hierarchy.unnamed") : o.name.c_str();
-    const char *kind_label_str = rv_editor_scene_kind_label(o.kind);
-    const auto fmt_args = std::make_format_args(node_name, kind_label_str);
-    const std::string label = rv_editor_text_format("pane_hierarchy.node_label", fmt_args);
+    const std::string label = rv_editor_hierarchy_name(o);
+    const bool hidden = rv_editor_scene_has_component(o, component_hidden);
+    if (hidden) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    }
     const bool open = ImGui::TreeNodeEx(o.id.c_str(), flags, "%s", label.c_str());
+    if (hidden) {
+        ImGui::PopStyleColor();
+    }
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
         doc.selected = o.id;
     }
-    if (!read_only && ImGui::BeginDragDropSource()) {
+    // Only the file's order can be dragged: a sorted list has no place to drop into.
+    const bool drag = !read_only && doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order;
+    if (drag && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(rv_editor_scene_payload, o.id.c_str(), o.id.size() + 1);
         ImGui::Text("%s", rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label)).c_str());
         ImGui::EndDragDropSource();
     }
-    if (!read_only && ImGui::BeginDragDropTarget()) {
+    if (drag && ImGui::BeginDragDropTarget()) {
         if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(rv_editor_scene_payload)) {
             rv_editor_hierarchy_move(app, static_cast<const char *>(p->Data), o.id, true);
         }
         ImGui::EndDragDropTarget();
     }
     rv_editor_hierarchy_node_context_menu(app, doc, o, read_only);
+    // After the node's own interaction: SameLine reuses the node's line.
+    rv_editor_hierarchy_marks(o, theme);
     if (open) {
-        for (const size_t child : children) {
-            if (child < app.scene->scene.objects.size()) {
-                rv_editor_hierarchy_node(app, child, read_only);
-            }
+        for (const std::string &child : children) {
+            rv_editor_hierarchy_node(app, child, read_only, theme, tree);
         }
         ImGui::TreePop();
+    }
+}
+
+// One search match: a flat row, selected by click, dimmed when hidden. An id whose object is gone is skipped.
+void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &id, const rv_editor_theme &theme)
+{
+    const int index = rv_editor_scene_find(doc.scene, id);
+    if (index < 0) {
+        return;
+    }
+    const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
+    const bool hidden = rv_editor_scene_has_component(o, component_hidden);
+    if (hidden) {
+        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
+    }
+    const std::string label = rv_editor_hierarchy_name(o);
+    ImGui::PushID(o.id.c_str());
+    if (ImGui::Selectable(label.c_str(), doc.selected == o.id)) {
+        doc.selected = o.id;
+    }
+    ImGui::PopID();
+    if (hidden) {
+        ImGui::PopStyleColor();
+    }
+    rv_editor_hierarchy_marks(o, theme);
+}
+
+// The tree's roots, in the chosen order, each with its children below it.
+void rv_editor_hierarchy_roots(rv_editor_app &app,
+    const rv_editor_hierarchy_tree &tree,
+    bool read_only,
+    const rv_editor_theme &theme)
+{
+    for (const std::string &id : tree.roots) {
+        rv_editor_hierarchy_node(app, id, read_only, theme, tree);
+        if (app.scene == nullptr) {
+            return;
+        }
+    }
+}
+
+// The objects whose name holds the query (ASCII case ignored), as one flat list.
+void rv_editor_hierarchy_matches(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    rv_editor_scene_doc &doc = *app.scene;
+    const std::string query = rv_editor_hierarchy_lower(doc.hierarchy_query);
+    std::vector<size_t> matches;
+    for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
+        if (rv_editor_hierarchy_lower(doc.scene.objects[i].name).find(query) != std::string::npos) {
+            matches.push_back(i);
+        }
+    }
+    if (matches.empty()) {
+        ImGui::TextDisabled("%s", rv_editor_text("pane_hierarchy.search_none"));
+    }
+    for (const size_t index : rv_editor_hierarchy_order(doc, matches)) {
+        rv_editor_hierarchy_match_row(doc, doc.scene.objects[index].id, theme);
+    }
+}
+
+// The search field and the sort choice, above the tree.
+void rv_editor_hierarchy_filter(rv_editor_scene_doc &doc, const rv_editor_theme &theme)
+{
+    rv_editor_text_field("##hierarchy_query", doc.hierarchy_query, sizeof(doc.hierarchy_query), theme);
+    // The field has no hint of its own: the hint is drawn over the empty box, unless it is being typed in.
+    if (doc.hierarchy_query[0] == '\0' && !ImGui::IsItemActive()) {
+        const ImVec2 pos = ImGui::GetItemRectMin();
+        const ImVec2 pad = ImGui::GetStyle().FramePadding;
+        ImGui::GetWindowDrawList()->AddText(ImVec2(pos.x + pad.x, pos.y + pad.y),
+            rv_editor_col(theme.text_disabled),
+            rv_editor_text("pane_hierarchy.search_hint"));
+    }
+    const char *const sort_items[] = {
+        rv_editor_text("pane_hierarchy.sort_file_order"),
+        rv_editor_text("pane_hierarchy.sort_name"),
+        rv_editor_text("pane_hierarchy.sort_kind"),
+    };
+    int sort_index = static_cast<int>(doc.hierarchy_sort);
+    if (rv_editor_dropdown("##hierarchy_sort", &sort_index, sort_items, std::ssize(sort_items), theme)) {
+        doc.hierarchy_sort = static_cast<rv_editor_hierarchy_sort>(sort_index);
     }
 }
 
@@ -202,23 +396,24 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
     ImGui::EndDisabled();
     rv_editor_shelf_end();
 
+    rv_editor_hierarchy_filter(doc, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
+    const rv_editor_hierarchy_tree tree = rv_editor_hierarchy_build(doc);
     const auto body = [&]() {
         rv_editor_hierarchy_note(app, theme);
-        for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-            // Roots, and objects whose parent is missing, which the tree would otherwise hide.
-            const std::string &parent = doc.scene.objects[i].parent;
-            if (parent.empty() || rv_editor_scene_find(doc.scene, parent) < 0) {
-                rv_editor_hierarchy_node(app, i, read_only);
-            }
-            if (app.scene == nullptr) {
-                return;
-            }
+        if (doc.hierarchy_query[0] != '\0') {
+            rv_editor_hierarchy_matches(app, theme);
+        } else {
+            rv_editor_hierarchy_roots(app, tree, read_only, theme);
+        }
+        if (app.scene == nullptr) {
+            return;
         }
         // The rest of the pane is the root: dropped here, an object leaves its parent.
         const ImVec2 rest = ImGui::GetContentRegionAvail();
         ImGui::Dummy(ImVec2(rest.x, std::max(rest.y, ImGui::GetFrameHeight())));
-        if (!read_only && ImGui::BeginDragDropTarget()) {
+        const bool drag = !read_only && doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order;
+        if (drag && ImGui::BeginDragDropTarget()) {
             if (const ImGuiPayload *p = ImGui::AcceptDragDropPayload(rv_editor_scene_payload)) {
                 rv_editor_hierarchy_move(app, static_cast<const char *>(p->Data), "", true);
             }
