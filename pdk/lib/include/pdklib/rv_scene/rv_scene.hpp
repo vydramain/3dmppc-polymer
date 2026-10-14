@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "pdk/cv/rv_vertex.h"
+#include "pdklib/rv_manifest/detail/rv_manifest_tree.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
 
 namespace rv_pdklib
@@ -35,19 +36,24 @@ struct rv_scene_object {
     float uv[4]{ 0.0f, 0.0f, 0.0f, 0.0f }; // quad/billboard texture rect, pixels: u0,v0,u1,v1
     rv_color tint{ 255, 255, 255 };        // quad/billboard modulation
     float tess = 2.0f;                     // quad/billboard subdivision density
+    std::vector<rv_manifest_tree_entry> extra; // keys the loader does not know, in file order
 };
 
 struct rv_scene {
     uint32_t version_major = 0;
     uint32_t version_minor = 0;
     std::vector<rv_scene_object> objects;
+    std::string preamble;                                 // the comment lines before the first section, as written
+    std::vector<rv_manifest_tree_entry> scene_extra;      // [scene] keys not read as version or format
+    std::vector<rv_manifest_tree_section> other_sections; // sections other than [scene] and [[object]]
 };
 
 // 0 with the scene, or 1 with every problem in `error`, each stamped with
 // `origin`: syntax, a missing/malformed/non-compatible version, a missing or
 // repeated id, an unknown parent, a parent cycle, an unknown kind, a vector
-// that is not three numbers, a malformed `uv`/`tint`/`tess`. Keys the loader
-// does not know are skipped.
+// that is not three numbers, a malformed `uv`/`tint`/`tess`. Unknown keys are kept
+// in `extra`/`scene_extra` and unknown sections in `other_sections`, each list in file
+// order. A `format` integer is not kept: a write-back writes `version` only, as the editor does.
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
 
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.

@@ -89,6 +89,20 @@ std::string rv_scene_at(const std::string &origin, int line)
     return origin + ":" + std::to_string(line) + ": ";
 }
 
+// The lines above the first section's header, as the file has them; the whole text with no section.
+std::string rv_scene_preamble(const std::string &text, const rv_manifest_tree &tree)
+{
+    if (tree.sections.empty()) {
+        return text;
+    }
+    size_t at = 0;
+    for (int line = 1; line < tree.sections.front().line && at < text.size(); ++line) {
+        const size_t nl = text.find('\n', at);
+        at = nl == std::string::npos ? text.size() : nl + 1;
+    }
+    return text.substr(0, at);
+}
+
 int rv_scene_vector(const rv_manifest_tree_entry &e, rv_vec3 &out)
 {
     if (e.value.kind != rv_manifest_value_kind::numbers || e.value.nums.size() != rv_scene_vector_components) {
@@ -152,6 +166,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
         return 1;
     }
     rv_scene out;
+    out.preamble = rv_scene_preamble(text, tree);
     std::string problems;
     std::vector<std::pair<std::string, int>> parents; // each object's parent id and line
     std::map<std::string, int32_t> index;
@@ -166,11 +181,14 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
                     has_version = true;
                 } else if (e.key == "format" && e.value.kind == rv_manifest_value_kind::integer) {
                     has_legacy_format = true;
+                } else {
+                    out.scene_extra.push_back(e);
                 }
             }
             continue;
         }
         if (section.name != "object" || !section.array) {
+            out.other_sections.push_back(section);
             continue;
         }
         rv_scene_object o;
@@ -192,14 +210,24 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
                 *field = e.value.str;
             } else if (field != nullptr) {
                 problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be a string\n";
-            } else if (vec != nullptr && rv_scene_vector(e, *vec) != RV_OK) {
-                problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be three numbers\n";
-            } else if (e.key == "uv" && rv_scene_uv(e, o.uv) != RV_OK) {
-                problems += rv_scene_at(origin, e.line) + "'uv' must be four numbers\n";
-            } else if (e.key == "tint" && rv_scene_tint(e, o.tint) != RV_OK) {
-                problems += rv_scene_at(origin, e.line) + "'tint' must be three integers from 0 to 255\n";
-            } else if (e.key == "tess" && rv_scene_tess(e, o.tess) != RV_OK) {
-                problems += rv_scene_at(origin, e.line) + "'tess' must be a number greater than zero\n";
+            } else if (vec != nullptr) {
+                if (rv_scene_vector(e, *vec) != RV_OK) {
+                    problems += rv_scene_at(origin, e.line) + "'" + e.key + "' must be three numbers\n";
+                }
+            } else if (e.key == "uv") {
+                if (rv_scene_uv(e, o.uv) != RV_OK) {
+                    problems += rv_scene_at(origin, e.line) + "'uv' must be four numbers\n";
+                }
+            } else if (e.key == "tint") {
+                if (rv_scene_tint(e, o.tint) != RV_OK) {
+                    problems += rv_scene_at(origin, e.line) + "'tint' must be three integers from 0 to 255\n";
+                }
+            } else if (e.key == "tess") {
+                if (rv_scene_tess(e, o.tess) != RV_OK) {
+                    problems += rv_scene_at(origin, e.line) + "'tess' must be a number greater than zero\n";
+                }
+            } else {
+                o.extra.push_back(e);
             }
         }
         if (o.id.empty()) {
