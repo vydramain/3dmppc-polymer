@@ -16,6 +16,7 @@
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_ecs/rv_ecs.hpp"
 #include "pdklib/rv_ecs/rv_ecs_component.hpp"
+#include "pdklib/rv_ecs/rv_ecs_loads.hpp"
 #include "pdklib/rv_ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_ecs/rv_ecs_transform.hpp"
 
@@ -114,12 +115,35 @@ inline int ecs_system_draw(ecs_world &world, const ecs_frame &frame, const std::
     return first_error;
 }
 
-// One frame: the disc's systems in registration order, then the transform, then the draw in order.
-// The camera is cleared first, so a frame whose systems set none draws nothing. A system or the transform stops
-// the frame at its first error; the draw returns the first failed put's code.
-inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame, const std::vector<ecs_id> &order)
+// Rebuilds world.draw_order: the loads' entities in table order, each load in file order.
+inline void ecs_draw_order_build(ecs_world &world)
 {
-    world.camera_set = false;
+    world.draw_order.clear();
+    for (const ecs_load &load : world.loads) {
+        world.draw_order.insert(world.draw_order.end(), load.made.begin(), load.made.end());
+    }
+}
+
+// Sets in_frame for its scope, so an exception out of the frame still clears it.
+struct ecs_frame_scope {
+    ecs_world &world;
+
+    explicit ecs_frame_scope(ecs_world &w)
+        : world(w)
+    {
+        world.in_frame = true;
+    }
+
+    ~ecs_frame_scope()
+    {
+        world.in_frame = false;
+    }
+};
+
+// The disc's systems in registration order, the transform, then the draw of the loads' entities.
+// A system or the transform stops the frame at its first error; the draw returns the first failed put's code.
+inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
+{
     for (const auto &entry : world.systems) {
         const int code = entry.second(world, frame);
         if (code != RV_OK) {
@@ -130,7 +154,25 @@ inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame, const std::
     if (transformed != RV_OK) {
         return transformed;
     }
-    return ecs_system_draw(world, frame, order);
+    ecs_draw_order_build(world);
+    return ecs_system_draw(world, frame, world.draw_order);
+}
+
+// One frame. The camera is cleared first, so a frame whose systems set none draws nothing. Draws only the entities
+// of loads: entities a system creates outside a load are not drawn. Unloads asked for during the frame run after it,
+// even when the frame failed; a failed frame's code is returned before theirs. If a system throws, the unloads asked
+// for in that frame stay queued and run at the end of the next frame.
+inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame)
+{
+    world.camera_set = false;
+    int ran = RV_OK;
+    {
+        const ecs_frame_scope scope{ world };
+        ran = ecs_frame_run(world, frame);
+    }
+    const int unloaded = ecs_unload_pending(world);
+    const bool failed = ran != RV_OK;
+    return failed ? ran : unloaded;
 }
 
 } // namespace rv_pdklib
