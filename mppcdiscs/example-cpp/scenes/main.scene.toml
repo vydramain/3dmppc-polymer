@@ -15,7 +15,7 @@ kind = "mesh"
 position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "factory.glb"
+mesh = "factory.gltf"
 texture = ""
 
 [[object]]
@@ -26,7 +26,7 @@ kind = "mesh"
 position = [-13.94, 4.3, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "board.glb"
+mesh = "board.gltf"
 texture = ""
 
 [[object]]
@@ -37,7 +37,7 @@ kind = "mesh"
 position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "street.glb"
+mesh = "street.gltf"
 texture = ""
 
 [[object]]
@@ -48,7 +48,7 @@ kind = "mesh"
 position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "house.glb"
+mesh = "house.gltf"
 texture = ""
 
 [[object]]
@@ -59,7 +59,7 @@ kind = "mesh"
 position = [0, 0.2375, -1.59375]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "apartment.glb"
+mesh = "apartment.gltf"
 texture = ""
 
 [[object]]
@@ -70,7 +70,7 @@ kind = "mesh"
 position = [4, 0, 3.6]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "lamp.glb"
+mesh = "lamp.gltf"
 texture = ""
 
 [[object]]
@@ -81,7 +81,7 @@ kind = "mesh"
 position = [12, 0, -3.6]
 rotation = [0, 180, 0]
 scale = [1, 1, 1]
-mesh = "lamp.glb"
+mesh = "lamp.gltf"
 texture = ""
 
 [[object]]
@@ -92,7 +92,7 @@ kind = "mesh"
 position = [20, 0, 3.6]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "lamp.glb"
+mesh = "lamp.gltf"
 texture = ""
 
 [[object]]
@@ -103,7 +103,7 @@ kind = "mesh"
 position = [28, 0, -3.6]
 rotation = [0, 180, 0]
 scale = [1, 1, 1]
-mesh = "lamp.glb"
+mesh = "lamp.gltf"
 texture = ""
 
 [[object]]
@@ -114,7 +114,7 @@ kind = "mesh"
 position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "machines.glb"
+mesh = "machines.gltf"
 texture = ""
 
 [[object]]
@@ -125,7 +125,7 @@ kind = "mesh"
 position = [0, 0.2375, -1.59375]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "furniture.glb"
+mesh = "furniture.gltf"
 texture = ""
 
 [[object]]
@@ -136,7 +136,7 @@ kind = "mesh"
 position = [0, 0, 0]
 rotation = [0, 0, 0]
 scale = [1, 1, 1]
-mesh = "yard.glb"
+mesh = "yard.gltf"
 texture = ""
 
 [[object]]
