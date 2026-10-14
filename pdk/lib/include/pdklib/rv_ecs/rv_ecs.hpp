@@ -11,6 +11,8 @@
 #include <utility>
 #include <vector>
 
+// Full header, not a forward declaration: ecs_world holds rv_cg_camera by value.
+#include "pdk/cg/rv_cg.h"
 #include "pdk/rv_err.h"
 
 // Defined in pdk/cd/rv_cd.h; only a reference is taken here.
@@ -47,10 +49,15 @@ struct ecs_pool_base {
 
 struct ecs_entity;
 struct ecs_world;
+// Defined in rv_ecs_frame.hpp.
+struct ecs_frame;
 
 // Fills the components of entity id from the fields of a scene component. Returns RV_OK or RV_ERR_*.
 // May throw std::bad_alloc before any state changes, as the pool growth does.
 using ecs_component_factory = int (*)(ecs_world &, ecs_id, const rv_cd_scene_component &);
+
+// Frame system: returns RV_OK or RV_ERR_*. Run by ecs_world_frame in registration order.
+using ecs_system = int (*)(ecs_world &, const ecs_frame &);
 
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
@@ -63,6 +70,11 @@ struct ecs_world {
     std::vector<const ecs_entity *> types;
     // Component factories by name; the name views must outlive the world (string literals).
     std::vector<std::pair<std::string_view, ecs_component_factory>> factories;
+    // Frame systems by name; the name views must outlive the world (string literals).
+    std::vector<std::pair<std::string_view, ecs_system>> systems;
+    // Camera of the frame, set through ecs_world_camera; ecs_system_draw needs camera_set.
+    rv_cg_camera camera{};
+    bool camera_set = false;
 };
 
 // Index for the next entity: the newest free slot, else a new slot appended.
