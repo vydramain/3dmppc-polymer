@@ -151,6 +151,29 @@ int spline(const fx_vec3 (&p)[RV_ROUTE_SEGMENT_KEYS], fx t, fx_vec3 &out)
     return RV_OK;
 }
 
+// Spline of the field (eye or dir) of the frame's segment at the frame's share t. Error: out is untouched.
+int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 rv_route_key::*field, fx_vec3 &out)
+{
+    if (keys.empty()) {
+        return RV_ERR_NOENT;
+    }
+    const int64_t count = static_cast<int64_t>(keys.size());
+    int64_t seg = 0;
+    int64_t rem = 0;
+    split_frame(count, frame, seg, rem);
+    fx t = 0;
+    if (rv_pdklib::fx_div(static_cast<fx>(rem), static_cast<fx>(RV_ROUTE_PERIOD_FRAMES), t) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+
+    // The route is closed: the keys wrap around, so the last segment ends on key 0.
+    fx_vec3 pts[RV_ROUTE_SEGMENT_KEYS] = {};
+    for (int64_t i = 0; i < RV_ROUTE_SEGMENT_KEYS; ++i) {
+        pts[i] = keys[(seg + count - 1 + i) % count].*field;
+    }
+    return spline(pts, t, out);
+}
+
 rv_cg_vec3 to_float(fx_vec3 v)
 {
     return { rv_pdklib::fx_to_float(v.x), rv_pdklib::fx_to_float(v.y), rv_pdklib::fx_to_float(v.z) };
@@ -236,35 +259,22 @@ int rv_route_unit(fx_vec3 v, fx_vec3 &out)
     return RV_OK;
 }
 
+int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 &out)
+{
+    return route_spline(keys, frame, &rv_route_key::eye, out);
+}
+
 int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_cg_camera &out)
 {
-    if (keys.empty()) {
-        return RV_ERR_NOENT;
-    }
-    const int64_t count = static_cast<int64_t>(keys.size());
-    int64_t seg = 0;
-    int64_t rem = 0;
-    split_frame(count, frame, seg, rem);
-    fx t = 0;
-    if (rv_pdklib::fx_div(static_cast<fx>(rem), static_cast<fx>(RV_ROUTE_PERIOD_FRAMES), t) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-
-    // The route is closed: the keys wrap around, so the last segment ends on key 0.
-    fx_vec3 eyes[RV_ROUTE_SEGMENT_KEYS] = {};
-    fx_vec3 dirs[RV_ROUTE_SEGMENT_KEYS] = {};
-    for (int64_t i = 0; i < RV_ROUTE_SEGMENT_KEYS; ++i) {
-        const rv_route_key &key = keys[(seg + count - 1 + i) % count];
-        eyes[i] = key.eye;
-        dirs[i] = key.dir;
-    }
     fx_vec3 eye = {};
-    if (spline(eyes, t, eye) != RV_OK) {
-        return RV_ERR_INVAL;
+    const int eye_rv = rv_route_eye_at(keys, frame, eye);
+    if (eye_rv != RV_OK) {
+        return eye_rv;
     }
     fx_vec3 dir_curve = {};
-    if (spline(dirs, t, dir_curve) != RV_OK) {
-        return RV_ERR_INVAL;
+    const int dir_rv = route_spline(keys, frame, &rv_route_key::dir, dir_curve);
+    if (dir_rv != RV_OK) {
+        return dir_rv;
     }
     fx_vec3 dir = {};
     if (rv_route_unit(dir_curve, dir) != RV_OK) {

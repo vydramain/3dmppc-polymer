@@ -27,6 +27,10 @@ bool rv_route_key_name(const char *name, int32_t &index);
 // Error: the result leaves Q20.12; out is untouched.
 int rv_route_unit(rv_pdklib::fx_vec3 v, rv_pdklib::fx_vec3 &out);
 
+// Eye of frame `frame` in Q20.12, on the same spline of eyes as rv_route_camera_at.
+// Error: keys empty (RV_ERR_NOENT), or the Q20.12 math leaves its range (RV_ERR_INVAL); out is untouched.
+int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_pdklib::fx_vec3 &out);
+
 // Camera of frame `frame` (any value, negative too; taken modulo the period). keys must be sorted by index.
 // Error: keys empty (RV_ERR_NOENT), or the Q20.12 math leaves its range; out is untouched.
 int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_cg_camera &out);
