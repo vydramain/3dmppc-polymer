@@ -15,8 +15,10 @@
 
 namespace
 {
-// An authored mesh "x.glb" is served from the disc as "x.mppcmod".
-constexpr std::string_view RV_PCCD_FS_SCENE_MESH_EXT = ".glb";
+// An authored mesh "x.glb" or "x.gltf" is served from the disc as "x.mppcmod".
+constexpr std::string_view RV_PCCD_FS_SCENE_MESH_EXT_GLB = ".glb";
+constexpr std::string_view RV_PCCD_FS_SCENE_MESH_EXT_GLTF = ".gltf";
+constexpr std::string_view RV_PCCD_FS_SCENE_MESH_EXTS[] = { RV_PCCD_FS_SCENE_MESH_EXT_GLB, RV_PCCD_FS_SCENE_MESH_EXT_GLTF };
 constexpr std::string_view RV_PCCD_FS_SCENE_MODEL_EXT = ".mppcmod";
 
 // The kind words pdklib reads, and the rv_cd_scene_kind each one is.
@@ -45,16 +47,16 @@ bool scene_kind_of_(std::string_view word, rv_cd_scene_kind &kind_out)
     return false;
 }
 
-// The disc name of a scene mesh. An empty mesh stays empty; a name that does
-// not end in .glb is already a disc name and passes unchanged.
+// The disc name of a scene mesh. An empty mesh stays empty; a name that ends in
+// neither .glb nor .gltf is already a disc name and passes unchanged.
 std::string scene_model_name_(const std::string &mesh)
 {
-    const std::string_view ext = RV_PCCD_FS_SCENE_MESH_EXT;
-    const bool is_glb = mesh.size() >= ext.size() && std::string_view(mesh).substr(mesh.size() - ext.size()) == ext;
-    if (!is_glb) {
-        return mesh;
+    for (const std::string_view ext : RV_PCCD_FS_SCENE_MESH_EXTS) {
+        if (std::string_view(mesh).ends_with(ext)) {
+            return mesh.substr(0, mesh.size() - ext.size()) + std::string(RV_PCCD_FS_SCENE_MODEL_EXT);
+        }
     }
-    return mesh.substr(0, mesh.size() - ext.size()) + std::string(RV_PCCD_FS_SCENE_MODEL_EXT);
+    return mesh;
 }
 
 // Copies `value` into `dst`, NUL included. False when it does not fit.

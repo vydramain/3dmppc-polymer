@@ -145,8 +145,8 @@ rv_editor_object_triangles(const rv_editor_scene &scene, const rv_editor_project
     if (o.mesh.empty()) {
         return rv_editor_cube_triangles(m);
     }
-    if (!o.mesh.ends_with(file_ext_glb)) {
-        set_error(error, rv_editor_text_format("project.mesh_not_glb", std::make_format_args(o.mesh)));
+    if (!rv_editor_is_model_file_name(o.mesh)) {
+        set_error(error, rv_editor_text_format("project.mesh_not_supported", std::make_format_args(o.mesh)));
         return rv_editor_cube_triangles(m);
     }
     std::vector<rv_editor_tri> glb_tris;

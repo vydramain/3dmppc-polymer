@@ -17,8 +17,13 @@ namespace rv_editor
 constexpr int64_t console_native_screen_width = 320;
 constexpr int64_t console_native_screen_height = 240;
 
-// A .glb file's extension: the only mesh format the editor reads; a mesh name ending in it names a [models] file.
+// The mesh extensions the editor reads (glTF binary and text); the one table of them.
 inline constexpr std::string_view file_ext_glb = ".glb";
+inline constexpr std::string_view file_ext_gltf = ".gltf";
+inline constexpr std::string_view rv_editor_mesh_exts[] = { file_ext_glb, file_ext_gltf };
+
+// True when `name` ends in a mesh extension, so it names a [models] file.
+bool rv_editor_is_model_file_name(std::string_view name);
 
 // Where the editor keeps what is not the game's.
 // `var` is an XDG variable; without it, or when it is not absolute,
@@ -142,7 +147,7 @@ struct rv_editor_project {
     std::vector<std::string> assets_patterns;   // [assets] files, relative to root
     std::vector<std::string> textures_patterns; // [textures] files, relative to root
     std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
-    std::vector<std::string> models_patterns;   // [models] files (.glb), relative to root
+    std::vector<std::string> models_patterns;   // [models] files (.glb, .gltf), relative to root
     bool has_build_section = false;             // disc.toml has [build] sources: a C++ disc
 };
 

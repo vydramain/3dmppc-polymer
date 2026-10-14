@@ -258,6 +258,16 @@ bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_vie
     return false;
 }
 
+bool rv_editor_is_model_file_name(std::string_view name)
+{
+    for (const std::string_view ext : rv_editor_mesh_exts) {
+        if (name.ends_with(ext)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 const char *rv_editor_project_disc_section(std::string_view rel)
 {
     if (rel.ends_with(std::string(file_ext_png))) {
@@ -266,7 +276,7 @@ const char *rv_editor_project_disc_section(std::string_view rel)
     if (rel.ends_with(std::string(file_ext_wav))) {
         return disc_section_sounds.data();
     }
-    if (rel.ends_with(std::string(file_ext_glb))) {
+    if (rv_editor_is_model_file_name(rel)) {
         return disc_section_models.data();
     }
     return disc_section_assets.data();
