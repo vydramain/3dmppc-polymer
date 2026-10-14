@@ -21,9 +21,9 @@ inline constexpr std::string_view kind_quad = "quad";
 inline constexpr std::string_view kind_billboard = "billboard";
 inline constexpr std::string_view kind_volume = "volume";
 
-// A scene document as the editor edits it.
-// The disc reads the same file with pdklib/rv_scene; the editor keeps its own
-// model so that nothing it does not understand is lost on save.
+// A scene document as the editor edits it: pdklib's rv_scene with numbers as doubles and
+// parents as ids. The file is read and written by pdklib/rv_scene. Unknown keys and sections
+// are written back; the legacy `format` key is not (the file is written with `version`).
 
 using rv_editor_vec3 = std::array<double, 3>;
 using rv_editor_uv = std::array<double, 4>;
@@ -39,6 +39,7 @@ struct rv_editor_scene_object {
     std::string name;
     std::string parent; // the parent's id, empty at the root
     std::string kind;   // "group", "camera", "mesh", "quad", "billboard" or "volume"
+    std::string entity; // entity type name, empty: the base type
     rv_editor_vec3 position{ 0.0, 0.0, 0.0 };
     rv_editor_vec3 rotation{ 0.0, 0.0, 0.0 }; // degrees; R = Ry * Rx * Rz
     rv_editor_vec3 scale{ 1.0, 1.0, 1.0 };
@@ -51,6 +52,13 @@ struct rv_editor_scene_object {
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
 };
 
+// A [[component]]: its object's id, the component type's name, and its fields in file order.
+struct rv_editor_scene_component {
+    std::string object;
+    std::string name;
+    std::vector<rv_pdklib::rv_manifest_tree_entry> fields;
+};
+
 struct rv_editor_scene {
     std::filesystem::path path;
     // The PDK version the file was written for (rv_pdklib::rv_version_str for a fresh one);
@@ -59,22 +67,20 @@ struct rv_editor_scene {
     uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
     std::vector<rv_editor_scene_object> objects;
+    std::vector<rv_editor_scene_component> components;               // in file order
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
-    // Opened but not to be written: a non-compatible version, or content it cannot keep.
+    // Non-empty: save refuses to write. Load does not set it: an unreadable, malformed or incompatible file fails to open.
     std::string read_only;
 };
 
-// RV_OK on success; RV_ERR_INVAL if file unreadable or content malformed (reason in error).
-// A version that is not rv_version_compatible opens read-only (the reason in scene.read_only),
-// never rewritten.
+// RV_OK on success; RV_ERR_INVAL if the file is unreadable, malformed or of a version
+// that is not rv_version_compatible (reason in error).
 int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &scene, std::string &error);
 
-// The document as text in the dialect, unknown keys and sections included.
-std::string rv_editor_scene_render(const rv_editor_scene &scene);
-
-// RV_OK on success; RV_ERR_INVAL if read-only; RV_ERR_IO if file write fails.
-// Writes through a temporary file and a rename.
+// Numbers are rounded to the nearest 1/4096. RV_OK on success; RV_ERR_INVAL if read-only, if a
+// number lies outside Q20.12, or if tess is not above zero after rounding (reason in error);
+// RV_ERR_IO if file write fails. Writes through a temporary file and a rename.
 int rv_editor_scene_save(const rv_editor_scene &scene, std::string &error);
 
 // A new scene: a camera looking at one box, as the template's.
