@@ -56,6 +56,10 @@ struct rv_scene {
 // order. A `format` integer is not kept: a write-back writes `version` only, as the editor does.
 int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene &scene, std::string &error);
 
+// Writes `scene` back in the dialect rv_scene_parse reads, the inverse of it. A parent index
+// outside objects is written as a root. A 0.0 scene is written as the PDK version.
+std::string rv_scene_render(const rv_scene &scene);
+
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
 rv_mat4 rv_scene_local(const rv_scene_object &object);
 
