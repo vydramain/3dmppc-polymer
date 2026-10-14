@@ -7,9 +7,14 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "pdk/rv_err.h"
+
+// Defined in pdk/cd/rv_cd.h; only a reference is taken here.
+struct rv_cd_scene_component;
 
 namespace rv_pdklib
 {
@@ -41,6 +46,11 @@ struct ecs_pool_base {
 };
 
 struct ecs_entity;
+struct ecs_world;
+
+// Fills the components of entity id from the fields of a scene component. Returns RV_OK or RV_ERR_*.
+// May throw std::bad_alloc before any state changes, as the pool growth does.
+using ecs_component_factory = int (*)(ecs_world &, ecs_id, const rv_cd_scene_component &);
 
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
@@ -51,6 +61,8 @@ struct ecs_world {
     // Non-owning entity types; each type object must outlive the world. Component type numbers
     // are template statics, so one world belongs to one .so: another .so numbers types differently.
     std::vector<const ecs_entity *> types;
+    // Component factories by name; the name views must outlive the world (string literals).
+    std::vector<std::pair<std::string_view, ecs_component_factory>> factories;
 };
 
 // Index for the next entity: the newest free slot, else a new slot appended.
