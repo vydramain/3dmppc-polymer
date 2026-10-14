@@ -3,8 +3,10 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-draw.hpp"
 
 namespace example_cpp
@@ -33,16 +35,19 @@ constexpr const char *RV_BOARD_TEXT[] = {
 };
 constexpr int RV_BOARD_TEXT_LEN = static_cast<int>(std::size(RV_BOARD_TEXT));
 static_assert(RV_BOARD_TEXT_LEN == RV_BOARD_CELL_COUNT, "the header's cell count is the text's length");
+static_assert(RV_BOARD_TEXT_LEN % 2 == 1, "the text has a centre cell");
 
-// Cell pitch along the panel, metres (a glyph quad is 0.24 x 0.30); the text is centred on the panel.
-constexpr float RV_BOARD_CELL_WIDTH = 0.24f;
-constexpr float RV_BOARD_TEXT_HALF_WIDTH = static_cast<float>(RV_BOARD_TEXT_LEN) * RV_BOARD_CELL_WIDTH * 0.5f;
+// Q20.12 raw values (q; 1 m = 4096 q). Cell pitch along the panel: 983 q (~0.24 m; 0.24 * 4096 = 983.04).
+// A glyph quad is 0.24 x 0.30.
+constexpr int64_t RV_BOARD_CELL_WIDTH = 983;
+// Cell i sits at (i - centre) * pitch, so the text is centred on the panel; centre is the middle cell.
+constexpr int64_t RV_BOARD_CENTRE_CELL = (RV_BOARD_TEXT_LEN - 1) / 2;
 
-// Forward offsets from the panel along its normal, metres: they set the geometry (the halo and
-// the letter stand off the panel). The sort inside one depth key is the submission order, so
-// all halos are put before all letters (rv_board_draw).
-constexpr float RV_BOARD_HALO_FORWARD = 0.005f;
-constexpr float RV_BOARD_LETTER_FORWARD = 0.010f;
+// Forward offsets from the panel along its normal: 20 q (~0.005 m; 20.48 rounded) and 41 q (~0.010 m;
+// 40.96 rounded). They set the geometry (the halo and the letter stand off the panel). The sort inside
+// one depth key is the submission order, so all halos are put before all letters (rv_board_draw).
+constexpr rv_pdklib::fx RV_BOARD_HALO_FORWARD = 20;
+constexpr rv_pdklib::fx RV_BOARD_LETTER_FORWARD = 41;
 
 // Flicker: letter i is lit when table[(frame / STEP + i * SHIFT) % size] > LIT_ABOVE.
 // The shift spreads the letters over the table so they do not blink in unison.
@@ -67,16 +72,24 @@ constexpr auto RV_BOARD_FLICKER_TABLE = std::to_array<uint8_t>({
 static_assert(RV_BOARD_FLICKER_TABLE.size() == 256, "the flicker table is 256 bytes");
 constexpr int64_t RV_BOARD_FLICKER_SIZE = static_cast<int64_t>(RV_BOARD_FLICKER_TABLE.size());
 
-// Row-major world matrix of a model on the panel: the board's world matrix, then a shift of
-// `forward` along the panel normal (the board's local +x) and `along` along its local +z.
-void panel_world(const float *board, float forward, float along, float out[16])
+// Row-major world matrix of cell i's model on the panel: board * translate(place), where place is
+// (forward along the board's +x, the cell's place along +z). For a board that is a scene root this is
+// rv_scene_world of a child with no rotation and no scale; a nested board multiplies its chain in
+// another order, so the equality holds only for a root.
+int64_t panel_world(const float *board, rv_pdklib::fx forward, int i, float out[16])
 {
-    for (int k = 0; k < 16; ++k) {
-        out[k] = board[k];
+    const int64_t along_raw = (static_cast<int64_t>(i) - RV_BOARD_CENTRE_CELL) * RV_BOARD_CELL_WIDTH;
+    rv_pdklib::fx along = 0;
+    if (rv_pdklib::fx_from_raw(along_raw, along) != RV_OK) {
+        return RV_ERR_INVAL;
     }
-    out[3] = board[3] + board[0] * forward + board[2] * along;
-    out[7] = board[7] + board[4] * forward + board[6] * along;
-    out[11] = board[11] + board[8] * forward + board[10] * along;
+    const rv_pdklib::rv_mat4 place =
+        rv_pdklib::rv_mat4_translate(rv_pdklib::fx_vec3_to_float(rv_pdklib::fx_vec3{ forward, 0, along }));
+    rv_pdklib::rv_mat4 board_world{};
+    std::memcpy(board_world.m, board, sizeof(board_world.m));
+    const rv_pdklib::rv_mat4 product = rv_pdklib::rv_mat4_mul(board_world, place);
+    std::memcpy(out, product.m, sizeof(product.m));
+    return RV_OK;
 }
 
 } // namespace
@@ -100,9 +113,11 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         if (!lit[static_cast<size_t>(i)]) {
             continue;
         }
-        const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float halo_world[16] = {};
-        panel_world(world, RV_BOARD_HALO_FORWARD, along, halo_world);
+        const int64_t halo_place = panel_world(world, RV_BOARD_HALO_FORWARD, i, halo_world);
+        if (halo_place != RV_OK) {
+            return halo_place;
+        }
         const int64_t halo_code = rv_draw_decal(pdk, RV_BOARD_HALO_MODEL, halo_world);
         if (halo_code < 0) {
             return halo_code;
@@ -113,9 +128,11 @@ int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
         if (!lit[static_cast<size_t>(i)]) {
             continue;
         }
-        const float along = -RV_BOARD_TEXT_HALF_WIDTH + (static_cast<float>(i) + 0.5f) * RV_BOARD_CELL_WIDTH;
         float letter_world[16] = {};
-        panel_world(world, RV_BOARD_LETTER_FORWARD, along, letter_world);
+        const int64_t letter_place = panel_world(world, RV_BOARD_LETTER_FORWARD, i, letter_world);
+        if (letter_place != RV_OK) {
+            return letter_place;
+        }
         const int64_t letter_code = rv_draw_decal(pdk, RV_BOARD_TEXT[i], letter_world);
         if (letter_code < 0) {
             return letter_code;
