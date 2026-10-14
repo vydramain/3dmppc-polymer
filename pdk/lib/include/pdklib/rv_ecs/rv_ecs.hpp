@@ -40,12 +40,17 @@ struct ecs_pool_base {
     virtual const std::vector<ecs_id> &holders() const = 0;
 };
 
+struct ecs_entity;
+
 // Only the ecs_* functions touch these fields.
 struct ecs_world {
     std::vector<ecs_slot> slots;
     std::vector<uint32_t> free_slots; // destroyed slots, reused by the next create
     uint32_t live_count = 0;
     std::vector<std::unique_ptr<ecs_pool_base>> pools; // indexed by component type number
+    // Non-owning entity types; each type object must outlive the world. Component type numbers
+    // are template statics, so one world belongs to one .so: another .so numbers types differently.
+    std::vector<const ecs_entity *> types;
 };
 
 // Index for the next entity: the newest free slot, else a new slot appended.
