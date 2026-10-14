@@ -72,6 +72,9 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
 // A 0.0 scene is written as the PDK version.
 std::string rv_scene_render(const rv_scene &scene);
 
+// One value as rv_scene_render writes it: a quoted string, [a, b] for an array, the shortest fixed number.
+std::string rv_scene_value_text(const rv_manifest_mvalue &value);
+
 // Object `index`'s local transform: T * Ry * Rx * Rz * S.
 rv_mat4 rv_scene_local(const rv_scene_object &object);
 
