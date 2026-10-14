@@ -34,6 +34,12 @@ constexpr rv_editor_tint default_object_tint = { 255, 255, 255 };
 // Default tess, same as pdklib when a scene object lacks a `tess` key.
 constexpr double default_object_tess = 2.0;
 
+// A [[component]] of its object: the component type's name and its fields in file order.
+struct rv_editor_scene_component {
+    std::string name;
+    std::vector<rv_pdklib::rv_manifest_tree_entry> fields;
+};
+
 struct rv_editor_scene_object {
     std::string id; // stable; never changes once given
     std::string name;
@@ -48,15 +54,9 @@ struct rv_editor_scene_object {
     rv_editor_uv uv{ 0.0, 0.0, 0.0, 0.0 };     // quad/billboard texture rect, pixels: u0,v0,u1,v1
     rv_editor_tint tint = default_object_tint; // quad/billboard modulation
     double tess = default_object_tess;         // quad/billboard subdivision density
+    std::vector<rv_editor_scene_component> components; // in file order
     // Keys the editor does not know, written back as they were read.
     std::vector<rv_pdklib::rv_manifest_tree_entry> extra;
-};
-
-// A [[component]]: its object's id, the component type's name, and its fields in file order.
-struct rv_editor_scene_component {
-    std::string object;
-    std::string name;
-    std::vector<rv_pdklib::rv_manifest_tree_entry> fields;
 };
 
 struct rv_editor_scene {
@@ -67,7 +67,6 @@ struct rv_editor_scene {
     uint32_t version_minor = static_cast<uint32_t>(RV_MPPC_VER_MINOR);
     std::string preamble; // the comment lines before the first section, kept
     std::vector<rv_editor_scene_object> objects;
-    std::vector<rv_editor_scene_component> components;               // in file order
     std::vector<rv_pdklib::rv_manifest_tree_entry> scene_extra;      // unknown [scene] keys
     std::vector<rv_pdklib::rv_manifest_tree_section> other_sections; // unknown sections
     // Non-empty: save refuses to write. Load does not set it: an unreadable, malformed or incompatible file fails to open.
@@ -91,5 +90,11 @@ std::string rv_editor_scene_new_id(const rv_editor_scene &scene);
 
 // Index of the object with `id`, or -1.
 int rv_editor_scene_find(const rv_editor_scene &scene, const std::string &id);
+
+// The object's first component named `name`, or nullptr.
+const rv_editor_scene_component *rv_editor_scene_component_find(const rv_editor_scene_object &o, std::string_view name);
+
+// True if the object has a component named `name`.
+bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_view name);
 
 } // namespace rv_editor
