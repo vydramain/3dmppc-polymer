@@ -1,6 +1,5 @@
 #include "example-cpp-route.hpp"
 
-#include <cmath>
 #include <cstddef>
 #include <numbers>
 #include <string_view>
@@ -45,10 +44,6 @@ constexpr fx RV_ROUTE_CUBIC_W[RV_ROUTE_SEGMENT_KEYS] = { RV_ROUTE_NEG_ONE, RV_RO
 // The camera then looks down +z.
 constexpr fx RV_ROUTE_MIN_LENGTH = 1;
 constexpr fx_vec3 RV_ROUTE_FALLBACK_DIR = { RV_ROUTE_ZERO, RV_ROUTE_ZERO, RV_ROUTE_ONE };
-
-// Float path only: its fallback is below 1e-6 units, not only the zero vector.
-constexpr float RV_ROUTE_FLOAT_MIN_LENGTH = 1e-6f;
-constexpr rv_cg_vec3 RV_ROUTE_FLOAT_FALLBACK_DIR = { 0.0f, 0.0f, 1.0f };
 
 // The cam_NN name is "cam_" and exactly two digits.
 constexpr std::string_view RV_ROUTE_KEY_PREFIX = "cam_";
@@ -191,33 +186,6 @@ rv_cg_camera make_camera(const rv_cg_vec3 &eye, const rv_cg_vec3 &target)
     return camera;
 }
 
-// One component of the float Catmull-Rom segment from p1 to p2, t in [0, 1].
-float spline_component(float p0, float p1, float p2, float p3, float t)
-{
-    const float t2 = t * t;
-    const float t3 = t2 * t;
-    const float slope = -p0 + p2;
-    const float curve = 2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3;
-    const float cubic = -p0 + 3.0f * p1 - 3.0f * p2 + p3;
-    return 0.5f * (2.0f * p1 + slope * t + curve * t2 + cubic * t3);
-}
-
-rv_cg_vec3 spline_float(const rv_cg_vec3 (&p)[RV_ROUTE_SEGMENT_KEYS], float t)
-{
-    return { spline_component(p[0].x, p[1].x, p[2].x, p[3].x, t),
-        spline_component(p[0].y, p[1].y, p[2].y, p[3].y, t),
-        spline_component(p[0].z, p[1].z, p[2].z, p[3].z, t) };
-}
-
-rv_cg_vec3 unit_float(const rv_cg_vec3 &v)
-{
-    const float length = std::sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
-    if (length < RV_ROUTE_FLOAT_MIN_LENGTH) {
-        return RV_ROUTE_FLOAT_FALLBACK_DIR;
-    }
-    return { v.x / length, v.y / length, v.z / length };
-}
-
 } // namespace
 
 bool rv_route_key_name(const char *name, int32_t &index)
@@ -286,27 +254,6 @@ int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_
     }
     out = make_camera(to_float(eye), to_float(target));
     return RV_OK;
-}
-
-// Float path: the schedules of lamps, steps and sound still read float positions; they move to Q20.12 later.
-rv_cg_camera rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame)
-{
-    const int64_t count = static_cast<int64_t>(keys.size());
-    int64_t seg = 0;
-    int64_t rem = 0;
-    split_frame(count, frame, seg, rem);
-    const float t = static_cast<float>(rem) / static_cast<float>(RV_ROUTE_PERIOD_FRAMES);
-
-    rv_cg_vec3 eyes[RV_ROUTE_SEGMENT_KEYS] = {};
-    rv_cg_vec3 dirs[RV_ROUTE_SEGMENT_KEYS] = {};
-    for (int64_t i = 0; i < RV_ROUTE_SEGMENT_KEYS; ++i) {
-        const rv_route_key &key = keys[(seg + count - 1 + i) % count];
-        eyes[i] = to_float(key.eye);
-        dirs[i] = to_float(key.dir);
-    }
-    const rv_cg_vec3 eye = spline_float(eyes, t);
-    const rv_cg_vec3 dir = unit_float(spline_float(dirs, t));
-    return make_camera(eye, { eye.x + dir.x, eye.y + dir.y, eye.z + dir.z });
 }
 
 } // namespace example_cpp

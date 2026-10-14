@@ -60,8 +60,9 @@ struct rv_sound_state {
 
 // Measures the music on the disc, allocates the music slots, tabulates the area and span of every frame of the
 // period, and tabulates the footstep distance (rv_steps_init) from keys (non-empty, sorted by index). Called once;
-// returns RV_OK or the first drive, ca, or step-path error, with state.error_asset naming the asset or "step path".
-// The step path fails with RV_ERR_NOENT (no keys) or RV_ERR_INVAL (the Q20.12 math leaves its range).
+// returns RV_OK or the first drive, ca, areas, or step-path error, with state.error_asset naming the asset,
+// "sound areas" or "step path". The route fails with RV_ERR_NOENT (no keys) or RV_ERR_INVAL (the Q20.12 math
+// leaves its range), for both the areas and the steps.
 int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_sound_state &state);
 
 // Plays what frame `frame` (in [0, RV_ROUTE_PERIOD_FRAMES)) needs after state.frame: the music of its area
