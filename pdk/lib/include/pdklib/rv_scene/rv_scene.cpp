@@ -1,6 +1,7 @@
 // The scene loader: disc.toml's dialect read into objects, and their transforms.
 
 #include "rv_scene.hpp"
+#include "rv_scene_space.hpp"
 
 #include <array>
 #include <cmath>
@@ -19,73 +20,11 @@ namespace rv_pdklib
 namespace
 {
 
-constexpr float rv_scene_degrees = 3.14159265358979f / 180.0f;
-constexpr float rv_scene_right_angle_degrees = 90.0f; // right angle for rotation checks
-constexpr int rv_scene_rotation_quarters = 4;         // four 90-degree rotations make a full circle
 constexpr int rv_scene_vector_components = 3;         // position, rotation, scale vectors
 constexpr int rv_scene_uv_components = 4;             // u0, v0, u1, v1 texture rect
 constexpr int rv_scene_tint_channels = 3;             // RGB color channels
 constexpr double rv_scene_color_max = 255.0;          // max value for each color channel
 constexpr int rv_scene_quad_corners_count = 4;        // four corners: TL, TR, BL, BR
-
-// sin/cos of a degree angle, exact 0/1/-1 on a multiple of 90 (any sign, any
-// winding) instead of the ~1e-8 float noise std::cos leaves there -- the
-// difference an axis-aligned quad's corners (rv_scene_quad_corners) show up.
-void rv_scene_sincos(float degrees, float &s, float &c)
-{
-    const float quarter = std::round(degrees / rv_scene_right_angle_degrees);
-    if (quarter * rv_scene_right_angle_degrees == degrees) {
-        constexpr float sins[rv_scene_rotation_quarters] = { 0.0f, 1.0f, 0.0f, -1.0f };
-        constexpr float coss[rv_scene_rotation_quarters] = { 1.0f, 0.0f, -1.0f, 0.0f };
-        int k = static_cast<int>(quarter) % rv_scene_rotation_quarters;
-        if (k < 0) {
-            k += rv_scene_rotation_quarters;
-        }
-        s = sins[k];
-        c = coss[k];
-        return;
-    }
-    const float radians = degrees * rv_scene_degrees;
-    s = std::sin(radians);
-    c = std::cos(radians);
-}
-
-// Same layout as rv_mat4_rotate_x/y/z (rv_math.hpp), built from rv_scene_sincos.
-rv_mat4 rv_scene_rotate_x(float degrees)
-{
-    float s, c;
-    rv_scene_sincos(degrees, s, c);
-    rv_mat4 r = rv_mat4_identity();
-    r.m[1][1] = c;
-    r.m[1][2] = -s;
-    r.m[2][1] = s;
-    r.m[2][2] = c;
-    return r;
-}
-
-rv_mat4 rv_scene_rotate_y(float degrees)
-{
-    float s, c;
-    rv_scene_sincos(degrees, s, c);
-    rv_mat4 r = rv_mat4_identity();
-    r.m[0][0] = c;
-    r.m[0][2] = s;
-    r.m[2][0] = -s;
-    r.m[2][2] = c;
-    return r;
-}
-
-rv_mat4 rv_scene_rotate_z(float degrees)
-{
-    float s, c;
-    rv_scene_sincos(degrees, s, c);
-    rv_mat4 r = rv_mat4_identity();
-    r.m[0][0] = c;
-    r.m[0][1] = -s;
-    r.m[1][0] = s;
-    r.m[1][1] = c;
-    return r;
-}
 
 std::string rv_scene_at(const std::string &origin, int line)
 {
@@ -468,12 +407,7 @@ int rv_scene_parse(const std::string &text, const std::string &origin, rv_scene 
 
 rv_mat4 rv_scene_local(const rv_scene_object &o)
 {
-    const rv_vec3 position = fx_vec3_to_float(o.position);
-    const rv_vec3 rotation = fx_vec3_to_float(o.rotation);
-    const rv_vec3 scale = fx_vec3_to_float(o.scale);
-    const rv_mat4 r =
-        rv_mat4_mul(rv_scene_rotate_y(rotation.y), rv_mat4_mul(rv_scene_rotate_x(rotation.x), rv_scene_rotate_z(rotation.z)));
-    return rv_mat4_mul(rv_mat4_translate(position), rv_mat4_mul(r, rv_mat4_scale(scale)));
+    return rv_scene_local_trs(o.position, o.rotation, o.scale);
 }
 
 rv_mat4 rv_scene_world(const rv_scene &scene, std::size_t index)
