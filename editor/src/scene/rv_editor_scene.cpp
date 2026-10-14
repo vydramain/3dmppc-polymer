@@ -153,7 +153,7 @@ int rv_editor_scene_object_to_pdk(const rv_editor_scene &scene,
     return RV_OK;
 }
 
-// The model as pdklib's scene. A component of a missing object gets index -1, which rv_scene_render skips.
+// The model as pdklib's scene: each object's components follow the object, in object order.
 int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pdk, std::string &error)
 {
     pdk.version_major = scene.version_major;
@@ -168,12 +168,14 @@ int rv_editor_scene_to_pdk(const rv_editor_scene &scene, rv_pdklib::rv_scene &pd
         }
         pdk.objects.push_back(std::move(p));
     }
-    for (const rv_editor_scene_component &c : scene.components) {
-        rv_pdklib::rv_scene_component p;
-        p.object = rv_editor_scene_find(scene, c.object);
-        p.name = c.name;
-        p.fields = c.fields;
-        pdk.components.push_back(std::move(p));
+    for (size_t i = 0; i < scene.objects.size(); ++i) {
+        for (const rv_editor_scene_component &c : scene.objects[i].components) {
+            rv_pdklib::rv_scene_component p;
+            p.object = static_cast<int32_t>(i);
+            p.name = c.name;
+            p.fields = c.fields;
+            pdk.components.push_back(std::move(p));
+        }
     }
     return RV_OK;
 }
@@ -226,10 +228,9 @@ int rv_editor_scene_load(const std::filesystem::path &path, rv_editor_scene &sce
     }
     for (const rv_pdklib::rv_scene_component &p : pdk.components) {
         rv_editor_scene_component c;
-        c.object = pdk.objects[static_cast<size_t>(p.object)].id;
         c.name = p.name;
         c.fields = p.fields;
-        s.components.push_back(std::move(c));
+        s.objects[static_cast<size_t>(p.object)].components.push_back(std::move(c));
     }
     scene = std::move(s);
     return RV_OK;
@@ -293,6 +294,21 @@ int rv_editor_scene_find(const rv_editor_scene &scene, const std::string &id)
         }
     }
     return -1;
+}
+
+const rv_editor_scene_component *rv_editor_scene_component_find(const rv_editor_scene_object &o, std::string_view name)
+{
+    for (const rv_editor_scene_component &c : o.components) {
+        if (c.name == name) {
+            return &c;
+        }
+    }
+    return nullptr;
+}
+
+bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_view name)
+{
+    return rv_editor_scene_component_find(o, name) != nullptr;
 }
 
 } // namespace rv_editor
