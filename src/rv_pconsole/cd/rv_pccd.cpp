@@ -71,3 +71,8 @@ extern "C" int64_t rv_cd_scene_object_entity_read(rv_cd *cd, const char *scene, 
 {
     return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_entity_read(scene, index, out);
 }
+
+extern "C" int64_t rv_cd_scene_object_local_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_local *out)
+{
+    return reinterpret_cast<rv_3dmppc::rv_pccd *>(cd)->scene_object_local_read(scene, index, out);
+}

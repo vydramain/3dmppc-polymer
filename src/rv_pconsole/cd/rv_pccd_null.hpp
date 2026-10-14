@@ -57,6 +57,10 @@ public:
     {
         return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
     }
+    int64_t scene_object_local_read(const char *scene, int64_t /*index*/, rv_cd_scene_local *out) override
+    {
+        return (scene == nullptr || out == nullptr) ? RV_ERR_INVAL : RV_ERR_NOENT;
+    }
 
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 

@@ -94,12 +94,13 @@ private:
 
     // SCENE's counterpart of model_record: a .scene.toml read from the disc and
     // flattened into POD objects (world transforms, mesh names mapped to
-    // .mppcmod), with each object's entity type and the components in document
-    // order. Host memory only; released when the medium is replaced
-    // (medium_insert), as rv_cd.h's scene contract requires.
+    // .mppcmod), with each object's entity type and local transform, and the
+    // components in document order. Host memory only; released when the medium is
+    // replaced (medium_insert), as rv_cd.h's scene contract requires.
     struct scene_record {
         std::vector<rv_cd_scene_object> objects;
         std::vector<rv_cd_scene_entity> entities; // parallel to objects
+        std::vector<rv_cd_scene_local> locals;    // parallel to objects
         std::vector<rv_cd_scene_component> components;
     };
     std::vector<scene_record> scenes_;
@@ -182,6 +183,8 @@ public:
     int64_t scene_component_read(const char *scene, int64_t index, rv_cd_scene_component *out) override;
 
     int64_t scene_object_entity_read(const char *scene, int64_t index, rv_cd_scene_entity *out) override;
+
+    int64_t scene_object_local_read(const char *scene, int64_t index, rv_cd_scene_local *out) override;
 
     int64_t asset_reload(const char *resname, rv_cd_resource_kind &kind_out) override;
 
