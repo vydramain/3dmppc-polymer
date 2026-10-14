@@ -1,8 +1,12 @@
 #include "example-cpp-route.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <numbers>
 #include <string_view>
+#include <vector>
+
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 namespace example_cpp
 {
@@ -169,6 +173,23 @@ int route_spline(const std::vector<rv_route_key> &keys, int64_t frame, fx_vec3 r
     return spline(pts, t, out);
 }
 
+// A position or direction from the float world matrix to Q20.12: the float contract ends here.
+int fx_vec3_from_floats(float x, float y, float z, fx_vec3 &out)
+{
+    fx_vec3 v = {};
+    if (rv_pdklib::fx_from_double(x, v.x) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (rv_pdklib::fx_from_double(y, v.y) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    if (rv_pdklib::fx_from_double(z, v.z) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = v;
+    return RV_OK;
+}
+
 rv_cg_vec3 to_float(fx_vec3 v)
 {
     return { rv_pdklib::fx_to_float(v.x), rv_pdklib::fx_to_float(v.y), rv_pdklib::fx_to_float(v.z) };
@@ -253,6 +274,142 @@ int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_
         return RV_ERR_INVAL;
     }
     out = make_camera(to_float(eye), to_float(target));
+    return RV_OK;
+}
+
+namespace
+{
+
+using rv_pdklib::ecs_id;
+using rv_pdklib::ecs_world;
+
+// Entities with a camera component, in slot order.
+std::vector<ecs_id> camera_ids(ecs_world &world)
+{
+    std::vector<ecs_id> ids;
+    rv_pdklib::ecs_component_each<rv_pdklib::ecs_component_camera>(world, [&ids](ecs_id id, auto &) {
+        ids.push_back(id);
+    });
+    return ids;
+}
+
+// The route entity and its component. RV_ERR_NOENT without one, RV_ERR_ALREADY with two: the camera would not be unique.
+// Logs nothing: the frame system calls it every frame.
+int find_route(ecs_world &world, ecs_id &id, ecs_component_route *&route)
+{
+    int count = 0;
+    rv_pdklib::ecs_component_each<ecs_component_route>(world, [&](ecs_id holder, ecs_component_route &component) {
+        ++count;
+        id = holder;
+        route = &component;
+    });
+    if (count == 0) {
+        return RV_ERR_NOENT;
+    }
+    if (count > 1) {
+        return RV_ERR_ALREADY;
+    }
+    return RV_OK;
+}
+
+// Appends the key of camera when it is a cam_NN child of route. A cam_NN camera outside the group is warned and skipped.
+int add_route_key(ecs_world &world, ecs_id camera, ecs_id route, std::vector<rv_route_key> &keys)
+{
+    const auto *transform = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_transform>(world, camera);
+    const auto *name = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_name>(world, camera);
+    if (name == nullptr) {
+        return RV_OK;
+    }
+    int32_t index = 0;
+    const bool named = rv_route_key_name(name->text.c_str(), index);
+    if (!named) {
+        return RV_OK;
+    }
+    const bool on_route = transform != nullptr && transform->parent == route;
+    if (!on_route) {
+        RV_LOG_WARN("scene", "camera '{}' is not in the route group: not a route key", name->text.c_str());
+        return RV_OK;
+    }
+    const auto *place = rv_pdklib::ecs_component_get<rv_pdklib::ecs_component_world>(world, camera);
+    if (place == nullptr) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' has no world matrix", name->text.c_str());
+        return RV_ERR_INVAL;
+    }
+    rv_route_key key = {};
+    key.index = index;
+    // The eye is the translation column, the view direction the z column: the entries world[] of the scene held.
+    const auto &m = place->matrix.m;
+    if (fx_vec3_from_floats(m[0][3], m[1][3], m[2][3], key.eye) != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' position leaves Q20.12", name->text.c_str());
+        return RV_ERR_INVAL;
+    }
+    fx_vec3 dir = {};
+    if (fx_vec3_from_floats(m[0][2], m[1][2], m[2][2], dir) != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", name->text.c_str());
+        return RV_ERR_INVAL;
+    }
+    const int unit_code = rv_route_unit(dir, key.dir);
+    if (unit_code != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: camera '{}' direction leaves Q20.12", name->text.c_str());
+        return unit_code;
+    }
+    keys.push_back(key);
+    return RV_OK;
+}
+
+} // namespace
+
+int rv_route_collect(ecs_world &world, std::vector<rv_route_key> &keys)
+{
+    ecs_id route_id{};
+    ecs_component_route *route = nullptr;
+    const int route_code = find_route(world, route_id, route);
+    if (route_code != RV_OK) {
+        RV_LOG_ERR("scene", "scene refused: the scene needs one route entity, rv_err {}", route_code);
+        return route_code;
+    }
+    std::vector<rv_route_key> found;
+    for (const ecs_id camera : camera_ids(world)) {
+        const int key_code = add_route_key(world, camera, route_id, found);
+        if (key_code != RV_OK) {
+            return key_code;
+        }
+    }
+    if (found.empty()) {
+        RV_LOG_ERR("scene", "scene refused: the route has no cam_NN camera");
+        return RV_ERR_NOENT;
+    }
+    std::sort(found.begin(), found.end(), [](const rv_route_key &a, const rv_route_key &b) {
+        return a.index < b.index;
+    });
+    route->keys = found;
+    keys = found;
+    return RV_OK;
+}
+
+int ecs_entity_route::add_defaults(ecs_world &world, ecs_id id) const
+{
+    if (rv_pdklib::ecs_component_ensure<ecs_component_route>(world, id) == nullptr) {
+        RV_LOG_ERR("scene", "route entity has no route component");
+        return RV_ERR_NOENT;
+    }
+    return RV_OK;
+}
+
+int ecs_system_route(ecs_world &world, const rv_pdklib::ecs_frame &frame)
+{
+    ecs_id route_id{};
+    ecs_component_route *route = nullptr;
+    const int route_code = find_route(world, route_id, route);
+    if (route_code != RV_OK) {
+        return route_code;
+    }
+    rv_cg_camera camera = {};
+    const int camera_code = rv_route_camera_at(route->keys, frame.frame, camera);
+    if (camera_code != RV_OK) {
+        return camera_code;
+    }
+    rv_pdklib::ecs_world_camera(world, camera);
     return RV_OK;
 }
 
