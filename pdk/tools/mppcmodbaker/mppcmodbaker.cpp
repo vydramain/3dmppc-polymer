@@ -56,12 +56,11 @@ struct modbaker_args {
 void print_usage(std::FILE *out)
 {
     rv_pdklib::rv_fprintf(out,
-        "usage: mppcmodbaker <input.glb> <output.mppcmod>\n"
+        "usage: mppcmodbaker <input.glb|input.gltf> <output.mppcmod>\n"
         "\n"
-        "  A glTF 2.0 model (.glb, as Blender exports it) is baked to a .mppcmod. Its\n"
-        "  embedded PNG textures are written beside the output as <stem>-<n>.png; the\n"
-        "  parts name them <stem>-<n>.mppctex. JPEG textures and external image files\n"
-        "  are refused.\n"
+        "  A glTF 2.0 model is baked to a .mppcmod: a .glb, or a .gltf whose .bin and PNG files\n"
+        "  are named by relative URIs ('..' allowed). Each PNG texture is written beside the\n"
+        "  output as <stem>-<n>.png; the parts name them <stem>-<n>.mppctex. JPEG textures are refused.\n"
         "\n"
         "mppcmodbaker --version prints one line, `mppcmodbaker <major>.<minor>`.\n");
 }
