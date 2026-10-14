@@ -1,15 +1,15 @@
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 #include "pdk/ca/rv_ca.h"
 #include "pdk/ca/rv_loop.h"
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/cd/rv_cd.h"
-#include "pdk/cg/rv_cg.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-route.hpp"
 #include "example-cpp-sound.hpp"
 
@@ -19,9 +19,9 @@ namespace example_cpp
 namespace
 {
 
-// One step per this many metres of horizontal eye path: Solid Maid's SM_STEP_STRIDE (solid-maid/src/sm_common.hpp),
-// so the footfall keeps its pace.
-constexpr double RV_STEP_STRIDE = 0.95;
+// One step per 0.95 m of horizontal eye path, in Q20.12 raw: 0.95 * 4096 = 3891.2, rounded. Solid Maid's
+// SM_STEP_STRIDE (solid-maid/src/sm_common.hpp), so the footfall keeps its pace.
+constexpr rv_pdklib::fx RV_STEP_STRIDE = 3891;
 
 // Step voices: A takes even steps and B odd ones, as Solid Maid alternates its pair (sm_sound.cpp footstep).
 constexpr int64_t RV_STEP_VOICE[] = { 32, 64 };
@@ -45,19 +45,46 @@ static_assert(std::size(RV_STEP_ASSETS) == static_cast<std::size_t>(rv_sound_are
 
 } // namespace
 
-void rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state)
+int64_t rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state)
 {
     const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    state.distance.assign(static_cast<std::size_t>(period), 0.0);
-    rv_cg_vec3 prev = rv_route_camera_at(keys, 0).eye;
-    for (int64_t f = 1; f < period; ++f) {
-        const rv_cg_vec3 eye = rv_route_camera_at(keys, f).eye;
-        const double dx = static_cast<double>(eye.x) - prev.x;
-        const double dz = static_cast<double>(eye.z) - prev.z;
-        const std::size_t index = static_cast<std::size_t>(f);
-        state.distance[index] = state.distance[index - 1] + std::sqrt(dx * dx + dz * dz);
-        prev = eye;
+    rv_pdklib::fx_vec3 eye = {};
+    const int first_code = rv_route_eye_at(keys, 0, eye);
+    if (first_code != RV_OK) {
+        return fail(state, "step path", first_code);
     }
+    // The path is horizontal: each eye is taken with its height dropped, so every segment is (dx, 0, dz).
+    rv_pdklib::fx_vec3 prev = { eye.x, 0, eye.z };
+    std::vector<rv_pdklib::fx> distance(static_cast<std::size_t>(period), 0);
+    // Summed in int64, so a total beyond fx is seen before it is stored.
+    int64_t sum = 0;
+    for (int64_t f = 1; f < period; ++f) {
+        const int eye_code = rv_route_eye_at(keys, f, eye);
+        if (eye_code != RV_OK) {
+            return fail(state, "step path", eye_code);
+        }
+        const rv_pdklib::fx_vec3 ground = { eye.x, 0, eye.z };
+        rv_pdklib::fx_vec3 segment = {};
+        const int sub_code = rv_pdklib::fx_vec3_sub(ground, prev, segment);
+        if (sub_code != RV_OK) {
+            return fail(state, "step path", sub_code);
+        }
+        rv_pdklib::fx length = 0;
+        const int length_code = rv_pdklib::fx_vec3_length(segment, length);
+        if (length_code != RV_OK) {
+            return fail(state, "step path", length_code);
+        }
+        sum += length;
+        rv_pdklib::fx total = 0;
+        const int total_code = rv_pdklib::fx_from_raw(sum, total);
+        if (total_code != RV_OK) {
+            return fail(state, "step path", total_code);
+        }
+        distance[static_cast<std::size_t>(f)] = total;
+        prev = ground;
+    }
+    state.distance = std::move(distance);
+    return RV_OK;
 }
 
 int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
@@ -67,12 +94,13 @@ int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
         return RV_OK;
     }
     const std::size_t index = static_cast<std::size_t>(frame);
-    const double step_before = std::floor(state.distance[index - 1] / RV_STEP_STRIDE);
-    const double step_now = std::floor(state.distance[index] / RV_STEP_STRIDE);
+    // Raw division floors: the distance is never negative.
+    const int64_t step_before = state.distance[index - 1] / RV_STEP_STRIDE;
+    const int64_t step_now = state.distance[index] / RV_STEP_STRIDE;
     if (step_now <= step_before) {
         return RV_OK;
     }
-    const int64_t variant = static_cast<int64_t>(step_now) % RV_STEP_VARIANTS;
+    const int64_t variant = step_now % RV_STEP_VARIANTS;
     const char *name = RV_STEP_ASSETS[static_cast<std::size_t>(state.areas[index])][variant];
     const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(pdk), RV_CD_RESOURCE_AUDIO, name);
     if (addr < 0) {
