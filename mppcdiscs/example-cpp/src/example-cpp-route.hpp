@@ -35,9 +35,4 @@ int rv_route_eye_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_pdk
 // Error: keys empty (RV_ERR_NOENT), or the Q20.12 math leaves its range; out is untouched.
 int rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame, rv_cg_camera &out);
 
-// Float path for the schedules of lamps, steps and sound, which still read float positions.
-// Same route as above, in float; the numbers differ by rounding. keys must be non-empty and sorted by index.
-// Remove when they move to Q20.12.
-rv_cg_camera rv_route_camera_at(const std::vector<rv_route_key> &keys, int64_t frame);
-
 } // namespace example_cpp

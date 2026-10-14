@@ -19,10 +19,11 @@ namespace example_cpp
 namespace
 {
 
-// Eye x of the camera, metres, as scenes/main.scene.toml places the objects: the factory is at x < 0, the house
-// facade stands at x = 33.8 with the flat behind it. Eye x < 0 is the workshop, x > 33.8 the flat, between them the street.
-constexpr float RV_SOUND_WORKSHOP_MAX_X = 0.0f;
-constexpr float RV_SOUND_FLAT_MIN_X = 33.8f;
+// Eye x of the camera in Q20.12 raw (4096 per metre), as scenes/main.scene.toml places the objects: the factory is
+// at x < 0, the house facade stands at x = 33.8 m = 138444.8 raw. On whole raw values a strict > 138444 is x > 33.8.
+using rv_pdklib::fx;
+constexpr fx RV_SOUND_WORKSHOP_MAX_X = 0;
+constexpr fx RV_SOUND_FLAT_MIN_X = 138444;
 
 constexpr const char *RV_SOUND_CLACK = "sfx_board_clack.pcm";
 
@@ -57,17 +58,20 @@ constexpr rv_sound_loop RV_SOUND_LOOPS[] = {
 };
 static_assert(std::size(RV_SOUND_LOOPS) == RV_SOUND_LOOP_COUNT, "one entry per loop");
 
-// The area of frame `frame`, by the eye x of its camera.
-rv_sound_area area_of_frame(const std::vector<rv_route_key> &keys, int64_t frame)
+// The area of frame `frame`, by the eye x of its camera. Error: the route fails (rv_route_eye_at); out is untouched.
+int area_of_frame(const std::vector<rv_route_key> &keys, int64_t frame, rv_sound_area &out)
 {
-    const float eye_x = rv_route_camera_at(keys, frame).eye.x;
-    if (eye_x < RV_SOUND_WORKSHOP_MAX_X) {
-        return rv_sound_area::workshop;
+    rv_pdklib::fx_vec3 eye = {};
+    const int eye_code = rv_route_eye_at(keys, frame, eye);
+    if (eye_code != RV_OK) {
+        return eye_code;
     }
-    if (eye_x > RV_SOUND_FLAT_MIN_X) {
-        return rv_sound_area::flat;
+    if (eye.x < RV_SOUND_WORKSHOP_MAX_X) {
+        out = rv_sound_area::workshop;
+        return RV_OK;
     }
-    return rv_sound_area::street;
+    out = eye.x > RV_SOUND_FLAT_MIN_X ? rv_sound_area::flat : rv_sound_area::street;
+    return RV_OK;
 }
 
 // True when frame f starts an area span: its area differs from the frame before it, cyclically.
@@ -203,7 +207,10 @@ int64_t rv_sound_init(rv_pdko *pdk, const std::vector<rv_route_key> &keys, rv_so
     state.areas.resize(static_cast<std::size_t>(period));
     state.span_start.assign(static_cast<std::size_t>(period), 0);
     for (int64_t f = 0; f < period; ++f) {
-        state.areas[static_cast<std::size_t>(f)] = area_of_frame(keys, f);
+        const int area_code = area_of_frame(keys, f, state.areas[static_cast<std::size_t>(f)]);
+        if (area_code != RV_OK) {
+            return fail(state, "sound areas", area_code);
+        }
     }
     int64_t change = -1;
     for (int64_t f = 0; f < period && change < 0; ++f) {
