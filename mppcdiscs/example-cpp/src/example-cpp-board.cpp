@@ -3,11 +3,16 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <cstring>
+#include <vector>
 
+#include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
-#include "pdklib/rv_math/rv_fx.hpp"
-#include "example-cpp-draw.hpp"
+#include "pdklib/rv_ecs/rv_ecs.hpp"
+#include "pdklib/rv_ecs/rv_ecs_component.hpp"
+#include "pdklib/rv_ecs/rv_ecs_frame.hpp"
+#include "pdklib/rv_ecs/rv_ecs_store.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "example-cpp-route.hpp"
 
 namespace example_cpp
 {
@@ -15,42 +20,16 @@ namespace example_cpp
 namespace
 {
 
-// The models of the disc (assets/models/*.gltf): one quad per glyph, and the halo quad. Each faces +X,
-// so the panel's front (+X) shows them; their pictures are the PNGs in assets/tex.
-constexpr const char *RV_BOARD_HALO_MODEL = "halo.mppcmod";
+// The scene field that names the cell of a flicker entity, and the cell it takes when the field is absent.
+constexpr const char *RV_FLICKER_CELL_KEY = "cell";
+constexpr int64_t RV_FLICKER_CELL_DEFAULT = 0;
 
-// "ОСТАЛОСЬ: 5", one model per cell; nullptr is the space between the colon and the digit.
-constexpr const char *RV_BOARD_TEXT[] = {
-    "glyph_o.mppcmod",
-    "glyph_s.mppcmod",
-    "glyph_t.mppcmod",
-    "glyph_a.mppcmod",
-    "glyph_l.mppcmod",
-    "glyph_o.mppcmod",
-    "glyph_s.mppcmod",
-    "glyph_soft.mppcmod",
-    "glyph_colon.mppcmod",
-    nullptr,
-    "glyph_5.mppcmod",
-};
-constexpr int RV_BOARD_TEXT_LEN = static_cast<int>(std::size(RV_BOARD_TEXT));
-static_assert(RV_BOARD_TEXT_LEN == RV_BOARD_CELL_COUNT, "the header's cell count is the text's length");
-static_assert(RV_BOARD_TEXT_LEN % 2 == 1, "the text has a centre cell");
+// Cell 9 of "ОСТАЛОСЬ: 5" is the space between the colon and the digit: the scene has no entity for it.
+constexpr int RV_BOARD_SPACE_CELL = 9;
+static_assert(RV_BOARD_SPACE_CELL < RV_BOARD_CELL_COUNT, "the space cell is one of the board's cells");
 
-// Q20.12 raw values (q; 1 m = 4096 q). Cell pitch along the panel: 983 q (~0.24 m; 0.24 * 4096 = 983.04).
-// A glyph quad is 0.24 x 0.30.
-constexpr int64_t RV_BOARD_CELL_WIDTH = 983;
-// Cell i sits at (i - centre) * pitch, so the text is centred on the panel; centre is the middle cell.
-constexpr int64_t RV_BOARD_CENTRE_CELL = (RV_BOARD_TEXT_LEN - 1) / 2;
-
-// Forward offsets from the panel along its normal: 20 q (~0.005 m; 20.48 rounded) and 41 q (~0.010 m;
-// 40.96 rounded). They set the geometry (the halo and the letter stand off the panel). The sort inside
-// one depth key is the submission order, so all halos are put before all letters (rv_board_draw).
-constexpr rv_pdklib::fx RV_BOARD_HALO_FORWARD = 20;
-constexpr rv_pdklib::fx RV_BOARD_LETTER_FORWARD = 41;
-
-// Flicker: letter i is lit when table[(frame / STEP + i * SHIFT) % size] > LIT_ABOVE.
-// The shift spreads the letters over the table so they do not blink in unison.
+// Flicker: cell i is lit when table[(frame / STEP + i * SHIFT) % size] > LIT_ABOVE.
+// The shift spreads the cells over the table so they do not blink in unison.
 constexpr int64_t RV_BOARD_FLICKER_STEP = 6; // frames per table step
 constexpr int64_t RV_BOARD_FLICKER_SHIFT = 37;
 constexpr uint8_t RV_BOARD_LIT_ABOVE = 128;
@@ -72,25 +51,12 @@ constexpr auto RV_BOARD_FLICKER_TABLE = std::to_array<uint8_t>({
 static_assert(RV_BOARD_FLICKER_TABLE.size() == 256, "the flicker table is 256 bytes");
 constexpr int64_t RV_BOARD_FLICKER_SIZE = static_cast<int64_t>(RV_BOARD_FLICKER_TABLE.size());
 
-// Row-major world matrix of cell i's model on the panel: board * translate(place), where place is
-// (forward along the board's +x, the cell's place along +z). For a board that is a scene root this is
-// rv_scene_world of a child with no rotation and no scale; a nested board multiplies its chain in
-// another order, so the equality holds only for a root.
-int64_t panel_world(const float *board, rv_pdklib::fx forward, int i, float out[16])
-{
-    const int64_t along_raw = (static_cast<int64_t>(i) - RV_BOARD_CENTRE_CELL) * RV_BOARD_CELL_WIDTH;
-    rv_pdklib::fx along = 0;
-    if (rv_pdklib::fx_from_raw(along_raw, along) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    const rv_pdklib::rv_mat4 place =
-        rv_pdklib::rv_mat4_translate(rv_pdklib::fx_vec3_to_float(rv_pdklib::fx_vec3{ forward, 0, along }));
-    rv_pdklib::rv_mat4 board_world{};
-    std::memcpy(board_world.m, board, sizeof(board_world.m));
-    const rv_pdklib::rv_mat4 product = rv_pdklib::rv_mat4_mul(board_world, place);
-    std::memcpy(out, product.m, sizeof(product.m));
-    return RV_OK;
-}
+// A flicker entity and whether its cell is lit at the frame.
+struct flicker_state {
+    rv_pdklib::ecs_id id{};
+    int cell = 0;
+    bool lit = false;
+};
 
 } // namespace
 
@@ -98,44 +64,54 @@ bool rv_board_cell_lit(int i, int64_t frame)
 {
     const int64_t index = (frame / RV_BOARD_FLICKER_STEP + i * RV_BOARD_FLICKER_SHIFT) % RV_BOARD_FLICKER_SIZE;
     const uint8_t level = RV_BOARD_FLICKER_TABLE[static_cast<size_t>(index)];
-    return RV_BOARD_TEXT[i] != nullptr && level > RV_BOARD_LIT_ABOVE;
+    return i != RV_BOARD_SPACE_CELL && level > RV_BOARD_LIT_ABOVE;
 }
 
-int64_t rv_board_draw(rv_pdko *pdk, const float *world, int64_t frame)
+int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const rv_cd_scene_component &component)
 {
-    std::array<bool, RV_BOARD_TEXT_LEN> lit = {};
-    for (int i = 0; i < RV_BOARD_TEXT_LEN; ++i) {
-        lit[static_cast<size_t>(i)] = rv_board_cell_lit(i, frame);
+    int64_t cell = RV_FLICKER_CELL_DEFAULT;
+    const int read_code = rv_pdklib::ecs_field_int(component, RV_FLICKER_CELL_KEY, cell);
+    const bool absent = read_code == RV_ERR_NOENT;
+    if (read_code != RV_OK && !absent) {
+        RV_LOG_ERR("board", "flicker: field {} is not an integer: rv_err {}", RV_FLICKER_CELL_KEY, read_code);
+        return read_code;
     }
+    const bool in_range = cell >= 0 && cell < RV_BOARD_CELL_COUNT;
+    if (!in_range) {
+        RV_LOG_ERR("board", "flicker: cell {} is outside 0..{}", cell, RV_BOARD_CELL_COUNT - 1);
+        return RV_ERR_INVAL;
+    }
+    const int add_code =
+        rv_pdklib::ecs_component_add<ecs_component_flicker>(world, id, ecs_component_flicker{ static_cast<int>(cell) });
+    if (add_code != RV_OK) {
+        RV_LOG_ERR("board", "flicker: entity cannot take the component: rv_err {}", add_code);
+        return add_code;
+    }
+    return RV_OK;
+}
 
-    // Halos first, then letters: a halo must not land over its neighbour's letter.
-    for (int i = 0; i < RV_BOARD_TEXT_LEN; ++i) {
-        if (!lit[static_cast<size_t>(i)]) {
+int ecs_system_flicker(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame)
+{
+    const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
+    // Collected first: the hidden mark is added and removed only after the walk.
+    std::vector<flicker_state> states;
+    rv_pdklib::ecs_component_each<ecs_component_flicker>(world,
+        [&states, phase](rv_pdklib::ecs_id id, ecs_component_flicker &flicker) {
+            states.push_back(flicker_state{ id, flicker.cell, rv_board_cell_lit(flicker.cell, phase) });
+        });
+    for (const flicker_state &state : states) {
+        if (state.lit) {
+            // NOENT: the entity has no hidden mark, so it is shown already.
+            rv_pdklib::ecs_component_remove<rv_pdklib::ecs_component_hidden>(world, state.id);
             continue;
         }
-        float halo_world[16] = {};
-        const int64_t halo_place = panel_world(world, RV_BOARD_HALO_FORWARD, i, halo_world);
-        if (halo_place != RV_OK) {
-            return halo_place;
-        }
-        const int64_t halo_code = rv_draw_decal(pdk, RV_BOARD_HALO_MODEL, halo_world);
-        if (halo_code < 0) {
-            return halo_code;
-        }
-    }
-
-    for (int i = 0; i < RV_BOARD_TEXT_LEN; ++i) {
-        if (!lit[static_cast<size_t>(i)]) {
-            continue;
-        }
-        float letter_world[16] = {};
-        const int64_t letter_place = panel_world(world, RV_BOARD_LETTER_FORWARD, i, letter_world);
-        if (letter_place != RV_OK) {
-            return letter_place;
-        }
-        const int64_t letter_code = rv_draw_decal(pdk, RV_BOARD_TEXT[i], letter_world);
-        if (letter_code < 0) {
-            return letter_code;
+        const rv_pdklib::ecs_component_hidden *hidden =
+            rv_pdklib::ecs_component_ensure<rv_pdklib::ecs_component_hidden>(world, state.id);
+        if (hidden == nullptr) {
+            // Named: an unscoped enum does not format.
+            const int code = RV_ERR_NOENT;
+            RV_LOG_ERR("board", "flicker: cell {} cannot be hidden, stale entity: rv_err {}", state.cell, code);
+            return code;
         }
     }
     return RV_OK;
