@@ -9,7 +9,10 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
+#include "log/rv_editor_log.hpp"
+#include "panes/rv_editor_parts_ops.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
+#include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
@@ -67,6 +70,32 @@ void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme
                 doc.off_layers.insert(layer);
             }
         }
+    }
+}
+
+// Delete parts and Detach: the picked pieces of the selected object. Unavailable with none picked; a
+// refused command is logged with its reason.
+void rv_editor_scene_parts_buttons(rv_editor_app &app, const rv_editor_theme &theme)
+{
+    const rv_editor_scene_doc &doc = *app.scene;
+    const bool picked = !doc.picked_pieces.empty() && doc.picked_owner == doc.selected;
+    const char *no_pieces = picked ? nullptr : rv_editor_text("scene_tools.parts_none");
+    const struct {
+        const char *label_id;
+        const char *tip_id;
+        int (*command)(const rv_editor_project &, rv_editor_scene_doc &, std::string &);
+    } commands[] = { { "scene_tools.toolbar_parts_delete", "scene_tools.toolbar_parts_delete_tooltip", rv_editor_parts_delete },
+        { "scene_tools.toolbar_parts_detach", "scene_tools.toolbar_parts_detach_tooltip", rv_editor_parts_detach } };
+    for (const auto &c : commands) {
+        const char *label = rv_editor_text(c.label_id);
+        rv_editor_flow(rv_editor_button_width(label));
+        if (rv_editor_button(label, theme, { rv_editor_look::live, no_pieces })) {
+            std::string error;
+            if (c.command(app.project, *app.scene, error) != RV_OK) {
+                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, error);
+            }
+        }
+        ImGui::SetItemTooltip("%s", rv_editor_text(c.tip_id));
     }
 }
 
@@ -228,6 +257,7 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
         app.scene->parts_mode = parts_val;
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_parts_tooltip"));
+    rv_editor_scene_parts_buttons(app, theme);
     const char *layers_label = rv_editor_text("scene_tools.toolbar_layers");
     rv_editor_flow(rv_editor_button_width(layers_label));
     if (rv_editor_button(layers_label, theme)) {
