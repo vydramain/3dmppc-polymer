@@ -156,9 +156,46 @@ rv_editor_tree_result rv_editor_tree_row(const char *id,
     const rv_editor_state &state = {});
 void rv_editor_tree_pop();
 
+// --- lists --------------------------------------------------------------------
+
+// How a list row looks. `height` 0 is the usual line height. `dim` only dims the label
+// (text_disabled); a dim row is not disabled and has no tooltip. `span_columns` spans
+// every table column; `overlap` lets the next items overlap the row.
+struct rv_editor_list_style {
+    bool selected = false;
+    bool dim = false;
+    bool span_columns = false;
+    bool overlap = false;
+    float height = 0.0f;
+};
+
+// What the row did. A frozen look or a disabled row reports nothing. Order: the second
+// press of a double click sets double_clicked, and clicked comes on its release, so a
+// double click gives both.
+struct rv_editor_list_result {
+    bool clicked = false;
+    bool double_clicked = false;
+    bool right_clicked = false;
+};
+
+// A list's frame is a well; its scroll area (rv_editor_scroll_begin) gives it the
+// Motif scrollbar. `size` works as for rv_editor_well_begin. Rows go between the two
+// calls; always pair them.
+bool rv_editor_list_begin(const char *id, ImVec2 size, const rv_editor_theme &theme);
+void rv_editor_list_end();
+
+// A list row: ImGui's Selectable in the theme's colours, spanning table columns and
+// letting the next items overlap it as the style says. Drag source and context menu
+// come after this call; the row is the last item it leaves.
+rv_editor_list_result rv_editor_list_row(const char *id,
+    const char *label,
+    const rv_editor_theme &theme,
+    const rv_editor_list_style &style = {},
+    const rv_editor_state &state = {});
+
 // --- panes --------------------------------------------------------------------
-// Lists and tables are still ImGui's (BeginListBox, BeginTable) in the theme's
-// colours; the pane pieces below are the ones ImGui has no public form of.
+// Tables are still ImGui's (BeginTable) in the theme's colours; the pane pieces below
+// are the ones ImGui has no public form of.
 
 // Slanted folder tabs, one per label: the front tab in brass, the rest
 // behind it. Returns true when a click moved *active. Non-null `pressed` gets

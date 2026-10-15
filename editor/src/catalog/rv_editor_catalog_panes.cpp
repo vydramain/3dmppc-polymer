@@ -43,7 +43,6 @@ constexpr float splitter_half_divisor = 2.0f;
 constexpr float half_divisor = 2.0f;
 
 struct rv_editor_pane_values {
-    int selected = 1;
     int tab = 0;
     float left_share = splitter_demo_initial_left_share;
     float top = 0.0f; // splitter demo heights, set on first use
@@ -102,23 +101,27 @@ void rv_editor_catalog_tree(const rv_editor_theme &t)
     rv_editor_tree_pop();
 }
 
-void rv_editor_catalog_list(float height)
+// One row per state, the frozen looks last; the live rows follow the pointer.
+void rv_editor_catalog_list(float height, const rv_editor_theme &t)
 {
-    const char *items[] = { rv_editor_text("catalog_panes.list_solid_maid"),
-        rv_editor_text("catalog_panes.list_example_lua"),
-        rv_editor_text("catalog_panes.list_example_cpp"),
-        rv_editor_text("catalog_panes.list_missing_disc") };
-    if (!ImGui::BeginListBox("##list", ImVec2(-1.0f, height))) {
-        return;
+    rv_editor_list_style selected;
+    selected.selected = true;
+    rv_editor_list_style dim;
+    dim.dim = true;
+    if (rv_editor_list_begin("##list", ImVec2(0.0f, height), t)) {
+        rv_editor_list_row("##normal", rv_editor_text("catalog_panes.list_normal"), t);
+        rv_editor_list_row("##selected", rv_editor_text("catalog_panes.list_selected"), t, selected);
+        rv_editor_list_row("##dim", rv_editor_text("catalog_panes.list_dim"), t, dim);
+        rv_editor_list_row("##disabled",
+            rv_editor_text("catalog_panes.list_disabled"),
+            t,
+            {},
+            { rv_editor_look::normal, rv_editor_text("catalog_panes.list_disabled_reason") });
+        rv_editor_list_row("##hovered", rv_editor_text("catalog_panes.list_hovered"), t, {}, { rv_editor_look::hovered });
+        rv_editor_list_row("##pressed", rv_editor_text("catalog_panes.list_pressed"), t, {}, { rv_editor_look::pressed });
+        rv_editor_list_row("##focused", rv_editor_text("catalog_panes.list_focused"), t, {}, { rv_editor_look::focused });
     }
-    for (int i = 0; i < static_cast<int>(std::size(items)); ++i) {
-        ImGui::BeginDisabled(i == static_cast<int>(std::size(items)) - 1);
-        if (ImGui::Selectable(items[i], rv_editor_pane_data.selected == i)) {
-            rv_editor_pane_data.selected = i;
-        }
-        ImGui::EndDisabled();
-    }
-    ImGui::EndListBox();
+    rv_editor_list_end();
 }
 
 void rv_editor_catalog_table()
@@ -278,7 +281,7 @@ void rv_editor_catalog_lists(const rv_editor_theme &theme)
         rv_editor_catalog_tree(theme);
         ImGui::EndChild();
         ImGui::TableNextColumn();
-        rv_editor_catalog_list(height);
+        rv_editor_catalog_list(height, theme);
         ImGui::TableNextColumn();
         rv_editor_catalog_table();
         ImGui::EndTable();
