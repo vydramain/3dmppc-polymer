@@ -51,10 +51,10 @@ struct rv_editor_add_draft {
 rv_editor_add_draft add_draft;
 
 // A label column, then the field.
-void rv_editor_components_label(const char *label)
+void rv_editor_components_label(const char *label, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(label);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
     ImGui::SameLine(ImGui::GetFontSize() * label_column_em);
     ImGui::SetNextItemWidth(fill_width);
 }
@@ -64,7 +64,7 @@ void rv_editor_components_label(const char *label)
 void rv_editor_components_string(rv_editor_scene_doc &doc, const char *id, std::string &value, const rv_editor_theme &theme)
 {
     if (value.size() >= asset_identifier_field_size) {
-        ImGui::TextWrapped("%s", value.c_str());
+        rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         return;
     }
     char buf[asset_identifier_field_size] = {};
@@ -103,7 +103,7 @@ void rv_editor_components_field(rv_editor_scene_doc &doc,
     rv_pdklib::rv_manifest_tree_entry &field,
     const rv_editor_theme &theme)
 {
-    rv_editor_components_label(field.key.c_str());
+    rv_editor_components_label(field.key.c_str(), theme);
     rv_pdklib::rv_manifest_mvalue &v = field.value;
     switch (v.kind) {
     case rv_pdklib::rv_manifest_value_kind::string:
@@ -117,7 +117,7 @@ void rv_editor_components_field(rv_editor_scene_doc &doc,
         return;
     case rv_pdklib::rv_manifest_value_kind::array:
     case rv_pdklib::rv_manifest_value_kind::numbers:
-        ImGui::TextUnformatted(rv_pdklib::rv_scene_value_text(v).c_str());
+        rv_editor_label(rv_pdklib::rv_scene_value_text(v).c_str(), rv_editor_label_kind::normal, theme);
         return;
     }
 }
@@ -144,7 +144,7 @@ void rv_editor_components_list(rv_editor_scene_doc &doc, size_t at, const rv_edi
             continue;
         }
         ImGui::PushID(static_cast<int>(c));
-        ImGui::SeparatorText(comp.name.c_str());
+        rv_editor_section(comp.name.c_str());
         if (rv_editor_button(rv_editor_text("pane_scene_components.remove_button"), theme)) {
             removing = c;
         }
@@ -193,7 +193,7 @@ const char *rv_editor_components_add_reason(const rv_editor_scene_object &o, std
 void rv_editor_components_add(rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
 {
     rv_editor_scene_object &o = doc.scene.objects[at];
-    rv_editor_components_label(rv_editor_text("pane_scene_components.add_name_label"));
+    rv_editor_components_label(rv_editor_text("pane_scene_components.add_name_label"), theme);
     rv_editor_text_field("##add_name", add_draft.name, sizeof(add_draft.name), theme);
     const std::string_view name = rv_editor_components_trim(add_draft.name);
     const char *reason = rv_editor_components_add_reason(o, name);
@@ -226,11 +226,11 @@ void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &t
         add_draft.name[0] = '\0';
     }
     ImGui::BeginDisabled(read_only);
-    rv_editor_components_label(rv_editor_text("pane_scene_components.entity_label"));
+    rv_editor_components_label(rv_editor_text("pane_scene_components.entity_label"), theme);
     rv_editor_components_string(doc, "##entity", doc.scene.objects[at].entity, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_components.entity_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_scene_components.entity_tooltip"));
     rv_editor_components_visible(doc, at, theme);
-    ImGui::SeparatorText(rv_editor_text("pane_scene_components.components_header"));
+    rv_editor_section(rv_editor_text("pane_scene_components.components_header"));
     rv_editor_components_list(doc, at, theme);
     rv_editor_components_add(doc, at, theme);
     ImGui::EndDisabled();
