@@ -19,6 +19,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -52,8 +53,6 @@ constexpr int utf8_4byte_length = 4;
 constexpr const char *grid_cell_width_probe = "M";
 // Maximum preview lines in paste confirmation dialog.
 constexpr int max_paste_preview_lines = 8;
-// FramePadding counts on both sides.
-constexpr float frame_padding_sides = 2.0f;
 // Minimum terminal grid columns.
 constexpr int min_terminal_cols = 2;
 // Minimum terminal grid rows.
@@ -247,7 +246,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         }
         if (!why.empty()) {
             rv_editor_font_code_pop();
-            ImGui::TextUnformatted(why.c_str());
+            rv_editor_label(why.c_str(), rv_editor_label_kind::normal, theme);
             ImGui::SameLine();
             if (rv_editor_button(rv_editor_text("pane_terminal.start_again"), theme)) {
                 view = {};
@@ -261,7 +260,7 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         rv_editor_font_code_pop();
         rv_editor_ask_begin(rv_editor_text("pane_terminal.paste_dialog_title"), theme);
         ImGui::AlignTextToFramePadding();
-        ImGui::TextUnformatted(rv_editor_text("pane_terminal.paste_lines_info"));
+        rv_editor_label(rv_editor_text("pane_terminal.paste_lines_info"), rv_editor_label_kind::normal, theme);
         ImGui::SameLine();
         const bool paste = rv_editor_button(rv_editor_text("pane_terminal.paste"), theme);
         ImGui::SameLine();
@@ -269,13 +268,9 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         const float lines = static_cast<float>(
             std::min<size_t>(max_paste_preview_lines, 1 + std::count(view.paste.begin(), view.paste.end(), '\n')));
         rv_editor_font_code_push();
-        const float box_height =
-            ImGui::GetTextLineHeightWithSpacing() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
-        ImGui::InputTextMultiline("##paste",
-            view.paste.data(),
-            view.paste.size() + 1,
-            ImVec2(-1.0f, box_height),
-            ImGuiInputTextFlags_ReadOnly);
+        const rv_editor_field paste_field = { .state = {}, .read_only = true };
+        ImGui::SetNextItemWidth(-1.0f);
+        rv_editor_text_area("##paste", view.paste.data(), view.paste.size() + 1, lines, theme, paste_field);
         rv_editor_font_code_pop();
         if (paste) {
             rv_editor_term_type(*view.term, view.paste);
@@ -354,7 +349,12 @@ void rv_editor_pane_terminal_body(rv_editor_app &app,
         dl->AddText(ImVec2(status.x + cell.x, status.y), rv_editor_rgb(theme.code_text), label.c_str());
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
-        ImGui::SetTooltip("%s\n%d x %d", view.cwd.c_str(), term.cols(), term.rows());
+        const std::string cwd_text = view.cwd.string();
+        const int grid_cols = term.cols();
+        const int grid_rows = term.rows();
+        const std::string size_tip =
+            rv_editor_text_format("pane_terminal.size_tooltip", std::make_format_args(cwd_text, grid_cols, grid_rows));
+        rv_editor_tooltip(size_tip.c_str());
     }
 
     if (!focused || !term.running()) {

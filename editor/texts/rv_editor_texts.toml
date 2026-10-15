@@ -1052,6 +1052,7 @@ paste = "Paste"
 cancel = "Cancel"
 unknown_error = "unknown error"
 scroll_back_status = "{} lines back: type or scroll down to return"
+size_tooltip = "{}\n{} x {}"
 
 [pane_code]
 file_modified_marker = " [+]"
