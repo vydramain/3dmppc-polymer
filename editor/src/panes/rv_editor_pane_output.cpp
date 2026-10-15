@@ -326,7 +326,7 @@ void rv_editor_pane_output(rv_editor_app &app, rv_editor_pane_id pane, const rv_
         rv_editor_flow(ImGui::GetFontSize() * dropped_lines_flow_width_em);
         const unsigned long long dropped = log.dropped();
         const std::string msg = rv_editor_text_format("pane_output.info_dropped", std::make_format_args(dropped));
-        ImGui::TextUnformatted(msg.c_str());
+        rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme);
     }
     const auto picked = [&view](const rv_editor_log_line &line) {
         return view.picked_from != 0 && line.seq >= std::min(view.picked_from, view.picked_to) &&
