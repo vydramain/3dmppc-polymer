@@ -358,6 +358,14 @@ bool rv_editor_scene_redo(rv_editor_scene_doc &doc)
     return true;
 }
 
+void rv_editor_scene_select(rv_editor_scene_doc &doc, const std::string &id)
+{
+    doc.selected = id;
+    doc.picked_owner.clear();
+    doc.picked_mesh.clear();
+    doc.picked_pieces.clear();
+}
+
 std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kind, const std::string &parent)
 {
     rv_editor_scene_step(doc);
@@ -372,7 +380,7 @@ std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kin
                                    default_group_name;
     o.parent = rv_editor_scene_find(doc.scene, parent) >= 0 ? parent : std::string();
     doc.scene.objects.push_back(o);
-    doc.selected = o.id;
+    rv_editor_scene_select(doc, o.id);
     return o.id;
 }
 
@@ -392,7 +400,7 @@ void rv_editor_scene_delete(rv_editor_scene_doc &doc, const std::string &id)
         return std::find(ids.begin(), ids.end(), o.id) != ids.end();
     });
     if (std::find(ids.begin(), ids.end(), doc.selected) != ids.end()) {
-        doc.selected.clear();
+        rv_editor_scene_select(doc, std::string());
     }
 }
 
@@ -425,7 +433,7 @@ std::string rv_editor_scene_duplicate(rv_editor_scene_doc &doc, const std::strin
     }
     made.front().name += duplicate_suffix;
     doc.scene.objects.insert(doc.scene.objects.end(), made.begin(), made.end());
-    doc.selected = made.front().id;
+    rv_editor_scene_select(doc, made.front().id);
     return made.front().id;
 }
 

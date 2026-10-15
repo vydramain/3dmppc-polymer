@@ -176,7 +176,7 @@ void rv_editor_hierarchy_node_context_menu(rv_editor_app &app,
     if (!ImGui::BeginPopupContextItem()) {
         return;
     }
-    doc.selected = o.id;
+    rv_editor_scene_select(doc, o.id);
     ImGui::BeginDisabled(read_only);
     for (std::string_view kind : scene_kinds) {
         const char *kind_label = rv_editor_scene_kind_label(std::string(kind));
@@ -238,7 +238,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
         ImGui::PopStyleColor();
     }
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
-        doc.selected = o.id;
+        rv_editor_scene_select(doc, o.id);
     }
     // Only the file's order can be dragged: a sorted list has no place to drop into.
     const bool drag = !read_only && doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order;
@@ -260,6 +260,7 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
         for (const std::string &child : children) {
             rv_editor_hierarchy_node(app, child, read_only, theme, tree);
         }
+        rv_editor_hierarchy_pieces(app, o);
         ImGui::TreePop();
     }
 }
@@ -280,7 +281,7 @@ void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &
     const std::string label = rv_editor_hierarchy_name(o);
     ImGui::PushID(o.id.c_str());
     if (ImGui::Selectable(label.c_str(), doc.selected == o.id)) {
-        doc.selected = o.id;
+        rv_editor_scene_select(doc, o.id);
     }
     ImGui::PopID();
     if (dim) {
@@ -425,7 +426,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
             ImGui::EndDragDropTarget();
         }
         if (ImGui::IsItemClicked()) {
-            doc.selected.clear();
+            rv_editor_scene_select(doc, std::string());
         }
     };
     body();

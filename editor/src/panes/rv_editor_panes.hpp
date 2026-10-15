@@ -151,6 +151,8 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
+// A mesh object's Pieces node under its row: its model's pieces, picked by click (rv_editor_pane_hierarchy_pieces.cpp).
+void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
 // The selected object's entity type, Visible and components (rv_editor_pane_scene_components.cpp).
 void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
