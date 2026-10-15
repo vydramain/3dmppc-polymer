@@ -16,9 +16,9 @@
 
 #include "platform/rv_editor_process.hpp"
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_field_sizes.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -102,15 +102,13 @@ std::string rv_editor_export_state_line(const rv_editor_export &exporter, rv_edi
 void rv_editor_export_reason(const std::string &reason, const rv_editor_theme &theme)
 {
     const std::string text = rv_editor_text_format("pane_export.state_failed_reason", std::make_format_args(reason));
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
+    rv_editor_label(text.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
 }
 
 void rv_editor_export_kinds(rv_editor_export_form &form, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("pane_export.kind_label"));
+    rv_editor_label(rv_editor_text("pane_export.kind_label"), rv_editor_label_kind::normal, theme);
     for (size_t i = 0; i < kind_keys.size(); ++i) {
         const auto kind = static_cast<rv_editor_export_kind>(i);
         ImGui::SameLine();
@@ -123,11 +121,11 @@ void rv_editor_export_kinds(rv_editor_export_form &form, const rv_editor_theme &
 void rv_editor_export_dest(rv_editor_export_form &form, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("pane_export.dest_label"));
+    rv_editor_label(rv_editor_text("pane_export.dest_label"), rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(-1.0f);
     rv_editor_text_field("##export_dest", form.dest, sizeof(form.dest), theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_export.dest_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_export.dest_tooltip"));
 }
 
 // A refusal's reason goes to the log under `key`.
@@ -268,12 +266,10 @@ void rv_editor_pane_export(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_export_setup(app, form);
     }
     if (setup_why == nullptr) {
-        ImGui::SetItemTooltip("%s", rv_editor_text("pane_export.setup_tooltip"));
+        rv_editor_item_tooltip(rv_editor_text("pane_export.setup_tooltip"));
     }
     if (!form.error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", form.error.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(form.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     const std::string line = rv_editor_export_state_line(exporter, form.op);
     rv_editor_status(line.c_str(), rv_editor_export_lamp(exporter.state()), theme);
