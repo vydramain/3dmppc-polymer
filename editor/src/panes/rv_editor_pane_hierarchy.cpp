@@ -19,6 +19,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -161,46 +162,54 @@ void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_
     ImGui::PopStyleColor();
 }
 
-// Context menu for a scene object: add children, duplicate, delete, reparent
+// Context menu for a scene object: add children, duplicate, delete, reparent. Each item says why it cannot run.
 void rv_editor_hierarchy_node_context_menu(rv_editor_app &app,
+    const rv_editor_ui_port &ui,
     rv_editor_scene_doc &doc,
     const rv_editor_scene_object &o,
     bool read_only)
 {
-    if (!ImGui::BeginPopupContextItem()) {
+    if (!rv_editor_context_menu_begin(nullptr)) {
         return;
     }
     rv_editor_scene_select(doc, o.id);
-    ImGui::BeginDisabled(read_only);
+    const char *read_only_why = read_only ? rv_editor_text("scene_actions.read_only") : nullptr;
     for (std::string_view kind : rv_editor_hierarchy_kinds()) {
         const std::string kind_name(kind);
         const char *kind_label = rv_editor_scene_kind_label(kind_name);
         const std::string add_label = rv_editor_text_format("pane_hierarchy.add_under", std::make_format_args(kind_label));
-        if (ImGui::MenuItem(add_label.c_str())) {
+        if (rv_editor_menu_item(add_label.c_str(), nullptr, read_only_why)) {
             rv_editor_scene_add(doc, kind.data(), o.id);
         }
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.duplicate"), rv_editor_text("pane_hierarchy.shortcut_duplicate"))) {
-        rv_editor_scene_duplicate(doc, o.id);
+    rv_editor_separator();
+    const char *duplicate_why = rv_editor_scene_action_why_not(app, rv_editor_scene_action::duplicate);
+    if (rv_editor_menu_item(rv_editor_text("pane_hierarchy.duplicate"),
+            rv_editor_text("pane_hierarchy.shortcut_duplicate"),
+            duplicate_why)) {
+        rv_editor_hierarchy_run(app, ui, rv_editor_scene_action::duplicate);
     }
-    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.delete"), rv_editor_text("pane_hierarchy.shortcut_delete"))) {
-        rv_editor_scene_delete(doc, o.id);
+    const char *remove_why = rv_editor_scene_action_why_not(app, rv_editor_scene_action::remove);
+    if (rv_editor_menu_item(rv_editor_text("pane_hierarchy.delete"),
+            rv_editor_text("pane_hierarchy.shortcut_delete"),
+            remove_why)) {
+        rv_editor_hierarchy_run(app, ui, rv_editor_scene_action::remove);
     }
-    ImGui::Separator();
-    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root"))) {
-        rv_editor_hierarchy_move(app, o.id, "", true);
+    rv_editor_separator();
+    const char *detach_why = rv_editor_scene_action_why_not(app, rv_editor_scene_action::detach);
+    if (rv_editor_menu_item(rv_editor_text("pane_hierarchy.move_to_root"), nullptr, detach_why)) {
+        rv_editor_hierarchy_run(app, ui, rv_editor_scene_action::detach);
     }
     // The other meaning, asked for by name: the numbers stay, the place changes.
-    if (ImGui::MenuItem(rv_editor_text("pane_hierarchy.move_to_root_keep_local"))) {
+    if (rv_editor_menu_item(rv_editor_text("pane_hierarchy.move_to_root_keep_local"), nullptr, detach_why)) {
         rv_editor_hierarchy_move(app, o.id, "", false);
     }
-    ImGui::EndDisabled();
-    ImGui::EndPopup();
+    rv_editor_context_menu_end();
 }
 
 // One tree row by id, then its children when open. An id whose object is gone is skipped.
 void rv_editor_hierarchy_node(rv_editor_app &app,
+    const rv_editor_ui_port &ui,
     const std::string &id,
     bool read_only,
     const rv_editor_theme &theme,
@@ -238,12 +247,12 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
         }
         ImGui::EndDragDropTarget();
     }
-    rv_editor_hierarchy_node_context_menu(app, doc, o, read_only);
+    rv_editor_hierarchy_node_context_menu(app, ui, doc, o, read_only);
     // After the node's own interaction: SameLine reuses the node's line.
     rv_editor_hierarchy_marks(o, theme);
     if (row.open) {
         for (const std::string &child : children) {
-            rv_editor_hierarchy_node(app, child, read_only, theme, tree);
+            rv_editor_hierarchy_node(app, ui, child, read_only, theme, tree);
         }
         rv_editor_hierarchy_pieces(app, o, theme);
         rv_editor_tree_pop();
@@ -273,12 +282,13 @@ void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &
 
 // The tree's roots, in the chosen order, each with its children below it.
 void rv_editor_hierarchy_roots(rv_editor_app &app,
+    const rv_editor_ui_port &ui,
     const rv_editor_hierarchy_tree &tree,
     bool read_only,
     const rv_editor_theme &theme)
 {
     for (const std::string &id : tree.roots) {
-        rv_editor_hierarchy_node(app, id, read_only, theme, tree);
+        rv_editor_hierarchy_node(app, ui, id, read_only, theme, tree);
         if (app.scene == nullptr) {
             return;
         }
@@ -380,7 +390,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
         if (doc.hierarchy_query[0] != '\0') {
             rv_editor_hierarchy_matches(app, theme);
         } else {
-            rv_editor_hierarchy_roots(app, tree, read_only, theme);
+            rv_editor_hierarchy_roots(app, ui, tree, read_only, theme);
         }
         if (app.scene == nullptr) {
             return;

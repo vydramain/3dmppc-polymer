@@ -58,16 +58,6 @@ void rv_editor_hierarchy_add(rv_editor_scene_doc &doc, const std::string &kind)
     rv_editor_scene_add(doc, kind, group ? doc.selected : std::string());
 }
 
-// Runs a command on a copy of the Scene camera; a camera it changed (Frame) is queued.
-void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action)
-{
-    rv_editor_scene_camera cam = ui.state.scene_camera;
-    rv_editor_scene_action_run(app, cam, action);
-    if (cam != ui.state.scene_camera) {
-        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
-    }
-}
-
 // A command button: its code in its colour, the hint as tooltip, and the reason when it cannot run.
 void rv_editor_hierarchy_command(rv_editor_app &app,
     const rv_editor_ui_port &ui,
@@ -93,6 +83,16 @@ void rv_editor_hierarchy_command(rv_editor_app &app,
 std::span<const std::string_view> rv_editor_hierarchy_kinds()
 {
     return kinds;
+}
+
+// Runs a command on a copy of the Scene camera; a camera it changed (Frame) is queued.
+void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action)
+{
+    rv_editor_scene_camera cam = ui.state.scene_camera;
+    rv_editor_scene_action_run(app, cam, action);
+    if (cam != ui.state.scene_camera) {
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
+    }
 }
 
 // Mesh reads "box" in the editor.
