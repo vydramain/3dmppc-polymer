@@ -20,7 +20,7 @@ void rv_editor_scene_open_row(rv_editor_app &app, const rv_editor_theme &theme)
     if (rv_editor_button(rv_editor_text("pane_scene.create_scene"), theme)) {
         rv_editor_shell_new_scene_request(app);
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene.create_scene_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_scene.create_scene_tooltip"));
     for (const std::filesystem::path &path : rv_editor_app_scene_files(app)) {
         ImGui::SameLine();
         const std::string filename = path.filename().string();
@@ -42,27 +42,27 @@ void rv_editor_pane_scene(rv_editor_app &app, SDL_Renderer *renderer, const rv_e
         return; // a picture or a sound tab is in front; it drew its own content
     }
     if (app.scene == nullptr) {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_scene.no_scene_open"));
+        rv_editor_label(rv_editor_text("pane_scene.no_scene_open"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
         if (!app.scene_error.empty()) {
-            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-            ImGui::TextWrapped("%s", app.scene_error.c_str());
-            ImGui::PopStyleColor();
+            rv_editor_label(app.scene_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
         }
         rv_editor_scene_open_row(app, theme);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("%s", rv_editor_text("pane_scene.game_loader_explanation"));
-        ImGui::PopStyleColor();
+        rv_editor_label(rv_editor_text("pane_scene.game_loader_explanation"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
         return;
     }
     if (!app.scene->scene.read_only.empty()) {
         const auto read_only_msg =
             rv_editor_text_format("pane_scene.read_only_format", std::make_format_args(app.scene->scene.read_only));
-        ImGui::TextWrapped("%s", read_only_msg.c_str());
+        rv_editor_label(read_only_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
     if (!app.scene_error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", app.scene_error.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(app.scene_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     rv_editor_scene_viewport(app, renderer, theme, ui);
 }
