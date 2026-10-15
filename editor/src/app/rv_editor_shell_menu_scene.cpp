@@ -138,7 +138,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
         rv_editor_ask_end();
         return;
     }
-    ImGui::TextUnformatted(rv_editor_text("shell_menu_scene.name_label"));
+    rv_editor_label(rv_editor_text("shell_menu_scene.name_label"), rv_editor_label_kind::normal, theme);
     if (g_new_scene.focus_name) {
         // the scene's own tab, so the created scene shows (applied after this draw)
         ui.requests.push_back({ .kind = rv_editor_ui_request_kind::front_scene_tab, .scene_tab_index = 0 });
@@ -168,9 +168,7 @@ void rv_editor_scene_new_area(rv_editor_app &app, const rv_editor_theme &theme, 
     rv_editor_checkbox(cpp_label.c_str(), &g_new_scene.write_cpp, theme, cpp_state);
 
     if (!g_new_scene.error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", g_new_scene.error.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(g_new_scene.error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
 
     const rv_editor_state create_state{ rv_editor_look::live, disabled };
@@ -199,24 +197,25 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
         rv_editor_shell_new_scene_request(app);
         rv_editor_shell_show_pane(shell, rv_editor_pane_kind::scene);
     }
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.open_scene"), app.project.open)) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.open_scene"), no_project)) {
         const std::vector<std::filesystem::path> files = rv_editor_app_scene_files(app);
         for (const std::filesystem::path &path : files) {
-            if (ImGui::MenuItem(path.filename().string().c_str())) {
+            const std::string file_name = path.filename().string();
+            if (rv_editor_menu_item(file_name.c_str(), nullptr, nullptr)) {
                 rv_editor_app_scene_open(app, path);
             }
         }
         if (files.empty()) {
             ImGui::TextDisabled("%s", rv_editor_text("shell_menu_scene.no_scenes"));
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
     const char *no_scene = app.scene == nullptr ? rv_editor_text("shell_menu_scene.no_scene_open") : nullptr;
     const auto save_shortcut = rv_editor_text("shell_menu_scene.save_scene_shortcut");
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.save_scene"), save_shortcut, rv_editor_scene_why_not_save(app))) {
         rv_editor_shell_scene_save(shell);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     const char *no_undo = [&]() -> const char * {
         if (no_scene != nullptr) {
             return no_scene;
@@ -241,7 +240,7 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     if (rv_editor_menu_item(rv_editor_text("shell_menu_scene.redo_scene_edit"), nullptr, no_redo)) {
         rv_editor_scene_redo(*app.scene);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     // New objects go under the selected group, else at the root.
     const char *read_only;
     if (no_scene != nullptr) {
@@ -251,18 +250,18 @@ void rv_editor_menu_scene(rv_editor_shell &shell)
     } else {
         read_only = nullptr;
     }
-    if (ImGui::BeginMenu(rv_editor_text("shell_menu_scene.add_menu"), read_only == nullptr)) {
+    if (rv_editor_menu_begin(rv_editor_text("shell_menu_scene.add_menu"), read_only)) {
         const int sel = rv_editor_scene_find(app.scene->scene, app.scene->selected);
         const std::string parent = sel >= 0 && app.scene->scene.objects[static_cast<size_t>(sel)].kind == kind_group ?
             app.scene->selected :
             std::string();
         for (std::string_view kind : scene_kinds) {
             const char *label = rv_editor_text(rv_editor_kind_text_id(kind));
-            if (ImGui::MenuItem(label)) {
+            if (rv_editor_menu_item(label, nullptr, nullptr)) {
                 rv_editor_scene_add(*app.scene, kind.data(), parent);
             }
         }
-        ImGui::EndMenu();
+        rv_editor_menu_end();
     }
     const char *no_selection;
     if (read_only != nullptr) {
