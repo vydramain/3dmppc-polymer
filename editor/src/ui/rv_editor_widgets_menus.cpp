@@ -18,20 +18,35 @@ bool rv_editor_menu_styled_begin(bool open)
     return open;
 }
 
+// Shows the reason of a disabled menu entry on hover.
+void rv_editor_menu_why_not_tooltip(const char *why_not)
+{
+    if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
+        ImGui::SetTooltip("%s", why_not);
+    }
+}
+
 } // namespace
+
+bool rv_editor_menu_choice(const char *label, const char *shortcut, bool selected, const char *why_not)
+{
+    const bool clicked = ImGui::MenuItem(label, shortcut, selected, why_not == nullptr);
+    rv_editor_menu_why_not_tooltip(why_not);
+    return clicked;
+}
 
 bool rv_editor_menu_check(const char *label, const char *shortcut, bool *on, const char *why_not)
 {
-    const bool clicked = ImGui::MenuItem(label, shortcut, on, why_not == nullptr);
-    if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", why_not);
+    const bool clicked = rv_editor_menu_choice(label, shortcut, *on, why_not);
+    if (clicked) {
+        *on = !*on;
     }
     return clicked;
 }
 
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
 {
-    return rv_editor_menu_check(label, shortcut, nullptr, why_not);
+    return rv_editor_menu_choice(label, shortcut, false, why_not);
 }
 
 bool rv_editor_main_menu_bar_begin()
@@ -62,9 +77,7 @@ bool rv_editor_menu_begin(const char *label, const char *why_not)
 {
     rv_editor_menu_style_push();
     const bool open = ImGui::BeginMenu(label, why_not == nullptr);
-    if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-        ImGui::SetTooltip("%s", why_not);
-    }
+    rv_editor_menu_why_not_tooltip(why_not);
     return rv_editor_menu_styled_begin(open);
 }
 

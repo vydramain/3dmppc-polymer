@@ -17,9 +17,16 @@ constexpr float log_display_rows = 4.0f;
 // Multiplier for vertical padding in log display (applied to WindowPadding.y)
 constexpr float log_padding_y_multiplier = 2.0f;
 
+enum class rv_editor_status_view {
+    compact,
+    comfortable,
+    spacious,
+};
+
 struct rv_editor_status_values {
     bool snap = true;
     bool grid = false;
+    rv_editor_status_view view = rv_editor_status_view::comfortable;
 };
 
 rv_editor_status_values rv_editor_status_data;
@@ -53,6 +60,27 @@ void rv_editor_catalog_menus()
                 nullptr,
                 &rv_editor_status_data.grid,
                 rv_editor_text("catalog_status.scene_grid_why_not"));
+            rv_editor_menu_end();
+        }
+        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_view"), nullptr)) {
+            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_compact"),
+                    nullptr,
+                    rv_editor_status_data.view == rv_editor_status_view::compact,
+                    nullptr)) {
+                rv_editor_status_data.view = rv_editor_status_view::compact;
+            }
+            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_comfortable"),
+                    nullptr,
+                    rv_editor_status_data.view == rv_editor_status_view::comfortable,
+                    nullptr)) {
+                rv_editor_status_data.view = rv_editor_status_view::comfortable;
+            }
+            if (rv_editor_menu_choice(rv_editor_text("catalog_status.view_spacious"),
+                    nullptr,
+                    rv_editor_status_data.view == rv_editor_status_view::spacious,
+                    rv_editor_text("catalog_status.view_spacious_why_not"))) {
+                rv_editor_status_data.view = rv_editor_status_view::spacious;
+            }
             rv_editor_menu_end();
         }
         if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_run"), rv_editor_text("catalog_status.run_why_not"))) {

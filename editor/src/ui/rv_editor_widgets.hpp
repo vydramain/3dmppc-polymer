@@ -412,8 +412,10 @@ void rv_editor_window_context_menu_end();
 
 // A menu item that is disabled with its reason shown on hover.
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
-// A menu item with a check mark while *on; a click flips *on. `why_not` as for rv_editor_menu_item.
+// A menu item with a check mark while *on (not null); a click flips *on. `why_not` as for rv_editor_menu_item.
 bool rv_editor_menu_check(const char *label, const char *shortcut, bool *on, const char *why_not);
+// A choice item marked while `selected`; a click returns true, the caller sets the choice. `why_not` as for menu_item.
+bool rv_editor_menu_choice(const char *label, const char *shortcut, bool selected, const char *why_not);
 
 // --- status, log, transport, dialogs --------------------------------------------
 
