@@ -41,19 +41,13 @@ int rv_editor_pieces_model(const rv_editor_project &project,
     return rv_editor_glb_load(path, glb, error);
 }
 
-// Picks belong to one model: once the object's mesh has changed, they are dropped.
-void rv_editor_pieces_check(rv_editor_scene_doc &doc, const rv_editor_scene_object &o)
-{
-    if (doc.picked_owner == o.id && doc.picked_mesh != o.mesh) {
-        doc.picked_owner.clear();
-        doc.picked_mesh.clear();
-        doc.picked_pieces.clear();
-    }
-}
-
 // A click picks the piece alone; Shift toggles it among the object's picks. Shift on another object's
 // piece starts over: the object is selected first, which drops the old picks.
-void rv_editor_hierarchy_pick_piece(rv_editor_scene_doc &doc, const rv_editor_scene_object &o, size_t number, bool shift)
+void rv_editor_hierarchy_pick_piece(rv_editor_scene_doc &doc,
+    const rv_editor_scene_object &o,
+    size_t number,
+    size_t pieces,
+    bool shift)
 {
     const bool keep = shift && doc.picked_owner == o.id;
     if (!keep) {
@@ -61,19 +55,24 @@ void rv_editor_hierarchy_pick_piece(rv_editor_scene_doc &doc, const rv_editor_sc
     }
     doc.picked_owner = o.id;
     doc.picked_mesh = o.mesh;
+    doc.picked_count = pieces;
     if (doc.picked_pieces.erase(number) == 0) {
         doc.picked_pieces.insert(number);
     }
 }
 
 // One piece by its number (from 1) and triangle count; highlighted while picked.
-void rv_editor_hierarchy_piece_row(rv_editor_scene_doc &doc, const rv_editor_scene_object &o, size_t number, size_t tris)
+void rv_editor_hierarchy_piece_row(rv_editor_scene_doc &doc,
+    const rv_editor_scene_object &o,
+    size_t number,
+    size_t tris,
+    size_t pieces)
 {
     const bool picked = doc.picked_owner == o.id && doc.picked_pieces.count(number) != 0;
     const std::string label = rv_editor_text_format("pane_hierarchy.piece_row", std::make_format_args(number, tris));
     ImGui::PushID(static_cast<int>(number));
     if (ImGui::Selectable(label.c_str(), picked)) {
-        rv_editor_hierarchy_pick_piece(doc, o, number, ImGui::GetIO().KeyShift);
+        rv_editor_hierarchy_pick_piece(doc, o, number, pieces, ImGui::GetIO().KeyShift);
     }
     ImGui::PopID();
 }
@@ -86,7 +85,7 @@ void rv_editor_hierarchy_piece_rows(rv_editor_scene_doc &doc, const rv_editor_sc
     while (clipper.Step()) {
         for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
             const size_t index = static_cast<size_t>(i);
-            rv_editor_hierarchy_piece_row(doc, o, index + 1, glb.pieces[index].size());
+            rv_editor_hierarchy_piece_row(doc, o, index + 1, glb.pieces[index].size(), glb.pieces.size());
         }
     }
 }
@@ -99,7 +98,6 @@ void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object
         return;
     }
     rv_editor_scene_doc &doc = *app.scene;
-    rv_editor_pieces_check(doc, o);
     const std::string label = rv_editor_text("pane_hierarchy.pieces");
     const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
     const bool open = ImGui::TreeNodeEx(rv_editor_pieces_id, flags, "%s", label.c_str());
@@ -115,6 +113,8 @@ void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object
         return;
     }
     const size_t count = glb->pieces.size();
+    // The count is known only with the model, so picks from an older model are dropped here.
+    rv_editor_scene_picks_check(doc, o, count);
     rv_editor_dim(rv_editor_text_format("pane_hierarchy.pieces_count", std::make_format_args(count)));
     rv_editor_hierarchy_piece_rows(doc, o, *glb);
     ImGui::TreePop();

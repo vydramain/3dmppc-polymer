@@ -221,7 +221,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     if (ImGui::IsItemActivated() || (active && ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
         const int at = rv_editor_selected_index(doc);
         int axis = -1;
-        if (at >= 0 && !read_only && !cam.seeking) {
+        if (at >= 0 && !read_only && !cam.seeking && !doc.parts_mode) {
             axis = rv_editor_tool_axis(cam.tool, doc, v, mouse, gizmo, at);
         }
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && axis >= 0) {
@@ -233,6 +233,8 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             tool_drag.before_rotation = o.rotation;
             tool_drag.before_scale = o.scale;
             tool_drag.dragging = true;
+        } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && doc.parts_mode && !cam.seeking) {
+            rv_editor_parts_click(doc, app.project, v, mouse, io.KeyShift);
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
             const std::string hit = rv_editor_pick(doc, app.project, v, mouse);
             if (cam.seeking) {
@@ -312,7 +314,9 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             continue;
         }
         const std::string &kind = obj.kind;
-        const bool sel = obj.id == doc.selected;
+        // An object with picked pieces is drawn as unselected; the picked pieces are drawn over it.
+        const bool has_picks = obj.id == doc.picked_owner && doc.picked_mesh == obj.mesh && !doc.picked_pieces.empty();
+        const bool sel = obj.id == doc.selected && !has_picks;
         const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
                 vis == rv_editor_visibility::outline                             ? theme.text_disabled :
                 kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
@@ -337,6 +341,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             mesh_error = error;
         }
     }
+    rv_editor_parts_highlight(dl, v, doc, app.project, rv_editor_col(theme.selection));
     const int at = rv_editor_selected_index(doc);
     if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
         const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });

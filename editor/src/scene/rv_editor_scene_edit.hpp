@@ -40,10 +40,13 @@ struct rv_editor_scene_doc {
     rv_editor_hierarchy_sort hierarchy_sort = rv_editor_hierarchy_sort::file_order;
     char hierarchy_query[hierarchy_query_size] = {};
     bool show_hidden = true;
+    // A click picks a model's piece, not an object. View state.
+    bool parts_mode = false;
     std::set<std::string, std::less<>> off_layers; // layers switched off by name; lookup by string_view
     // The pieces picked of the object picked_owner, numbered from 1 as Hierarchy shows them. View state, not undo.
     std::string picked_owner;
     std::string picked_mesh; // the model name of picked_owner when its pieces were picked
+    size_t picked_count = 0; // the model's piece count then; a rewritten model drops the picks
     std::set<size_t> picked_pieces;
 };
 
@@ -55,6 +58,8 @@ bool rv_editor_scene_redo(rv_editor_scene_doc &doc);
 
 // Selects `id` ("" for none); the pieces picked under the old selection are dropped. Not an undo step.
 void rv_editor_scene_select(rv_editor_scene_doc &doc, const std::string &id);
+// Drops the picks of `o` unless they were made on its current mesh with `pieces` pieces. Not an undo step.
+void rv_editor_scene_picks_check(rv_editor_scene_doc &doc, const rv_editor_scene_object &o, size_t pieces);
 
 // Each change below is one undo step and returns what it made or why it did not.
 std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kind, const std::string &parent);

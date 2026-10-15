@@ -221,6 +221,13 @@ void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, co
         app.scene->show_hidden = hidden_val;
     }
     ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_hidden_tooltip"));
+    const char *parts_label = rv_editor_text("scene_tools.toolbar_parts");
+    rv_editor_flow(rv_editor_button_width(parts_label));
+    bool parts_val = app.scene->parts_mode;
+    if (rv_editor_toggle(parts_label, &parts_val, theme)) {
+        app.scene->parts_mode = parts_val;
+    }
+    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_parts_tooltip"));
     const char *layers_label = rv_editor_text("scene_tools.toolbar_layers");
     rv_editor_flow(rv_editor_button_width(layers_label));
     if (rv_editor_button(layers_label, theme)) {

@@ -364,6 +364,21 @@ void rv_editor_scene_select(rv_editor_scene_doc &doc, const std::string &id)
     doc.picked_owner.clear();
     doc.picked_mesh.clear();
     doc.picked_pieces.clear();
+    doc.picked_count = 0;
+}
+
+void rv_editor_scene_picks_check(rv_editor_scene_doc &doc, const rv_editor_scene_object &o, size_t pieces)
+{
+    if (doc.picked_owner != o.id) {
+        return;
+    }
+    if (doc.picked_mesh == o.mesh && doc.picked_count == pieces) {
+        return;
+    }
+    doc.picked_owner.clear();
+    doc.picked_mesh.clear();
+    doc.picked_pieces.clear();
+    doc.picked_count = 0;
 }
 
 std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kind, const std::string &parent)

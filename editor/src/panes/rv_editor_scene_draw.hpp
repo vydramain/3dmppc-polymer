@@ -2,6 +2,7 @@
 
 #include <array>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -17,6 +18,7 @@ namespace rv_editor
 {
 
 struct rv_editor_app;
+struct rv_editor_glb_model;
 struct rv_editor_scene_camera;
 struct rv_editor_theme;
 struct rv_editor_view;
@@ -144,6 +146,28 @@ void rv_editor_scene_pictures_free();
 // The object whose drawing passes nearest the click, within a few pixels; empty for none. Absent objects are not picked.
 std::string
 rv_editor_pick(const rv_editor_scene_doc &doc, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
+// Parts mode (rv_editor_scene_parts.cpp): the nearest model triangle under `at` among the visible meshes,
+// its object's id and piece number from 1. RV_OK, or RV_ERR_NOENT for none.
+int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
+    const rv_editor_project &project,
+    const rv_editor_view &v,
+    ImVec2 at,
+    std::string &owner,
+    size_t &piece,
+    std::shared_ptr<const rv_editor_glb_model> &model);
+// A click in Parts mode: picks the piece alone, Shift toggles it among the selected object's picks.
+// A miss clears the selection, unless Shift is held.
+void rv_editor_parts_click(rv_editor_scene_doc &doc,
+    const rv_editor_project &project,
+    const rv_editor_view &v,
+    ImVec2 at,
+    bool shift);
+// The picked pieces of the selected object drawn as edges in `color`.
+void rv_editor_parts_highlight(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_editor_scene_doc &doc,
+    const rv_editor_project &project,
+    ImU32 color);
 // The Move gizmo's axis under the mouse, or -1.
 int rv_editor_gizmo_axis(const rv_editor_scene &scene,
     const std::string &selected,
