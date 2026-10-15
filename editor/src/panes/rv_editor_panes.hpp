@@ -150,13 +150,13 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
     const rv_editor_ui_port &ui);
 // Hierarchy and the scene's Inspector; rv_editor_scene_keys takes Ctrl+Z, Ctrl+Shift+Z,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
-void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // A mesh object's Pieces node under its row: its model's pieces, picked by click (rv_editor_pane_hierarchy_pieces.cpp).
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o);
-void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
+void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // The selected object's entity type, Visible and components (rv_editor_pane_scene_components.cpp).
 void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
-void rv_editor_scene_keys(rv_editor_app &app);
+void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui);
 // The Scene viewport, and the Scene Toolchest's tools it uses.
 void rv_editor_scene_viewport(rv_editor_app &app,
     SDL_Renderer *renderer,

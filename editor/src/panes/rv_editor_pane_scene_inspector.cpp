@@ -251,13 +251,13 @@ void rv_editor_inspector_text(rv_editor_app &app,
 
 } // namespace
 
-void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
         return;
     }
-    rv_editor_scene_keys(app);
+    rv_editor_scene_keys(app, ui);
     // Content only, no controls row: the whole pane is one well. Early returns
     // inside stay reachable, so the body is a lambda that always runs to well_end.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
