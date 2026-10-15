@@ -10,6 +10,7 @@
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widget_item.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
