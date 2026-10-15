@@ -215,24 +215,14 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     const auto found = tree.children.find(o.id);
     const std::vector<std::string> no_children;
     const std::vector<std::string> &children = found == tree.children.end() ? no_children : found->second;
-    ImGuiTreeNodeFlags flags =
-        ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
-    if (children.empty()) {
-        flags |= ImGuiTreeNodeFlags_Leaf;
-    }
-    if (doc.selected == o.id) {
-        flags |= ImGuiTreeNodeFlags_Selected;
-    }
     const std::string label = rv_editor_hierarchy_name(o);
-    const bool dim = rv_editor_hierarchy_dim(doc, o);
-    if (dim) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-    }
-    const bool open = ImGui::TreeNodeEx(o.id.c_str(), flags, "%s", label.c_str());
-    if (dim) {
-        ImGui::PopStyleColor();
-    }
-    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
+    rv_editor_tree_style style;
+    style.leaf = children.empty();
+    style.selected = doc.selected == o.id;
+    style.dim = rv_editor_hierarchy_dim(doc, o);
+    style.default_open = true;
+    const rv_editor_tree_result row = rv_editor_tree_row(o.id.c_str(), label.c_str(), theme, style);
+    if (row.clicked) {
         rv_editor_scene_select(doc, o.id);
     }
     // Only the file's order can be dragged: a sorted list has no place to drop into.
@@ -251,12 +241,12 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     rv_editor_hierarchy_node_context_menu(app, doc, o, read_only);
     // After the node's own interaction: SameLine reuses the node's line.
     rv_editor_hierarchy_marks(o, theme);
-    if (open) {
+    if (row.open) {
         for (const std::string &child : children) {
             rv_editor_hierarchy_node(app, child, read_only, theme, tree);
         }
-        rv_editor_hierarchy_pieces(app, o);
-        ImGui::TreePop();
+        rv_editor_hierarchy_pieces(app, o, theme);
+        rv_editor_tree_pop();
     }
 }
 
@@ -269,18 +259,14 @@ void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &
         return;
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
-    const bool dim = rv_editor_hierarchy_dim(doc, o);
-    if (dim) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-    }
     const std::string label = rv_editor_hierarchy_name(o);
-    ImGui::PushID(o.id.c_str());
-    if (ImGui::Selectable(label.c_str(), doc.selected == o.id)) {
+    const rv_editor_list_style style = {
+        .selected = doc.selected == o.id,
+        .dim = rv_editor_hierarchy_dim(doc, o),
+    };
+    const rv_editor_list_result row = rv_editor_list_row(o.id.c_str(), label.c_str(), theme, style);
+    if (row.clicked) {
         rv_editor_scene_select(doc, o.id);
-    }
-    ImGui::PopID();
-    if (dim) {
-        ImGui::PopStyleColor();
     }
     rv_editor_hierarchy_marks(o, theme);
 }
