@@ -116,6 +116,52 @@ void rv_editor_marked_label(ImDrawList *dl, const char *label, const rv_editor_i
     }
 }
 
+// A letter button's item: a square of frame height with its tooltip, unless disabled.
+rv_editor_item rv_editor_letter_add(const char *id, const char *tooltip, const rv_editor_state &state)
+{
+    const float side = ImGui::GetFrameHeight();
+    const rv_editor_item item = rv_editor_item_add(id, ImVec2(side, side), state);
+    if (!item.disabled && tooltip != nullptr) {
+        ImGui::SetItemTooltip("%s", tooltip);
+    }
+    return item;
+}
+
+// A letter button's face and code; `down` sinks and nudges it.
+void rv_editor_letter_draw(const rv_editor_item &item,
+    const char *code,
+    uint32_t color,
+    const rv_editor_theme &theme,
+    bool down)
+{
+    const float side = ImGui::GetFrameHeight();
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    rv_editor_button_face(dl, item, theme, down);
+    // Dimmed like a disabled picture: halfway to the window colour.
+    const uint32_t ink = item.disabled ? rv_editor_blend_color(color, theme.window) : color;
+    // The code at the default size, or smaller when it would cross the square's
+    // border: a 2px inset, not FramePadding, which is too strict for a code that
+    // already fits (the 5x7 bitmap font does not scale cleanly, so keep it crisp).
+    const float inset = static_cast<float>(theme.scale) * letter_button_inset_mult;
+    const float fit = side - inset * both_sides_mult;
+    float font_size = ImGui::GetFontSize();
+    ImVec2 size = ImGui::CalcTextSize(code);
+    if (size.x > fit) {
+        font_size *= fit / size.x;
+        size = ImGui::GetFont()->CalcTextSizeA(font_size, FLT_MAX, 0.0f, code);
+    }
+    const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
+    dl->AddText(ImGui::GetFont(),
+        font_size,
+        ImVec2(std::floor((item.min.x + item.max.x - size.x) / center_div + nudge),
+            std::floor((item.min.y + item.max.y - size.y) / center_div + nudge)),
+        rv_editor_col(ink),
+        code);
+    if (item.focused) {
+        rv_editor_draw_focus(dl, item.min, item.max, theme);
+    }
+}
+
 } // namespace
 
 bool rv_editor_button(const char *label, const rv_editor_theme &theme, const rv_editor_state &state)
@@ -205,37 +251,24 @@ bool rv_editor_letter_button(const char *id,
     const rv_editor_theme &theme,
     const rv_editor_state &state)
 {
-    const float side = ImGui::GetFrameHeight();
-    const rv_editor_item item = rv_editor_item_add(id, ImVec2(side, side), state);
-    if (!item.disabled && tooltip != nullptr) {
-        ImGui::SetItemTooltip("%s", tooltip);
+    const rv_editor_item item = rv_editor_letter_add(id, tooltip, state);
+    rv_editor_letter_draw(item, code, color, theme, item.held && item.hovered);
+    return item.clicked;
+}
+
+bool rv_editor_letter_toggle(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *tooltip,
+    bool *on,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state)
+{
+    const rv_editor_item item = rv_editor_letter_add(id, tooltip, state);
+    if (item.clicked) {
+        *on = !*on;
     }
-    const bool down = item.held && item.hovered;
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    rv_editor_button_face(dl, item, theme, down);
-    // Dimmed like a disabled picture: halfway to the window colour.
-    const uint32_t ink = item.disabled ? rv_editor_blend_color(color, theme.window) : color;
-    // The code at the default size, or smaller when it would cross the square's
-    // border: a 2px inset, not FramePadding, which is too strict for a code that
-    // already fits (the 5x7 bitmap font does not scale cleanly, so keep it crisp).
-    const float inset = static_cast<float>(theme.scale) * letter_button_inset_mult;
-    const float fit = side - inset * both_sides_mult;
-    float font_size = ImGui::GetFontSize();
-    ImVec2 size = ImGui::CalcTextSize(code);
-    if (size.x > fit) {
-        font_size *= fit / size.x;
-        size = ImGui::GetFont()->CalcTextSizeA(font_size, FLT_MAX, 0.0f, code);
-    }
-    const float nudge = down ? static_cast<float>(theme.scale) : 0.0f;
-    dl->AddText(ImGui::GetFont(),
-        font_size,
-        ImVec2(std::floor((item.min.x + item.max.x - size.x) / center_div + nudge),
-            std::floor((item.min.y + item.max.y - size.y) / center_div + nudge)),
-        rv_editor_col(ink),
-        code);
-    if (item.focused) {
-        rv_editor_draw_focus(dl, item.min, item.max, theme);
-    }
+    rv_editor_letter_draw(item, code, color, theme, *on || (item.held && item.hovered));
     return item.clicked;
 }
 

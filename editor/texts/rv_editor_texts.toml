@@ -338,6 +338,9 @@ row_check_off = "Check off"
 row_check_on = "Check on"
 row_radio_off = "Radio off"
 row_radio_on = "Radio on"
+row_code_toggle_off = "Code toggle off"
+row_code_toggle_on = "Code toggle on"
+code_toggle_tooltip = "Code toggle: a click turns it on or off"
 disabled_reason = "Disabled: shown here to check the look"
 
 [widgets_status]

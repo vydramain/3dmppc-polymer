@@ -3,6 +3,7 @@
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -20,6 +21,8 @@ constexpr int row_check_off = 4;
 constexpr int row_check_on = 5;
 constexpr int row_radio_off = 6;
 constexpr int row_radio_on = 7;
+constexpr int row_code_toggle_off = 8;
+constexpr int row_code_toggle_on = 9;
 
 // Radio button group state indices
 constexpr int radio_lua = 0;
@@ -45,6 +48,8 @@ constexpr int rv_editor_column_count = static_cast<int>(sizeof(rv_editor_columns
 struct rv_editor_live {
     bool toggle_off = false;
     bool toggle_on = true;
+    bool code_off = false;
+    bool code_on = true;
     bool check_off = false;
     bool check_on = true;
     int radio = 0; // the two radio rows are one group
@@ -85,6 +90,24 @@ void rv_editor_catalog_row(const char *name, const rv_editor_theme &t, int row)
             rv_editor_toggle(snap, live ? &rv_editor_live_values.toggle_on : &frozen_on, t, s);
             break;
         }
+        case row_code_toggle_off:
+            rv_editor_letter_toggle("##code",
+                rv_editor_glyph::hide,
+                t.code_blue,
+                rv_editor_text("catalog_buttons.code_toggle_tooltip"),
+                live ? &rv_editor_live_values.code_off : &frozen_off,
+                t,
+                s);
+            break;
+        case row_code_toggle_on:
+            rv_editor_letter_toggle("##code",
+                rv_editor_glyph::hide,
+                t.code_blue,
+                rv_editor_text("catalog_buttons.code_toggle_tooltip"),
+                live ? &rv_editor_live_values.code_on : &frozen_on,
+                t,
+                s);
+            break;
         case row_check_off: {
             const char *grid = rv_editor_text("catalog_buttons.checkbox_grid");
             rv_editor_checkbox(grid, live ? &rv_editor_live_values.check_off : &frozen_off, t, s);
@@ -128,8 +151,10 @@ void rv_editor_catalog_buttons(const rv_editor_theme &theme)
         "catalog_buttons.row_check_off",
         "catalog_buttons.row_check_on",
         "catalog_buttons.row_radio_off",
-        "catalog_buttons.row_radio_on" };
-    const char *longest_label = rv_editor_text("catalog_buttons.row_icon_button");
+        "catalog_buttons.row_radio_on",
+        "catalog_buttons.row_code_toggle_off",
+        "catalog_buttons.row_code_toggle_on" };
+    const char *longest_label = rv_editor_text("catalog_buttons.row_code_toggle_off");
     ImGui::TableSetupColumn(rv_editor_text("catalog_buttons.column_widget"),
         ImGuiTableColumnFlags_WidthFixed,
         ImGui::CalcTextSize(longest_label).x);
