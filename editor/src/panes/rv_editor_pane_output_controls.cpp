@@ -141,27 +141,26 @@ void rv_editor_output_controls(rv_editor_app &app,
     if (rv_editor_output_drop(rv_editor_output_drop_label(source_drop, "sources"), theme)) {
         ImGui::OpenPopup("##sources_menu");
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##sources_menu")) {
+    if (rv_editor_popup_begin("##sources_menu")) {
         for (size_t i = 0; i < view.show.size(); ++i) {
             bool on = view.show[i];
-            if (ImGui::MenuItem(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)), nullptr, &on)) {
+            if (rv_editor_menu_check(rv_editor_log_source_name(static_cast<rv_editor_log_source>(i)), nullptr, &on, nullptr)) {
                 view.show[i] = on;
             }
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem(rv_editor_text("pane_output_controls.menu_all_runs"), nullptr, view.run_pid == 0)) {
+        rv_editor_separator();
+        if (rv_editor_menu_choice(rv_editor_text("pane_output_controls.menu_all_runs"), nullptr, view.run_pid == 0, nullptr)) {
             view.run_pid = 0;
             view.run_label.clear();
         }
         for (const rv_editor_output_run &run : rv_editor_output_runs(log)) {
-            if (ImGui::MenuItem(run.label.c_str(), nullptr, view.run_pid == run.pid)) {
+            if (rv_editor_menu_choice(run.label.c_str(), nullptr, view.run_pid == run.pid, nullptr)) {
                 view.run_pid = run.pid;
                 view.run_label = run.label;
             }
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem(rv_editor_text("pane_output_controls.menu_reset_filters"))) {
+        rv_editor_separator();
+        if (rv_editor_menu_item(rv_editor_text("pane_output_controls.menu_reset_filters"), nullptr, nullptr)) {
             view.show = {};
             view.show[static_cast<size_t>(rv_editor_log_source::editor)] = true;
             view.show[static_cast<size_t>(rv_editor_log_source::build)] = true;
@@ -172,9 +171,8 @@ void rv_editor_output_controls(rv_editor_app &app,
             view.run_pid = 0;
             view.run_label.clear();
         }
-        ImGui::EndPopup();
+        rv_editor_popup_end();
     }
-    rv_editor_menu_style_pop();
     ImGui::SameLine();
 
     const std::string level = rv_editor_output_drop_label(std::string(rv_editor_text("pane_output_controls.dropdown_level")) +
@@ -183,17 +181,15 @@ void rv_editor_output_controls(rv_editor_app &app,
     if (rv_editor_output_drop(level, theme)) {
         ImGui::OpenPopup("##level_menu");
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##level_menu")) {
+    if (rv_editor_popup_begin("##level_menu")) {
         for (const rv_editor_log_level l :
             { rv_editor_log_level::info, rv_editor_log_level::warning, rv_editor_log_level::error }) {
-            if (ImGui::MenuItem(rv_editor_output_level_filter(l), nullptr, view.level == l)) {
+            if (rv_editor_menu_choice(rv_editor_output_level_filter(l), nullptr, view.level == l, nullptr)) {
                 view.level = l;
             }
         }
-        ImGui::EndPopup();
+        rv_editor_popup_end();
     }
-    rv_editor_menu_style_pop();
     ImGui::SameLine();
 
     // Follow, Wrap, Copy, Export, Clear View: dropped in this order (Clear View
@@ -245,7 +241,7 @@ void rv_editor_output_controls(rv_editor_app &app,
             ImGui::GetColorU32(ImGuiCol_TextDisabled),
             rv_editor_text("pane_output_controls.placeholder_find"));
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_find"));
+    rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_find"));
 
     bool any_shown = false;
     if (!hidden[tail_follow]) {
@@ -253,7 +249,7 @@ void rv_editor_output_controls(rv_editor_app &app,
         if (rv_editor_checkbox(rv_editor_text("pane_output_controls.button_follow"), &view.follow, theme)) {
             view.picked_from = view.picked_to = 0;
         }
-        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_follow"));
+        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_follow"));
         any_shown = true;
     }
     if (!hidden[tail_wrap]) {
@@ -264,7 +260,7 @@ void rv_editor_output_controls(rv_editor_app &app,
     if (!hidden[tail_copy]) {
         ImGui::SameLine();
         copy = rv_editor_button(rv_editor_text("pane_output_controls.button_copy"), theme);
-        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_copy"));
+        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_copy"));
         any_shown = true;
     }
     if (!hidden[tail_export]) {
@@ -279,7 +275,7 @@ void rv_editor_output_controls(rv_editor_app &app,
         if (rv_editor_button(rv_editor_text("pane_output_controls.button_clear_view"), theme)) {
             clear_view();
         }
-        ImGui::SetItemTooltip("%s", rv_editor_text("pane_output_controls.tooltip_clear_view"));
+        rv_editor_item_tooltip(rv_editor_text("pane_output_controls.tooltip_clear_view"));
         any_shown = true;
     }
     if (dropped == 0) {
@@ -291,39 +287,35 @@ void rv_editor_output_controls(rv_editor_app &app,
     if (rv_editor_button(rv_editor_text("pane_output_controls.button_more"), theme)) {
         ImGui::OpenPopup("##output_more");
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##output_more")) {
+    if (rv_editor_popup_begin("##output_more")) {
         if (hidden[tail_follow]) {
             bool on = view.follow;
-            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_follow"), nullptr, &on)) {
+            if (rv_editor_menu_check(rv_editor_text("pane_output_controls.button_follow"), nullptr, &on, nullptr)) {
                 view.follow = on;
                 view.picked_from = view.picked_to = 0;
             }
         }
         if (hidden[tail_wrap]) {
             bool on = view.wrap;
-            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_wrap"), nullptr, &on)) {
+            if (rv_editor_menu_check(rv_editor_text("pane_output_controls.button_wrap"), nullptr, &on, nullptr)) {
                 view.wrap = on;
             }
         }
-        if (hidden[tail_copy] && ImGui::MenuItem(rv_editor_text("pane_output_controls.button_copy"))) {
+        if (hidden[tail_copy] && rv_editor_menu_item(rv_editor_text("pane_output_controls.button_copy"), nullptr, nullptr)) {
             copy = true;
         }
         if (hidden[tail_export]) {
             const char *disabled = app.project.open ? nullptr : rv_editor_text("pane_output_controls.tooltip_no_project");
-            if (ImGui::MenuItem(rv_editor_text("pane_output_controls.button_export"), nullptr, false, disabled == nullptr)) {
+            if (rv_editor_menu_item(rv_editor_text("pane_output_controls.button_export"), nullptr, disabled)) {
                 exporting = true;
             }
-            if (disabled != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                ImGui::SetTooltip("%s", disabled);
-            }
         }
-        if (hidden[tail_clear_view] && ImGui::MenuItem(rv_editor_text("pane_output_controls.button_clear_view"))) {
+        if (hidden[tail_clear_view] &&
+            rv_editor_menu_item(rv_editor_text("pane_output_controls.button_clear_view"), nullptr, nullptr)) {
             clear_view();
         }
-        ImGui::EndPopup();
+        rv_editor_popup_end();
     }
-    rv_editor_menu_style_pop();
 }
 
 } // namespace rv_editor
