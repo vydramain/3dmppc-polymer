@@ -384,11 +384,11 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
     const float pad = static_cast<float>(theme.pad_px) * theme.scale * pad_scale_factor;
     ImGui::SetCursorPos(ImVec2(ImGui::GetCursorPosX() + pad, ImGui::GetCursorPosY() + pad));
     const float column = ImGui::GetFontSize() * toolchest_width_em;
-    ImGui::BeginChild("##start_tools", ImVec2(column, -pad), ImGuiChildFlags_Borders);
+    rv_editor_well_begin("##start_tools", ImVec2(column, -pad), theme);
     rv_editor_start_toolchest(shell, theme);
-    ImGui::EndChild();
+    rv_editor_well_end();
     ImGui::SameLine(0.0f, pad);
-    ImGui::BeginChild("##start_catalog", ImVec2(-pad, -pad), ImGuiChildFlags_Borders);
+    rv_editor_well_begin("##start_catalog", ImVec2(-pad, -pad), theme);
     switch (shell.start_page) {
     case rv_editor_start_page::recent:
         rv_editor_start_catalog(shell, theme);
@@ -409,7 +409,7 @@ void rv_editor_shell_start_screen(rv_editor_shell &shell, const rv_editor_theme 
         rv_editor_page_manual(shell, theme);
         break;
     }
-    ImGui::EndChild();
+    rv_editor_well_end();
     ImGui::PopStyleVar();
 }
 
