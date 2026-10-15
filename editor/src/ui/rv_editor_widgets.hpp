@@ -48,6 +48,14 @@ bool rv_editor_letter_button(const char *id,
     const char *tooltip,
     const rv_editor_theme &theme,
     const rv_editor_state &state = {});
+// A letter_button that stays pressed while *on; a click flips *on.
+bool rv_editor_letter_toggle(const char *id,
+    const char *code,
+    uint32_t color,
+    const char *tooltip,
+    bool *on,
+    const rv_editor_theme &theme,
+    const rv_editor_state &state = {});
 
 // One row of a Toolchest across the pane's width: a coloured code (rv_editor_glyph)
 // and the label, `tooltip` saying what it does (a disabled row says why instead).
