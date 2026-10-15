@@ -187,7 +187,7 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     if (wide) {
         ImGui::SameLine(0.0f, font * side_spacing_em);
     }
-    ImGui::BeginChild("##new_side", ImVec2(0.0f, 0.0f));
+    rv_editor_well_begin("##new_side", ImVec2(0.0f, 0.0f), theme);
     if (f.browsing) {
         std::filesystem::path picked;
         const rv_editor_browse_result r = rv_editor_browser_draw(f.browser, 0.0f, nullptr, picked, theme);
@@ -200,7 +200,7 @@ void rv_editor_page_new_project(rv_editor_shell &shell, const rv_editor_theme &t
     } else {
         rv_editor_new_preview(p, templates, f.template_index, theme);
     }
-    ImGui::EndChild();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor
