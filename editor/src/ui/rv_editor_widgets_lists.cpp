@@ -4,46 +4,10 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_draw.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_rows.hpp"
 
 namespace rv_editor
 {
-
-namespace
-{
-
-// A frozen hover or press fills in the colour of its own look.
-bool rv_editor_list_frozen_fill(const rv_editor_state &state)
-{
-    return state.look == rv_editor_look::hovered || state.look == rv_editor_look::pressed;
-}
-
-// Pushes the colours the row's look needs and returns how many, for one PopStyleColor.
-// A frozen look ignores the pointer: hover and press keep the fill the look names.
-int rv_editor_list_push_colours(const rv_editor_theme &theme, const rv_editor_list_style &style, const rv_editor_state &state)
-{
-    const bool pin = state.look != rv_editor_look::live;
-    const bool frozen_fill = rv_editor_list_frozen_fill(state);
-    const ImGuiCol fill_slot = state.look == rv_editor_look::pressed ? ImGuiCol_HeaderActive : ImGuiCol_HeaderHovered;
-    const ImU32 pinned =
-        frozen_fill ? ImGui::GetColorU32(fill_slot) : (style.selected ? ImGui::GetColorU32(ImGuiCol_Header) : 0);
-    int count = 0;
-    if (pin) {
-        ImGui::PushStyleColor(ImGuiCol_HeaderHovered, pinned);
-        ImGui::PushStyleColor(ImGuiCol_HeaderActive, pinned);
-        count += 2;
-    }
-    if (frozen_fill) {
-        ImGui::PushStyleColor(ImGuiCol_Header, pinned);
-        count += 1;
-    }
-    if (style.dim) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        count += 1;
-    }
-    return count;
-}
-
-} // namespace
 
 bool rv_editor_list_begin(const char *id, ImVec2 size, const rv_editor_theme &theme)
 {
@@ -63,14 +27,14 @@ rv_editor_list_result rv_editor_list_row(const char *id,
 {
     const bool live = state.look == rv_editor_look::live;
     const bool disabled = state.disabled != nullptr;
-    const bool selected = style.selected || rv_editor_list_frozen_fill(state);
+    const bool selected = style.selected || rv_editor_row_frozen_fill(state);
     const ImGuiSelectableFlags flags = (style.span_columns ? ImGuiSelectableFlags_SpanAllColumns : ImGuiSelectableFlags_None) |
         (style.overlap ? ImGuiSelectableFlags_AllowOverlap : ImGuiSelectableFlags_None);
 
     if (disabled) {
         ImGui::BeginDisabled();
     }
-    const int colours = rv_editor_list_push_colours(theme, style, state);
+    const int colours = rv_editor_row_push_colours(style.selected, style.dim, state, theme);
     ImGui::PushID(id);
     const bool pressed = ImGui::Selectable(label, selected, flags, ImVec2(0.0f, style.height));
     ImGui::PopID();
