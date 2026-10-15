@@ -361,6 +361,9 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
 void rv_editor_menu_style_push();
 void rv_editor_menu_style_pop();
 
+// A menu item that is disabled with its reason shown on hover.
+bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
+
 enum class rv_editor_status_kind {
     idle,
     busy,
