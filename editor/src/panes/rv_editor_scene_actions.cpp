@@ -5,7 +5,6 @@
 
 #include <array>
 #include <string>
-#include <vector>
 
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_app_parts.hpp"
@@ -200,16 +199,9 @@ int run_hide(rv_editor_app &app, rv_editor_scene_camera &, std::string &error)
         return missing_object(error);
     }
     const size_t at = static_cast<size_t>(index);
-    // As the Inspector's Visible checkbox: the object's undo step, then its hidden component flipped.
-    const bool hidden = rv_editor_scene_has_component(doc.scene.objects[at], component_hidden);
-    rv_editor_scene_step(doc);
-    rv_editor_scene_object &o = doc.scene.objects[at];
-    std::erase_if(o.components, [](const rv_editor_scene_component &c) {
-        return c.name == component_hidden;
-    });
-    if (!hidden) {
-        o.components.push_back(rv_editor_scene_component{ std::string(component_hidden), {} });
-    }
+    // Toggles visibility, as the Inspector's Visible checkbox does.
+    const bool was_hidden = rv_editor_scene_has_component(doc.scene.objects[at], component_hidden);
+    rv_editor_scene_set_visible(doc, at, was_hidden);
     return RV_OK;
 }
 
