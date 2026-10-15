@@ -30,4 +30,7 @@ struct rv_editor_walk_result {
 rv_editor_walk_result
 rv_editor_walk_name(const rv_editor_project &project, rv_editor_name_section section, bool by_stem, const std::string &name);
 
+// Drops the index: the next rv_editor_walk_name walks the project again, so files added since are seen at once.
+void rv_editor_walk_reset();
+
 } // namespace rv_editor

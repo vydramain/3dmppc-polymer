@@ -14,6 +14,7 @@
 
 #include "pdk/rv_err.h"
 #include "panes/rv_editor_walk.hpp"
+#include "scene/rv_editor_model_stage.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_icons.hpp"
 
@@ -145,6 +146,43 @@ const rv_editor_glb_pictures &rv_editor_glb_part_pictures(const std::string &key
     return it->second;
 }
 
+// A model named `name` waiting in the pending folder of the project's models folder: RV_OK with `found`;
+// RV_ERR_NOENT when there is none; RV_ERR_IO with the reason when a check fails.
+int rv_editor_glb_find_pending(const rv_editor_project &project,
+    const std::string &name,
+    std::filesystem::path &found,
+    std::string &error)
+{
+    // "." and ".." are folders, not models; a model's name ends with the .gltf suffix.
+    constexpr std::string_view self_dir = ".";
+    constexpr std::string_view parent_dir = "..";
+    constexpr std::string_view gltf_suffix = ".gltf";
+    // No models folder means no pending one; the caller reports the missing model, so the reason is dropped.
+    std::filesystem::path models_dir;
+    std::string reason;
+    if (rv_editor_model_target_dir(project.root, project.models_patterns, models_dir, reason) != RV_OK) {
+        return RV_ERR_NOENT;
+    }
+    if (name.empty() || name == self_dir || name == parent_dir || !name.ends_with(gltf_suffix)) {
+        return RV_ERR_NOENT;
+    }
+    const std::filesystem::path candidate = rv_editor_model_pending_dir(models_dir) / name;
+    std::error_code ec;
+    const std::filesystem::file_status st = std::filesystem::status(candidate, ec);
+    if (st.type() == std::filesystem::file_type::not_found) {
+        return RV_ERR_NOENT;
+    }
+    if (ec) {
+        error = "cannot check " + candidate.string() + ": " + ec.message();
+        return RV_ERR_IO;
+    }
+    if (!std::filesystem::is_regular_file(st)) {
+        return RV_ERR_NOENT;
+    }
+    found = candidate;
+    return RV_OK;
+}
+
 } // namespace
 
 int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const rv_editor_glb_model> &out, std::string &error)
@@ -207,6 +245,11 @@ int rv_editor_glb_resolve_name(const rv_editor_project &project,
         return RV_ERR_IO;
     }
     if (walk.matches.empty()) {
+        // A model written this session may still wait in a pending folder; it is moved in on save.
+        const int pending_rc = rv_editor_glb_find_pending(project, name, found, error);
+        if (pending_rc != RV_ERR_NOENT) {
+            return pending_rc;
+        }
         error = rv_editor_text_format("project.model_no_file", std::make_format_args(name));
         return RV_ERR_NOENT;
     }
