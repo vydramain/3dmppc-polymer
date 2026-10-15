@@ -138,25 +138,28 @@ void rv_editor_files_menu(rv_editor_app &app,
     const rv_editor_file_node &node,
     const rv_editor_ui_port &ui)
 {
-    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_file"))) {
+    // The project root is listed, but neither renamed nor deleted; the menu says why.
+    const bool is_root = node.path == app.files.root().path;
+    const char *rename_why = is_root ? rv_editor_text("pane_files.rename_root_why_not") : nullptr;
+    const char *delete_why = is_root ? rv_editor_text("pane_files.delete_root_why_not") : nullptr;
+    if (rv_editor_menu_item(rv_editor_text("pane_files.menu_new_file"), nullptr, nullptr)) {
         rv_editor_files_select(ui, node.path);
         const std::filesystem::path target = rv_editor_files_target_dir(app, node.path);
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_file, target, "");
     }
-    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_new_folder"))) {
+    if (rv_editor_menu_item(rv_editor_text("pane_files.menu_new_folder"), nullptr, nullptr)) {
         rv_editor_files_select(ui, node.path);
         const std::filesystem::path target = rv_editor_files_target_dir(app, node.path);
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::new_dir, target, "");
     }
-    if (!node.dir && ImGui::MenuItem(rv_editor_text("pane_files.menu_open_as_text"))) {
+    if (!node.dir && rv_editor_menu_item(rv_editor_text("pane_files.menu_open_as_text"), nullptr, nullptr)) {
         app.open_as_text.insert(node.path);
         app.open_requests.push_back({ node.path, 0 });
     }
-    const bool is_root = node.path == app.files.root().path;
-    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_rename"), nullptr, false, !is_root)) {
+    if (rv_editor_menu_item(rv_editor_text("pane_files.menu_rename"), nullptr, rename_why)) {
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::rename, node.path, node.name);
     }
-    if (ImGui::MenuItem(rv_editor_text("pane_files.menu_delete"), nullptr, false, !is_root)) {
+    if (rv_editor_menu_item(rv_editor_text("pane_files.menu_delete"), nullptr, delete_why)) {
         rv_editor_files_ask(view, rv_editor_files_view::rv_editor_files_dialog::remove, node.path, node.name);
     }
 }
@@ -222,16 +225,17 @@ namespace
 void rv_editor_files_node(rv_editor_app &app,
     rv_editor_files_view &view,
     rv_editor_file_node &node,
-    const rv_editor_ui_port &ui)
+    const rv_editor_ui_port &ui,
+    const rv_editor_theme &theme)
 {
-    ImGuiTreeNodeFlags flags =
-        ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick;
     const bool branch = node.dir && !node.symlink;
-    if (!branch) {
-        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-    }
-    if (ui.state.files_selected == node.path) {
-        flags |= ImGuiTreeNodeFlags_Selected;
+    rv_editor_tree_style style;
+    style.leaf = !branch;
+    style.no_push = !branch;
+    style.open_on_double_click = branch;
+    style.selected = ui.state.files_selected == node.path;
+    if (branch) {
+        style.open = node.expanded;
     }
     // Leading spaces reserve the widest code's measured width plus the usual item
     // spacing, so every row's name starts at the same place regardless of its code.
@@ -241,10 +245,7 @@ void rv_editor_files_node(rv_editor_app &app,
     const std::string label =
         std::string(static_cast<size_t>(spaces), ' ') + node.name + (node.symlink ? symlink_indicator : "");
     ImGui::PushID(node.path.c_str());
-    if (branch) {
-        ImGui::SetNextItemOpen(node.expanded);
-    }
-    const bool open = ImGui::TreeNodeEx("##node", flags, "%s", label.c_str());
+    const rv_editor_tree_result row = rv_editor_tree_row("##node", label.c_str(), theme, style);
     {
         const char *code = rv_editor_glyph::other_file;
         uint32_t color = 0;
@@ -255,7 +256,9 @@ void rv_editor_files_node(rv_editor_app &app,
             std::floor((ImGui::GetItemRectMin().y + ImGui::GetItemRectMax().y - cell) / vertical_center_divisor));
         ImGui::GetWindowDrawList()->AddText(at, rv_editor_col(color), code);
     }
-    if (ImGui::IsItemClicked(ImGuiMouseButton_Left) || ImGui::IsItemClicked(ImGuiMouseButton_Right)) {
+    // A click on the arrow or a double click (toggled) selects too, as the old whole-row click did.
+    const bool picked = row.clicked || row.toggled || row.right_clicked;
+    if (picked) {
         rv_editor_files_select(ui, node.path);
     }
     if (!branch && ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -266,24 +269,22 @@ void rv_editor_files_node(rv_editor_app &app,
         const std::string link_target = std::filesystem::read_symlink(node.path, ec).generic_string();
         const std::string tooltip_text =
             rv_editor_text_format("pane_files.symlink_tooltip", std::make_format_args(link_target));
-        ImGui::SetTooltip("%s", tooltip_text.c_str());
+        rv_editor_tooltip(tooltip_text.c_str());
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopupContextItem("##menu")) {
+    if (rv_editor_context_menu_begin("##menu")) {
         rv_editor_files_menu(app, view, node, ui);
-        ImGui::EndPopup();
+        rv_editor_context_menu_end();
     }
-    rv_editor_menu_style_pop();
     if (branch) {
-        node.expanded = open;
-        if (open) {
+        node.expanded = row.open;
+        if (row.open) {
             if (!node.listed) {
                 app.files.list(node);
             }
             for (rv_editor_file_node &child : node.children) {
-                rv_editor_files_node(app, view, child, ui);
+                rv_editor_files_node(app, view, child, ui, theme);
             }
-            ImGui::TreePop();
+            rv_editor_tree_pop();
         }
     }
     ImGui::PopID();
@@ -320,21 +321,22 @@ void rv_editor_files_dialog(rv_editor_app &app,
         const std::string dir_suffix = dir ? rv_editor_text("pane_files.remove_with_contents") : "";
         const std::string confirm_msg =
             rv_editor_text_format("pane_files.remove_confirm", std::make_format_args(what, dir_suffix));
-        ImGui::TextWrapped("%s", confirm_msg.c_str());
+        rv_editor_label(confirm_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         for (const std::string &entry : view.doomed) {
-            ImGui::BulletText("%s", entry.c_str());
+            rv_editor_label(entry.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
         }
         if (view.doomed_total > view.doomed.size()) {
             const size_t more_count = view.doomed_total - view.doomed.size();
             const std::string more_text = rv_editor_text_format("pane_files.and_more_items", std::make_format_args(more_count));
-            ImGui::TextWrapped("%s", more_text.c_str());
+            rv_editor_label(more_text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         }
     } else {
         const char *rename_label = rv_editor_text("pane_files.new_name");
         const char *name_label = rv_editor_text("pane_files.name");
         const char *label = view.dialog == dialog_kind::rename ? rename_label : name_label;
         const std::string target_path = (view.dialog == dialog_kind::rename ? view.target.parent_path() : view.target).string();
-        ImGui::Text("%s in %s", label, target_path.c_str());
+        const std::string header = rv_editor_text_format("pane_files.dialog_header", std::make_format_args(label, target_path));
+        rv_editor_label(header.c_str(), rv_editor_label_kind::normal, theme);
         rv_editor_field field;
         field.state = { rv_editor_look::live, running_why };
         field.invalid = view.error.empty() ? nullptr : view.error.c_str();
@@ -347,7 +349,7 @@ void rv_editor_files_dialog(rv_editor_app &app,
         confirm = ImGui::IsItemDeactivatedAfterEdit() && ImGui::IsKeyPressed(ImGuiKey_Enter);
     }
     if (!view.error.empty()) {
-        ImGui::TextWrapped("%s", view.error.c_str());
+        rv_editor_label(view.error.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
     const char *delete_btn = rv_editor_text("pane_files.delete_button");
     const char *ok_btn = rv_editor_text("pane_files.ok_button");
@@ -371,7 +373,10 @@ void rv_editor_files_dialog(rv_editor_app &app,
 void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!app.files.is_open()) {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_files.no_project_open"));
+        rv_editor_label(rv_editor_text("pane_files.no_project_open"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
         return;
     }
     rv_editor_files_view &view = app.files_views[pane];
@@ -433,7 +438,7 @@ void rv_editor_pane_files(rv_editor_app &app, rv_editor_pane_id pane, const rv_e
 
     rv_editor_files_dialog(app, pane, view, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_HorizontalScrollbar);
-    rv_editor_files_node(app, view, app.files.root(), ui);
+    rv_editor_files_node(app, view, app.files.root(), ui, theme);
     rv_editor_well_end();
 }
 
