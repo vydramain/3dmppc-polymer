@@ -25,43 +25,44 @@ rv_editor_status_values rv_editor_status_data;
 
 void rv_editor_catalog_menus()
 {
-    rv_editor_menu_style_push();
     ImGui::BeginChild("##menus",
         ImVec2(0.0f, 0.0f),
         ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY,
         ImGuiWindowFlags_MenuBar);
-    if (ImGui::BeginMenuBar()) {
-        if (ImGui::BeginMenu(rv_editor_text("catalog_status.menu_file"))) {
-            ImGui::MenuItem(rv_editor_text("catalog_status.menu_new_project"),
-                rv_editor_text("catalog_status.shortcut_new_project"));
-            ImGui::MenuItem(rv_editor_text("catalog_status.menu_open_project"),
-                rv_editor_text("catalog_status.shortcut_open_project"));
+    if (rv_editor_menu_bar_begin()) {
+        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_file"), nullptr)) {
+            rv_editor_menu_item(rv_editor_text("catalog_status.menu_new_project"),
+                rv_editor_text("catalog_status.shortcut_new_project"),
+                nullptr);
+            rv_editor_menu_item(rv_editor_text("catalog_status.menu_open_project"),
+                rv_editor_text("catalog_status.shortcut_open_project"),
+                nullptr);
             ImGui::Separator();
-            ImGui::MenuItem(rv_editor_text("catalog_status.menu_save_all"),
+            rv_editor_menu_item(rv_editor_text("catalog_status.menu_save_all"),
                 rv_editor_text("catalog_status.shortcut_save_all"),
-                false,
-                false);
-            ImGui::EndMenu();
+                rv_editor_text("catalog_status.save_all_why_not"));
+            rv_editor_menu_end();
         }
-        if (ImGui::BeginMenu(rv_editor_text("catalog_status.menu_scene"))) {
+        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_scene"), nullptr)) {
             ImGui::MenuItem(rv_editor_text("catalog_status.menu_scene_snap"), nullptr, &rv_editor_status_data.snap);
-            ImGui::EndMenu();
+            rv_editor_menu_end();
         }
-        ImGui::BeginDisabled();
-        ImGui::BeginMenu(rv_editor_text("catalog_status.menu_run"));
-        ImGui::EndDisabled();
-        ImGui::EndMenuBar();
+        if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_run"), rv_editor_text("catalog_status.run_why_not"))) {
+            rv_editor_menu_end();
+        }
+        rv_editor_menu_bar_end();
     }
     ImGui::TextUnformatted(rv_editor_text("catalog_status.context_help"));
-    if (ImGui::BeginPopupContextWindow("##context")) {
-        ImGui::MenuItem(rv_editor_text("catalog_status.context_rename"),
-            rv_editor_text("catalog_status.shortcut_context_rename"));
-        ImGui::MenuItem(rv_editor_text("catalog_status.context_delete"),
-            rv_editor_text("catalog_status.shortcut_context_delete"));
-        ImGui::EndPopup();
+    if (rv_editor_window_context_menu_begin("##context")) {
+        rv_editor_menu_item(rv_editor_text("catalog_status.context_rename"),
+            rv_editor_text("catalog_status.shortcut_context_rename"),
+            nullptr);
+        rv_editor_menu_item(rv_editor_text("catalog_status.context_delete"),
+            rv_editor_text("catalog_status.shortcut_context_delete"),
+            nullptr);
+        rv_editor_window_context_menu_end();
     }
     ImGui::EndChild();
-    rv_editor_menu_style_pop();
 }
 
 // The area that asks inside a pane, as a question about unsaved files shows it:
