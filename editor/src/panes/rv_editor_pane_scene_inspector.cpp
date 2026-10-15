@@ -389,6 +389,7 @@ void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &t
                 rv_editor_text("pane_scene_inspector.tess_label"));
             ImGui::SetItemTooltip("%s", rv_editor_text("pane_scene_inspector.tess_tooltip"));
         }
+        rv_editor_inspector_components(app, theme, o.id, read_only);
         if (!o.extra.empty()) {
             ImGui::SeparatorText(rv_editor_text("pane_scene_inspector.extra_header"));
             for (const auto &e : o.extra) {

@@ -152,6 +152,8 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme);
+// The selected object's entity type, Visible and components (rv_editor_pane_scene_components.cpp).
+void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);
 void rv_editor_scene_keys(rv_editor_app &app);
 // The Scene viewport, and the Scene Toolchest's tools it uses.
 void rv_editor_scene_viewport(rv_editor_app &app,

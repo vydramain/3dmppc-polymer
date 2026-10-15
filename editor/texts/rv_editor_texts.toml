@@ -751,6 +751,18 @@ tess_tooltip = "Subdivision density, above zero"
 extra_header = "Kept as read"
 extra_tooltip = "Keys this editor does not know; they are written back unchanged"
 
+[pane_scene_components]
+entity_label = "Entity"
+entity_tooltip = "Empty: the base type of the kind"
+visible_label = "Visible"
+components_header = "Components"
+remove_button = "Remove"
+add_name_label = "Name"
+add_button = "Add component"
+add_empty = "Type a component name first"
+add_hidden = "Use Visible to hide the object"
+add_exists = "The object already has this component"
+
 [pane_run_config]
 session_group = "Session"
 name_label = "Name"
