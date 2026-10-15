@@ -162,11 +162,20 @@ void rv_editor_parts_click(rv_editor_scene_doc &doc,
     const rv_editor_view &v,
     ImVec2 at,
     bool shift);
-// The picked pieces of the selected object drawn as edges in `color`.
+// The picked pieces to draw this frame: the selected object's index in doc.scene.objects and its model.
+// A null model means no pieces are drawn: nothing picked, the picks on another object, an absent
+// object, a model other than the picks', a model that does not load, or a piece count that differs from the picks'.
+struct rv_editor_parts_target {
+    int owner = -1;
+    std::shared_ptr<const rv_editor_glb_model> model;
+};
+// Resolved once per frame; the viewport fills the owner as unselected only when model is set.
+rv_editor_parts_target rv_editor_parts_resolve(const rv_editor_scene_doc &doc, const rv_editor_project &project);
+// The picked pieces of the selected object drawn as edges in `color`, from rv_editor_parts_resolve.
 void rv_editor_parts_highlight(ImDrawList *dl,
     const rv_editor_view &v,
     const rv_editor_scene_doc &doc,
-    const rv_editor_project &project,
+    const rv_editor_parts_target &target,
     ImU32 color);
 // The Move gizmo's axis under the mouse, or -1.
 int rv_editor_gizmo_axis(const rv_editor_scene &scene,

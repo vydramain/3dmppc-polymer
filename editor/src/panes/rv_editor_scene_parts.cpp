@@ -198,27 +198,49 @@ void rv_editor_parts_click(rv_editor_scene_doc &doc,
     }
 }
 
-void rv_editor_parts_highlight(ImDrawList *dl,
-    const rv_editor_view &v,
-    const rv_editor_scene_doc &doc,
-    const rv_editor_project &project,
-    ImU32 color)
+rv_editor_parts_target rv_editor_parts_resolve(const rv_editor_scene_doc &doc, const rv_editor_project &project)
 {
-    // Nothing picked, or the picks belong to another object or to a gone one: nothing to draw.
+    // Nothing picked: nothing to draw.
+    if (doc.picked_pieces.empty()) {
+        return {};
+    }
+    // The picks belong to another object: nothing to draw.
+    if (doc.picked_owner != doc.selected) {
+        return {};
+    }
     const int at = rv_editor_scene_find(doc.scene, doc.picked_owner);
-    if (doc.picked_pieces.empty() || doc.picked_owner != doc.selected || at < 0) {
-        return;
+    if (at < 0) {
+        return {};
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-    if (o.mesh != doc.picked_mesh || rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
-        return;
+    if (o.mesh != doc.picked_mesh) {
+        return {};
+    }
+    if (rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
+        return {};
     }
     // A model that does not load has no pieces to show; its error is on the object's edges.
     const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, o.mesh);
-    if (!glb || glb->pieces.size() != doc.picked_count) {
+    if (!glb) {
+        return {};
+    }
+    if (glb->pieces.size() != doc.picked_count) {
+        return {};
+    }
+    return { at, glb };
+}
+
+void rv_editor_parts_highlight(ImDrawList *dl,
+    const rv_editor_view &v,
+    const rv_editor_scene_doc &doc,
+    const rv_editor_parts_target &target,
+    ImU32 color)
+{
+    if (!target.model) {
         return;
     }
-    const rv_editor_affine m = rv_editor_scene_world(doc.scene, at);
+    const std::shared_ptr<const rv_editor_glb_model> &glb = target.model;
+    const rv_editor_affine m = rv_editor_scene_world(doc.scene, target.owner);
     for (const size_t number : doc.picked_pieces) {
         // Picks belong to this mesh; a number past its pieces is ignored.
         if (number == 0 || number > glb->pieces.size()) {
