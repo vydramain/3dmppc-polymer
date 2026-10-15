@@ -9,7 +9,7 @@
 
 #include "rv_editor_manual_default.hpp"
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -99,25 +99,19 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
     for (const auto &block : blocks) {
         switch (block.kind) {
         case block_kind::heading: {
-            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-            ImGui::TextUnformatted(block.text.c_str());
-            ImGui::PopStyleColor();
+            rv_editor_label(block.text.c_str(), rv_editor_label_kind::bright, theme);
             break;
         }
         case block_kind::subheading: {
-            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.code_blue));
-            ImGui::TextUnformatted(block.text.c_str());
-            ImGui::PopStyleColor();
+            rv_editor_label(block.text.c_str(), rv_editor_label_kind::info, theme);
             break;
         }
         case block_kind::bullet: {
-            ImGui::Bullet();
-            ImGui::SameLine();
-            ImGui::TextWrapped("%s", block.text.c_str());
+            rv_editor_label(block.text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
             break;
         }
         case block_kind::paragraph: {
-            ImGui::TextWrapped("%s", block.text.c_str());
+            rv_editor_label(block.text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
             break;
         }
         case block_kind::spacing: {
