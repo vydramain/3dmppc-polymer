@@ -300,7 +300,6 @@ void rv_editor_pane_assets(rv_editor_app &app,
     }
     rv_editor_shelf_end();
 
-    rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     std::vector<const rv_editor_asset *> shown;
     for (const rv_editor_asset &a : rv_editor_assets.files) {
         if ((ui.folder == 0 || a.folder == folders[static_cast<size_t>(ui.folder)]) &&
@@ -346,7 +345,7 @@ void rv_editor_pane_assets(rv_editor_app &app,
         selected_seconds = rv_editor_assets.sound_seconds;
     }
 
-    ImGui::BeginChild("##asset_list", ImVec2(list_w, list_h), false);
+    rv_editor_well_begin("##asset_list", ImVec2(list_w, list_h), theme);
     if (shown.empty()) {
         const char *empty_msg;
         if (rv_editor_assets.files.empty()) {
@@ -442,15 +441,13 @@ void rv_editor_pane_assets(rv_editor_app &app,
             ImGui::PopID();
         }
     }
-    ImGui::EndChild();
+    rv_editor_well_end();
 
     if (side_by_side) {
         ImGui::SameLine();
     }
-    // An always-present scrollbar: wrapped text otherwise changes the width, the height and the scrollbar each frame.
-    ImGui::BeginChild("##asset_preview", ImVec2(preview_w, preview_h), true, ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    rv_editor_well_begin("##asset_preview", ImVec2(preview_w, preview_h), theme);
     rv_editor_asset_preview(selected, entry_ptr, selected_picture, selected_seconds, theme, app.project);
-    ImGui::EndChild();
     rv_editor_well_end();
 }
 
