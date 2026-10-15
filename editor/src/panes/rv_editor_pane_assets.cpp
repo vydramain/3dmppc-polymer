@@ -193,7 +193,7 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a, const rv
             status = rv_editor_text("pane_assets.tooltip_manifest");
         }
         const std::string tooltip1 = rv_editor_text_format("pane_assets.tooltip_not_on_disc", std::make_format_args(status));
-        ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip1.c_str());
+        rv_editor_item_tooltip((a.rel + "\n" + tooltip1).c_str());
     } else {
         const char *sep;
         if (entry->second.parameter.empty()) {
@@ -203,7 +203,7 @@ void rv_editor_asset_item(rv_editor_app &app, const rv_editor_asset &a, const rv
         }
         const std::string tooltip2 = rv_editor_text_format("pane_assets.tooltip_on_disc",
             std::make_format_args(entry->second.name, entry->second.kind, sep, entry->second.parameter));
-        ImGui::SetItemTooltip("%s\n%s", a.rel.c_str(), tooltip2.c_str());
+        rv_editor_item_tooltip((a.rel + "\n" + tooltip2).c_str());
     }
     if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
         const std::optional<rv_editor_scene_tab> tab = rv_editor_scene_tab_build(a.path);
@@ -268,7 +268,7 @@ void rv_editor_pane_assets(rv_editor_app &app,
     rv_editor_flow(ImGui::GetFontSize() * folder_filter_width_em);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * folder_filter_width_em);
     rv_editor_text_field("##filter", ui.filter, sizeof(ui.filter), theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.filter_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_assets.filter_tooltip"));
     const char *details_text = rv_editor_text("pane_assets.details");
     rv_editor_flow(rv_editor_checkbox_width(details_text));
     rv_editor_checkbox(details_text, &ui.details, theme);
@@ -295,7 +295,7 @@ void rv_editor_pane_assets(rv_editor_app &app,
                 { .kind = rv_editor_pane_request_kind::texture_bake, .path = file, .name = plan.name });
         }
         if (why == nullptr) {
-            ImGui::SetItemTooltip("%s", rv_editor_text("pane_assets.refresh_tooltip"));
+            rv_editor_item_tooltip(rv_editor_text("pane_assets.refresh_tooltip"));
         }
     }
     rv_editor_shelf_end();
@@ -353,35 +353,35 @@ void rv_editor_pane_assets(rv_editor_app &app,
         } else {
             empty_msg = rv_editor_text("pane_assets.no_match_filter");
         }
-        ImGui::TextDisabled("%s", empty_msg);
+        rv_editor_label(empty_msg, rv_editor_label_kind::dim, theme);
     } else if (ui.details) {
-        if (ImGui::BeginTable("##assets",
-                assets_table_columns,
-                ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
-            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_file"));
-            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_kind"), ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_on_disc"));
-            ImGui::TableSetupColumn(rv_editor_text("pane_assets.table_size"), ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableSetupScrollFreeze(0, 1);
-            ImGui::TableHeadersRow();
+        const rv_editor_table_column columns[assets_table_columns] = {
+            { rv_editor_text("pane_assets.table_file") },
+            { rv_editor_text("pane_assets.table_kind"), rv_editor_table_width::fixed },
+            { rv_editor_text("pane_assets.table_on_disc") },
+            { rv_editor_text("pane_assets.table_size"), rv_editor_table_width::fixed },
+        };
+        const rv_editor_table_style table_style{ .row_bands = true, .header = true };
+        if (rv_editor_table_begin("##assets", columns, assets_table_columns, table_style)) {
             for (const rv_editor_asset *a : shown) {
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::Selectable(a->rel.c_str(), a->rel == rv_editor_assets.selected, ImGuiSelectableFlags_SpanAllColumns);
+                rv_editor_table_row();
+                rv_editor_table_cell();
+                const rv_editor_list_style row_style{ .selected = a->rel == rv_editor_assets.selected, .span_columns = true };
+                rv_editor_list_row(a->rel.c_str(), a->rel.c_str(), theme, row_style);
                 rv_editor_asset_item(app, *a, ui_port);
                 const auto entry = rv_editor_assets.map.find(a->rel);
-                ImGui::TableNextColumn();
+                rv_editor_table_cell();
                 const char *kind_text =
                     entry == rv_editor_assets.map.end() ? entry_not_on_disc.data() : entry->second.kind.c_str();
-                ImGui::TextUnformatted(kind_text);
-                ImGui::TableNextColumn();
+                rv_editor_label(kind_text, rv_editor_label_kind::normal, theme);
+                rv_editor_table_cell();
                 const char *disc_name = entry == rv_editor_assets.map.end() ? rv_editor_text("pane_assets.not_on_disc") :
                                                                               entry->second.name.c_str();
-                ImGui::TextUnformatted(disc_name);
-                ImGui::TableNextColumn();
-                ImGui::Text("%ju", a->size);
+                rv_editor_label(disc_name, rv_editor_label_kind::normal, theme);
+                rv_editor_table_cell();
+                rv_editor_label(std::to_string(a->size).c_str(), rv_editor_label_kind::normal, theme);
             }
-            ImGui::EndTable();
+            rv_editor_table_end();
         }
     } else {
         // Icons: a cell each, the picture or the kind's icon over a short label.
