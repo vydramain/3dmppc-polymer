@@ -25,6 +25,8 @@ uint32_t rv_editor_label_colour(rv_editor_label_kind kind, const rv_editor_theme
         return theme.warning;
     case rv_editor_label_kind::error:
         return theme.error;
+    case rv_editor_label_kind::on_selection:
+        return theme.dark;
     }
     return theme.text;
 }
