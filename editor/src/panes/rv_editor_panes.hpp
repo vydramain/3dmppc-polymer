@@ -4,7 +4,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 
 #include <SDL3/SDL.h>
 #include "imgui.h"
@@ -153,6 +155,14 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // A mesh object's Pieces node under its row: its model's pieces, picked by click (rv_editor_pane_hierarchy_pieces.cpp).
 void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o);
+// Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// The object kinds the Add menus offer, in menu order, and the label each one shows.
+// The label points into `kind` (except mesh's "box"): it lives only as long as `kind`.
+std::span<const std::string_view> rv_editor_hierarchy_kinds();
+const char *rv_editor_scene_kind_label(const std::string &kind);
 void rv_editor_pane_scene_inspector(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // The selected object's entity type, Visible and components (rv_editor_pane_scene_components.cpp).
 void rv_editor_inspector_components(rv_editor_app &app, const rv_editor_theme &theme, const std::string &id, bool read_only);

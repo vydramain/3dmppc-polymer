@@ -389,7 +389,9 @@ section_menus_dialogs = "Menus and dialogs"
 
 [pane_hierarchy]
 unnamed = "(unnamed)"
-add_prefix = "+ "
+add_hint = "Add an object: under the selected group, else at the root"
+target_none = "Nothing selected"
+target_pieces = "{}: pieces {}"
 add_under = "Add {} Under It"
 move_label = "Move {}"
 node_label = "{}  [{}]"
