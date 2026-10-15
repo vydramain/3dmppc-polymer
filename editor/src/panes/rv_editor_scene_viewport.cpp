@@ -292,6 +292,11 @@ void rv_editor_scene_viewport(rv_editor_app &app,
                 1.0f);
         }
     }
+    // Filled/Textured: the selected object is filled as unselected when rv_editor_parts_resolve draws its
+    // picked pieces. The lines keep the picks' own rule; Wireframe has no fill.
+    const rv_editor_parts_target parts = rv_editor_parts_resolve(doc, app.project);
+    const bool selected_picked = parts.model != nullptr;
+    const std::string no_selection;
     const bool filled = cam.shading != rv_editor_scene_shading::wireframe;
     std::string mesh_error; // the first mesh resolve/parse error this frame, if any
     if (filled) {
@@ -299,7 +304,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             v,
             doc,
             app.project,
-            doc.selected,
+            selected_picked ? no_selection : doc.selected,
             rv_editor_col(theme.code_subtext),
             rv_editor_col(theme.selection),
             renderer,
@@ -314,7 +319,8 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             continue;
         }
         const std::string &kind = obj.kind;
-        // An object with picked pieces is drawn as unselected; the picked pieces are drawn over it.
+        // The owner of selected pieces is drawn unselected in the lines; the pieces are drawn over it only when
+        // rv_editor_parts_resolve gave a model.
         const bool has_picks = obj.id == doc.picked_owner && doc.picked_mesh == obj.mesh && !doc.picked_pieces.empty();
         const bool sel = obj.id == doc.selected && !has_picks;
         const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
@@ -341,7 +347,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             mesh_error = error;
         }
     }
-    rv_editor_parts_highlight(dl, v, doc, app.project, rv_editor_col(theme.selection));
+    rv_editor_parts_highlight(dl, v, doc, parts, rv_editor_col(theme.selection));
     const int at = rv_editor_selected_index(doc);
     if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
         const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
