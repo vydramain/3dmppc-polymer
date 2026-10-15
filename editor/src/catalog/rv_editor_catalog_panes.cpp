@@ -48,23 +48,54 @@ struct rv_editor_pane_values {
 
 rv_editor_pane_values rv_editor_pane_data;
 
-void rv_editor_catalog_tree()
+// A leaf row whose label names its state (a key of catalog_panes).
+void rv_editor_catalog_leaf(const char *id,
+    const char *key,
+    const rv_editor_theme &t,
+    const rv_editor_tree_style &style = {},
+    const rv_editor_state &state = {})
 {
-    constexpr ImGuiTreeNodeFlags open = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_DrawLinesFull;
-    constexpr ImGuiTreeNodeFlags leaf = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-    if (!ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_my_game"), open)) {
+    rv_editor_tree_style leaf = style;
+    leaf.leaf = true;
+    leaf.no_push = true;
+    rv_editor_tree_row(id, rv_editor_text(key), t, leaf, state);
+}
+
+// One row per state under an open root with lines; the frozen looks come last.
+void rv_editor_catalog_tree(const rv_editor_theme &t)
+{
+    rv_editor_tree_style root;
+    root.default_open = true;
+    root.lines = true;
+    if (!rv_editor_tree_row("##root", rv_editor_text("catalog_panes.tree_my_game"), t, root).open) {
         return;
     }
-    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_disc_toml"), leaf | ImGuiTreeNodeFlags_Selected);
-    ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_main_lua"), leaf);
-    if (ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_assets"), open)) {
-        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_tone_pcm"), leaf);
-        ImGui::BeginDisabled();
-        ImGui::TreeNodeEx(rv_editor_text("catalog_panes.tree_broken_png"), leaf);
-        ImGui::EndDisabled();
-        ImGui::TreePop();
+    rv_editor_tree_style selected;
+    selected.selected = true;
+    rv_editor_tree_style dim;
+    dim.dim = true;
+    rv_editor_tree_style open_branch;
+    open_branch.default_open = true;
+    rv_editor_catalog_leaf("##leaf", "catalog_panes.tree_leaf", t);
+    rv_editor_catalog_leaf("##selected", "catalog_panes.tree_selected", t, selected);
+    rv_editor_catalog_leaf("##dim", "catalog_panes.tree_dim", t, dim);
+    rv_editor_catalog_leaf("##disabled",
+        "catalog_panes.tree_disabled",
+        t,
+        {},
+        { rv_editor_look::normal, rv_editor_text("catalog_panes.tree_disabled_reason") });
+    rv_editor_catalog_leaf("##hovered", "catalog_panes.tree_hovered", t, {}, { rv_editor_look::hovered });
+    rv_editor_catalog_leaf("##pressed", "catalog_panes.tree_pressed", t, {}, { rv_editor_look::pressed });
+    rv_editor_catalog_leaf("##focused", "catalog_panes.tree_focused", t, {}, { rv_editor_look::focused });
+    if (rv_editor_tree_row("##open", rv_editor_text("catalog_panes.tree_open_branch"), t, open_branch).open) {
+        rv_editor_catalog_leaf("##child", "catalog_panes.tree_child", t);
+        rv_editor_tree_pop();
     }
-    ImGui::TreePop();
+    if (rv_editor_tree_row("##closed", rv_editor_text("catalog_panes.tree_closed_branch"), t).open) {
+        rv_editor_catalog_leaf("##closed_child", "catalog_panes.tree_child", t);
+        rv_editor_tree_pop();
+    }
+    rv_editor_tree_pop();
 }
 
 void rv_editor_catalog_list(float height)
@@ -215,7 +246,7 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
     }
     rv_editor_shelf_end();
     if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_view_height_frames), t)) {
-        rv_editor_catalog_tree();
+        rv_editor_catalog_tree(t);
     }
     rv_editor_well_end();
 }
@@ -234,13 +265,13 @@ void rv_editor_catalog_headers(const rv_editor_theme &theme)
     rv_editor_catalog_layers(theme);
 }
 
-void rv_editor_catalog_lists(const rv_editor_theme &)
+void rv_editor_catalog_lists(const rv_editor_theme &theme)
 {
     const float height = ImGui::GetFrameHeight() * catalog_view_height_frames;
     if (ImGui::BeginTable("##panes", catalog_panes_table_columns)) {
         ImGui::TableNextColumn();
         ImGui::BeginChild("##tree", ImVec2(0.0f, height), ImGuiChildFlags_Borders);
-        rv_editor_catalog_tree();
+        rv_editor_catalog_tree(theme);
         ImGui::EndChild();
         ImGui::TableNextColumn();
         rv_editor_catalog_list(height);
