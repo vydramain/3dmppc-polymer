@@ -141,6 +141,13 @@ std::string rv_editor_hierarchy_name(const rv_editor_scene_object &o)
     return rv_editor_text_format("pane_hierarchy.joined", std::make_format_args(mark, name));
 }
 
+// Dim when hidden or when the Scene's layers leave it out; a dim row still selects.
+bool rv_editor_hierarchy_dim(const rv_editor_scene_doc &doc, const rv_editor_scene_object &o)
+{
+    return rv_editor_scene_has_component(o, component_hidden) ||
+        rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent;
+}
+
 // The components by name, dim, on the same line as the row's name.
 void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_theme &theme)
 {
@@ -222,12 +229,12 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
         flags |= ImGuiTreeNodeFlags_Selected;
     }
     const std::string label = rv_editor_hierarchy_name(o);
-    const bool hidden = rv_editor_scene_has_component(o, component_hidden);
-    if (hidden) {
+    const bool dim = rv_editor_hierarchy_dim(doc, o);
+    if (dim) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
     }
     const bool open = ImGui::TreeNodeEx(o.id.c_str(), flags, "%s", label.c_str());
-    if (hidden) {
+    if (dim) {
         ImGui::PopStyleColor();
     }
     if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) {
@@ -257,7 +264,8 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     }
 }
 
-// One search match: a flat row, selected by click, dimmed when hidden. An id whose object is gone is skipped.
+// One search match: a flat row, selected by click, dimmed when hidden or left out by the Scene's layers.
+// An id whose object is gone is skipped.
 void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &id, const rv_editor_theme &theme)
 {
     const int index = rv_editor_scene_find(doc.scene, id);
@@ -265,8 +273,8 @@ void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &
         return;
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(index)];
-    const bool hidden = rv_editor_scene_has_component(o, component_hidden);
-    if (hidden) {
+    const bool dim = rv_editor_hierarchy_dim(doc, o);
+    if (dim) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
     }
     const std::string label = rv_editor_hierarchy_name(o);
@@ -275,7 +283,7 @@ void rv_editor_hierarchy_match_row(rv_editor_scene_doc &doc, const std::string &
         doc.selected = o.id;
     }
     ImGui::PopID();
-    if (hidden) {
+    if (dim) {
         ImGui::PopStyleColor();
     }
     rv_editor_hierarchy_marks(o, theme);
