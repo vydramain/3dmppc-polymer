@@ -119,9 +119,9 @@ std::vector<rv_editor_tri>
 rv_editor_billboard_triangles(const rv_editor_view &v, const rv_editor_affine &m, const rv_editor_scene_object &o);
 // A flat disc texture name resolved to its project file under [textures]; empty when none matches.
 std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &project, const std::string &name);
-// Every mesh, quad and billboard filled into the viewport's picture (rv_editor_scene_raster.cpp):
-// a CPU z-buffer of `size` at `origin` in framebuffer pixels, drawn as one image on `dl`, transparent
-// where nothing is. Flat-shaded by face normal; the selected one tinted; volumes never filled.
+// Every mesh, quad and billboard shown (not outlined or absent) filled into the viewport's picture
+// (rv_editor_scene_raster.cpp): a CPU z-buffer of `size` at `origin` in framebuffer pixels, drawn as one
+// image on `dl`, transparent where nothing is. Flat-shaded by face normal; the selected one tinted; volumes never filled.
 // `textured` false: flat colours only. True: a .glb part's picture, else the object's texture where
 // it resolves and loads. A .glb's flat parts are their colour and take the object's tint; the
 // selected object keeps its selection colour. `renderer` owns the picture's SDL texture, one per
@@ -129,7 +129,7 @@ std::filesystem::path rv_editor_resolve_texture_name(const rv_editor_project &pr
 // keeps only its centre and focal, so the frame is passed in.
 void rv_editor_draw_filled(ImDrawList *dl,
     const rv_editor_view &v,
-    const rv_editor_scene &scene,
+    const rv_editor_scene_doc &doc,
     const rv_editor_project &project,
     const std::string &selected,
     ImU32 base,
@@ -141,8 +141,9 @@ void rv_editor_draw_filled(ImDrawList *dl,
 // Destroys every viewport's picture texture. Call after the last frame and before SDL_DestroyRenderer:
 // a texture is bound to the renderer that made it, and a new renderer may reuse its address.
 void rv_editor_scene_pictures_free();
-// The object whose drawing passes nearest the click, within a few pixels; empty for none.
-std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
+// The object whose drawing passes nearest the click, within a few pixels; empty for none. Absent objects are not picked.
+std::string
+rv_editor_pick(const rv_editor_scene_doc &doc, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at);
 // The Move gizmo's axis under the mouse, or -1.
 int rv_editor_gizmo_axis(const rv_editor_scene &scene,
     const std::string &selected,

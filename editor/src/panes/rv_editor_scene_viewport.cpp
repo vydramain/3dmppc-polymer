@@ -84,6 +84,17 @@ int rv_editor_tool_axis(rv_editor_scene_tool tool,
     return -1;
 }
 
+// The selected object's index, or -1 when none or when it is absent: no gizmo and no drag for it.
+int rv_editor_selected_index(const rv_editor_scene_doc &doc)
+{
+    const int at = rv_editor_scene_find(doc.scene, doc.selected);
+    if (at < 0) {
+        return -1;
+    }
+    const rv_editor_visibility vis = rv_editor_scene_visibility(doc, doc.scene.objects[static_cast<size_t>(at)]);
+    return vis == rv_editor_visibility::absent ? -1 : at;
+}
+
 } // namespace
 
 void rv_editor_scene_viewport(rv_editor_app &app,
@@ -208,7 +219,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
 
     // A left press starts a drag of the tool when it lands on the gizmo, else it picks.
     if (ImGui::IsItemActivated() || (active && ImGui::IsMouseClicked(ImGuiMouseButton_Left))) {
-        const int at = rv_editor_scene_find(doc.scene, doc.selected);
+        const int at = rv_editor_selected_index(doc);
         int axis = -1;
         if (at >= 0 && !read_only && !cam.seeking) {
             axis = rv_editor_tool_axis(cam.tool, doc, v, mouse, gizmo, at);
@@ -223,7 +234,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             tool_drag.before_scale = o.scale;
             tool_drag.dragging = true;
         } else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-            const std::string hit = rv_editor_pick(doc.scene, app.project, v, mouse);
+            const std::string hit = rv_editor_pick(doc, app.project, v, mouse);
             if (cam.seeking) {
                 const int h = rv_editor_scene_find(doc.scene, hit);
                 if (h >= 0) {
@@ -236,10 +247,12 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         }
     }
     if (tool_drag.dragging) {
-        const int at = rv_editor_scene_find(doc.scene, doc.selected);
-        if (at >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        const int at = rv_editor_selected_index(doc);
+        // Escape takes back even when the object has become absent: the drag's values are still its own.
+        const int found = rv_editor_scene_find(doc.scene, doc.selected);
+        if (found >= 0 && ImGui::IsKeyPressed(ImGuiKey_Escape)) {
             // Taken back: the values from before the press, and the step it took goes.
-            rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
+            rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(found)];
             o.position = tool_drag.before_position;
             o.rotation = tool_drag.before_rotation;
             o.scale = tool_drag.before_scale;
@@ -247,7 +260,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
                 doc.undo.pop_back();
             }
             tool_drag.dragging = false;
-        } else if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+        } else if (at >= 0 && ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
             rv_editor_manipulate(app, cam, v, tool_drag);
         } else {
             tool_drag.dragging = false;
@@ -282,7 +295,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     if (filled) {
         rv_editor_draw_filled(dl,
             v,
-            doc.scene,
+            doc,
             app.project,
             doc.selected,
             rv_editor_col(theme.code_subtext),
@@ -293,16 +306,24 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             cam.shading == rv_editor_scene_shading::textured);
     }
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
-        const std::string &kind = doc.scene.objects[i].kind;
-        const bool sel = doc.scene.objects[i].id == doc.selected;
+        const rv_editor_scene_object &obj = doc.scene.objects[i];
+        const rv_editor_visibility vis = rv_editor_scene_visibility(doc, obj);
+        if (vis == rv_editor_visibility::absent) {
+            continue;
+        }
+        const std::string &kind = obj.kind;
+        const bool sel = obj.id == doc.selected;
         const ImU32 color = rv_editor_col(sel                                    ? theme.selection :
+                vis == rv_editor_visibility::outline                             ? theme.text_disabled :
                 kind == kind_mesh || kind == kind_quad || kind == kind_billboard ? theme.text :
                 kind == kind_camera                                              ? theme.code_yellow :
                                                                                    theme.code_subtext);
         std::string error;
         // Filled/Textured mode already paints non-selected mesh/quad/billboard geometry; the
         // selected one keeps its outline, and a volume (never filled) always keeps its edges.
-        const bool painted = filled && !sel && (kind == kind_mesh || kind == kind_quad || kind == kind_billboard);
+        // An outline is always edges.
+        const bool painted = filled && vis == rv_editor_visibility::shown && !sel &&
+            (kind == kind_mesh || kind == kind_quad || kind == kind_billboard);
         if (painted) {
             if (kind == kind_mesh) {
                 rv_editor_object_triangles(doc.scene, app.project, static_cast<int>(i), &error);
@@ -316,7 +337,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
             mesh_error = error;
         }
     }
-    const int at = rv_editor_scene_find(doc.scene, doc.selected);
+    const int at = rv_editor_selected_index(doc);
     if (at >= 0 && cam.tool == rv_editor_scene_tool::move) {
         const vec3 o = rv_editor_affine_point(rv_editor_scene_world(doc.scene, at), { 0, 0, 0 });
         const uint32_t colors[] = { theme.code_red, theme.code_green, theme.code_blue };
