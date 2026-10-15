@@ -352,17 +352,43 @@ int rv_editor_workspace_draw(rv_editor_workspace &ws,
     rv_editor_rect area,
     std::string &error);
 
-// --- status, log, transport, dialogs --------------------------------------------
-// Menus and context menus are ImGui's own (BeginMenuBar, BeginMenu, MenuItem,
-// BeginPopupContextItem) in the theme's colours.
+// --- menus ----------------------------------------------------------------------
+// Menus, popups and context menus are the editor's over ImGui's calls, in the
+// theme's menu colours. OpenPopup stays with the caller: it has no look to give.
 
 // Menus hover in brass, so an open menu keeps its pressed look under the
-// pointer. Every menu bar and popup menu is drawn between these two calls.
+// pointer. The components below use this pair; a popup not yet on them calls it itself.
 void rv_editor_menu_style_push();
 void rv_editor_menu_style_pop();
 
+// Main menu bar; end only when begin returned true (a false begin clears the style).
+bool rv_editor_main_menu_bar_begin();
+void rv_editor_main_menu_bar_end();
+
+// Menu bar of the current window (it needs ImGuiWindowFlags_MenuBar); end only when begin returned true.
+bool rv_editor_menu_bar_begin();
+void rv_editor_menu_bar_end();
+
+// A menu; `why_not` (non-null) disables it and shows the reason on hover. End only when begin returned true.
+bool rv_editor_menu_begin(const char *label, const char *why_not);
+void rv_editor_menu_end();
+
+// A popup opened with OpenPopup(id); end only when begin returned true.
+bool rv_editor_popup_begin(const char *id);
+void rv_editor_popup_end();
+
+// A context menu opened by a right click on `id`; nullptr means the last item. End only when begin returned true.
+bool rv_editor_context_menu_begin(const char *id);
+void rv_editor_context_menu_end();
+
+// Right-click menu of the current window's empty space; end only when begin returned true.
+bool rv_editor_window_context_menu_begin(const char *id);
+void rv_editor_window_context_menu_end();
+
 // A menu item that is disabled with its reason shown on hover.
 bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not);
+
+// --- status, log, transport, dialogs --------------------------------------------
 
 enum class rv_editor_status_kind {
     idle,
