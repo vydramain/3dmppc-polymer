@@ -1,11 +1,15 @@
 // Pane rendering dispatch for all pane kinds.
 
+#include <string>
+
 #include "app/rv_editor_shell.hpp"
 
 #include "imgui.h"
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "panes/rv_editor_panes.hpp"
+#include "text/rv_editor_text.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -15,6 +19,8 @@ namespace
 
 // A control strip's width, in font sizes.
 constexpr int rv_editor_strip_width_em = 20;
+// A pane kind without a view says so; the title fills the {}.
+constexpr const char *no_view_text_id = "shell_pane.no_view";
 
 } // namespace
 
@@ -147,9 +153,10 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
     default:
         break;
     }
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s: this pane kind has no view", rv_editor_pane_title(kind));
-    ImGui::PopStyleColor();
+    // make_format_args takes lvalues: the title is named first.
+    const char *title = rv_editor_pane_title(kind);
+    const std::string no_view = rv_editor_text_format(no_view_text_id, std::make_format_args(title));
+    rv_editor_label(no_view.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
 }
 
 } // namespace rv_editor

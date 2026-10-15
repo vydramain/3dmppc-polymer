@@ -1444,6 +1444,9 @@ session_toolchest = "Session Toolchest"
 transform_toolchest = "Transform Toolchest"
 subject_suffix = ": {}"
 
+[shell_pane]
+no_view = "{}: this pane kind has no view"
+
 [scene_viewport]
 rot_x = "Rot X"
 rot_y = "Rot Y"
