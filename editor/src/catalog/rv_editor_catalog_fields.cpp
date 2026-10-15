@@ -1,7 +1,7 @@
-// Catalog section: text fields, spinners and dropdowns - one row per widget,
+// Catalog section: text fields, text areas, spinners and dropdowns - one row per widget,
 // one column per field state; the last column is live. Text components follow.
 
-#include <cstring>
+#include <cstdio>
 
 #include "catalog/rv_editor_catalog.hpp"
 #include "text/rv_editor_text.hpp"
@@ -16,11 +16,17 @@ namespace
 // Text field buffer size
 constexpr size_t text_field_buffer_size = 32;
 
+// Text area buffer size: room for the three-line sample and its line breaks
+constexpr size_t text_area_buffer_size = 128;
+
 // Spinner increment step
 constexpr int spinner_step = 8;
 
 // Demo value for the catalog's number spinners
 constexpr int sample_spinner_value = 320;
+
+// Height of the text area sample, in text lines
+constexpr float sample_area_lines = 3.0f;
 
 // Width of the wrap and bullet samples, in font sizes: narrow enough that their text
 // breaks whatever the window's width, so the wrapping is always visible.
@@ -30,6 +36,7 @@ constexpr float text_sample_width_em = 24.0f;
 constexpr int row_text_field = 0;
 constexpr int row_spinner = 1;
 constexpr int row_dropdown = 2;
+constexpr int row_text_area = 3;
 
 struct rv_editor_field_column {
     const char *name;
@@ -53,13 +60,16 @@ constexpr int rv_editor_field_column_count =
 // One value per cell, so typing into one field does not change its neighbours.
 struct rv_editor_field_values {
     char text[rv_editor_field_column_count][text_field_buffer_size];
+    char area[rv_editor_field_column_count][text_area_buffer_size];
     int number[rv_editor_field_column_count];
     int choice[rv_editor_field_column_count];
 
     rv_editor_field_values()
     {
         for (int c = 0; c < rv_editor_field_column_count; ++c) {
-            std::strncpy(text[c], rv_editor_text("catalog_fields.sample_text"), sizeof(text[c]));
+            // snprintf always writes the terminating zero, unlike strncpy
+            std::snprintf(text[c], sizeof(text[c]), "%s", rv_editor_text("catalog_fields.sample_text"));
+            std::snprintf(area[c], sizeof(area[c]), "%s", rv_editor_text("catalog_fields.sample_area"));
             number[c] = sample_spinner_value;
             choice[c] = 0;
         }
@@ -83,7 +93,10 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
     }
     ImGui::TableHeadersRow();
 
-    const char *row_ids[] = { "catalog_fields.row_text_field", "catalog_fields.row_spinner", "catalog_fields.row_dropdown" };
+    const char *row_ids[] = { "catalog_fields.row_text_field",
+        "catalog_fields.row_spinner",
+        "catalog_fields.row_dropdown",
+        "catalog_fields.row_text_area" };
     for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
@@ -103,6 +116,9 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
             switch (row) {
             case row_text_field:
                 rv_editor_text_field("##text", rv_editor_field_data.text[c], sizeof(rv_editor_field_data.text[c]), theme, f);
+                break;
+            case row_text_area:
+                rv_editor_text_area("##area", rv_editor_field_data.area[c], text_area_buffer_size, sample_area_lines, theme, f);
                 break;
             case row_spinner:
                 rv_editor_spinner("##number", &rv_editor_field_data.number[c], spinner_step, theme, f);

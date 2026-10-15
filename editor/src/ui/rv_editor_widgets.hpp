@@ -90,6 +90,14 @@ bool rv_editor_text_field(const char *label,
     size_t size,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
+// A multi-line field `lines` text lines tall (plus its frame padding), as wide as the
+// item width; ImGui scrolls it. The markers sit on its first line.
+bool rv_editor_text_area(const char *label,
+    char *buf,
+    size_t size,
+    float lines,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {});
 bool rv_editor_spinner(const char *label,
     int *value,
     int step,
