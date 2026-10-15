@@ -154,7 +154,7 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
 // Delete and Ctrl+D for the scene while the calling pane has the keyboard.
 void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // A mesh object's Pieces node under its row: its model's pieces, picked by click (rv_editor_pane_hierarchy_pieces.cpp).
-void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o);
+void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object &o, const rv_editor_theme &theme);
 // Hierarchy's shelf: Add opens the kinds menu, then the command buttons (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
