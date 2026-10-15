@@ -122,8 +122,7 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
     if (ImGui::IsMouseHoveringRect(row_min, ImGui::GetItemRectMax()) && ImGui::IsMouseClicked(ImGuiMouseButton_Right)) {
         ImGui::OpenPopup("##tabmenu");
     }
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##tabmenu")) {
+    if (rv_editor_popup_begin("##tabmenu")) {
         const bool named = active >= 0 && active < static_cast<int>(tabs.names.size());
         const char *why_not = nullptr;
         if (!named) {
@@ -133,18 +132,14 @@ void rv_editor_code_tab_row(rv_editor_app &app, rv_editor_pane_id pane, int64_t 
         } else if (held(tabs.names[static_cast<size_t>(active)])->modified) {
             why_not = rv_editor_text("pane_code.close_tab_unsaved");
         }
-        if (ImGui::MenuItem(rv_editor_text("pane_code.close_tab_menu_item"), nullptr, false, why_not == nullptr)) {
+        if (rv_editor_menu_item(rv_editor_text("pane_code.close_tab_menu_item"), nullptr, why_not)) {
             const size_t at = static_cast<size_t>(active);
             tabs.dropped = tabs.names[at];
             tabs.names.erase(tabs.names.begin() + static_cast<std::ptrdiff_t>(at));
             nvim.open(win, tabs.names[std::min(at, tabs.names.size() - 1)], 0);
         }
-        if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-            ImGui::SetTooltip("%s", why_not);
-        }
-        ImGui::EndPopup();
+        rv_editor_popup_end();
     }
-    rv_editor_menu_style_pop();
 }
 
 } // namespace
@@ -180,11 +175,14 @@ void rv_editor_pane_code_body(rv_editor_app &app,
     }
     // A stop runs in the background: the pane has no grid meanwhile, the rest of the editor keeps running.
     if (nvim.stopping()) {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_code.nvim_stopping"));
+        rv_editor_label(rv_editor_text("pane_code.nvim_stopping"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
         return;
     }
     if (!nvim.problem.empty()) {
-        ImGui::TextWrapped("%s", nvim.problem.c_str());
+        rv_editor_label(nvim.problem.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         if (rv_editor_button(rv_editor_text("pane_code.start_nvim_again"), theme)) {
             nvim.problem.clear();
         }
@@ -203,7 +201,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
     if (rv_editor_toggle(vim_label.c_str(), &vim, theme)) {
         nvim.toggle_vim_mode();
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.vim_mode_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_code.vim_mode_tooltip"));
     rv_editor_code_tab_row(app, pane, win, theme);
     rv_editor_shelf_end();
     // Swap recovery UI when nvim opened a file read-only due to a crashed nvim.
@@ -212,24 +210,24 @@ void rv_editor_pane_code_body(rv_editor_app &app,
             rv_editor_shelf_begin("##swap", theme);
             if (swap->state == nvim_swap_state_recoverable) {
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextUnformatted(rv_editor_text("pane_code.swap_recovery_message"));
+                rv_editor_label(rv_editor_text("pane_code.swap_recovery_message"), rv_editor_label_kind::normal, theme);
                 ImGui::SameLine();
                 std::string name = buf->name;
                 if (rv_editor_button(rv_editor_text("pane_code.swap_recover_button"), theme)) {
                     nvim.swap_resolve(win, name, true);
                 }
-                ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.swap_recover_button_tooltip"));
+                rv_editor_item_tooltip(rv_editor_text("pane_code.swap_recover_button_tooltip"));
                 ImGui::SameLine();
                 if (rv_editor_button(rv_editor_text("pane_code.swap_discard_button"), theme)) {
                     nvim.swap_resolve(win, name, false);
                 }
-                ImGui::SetItemTooltip("%s", rv_editor_text("pane_code.swap_discard_button_tooltip"));
+                rv_editor_item_tooltip(rv_editor_text("pane_code.swap_discard_button_tooltip"));
             } else if (swap->state == nvim_swap_state_in_use) {
                 ImGui::AlignTextToFramePadding();
                 const long long pid = static_cast<long long>(swap->pid);
                 const std::string readonly_msg =
                     rv_editor_text_format("pane_code.readonly_process_editing", std::make_format_args(pid));
-                ImGui::Text("%s", readonly_msg.c_str());
+                rv_editor_label(readonly_msg.c_str(), rv_editor_label_kind::normal, theme);
             }
             rv_editor_shelf_end();
         }
@@ -339,7 +337,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
                 ImGui::PushID(static_cast<int>(win));
                 ImGui::InvisibleButton("##lsp_note", ImGui::CalcTextSize(note.c_str()));
                 ImGui::PopID();
-                ImGui::SetItemTooltip("%s", lsp->reason.c_str());
+                rv_editor_item_tooltip(lsp->reason.c_str());
             }
             note_x += ImGui::CalcTextSize(note.c_str()).x + cell.x;
         }
@@ -383,7 +381,7 @@ void rv_editor_pane_code_body(rv_editor_app &app,
                 ImGui::PushID(static_cast<int>(win));
                 ImGui::InvisibleButton("##save_note", ImGui::CalcTextSize(text));
                 ImGui::PopID();
-                ImGui::SetItemTooltip("%s", plan.reason.c_str());
+                rv_editor_item_tooltip(plan.reason.c_str());
             }
         }
     }
