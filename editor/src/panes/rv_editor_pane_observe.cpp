@@ -5,8 +5,6 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
-#include <cstdio>
-#include <ctime>
 #include <string>
 #include <vector>
 
@@ -20,11 +18,6 @@ namespace rv_editor
 
 namespace
 {
-
-// Millisecond extraction modulus for time formatting.
-constexpr size_t ms_modulo = 1000;
-// Time formatting buffer capacity.
-constexpr size_t time_buffer_size = 32;
 
 // Protocol field: value found flag from console answer.
 constexpr std::string_view field_found = "found";
@@ -98,34 +91,6 @@ value_kind find_value_kind(std::string_view type)
 }
 
 } // namespace
-
-void rv_editor_dim(const std::string &text)
-{
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
-}
-
-std::string rv_editor_clock(std::chrono::system_clock::time_point at)
-{
-    const std::time_t t = std::chrono::system_clock::to_time_t(at);
-    std::tm tm{};
-    localtime_r(&t, &tm);
-    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(at.time_since_epoch()).count() % ms_modulo;
-    char buf[time_buffer_size];
-    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03d", tm.tm_hour, tm.tm_min, tm.tm_sec, static_cast<int>(ms));
-    return buf;
-}
-
-// One label and its value on a row of a two-column table.
-void rv_editor_fact(const char *label, const std::string &value)
-{
-    rv_editor_table_row();
-    rv_editor_table_cell();
-    ImGui::TextUnformatted(label);
-    rv_editor_table_cell();
-    ImGui::TextWrapped("%s", value.c_str());
-}
 
 namespace
 {
@@ -265,7 +230,7 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
     return rows;
 }
 
-void rv_editor_observe_facts(const rv_editor_session &s)
+void rv_editor_observe_facts(const rv_editor_session &s, const rv_editor_theme &theme)
 {
     const rv_editor_session_facts &f = s.facts();
     const rv_editor_table_column facts_columns[facts_table_cols] = {};
@@ -276,16 +241,22 @@ void rv_editor_observe_facts(const rv_editor_session &s)
     const auto state = rv_editor_run_state_name(s.state());
     const auto start_at = rv_editor_clock(s.started_at());
     rv_editor_fact(rv_editor_text("pane_observe.fact_session"),
-        rv_editor_text_format("pane_observe.fact_session_value", std::make_format_args(num, state, start_at)));
+        rv_editor_text_format("pane_observe.fact_session_value", std::make_format_args(num, state, start_at)),
+        theme);
     const auto frame = std::to_string(s.frame());
     const char *frame_key =
         s.state() == rv_editor_run_state::paused ? "pane_observe.fact_frame_paused" : "pane_observe.fact_frame_running";
-    rv_editor_fact(rv_editor_text("pane_observe.fact_frame"), rv_editor_text_format(frame_key, std::make_format_args(frame)));
+    rv_editor_fact(rv_editor_text("pane_observe.fact_frame"),
+        rv_editor_text_format(frame_key, std::make_format_args(frame)),
+        theme);
     const char *disc_key = f.medium == medium_live ? "pane_observe.fact_disc_directory" : "pane_observe.fact_disc_image";
-    rv_editor_fact(rv_editor_text("pane_observe.fact_disc"), rv_editor_text_format(disc_key, std::make_format_args(f.disc)));
+    rv_editor_fact(rv_editor_text("pane_observe.fact_disc"),
+        rv_editor_text_format(disc_key, std::make_format_args(f.disc)),
+        theme);
     const auto &pdk = f.pdk;
     rv_editor_fact(rv_editor_text("pane_observe.fact_code_hash"),
-        rv_editor_text_format("pane_observe.fact_code_hash_value", std::make_format_args(f.code_hash, pdk)));
+        rv_editor_text_format("pane_observe.fact_code_hash_value", std::make_format_args(f.code_hash, pdk)),
+        theme);
     if (f.lua_budget > 0) {
         const auto rev = std::to_string(f.revision);
         std::string entry_val;
@@ -295,15 +266,17 @@ void rv_editor_observe_facts(const rv_editor_session &s)
         } else {
             entry_val = rv_editor_text_format("pane_observe.fact_entry_as_loaded", std::make_format_args(rev));
         }
-        rv_editor_fact(rv_editor_text("pane_observe.fact_entry_script"), entry_val);
+        rv_editor_fact(rv_editor_text("pane_observe.fact_entry_script"), entry_val, theme);
         const auto lua_used = std::to_string(f.lua_used);
         const auto lua_budget = std::to_string(f.lua_budget);
         rv_editor_fact(rv_editor_text("pane_observe.fact_lua_memory"),
-            rv_editor_text_format("pane_observe.fact_lua_memory_value", std::make_format_args(lua_used, lua_budget)));
+            rv_editor_text_format("pane_observe.fact_lua_memory_value", std::make_format_args(lua_used, lua_budget)),
+            theme);
     }
     const auto facts_at = rv_editor_clock(f.at);
     rv_editor_fact(rv_editor_text("pane_observe.fact_facts_from"),
-        rv_editor_text_format("pane_observe.fact_facts_from_value", std::make_format_args(facts_at)));
+        rv_editor_text_format("pane_observe.fact_facts_from_value", std::make_format_args(facts_at)),
+        theme);
     rv_editor_table_end();
 }
 
@@ -344,7 +317,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
     // between its sections, so the whole pane is one well.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
-        rv_editor_observe_facts(s);
+        rv_editor_observe_facts(s, theme);
         if (rv_editor_button(rv_editor_text("pane_observe.refresh"), theme, { rv_editor_look::live, observe_busy_why(app) })) {
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::observe_refresh });
         }

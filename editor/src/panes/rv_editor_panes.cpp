@@ -3,7 +3,9 @@
 #include "panes/rv_editor_panes.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
+#include <ctime>
 #include <string>
 #include <vector>
 
@@ -162,7 +164,49 @@ std::string rv_editor_facts_text(const rv_editor_session &s, const rv_editor_app
     return result + revision_text;
 }
 
+// Millisecond extraction modulus for time formatting.
+constexpr size_t ms_modulo = 1000;
+// Time formatting buffer capacity.
+constexpr size_t time_buffer_size = 32;
+
 } // namespace
+
+void rv_editor_dim(const std::string &text)
+{
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("%s", text.c_str());
+    ImGui::PopStyleColor();
+}
+
+std::string rv_editor_clock(std::chrono::system_clock::time_point at)
+{
+    const std::time_t t = std::chrono::system_clock::to_time_t(at);
+    std::tm tm{};
+    localtime_r(&t, &tm);
+    const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(at.time_since_epoch()).count() % ms_modulo;
+    char buf[time_buffer_size];
+    std::snprintf(buf, sizeof(buf), "%02d:%02d:%02d.%03d", tm.tm_hour, tm.tm_min, tm.tm_sec, static_cast<int>(ms));
+    return buf;
+}
+
+// One label and its value on a row of a two-column table.
+void rv_editor_fact(const char *label, const std::string &value)
+{
+    rv_editor_table_row();
+    rv_editor_table_cell();
+    ImGui::TextUnformatted(label);
+    rv_editor_table_cell();
+    ImGui::TextWrapped("%s", value.c_str());
+}
+
+void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme)
+{
+    rv_editor_table_row();
+    rv_editor_table_cell();
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    rv_editor_table_cell();
+    rv_editor_label(value.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+}
 
 void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 {
