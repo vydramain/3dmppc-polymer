@@ -125,18 +125,11 @@ void rv_editor_components_field(rv_editor_scene_doc &doc,
 // Visible: the checkbox is on unless the object has a hidden component; hidden carries no fields.
 void rv_editor_components_visible(rv_editor_scene_doc &doc, size_t at, const rv_editor_theme &theme)
 {
-    rv_editor_scene_object &o = doc.scene.objects[at];
-    bool visible = !rv_editor_scene_has_component(o, component_hidden);
+    bool visible = !rv_editor_scene_has_component(doc.scene.objects[at], component_hidden);
     if (!rv_editor_checkbox(rv_editor_text("pane_scene_components.visible_label"), &visible, theme)) {
         return;
     }
-    rv_editor_scene_step(doc);
-    std::erase_if(o.components, [](const rv_editor_scene_component &c) {
-        return c.name == component_hidden;
-    });
-    if (!visible) {
-        o.components.push_back(rv_editor_scene_component{ std::string(component_hidden), {} });
-    }
+    rv_editor_scene_set_visible(doc, at, visible);
 }
 
 // The components but hidden: each with a header, a Remove button and its fields.

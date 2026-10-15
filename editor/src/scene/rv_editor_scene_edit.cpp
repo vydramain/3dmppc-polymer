@@ -488,4 +488,20 @@ int rv_editor_scene_reparent(rv_editor_scene_doc &doc,
     return RV_OK;
 }
 
+void rv_editor_scene_set_visible(rv_editor_scene_doc &doc, size_t at, bool visible)
+{
+    rv_editor_scene_object &o = doc.scene.objects[at];
+    const bool shown = !rv_editor_scene_has_component(o, component_hidden);
+    if (shown == visible) {
+        return;
+    }
+    rv_editor_scene_step(doc);
+    std::erase_if(o.components, [](const rv_editor_scene_component &c) {
+        return c.name == component_hidden;
+    });
+    if (!visible) {
+        o.components.push_back(rv_editor_scene_component{ std::string(component_hidden), {} });
+    }
+}
+
 } // namespace rv_editor
