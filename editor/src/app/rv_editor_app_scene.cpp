@@ -5,13 +5,18 @@
 
 #include <algorithm>
 #include <cctype>
+#include <set>
 #include <system_error>
 
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 
+#include "panes/rv_editor_walk.hpp"
 #include "project/rv_editor_manifest_edit.hpp"
+#include "scene/rv_editor_model_stage.hpp"
+#include "scene/rv_editor_scene.hpp"
 #include "scene/rv_editor_scene_codegen.hpp"
+#include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 
 namespace rv_editor
@@ -63,6 +68,39 @@ std::string rv_editor_scene_label(const rv_editor_app &app, const std::filesyste
     std::error_code ec;
     const std::filesystem::path rel = std::filesystem::relative(path, app.project.root, ec);
     return (ec || rel.empty() ? path : rel).string();
+}
+
+// Adds the mesh names of `objects` to `names`.
+void rv_editor_app_add_mesh_names(const std::vector<rv_editor_scene_object> &objects, std::set<std::string> &names)
+{
+    for (const rv_editor_scene_object &o : objects) {
+        if (o.kind == kind_mesh) {
+            names.insert(o.mesh);
+        }
+    }
+}
+
+// Moves the pending models the scene's meshes name into the project's models folder, before the scene is
+// written. Names only in the undo or redo history stay pending.
+int rv_editor_app_models_settle(const rv_editor_app &app, const rv_editor_scene_doc &doc, std::string &error)
+{
+    std::set<std::string> current;
+    std::set<std::string> history;
+    rv_editor_app_add_mesh_names(doc.scene.objects, current);
+    for (const std::vector<rv_editor_scene_object> &snapshot : doc.undo) {
+        rv_editor_app_add_mesh_names(snapshot, history);
+    }
+    for (const std::vector<rv_editor_scene_object> &snapshot : doc.redo) {
+        rv_editor_app_add_mesh_names(snapshot, history);
+    }
+    std::filesystem::path models_dir;
+    if (rv_editor_model_target_dir(app.project.root, app.project.models_patterns, models_dir, error) != RV_OK) {
+        error.clear(); // no models folder: no pending one to move
+        return RV_OK;
+    }
+    const int rc = rv_editor_model_stage_settle(models_dir, current, history, error);
+    rv_editor_walk_reset(); // a failed settle may have moved some models already: the index is stale either way
+    return rc;
 }
 
 } // namespace
@@ -234,6 +272,14 @@ int rv_editor_app_scene_save(rv_editor_app &app, std::string &error)
 {
     if (!rv_editor_app_scene_dirty(app)) {
         return RV_ERR_ALREADY; // nothing unsaved: nothing written
+    }
+    // Models are moved before the scene is written; if the write then fails, the moved models stay in the models folder.
+    std::string stage_error;
+    const int stage_code = rv_editor_app_models_settle(app, *app.scene, stage_error);
+    if (stage_code != RV_OK) {
+        error = "scene not saved: " + stage_error;
+        app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, error);
+        return RV_ERR_IO; // never RV_ERR_ALREADY: shell_save reads that as nothing to save
     }
     const int code = rv_editor_scene_save(app.scene->scene, error);
     if (code != RV_OK) {

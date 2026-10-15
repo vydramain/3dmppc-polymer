@@ -167,4 +167,9 @@ rv_editor_walk_name(const rv_editor_project &project, rv_editor_name_section sec
     return result;
 }
 
+void rv_editor_walk_reset()
+{
+    disc_index.held = false;
+}
+
 } // namespace rv_editor
