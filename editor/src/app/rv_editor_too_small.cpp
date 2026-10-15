@@ -17,6 +17,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -64,18 +65,18 @@ static void rv_editor_print_too_small_error(const rv_editor_display_size &displa
 }
 
 // Draw message: "too_small.title", "too_small.required" and "too_small.current" (both formatted with width x height).
-static void rv_editor_draw_too_small_message(const rv_editor_display_size &display_size)
+static void rv_editor_draw_too_small_message(const rv_editor_display_size &display_size, const rv_editor_theme &theme)
 {
-    ImGui::TextUnformatted(rv_editor_text("too_small.title"));
+    rv_editor_label(rv_editor_text("too_small.title"), rv_editor_label_kind::normal, theme);
     ImGui::Spacing();
     const int min_w = window_min_width;
     const int min_h = window_min_height;
     const std::string required = rv_editor_text_format("too_small.required", std::make_format_args(min_w, min_h));
-    ImGui::TextUnformatted(required.c_str());
+    rv_editor_label(required.c_str(), rv_editor_label_kind::normal, theme);
     const int w = display_size.w_pixels;
     const int h = display_size.h_pixels;
     const std::string current = rv_editor_text_format("too_small.current", std::make_format_args(w, h));
-    ImGui::TextUnformatted(current.c_str());
+    rv_editor_label(current.c_str(), rv_editor_label_kind::normal, theme);
 }
 
 // Forward declaration.
@@ -121,7 +122,7 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
 
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         if (ImGui::Begin("##too_small", nullptr, window_flags)) {
-            rv_editor_draw_too_small_message(display_size);
+            rv_editor_draw_too_small_message(display_size, theme);
             measured_size = ImGui::GetWindowSize();
         }
         ImGui::End();
@@ -183,7 +184,7 @@ void rv_editor_show_too_small_error(SDL_Window *&window, SDL_Renderer *&renderer
         ImGui::SetNextWindowPos(ImVec2(0, 0));
         ImGui::SetNextWindowSize(ImVec2(static_cast<float>(w), static_cast<float>(h)));
         if (ImGui::Begin("##too_small", nullptr, window_flags)) {
-            rv_editor_draw_too_small_message(display_size);
+            rv_editor_draw_too_small_message(display_size, theme);
         }
         ImGui::End();
 
