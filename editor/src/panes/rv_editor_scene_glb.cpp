@@ -176,6 +176,7 @@ int rv_editor_glb_load(const std::filesystem::path &path, std::shared_ptr<const 
             entry.rc = rv_pdklib::rv_mppcmod_validate(model->model, entry.error);
         }
         if (entry.rc == RV_OK) {
+            model->pieces = rv_editor_model_pieces(model->model);
             entry.model = std::move(model);
         }
         it = rv_editor_glb_cache.insert_or_assign(key, std::move(entry)).first;

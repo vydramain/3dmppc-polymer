@@ -9,14 +9,17 @@
 #include "pdklib/rv_models/rv_mppcmod_gltf.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "project/rv_editor_project.hpp"
+#include "scene/rv_editor_model_pieces.hpp"
 
 namespace rv_editor
 {
 
-// A .glb model as the scene viewport reads it: the parsed container and its embedded PNGs.
+// A .glb model as the scene viewport reads it: the parsed container, its embedded PNGs and its pieces.
 struct rv_editor_glb_model {
     rv_pdklib::rv_mppcmod model;
     std::vector<rv_pdklib::rv_mppcmod_gltf_image> images;
+    // Set once per read, with the model; the triangles of each piece.
+    std::vector<rv_editor_piece> pieces;
 };
 
 // Reads the .glb at `path` (absolute), once per mtime. `out` shares the cached model, so a holder
