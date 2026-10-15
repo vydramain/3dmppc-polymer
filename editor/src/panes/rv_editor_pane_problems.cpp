@@ -57,7 +57,10 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
     const rv_editor_build &b = app.build;
     const std::vector<rv_editor_problem> problems = rv_editor_gather_problems(app);
     if (b.state() == rv_editor_build_state::idle && problems.empty()) {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_problems.heading_empty"));
+        rv_editor_label(rv_editor_text("pane_problems.heading_empty"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
         return;
     }
     size_t build_errors = 0;
@@ -104,52 +107,51 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
             theme);
         if (problems.empty()) {
             const char *id = b.busy() ? "pane_problems.none_building" : "pane_problems.none_idle";
-            ImGui::TextWrapped("%s", rv_editor_text(id));
+            rv_editor_label(rv_editor_text(id), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
             return;
         }
-        if (!ImGui::BeginTable("##problems",
-                problems_table_column_count,
-                ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+        const rv_editor_table_column problem_columns[problems_table_column_count] = {
+            { "", rv_editor_table_width::fixed },
+            { rv_editor_text("pane_problems.column_source"), rv_editor_table_width::fixed },
+            { rv_editor_text("pane_problems.column_file"), rv_editor_table_width::fixed },
+            { rv_editor_text("pane_problems.column_line"), rv_editor_table_width::fixed },
+            { rv_editor_text("pane_problems.column_message") },
+        };
+        const rv_editor_table_style problem_style = { .row_bands = true, .header = true };
+        if (!rv_editor_table_begin("##problems", problem_columns, problems_table_column_count, problem_style)) {
             return;
         }
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_source"), ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_file"), ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_line"), ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableSetupColumn(rv_editor_text("pane_problems.column_message"));
-        ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableHeadersRow();
         for (size_t i = 0; i < problems.size(); ++i) {
             const rv_editor_problem &p = problems[i];
             ImGui::PushID(static_cast<int>(i));
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
+            rv_editor_table_row();
+            rv_editor_table_cell();
             // A word as well as a colour.
             const bool is_error = p.error;
             const char *severity_id = is_error ? "pane_problems.severity_error" : "pane_problems.severity_warning";
             const auto kind = is_error ? rv_editor_status_kind::error : rv_editor_status_kind::warning;
             rv_editor_status(rv_editor_text(severity_id), kind, theme);
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(p.source.c_str());
-            ImGui::TableNextColumn();
+            rv_editor_table_cell();
+            rv_editor_label(p.source.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell();
             std::error_code ec;
             const std::filesystem::path shown = std::filesystem::relative(p.file, app.project.root, ec);
             const bool there = std::filesystem::exists(p.file, ec);
             // The whole row answers a click; double click or Enter opens the place.
-            const bool pressed = ImGui::Selectable((ec || shown.empty() ? p.file : shown).c_str(),
-                false,
-                ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick);
+            const rv_editor_list_style file_style = { .span_columns = true };
+            const rv_editor_list_result row =
+                rv_editor_list_row("##file", (ec || shown.empty() ? p.file : shown).c_str(), theme, file_style);
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("%s", p.file.c_str());
+                rv_editor_tooltip(p.file.c_str());
             }
-            const bool open = (pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) ||
-                (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
+            const bool open = row.double_clicked || (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
             if (open && there) {
                 app.open_requests.push_back({ p.file, p.line, p.column });
             }
-            ImGui::TableNextColumn();
-            ImGui::Text("%d:%d", p.line, p.column);
-            ImGui::TableNextColumn();
+            rv_editor_table_cell();
+            const std::string line_col = std::to_string(p.line) + ":" + std::to_string(p.column);
+            rv_editor_label(line_col.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell();
             std::string message = p.message;
             const bool from_build = p.source == problem_source_build;
             if (from_build && !there) {
@@ -159,10 +161,10 @@ void rv_editor_pane_problems(rv_editor_app &app, const rv_editor_theme &theme)
                 // The line may have moved since the build saw it.
                 message = std::string(rv_editor_text("pane_problems.prefix_changed")) + message;
             }
-            ImGui::TextUnformatted(message.c_str());
+            rv_editor_label(message.c_str(), rv_editor_label_kind::normal, theme);
             ImGui::PopID();
         }
-        ImGui::EndTable();
+        rv_editor_table_end();
     };
     body();
     rv_editor_well_end();
