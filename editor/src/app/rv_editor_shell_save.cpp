@@ -14,7 +14,7 @@
 
 #include "app/rv_editor_shell.hpp"
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -105,7 +105,10 @@ void rv_editor_shell_save(rv_editor_shell &shell, const std::vector<int64_t> &id
 void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_app &app = shell.app;
-    ImGui::TextWrapped("%s", rv_editor_text("shell_save.save_as_intro"));
+    rv_editor_label(rv_editor_text("shell_save.save_as_intro"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::wrap);
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * save_as_field_width_em);
     rv_editor_text_field("##save_as",
         shell.save_as_path,
@@ -113,9 +116,7 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
         theme,
         { {}, false, false, shell.save_as_error.empty() ? nullptr : shell.save_as_error.c_str() });
     if (!shell.save_as_error.empty()) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
-        ImGui::TextWrapped("%s", shell.save_as_error.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(shell.save_as_error.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
     }
     const rv_editor_state busy = [&]() {
         if (shell.saving) {
@@ -170,12 +171,12 @@ void rv_editor_shell_save_as_body(rv_editor_shell &shell, const rv_editor_theme 
 void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     if (shell.saving) {
-        ImGui::TextUnformatted(rv_editor_text("shell_save.saving"));
+        rv_editor_label(rv_editor_text("shell_save.saving"), rv_editor_label_kind::normal, theme);
     }
     if (shell.save_failed.empty()) {
         return;
     }
-    ImGui::TextUnformatted(rv_editor_text("shell_save.not_saved_header"));
+    rv_editor_label(rv_editor_text("shell_save.not_saved_header"), rv_editor_label_kind::normal, theme);
     for (size_t i = 0; i < shell.save_failed.size(); ++i) {
         const rv_editor_nvim_saved &f = shell.save_failed[i];
         std::string label;
@@ -186,10 +187,8 @@ void rv_editor_shell_failures(rv_editor_shell &shell, const rv_editor_theme &the
         } else {
             label = f.name;
         }
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
         const auto error_line = rv_editor_text_format("shell_save.not_saved_error", std::make_format_args(label, f.error));
-        ImGui::TextWrapped("%s", error_line.c_str());
-        ImGui::PopStyleColor();
+        rv_editor_label(error_line.c_str(), rv_editor_label_kind::error, theme, rv_editor_label_layout::wrap);
         if (f.id != 0 && f.name.empty() && shell.save_as_buffer == 0) {
             ImGui::PushID(static_cast<int>(i));
             if (rv_editor_button(rv_editor_text("shell_save.save_as_button"), theme)) {
@@ -348,7 +347,7 @@ void rv_editor_shell_ask_close(rv_editor_shell &shell, const rv_editor_theme &th
     const std::string name = buf == nullptr ? rv_editor_text("shell_save.this_file") : rv_editor_buffer_label(app, buf->name);
     rv_editor_ask_begin(rv_editor_text("shell_save.unsaved_changes_title"), theme);
     const auto msg = rv_editor_text_format("shell_save.has_unsaved_changes", std::make_format_args(name));
-    ImGui::TextWrapped("%s", msg.c_str());
+    rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     rv_editor_shell_failures(shell, theme);
     if (shell.save_as_buffer != 0) {
         rv_editor_shell_save_as_body(shell, theme);
@@ -385,7 +384,7 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     rv_editor_app &app = shell.app;
     rv_editor_pane_header(rv_editor_text("shell_save.review_changes_header"), true, theme);
     if (shell.leaving == leave::none) {
-        ImGui::TextUnformatted(rv_editor_text("shell_save.nothing_waits"));
+        rv_editor_label(rv_editor_text("shell_save.nothing_waits"), rv_editor_label_kind::normal, theme);
         return;
     }
     rv_editor_state busy;
@@ -412,16 +411,17 @@ void rv_editor_page_review(rv_editor_shell &shell, const rv_editor_theme &theme)
     } else {
         message = rv_editor_text("shell_save.build_saves");
     }
-    ImGui::TextWrapped("%s", message);
+    rv_editor_label(message, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     for (const rv_editor_nvim_buffer &b : app.nvim.modified()) {
         if (!ahead || !b.name.empty()) {
-            ImGui::BulletText("%s", rv_editor_buffer_label(app, b.name).c_str());
+            const std::string label = rv_editor_buffer_label(app, b.name);
+            rv_editor_label(label.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
         }
     }
     if (rv_editor_app_scene_dirty(app)) {
         const auto scene_name = rv_editor_app_scene_name(app);
         const auto scene_label = rv_editor_text_format("shell_save.scene_label", std::make_format_args(scene_name));
-        ImGui::BulletText("%s", scene_label.c_str());
+        rv_editor_label(scene_label.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::bullet);
     }
     rv_editor_shell_failures(shell, theme);
     if (shell.save_as_buffer != 0) {
