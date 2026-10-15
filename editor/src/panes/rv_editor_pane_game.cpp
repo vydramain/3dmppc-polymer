@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,7 @@
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -185,16 +187,14 @@ void rv_editor_game_picture(const rv_editor_ui_port &ui,
         status = std::to_string(rv_editor_game_w) + dimension_sep.data() + std::to_string(rv_editor_game_h) +
             dimensions_scale_sep.data() + rv_editor_game_scale_text(mode, view) + dimensions_scale_sep.data() + status;
     }
-    if (line == rv_editor_game_line::warn) {
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
-    } else if (line == rv_editor_game_line::muted) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    }
-    ImGui::TextUnformatted(status.c_str());
-    if (line != rv_editor_game_line::normal) {
-        ImGui::PopStyleColor();
-    }
-    ImGui::SetItemTooltip("%s", status.c_str());
+    // Indexed by rv_editor_game_line: normal, warn, muted.
+    constexpr rv_editor_label_kind line_kinds[] = { rv_editor_label_kind::normal,
+        rv_editor_label_kind::warning,
+        rv_editor_label_kind::dim };
+    static_assert(std::size(line_kinds) == static_cast<size_t>(rv_editor_game_line::muted) + 1,
+        "one kind per status line colour, in enum order");
+    rv_editor_label(status.c_str(), line_kinds[static_cast<size_t>(line)], theme);
+    rv_editor_item_tooltip(status.c_str());
 
     // The whole area is dark, so what the frame leaves over is not the tile's olive.
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
@@ -348,7 +348,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 const long long elapsed_secs = static_cast<long long>(seconds);
                 const std::string external_msg =
                     rv_editor_text_format("pane_game.external_player", std::make_format_args(number, player_pid, elapsed_secs));
-                ImGui::TextWrapped("%s", external_msg.c_str());
+                rv_editor_label(external_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
                 const char *button_text =
                     r.player_stopped ? rv_editor_text("pane_game.kill_player") : rv_editor_text("pane_game.stop_player");
                 const bool player_running = rv_editor_app_player_running(app);
@@ -364,7 +364,7 @@ void rv_editor_pane_game(rv_editor_app &app, SDL_Renderer *renderer, const rv_ed
                 // A disabled button keeps its reason as the tooltip; the Stop tooltip is for the enabled one.
                 const bool enabled = stop_player_why == nullptr;
                 if (enabled) {
-                    ImGui::SetItemTooltip("%s", rv_editor_text("pane_game.stop_player_tooltip"));
+                    rv_editor_item_tooltip(rv_editor_text("pane_game.stop_player_tooltip"));
                 }
                 return;
             }
