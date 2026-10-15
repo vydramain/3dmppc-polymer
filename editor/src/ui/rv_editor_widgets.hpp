@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <map>
+#include <optional>
 #include <string>
 
 #include "layout/rv_editor_tile.hpp"
@@ -120,9 +121,43 @@ void rv_editor_shelf_end();
 bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &theme, ImGuiWindowFlags flags = 0);
 void rv_editor_well_end();
 
+// --- trees --------------------------------------------------------------------
+
+// How a tree row looks and opens. `open` is set this frame and opens or closes
+// the branch; `default_open` applies on first use only.
+struct rv_editor_tree_style {
+    bool leaf = false;    // no arrow
+    bool no_push = false; // no children: ImGui pushes no id, so nothing to pop
+    bool selected = false;
+    bool dim = false; // label in text_disabled; the caller says why (hidden, left out)
+    bool default_open = false;
+    bool open_on_double_click = false; // a double click opens too, as the arrow does
+    bool lines = false;                // lines down to the children
+    std::optional<bool> open;
+};
+
+// What the row did. `open` is true when the caller draws the children and calls
+// rv_editor_tree_pop. Drag source, drop target and context menu come after this
+// call; the row is the last item it leaves. A frozen look reports no click or toggle.
+struct rv_editor_tree_result {
+    bool open = false;
+    bool clicked = false;       // left click on the label, not the arrow
+    bool right_clicked = false; // right click on the row
+    bool toggled = false;       // the arrow or a double click opened or closed the branch
+};
+
+// A tree row: ImGui's TreeNodeEx in the theme's colours. Opens by the arrow, or by
+// a double click when the style says so.
+rv_editor_tree_result rv_editor_tree_row(const char *id,
+    const char *label,
+    const rv_editor_theme &theme,
+    const rv_editor_tree_style &style = {},
+    const rv_editor_state &state = {});
+void rv_editor_tree_pop();
+
 // --- panes --------------------------------------------------------------------
-// Trees, lists and tables are ImGui's own (TreeNodeEx, BeginListBox, BeginTable)
-// in the theme's colours; these are the pane pieces ImGui has no public form of.
+// Lists and tables are still ImGui's (BeginListBox, BeginTable) in the theme's
+// colours; the pane pieces below are the ones ImGui has no public form of.
 
 // Slanted folder tabs, one per label: the front tab in brass, the rest
 // behind it. Returns true when a click moved *active. Non-null `pressed` gets
