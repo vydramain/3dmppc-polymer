@@ -76,6 +76,10 @@ int rv_editor_scene_reparent(rv_editor_scene_doc &doc,
     bool keep_world,
     std::string &why);
 
+// Shown or hidden by the hidden component marker: one undo step, none when already so.
+// Precondition: `at` is the index of an existing object in doc.scene.objects.
+void rv_editor_scene_set_visible(rv_editor_scene_doc &doc, size_t at, bool visible);
+
 // An object's transform in its parent's space and in the scene's, as a 3x4 matrix.
 using rv_editor_affine = std::array<std::array<double, 4>, 3>;
 rv_editor_affine rv_editor_scene_local(const rv_editor_scene_object &o);
