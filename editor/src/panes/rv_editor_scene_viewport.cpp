@@ -20,6 +20,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_thumbwheel.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -139,7 +140,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, top.y + (size.y - label_x.y) * half));
-    ImGui::TextUnformatted(rot_x_label);
+    rv_editor_label(rot_x_label, rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     const ImVec2 p0 = ImGui::GetCursorScreenPos();
     ImGui::InvisibleButton("##viewport",
@@ -159,7 +160,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, dolly_top.y + (size.y - label_d.y) * half));
-    ImGui::TextUnformatted(dolly_label);
+    rv_editor_label(dolly_label, rv_editor_label_kind::normal, theme);
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap));
     cam.yaw +=
         rv_editor_thumbwheel("##roty", rot_y_label, false, size.x - gap - label_y.x, theme, reset) * rotation_sensitivity;
@@ -168,7 +169,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     }
     ImGui::SameLine();
     ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, p0.y + size.y + gap + (wheel - label_y.y) * half));
-    ImGui::TextUnformatted(rot_y_label);
+    rv_editor_label(rot_y_label, rv_editor_label_kind::normal, theme);
 
     const rv_editor_view v = rv_editor_view_make(cam, p0, size);
     ImGuiIO &io = ImGui::GetIO();
@@ -393,21 +394,16 @@ void rv_editor_scene_viewport(rv_editor_app &app,
         }
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset));
-    if (mesh_error.empty()) {
-        const std::string status_line =
-            rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line));
-        ImGui::TextDisabled("%s", status_line.c_str());
-    } else {
-        const char *error_str = mesh_error.c_str();
-        const std::string status_line =
-            rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
-        ImGui::TextDisabled("%s", status_line.c_str());
-    }
+    const char *const error_str = mesh_error.c_str();
+    const std::string status_line = mesh_error.empty() ?
+        rv_editor_text_format("scene_viewport.status_line_format", std::make_format_args(buf, read_line)) :
+        rv_editor_text_format("scene_viewport.mesh_placeholder_format", std::make_format_args(buf, read_line, error_str));
+    rv_editor_label(status_line.c_str(), rv_editor_label_kind::dim, theme);
     if (!read_tip.empty()) {
-        ImGui::SetItemTooltip("%s", read_tip.c_str());
+        rv_editor_item_tooltip(read_tip.c_str());
     }
     ImGui::SetCursorScreenPos(ImVec2(p0.x, p0.y + size.y + gap + wheel + status_text_offset + line));
-    ImGui::TextDisabled("%s", rv_editor_text("scene_viewport.example_meshes_title"));
+    rv_editor_label(rv_editor_text("scene_viewport.example_meshes_title"), rv_editor_label_kind::dim, theme);
     if (ImGui::BeginItemTooltip()) {
         ImGui::PushTextWrapPos(ImGui::GetFontSize() * text_wrap_width);
         ImGui::TextUnformatted(rv_editor_text("scene_viewport.example_meshes_tooltip"));
