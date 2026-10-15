@@ -9,7 +9,6 @@
 #include "imgui.h"
 
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
 
 namespace rv_editor
 {
@@ -20,13 +19,22 @@ namespace
 constexpr float filter_width_in_font_sizes = 30.0f;
 constexpr int help_table_columns = 2;
 
+// Command and keys columns: no headers, each as wide as its widest row.
+constexpr rv_editor_table_column help_columns[help_table_columns] = {
+    { "", rv_editor_table_width::fixed },
+    { "", rv_editor_table_width::fixed },
+};
+
+// Row bands, columns fitted to their contents, as the page always drew them.
+constexpr rv_editor_table_style help_table_style{ .row_bands = true, .sizing = rv_editor_table_sizing::fixed_fit };
+
 } // namespace
 
 void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pane_header(rv_editor_text("page_help.title"), true, theme);
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(rv_editor_text("page_help.filter_label"));
+    rv_editor_label(rv_editor_text("page_help.filter_label"), rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * filter_width_in_font_sizes);
     rv_editor_text_field("##filter", shell.help_filter, sizeof(shell.help_filter), theme);
@@ -60,7 +68,7 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         { "workspace.pane_code", "page_help.label_vim", "page_help.shortcut_vim" },
         { "shell_menu.help", "manual.start_label", "page_help.shortcut_f1" },
     };
-    if (!ImGui::BeginTable("##keys", help_table_columns, ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg)) {
+    if (!rv_editor_table_begin("##keys", help_columns, help_table_columns, help_table_style)) {
         return;
     }
     const char *last_group_text = nullptr;
@@ -73,19 +81,17 @@ void rv_editor_page_help(rv_editor_shell &shell, const rv_editor_theme &theme)
         const char *group_text = rv_editor_text(r.group_id);
         if (last_group_text == nullptr || std::string_view(last_group_text) != group_text) {
             last_group_text = group_text;
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-            ImGui::TextUnformatted(group_text);
-            ImGui::PopStyleColor();
+            rv_editor_table_row();
+            rv_editor_table_cell();
+            rv_editor_label(group_text, rv_editor_label_kind::bright, theme);
         }
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(label_text);
-        ImGui::TableNextColumn();
-        ImGui::TextUnformatted(keys_text);
+        rv_editor_table_row();
+        rv_editor_table_cell();
+        rv_editor_label(label_text, rv_editor_label_kind::normal, theme);
+        rv_editor_table_cell();
+        rv_editor_label(keys_text, rv_editor_label_kind::normal, theme);
     }
-    ImGui::EndTable();
+    rv_editor_table_end();
 }
 
 } // namespace rv_editor
