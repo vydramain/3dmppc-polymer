@@ -35,13 +35,13 @@ void rv_editor_shell_pane(void *context, rv_editor_pane_id pane, rv_editor_pane_
         rv_editor_pane_scene(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::hierarchy:
-        rv_editor_pane_hierarchy(shell.app, theme);
+        rv_editor_pane_hierarchy(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::assets:
         rv_editor_pane_assets(shell.app, shell.renderer, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::inspector:
-        rv_editor_pane_scene_inspector(shell.app, theme);
+        rv_editor_pane_scene_inspector(shell.app, theme, rv_editor_ui_port{ shell.ui, shell.ui_requests });
         return;
     case rv_editor_pane_kind::build_result:
         rv_editor_pane_build_result(shell.app, theme);

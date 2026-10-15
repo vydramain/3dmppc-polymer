@@ -108,7 +108,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
     rv_editor_shelf_begin("##shelf", theme);
     rv_editor_scene_toolbar(app, cam, theme);
     rv_editor_shelf_end();
-    rv_editor_scene_keys(app);
+    rv_editor_scene_keys(app, ui);
 
     // The well never scrolls: the Scene tile's picture shrinks to fit instead.
     rv_editor_well_begin("##well", ImVec2(0, 0), theme, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);

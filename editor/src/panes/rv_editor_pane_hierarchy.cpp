@@ -13,6 +13,8 @@
 
 #include "imgui.h"
 
+#include "app/rv_editor_shell.hpp"
+#include "panes/rv_editor_scene_actions.hpp"
 #include "scene/rv_editor_scene.hpp"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -348,7 +350,7 @@ void rv_editor_hierarchy_filter(rv_editor_scene_doc &doc, const rv_editor_theme 
 
 } // namespace
 
-void rv_editor_scene_keys(rv_editor_app &app)
+void rv_editor_scene_keys(rv_editor_app &app, const rv_editor_ui_port &ui)
 {
     if (app.scene == nullptr || !ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows) || ImGui::GetIO().WantTextInput) {
         return;
@@ -361,18 +363,20 @@ void rv_editor_scene_keys(rv_editor_app &app)
         ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_Y)) {
         rv_editor_scene_redo(doc);
     }
-    if (!doc.scene.read_only.empty() || doc.selected.empty()) {
-        return;
-    }
+    rv_editor_scene_camera cam = ui.state.scene_camera;
     if (ImGui::IsKeyChordPressed(ImGuiKey_Delete)) {
-        rv_editor_scene_delete(doc, doc.selected);
+        // The command refuses with its own reason when it cannot run.
+        rv_editor_scene_action_run(app, cam, rv_editor_scene_action::remove);
     }
     if (ImGui::IsKeyChordPressed(ImGuiMod_Ctrl | ImGuiKey_D)) {
-        rv_editor_scene_duplicate(doc, doc.selected);
+        rv_editor_scene_action_run(app, cam, rv_editor_scene_action::duplicate);
+    }
+    if (cam != ui.state.scene_camera) {
+        ui.requests.push_back({ .kind = rv_editor_ui_request_kind::set_scene_camera, .camera = cam });
     }
 }
 
-void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
+void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui)
 {
     if (!app.project.open) {
         rv_editor_open_project_row(app, theme);
@@ -383,7 +387,7 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_scene_open_row(app, theme);
         return;
     }
-    rv_editor_scene_keys(app);
+    rv_editor_scene_keys(app, ui);
     rv_editor_scene_doc &doc = *app.scene;
     const bool read_only = !doc.scene.read_only.empty();
     rv_editor_shelf_begin("##shelf", theme);
