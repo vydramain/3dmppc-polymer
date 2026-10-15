@@ -11,8 +11,8 @@
 
 #include "font/rv_editor_font.hpp"
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -80,53 +80,51 @@ const char *rv_editor_why_not_reload_shown(const rv_editor_app &app)
     return rv_editor_app_why_not_reload(app);
 }
 
-void rv_editor_wrapped(const std::string &text)
+void rv_editor_wrapped(const std::string &text, const rv_editor_theme &theme)
 {
-    ImGui::TextWrapped("%s", text.c_str());
+    rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
 }
 
 // One reserved block of `lines` wrapped-text lines, whatever `text` is: a
 // strip's row must not change size with what it has to say. Text past the
 // reserved lines clips; hovering the block shows it in full.
-void rv_editor_reserved(const char *id, const std::string &text, int lines)
+void rv_editor_reserved(const char *id, const std::string &text, int lines, const rv_editor_theme &theme)
 {
     const float h = ImGui::GetTextLineHeightWithSpacing() * lines;
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild(id, ImVec2(0.0f, h), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     if (!text.empty()) {
-        ImGui::TextWrapped("%s", text.c_str());
+        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     if (!text.empty() && ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", text.c_str());
+        rv_editor_tooltip(text.c_str());
     }
 }
 
 // One reserved single line, `width` wide (0 = what remains of the row): `text`
 // clips rather than wraps, so this row never splits into two. Hovering shows
 // it in full.
-void rv_editor_reserved_line(const char *id, const std::string &text, float width)
+void rv_editor_reserved_line(const char *id, const std::string &text, float width, const rv_editor_theme &theme)
 {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
     ImGui::BeginChild(id, ImVec2(width, ImGui::GetFrameHeight()), ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
     if (!text.empty()) {
-        ImGui::TextUnformatted(text.c_str());
+        rv_editor_label(text.c_str(), rv_editor_label_kind::normal, theme);
     }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     if (!text.empty() && ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("%s", text.c_str());
+        rv_editor_tooltip(text.c_str());
     }
 }
 
 // A group heading: the label in the bright text color, then a full-width separator.
 void rv_editor_project_group(const char *label, const rv_editor_theme &theme)
 {
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(label);
-    ImGui::PopStyleColor();
-    ImGui::Separator();
+    rv_editor_label(label, rv_editor_label_kind::bright, theme);
+    rv_editor_separator();
 }
 
 // Target text: build number if a build succeeded, otherwise nothing was built.
@@ -297,7 +295,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     } else {
         message = last_run_message;
     }
-    rv_editor_reserved("##message", message, reserved_message_lines);
+    rv_editor_reserved("##message", message, reserved_message_lines, theme);
 
     // Facts/target and the profile button share one row: facts clips rather
     // than wraps, so this row can never split in two.
@@ -307,12 +305,12 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
     const std::string profile = rv_editor_text_format("panes.profile", std::make_format_args(profile_name));
     const float profile_w = rv_editor_button_width(profile.c_str());
     const float facts_w = std::max(1.0f, ImGui::GetContentRegionAvail().x - profile_w - ImGui::GetStyle().ItemSpacing.x);
-    rv_editor_reserved_line("##facts", facts, facts_w);
+    rv_editor_reserved_line("##facts", facts, facts_w, theme);
     ImGui::SameLine();
     if (rv_editor_button(profile.c_str(), theme)) {
         app.show_request = rv_editor_pane_kind::run_config;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("panes.run_config_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("panes.run_config_tooltip"));
 
     // One action row shared by the three things it can offer, by priority: a
     // hung runtime needs Force Stop first, then a running build needs Cancel,
@@ -325,7 +323,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
         }
         ImGui::SameLine();
         const char *msg = s.hung() ? rv_editor_text("panes.runtime_not_ended") : rv_editor_text("panes.channel_gone");
-        ImGui::TextUnformatted(msg);
+        rv_editor_label(msg, rv_editor_label_kind::normal, theme);
     } else if (app.build.busy()) {
         const bool cancel_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::cancel_build);
         const bool cancelling = app.build.state() == rv_editor_build_state::cancelling;
@@ -344,7 +342,7 @@ void rv_editor_pane_controls(rv_editor_app &app, const rv_editor_theme &theme)
 
 void rv_editor_open_project_row(rv_editor_app &app, const rv_editor_theme &theme)
 {
-    ImGui::TextUnformatted(rv_editor_text("panes.no_project_open_message"));
+    rv_editor_label(rv_editor_text("panes.no_project_open_message"), rv_editor_label_kind::normal, theme);
     ImGui::SameLine();
     if (rv_editor_button(rv_editor_text("panes.open_project_button"), theme)) {
         app.open_folder_request = true;
@@ -357,7 +355,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const rv_editor_project &p = app.project;
     if (!p.open) {
-        rv_editor_wrapped(rv_editor_text("panes.no_project_open_full"));
+        rv_editor_wrapped(rv_editor_text("panes.no_project_open_full"), theme);
     } else {
         rv_editor_project_group(rv_editor_text("panes.disc_heading"), theme);
         const std::string disc_id = p.disc_id.empty() ? rv_editor_text("panes.disc_id_unknown") : p.disc_id;
@@ -368,9 +366,9 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         } else {
             disc_info = rv_editor_text_format("panes.disc_info_with_title", std::make_format_args(disc_id, disc_title));
         }
-        rv_editor_wrapped(disc_info);
+        rv_editor_wrapped(disc_info, theme);
         if (!p.manifest_error.empty()) {
-            rv_editor_wrapped(rv_editor_text("panes.manifest_parse_error") + p.manifest_error);
+            rv_editor_wrapped(rv_editor_text("panes.manifest_parse_error") + p.manifest_error, theme);
         }
     }
 
@@ -382,7 +380,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
         rv_editor_path_row(rv_editor_text("panes.memory_card_path"), (p.state_dir / memcard_filename).string(), theme);
     }
 
-    ImGui::SeparatorText(rv_editor_text("panes.toolchain_header"));
+    rv_editor_section(rv_editor_text("panes.toolchain_header"));
     for (size_t i = 0; i < std::size(tool_rows); ++i) {
         const rv_editor_tool &t = app.tools.*tool_rows[i].tool;
         rv_editor_status(rv_editor_text(tool_rows[i].name_id),
@@ -390,13 +388,13 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
             theme);
         ImGui::SameLine();
         if (!t.problem.empty()) {
-            rv_editor_wrapped(t.problem);
+            rv_editor_wrapped(t.problem, theme);
             continue;
         }
         const std::string origin = t.origin;
         const std::string origin_text = rv_editor_text_format("panes.tool_found_in", std::make_format_args(origin));
         const std::string version = t.version_check.running() ? rv_editor_text("panes.tool_checking_version") : t.version;
-        rv_editor_wrapped(version.empty() ? origin_text : version + ", " + origin_text);
+        rv_editor_wrapped(version.empty() ? origin_text : version + ", " + origin_text, theme);
         ImGui::PushID(i);
         rv_editor_path_row(rv_editor_text("panes.path_label"), t.path.string(), theme);
         ImGui::PopID();
@@ -410,7 +408,7 @@ void rv_editor_pane_project(rv_editor_app &app, const rv_editor_theme &theme)
     }
     rv_editor_path_row(rv_editor_text("panes.settings_path"), app.tools.settings_path.string(), theme);
     if (!app.tools.settings_error.empty()) {
-        rv_editor_wrapped(app.tools.settings_error);
+        rv_editor_wrapped(app.tools.settings_error, theme);
     }
     rv_editor_well_end();
 }
