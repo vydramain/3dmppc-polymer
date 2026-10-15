@@ -211,7 +211,7 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
 
 void rv_editor_draw_filled(ImDrawList *dl,
     const rv_editor_view &v,
-    const rv_editor_scene &scene,
+    const rv_editor_scene_doc &doc,
     const rv_editor_project &project,
     const std::string &selected,
     ImU32 base,
@@ -236,10 +236,14 @@ void rv_editor_draw_filled(ImDrawList *dl,
     st.scale = ImVec2(static_cast<float>(w) / size.x, static_cast<float>(h) / size.y);
     st.base = ImGui::ColorConvertU32ToFloat4(base);
     st.selection = ImGui::ColorConvertU32ToFloat4(selected_color);
+    const rv_editor_scene &scene = doc.scene;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
         if (o.kind != kind_mesh && o.kind != kind_quad && o.kind != kind_billboard) {
             continue; // volumes, cameras, groups and other kinds are not filled
+        }
+        if (rv_editor_scene_visibility(doc, o) != rv_editor_visibility::shown) {
+            continue; // an outline is drawn as edges, an absent object not at all
         }
         const rv_editor_cpu_image *tex = textured ? rv_editor_object_cpu_texture(project, o.texture) : nullptr;
         st.selected = o.id == selected;

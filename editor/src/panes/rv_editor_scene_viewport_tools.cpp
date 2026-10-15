@@ -150,6 +150,9 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
         if (!all && doc.scene.objects[i].id != doc.selected) {
             continue;
         }
+        if (rv_editor_scene_visibility(doc, doc.scene.objects[i]) == rv_editor_visibility::absent) {
+            continue;
+        }
         for (const auto &[a, b] : rv_editor_object_edges(doc.scene, app.project, static_cast<int>(i))) {
             for (const vec3 &p : { a, b }) {
                 for (size_t k = 0; k < space_axes; ++k) {

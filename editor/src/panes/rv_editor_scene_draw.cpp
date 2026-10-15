@@ -416,11 +416,15 @@ rv_editor_object_edges(const rv_editor_scene &scene, const rv_editor_project &pr
     return e;
 }
 
-std::string rv_editor_pick(const rv_editor_scene &scene, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at)
+std::string rv_editor_pick(const rv_editor_scene_doc &doc, const rv_editor_project &project, const rv_editor_view &v, ImVec2 at)
 {
+    const rv_editor_scene &scene = doc.scene;
     std::string best;
     float best_d = pointer_proximity_threshold_px;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
+        if (rv_editor_scene_visibility(doc, scene.objects[i]) == rv_editor_visibility::absent) {
+            continue;
+        }
         for (const auto &[a, b] : rv_editor_object_edges(scene, project, static_cast<int>(i))) {
             ImVec2 sa, sb;
             if (!v.point(a, sa) || !v.point(b, sb)) {
