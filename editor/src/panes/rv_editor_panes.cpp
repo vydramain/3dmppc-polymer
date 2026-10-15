@@ -171,11 +171,9 @@ constexpr size_t time_buffer_size = 32;
 
 } // namespace
 
-void rv_editor_dim(const std::string &text)
+void rv_editor_dim(const std::string &text, const rv_editor_theme &theme)
 {
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text.c_str());
-    ImGui::PopStyleColor();
+    rv_editor_label(text.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
 }
 
 std::string rv_editor_clock(std::chrono::system_clock::time_point at)
