@@ -69,6 +69,10 @@ struct ecs_component_hidden {
 // Marks the entity as a decal.
 struct ecs_component_decal {
 };
+// Marks the entity as drawn without back-face culling, the flag covers the whole model. A flat card is seen from
+// both faces as one layer of quads, not as a back-to-back pair.
+struct ecs_component_two_sided {
+};
 
 // Component of id, added with its defaults when missing. nullptr for a stale id.
 // The add fails only for a dead id or a held T, and both are excluded above. Growth of the pool may throw
@@ -140,6 +144,11 @@ inline int ecs_hidden_factory(ecs_world &world, ecs_id id, const rv_cd_scene_com
 inline int ecs_decal_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
 {
     return ecs_marker_factory<ecs_component_decal>(world, id, component);
+}
+
+inline int ecs_two_sided_factory(ecs_world &world, ecs_id id, const rv_cd_scene_component &component)
+{
+    return ecs_marker_factory<ecs_component_two_sided>(world, id, component);
 }
 
 // Factory of the name, or nullptr. The empty name is never registered.

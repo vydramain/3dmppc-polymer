@@ -35,6 +35,7 @@ struct ecs_scene_builtin {
 inline constexpr ecs_scene_builtin ecs_scene_builtins[] = {
     { "hidden", ecs_hidden_factory },
     { "decal", ecs_decal_factory },
+    { "two_sided", ecs_two_sided_factory },
 };
 
 // State of one load. made holds one entity per object, in file order.
