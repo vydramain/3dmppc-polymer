@@ -343,6 +343,9 @@ bool rv_editor_scene_undo(rv_editor_scene_doc &doc)
     doc.scene.objects = std::move(doc.undo.back());
     doc.undo.pop_back();
     doc.dirty = true;
+    if (rv_editor_scene_find(doc.scene, doc.selected) < 0) {
+        rv_editor_scene_select(doc, std::string());
+    }
     return true;
 }
 
@@ -355,6 +358,9 @@ bool rv_editor_scene_redo(rv_editor_scene_doc &doc)
     doc.scene.objects = std::move(doc.redo.back());
     doc.redo.pop_back();
     doc.dirty = true;
+    if (rv_editor_scene_find(doc.scene, doc.selected) < 0) {
+        rv_editor_scene_select(doc, std::string());
+    }
     return true;
 }
 
