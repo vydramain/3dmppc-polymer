@@ -168,7 +168,7 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
     const char *why = pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
     ImGui::BeginGroup();
     const float side = ImGui::GetFrameHeight();
-    rv_editor_scroll_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y));
+    rv_editor_well_begin("##profiles", ImVec2(width, height - side - ImGui::GetStyle().ItemSpacing.y), theme);
     for (size_t i = 0; i < config.profiles.size(); ++i) {
         ImGui::PushID(static_cast<int>(i));
         if (ImGui::Selectable(config.profiles[i].name.c_str(), i == config.active) && i != config.active && !pending) {
@@ -181,7 +181,7 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
         }
         ImGui::PopID();
     }
-    rv_editor_scroll_end(theme);
+    rv_editor_well_end();
     if (rv_editor_letter_button("##new",
             rv_editor_glyph::new_,
             theme.code_green,
@@ -210,7 +210,7 @@ void rv_editor_run_profiles(rv_editor_app &app, float width, float height, const
 void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
 {
     rv_editor_run_form &form = run_form_draft;
-    rv_editor_scroll_begin("##fields", size);
+    rv_editor_well_begin("##fields", size, theme);
     if (!app.run_config.error.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.error));
         const auto err = rv_editor_text_format("pane_run_config.profile_error", std::make_format_args(app.run_config.error));
@@ -265,7 +265,7 @@ void rv_editor_run_fields(rv_editor_app &app, ImVec2 size, const rv_editor_theme
         "pane_run_config.memory_card_empty_tooltip",
         theme,
         rv_editor_text("pane_run_config.memory_card_label"));
-    rv_editor_scroll_end(theme);
+    rv_editor_well_end();
 }
 
 // Why Apply and Restart waits, the first that holds: a restart already runs (it wins whatever
@@ -318,7 +318,7 @@ void rv_editor_run_actions(rv_editor_app &app, const rv_editor_theme &theme)
     }
 }
 
-// The list beside the fields in `size`, the actions under both.
+// The list beside the fields in `size`, each in a well of its own.
 void rv_editor_run_editor(rv_editor_app &app, ImVec2 size, const rv_editor_theme &theme)
 {
     rv_editor_run_config &config = app.run_config;
@@ -342,12 +342,9 @@ void rv_editor_pane_run_config(rv_editor_app &app, const rv_editor_theme &theme)
     }
     const ImVec2 avail = ImGui::GetContentRegionAvail();
     const float actions = ImGui::GetFrameHeightWithSpacing() * actions_height_frames;
-    // The two-column body in one well; its size still comes from the region left
-    // once the well's own padding is taken out.
-    const float well_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
-    rv_editor_well_begin("##well", ImVec2(0, well_height), theme);
-    rv_editor_run_editor(app, ImGui::GetContentRegionAvail(), theme);
-    rv_editor_well_end();
+    // The two-column body takes what the region leaves above the actions row.
+    const float body_height = std::max(ImGui::GetFrameHeight() * min_well_height_frames, avail.y - actions);
+    rv_editor_run_editor(app, ImVec2(avail.x, body_height), theme);
     rv_editor_run_actions(app, theme);
 }
 
