@@ -19,6 +19,7 @@ constexpr float log_padding_y_multiplier = 2.0f;
 
 struct rv_editor_status_values {
     bool snap = true;
+    bool grid = false;
 };
 
 rv_editor_status_values rv_editor_status_data;
@@ -44,7 +45,14 @@ void rv_editor_catalog_menus()
             rv_editor_menu_end();
         }
         if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_scene"), nullptr)) {
-            ImGui::MenuItem(rv_editor_text("catalog_status.menu_scene_snap"), nullptr, &rv_editor_status_data.snap);
+            rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_snap"),
+                nullptr,
+                &rv_editor_status_data.snap,
+                nullptr);
+            rv_editor_menu_check(rv_editor_text("catalog_status.menu_scene_grid"),
+                nullptr,
+                &rv_editor_status_data.grid,
+                rv_editor_text("catalog_status.scene_grid_why_not"));
             rv_editor_menu_end();
         }
         if (rv_editor_menu_begin(rv_editor_text("catalog_status.menu_run"), rv_editor_text("catalog_status.run_why_not"))) {

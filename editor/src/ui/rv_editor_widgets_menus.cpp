@@ -20,13 +20,18 @@ bool rv_editor_menu_styled_begin(bool open)
 
 } // namespace
 
-bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
+bool rv_editor_menu_check(const char *label, const char *shortcut, bool *on, const char *why_not)
 {
-    const bool clicked = ImGui::MenuItem(label, shortcut, false, why_not == nullptr);
+    const bool clicked = ImGui::MenuItem(label, shortcut, on, why_not == nullptr);
     if (why_not != nullptr && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
         ImGui::SetTooltip("%s", why_not);
     }
     return clicked;
+}
+
+bool rv_editor_menu_item(const char *label, const char *shortcut, const char *why_not)
+{
+    return rv_editor_menu_check(label, shortcut, nullptr, why_not);
 }
 
 bool rv_editor_main_menu_bar_begin()
