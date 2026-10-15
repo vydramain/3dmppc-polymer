@@ -1,4 +1,4 @@
-// Text fields, numeric spinners and dropdowns: ImGui edits the value, the
+// Text fields, text areas, numeric spinners and dropdowns: ImGui edits the value, the
 // editor draws the sunken well, the state frame and the markers.
 
 #include <cmath>
@@ -16,6 +16,8 @@ namespace
 
 // Divisor for vertical centering and half-height calculations.
 constexpr float half_divisor = 2.0f;
+// Top and bottom frame padding a text area adds around its text lines.
+constexpr float frame_padding_sides = 2.0f;
 // Number of ImGui style colors pushed by rv_editor_field_begin.
 constexpr int field_style_colors = 3;
 // Number of spinner arrow buttons (up and down).
@@ -71,7 +73,8 @@ void rv_editor_field_frame(ImDrawList *dl,
 
     const float pad = static_cast<float>(t.pad_px * t.scale);
     const float glyph = ImGui::CalcTextSize(error_marker_glyph).x;
-    const float y = std::floor((min.y + max.y - ImGui::GetFontSize()) / half_divisor);
+    // Centred in the first frame-high band: a one-line field has max.y - min.y of that height.
+    const float y = std::floor(min.y + (ImGui::GetFrameHeight() - ImGui::GetFontSize()) / half_divisor);
     float x = max.x - reserve - pad - glyph;
     if (f.invalid != nullptr) {
         dl->AddText(ImVec2(std::floor(x), y), rv_editor_col(t.error), error_marker_glyph);
@@ -124,6 +127,29 @@ bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_ed
     rv_editor_field_end(field);
 
     rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
+    return changed;
+}
+
+bool rv_editor_text_area(const char *label,
+    char *buf,
+    size_t size,
+    float lines,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field)
+{
+    // Before the call: SetNextItemWidth applies to the next item only.
+    const float width = ImGui::CalcItemWidth();
+    const float height = ImGui::GetTextLineHeight() * lines + ImGui::GetStyle().FramePadding.y * frame_padding_sides;
+    rv_editor_field_begin(theme, field);
+    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+    const bool changed = ImGui::InputTextMultiline(label, buf, size, ImVec2(width, height), flags);
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
+    rv_editor_field_end(field);
+
+    // Keeps the markers clear of the scrollbar ImGui draws at the right end.
+    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, ImGui::GetStyle().ScrollbarSize);
     return changed;
 }
 
