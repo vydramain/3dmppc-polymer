@@ -17,7 +17,7 @@
 #include "prefs/rv_editor_prefs.hpp"
 #include "project/rv_editor_settings.hpp"
 #include "text/rv_editor_text.hpp"
-#include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -71,10 +71,10 @@ void rv_editor_settings_load(rv_editor_shell &shell)
 }
 
 // The label left of its value, or over it when label_w is 0 (a narrow tab).
-void rv_editor_settings_label(const char *label, float label_w)
+void rv_editor_settings_label(const char *label, float label_w, const rv_editor_theme &theme)
 {
     ImGui::AlignTextToFramePadding();
-    ImGui::TextUnformatted(label);
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
     if (label_w > 0.0f) {
         ImGui::SameLine(label_w);
     }
@@ -118,11 +118,9 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     const rv_editor_tool &tool = shell.app.tools.*row.tool;
     rv_editor_settings_poll_check(shell, i);
     ImGui::PushID(static_cast<int>(i));
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(rv_editor_text(row.label_text_id));
-    ImGui::PopStyleColor();
+    rv_editor_label(rv_editor_text(row.label_text_id), rv_editor_label_kind::bright, theme);
 
-    rv_editor_settings_label(rv_editor_text("shell_settings.override_path"), label_w);
+    rv_editor_settings_label(rv_editor_text("shell_settings.override_path"), label_w, theme);
     const float browse_btn_w = rv_editor_button_width(rv_editor_text("shell_settings.browse_button"));
     const float buttons = browse_btn_w + ImGui::GetStyle().ItemSpacing.x;
     ImGui::SetNextItemWidth(std::max(ImGui::GetFontSize() * path_field_min_em, ImGui::GetContentRegionAvail().x - buttons));
@@ -150,9 +148,7 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
     }
     if (shell.settings_paths[i][0] == '\0') {
         ImGui::SetCursorPosX(label_w);
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted(rv_editor_text(row.automatic_text_id));
-        ImGui::PopStyleColor();
+        rv_editor_label(rv_editor_text(row.automatic_text_id), rv_editor_label_kind::dim, theme);
     }
     if (browsing) {
         std::filesystem::path picked;
@@ -167,7 +163,7 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
         }
     }
 
-    rv_editor_settings_label(rv_editor_text("shell_settings.resolved_path"), label_w);
+    rv_editor_settings_label(rv_editor_text("shell_settings.resolved_path"), label_w, theme);
     std::string resolved;
     if (tool.path.empty()) {
         resolved = rv_editor_text("shell_settings.path_none");
@@ -176,16 +172,14 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
         const std::string &origin = tool.origin;
         resolved = rv_editor_text_format("shell_settings.resolved_with_origin", std::make_format_args(path_str, origin));
     }
-    ImGui::TextWrapped("%s", resolved.c_str());
+    rv_editor_label(resolved.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
 
-    rv_editor_settings_label(rv_editor_text("shell_settings.status_label"), label_w);
+    rv_editor_settings_label(rv_editor_text("shell_settings.status_label"), label_w, theme);
     const std::optional<rv_editor_tool> &checked = shell.settings_checks[i];
     rv_editor_settings_status(checked ? *checked : tool, theme);
     if (checked) {
         ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted(rv_editor_text("shell_settings.not_yet_applied"));
-        ImGui::PopStyleColor();
+        rv_editor_label(rv_editor_text("shell_settings.not_yet_applied"), rv_editor_label_kind::dim, theme);
     }
     ImGui::SetCursorPosX(label_w);
     if (rv_editor_button(rv_editor_text("shell_settings.check_button"), theme)) {
@@ -199,10 +193,8 @@ void rv_editor_settings_block(rv_editor_shell &shell, size_t i, float label_w, c
 void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &theme)
 {
     rv_editor_pace draft = shell.pace;
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_bright));
-    ImGui::TextUnformatted(rv_editor_text("shell_settings.pace_title"));
-    ImGui::PopStyleColor();
-    bool changed = ImGui::Checkbox(rv_editor_text("shell_settings.vsync_label"), &draft.vsync);
+    rv_editor_label(rv_editor_text("shell_settings.pace_title"), rv_editor_label_kind::bright, theme);
+    bool changed = rv_editor_checkbox(rv_editor_text("shell_settings.vsync_label"), &draft.vsync, theme);
     // The field follows what the window runs, not the request.
     ImGui::BeginDisabled(shell.vsync_active);
     changed |=
@@ -211,9 +203,8 @@ void rv_editor_settings_pace(rv_editor_shell &shell, const rv_editor_theme &them
     const bool refused = shell.pace.vsync && !shell.vsync_active;
     if (shell.vsync_active || refused) {
         ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted(rv_editor_text(refused ? "shell_settings.vsync_refused_note" : "shell_settings.fps_limit_note"));
-        ImGui::PopStyleColor();
+        const char *note_key = refused ? "shell_settings.vsync_refused_note" : "shell_settings.fps_limit_note";
+        rv_editor_label(rv_editor_text(note_key), rv_editor_label_kind::dim, theme);
     }
     if (changed) {
         shell.pace_request = draft;
@@ -232,13 +223,13 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     const bool nowhere = app.tools.settings_path.empty();
     const char *file_info = nowhere ? rv_editor_text("shell_settings.no_file_desc") : app.tools.settings_path.c_str();
     auto msg = rv_editor_text_format("shell_settings.settings_desc", std::make_format_args(file_info));
-    ImGui::TextWrapped("%s", msg.c_str());
-    ImGui::Separator();
+    rv_editor_label(msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
+    rv_editor_separator();
     const float font = ImGui::GetFontSize();
     const float label_w = ImGui::GetContentRegionAvail().x >= font * label_column_min_width_em ? font * label_column_em : 0.0f;
     for (size_t i = 0; i < std::size(rv_editor_settings_rows); ++i) {
         rv_editor_settings_block(shell, i, label_w, theme);
-        ImGui::Separator();
+        rv_editor_separator();
     }
     if (!shell.settings_error.empty()) {
         rv_editor_status(shell.settings_error.c_str(), rv_editor_status_kind::error, theme);
@@ -258,11 +249,9 @@ void rv_editor_page_settings(rv_editor_shell &shell, const rv_editor_theme &them
     }
     if (searching) {
         ImGui::SameLine();
-        ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-        ImGui::TextUnformatted(rv_editor_text("shell_settings.searching_tools"));
-        ImGui::PopStyleColor();
+        rv_editor_label(rv_editor_text("shell_settings.searching_tools"), rv_editor_label_kind::dim, theme);
     }
-    ImGui::Separator();
+    rv_editor_separator();
     rv_editor_settings_pace(shell, theme);
 }
 
