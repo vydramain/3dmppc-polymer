@@ -544,6 +544,7 @@ code_sample_6_3 = " = 400; int broken ="
 [catalog_panes]
 column_name = "Name"
 column_directory = "Directory"
+column_kind = "Kind"
 tab_project = "Project"
 tab_scene = "Scene"
 tab_assets = "Assets"
@@ -586,6 +587,8 @@ table_path_projects = "~/Projects"
 table_example_lua = "example-lua"
 table_path_mppcdiscs = "mppcdiscs"
 table_example_cpp = "example-cpp"
+table_kind_project = "Project"
+table_kind_disc = "Disc"
 
 [catalog_status]
 menu_file = "File"
