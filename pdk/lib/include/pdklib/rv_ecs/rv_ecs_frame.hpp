@@ -62,6 +62,7 @@ inline void ecs_world_camera(ecs_world &world, const rv_cg_camera &camera)
 }
 
 // Puts one entity's model. Dead, model-less and hidden entities are skipped; a decal takes the decal window.
+// An entity with two_sided is drawn without back-face culling, so both faces of a flat card show.
 inline int ecs_draw_entity(ecs_world &world, const ecs_frame &frame, ecs_id id)
 {
     const ecs_component_model *model = ecs_component_get<ecs_component_model>(world, id);
@@ -77,6 +78,8 @@ inline int ecs_draw_entity(ecs_world &world, const ecs_frame &frame, ecs_id id)
     const bool decal = ecs_component_get<ecs_component_decal>(world, id) != nullptr;
     const int32_t depth_min = decal ? ecs_depth_decal_min : ecs_depth_world_min;
     const int32_t depth_max = decal ? ecs_depth_decal_max : ecs_depth_world_max;
+    const bool two_sided = ecs_component_get<ecs_component_two_sided>(world, id) != nullptr;
+    const uint32_t cull = two_sided ? RV_CG_CULL_NONE : RV_CG_CULL_BACK;
     const int64_t addr = rv_cd_resource_addr(rv_pdko_cd(frame.pdk), RV_CD_RESOURCE_MODEL, model->name.c_str());
     if (addr < 0) {
         return static_cast<int>(addr);
@@ -86,7 +89,7 @@ inline int ecs_draw_entity(ecs_world &world, const ecs_frame &frame, ecs_id id)
     std::memcpy(put.world, place->matrix.m, sizeof(put.world));
     put.depth_min = depth_min;
     put.depth_max = depth_max;
-    put.cull = RV_CG_CULL_BACK;
+    put.cull = cull;
     put.tint = model->tint;
     const int64_t count = rv_cg_model_put(rv_pdko_cg(frame.pdk), addr, &put);
     if (count < 0) {
