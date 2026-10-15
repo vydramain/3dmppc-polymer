@@ -58,9 +58,9 @@ void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b
         const char *lbl_process = rv_editor_text("pane_build_result.summary_process");
         const auto pid = b.pid();
         const auto process_text = rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid));
-        rv_editor_fact(lbl_process, process_text.c_str());
+        rv_editor_fact(lbl_process, process_text.c_str(), theme);
         const char *lbl_exit = rv_editor_text("pane_build_result.summary_exit");
-        rv_editor_fact(lbl_exit, exit_line);
+        rv_editor_fact(lbl_exit, exit_line, theme);
         rv_editor_table_end();
     }
 

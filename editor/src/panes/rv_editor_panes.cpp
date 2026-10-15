@@ -188,15 +188,6 @@ std::string rv_editor_clock(std::chrono::system_clock::time_point at)
 }
 
 // One label and its value on a row of a two-column table.
-void rv_editor_fact(const char *label, const std::string &value)
-{
-    rv_editor_table_row();
-    rv_editor_table_cell();
-    ImGui::TextUnformatted(label);
-    rv_editor_table_cell();
-    ImGui::TextWrapped("%s", value.c_str());
-}
-
 void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme)
 {
     rv_editor_table_row();
