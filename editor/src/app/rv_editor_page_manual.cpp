@@ -95,7 +95,7 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
     const auto &blocks = rv_editor_manual_blocks();
 
     rv_editor_pane_header(rv_editor_text("manual.title"), true, theme);
-    ImGui::BeginChild("##manual", ImVec2(0.0f, 0.0f));
+    rv_editor_well_begin("##manual", ImVec2(0.0f, 0.0f), theme);
     for (const auto &block : blocks) {
         switch (block.kind) {
         case block_kind::heading: {
@@ -126,7 +126,7 @@ void rv_editor_page_manual(rv_editor_shell &shell, const rv_editor_theme &theme)
         }
         }
     }
-    ImGui::EndChild();
+    rv_editor_well_end();
 }
 
 } // namespace rv_editor
