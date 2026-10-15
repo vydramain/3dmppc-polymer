@@ -57,6 +57,8 @@ double dot(const vec3 &a, const vec3 &b);
 inline constexpr double rv_editor_near = 0.05;
 // Corners of a triangle.
 inline constexpr int tri_vertices = 3;
+// Seed of a box's min/max: lo starts at +it and hi at -it, and the first coordinate replaces it.
+inline constexpr double bounding_box_infinity = 1e30;
 
 // The editor camera as it is this frame: its frame and how a point lands on screen.
 struct rv_editor_view {
@@ -169,8 +171,11 @@ struct rv_editor_parts_target {
     int owner = -1;
     std::shared_ptr<const rv_editor_glb_model> model;
 };
-// Resolved once per frame; the viewport fills the owner as unselected only when model is set.
+// The viewport resolves it once per frame; Frame resolves it when pressed.
+// The owner is filled as unselected only when model is set.
 rv_editor_parts_target rv_editor_parts_resolve(const rv_editor_scene_doc &doc, const rv_editor_project &project);
+// The world-space box of the target's picked pieces; false when none are drawn or they hold no triangles.
+bool rv_editor_parts_bounds(const rv_editor_scene_doc &doc, const rv_editor_parts_target &target, vec3 &lo, vec3 &hi);
 // The picked pieces of the selected object drawn as edges in `color`, from rv_editor_parts_resolve.
 void rv_editor_parts_highlight(ImDrawList *dl,
     const rv_editor_view &v,

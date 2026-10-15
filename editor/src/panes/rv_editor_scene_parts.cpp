@@ -4,6 +4,7 @@
 #include "panes/rv_editor_scene_draw.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -123,6 +124,34 @@ size_t rv_editor_parts_piece_of(const rv_editor_glb_model &glb, uint32_t tri)
     return 0;
 }
 
+static_assert(std::tuple_size_v<decltype(rv_pdklib::rv_mppcmod_triangle::index)> == tri_vertices);
+
+// Calls fn with the scene-space corners of each triangle of the target's picked pieces; none without a model.
+template <typename Fn>
+void rv_editor_parts_each_picked(const rv_editor_scene_doc &doc, const rv_editor_parts_target &target, Fn &&fn)
+{
+    if (!target.model) {
+        return;
+    }
+    const rv_editor_glb_model &glb = *target.model;
+    const rv_editor_affine m = rv_editor_scene_world(doc.scene, target.owner);
+    for (const size_t number : doc.picked_pieces) {
+        // Picks belong to this mesh; a number past its pieces is ignored.
+        if (number == 0 || number > glb.pieces.size()) {
+            continue;
+        }
+        for (const uint32_t t : glb.pieces[number - 1]) {
+            const rv_pdklib::rv_mppcmod_triangle &tri = glb.model.triangles[t];
+            std::array<vec3, tri_vertices> p{};
+            for (size_t k = 0; k < tri_vertices; ++k) {
+                const rv_pdklib::rv_mppcmod_vertex &vx = glb.model.vertices[tri.index[k]];
+                p[k] = rv_editor_affine_point(m, { vx.pos[0], vx.pos[1], vx.pos[2] });
+            }
+            fn(p);
+        }
+    }
+}
+
 } // namespace
 
 int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
@@ -236,28 +265,32 @@ void rv_editor_parts_highlight(ImDrawList *dl,
     const rv_editor_parts_target &target,
     ImU32 color)
 {
-    if (!target.model) {
-        return;
-    }
-    const std::shared_ptr<const rv_editor_glb_model> &glb = target.model;
-    const rv_editor_affine m = rv_editor_scene_world(doc.scene, target.owner);
-    for (const size_t number : doc.picked_pieces) {
-        // Picks belong to this mesh; a number past its pieces is ignored.
-        if (number == 0 || number > glb->pieces.size()) {
-            continue;
+    rv_editor_parts_each_picked(doc, target, [&](const std::array<vec3, tri_vertices> &p) {
+        for (size_t k = 0; k < tri_vertices; ++k) {
+            rv_editor_line(dl, v, p[k], p[(k + 1) % tri_vertices], color, line_width_picked);
         }
-        for (const uint32_t t : glb->pieces[number - 1]) {
-            const rv_pdklib::rv_mppcmod_triangle &tri = glb->model.triangles[t];
-            vec3 p[std::size(tri.index)];
-            for (size_t k = 0; k < std::size(tri.index); ++k) {
-                const rv_pdklib::rv_mppcmod_vertex &vx = glb->model.vertices[tri.index[k]];
-                p[k] = rv_editor_affine_point(m, { vx.pos[0], vx.pos[1], vx.pos[2] });
-            }
-            for (size_t k = 0; k < std::size(tri.index); ++k) {
-                rv_editor_line(dl, v, p[k], p[(k + 1) % std::size(tri.index)], color, line_width_picked);
+    });
+}
+
+bool rv_editor_parts_bounds(const rv_editor_scene_doc &doc, const rv_editor_parts_target &target, vec3 &lo, vec3 &hi)
+{
+    vec3 low{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
+        high{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
+    bool any = false;
+    rv_editor_parts_each_picked(doc, target, [&](const std::array<vec3, tri_vertices> &p) {
+        for (const vec3 &c : p) {
+            for (size_t k = 0; k < c.size(); ++k) {
+                low[k] = std::min(low[k], c[k]);
+                high[k] = std::max(high[k], c[k]);
             }
         }
+        any = true;
+    });
+    if (any) {
+        lo = low;
+        hi = high;
     }
+    return any;
 }
 
 } // namespace rv_editor

@@ -35,7 +35,6 @@ constexpr double rotation_snap_degrees = 15.0;
 constexpr double scale_sensitivity = 0.01;
 constexpr double scale_min = 0.1;
 constexpr double scale_snap_step = 0.1;
-constexpr double bounding_box_infinity = 1e30;
 constexpr double frame_distance_base = 2.0;
 constexpr double frame_distance_multiplier = 1.6;
 constexpr double perspective_view_yaw = 30.0;
@@ -97,6 +96,13 @@ void rv_editor_scene_parts_buttons(rv_editor_app &app, const rv_editor_theme &th
         }
         ImGui::SetItemTooltip("%s", rv_editor_text(c.tip_id));
     }
+}
+
+// Aims the camera at the middle of the box lo..hi, backed off far enough to fit its diagonal.
+void rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
+{
+    cam.target = mul(add(lo, hi), half);
+    cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
 }
 
 } // namespace
@@ -174,6 +180,11 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
     rv_editor_scene_doc &doc = *app.scene;
     vec3 lo{ bounding_box_infinity, bounding_box_infinity, bounding_box_infinity },
         hi{ -bounding_box_infinity, -bounding_box_infinity, -bounding_box_infinity };
+    // The selected object's drawn pieces frame alone; without them, its edges (or all objects for View All).
+    if (!all && rv_editor_parts_bounds(doc, rv_editor_parts_resolve(doc, app.project), lo, hi)) {
+        rv_editor_frame_box(cam, lo, hi);
+        return;
+    }
     bool any = false;
     for (size_t i = 0; i < doc.scene.objects.size(); ++i) {
         if (!all && doc.scene.objects[i].id != doc.selected) {
@@ -195,8 +206,7 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
     if (!any) {
         return;
     }
-    cam.target = mul(add(lo, hi), half);
-    cam.distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    rv_editor_frame_box(cam, lo, hi);
 }
 
 void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme)
