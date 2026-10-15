@@ -120,10 +120,10 @@ std::string rv_editor_clock(std::chrono::system_clock::time_point at)
 // One label and its value on a row of a two-column table.
 void rv_editor_fact(const char *label, const std::string &value)
 {
-    ImGui::TableNextRow();
-    ImGui::TableNextColumn();
+    rv_editor_table_row();
+    rv_editor_table_cell();
     ImGui::TextUnformatted(label);
-    ImGui::TableNextColumn();
+    rv_editor_table_cell();
     ImGui::TextWrapped("%s", value.c_str());
 }
 
@@ -268,7 +268,8 @@ std::vector<rv_editor_key_row> rv_editor_key_rows(const rv_editor_answer &a)
 void rv_editor_observe_facts(const rv_editor_session &s)
 {
     const rv_editor_session_facts &f = s.facts();
-    if (!ImGui::BeginTable("##facts", facts_table_cols, ImGuiTableFlags_SizingStretchProp)) {
+    const rv_editor_table_column facts_columns[facts_table_cols] = {};
+    if (!rv_editor_table_begin("##facts", facts_columns, facts_table_cols)) {
         return;
     }
     const auto num = std::to_string(s.number());
@@ -303,7 +304,7 @@ void rv_editor_observe_facts(const rv_editor_session &s)
     const auto facts_at = rv_editor_clock(f.at);
     rv_editor_fact(rv_editor_text("pane_observe.fact_facts_from"),
         rv_editor_text_format("pane_observe.fact_facts_from_value", std::make_format_args(facts_at)));
-    ImGui::EndTable();
+    rv_editor_table_end();
 }
 
 } // namespace
@@ -317,16 +318,25 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         return;
     }
     if (!s.live()) {
-        rv_editor_dim(rv_editor_text("pane_observe.no_session"));
+        rv_editor_label(rv_editor_text("pane_observe.no_session"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
         if (!s.end_reason().empty()) {
             const std::string num_str = std::to_string(s.number());
             const std::string &reason = s.end_reason();
-            rv_editor_dim(rv_editor_text_format("pane_observe.session_ended", std::make_format_args(num_str, reason)));
+            rv_editor_label(rv_editor_text_format("pane_observe.session_ended", std::make_format_args(num_str, reason)).c_str(),
+                rv_editor_label_kind::dim,
+                theme,
+                rv_editor_label_layout::wrap);
         }
         return;
     }
     if (!s.connected()) {
-        rv_editor_dim(rv_editor_text("pane_observe.waiting_console"));
+        rv_editor_label(rv_editor_text("pane_observe.waiting_console"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
         return;
     }
 
@@ -339,7 +349,10 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::observe_refresh });
         }
         if (s.facts().lua_budget <= 0) {
-            rv_editor_dim(rv_editor_text("pane_observe.no_lua_machine"));
+            rv_editor_label(rv_editor_text("pane_observe.no_lua_machine"),
+                rv_editor_label_kind::dim,
+                theme,
+                rv_editor_label_layout::wrap);
             return;
         }
 
@@ -348,40 +361,54 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         if (s.state() == rv_editor_run_state::paused && o.read_frame != s.frame() && !rv_editor_app_observe_waiting(app)) {
             (void)rv_editor_app_request(app, { rv_editor_pane_request_kind::observe_read });
         }
-        rv_editor_dim(rv_editor_text("pane_observe.each_value_note"));
+        rv_editor_label(rv_editor_text("pane_observe.each_value_note"),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
 
-        ImGui::SeparatorText(rv_editor_text("pane_observe.pinned"));
+        rv_editor_section(rv_editor_text("pane_observe.pinned"));
         if (o.pins.empty()) {
-            rv_editor_dim(rv_editor_text("pane_observe.pin_value"));
-        } else if (ImGui::BeginTable("##pins", pins_table_cols, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
-            ImGui::TableSetupColumn(rv_editor_text("pane_observe.path_column"));
-            ImGui::TableSetupColumn(rv_editor_text("pane_observe.value_column"));
-            ImGui::TableSetupColumn(rv_editor_text("pane_observe.updated_column"));
-            ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-            ImGui::TableHeadersRow();
-            for (const std::string &pin : o.pins) {
-                ImGui::PushID(pin.c_str());
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(pin.c_str());
-                const auto it = s.answers().find(std::string(observe_verb_get) + pin);
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
-                                                                 rv_editor_value_text(it->second).c_str());
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
-                                                                 rv_editor_updated_text(it->second, s).c_str());
-                ImGui::TableNextColumn();
-                const char *unpin_why = observe_busy_why(app);
-                if (rv_editor_button(rv_editor_text("pane_observe.unpin"), theme, { rv_editor_look::live, unpin_why })) {
-                    rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_unpin, pin);
+            rv_editor_label(rv_editor_text("pane_observe.pin_value"),
+                rv_editor_label_kind::dim,
+                theme,
+                rv_editor_label_layout::wrap);
+        } else {
+            const rv_editor_table_column pin_columns[pins_table_cols] = {
+                { rv_editor_text("pane_observe.path_column") },
+                { rv_editor_text("pane_observe.value_column") },
+                { rv_editor_text("pane_observe.updated_column") },
+                { "", rv_editor_table_width::fixed },
+            };
+            const rv_editor_table_style pin_style = { .row_bands = true, .header = true };
+            if (rv_editor_table_begin("##pins", pin_columns, pins_table_cols, pin_style)) {
+                for (const std::string &pin : o.pins) {
+                    ImGui::PushID(pin.c_str());
+                    rv_editor_table_row();
+                    rv_editor_table_cell();
+                    rv_editor_label(pin.c_str(), rv_editor_label_kind::normal, theme);
+                    const auto it = s.answers().find(std::string(observe_verb_get) + pin);
+                    rv_editor_table_cell();
+                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.not_read_yet") :
+                                                              rv_editor_value_text(it->second).c_str(),
+                        rv_editor_label_kind::normal,
+                        theme);
+                    rv_editor_table_cell();
+                    rv_editor_label(it == s.answers().end() ? rv_editor_text("pane_observe.dash") :
+                                                              rv_editor_updated_text(it->second, s).c_str(),
+                        rv_editor_label_kind::normal,
+                        theme);
+                    rv_editor_table_cell();
+                    const char *unpin_why = observe_busy_why(app);
+                    if (rv_editor_button(rv_editor_text("pane_observe.unpin"), theme, { rv_editor_look::live, unpin_why })) {
+                        rv_editor_observe_leave(app, rv_editor_pane_request_kind::observe_unpin, pin);
+                    }
+                    ImGui::PopID();
                 }
-                ImGui::PopID();
+                rv_editor_table_end();
             }
-            ImGui::EndTable();
         }
 
-        ImGui::SeparatorText(rv_editor_path_text(o.path).c_str());
+        rv_editor_section(rv_editor_path_text(o.path).c_str());
         if (!o.path.empty()) {
             if (rv_editor_button(rv_editor_text("pane_observe.up"), theme, { rv_editor_look::live, observe_busy_why(app) })) {
                 std::vector<std::string> up = o.path;
@@ -391,13 +418,19 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
         }
         const auto it = s.answers().find(rv_editor_observe_request(observe_verb_keys, o.path));
         if (it == s.answers().end()) {
-            rv_editor_dim(rv_editor_text("pane_observe.not_read_refresh"));
+            rv_editor_label(rv_editor_text("pane_observe.not_read_refresh"),
+                rv_editor_label_kind::dim,
+                theme,
+                rv_editor_label_layout::wrap);
             return;
         }
         const rv_editor_answer &a = it->second;
         if (!a.ok) {
             const std::string &error = a.error;
-            rv_editor_dim(rv_editor_text_format("pane_observe.unavailable", std::make_format_args(error)));
+            rv_editor_label(rv_editor_text_format("pane_observe.unavailable", std::make_format_args(error)).c_str(),
+                rv_editor_label_kind::dim,
+                theme,
+                rv_editor_label_layout::wrap);
             return;
         }
         const std::vector<rv_editor_key_row> rows = rv_editor_key_rows(a);
@@ -413,24 +446,30 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             partial = rv_editor_text_format("pane_observe.keys_partial", std::make_format_args(shown, count));
         }
         const std::string &updated = rv_editor_updated_text(a, s);
-        rv_editor_dim(rv_editor_text_format("pane_observe.keys_listed", std::make_format_args(num_keys, partial, updated)));
-        if (!ImGui::BeginTable("##keys", keys_table_cols, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg)) {
+        rv_editor_label(
+            rv_editor_text_format("pane_observe.keys_listed", std::make_format_args(num_keys, partial, updated)).c_str(),
+            rv_editor_label_kind::dim,
+            theme,
+            rv_editor_label_layout::wrap);
+        const rv_editor_table_column key_columns[keys_table_cols] = {
+            { rv_editor_text("pane_observe.key_column") },
+            { rv_editor_text("pane_observe.type_column") },
+            { "", rv_editor_table_width::fixed },
+        };
+        const rv_editor_table_style key_style = { .row_bands = true, .header = true };
+        if (!rv_editor_table_begin("##keys", key_columns, keys_table_cols, key_style)) {
             return;
         }
-        ImGui::TableSetupColumn(rv_editor_text("pane_observe.key_column"));
-        ImGui::TableSetupColumn(rv_editor_text("pane_observe.type_column"));
-        ImGui::TableSetupColumn("", ImGuiTableColumnFlags_WidthFixed);
-        ImGui::TableHeadersRow();
         for (const rv_editor_key_row &row : rows) {
             ImGui::PushID(row.shown.c_str());
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(row.shown.c_str());
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(row.type.c_str());
-            ImGui::TableNextColumn();
+            rv_editor_table_row();
+            rv_editor_table_cell();
+            rv_editor_label(row.shown.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell();
+            rv_editor_label(row.type.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell();
             if (row.name.empty()) {
-                ImGui::TextUnformatted(rv_editor_text("pane_observe.dash"));
+                rv_editor_label(rv_editor_text("pane_observe.dash"), rv_editor_label_kind::normal, theme);
             } else if (row.type == type_table) {
                 const char *open_why = observe_busy_why(app);
                 if (rv_editor_button(rv_editor_text("pane_observe.open"), theme, { rv_editor_look::live, open_why })) {
@@ -453,7 +492,7 @@ void rv_editor_pane_observe(rv_editor_app &app, const rv_editor_theme &theme)
             }
             ImGui::PopID();
         }
-        ImGui::EndTable();
+        rv_editor_table_end();
     };
     body();
     rv_editor_well_end();
