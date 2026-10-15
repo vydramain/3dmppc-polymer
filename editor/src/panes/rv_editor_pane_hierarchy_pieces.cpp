@@ -15,6 +15,7 @@
 #include "scene/rv_editor_scene_edit.hpp"
 #include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -115,14 +116,15 @@ void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object
     std::shared_ptr<const rv_editor_glb_model> glb;
     std::string error;
     if (const int rc = rv_editor_pieces_model(app.project, o.mesh, glb, error); rc != RV_OK) {
-        rv_editor_dim(error);
+        rv_editor_label(error.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
         rv_editor_tree_pop();
         return;
     }
     const size_t count = glb->pieces.size();
     // The count is known only with the model, so picks from an older model are dropped here.
     rv_editor_scene_picks_check(doc, o, count);
-    rv_editor_dim(rv_editor_text_format("pane_hierarchy.pieces_count", std::make_format_args(count)));
+    const std::string count_text = rv_editor_text_format("pane_hierarchy.pieces_count", std::make_format_args(count));
+    rv_editor_label(count_text.c_str(), rv_editor_label_kind::dim, theme, rv_editor_label_layout::wrap);
     rv_editor_hierarchy_piece_rows(doc, o, *glb, theme);
     rv_editor_tree_pop();
 }

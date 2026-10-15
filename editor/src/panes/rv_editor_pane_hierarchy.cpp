@@ -54,9 +54,7 @@ void rv_editor_hierarchy_note(rv_editor_app &app, const rv_editor_theme &theme)
     if (app.scene_move_note.empty()) {
         return;
     }
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.warning));
-    ImGui::TextWrapped("%s", app.scene_move_note.c_str());
-    ImGui::PopStyleColor();
+    rv_editor_label(app.scene_move_note.c_str(), rv_editor_label_kind::warning, theme, rv_editor_label_layout::wrap);
     const bool dismiss_pending = rv_editor_app_request_pending(app, rv_editor_pane_request_kind::dismiss_scene_note);
     const char *dismiss_why = dismiss_pending ? rv_editor_text("app_why_not.request_pending") : nullptr;
     const bool dismiss_clicked =
@@ -157,9 +155,7 @@ void rv_editor_hierarchy_marks(const rv_editor_scene_object &o, const rv_editor_
         return;
     }
     ImGui::SameLine();
-    ImGui::PushStyleColor(ImGuiCol_Text, rv_editor_col(theme.text_disabled));
-    ImGui::TextUnformatted(marks.c_str());
-    ImGui::PopStyleColor();
+    rv_editor_label(marks.c_str(), rv_editor_label_kind::dim, theme);
 }
 
 // Context menu for a scene object: add children, duplicate, delete, reparent. Each item says why it cannot run.
@@ -238,7 +234,8 @@ void rv_editor_hierarchy_node(rv_editor_app &app,
     const bool drag = !read_only && doc.hierarchy_sort == rv_editor_hierarchy_sort::file_order;
     if (drag && ImGui::BeginDragDropSource()) {
         ImGui::SetDragDropPayload(rv_editor_scene_payload, o.id.c_str(), o.id.size() + 1);
-        ImGui::Text("%s", rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label)).c_str());
+        const std::string move_label = rv_editor_text_format("pane_hierarchy.move_label", std::make_format_args(label));
+        rv_editor_label(move_label.c_str(), rv_editor_label_kind::normal, theme);
         ImGui::EndDragDropSource();
     }
     if (drag && ImGui::BeginDragDropTarget()) {
@@ -307,7 +304,7 @@ void rv_editor_hierarchy_matches(rv_editor_app &app, const rv_editor_theme &them
         }
     }
     if (matches.empty()) {
-        ImGui::TextDisabled("%s", rv_editor_text("pane_hierarchy.search_none"));
+        rv_editor_label(rv_editor_text("pane_hierarchy.search_none"), rv_editor_label_kind::dim, theme);
     }
     for (const size_t index : rv_editor_hierarchy_order(doc, matches)) {
         rv_editor_hierarchy_match_row(doc, doc.scene.objects[index].id, theme);
@@ -372,7 +369,10 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
         return;
     }
     if (app.scene == nullptr) {
-        ImGui::TextWrapped("%s", rv_editor_text("pane_hierarchy.no_scene_open"));
+        rv_editor_label(rv_editor_text("pane_hierarchy.no_scene_open"),
+            rv_editor_label_kind::normal,
+            theme,
+            rv_editor_label_layout::wrap);
         rv_editor_scene_open_row(app, theme);
         return;
     }
