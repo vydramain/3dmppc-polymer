@@ -28,20 +28,12 @@ namespace
 
 constexpr const char *rv_editor_scene_payload = "RV_SCENE_OBJECT";
 
-// Kinds the Add menu offers, in menu order
-constexpr std::string_view scene_kinds[] = { kind_group, kind_camera, kind_mesh, kind_quad, kind_billboard, kind_volume };
-
 // The frame's tree, by id: a context-menu Delete shifts the objects mid-frame, so indices would go stale.
 // Ids whose object is gone are skipped when drawn.
 struct rv_editor_hierarchy_tree {
     std::vector<std::string> roots;
     std::map<std::string, std::vector<std::string>> children;
 };
-
-const char *rv_editor_scene_kind_label(const std::string &kind)
-{
-    return kind == kind_mesh ? "box" : kind.c_str();
-}
 
 // Asks the app to move the object under parent (empty: the root); the app's frame runs it.
 void rv_editor_hierarchy_move(rv_editor_app &app, const std::string &id, const std::string &parent, bool keep_world)
@@ -180,8 +172,9 @@ void rv_editor_hierarchy_node_context_menu(rv_editor_app &app,
     }
     rv_editor_scene_select(doc, o.id);
     ImGui::BeginDisabled(read_only);
-    for (std::string_view kind : scene_kinds) {
-        const char *kind_label = rv_editor_scene_kind_label(std::string(kind));
+    for (std::string_view kind : rv_editor_hierarchy_kinds()) {
+        const std::string kind_name(kind);
+        const char *kind_label = rv_editor_scene_kind_label(kind_name);
         const std::string add_label = rv_editor_text_format("pane_hierarchy.add_under", std::make_format_args(kind_label));
         if (ImGui::MenuItem(add_label.c_str())) {
             rv_editor_scene_add(doc, kind.data(), o.id);
@@ -390,21 +383,8 @@ void rv_editor_pane_hierarchy(rv_editor_app &app, const rv_editor_theme &theme, 
     rv_editor_scene_keys(app, ui);
     rv_editor_scene_doc &doc = *app.scene;
     const bool read_only = !doc.scene.read_only.empty();
-    rv_editor_shelf_begin("##shelf", theme);
-    ImGui::BeginDisabled(read_only);
-    for (std::string_view kind : scene_kinds) {
-        const std::string label =
-            std::string(rv_editor_text("pane_hierarchy.add_prefix")) + rv_editor_scene_kind_label(std::string(kind));
-        rv_editor_flow(rv_editor_button_width(label.c_str()));
-        if (rv_editor_button(label.c_str(), theme)) {
-            // Under the selected group, else at the root.
-            const int sel = rv_editor_scene_find(doc.scene, doc.selected);
-            const bool group = sel >= 0 && doc.scene.objects[static_cast<size_t>(sel)].kind == kind_group;
-            rv_editor_scene_add(doc, kind.data(), group ? doc.selected : std::string());
-        }
-    }
-    ImGui::EndDisabled();
-    rv_editor_shelf_end();
+    rv_editor_hierarchy_shelf(app, theme, ui);
+    rv_editor_hierarchy_target(app, theme, ui);
 
     rv_editor_hierarchy_filter(doc, theme);
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
