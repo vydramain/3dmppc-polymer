@@ -23,6 +23,10 @@ constexpr float catalog_tile_height_frames = 8.0f;
 // Catalog lists and well view height in frame heights (GetFrameHeight() multiplier)
 constexpr float catalog_view_height_frames = 6.0f;
 
+// Shelf-over-well demo well height in frame heights: shorter than the catalog tree,
+// so the well's scrollbar shows in the catalog.
+constexpr float catalog_layers_well_height_frames = 4.0f;
+
 // Number of columns in the catalog demo table (rows[][N])
 constexpr int catalog_table_columns = 2;
 
@@ -245,7 +249,7 @@ void rv_editor_catalog_layers(const rv_editor_theme &t)
             t)) {
     }
     rv_editor_shelf_end();
-    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_view_height_frames), t)) {
+    if (rv_editor_well_begin("##well", ImVec2(0.0f, ImGui::GetFrameHeight() * catalog_layers_well_height_frames), t)) {
         rv_editor_catalog_tree(t);
     }
     rv_editor_well_end();

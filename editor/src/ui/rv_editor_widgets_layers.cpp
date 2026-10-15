@@ -70,6 +70,8 @@ std::vector<rv_editor_shelf_frame> rv_editor_shelf_stack;
 struct rv_editor_well_frame {
     ImVec2 min; // outer rect, bevel and padding included
     ImVec2 max;
+    bool scrolled; // content sits in a Motif scroll area that well_end closes
+    rv_editor_theme theme;
 };
 
 std::vector<rv_editor_well_frame> rv_editor_well_stack;
@@ -121,7 +123,8 @@ bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &th
 
     ImDrawList *dl = ImGui::GetWindowDrawList();
     rv_editor_draw_panel(dl, min, max, theme, rv_editor_well_fill(theme), rv_editor_bevel::sunken);
-    rv_editor_well_stack.push_back({ min, max });
+    const bool scrolled = (flags & ImGuiWindowFlags_NoScrollbar) == 0;
+    rv_editor_well_stack.push_back({ min, max, scrolled, theme });
 
     const float bevel_width = padded_sides * pad;
     const ImVec2 inner(std::max(1.0f, max.x - min.x - bevel_width), std::max(1.0f, max.y - min.y - bevel_width));
@@ -129,13 +132,23 @@ bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &th
     // Transparent, so the well's fill shows through this child and any child
     // nested in it (e.g. a scroll area), instead of ImGui's own ChildBg.
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-    return ImGui::BeginChild("##well", inner, ImGuiChildFlags_None, flags);
+    if (!scrolled) {
+        return ImGui::BeginChild("##well", inner, ImGuiChildFlags_None, flags);
+    }
+    // The scroll area fills the child, so the child's own bar stays off.
+    const bool open = ImGui::BeginChild("##well", inner, ImGuiChildFlags_None, ImGuiWindowFlags_NoScrollbar);
+    const bool scroll_open =
+        rv_editor_scroll_begin("##scroll", ImVec2(0.0f, 0.0f), (flags & ImGuiWindowFlags_HorizontalScrollbar) != 0);
+    return open && scroll_open;
 }
 
 void rv_editor_well_end()
 {
     const rv_editor_well_frame f = rv_editor_well_stack.back();
     rv_editor_well_stack.pop_back();
+    if (f.scrolled) {
+        rv_editor_scroll_end(f.theme);
+    }
     ImGui::EndChild();
     ImGui::PopStyleColor();
     // The whole well as one item, bevel and padding included, as after a child.
