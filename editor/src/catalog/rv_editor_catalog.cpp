@@ -20,6 +20,7 @@ void rv_editor_catalog_draw(const rv_editor_theme &theme)
     rv_editor_catalog_buttons(theme);
     ImGui::SeparatorText(rv_editor_text("catalog.section_3_text_fields"));
     rv_editor_catalog_fields(theme);
+    rv_editor_catalog_text_samples(theme);
     ImGui::SeparatorText(rv_editor_text("catalog.section_4_checkbox_radio"));
     rv_editor_catalog_keys(theme);
     ImGui::SeparatorText(rv_editor_text("catalog.section_5_tree_list_table"));

@@ -1,5 +1,5 @@
 // Catalog section: text fields, spinners and dropdowns - one row per widget,
-// one column per field state; the last column is live.
+// one column per field state; the last column is live. Text components follow.
 
 #include <cstring>
 
@@ -21,6 +21,10 @@ constexpr int spinner_step = 8;
 
 // Demo value for the catalog's number spinners
 constexpr int sample_spinner_value = 320;
+
+// Width of the wrap and bullet samples, in font sizes: narrow enough that their text
+// breaks whatever the window's width, so the wrapping is always visible.
+constexpr float text_sample_width_em = 24.0f;
 
 // Widget row indices in the fields catalog
 constexpr int row_text_field = 0;
@@ -119,6 +123,45 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
         }
     }
     ImGui::EndTable();
+}
+
+// One sample of each text component: label kinds and layouts, section, separator,
+// collapsing section and item tooltip.
+void rv_editor_catalog_text_samples(const rv_editor_theme &theme)
+{
+    rv_editor_section(rv_editor_text("catalog_fields.section_text"));
+    rv_editor_label(rv_editor_text("catalog_fields.label_normal"), rv_editor_label_kind::normal, theme);
+    rv_editor_label(rv_editor_text("catalog_fields.label_dim"), rv_editor_label_kind::dim, theme);
+    rv_editor_label(rv_editor_text("catalog_fields.label_bright"), rv_editor_label_kind::bright, theme);
+    rv_editor_label(rv_editor_text("catalog_fields.label_info"), rv_editor_label_kind::info, theme);
+    rv_editor_label(rv_editor_text("catalog_fields.label_warning"), rv_editor_label_kind::warning, theme);
+    rv_editor_label(rv_editor_text("catalog_fields.label_error"), rv_editor_label_kind::error, theme);
+
+    // Fixed-width children: their text breaks at the child's edge, not at the window's.
+    const ImVec2 sample_size(text_sample_width_em * ImGui::GetFontSize(), 0.0f);
+    ImGui::BeginChild("##wrap_sample", sample_size, ImGuiChildFlags_AutoResizeY);
+    rv_editor_label(rv_editor_text("catalog_fields.wrap_sample"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::wrap);
+    ImGui::EndChild();
+    ImGui::BeginChild("##bullet_sample", sample_size, ImGuiChildFlags_AutoResizeY);
+    rv_editor_label(rv_editor_text("catalog_fields.bullet_short"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::bullet);
+    rv_editor_label(rv_editor_text("catalog_fields.bullet_long"),
+        rv_editor_label_kind::normal,
+        theme,
+        rv_editor_label_layout::bullet);
+    ImGui::EndChild();
+
+    rv_editor_separator();
+    if (rv_editor_collapsing_section(rv_editor_text("catalog_fields.collapsing_title"))) {
+        rv_editor_label(rv_editor_text("catalog_fields.collapsing_body"), rv_editor_label_kind::normal, theme);
+    }
+    rv_editor_label(rv_editor_text("catalog_fields.item_tooltip_row"), rv_editor_label_kind::dim, theme);
+    rv_editor_item_tooltip(rv_editor_text("catalog_fields.item_tooltip_text"));
 }
 
 } // namespace rv_editor
