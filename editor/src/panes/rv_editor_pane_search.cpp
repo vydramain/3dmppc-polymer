@@ -23,46 +23,43 @@ constexpr int search_table_columns = 3;
 // Query input field width in font size units.
 constexpr float query_field_width_em = 14.0f;
 
-void rv_editor_search_list(rv_editor_app &app)
+void rv_editor_search_list(rv_editor_app &app, const rv_editor_theme &theme)
 {
     const rv_editor_search_result &r = app.project_search.result;
-    if (!ImGui::BeginTable("##hits",
-            search_table_columns,
-            ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY)) {
+    const rv_editor_table_column columns[] = {
+        { rv_editor_text("pane_search.table_file"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_search.table_line"), rv_editor_table_width::fixed },
+        { rv_editor_text("pane_search.table_text") },
+    };
+    if (!rv_editor_table_begin("##hits", columns, search_table_columns, { .row_bands = true, .header = true })) {
         return;
     }
-    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_file"), ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_line"), ImGuiTableColumnFlags_WidthFixed);
-    ImGui::TableSetupColumn(rv_editor_text("pane_search.table_text"));
-    ImGui::TableSetupScrollFreeze(0, 1);
-    ImGui::TableHeadersRow();
     ImGuiListClipper clipper;
     clipper.Begin(static_cast<int>(r.hits.size()));
     while (clipper.Step()) {
         for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) {
             const rv_editor_search_hit &hit = r.hits[static_cast<size_t>(i)];
             ImGui::PushID(i);
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
+            rv_editor_table_row();
+            rv_editor_table_cell();
             std::error_code ec;
             const std::filesystem::path shown = std::filesystem::relative(hit.file, app.project.root, ec);
+            const std::string label = (ec || shown.empty() ? hit.file : shown).string();
             // The whole row answers a click; double click or Enter opens the place.
-            const bool pressed = ImGui::Selectable((ec || shown.empty() ? hit.file : shown).c_str(),
-                false,
-                ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick);
-            const bool open = (pressed && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) ||
-                (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
+            const rv_editor_list_result row = rv_editor_list_row("##hit", label.c_str(), theme, { .span_columns = true });
+            const bool open = row.double_clicked || (ImGui::IsItemFocused() && ImGui::IsKeyPressed(ImGuiKey_Enter));
             if (open) {
                 app.open_requests.push_back({ hit.file, hit.line });
             }
-            ImGui::TableNextColumn();
-            ImGui::Text("%d:%d", hit.line, hit.column);
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted(hit.excerpt.c_str());
+            rv_editor_table_cell();
+            const std::string position = std::to_string(hit.line) + ":" + std::to_string(hit.column);
+            rv_editor_label(position.c_str(), rv_editor_label_kind::normal, theme);
+            rv_editor_table_cell();
+            rv_editor_label(hit.excerpt.c_str(), rv_editor_label_kind::normal, theme);
             ImGui::PopID();
         }
     }
-    ImGui::EndTable();
+    rv_editor_table_end();
 }
 
 } // namespace
@@ -81,7 +78,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         s.focus = false;
     }
     rv_editor_text_field("##query", s.query, sizeof(s.query), theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("pane_search.query_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("pane_search.query_tooltip"));
     // A single-line field lets go of the keyboard on Enter.
     bool run = ImGui::IsItemDeactivated() && ImGui::IsKeyPressed(ImGuiKey_Enter, false);
     rv_editor_flow(rv_editor_button_width(rv_editor_text("pane_search.find_button")));
@@ -93,7 +90,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
     rv_editor_checkbox(rv_editor_text("pane_search.skipped_folders"), &s.all, theme);
     const std::string also_search_tooltip =
         rv_editor_text_format("pane_search.also_search", std::make_format_args(rv_editor_search_skipped));
-    ImGui::SetItemTooltip("%s", also_search_tooltip.c_str());
+    rv_editor_item_tooltip(also_search_tooltip.c_str());
     rv_editor_shelf_end();
     if (run && s.query[0] != '\0') {
         // Runs on the UI thread; a worker thread when projects grow past a blink.
@@ -107,7 +104,7 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         if (s.searched.empty()) {
             const std::string nothing_searched_msg =
                 rv_editor_text_format("pane_search.nothing_searched", std::make_format_args(rv_editor_search_skipped));
-            ImGui::TextWrapped("%s", nothing_searched_msg.c_str());
+            rv_editor_label(nothing_searched_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
             return;
         }
         const rv_editor_search_result &r = s.result;
@@ -130,19 +127,19 @@ void rv_editor_pane_search(rv_editor_app &app, const rv_editor_theme &theme)
         const std::string count = r.hits.empty() ? rv_editor_text("pane_search.no_match") : matches_text;
         rv_editor_status(count.c_str(), r.hits.empty() ? rv_editor_status_kind::warning : rv_editor_status_kind::ok, theme);
         ImGui::SameLine();
-        ImGui::TextWrapped("%s", scope.c_str());
+        rv_editor_label(scope.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         if (r.truncated) {
             const size_t hits_count = r.hits.size();
             const std::string stopped_msg = rv_editor_text_format("pane_search.stopped_at", std::make_format_args(hits_count));
-            ImGui::TextWrapped("%s", stopped_msg.c_str());
+            rv_editor_label(stopped_msg.c_str(), rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         }
         if (r.hits.empty()) {
             const bool show_limited = r.skipped_dirs != 0 && !s.searched_all;
             const char *msg = rv_editor_text(show_limited ? "pane_search.no_match_limited" : "pane_search.no_match_full");
-            ImGui::TextWrapped("%s", msg);
+            rv_editor_label(msg, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
             return;
         }
-        rv_editor_search_list(app);
+        rv_editor_search_list(app, theme);
     };
     body();
     rv_editor_well_end();
