@@ -160,10 +160,12 @@ void rv_editor_catalog_table(float height, const rv_editor_theme &t)
                 } else {
                     ImGui::TextUnformatted(rows[i][0]);
                 }
+                const rv_editor_label_kind cell_kind =
+                    i == catalog_table_selected_row ? rv_editor_label_kind::on_selection : rv_editor_label_kind::normal;
                 rv_editor_table_cell();
-                ImGui::TextUnformatted(rows[i][1]);
+                rv_editor_label(rows[i][1], cell_kind, t);
                 rv_editor_table_cell();
-                ImGui::TextUnformatted(rows[i][2]);
+                rv_editor_label(rows[i][2], cell_kind, t);
             }
             rv_editor_table_end();
         }

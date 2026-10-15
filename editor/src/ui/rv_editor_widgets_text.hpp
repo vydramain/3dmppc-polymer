@@ -15,6 +15,7 @@ enum class rv_editor_label_kind {
     info,    // theme.code_blue: information, the manual's subheadings
     warning, // theme.warning
     error,   // theme.error
+    on_selection, // theme.dark: text on the brass fill of a selected row
 };
 
 enum class rv_editor_label_layout {
