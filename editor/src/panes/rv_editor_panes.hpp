@@ -27,13 +27,11 @@ struct rv_editor_ui_port;
 // window and changes the models only through rv_editor_app's commands.
 
 // Shared by more than one pane: a clock reading (session, observe) and a row of a
-// two-column facts table (session, observe, build_result). The fact variant without
-// theme remains only for pane_build_result until it passes a theme.
+// two-column facts table (session, observe, build_result).
 // rv_editor_dim: dimmed wrapped text, pane_session only.
 void rv_editor_dim(const std::string &text, const rv_editor_theme &theme);
 std::string rv_editor_clock(std::chrono::system_clock::time_point at);
 void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme);
-void rv_editor_fact(const char *label, const std::string &value);
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
 // wraps when narrow; Open Project without a project.
