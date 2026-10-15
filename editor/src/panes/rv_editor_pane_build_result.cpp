@@ -21,6 +21,9 @@ namespace
 // Table columns in build summary (process, exit status)
 constexpr int summary_columns = 2;
 
+// Unnamed stretched columns: the summary table has no header row.
+constexpr rv_editor_table_column summary_table_columns[summary_columns]{};
+
 // Separator between state label and status text in build status line
 constexpr const char *state_separator = ": ";
 
@@ -51,14 +54,14 @@ void rv_editor_build_result_summary(rv_editor_app &app, const rv_editor_build &b
     if (b.output_cut()) {
         exit_line += rv_editor_text("pane_build_result.output_cut");
     }
-    if (ImGui::BeginTable("##build_summary", summary_columns, ImGuiTableFlags_SizingStretchProp)) {
+    if (rv_editor_table_begin("##build_summary", summary_table_columns, summary_columns)) {
         const char *lbl_process = rv_editor_text("pane_build_result.summary_process");
         const auto pid = b.pid();
         const auto process_text = rv_editor_text_format("pane_build_result.process_pid", std::make_format_args(pid));
         rv_editor_fact(lbl_process, process_text.c_str());
         const char *lbl_exit = rv_editor_text("pane_build_result.summary_exit");
         rv_editor_fact(lbl_exit, exit_line);
-        ImGui::EndTable();
+        rv_editor_table_end();
     }
 
     const std::string file = app.log_files.path_for(b.pid());
@@ -83,7 +86,8 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
     rv_editor_well_begin("##well", ImVec2(0, 0), theme);
     const auto body = [&]() {
         if (b.state() == rv_editor_build_state::idle) {
-            ImGui::TextWrapped("%s", rv_editor_text("pane_build_result.nothing_built"));
+            const char *nothing = rv_editor_text("pane_build_result.nothing_built");
+            rv_editor_label(nothing, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
         } else {
             std::string what;
             if (b.image().empty()) {
@@ -137,13 +141,13 @@ void rv_editor_pane_build_result(rv_editor_app &app, const rv_editor_theme &them
         if (b.state() == rv_editor_build_state::idle) {
             return;
         }
-        ImGui::SeparatorText(rv_editor_text("pane_build_result.diagnostics"));
+        rv_editor_section(rv_editor_text("pane_build_result.diagnostics"));
         const auto diag_text =
             rv_editor_text_format("pane_build_result.errors_warnings", std::make_format_args(errors, warnings));
-        ImGui::Text("%s", diag_text.c_str());
+        rv_editor_label(diag_text.c_str(), rv_editor_label_kind::normal, theme);
         if (found.empty()) {
             const char *status = rv_editor_text(b.busy() ? "pane_build_result.none_so_far" : "pane_build_result.none_full_log");
-            ImGui::TextWrapped("%s", status);
+            rv_editor_label(status, rv_editor_label_kind::normal, theme, rv_editor_label_layout::wrap);
             return;
         }
         rv_editor_log_begin("##diag", ImVec2(0, 0), theme);
