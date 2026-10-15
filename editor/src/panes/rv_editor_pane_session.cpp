@@ -26,6 +26,9 @@ constexpr size_t max_stderr_lines = 8;
 // Number of columns in session information tables.
 constexpr int table_column_count = 2;
 
+// Unnamed stretched columns: the session tables have no header row.
+constexpr rv_editor_table_column session_columns[table_column_count]{};
+
 // Seconds in a minute for time display conversion.
 constexpr long long seconds_per_minute = 60;
 
@@ -53,13 +56,13 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
     if (s.output_cut()) {
         exit_line += " (its output past this point was not kept)";
     }
-    if (ImGui::BeginTable("##session_summary", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
+    if (rv_editor_table_begin("##session_summary", session_columns, table_column_count)) {
         rv_editor_fact(rv_editor_text("pane_session.process"), s.console().string() + ", pid " + std::to_string(s.pid()));
         rv_editor_fact(rv_editor_text("pane_session.exit"), exit_line);
-        ImGui::EndTable();
+        rv_editor_table_end();
     }
 
-    ImGui::SeparatorText(rv_editor_text("pane_session.in_flight"));
+    rv_editor_section(rv_editor_text("pane_session.in_flight"));
     if (s.in_flight().empty()) {
         rv_editor_dim(rv_editor_text("pane_session.in_flight_empty"));
     }
@@ -68,7 +71,7 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
                                     req.verb + ": still waiting when it ended.");
     }
 
-    ImGui::SeparatorText(rv_editor_text("pane_session.last_confirmed"));
+    rv_editor_section(rv_editor_text("pane_session.last_confirmed"));
     const rv_editor_last_confirmed &c = s.last_confirmed();
     if (c.verb.empty()) {
         rv_editor_dim(rv_editor_text("pane_session.last_confirmed_empty"));
@@ -76,13 +79,13 @@ void rv_editor_session_summary(rv_editor_app &app, const rv_editor_session &s, c
         rv_editor_dim(c.verb + " at frame " + std::to_string(c.frame) + ", " + rv_editor_clock(c.at));
     }
 
-    ImGui::SeparatorText(rv_editor_text("pane_session.last_stderr_lines"));
+    rv_editor_section(rv_editor_text("pane_session.last_stderr_lines"));
     const std::vector<const rv_editor_log_line *> err_lines = rv_editor_session_stderr(app.log, s.pid());
     if (err_lines.empty()) {
         rv_editor_dim(rv_editor_text("pane_session.last_stderr_lines_empty"));
     }
     for (const rv_editor_log_line *line : err_lines) {
-        ImGui::TextUnformatted(line->text.c_str());
+        rv_editor_label(line->text.c_str(), rv_editor_label_kind::normal, theme);
     }
 
     const std::string file = app.log_files.path_for(s.pid());
@@ -126,7 +129,7 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         const long long seconds = std::chrono::duration_cast<std::chrono::seconds>(until - s.started_at()).count();
         const rv_editor_session_facts &f = s.facts();
         const bool is_latest_build = s.build_number() == app.build.number();
-        if (!ImGui::BeginTable("##session", table_column_count, ImGuiTableFlags_SizingStretchProp)) {
+        if (!rv_editor_table_begin("##session", session_columns, table_column_count)) {
             return;
         }
         const auto session_label = rv_editor_text("pane_session.session");
@@ -181,22 +184,23 @@ void rv_editor_pane_session(rv_editor_app &app, const rv_editor_theme &theme)
         const auto saved_count = app.findings.saved.size();
         const auto saved_text = rv_editor_text_format("pane_session.saved_format", std::make_format_args(saved_count));
         rv_editor_fact(rv_editor_text("pane_session.saved"), saved_text);
-        ImGui::EndTable();
+        rv_editor_table_end();
 
         // Collapsed by default: the build path and the code hash, each with its own Copy.
-        if (ImGui::CollapsingHeader(rv_editor_text("pane_session.details"))) {
+        if (rv_editor_collapsing_section(rv_editor_text("pane_session.details"))) {
             rv_editor_path_row(rv_editor_text("pane_session.build_directory"), s.disc_dir().string(), theme);
             if (!f.disc.empty()) {
                 rv_editor_path_row(rv_editor_text("pane_session.code_hash"), f.code_hash, theme);
             }
         }
 
-        ImGui::SeparatorText(rv_editor_text("pane_session.marks"));
+        rv_editor_section(rv_editor_text("pane_session.marks"));
         if (app.marks.empty()) {
             rv_editor_dim(rv_editor_text("pane_session.marks_help"));
         }
         for (size_t i = 0; i < app.marks.size(); ++i) {
-            ImGui::Text("%zu. %s", i + 1, app.marks[i].c_str());
+            const std::string mark_text = std::format("{}. {}", i + 1, app.marks[i]);
+            rv_editor_label(mark_text.c_str(), rv_editor_label_kind::normal, theme);
         }
     };
     body();
