@@ -14,6 +14,7 @@
 #include "app/rv_editor_app.hpp"
 #include "app/rv_editor_scene_tabs.hpp"
 #include "nvim/rv_editor_nvim_grid.hpp"
+#include "panes/rv_editor_scene_actions.hpp"
 #include "theme/rv_editor_theme.hpp"
 
 namespace rv_editor
@@ -159,6 +160,8 @@ void rv_editor_hierarchy_pieces(rv_editor_app &app, const rv_editor_scene_object
 void rv_editor_hierarchy_shelf(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
 // What the commands act on, with Clear Picks when pieces are picked (rv_editor_pane_hierarchy_actions.cpp).
 void rv_editor_hierarchy_target(rv_editor_app &app, const rv_editor_theme &theme, const rv_editor_ui_port &ui);
+// Runs an action on a copy of the Scene camera, queuing a changed camera (rv_editor_pane_hierarchy_actions.cpp).
+void rv_editor_hierarchy_run(rv_editor_app &app, const rv_editor_ui_port &ui, rv_editor_scene_action action);
 // The object kinds the Add menus offer, in menu order, and the label each one shows.
 // The label points into `kind` (except mesh's "box"): it lives only as long as `kind`.
 std::span<const std::string_view> rv_editor_hierarchy_kinds();
