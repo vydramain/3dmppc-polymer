@@ -10,6 +10,7 @@
 #include "theme/rv_editor_theme.hpp"
 #include "ui/rv_editor_icons.hpp"
 #include "ui/rv_editor_widget_item.hpp"
+#include "ui/rv_editor_widgets_table.hpp"
 #include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
@@ -195,7 +196,7 @@ rv_editor_list_result rv_editor_list_row(const char *id,
     const rv_editor_state &state = {});
 
 // --- panes --------------------------------------------------------------------
-// Tables are still ImGui's (BeginTable) in the theme's colours; the pane pieces below
+// Tables are the editor's own (rv_editor_table_begin); the pane pieces below
 // are the ones ImGui has no public form of.
 
 // Slanted folder tabs, one per label: the front tab in brass, the rest
