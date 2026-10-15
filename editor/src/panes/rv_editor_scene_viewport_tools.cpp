@@ -9,12 +9,12 @@
 #include "imgui.h"
 
 #include "app/rv_editor_shell.hpp"
-#include "log/rv_editor_log.hpp"
 #include "panes/rv_editor_parts_ops.hpp"
 #include "panes/rv_editor_scene_draw.hpp"
 #include "pdk/rv_err.h"
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
+#include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
 
 namespace rv_editor
@@ -43,6 +43,11 @@ constexpr double top_view_pitch = 89.9;
 constexpr double right_view_yaw = -90.0;
 constexpr float dropdown_width_factor = 5.0f;
 constexpr double snap_step_epsilon = 1e-9;
+// Preset angles are exact; a drag leaves the camera off them by more than this (degrees).
+constexpr double view_match_epsilon = 1e-6;
+constexpr double view_full_turn_degrees = 360.0;
+// Blank space between toolbar groups, in font sizes.
+constexpr float group_gap_factor = 0.5f;
 
 // Snap step labels and values for the viewport tool dropdown.
 constexpr const char *snap_step_labels[] = { "0.1", "0.25", "0.5", "1" };
@@ -72,30 +77,101 @@ void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme
     }
 }
 
-// Delete parts and Detach: the picked pieces of the selected object. Unavailable with none picked; a
-// refused command is logged with its reason.
-void rv_editor_scene_parts_buttons(rv_editor_app &app, const rv_editor_theme &theme)
+// Scene view presets; the view dropdown shows the one the camera is at, if any.
+struct rv_editor_scene_view {
+    const char *label_id;
+    double yaw, pitch;
+};
+constexpr rv_editor_scene_view scene_views[] = { { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
+    { "scene_tools.view_top", 0.0, top_view_pitch },
+    { "scene_tools.view_front", 0.0, 0.0 },
+    { "scene_tools.view_right", right_view_yaw, 0.0 } };
+
+struct rv_editor_scene_shading_option {
+    const char *label_id;
+    const char *tip_id;
+    rv_editor_scene_shading shading;
+};
+constexpr rv_editor_scene_shading_option scene_shadings[] = {
+    { "scene_tools.shading_wireframe", "scene_tools.shading_wireframe_tooltip", rv_editor_scene_shading::wireframe },
+    { "scene_tools.shading_filled", "scene_tools.shading_filled_tooltip", rv_editor_scene_shading::filled },
+    { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
+};
+
+// The preset the camera is at, or -1 when it is at none.
+int rv_editor_scene_view_index(const rv_editor_scene_camera &cam)
 {
-    const rv_editor_scene_doc &doc = *app.scene;
-    const bool picked = !doc.picked_pieces.empty() && doc.picked_owner == doc.selected;
-    const char *no_pieces = picked ? nullptr : rv_editor_text("scene_tools.parts_none");
-    const struct {
-        const char *label_id;
-        const char *tip_id;
-        int (*command)(const rv_editor_project &, rv_editor_scene_doc &, std::string &);
-    } commands[] = { { "scene_tools.toolbar_parts_delete", "scene_tools.toolbar_parts_delete_tooltip", rv_editor_parts_delete },
-        { "scene_tools.toolbar_parts_detach", "scene_tools.toolbar_parts_detach_tooltip", rv_editor_parts_detach } };
-    for (const auto &c : commands) {
-        const char *label = rv_editor_text(c.label_id);
-        rv_editor_flow(rv_editor_button_width(label));
-        if (rv_editor_button(label, theme, { rv_editor_look::live, no_pieces })) {
-            std::string error;
-            if (c.command(app.project, *app.scene, error) != RV_OK) {
-                app.log.add(rv_editor_log_source::editor, rv_editor_log_level::error, error);
-            }
+    for (int i = 0; i < std::ssize(scene_views); ++i) {
+        // The camera's yaw is not wrapped: a turn of 360 degrees is still the same view.
+        const bool at_yaw =
+            std::fabs(std::remainder(cam.yaw - scene_views[i].yaw, view_full_turn_degrees)) < view_match_epsilon;
+        const bool at_pitch = std::fabs(cam.pitch - scene_views[i].pitch) < view_match_epsilon;
+        if (at_yaw && at_pitch) {
+            return i;
         }
-        ImGui::SetItemTooltip("%s", rv_editor_text(c.tip_id));
     }
+    return -1;
+}
+
+// Width a dropdown needs for its longest item: the text, the arrow button and the frame padding.
+float rv_editor_scene_dropdown_width(const char *const items[], int count)
+{
+    float widest = 0.0f;
+    for (int i = 0; i < count; ++i) {
+        widest = std::max(widest, ImGui::CalcTextSize(items[i]).x);
+    }
+    return widest + ImGui::GetFrameHeight() + ImGui::GetStyle().FramePadding.x * 2.0f;
+}
+
+// "View:" and the view presets; a pick turns the camera to that preset's angles.
+void rv_editor_scene_view_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
+{
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(rv_editor_text("scene_tools.view_label"), rv_editor_label_kind::normal, theme);
+    const char *names[std::size(scene_views)];
+    for (size_t i = 0; i < std::size(scene_views); ++i) {
+        names[i] = rv_editor_text(scene_views[i].label_id);
+    }
+    int view = rv_editor_scene_view_index(cam);
+    const float width = rv_editor_scene_dropdown_width(names, std::ssize(scene_views));
+    rv_editor_flow(width);
+    ImGui::SetNextItemWidth(width);
+    if (rv_editor_dropdown("##scene_view", &view, names, std::ssize(scene_views), theme)) {
+        cam.yaw = scene_views[view].yaw;
+        cam.pitch = scene_views[view].pitch;
+    }
+}
+
+// "Shade:" and the shading modes; the tooltip explains the one that is on.
+void rv_editor_scene_shading_select(rv_editor_scene_camera &cam, const rv_editor_theme &theme)
+{
+    const char *label = rv_editor_text("scene_tools.shading_label");
+    rv_editor_flow(ImGui::CalcTextSize(label).x);
+    ImGui::AlignTextToFramePadding();
+    rv_editor_label(label, rv_editor_label_kind::normal, theme);
+    const char *names[std::size(scene_shadings)];
+    int current = 0;
+    for (size_t i = 0; i < std::size(scene_shadings); ++i) {
+        names[i] = rv_editor_text(scene_shadings[i].label_id);
+        if (cam.shading == scene_shadings[i].shading) {
+            current = static_cast<int>(i);
+        }
+    }
+    const float width = rv_editor_scene_dropdown_width(names, std::ssize(scene_shadings));
+    rv_editor_flow(width);
+    ImGui::SetNextItemWidth(width);
+    if (rv_editor_dropdown("##scene_shading", &current, names, std::ssize(scene_shadings), theme)) {
+        cam.shading = scene_shadings[current].shading;
+    }
+    ImGui::SetItemTooltip("%s", rv_editor_text(scene_shadings[current].tip_id));
+}
+
+// Blank space between toolbar groups, kept on the row like an item.
+void rv_editor_scene_group_gap()
+{
+    const float gap = ImGui::GetFontSize() * group_gap_factor;
+    rv_editor_flow(gap);
+    ImGui::Dummy(ImVec2(gap, 0.0f));
 }
 
 // Aims the camera at the middle of the box lo..hi, backed off far enough to fit its diagonal.
@@ -209,93 +285,82 @@ void rv_editor_scene_frame(rv_editor_app &app, rv_editor_scene_camera &cam, bool
     rv_editor_frame_box(cam, lo, hi);
 }
 
+// Scene toolbar, one row at 1280x720: View and the framing buttons, Hidden, Parts and Layers, then Shade.
 void rv_editor_scene_toolbar(rv_editor_app &app, rv_editor_scene_camera &cam, const rv_editor_theme &theme)
 {
-    const struct {
-        const char *label_id;
-        double yaw, pitch;
-    } views[] = { { "scene_tools.view_persp", perspective_view_yaw, perspective_view_pitch },
-        { "scene_tools.view_top", 0.0, top_view_pitch },
-        { "scene_tools.view_front", 0.0, 0.0 },
-        { "scene_tools.view_right", right_view_yaw, 0.0 } };
-    for (size_t i = 0; i < std::size(views); ++i) {
-        const char *label = rv_editor_text(views[i].label_id);
-        if (i > 0) {
-            rv_editor_flow(rv_editor_button_width(label));
-        }
-        if (rv_editor_button(label, theme)) {
-            cam.yaw = views[i].yaw;
-            cam.pitch = views[i].pitch;
-        }
-    }
+    const float side = ImGui::GetFrameHeight();
     const char *no_selection = app.scene->selected.empty() ? rv_editor_text("scene_tools.nothing_selected") : nullptr;
-    const char *frame_btn = rv_editor_text("scene_tools.toolbar_frame_selection");
-    rv_editor_flow(rv_editor_button_width(frame_btn));
-    if (rv_editor_button(frame_btn, theme, { rv_editor_look::live, no_selection })) {
+    rv_editor_scene_view_select(cam, theme);
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##frame",
+            rv_editor_glyph::frame,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_frame_tooltip"),
+            theme,
+            { rv_editor_look::live, no_selection })) {
         rv_editor_scene_frame(app, cam, false);
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_frame_tooltip"));
-    const char *view_all = rv_editor_text("scene_tools.toolbar_view_all");
-    rv_editor_flow(rv_editor_button_width(view_all));
-    if (rv_editor_button(view_all, theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##view_all",
+            rv_editor_glyph::view_all,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_view_all"),
+            theme)) {
         rv_editor_scene_frame(app, cam, true);
     }
-    const char *home = rv_editor_text("scene_tools.toolbar_home");
-    rv_editor_flow(rv_editor_button_width(home));
-    if (rv_editor_button(home, theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##home",
+            rv_editor_glyph::home,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_home_tooltip"),
+            theme)) {
         cam = rv_editor_scene_camera{ cam.tool, cam.snap, cam.snap_step, cam.grid, cam.shading };
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_home_tooltip"));
-    const char *seek = rv_editor_text("scene_tools.toolbar_seek");
-    rv_editor_flow(rv_editor_button_width(seek));
+    rv_editor_flow(side);
     bool seek_val = cam.seeking;
-    if (rv_editor_toggle(seek, &seek_val, theme)) {
+    if (rv_editor_letter_toggle("##seek",
+            rv_editor_glyph::seek,
+            theme.code_blue,
+            rv_editor_text("scene_tools.toolbar_seek_tooltip"),
+            &seek_val,
+            theme)) {
         cam.seeking = seek_val;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_seek_tooltip"));
-    const char *hidden_label = rv_editor_text("scene_tools.toolbar_hidden");
-    rv_editor_flow(rv_editor_button_width(hidden_label));
+    rv_editor_scene_group_gap();
+    rv_editor_flow(side);
     bool hidden_val = app.scene->show_hidden;
-    if (rv_editor_toggle(hidden_label, &hidden_val, theme)) {
+    if (rv_editor_letter_toggle("##hidden",
+            rv_editor_glyph::show_hidden,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_hidden_tooltip"),
+            &hidden_val,
+            theme)) {
         app.scene->show_hidden = hidden_val;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_hidden_tooltip"));
-    const char *parts_label = rv_editor_text("scene_tools.toolbar_parts");
-    rv_editor_flow(rv_editor_button_width(parts_label));
+    rv_editor_flow(side);
     bool parts_val = app.scene->parts_mode;
-    if (rv_editor_toggle(parts_label, &parts_val, theme)) {
+    if (rv_editor_letter_toggle("##parts",
+            rv_editor_glyph::parts,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_parts_tooltip"),
+            &parts_val,
+            theme)) {
         app.scene->parts_mode = parts_val;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_parts_tooltip"));
-    rv_editor_scene_parts_buttons(app, theme);
-    const char *layers_label = rv_editor_text("scene_tools.toolbar_layers");
-    rv_editor_flow(rv_editor_button_width(layers_label));
-    if (rv_editor_button(layers_label, theme)) {
+    rv_editor_flow(side);
+    if (rv_editor_letter_button("##layers",
+            rv_editor_glyph::layers,
+            theme.code_green,
+            rv_editor_text("scene_tools.toolbar_layers_tooltip"),
+            theme)) {
         ImGui::OpenPopup("##scene_layers");
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.toolbar_layers_tooltip"));
-    rv_editor_menu_style_push();
-    if (ImGui::BeginPopup("##scene_layers")) {
+    rv_editor_scene_group_gap();
+    rv_editor_scene_shading_select(cam, theme);
+    // Last, so the popup's items never become the item rv_editor_flow measures.
+    if (rv_editor_popup_begin("##scene_layers")) {
         rv_editor_scene_layers_menu(*app.scene, theme);
-        ImGui::EndPopup();
-    }
-    rv_editor_menu_style_pop();
-    const struct {
-        const char *label_id;
-        const char *tip_id;
-        rv_editor_scene_shading shading;
-    } shadings[] = {
-        { "scene_tools.shading_wireframe", "scene_tools.shading_wireframe_tooltip", rv_editor_scene_shading::wireframe },
-        { "scene_tools.shading_filled", "scene_tools.shading_filled_tooltip", rv_editor_scene_shading::filled },
-        { "scene_tools.shading_textured", "scene_tools.shading_textured_tooltip", rv_editor_scene_shading::textured },
-    };
-    for (const auto &s : shadings) {
-        const char *label = rv_editor_text(s.label_id);
-        rv_editor_flow(rv_editor_button_width(label));
-        if (rv_editor_radio(label, cam.shading == s.shading, theme)) {
-            cam.shading = s.shading;
-        }
-        ImGui::SetItemTooltip("%s", rv_editor_text(s.tip_id));
+        rv_editor_popup_end();
     }
 }
 
