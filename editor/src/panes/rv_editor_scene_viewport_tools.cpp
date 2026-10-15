@@ -16,6 +16,7 @@
 #include "theme/rv_editor_theme_imgui.hpp"
 #include "ui/rv_editor_glyphs.hpp"
 #include "ui/rv_editor_widgets.hpp"
+#include "ui/rv_editor_widgets_text.hpp"
 
 namespace rv_editor
 {
@@ -62,7 +63,7 @@ void rv_editor_scene_layers_menu(rv_editor_scene_doc &doc, const rv_editor_theme
 {
     const std::vector<std::string> layers = rv_editor_scene_layers(doc.scene);
     if (layers.empty()) {
-        ImGui::TextUnformatted(rv_editor_text("scene_tools.layers_none"));
+        rv_editor_label(rv_editor_text("scene_tools.layers_none"), rv_editor_label_kind::normal, theme);
         return;
     }
     for (const std::string &layer : layers) {
@@ -163,7 +164,7 @@ void rv_editor_scene_shading_select(rv_editor_scene_camera &cam, const rv_editor
     if (rv_editor_dropdown("##scene_shading", &current, names, std::ssize(scene_shadings), theme)) {
         cam.shading = scene_shadings[current].shading;
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text(scene_shadings[current].tip_id));
+    rv_editor_item_tooltip(rv_editor_text(scene_shadings[current].tip_id));
 }
 
 // Blank space between toolbar groups, kept on the row like an item.
@@ -379,7 +380,7 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
     }
     const char *snap_label = rv_editor_text("scene_tools.snap_label");
     rv_editor_checkbox(snap_label, &cam.snap, theme);
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_tooltip"));
     int step = default_snap_step_index;
     for (int i = 0; i < std::ssize(snap_step_values); ++i) {
         step = std::fabs(cam.snap_step - snap_step_values[i]) < snap_step_epsilon ? i : step;
@@ -388,7 +389,7 @@ void rv_editor_scene_tools(const rv_editor_theme &theme, const rv_editor_ui_port
     if (rv_editor_dropdown("##snapstep", &step, snap_step_labels, std::ssize(snap_step_labels), theme)) {
         cam.snap_step = snap_step_values[step];
     }
-    ImGui::SetItemTooltip("%s", rv_editor_text("scene_tools.snap_step_tooltip"));
+    rv_editor_item_tooltip(rv_editor_text("scene_tools.snap_step_tooltip"));
     const char *grid_label = rv_editor_text("scene_tools.grid_label");
     rv_editor_checkbox(grid_label, &cam.grid, theme);
     const bool changed = cam != ui.state.scene_camera;
