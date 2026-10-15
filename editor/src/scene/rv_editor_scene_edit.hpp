@@ -41,6 +41,10 @@ struct rv_editor_scene_doc {
     char hierarchy_query[hierarchy_query_size] = {};
     bool show_hidden = true;
     std::set<std::string, std::less<>> off_layers; // layers switched off by name; lookup by string_view
+    // The pieces picked of the object picked_owner, numbered from 1 as Hierarchy shows them. View state, not undo.
+    std::string picked_owner;
+    std::string picked_mesh; // the model name of picked_owner when its pieces were picked
+    std::set<size_t> picked_pieces;
 };
 
 // Before a change: the state as it is becomes one undo step. A drag calls it once, at its start.
@@ -48,6 +52,9 @@ void rv_editor_scene_step(rv_editor_scene_doc &doc);
 // Back to the state the last step saved; false when there is none.
 bool rv_editor_scene_undo(rv_editor_scene_doc &doc);
 bool rv_editor_scene_redo(rv_editor_scene_doc &doc);
+
+// Selects `id` ("" for none); the pieces picked under the old selection are dropped. Not an undo step.
+void rv_editor_scene_select(rv_editor_scene_doc &doc, const std::string &id);
 
 // Each change below is one undo step and returns what it made or why it did not.
 std::string rv_editor_scene_add(rv_editor_scene_doc &doc, const std::string &kind, const std::string &parent);

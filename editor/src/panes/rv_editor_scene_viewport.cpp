@@ -242,7 +242,7 @@ void rv_editor_scene_viewport(rv_editor_app &app,
                 }
                 cam.seeking = false;
             } else {
-                doc.selected = hit;
+                rv_editor_scene_select(doc, hit);
             }
         }
     }
