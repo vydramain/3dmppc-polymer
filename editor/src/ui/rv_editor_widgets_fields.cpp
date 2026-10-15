@@ -2,6 +2,8 @@
 // editor draws the sunken well, the state frame and the markers.
 
 #include <cmath>
+#include <limits>
+#include <type_traits>
 
 #include "text/rv_editor_text.hpp"
 #include "theme/rv_editor_theme_imgui.hpp"
@@ -112,6 +114,74 @@ void rv_editor_field_end(const rv_editor_field &f)
     }
 }
 
+// Adds a step and clamps at the type's limits: a plain add past them overflows a signed value.
+template <typename T>
+T rv_editor_spinner_step(T value, T delta)
+{
+    if (delta > 0 && value > std::numeric_limits<T>::max() - delta) {
+        return std::numeric_limits<T>::max();
+    }
+    if (delta < 0 && value < std::numeric_limits<T>::min() - delta) {
+        return std::numeric_limits<T>::min();
+    }
+    return value + delta;
+}
+
+// Spinner for int and int64_t: a text edit, then the arrows stepping the value.
+template <typename T>
+bool rv_editor_spinner_body(const char *label, T *value, T step, const rv_editor_theme &theme, const rv_editor_field &field)
+{
+    static_assert(std::is_same_v<T, int> || std::is_same_v<T, int64_t>, "spinner value must be int or int64_t");
+    constexpr ImGuiDataType type = std::is_same_v<T, int> ? ImGuiDataType_S32 : ImGuiDataType_S64;
+    const float h = ImGui::GetFrameHeight();
+    const float width = ImGui::CalcItemWidth();
+    ImGui::PushID(label);
+
+    rv_editor_field_begin(theme, field);
+    ImGui::SetNextItemWidth(width - h);
+    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
+    bool changed = ImGui::InputScalar("##value", type, value, nullptr, nullptr, nullptr, flags);
+    const ImVec2 min = ImGui::GetItemRectMin();
+    const ImVec2 max = ImGui::GetItemRectMax();
+    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
+    rv_editor_field_end(field);
+    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
+
+    // Two half-height arrow buttons stacked to the right of the well.
+    rv_editor_state arrows = field.state;
+    arrows.look = rv_editor_look::live;
+    if (field.read_only && arrows.disabled == nullptr) {
+        arrows.disabled = rv_editor_text("widgets_fields.readonly_arrow");
+    }
+    ImDrawList *dl = ImGui::GetWindowDrawList();
+    const float half = std::floor(h / half_divisor);
+    const ImVec2 origin(max.x, min.y);
+    const ImGuiDir dirs[] = { ImGuiDir_Up, ImGuiDir_Down };
+    for (int i = 0; i < spinner_buttons; ++i) {
+        ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + half * static_cast<float>(i)));
+        const rv_editor_item item = rv_editor_item_add(i == 0 ? "##up" : "##down", ImVec2(h, i == 0 ? half : h - half), arrows);
+        const bool down = item.held && item.hovered;
+        rv_editor_draw_panel(dl,
+            item.min,
+            item.max,
+            theme,
+            theme.button,
+            down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
+        rv_editor_draw_arrow(dl, item.min, item.max, theme, dirs[i], rv_editor_item_text(theme, item));
+        if (item.clicked) {
+            const T before = *value;
+            *value = rv_editor_spinner_step(before, i == 0 ? step : -step);
+            changed = changed || *value != before;
+        }
+    }
+    // One layout item over the whole spinner, so what follows starts below it.
+    ImGui::SetCursorScreenPos(min);
+    ImGui::Dummy(ImVec2(width, h));
+
+    ImGui::PopID();
+    return changed;
+}
+
 } // namespace
 
 bool rv_editor_text_field(const char *label, char *buf, size_t size, const rv_editor_theme &theme, const rv_editor_field &field)
@@ -155,52 +225,16 @@ bool rv_editor_text_area(const char *label,
 
 bool rv_editor_spinner(const char *label, int *value, int step, const rv_editor_theme &theme, const rv_editor_field &field)
 {
-    const float h = ImGui::GetFrameHeight();
-    const float width = ImGui::CalcItemWidth();
-    ImGui::PushID(label);
+    return rv_editor_spinner_body(label, value, step, theme, field);
+}
 
-    rv_editor_field_begin(theme, field);
-    ImGui::SetNextItemWidth(width - h);
-    const ImGuiInputTextFlags flags = field.read_only ? ImGuiInputTextFlags_ReadOnly : ImGuiInputTextFlags_None;
-    bool changed = ImGui::InputInt("##value", value, 0, 0, flags);
-    const ImVec2 min = ImGui::GetItemRectMin();
-    const ImVec2 max = ImGui::GetItemRectMax();
-    const rv_editor_field_look look = rv_editor_field_resolve(field, ImGui::IsItemHovered(), ImGui::IsItemActive());
-    rv_editor_field_end(field);
-    rv_editor_field_frame(ImGui::GetWindowDrawList(), min, max, theme, field, look, 0.0f);
-
-    // Two half-height arrow buttons stacked to the right of the well.
-    rv_editor_state arrows = field.state;
-    arrows.look = rv_editor_look::live;
-    if (field.read_only && arrows.disabled == nullptr) {
-        arrows.disabled = rv_editor_text("widgets_fields.readonly_arrow");
-    }
-    ImDrawList *dl = ImGui::GetWindowDrawList();
-    const float half = std::floor(h / half_divisor);
-    const ImVec2 origin(max.x, min.y);
-    const ImGuiDir dirs[] = { ImGuiDir_Up, ImGuiDir_Down };
-    for (int i = 0; i < spinner_buttons; ++i) {
-        ImGui::SetCursorScreenPos(ImVec2(origin.x, origin.y + half * static_cast<float>(i)));
-        const rv_editor_item item = rv_editor_item_add(i == 0 ? "##up" : "##down", ImVec2(h, i == 0 ? half : h - half), arrows);
-        const bool down = item.held && item.hovered;
-        rv_editor_draw_panel(dl,
-            item.min,
-            item.max,
-            theme,
-            theme.button,
-            down ? rv_editor_bevel::sunken : rv_editor_bevel::raised);
-        rv_editor_draw_arrow(dl, item.min, item.max, theme, dirs[i], rv_editor_item_text(theme, item));
-        if (item.clicked) {
-            *value += i == 0 ? step : -step;
-            changed = true;
-        }
-    }
-    // One layout item over the whole spinner, so what follows starts below it.
-    ImGui::SetCursorScreenPos(min);
-    ImGui::Dummy(ImVec2(width, h));
-
-    ImGui::PopID();
-    return changed;
+bool rv_editor_spinner(const char *label,
+    int64_t *value,
+    int64_t step,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field)
+{
+    return rv_editor_spinner_body(label, value, step, theme, field);
 }
 
 bool rv_editor_dropdown(const char *label,

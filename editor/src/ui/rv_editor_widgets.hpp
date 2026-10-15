@@ -98,9 +98,16 @@ bool rv_editor_text_area(const char *label,
     float lines,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
+// Int and 64-bit spinners: true on every change, by an arrow or by typing. The last ImGui
+// item is the layout Dummy, so IsItemDeactivatedAfterEdit() does not describe the edit.
 bool rv_editor_spinner(const char *label,
     int *value,
     int step,
+    const rv_editor_theme &theme,
+    const rv_editor_field &field = {});
+bool rv_editor_spinner(const char *label,
+    int64_t *value,
+    int64_t step,
     const rv_editor_theme &theme,
     const rv_editor_field &field = {});
 bool rv_editor_dropdown(const char *label,
