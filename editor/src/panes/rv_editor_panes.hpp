@@ -27,9 +27,11 @@ struct rv_editor_ui_port;
 // window and changes the models only through rv_editor_app's commands.
 
 // Shared by more than one pane: dimmed wrapped text, a clock reading, one row
-// of a two-column facts table.
+// of a two-column facts table. The variants without theme remain only for pane_session
+// and pane_build_result until they pass a theme.
 void rv_editor_dim(const std::string &text);
 std::string rv_editor_clock(std::chrono::system_clock::time_point at);
+void rv_editor_fact(const char *label, const std::string &value, const rv_editor_theme &theme);
 void rv_editor_fact(const char *label, const std::string &value);
 
 // Build, Run/Resume, Pause, Step, Stop and the session's state on one row that
