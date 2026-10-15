@@ -115,8 +115,9 @@ void rv_editor_shelf_begin(const char *id, const rv_editor_theme &theme);
 void rv_editor_shelf_end();
 
 // A child region with the inset background and a sunken bevel, for a pane's
-// content (trees, lists, the Game picture, inspector fields, logs). `size`
-// works as for BeginChild: 0 fills what is left. `flags` pass through.
+// content. `size` works as for BeginChild: 0 fills what is left. Unless `flags`
+// has NoScrollbar, the content scrolls in a Motif area (rv_editor_scroll_begin);
+// in scroll mode only HorizontalScrollbar of `flags` is used (it allows the horizontal bar).
 // Always pair with the end call.
 bool rv_editor_well_begin(const char *id, ImVec2 size, const rv_editor_theme &theme, ImGuiWindowFlags flags = 0);
 void rv_editor_well_end();
