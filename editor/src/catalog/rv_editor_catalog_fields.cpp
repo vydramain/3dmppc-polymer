@@ -25,6 +25,9 @@ constexpr int spinner_step = 8;
 // Demo value for the catalog's number spinners
 constexpr int sample_spinner_value = 320;
 
+// Demo value for the 64-bit spinner row: above the 32-bit range
+constexpr int64_t sample_spinner64_value = 3000000000;
+
 // Height of the text area sample, in text lines
 constexpr float sample_area_lines = 3.0f;
 
@@ -35,8 +38,9 @@ constexpr float text_sample_width_em = 24.0f;
 // Widget row indices in the fields catalog
 constexpr int row_text_field = 0;
 constexpr int row_spinner = 1;
-constexpr int row_dropdown = 2;
-constexpr int row_text_area = 3;
+constexpr int row_spinner64 = 2;
+constexpr int row_dropdown = 3;
+constexpr int row_text_area = 4;
 
 struct rv_editor_field_column {
     const char *name;
@@ -62,6 +66,7 @@ struct rv_editor_field_values {
     char text[rv_editor_field_column_count][text_field_buffer_size];
     char area[rv_editor_field_column_count][text_area_buffer_size];
     int number[rv_editor_field_column_count];
+    int64_t number64[rv_editor_field_column_count];
     int choice[rv_editor_field_column_count];
 
     rv_editor_field_values()
@@ -71,6 +76,7 @@ struct rv_editor_field_values {
             std::snprintf(text[c], sizeof(text[c]), "%s", rv_editor_text("catalog_fields.sample_text"));
             std::snprintf(area[c], sizeof(area[c]), "%s", rv_editor_text("catalog_fields.sample_area"));
             number[c] = sample_spinner_value;
+            number64[c] = sample_spinner64_value;
             choice[c] = 0;
         }
     }
@@ -95,6 +101,7 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
 
     const char *row_ids[] = { "catalog_fields.row_text_field",
         "catalog_fields.row_spinner",
+        "catalog_fields.row_spinner64",
         "catalog_fields.row_dropdown",
         "catalog_fields.row_text_area" };
     for (int row = 0; row < static_cast<int>(sizeof(row_ids) / sizeof(row_ids[0])); ++row) {
@@ -122,6 +129,9 @@ void rv_editor_catalog_fields(const rv_editor_theme &theme)
                 break;
             case row_spinner:
                 rv_editor_spinner("##number", &rv_editor_field_data.number[c], spinner_step, theme, f);
+                break;
+            case row_spinner64:
+                rv_editor_spinner("##number64", &rv_editor_field_data.number64[c], spinner_step, theme, f);
                 break;
             case row_dropdown: {
                 const char *templates[] = { rv_editor_text("catalog_fields.template_lua"),
