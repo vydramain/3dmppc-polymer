@@ -72,6 +72,32 @@ private:
     uint32_t pause_requests_ = 0;
 };
 
+// Trackpads read per pad. Checked against SDL 3.4's source: Steam Controller 28de:1304 has two
+// pads, touchpad 0 the left one; DualSense has one. A pad with more is read for its first two.
+constexpr int RV_PCGAMEPADS_SDL3_TRACKPADS = 2;
+
+// One trackpad between frames: the finger that touched (-1 for none) and its last place, for SWIPE.
+struct rv_pctrackpad_sdl3 {
+    bool touching = false;
+    int finger = -1;
+    rv_iaxes last{};
+};
+
+// The stick's radial dead zone and quarter bits, shared with the trackpads.
+rv_iaxes rv_pcgamepads_sdl3_stick_axes(float raw_x, float raw_y);
+uint64_t rv_pcgamepads_sdl3_stick_direction_bits(rv_iaxes axes,
+    uint64_t north,
+    uint64_t south,
+    uint64_t west,
+    uint64_t east,
+    uint64_t move);
+
+// Trackpad abilities of a pad, and its live trackpad fields for one poll (rv_pcgamepads_sdl3_touch.cpp).
+uint64_t rv_pcgamepads_sdl3_trackpad_abilities(SDL_Gamepad *pad);
+void rv_pcgamepads_sdl3_poll_trackpads(SDL_Gamepad *pad,
+    rv_istate &state,
+    rv_pctrackpad_sdl3 (&last)[RV_PCGAMEPADS_SDL3_TRACKPADS]);
+
 class rv_pcgamepads_sdl3 final : public rv_pcgamepads
 {
 public:
@@ -105,6 +131,8 @@ private:
         // sensor_timestamp (ns) of the last gyro sample; gyro_stamped is false until the first one.
         bool gyro_stamped = false;
         uint64_t gyro_stamp = 0;
+        // Finger state per trackpad, kept between frames for SWIPE.
+        rv_pctrackpad_sdl3 trackpads[RV_PCGAMEPADS_SDL3_TRACKPADS]{};
     };
 
     std::unordered_map<uint32_t, rv_pcpad_sdl3> pads_;

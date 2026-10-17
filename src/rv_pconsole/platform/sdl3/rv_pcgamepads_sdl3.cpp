@@ -24,7 +24,9 @@ constexpr float RV_PCGAMEPADS_SDL3_STICK_DEADZONE = 0.25f;
 constexpr float RV_PCGAMEPADS_SDL3_TRIGGER_SOFT = 0.15f;
 constexpr float RV_PCGAMEPADS_SDL3_TRIGGER_FULL = 0.90f;
 
-rv_iaxes stick_axes(float raw_x, float raw_y)
+} // namespace
+
+rv_iaxes rv_pcgamepads_sdl3_stick_axes(float raw_x, float raw_y)
 {
     const float magnitude = std::sqrt(raw_x * raw_x + raw_y * raw_y);
     if (magnitude < RV_PCGAMEPADS_SDL3_STICK_DEADZONE) {
@@ -37,7 +39,12 @@ rv_iaxes stick_axes(float raw_x, float raw_y)
     return { raw_x * k, raw_y * k };
 }
 
-uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uint64_t west, uint64_t east, uint64_t move)
+uint64_t rv_pcgamepads_sdl3_stick_direction_bits(rv_iaxes axes,
+    uint64_t north,
+    uint64_t south,
+    uint64_t west,
+    uint64_t east,
+    uint64_t move)
 {
     if (axes.x == 0.0f && axes.y == 0.0f) {
         return 0;
@@ -51,6 +58,9 @@ uint64_t stick_direction_bits(rv_iaxes axes, uint64_t north, uint64_t south, uin
     }
     return bits;
 }
+
+namespace
+{
 
 // SDL reports a stick axis as [-32768, 32767] with +y pointing DOWN. The
 // console is left-handed with +y UP, so the vertical axis is negated at the
@@ -186,6 +196,7 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_RIGHT_TRIGGER)) {
         pad_abilities |= RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL | RV_ISOURCE_RIGHT_TRIGGER_FULL_PULL;
     }
+    pad_abilities |= rv_pcgamepads_sdl3_trackpad_abilities(pad);
 
     const bool motion = has_motion_sensors(pad) && enable_motion_sensors(pad) == RV_OK;
     if (motion) {
@@ -323,18 +334,18 @@ void rv_pcgamepads_sdl3::poll_all()
             }
         }
 
-        state.left_stick = stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX)),
+        state.left_stick = rv_pcgamepads_sdl3_stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX)),
             -axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY)));
-        state.right_stick = stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)),
+        state.right_stick = rv_pcgamepads_sdl3_stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)),
             -axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY)));
 
-        state.buttons |= stick_direction_bits(state.left_stick,
+        state.buttons |= rv_pcgamepads_sdl3_stick_direction_bits(state.left_stick,
             RV_ISOURCE_LEFT_STICK_DPAD_NORTH,
             RV_ISOURCE_LEFT_STICK_DPAD_SOUTH,
             RV_ISOURCE_LEFT_STICK_DPAD_WEST,
             RV_ISOURCE_LEFT_STICK_DPAD_EAST,
             RV_ISOURCE_LEFT_STICK_MOVE);
-        state.buttons |= stick_direction_bits(state.right_stick,
+        state.buttons |= rv_pcgamepads_sdl3_stick_direction_bits(state.right_stick,
             RV_ISOURCE_RIGHT_STICK_DPAD_NORTH,
             RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH,
             RV_ISOURCE_RIGHT_STICK_DPAD_WEST,
@@ -373,8 +384,7 @@ void rv_pcgamepads_sdl3::poll_all()
             }
         }
 
-        // DEFERRED: the Steam Deck trackpads. They are not advertised in
-        // `abilities`, so a disc reading them legitimately sees zeroes rather than a lie.
+        rv_pcgamepads_sdl3_poll_trackpads(pad, state, kv.second.trackpads);
     }
 }
 
