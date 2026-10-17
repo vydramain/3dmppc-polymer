@@ -108,6 +108,35 @@ int enable_motion_sensors(SDL_Gamepad *pad)
     return RV_OK;
 }
 
+// On these pads SDL maps the stick touch sensors to MISC3 (left) and MISC4 (right): the Steam Deck
+// and the Steam Controller of the Triton family (SDL 3.4 SDL_gamepad.c, controller_list.h). On other
+// pads MISC3 and MISC4 mean something else (a GameCube trigger click, for one), so they are read as
+// stick touch only for a vendor and product listed here.
+struct rv_pcstick_touch_pad {
+    uint16_t vendor;
+    uint16_t product;
+};
+constexpr rv_pcstick_touch_pad RV_PCGAMEPADS_SDL3_STICK_TOUCH_PADS[] = {
+    { 0x28de, 0x1205 }, // Valve Steam Deck built-in controller
+    { 0x28de, 0x1302 }, // Valve Steam Triton controller
+    { 0x28de, 0x1303 }, // Valve Steam Triton controller (BLE)
+    { 0x28de, 0x1304 }, // Valve Steam Proteus dongle
+    { 0x28de, 0x1305 }, // Valve Steam Nereid dongle
+};
+
+// Yes or no: are this pad's MISC3 and MISC4 its stick touch sensors.
+bool has_stick_touch_buttons(SDL_Gamepad *pad)
+{
+    const uint16_t vendor = SDL_GetGamepadVendor(pad);
+    const uint16_t product = SDL_GetGamepadProduct(pad);
+    for (const auto &known : RV_PCGAMEPADS_SDL3_STICK_TOUCH_PADS) {
+        if (known.vendor == vendor && known.product == product) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 rv_pcgamepads_sdl3::~rv_pcgamepads_sdl3()
@@ -175,6 +204,10 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
         { SDL_GAMEPAD_BUTTON_DPAD_DOWN, RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_MOVE },
         { SDL_GAMEPAD_BUTTON_DPAD_LEFT, RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_MOVE },
         { SDL_GAMEPAD_BUTTON_DPAD_RIGHT, RV_ISOURCE_DPAD_EAST | RV_ISOURCE_DPAD_MOVE },
+        { SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, RV_ISOURCE_REAR_BTTN_RIGHT_UPPER },
+        { SDL_GAMEPAD_BUTTON_LEFT_PADDLE1, RV_ISOURCE_REAR_BTTN_LEFT_UPPER },
+        { SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2, RV_ISOURCE_REAR_BTTN_RIGHT_LOWER },
+        { SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, RV_ISOURCE_REAR_BTTN_LEFT_LOWER },
     };
     for (const auto &entry : button_map) {
         if (SDL_GamepadHasButton(pad, entry.button)) {
@@ -189,6 +222,15 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX)) {
         pad_abilities |= RV_ISOURCE_RIGHT_STICK_MOVE | RV_ISOURCE_RIGHT_STICK_DPAD_NORTH | RV_ISOURCE_RIGHT_STICK_DPAD_SOUTH |
             RV_ISOURCE_RIGHT_STICK_DPAD_WEST | RV_ISOURCE_RIGHT_STICK_DPAD_EAST;
+    }
+    const bool stick_touch = has_stick_touch_buttons(pad);
+    const bool left_touch = stick_touch && SDL_GamepadHasButton(pad, SDL_GAMEPAD_BUTTON_MISC3);
+    const bool right_touch = stick_touch && SDL_GamepadHasButton(pad, SDL_GAMEPAD_BUTTON_MISC4);
+    if (left_touch) {
+        pad_abilities |= RV_ISOURCE_LEFT_STICK_TOUCH;
+    }
+    if (right_touch) {
+        pad_abilities |= RV_ISOURCE_RIGHT_STICK_TOUCH;
     }
     if (SDL_GamepadHasAxis(pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER)) {
         pad_abilities |= RV_ISOURCE_LEFT_TRIGGER_SOFT_PULL | RV_ISOURCE_LEFT_TRIGGER_FULL_PULL;
@@ -327,11 +369,27 @@ void rv_pcgamepads_sdl3::poll_all()
             { SDL_GAMEPAD_BUTTON_DPAD_DOWN, RV_ISOURCE_DPAD_SOUTH | RV_ISOURCE_DPAD_MOVE },
             { SDL_GAMEPAD_BUTTON_DPAD_LEFT, RV_ISOURCE_DPAD_WEST | RV_ISOURCE_DPAD_MOVE },
             { SDL_GAMEPAD_BUTTON_DPAD_RIGHT, RV_ISOURCE_DPAD_EAST | RV_ISOURCE_DPAD_MOVE },
+            { SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1, RV_ISOURCE_REAR_BTTN_RIGHT_UPPER },
+            { SDL_GAMEPAD_BUTTON_LEFT_PADDLE1, RV_ISOURCE_REAR_BTTN_LEFT_UPPER },
+            { SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2, RV_ISOURCE_REAR_BTTN_RIGHT_LOWER },
+            { SDL_GAMEPAD_BUTTON_LEFT_PADDLE2, RV_ISOURCE_REAR_BTTN_LEFT_LOWER },
         };
         for (const auto &entry : live_map) {
             if (SDL_GetGamepadButton(pad, entry.button)) {
                 state.buttons |= entry.source;
             }
+        }
+
+        // Stick touch is read only for a pad whose abilities declare it (see has_stick_touch_buttons).
+        const bool left_touch =
+            (kv.second.abilities & RV_ISOURCE_LEFT_STICK_TOUCH) && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_MISC3);
+        const bool right_touch =
+            (kv.second.abilities & RV_ISOURCE_RIGHT_STICK_TOUCH) && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_MISC4);
+        if (left_touch) {
+            state.buttons |= RV_ISOURCE_LEFT_STICK_TOUCH;
+        }
+        if (right_touch) {
+            state.buttons |= RV_ISOURCE_RIGHT_STICK_TOUCH;
         }
 
         state.left_stick = rv_pcgamepads_sdl3_stick_axes(axis_norm(SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX)),
