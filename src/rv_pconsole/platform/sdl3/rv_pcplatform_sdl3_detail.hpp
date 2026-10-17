@@ -11,6 +11,7 @@
 
 #include "pdk/cio/rv_imouse.h"
 #include "pdk/cio/rv_isource.h"
+#include "rv_pconsole/cio/rv_pcmotion.hpp"
 #include "rv_pconsole/platform/rv_pcplatform.hpp"
 
 namespace rv_3dmppc
@@ -86,6 +87,8 @@ public:
     // --- what pump() drives ---
     void add(uint32_t joystick_id);
     void remove(uint32_t joystick_id);
+    // A gyro sample is integrated into the pad's fusion; an accel sample is only stored for the next gyro step.
+    void sensor(const SDL_GamepadSensorEvent &event);
     void poll_all();
 
 private:
@@ -93,6 +96,15 @@ private:
         SDL_Gamepad *pad = nullptr;
         uint64_t abilities = 0;
         rv_istate state{};
+        // True when gyro and accel are on; only then do samples reach `fusion`.
+        bool motion = false;
+        // Last samples, console axes: accel m/s^2, angular velocity rad/s.
+        rv_pdklib::rv_vec3 accel{};
+        rv_pdklib::rv_vec3 gyro{};
+        rv_pcmotion fusion{};
+        // sensor_timestamp (ns) of the last gyro sample; gyro_stamped is false until the first one.
+        bool gyro_stamped = false;
+        uint64_t gyro_stamp = 0;
     };
 
     std::unordered_map<uint32_t, rv_pcpad_sdl3> pads_;

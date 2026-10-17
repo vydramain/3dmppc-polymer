@@ -66,6 +66,38 @@ float trigger_norm(int16_t raw)
     return v < 0.0f ? 0.0f : v;
 }
 
+// Longest gap between two gyro samples that is still integrated. After a pause in the
+// event stream the last rate is stale: integrating it over the whole pause would turn the pad.
+constexpr float RV_PCGAMEPADS_SDL3_GYRO_MAX_DT = 0.1f;
+
+// SDL sensor timestamps are nanoseconds.
+constexpr float RV_PCGAMEPADS_SDL3_SECONDS_PER_NS = 1e-9f;
+
+// |angular velocity| on one axis above this (rad/s, about 20 deg/s) counts as turning.
+// Below it lie hand tremor and the noise of a pad at rest.
+constexpr float RV_PCGAMEPADS_SDL3_GYRO_LIVE_THRESHOLD = 0.35f;
+
+// Yes or no: does the pad have the gyro and accel pair the filter needs.
+bool has_motion_sensors(SDL_Gamepad *pad)
+{
+    return SDL_GamepadHasSensor(pad, SDL_SENSOR_GYRO) && SDL_GamepadHasSensor(pad, SDL_SENSOR_ACCEL);
+}
+
+// Turns on the gyro and accel pair. If SDL refuses either one, both are turned off again:
+// otherwise SDL keeps sending events for a pad that declares no motion.
+int enable_motion_sensors(SDL_Gamepad *pad)
+{
+    const bool gyro_on = SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_GYRO, true);
+    const bool accel_on = SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_ACCEL, true);
+    if (!gyro_on || !accel_on) {
+        RV_LOG_WARN("pcplatform", "gamepad motion sensors refused: {}, no motion abilities", SDL_GetError());
+        SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_GYRO, false);
+        SDL_SetGamepadSensorEnabled(pad, SDL_SENSOR_ACCEL, false);
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 rv_pcgamepads_sdl3::~rv_pcgamepads_sdl3()
@@ -155,9 +187,15 @@ void rv_pcgamepads_sdl3::add(uint32_t joystick_id)
         pad_abilities |= RV_ISOURCE_RIGHT_TRIGGER_SOFT_PULL | RV_ISOURCE_RIGHT_TRIGGER_FULL_PULL;
     }
 
+    const bool motion = has_motion_sensors(pad) && enable_motion_sensors(pad) == RV_OK;
+    if (motion) {
+        pad_abilities |= RV_ISOURCE_GYRO_MOVE | RV_ISOURCE_GYRO_PITCH | RV_ISOURCE_GYRO_YAW | RV_ISOURCE_GYRO_ROLL;
+    }
+
     rv_pcpad_sdl3 entry;
     entry.pad = pad;
     entry.abilities = pad_abilities;
+    entry.motion = motion;
     RV_LOG_INFO("pcplatform", "gamepad '{}' connected (id {})", SDL_GetGamepadName(pad), joystick_id);
     pads_.emplace(joystick_id, entry);
     connected_.push_back(joystick_id);
@@ -187,6 +225,53 @@ void rv_pcgamepads_sdl3::remove(uint32_t joystick_id)
     ++generation_;
 }
 
+void rv_pcgamepads_sdl3::sensor(const SDL_GamepadSensorEvent &event)
+{
+    const auto it = pads_.find(event.which);
+    if (it == pads_.end()) {
+        RV_LOG_WARN("pcplatform", "sensor event for unknown gamepad {}", event.which);
+        return;
+    }
+    // Sensors are off for this pad (never enabled, or refused and turned off again): a late event is expected.
+    if (!it->second.motion) {
+        return;
+    }
+
+    rv_pcpad_sdl3 &entry = it->second;
+    const float *d = event.data;
+    switch (event.sensor) {
+    case SDL_SENSOR_ACCEL:
+        // SDL is right-handed with +z to the player; the console is left-handed, so z flips.
+        entry.accel = rv_pdklib::rv_vec3{ d[0], d[1], -d[2] };
+        return;
+    case SDL_SENSOR_GYRO: {
+        // Angular velocity is a pseudovector: flipping z also flips x and y.
+        entry.gyro = rv_pdklib::rv_vec3{ -d[0], -d[1], d[2] };
+        // Unsigned difference: a backwards timestamp wraps to a huge dt and is refused below.
+        const bool first = !entry.gyro_stamped;
+        const float dt = static_cast<float>(event.sensor_timestamp - entry.gyro_stamp) * RV_PCGAMEPADS_SDL3_SECONDS_PER_NS;
+        entry.gyro_stamp = event.sensor_timestamp;
+        entry.gyro_stamped = true;
+        if (first) {
+            return;
+        }
+        if (dt <= 0.0f || dt > RV_PCGAMEPADS_SDL3_GYRO_MAX_DT) {
+            RV_LOG_WARN("pcplatform",
+                "gyro gap of {} s is outside (0, {}] s: sample not integrated",
+                dt,
+                RV_PCGAMEPADS_SDL3_GYRO_MAX_DT);
+            return;
+        }
+        if (rv_pcmotion_step(entry.fusion, entry.gyro, entry.accel, dt) != RV_OK) {
+            RV_LOG_WARN("pcplatform", "gyro sample refused by the motion fusion: dropped");
+        }
+        return;
+    }
+    default:
+        return;
+    }
+}
+
 void rv_pcgamepads_sdl3::poll_all()
 {
     for (auto &kv : pads_) {
@@ -197,6 +282,20 @@ void rv_pcgamepads_sdl3::poll_all()
 
         rv_istate &state = kv.second.state;
         state = rv_istate{};
+
+        // Identity until primed, and a pad without sensors never steps its fusion: the
+        // contract wants identity there too, which rv_istate{} alone (zero quat) would not give.
+        const rv_pcmotion &fusion = kv.second.fusion;
+        state.motion.quat_x = fusion.quat.x;
+        state.motion.quat_y = fusion.quat.y;
+        state.motion.quat_z = fusion.quat.z;
+        state.motion.quat_w = fusion.quat.w;
+        state.motion.accel_x = kv.second.accel.x;
+        state.motion.accel_y = kv.second.accel.y;
+        state.motion.accel_z = kv.second.accel.z;
+        state.motion.angular_velocity_x = kv.second.gyro.x;
+        state.motion.angular_velocity_y = kv.second.gyro.y;
+        state.motion.angular_velocity_z = kv.second.gyro.z;
 
         const struct {
             SDL_GamepadButton button;
@@ -259,9 +358,24 @@ void rv_pcgamepads_sdl3::poll_all()
             state.buttons |= RV_ISOURCE_RIGHT_TRIGGER_FULL_PULL;
         }
 
-        // DEFERRED: gyro / accelerometer and the Steam Deck trackpads. Neither
-        // is advertised in `abilities`, so a disc reading rv_imotion
-        // legitimately sees zeroes rather than a lie.
+        // Gyro live bits. A pad without sensors keeps zero angular velocity from the reset above,
+        // so no bit can fire for it.
+        const struct {
+            float rate;
+            uint64_t source;
+        } gyro_map[] = {
+            { state.motion.angular_velocity_x, RV_ISOURCE_GYRO_PITCH },
+            { state.motion.angular_velocity_y, RV_ISOURCE_GYRO_YAW },
+            { state.motion.angular_velocity_z, RV_ISOURCE_GYRO_ROLL },
+        };
+        for (const auto &entry : gyro_map) {
+            if (std::fabs(entry.rate) > RV_PCGAMEPADS_SDL3_GYRO_LIVE_THRESHOLD) {
+                state.buttons |= entry.source | RV_ISOURCE_GYRO_MOVE;
+            }
+        }
+
+        // DEFERRED: the Steam Deck trackpads. They are not advertised in
+        // `abilities`, so a disc reading them legitimately sees zeroes rather than a lie.
     }
 }
 
