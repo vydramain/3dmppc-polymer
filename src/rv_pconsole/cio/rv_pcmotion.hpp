@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_math.hpp"
 
 namespace rv_3dmppc
@@ -79,9 +80,16 @@ inline rv_pdklib::rv_vec4 rv_pcmotion_align_up(rv_pdklib::rv_vec3 from)
 inline int rv_pcmotion_step(rv_pcmotion &fusion, rv_pdklib::rv_vec3 gyro, rv_pdklib::rv_vec3 accel, float dt)
 {
     // rv_length of an overflowing or NaN accel is non-finite, so it covers accel too.
-    const bool valid =
-        dt > 0.0f && std::isfinite(dt) && detail::rv_pcmotion_finite(gyro) && std::isfinite(rv_pdklib::rv_length(accel));
+    const bool dt_ok = dt > 0.0f && std::isfinite(dt);
+    const bool gyro_ok = detail::rv_pcmotion_finite(gyro);
+    const bool accel_ok = std::isfinite(rv_pdklib::rv_length(accel));
+    const bool valid = dt_ok && gyro_ok && accel_ok;
     if (!valid) {
+        RV_LOG_WARN("pcmotion",
+            "sample refused: dt {} s (need finite and > 0), gyro finite {}, accel length finite {}",
+            dt,
+            gyro_ok,
+            accel_ok);
         return RV_ERR_INVAL;
     }
 
@@ -109,6 +117,9 @@ inline int rv_pcmotion_step(rv_pcmotion &fusion, rv_pdklib::rv_vec3 gyro, rv_pdk
     // NaN or overflow in any component makes the squared norm non-finite or zero.
     const float norm2 = rv_pdklib::rv_dot(next, next);
     if (!std::isfinite(norm2) || norm2 <= 0.0f) {
+        RV_LOG_WARN("pcmotion",
+            "sample refused: quaternion update non-finite or zero, squared norm {} (need finite and > 0)",
+            norm2);
         return RV_ERR_INVAL;
     }
     // The aligned base is already unit length: scale 1 keeps it bit-exact on the priming step.

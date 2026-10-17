@@ -262,9 +262,8 @@ void rv_pcgamepads_sdl3::sensor(const SDL_GamepadSensorEvent &event)
                 RV_PCGAMEPADS_SDL3_GYRO_MAX_DT);
             return;
         }
-        if (rv_pcmotion_step(entry.fusion, entry.gyro, entry.accel, dt) != RV_OK) {
-            RV_LOG_WARN("pcplatform", "gyro sample refused by the motion fusion: dropped");
-        }
+        // A refused sample is dropped: the filter logged why.
+        (void)rv_pcmotion_step(entry.fusion, entry.gyro, entry.accel, dt);
         return;
     }
     default:
