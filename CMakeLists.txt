@@ -377,6 +377,7 @@ if(3DMPPC_DEVTOOLS)
     -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
   )
   set(RV_FIRMWARE_DEPENDS "")
+  set(RV_FIRMWARE_BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build)
   if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_sysroot.cmake)
     list(APPEND RV_FIRMWARE_CMAKE_ARGS
@@ -385,6 +386,8 @@ if(3DMPPC_DEVTOOLS)
       -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON
     )
     set(RV_FIRMWARE_DEPENDS 3dmppc_linux_sysroot)
+    # A new dir: CMake ignores a toolchain file on an existing cache, so the old one would keep the host compiler.
+    set(RV_FIRMWARE_BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build-sniper)
     # mppcburner reads this directory: toolchain.cmake builds a disc's disc.so, compat-check.cmake checks it.
     set(RV_LINUX_BURNER_DIR ${CMAKE_BINARY_DIR}/pconsole/firmware/linux)
     file(MAKE_DIRECTORY ${RV_LINUX_BURNER_DIR})
@@ -407,7 +410,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake")
 
   ExternalProject_Add(3dmppc_firmware
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
-    BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build
+    BINARY_DIR ${RV_FIRMWARE_BINARY_DIR}
     CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
     DEPENDS ${RV_FIRMWARE_DEPENDS}
     BUILD_ALWAYS ON
@@ -417,7 +420,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake")
   ExternalProject_Add_Step(3dmppc_firmware copy_firmware
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
     COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_BINARY_DIR}/firmware-build/pconsole/3dmppc
+            ${RV_FIRMWARE_BINARY_DIR}/pconsole/3dmppc
             ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc
     DEPENDEES build
     ALWAYS 1
