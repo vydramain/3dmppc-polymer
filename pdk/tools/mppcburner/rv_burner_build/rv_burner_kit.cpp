@@ -25,6 +25,16 @@ constexpr std::string_view kKitSubdir = "firmware/web";
 constexpr std::string_view kKitFileName = "kit.txt";
 constexpr std::string_view kNoKitHint = "a development build (-D3DMPPC_DEVTOOLS=ON) makes it";
 
+// The Linux kit sits beside the burner the same way; both files must be there, or it is incomplete.
+constexpr std::string_view kLinuxKitSubdir = "firmware/linux";
+constexpr std::string_view kLinuxToolchainName = "toolchain.cmake";
+constexpr std::string_view kLinuxCompatName = "compat-check.cmake";
+
+// How the compat check runs. kCompatFilesArg is the variable cmake/rv_linux_compat_check.cmake reads.
+constexpr std::string_view kCmakeCommand = "cmake";
+constexpr std::string_view kCompatFilesArg = "-DRV_COMPAT_FILES=";
+constexpr std::string_view kCompatScriptArg = " -P ";
+
 // Every key is required: a kit missing one would be linked with a guess.
 constexpr std::string_view kKeyPdkVersion = "pdk_version";
 constexpr std::string_view kKeyBuildType = "build_type";
@@ -243,6 +253,17 @@ int parse_entries(std::string_view text, std::map<std::string, std::string, std:
     return RV_OK;
 }
 
+// A file the Linux kit must have; a directory with one of them missing is not a kit to build with.
+int require_linux_kit_file(const fs::path &path, std::string &error)
+{
+    std::error_code ec;
+    if (!fs::is_regular_file(path, ec)) {
+        error = "Linux kit is incomplete: '" + path.string() + "' is missing";
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 int rv_pdktools::rv_burner_kit_locate(fs::path &dir, std::string &error)
@@ -330,4 +351,51 @@ int rv_pdktools::rv_burner_kit_check_version(const rv_burner_kit &kit, std::stri
     error = "kit is PDK " + std::to_string(kit.pdk_major) + "." + std::to_string(kit.pdk_minor) + ", this burner is " +
         std::to_string(RV_MPPC_VER_MAJOR) + "." + std::to_string(RV_MPPC_VER_MINOR);
     return RV_ERR_INVAL;
+}
+
+int rv_pdktools::rv_burner_linux_kit_locate(fs::path &toolchain_file, fs::path &compat_check, std::string &error)
+{
+    const fs::path exe_dir = rv_pdktools::executable_directory();
+    if (exe_dir.empty()) {
+        error = "no Linux kit: the burner's own directory is unknown; " + std::string(kNoKitHint);
+        return RV_ERR_NOENT;
+    }
+
+    const fs::path kit_dir = exe_dir / kLinuxKitSubdir;
+    std::error_code ec;
+    if (!fs::is_directory(kit_dir, ec)) {
+        error = "no Linux kit at '" + kit_dir.string() + "'; " + std::string(kNoKitHint);
+        return RV_ERR_NOENT;
+    }
+
+    const fs::path toolchain = kit_dir / kLinuxToolchainName;
+    const fs::path compat = kit_dir / kLinuxCompatName;
+    if (const int rv = require_linux_kit_file(toolchain, error); rv != RV_OK) {
+        return rv;
+    }
+    if (const int rv = require_linux_kit_file(compat, error); rv != RV_OK) {
+        return rv;
+    }
+
+    toolchain_file = toolchain;
+    compat_check = compat;
+    return RV_OK;
+}
+
+int rv_pdktools::rv_burner_linux_compat_check(const fs::path &compat_check, const fs::path &file, std::string &error)
+{
+    const std::string path = file.string();
+
+    // Quoted as a whole, so a space in the disc directory stays inside the one -D value.
+    const std::string command = std::string(kCmakeCommand) + " " + std::string(kCompatFilesArg) + shell_quote(path) +
+        std::string(kCompatScriptArg) + shell_quote(compat_check.string());
+    std::string child_output;
+    const int status = run_capture(command, child_output);
+    if (status != 0) {
+        // Not always the disc: a missing cmake (127) or a broken check script fails the same way.
+        dump_child_output(child_output);
+        error = "the Linux compat check failed or could not run on '" + path + "' (exit " + std::to_string(status) + ")";
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
 }

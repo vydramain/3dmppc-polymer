@@ -15,6 +15,7 @@
 #include "rv_burner_build/rv_burner_build_assets.hpp"
 #include "rv_burner_build/rv_burner_target.hpp"
 #include "rv_burner_assets/rv_burner_plan.hpp"
+#include "rv_burner_build/rv_burner_kit.hpp"
 #include "rv_burner_build/rv_burner_map.hpp"
 #include "rv_burner_burn/rv_burner_burn.hpp"
 #include "rv_burner_common/rv_burner_globs.hpp"
@@ -128,6 +129,50 @@ int rv_burner_build_manifest(const fs::path &disc_dir, rv_pdklib::rv_manifest &m
     return RV_OK;
 }
 
+// --- the Linux kit ---
+//
+// The kit beside the burner builds disc.so against the delivery sysroot and proves it afterwards. Absent,
+// disc.so carries this machine's libraries: one warning says so. Present but broken is an error.
+static int rv_burner_find_linux_kit(fs::path &toolchain_file, fs::path &compat_check, std::string &error)
+{
+    const int kit_err = rv_burner_linux_kit_locate(toolchain_file, compat_check, error);
+    if (kit_err != RV_OK && kit_err != RV_ERR_NOENT) {
+        return kit_err;
+    }
+    if (kit_err == RV_ERR_NOENT) {
+        // The reason the kit is absent travels with the warning, on the same line.
+        rv_burner_print_warning(std::format("{} is built against this machine's libraries and may not run on older Linux "
+                                            "such as the Steam Deck ({})",
+            k_disc_module_name,
+            error));
+    }
+    return RV_OK;
+}
+
+// --- a fresh cmake configure ---
+//
+// A CMakeCache kept from an earlier burn holds that burn's toolchain: with no kit it would keep the kit's
+// toolchain, and once the kit is gone it would fail the configure. Only cmake's own state is removed, since
+// with --keep-build the build directory is the user's and may hold more than this build's files.
+static constexpr const char *k_cmake_cache_name = "CMakeCache.txt";
+static constexpr const char *k_cmake_files_name = "CMakeFiles";
+
+static int rv_burner_clear_cmake_state(const fs::path &binary_dir, std::string &error)
+{
+    std::error_code ec;
+    fs::remove(binary_dir / k_cmake_cache_name, ec);
+    if (ec) {
+        error = "cannot clear cmake state in '" + binary_dir.string() + "': " + ec.message();
+        return RV_ERR_IO;
+    }
+    fs::remove_all(binary_dir / k_cmake_files_name, ec);
+    if (ec) {
+        error = "cannot clear cmake state in '" + binary_dir.string() + "': " + ec.message();
+        return RV_ERR_IO;
+    }
+    return RV_OK;
+}
+
 // --- [2/4] compile ---
 //
 // Generates the CMake project, configures and compiles it, and prints step 2.
@@ -140,13 +185,28 @@ static int rv_burner_build_compile(const rv_burner_options &options,
     std::size_t source_count,
     std::string &error)
 {
+    fs::path toolchain_file;
+    fs::path compat_check;
+    const int kit_err = rv_burner_find_linux_kit(toolchain_file, compat_check, error);
+    if (kit_err != RV_OK) {
+        rv_burner_print_error(error);
+        return kit_err;
+    }
+
     const int cmake_err = create_cmakelists(options, manifest, project_dir, absolute_includes, absolute_sources, error);
     if (cmake_err != RV_OK) {
         rv_burner_print_error(error);
         return cmake_err;
     }
 
-    const int configure_err = configure_cmake(binary_dir, project_dir, error);
+    const int clear_err = rv_burner_clear_cmake_state(binary_dir, error);
+    if (clear_err != RV_OK) {
+        rv_burner_print_error(error);
+        return clear_err;
+    }
+
+    // An empty toolchain_file is the host build, as before the kit existed.
+    const int configure_err = configure_cmake(binary_dir, project_dir, error, toolchain_file);
     if (configure_err != RV_OK) {
         rv_burner_print_error(error);
         return configure_err;
@@ -156,6 +216,15 @@ static int rv_burner_build_compile(const rv_burner_options &options,
     if (compile_err != RV_OK) {
         rv_burner_print_error(error);
         return compile_err;
+    }
+
+    // No kit, no compat_check: nothing to prove against.
+    if (!compat_check.empty()) {
+        const int contract_err = rv_burner_linux_compat_check(compat_check, binary_dir / k_disc_module_name, error);
+        if (contract_err != RV_OK) {
+            rv_burner_print_error(error);
+            return contract_err;
+        }
     }
 
     rv_burner_print_step(k_step_compile, "compile", std::format("{} source(s) -> {}", source_count, k_disc_module_name));
