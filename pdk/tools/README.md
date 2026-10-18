@@ -18,7 +18,7 @@ puts the tools next to the console in `build-dev/pconsole/`.
 | --- | --- | --- |
 | [`mppcburner`](mppcburner/) | compiles a disc directory, bakes its assets with the bakers and packs it | `.mppcdisc` |
 | [`mppctexbaker`](mppctexbaker/) | quantizes and packs a PNG into console texels | `.mppctex` |
-| [`mppcmusbaker`](mppcmusbaker/) | converts a 16-bit 44100 Hz WAV into the console's sound | `.pcm` (headerless S16LE mono) |
+| [`mppcmusbaker`](mppcmusbaker/) | converts a 16-bit or 24-bit 44100 Hz WAV into the console's sound | `.pcm` (headerless S16LE mono) |
 | [`mppcmodbaker`](mppcmodbaker/) | bakes a glTF 2.0 `.glb` into a console model and its embedded PNG textures | `.mppcmod` + `.png` |
 
 Tools are named for the **act**, artifacts for the **thing**. `mppcdisc` is a

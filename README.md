@@ -619,8 +619,8 @@ else is copied as is.
 
 Each listed WAV is baked by `mppcmusbaker` into a headerless `<name>.pcm` - the console's
 raw S16LE mono 44100 Hz samples - and put on the disc beside the textures. The WAV must
-already be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
-else is refused, not resampled.
+already be PCM 16-bit or 24-bit 44100 Hz, mono or stereo (stereo is averaged to mono);
+anything else is refused, not resampled.
 
 Each listed `.glb` or `.gltf` (glTF 2.0) is baked by `mppcmodbaker` into a
 `<name>.mppcmod`. The baker writes each PNG texture beside it as `<stem>-<n>.png`: a
