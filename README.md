@@ -553,7 +553,7 @@ files = ["models/*.glb"]
 `[sounds]` is optional, like `[textures]`: each listed WAV is baked by
 `mppcmusbaker` into a headerless `<name>.pcm` - the console's raw S16LE mono
 44100 Hz samples - and put on the disc beside the textures. The WAV must already
-be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
+be PCM 16-bit or 24-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
 else is refused, not resampled.
 
 `[music]` is optional too, and takes `.wav` or `.mp3` globs. Each track is baked by

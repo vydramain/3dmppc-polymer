@@ -54,7 +54,7 @@ void print_usage(std::FILE *out)
         "usage: mppcmusbaker <input.wav|input.mp3> <output.pcm>\n"
         "\n"
         "  A .wav is baked to headerless S16LE mono at 44100 Hz, the shape the console\n"
-        "  plays. It must already be PCM 16-bit 44100 Hz, mono or stereo (stereo is\n"
+        "  plays. It must already be PCM 16-bit or 24-bit 44100 Hz, mono or stereo (stereo is\n"
         "  averaged to mono).\n"
         "\n"
         "  A .mp3 is decoded the same way; it must be 44100 Hz (it is not resampled).\n"
