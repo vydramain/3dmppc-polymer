@@ -19,6 +19,7 @@ should be justifiable in a sentence.
 | [`pxplus-ibm-vga/`](pxplus-ibm-vga/) | PxPlus IBM VGA 9x16 font (TTF) | `editor/`; pdklib's Cyrillic block is redrawn after it | CC BY-SA 4.0 |
 | [`catppuccin-palette/`](catppuccin-palette/) | Catppuccin palette `v1.8.0` - colour values as JSON | `editor/` (Mocha) | MIT |
 | [`cgltf/`](cgltf/) | `cgltf` `1.15` - single-file glTF 2.0 parser (C99) | used by `pdk/tools` mppcmodbaker; `editor/` later (glTF models; never the console) | MIT |
+| [`minimp3/`](minimp3/) | `minimp3` - MP3 decoder, single header; lieff/minimp3 commit `ea99364`, taken 2026-10-18 | `pdk/tools/mppcmusbaker` | CC0 |
 
 ## Rules for adding something
 
