@@ -1,6 +1,8 @@
-// mppcmusbaker: bakes a WAV into the headerless S16LE mono the console plays.
+// mppcmusbaker: bakes a WAV or an MP3 into the headerless S16LE mono the console plays.
 #include <getopt.h>
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -10,6 +12,7 @@
 #include "pdk/de/rv_dv.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_stdio/rv_stdio.hpp"
+#include "rv_musbaker_mp3.hpp"
 #include "rv_musbaker_wav.hpp"
 
 namespace
@@ -48,11 +51,13 @@ struct musbaker_args {
 void print_usage(std::FILE *out)
 {
     rv_pdklib::rv_fprintf(out,
-        "usage: mppcmusbaker <input.wav> <output.pcm>\n"
+        "usage: mppcmusbaker <input.wav|input.mp3> <output.pcm>\n"
         "\n"
         "  A .wav is baked to headerless S16LE mono at 44100 Hz, the shape the console\n"
         "  plays. It must already be PCM 16-bit 44100 Hz, mono or stereo (stereo is\n"
         "  averaged to mono).\n"
+        "\n"
+        "  A .mp3 is decoded the same way; it must be 44100 Hz (it is not resampled).\n"
         "\n"
         "mppcmusbaker --version prints one line, `mppcmusbaker <major>.<minor>`.\n");
 }
@@ -115,6 +120,20 @@ int write_file(const std::string &path, const std::vector<uint8_t> &bytes, musba
     return RV_OK;
 }
 
+// The reader follows the extension, case-insensitively. Anything else is read as
+// WAVE, which refuses what it does not understand.
+bool has_mp3_extension(const std::string &path)
+{
+    constexpr std::string_view RV_MP3_EXTENSION = ".mp3";
+    if (path.size() < RV_MP3_EXTENSION.size()) {
+        return false;
+    }
+    const std::string_view tail = std::string_view(path).substr(path.size() - RV_MP3_EXTENSION.size());
+    return std::ranges::equal(tail, RV_MP3_EXTENSION, [](char a, char b) {
+        return std::tolower(static_cast<unsigned char>(a)) == b;
+    });
+}
+
 int run(int argc, char **argv)
 {
     musbaker_args args;
@@ -129,9 +148,11 @@ int run(int argc, char **argv)
     }
 
     std::vector<uint8_t> pcm;
-    std::string wav_error;
-    if (load_wav_pcm(args.input, &pcm, &wav_error) != RV_OK) {
-        error.message = wav_error;
+    std::string load_error;
+    const bool is_mp3 = has_mp3_extension(args.input);
+    const rv_err loaded = is_mp3 ? load_mp3_pcm(args.input, &pcm, &load_error) : load_wav_pcm(args.input, &pcm, &load_error);
+    if (loaded != RV_OK) {
+        error.message = load_error;
         return report(error);
     }
     if (write_file(args.output, pcm, &error) != RV_OK) {
