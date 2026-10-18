@@ -368,11 +368,24 @@ if(3DMPPC_DEVTOOLS)
   # console above is not it. DEVTOOLS is one option per build tree, so the firmware
   # is a nested build with it OFF. It reuses the SDL3 and LuaJIT sources fetched
   # here instead of downloading them again.
+  # On Linux x86-64 it is built against the pinned Steam Runtime sniper sysroot (glibc 2.31,
+  # so it runs on the Steam Deck) with SDL3 from source, statically. Other hosts build it
+  # as before, against their own libraries.
   set(RV_FIRMWARE_CMAKE_ARGS
     -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
     -D3DMPPC_DEVTOOLS=OFF
     -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
   )
+  set(RV_FIRMWARE_DEPENDS "")
+  if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_sysroot.cmake)
+    list(APPEND RV_FIRMWARE_CMAKE_ARGS
+      -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake
+      -DRV_LINUX_SYSROOT=${RV_LINUX_SYSROOT_DIR}
+      -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON
+    )
+    set(RV_FIRMWARE_DEPENDS 3dmppc_linux_sysroot)
+  endif()
   if(DEFINED sdl3_SOURCE_DIR)
     list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
   endif()
@@ -384,6 +397,7 @@ if(3DMPPC_DEVTOOLS)
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
     BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build
     CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
+    DEPENDS ${RV_FIRMWARE_DEPENDS}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
