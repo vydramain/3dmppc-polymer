@@ -380,15 +380,12 @@ if(3DMPPC_DEVTOOLS)
     list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
   endif()
 
-  # DEPENDS 3dmppc: LuaJIT is built in its source tree by the dev build, and the
-  # nested build must not run its make at the same time.
   ExternalProject_Add(3dmppc_firmware
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
     BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build
     CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
-    DEPENDS 3dmppc
   )
   # The nested console lands in its own pconsole/ dir; copy it to the firmware dir.
   ExternalProject_Add_Step(3dmppc_firmware copy_firmware
