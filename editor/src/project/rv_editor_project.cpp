@@ -33,15 +33,18 @@ constexpr std::string_view manifest_file = "disc.toml";
 // Directory name used for editor's cache and state subdirectories.
 constexpr std::string_view editor_dir_name = "3dmppc-editor";
 
-// Disc section names for assets, textures and sounds.
+// Disc section names.
 constexpr std::string_view disc_section_textures = "textures";
 constexpr std::string_view disc_section_sounds = "sounds";
+constexpr std::string_view disc_section_music = "music";
 constexpr std::string_view disc_section_assets = "assets";
 constexpr std::string_view disc_section_models = "models";
 
-// File extensions for automatic section detection.
+// File extensions for automatic section detection. An .mp3 goes to [music]: it is
+// never a [sounds] file, and a copy in [assets] would be shipped raw, while its bake goes to the sound directory.
 constexpr std::string_view file_ext_png = ".png";
 constexpr std::string_view file_ext_wav = ".wav";
+constexpr std::string_view file_ext_mp3 = ".mp3";
 
 // XDG environment variables and fallback paths for user directories per XDG Base Directory spec.
 constexpr std::string_view xdg_cache_var = "XDG_CACHE_HOME";
@@ -229,6 +232,7 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
         project.assets_patterns.clear();
         project.textures_patterns.clear();
         project.sounds_patterns.clear();
+        project.music_patterns.clear();
         project.models_patterns.clear();
         project.has_build_section = false;
         return;
@@ -241,14 +245,18 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.assets_patterns = manifest.assets_files;
     project.textures_patterns = manifest.textures_files.files;
     project.sounds_patterns = manifest.sounds_files;
+    project.music_patterns = manifest.music_files;
     project.models_patterns = manifest.models_files;
     project.has_build_section = !manifest.build_sources.empty();
 }
 
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel)
 {
-    for (const auto *patterns :
-        { &project.assets_patterns, &project.textures_patterns, &project.sounds_patterns, &project.models_patterns }) {
+    for (const auto *patterns : { &project.assets_patterns,
+             &project.textures_patterns,
+             &project.sounds_patterns,
+             &project.music_patterns,
+             &project.models_patterns }) {
         for (const std::string &pattern : *patterns) {
             if (rv_pdklib::rv_manifest_pattern_matches(pattern, rel)) {
                 return true;
@@ -265,6 +273,9 @@ const char *rv_editor_project_disc_section(std::string_view rel)
     }
     if (rel.ends_with(std::string(file_ext_wav))) {
         return disc_section_sounds.data();
+    }
+    if (rel.ends_with(std::string(file_ext_mp3))) {
+        return disc_section_music.data();
     }
     if (rel.ends_with(std::string(file_ext_glb))) {
         return disc_section_models.data();

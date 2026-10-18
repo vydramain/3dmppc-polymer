@@ -142,12 +142,13 @@ struct rv_editor_project {
     std::vector<std::string> assets_patterns;   // [assets] files, relative to root
     std::vector<std::string> textures_patterns; // [textures] files, relative to root
     std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
+    std::vector<std::string> music_patterns;    // [music] files (.wav, .mp3), relative to root
     std::vector<std::string> models_patterns;   // [models] files (.glb), relative to root
     bool has_build_section = false;             // disc.toml has [build] sources: a C++ disc
 };
 
 // True when `rel` (relative to p.root, '/'-separated) matches a pattern in
-// any of the four sections above.
+// any of the five sections above.
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel);
 
 // The disc.toml section a project file belongs to, by extension.
