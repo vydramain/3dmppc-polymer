@@ -150,6 +150,23 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
         return sounds_err;
     }
 
+    // --- music ---
+    //
+    // A track is baked to .pcm into the sound directory, so it shares the sound
+    // naming and its collision check.
+    const int music_err = plan_section(manifest.music_files,
+        "[music] files",
+        disc_dir,
+        sound_dir,
+        ".pcm",
+        plan,
+        plan.first_music,
+        plan.music_count,
+        error);
+    if (music_err != RV_OK) {
+        return music_err;
+    }
+
     // --- the whole plan at once ---
     //
     // Across sections, not within one: a PNG and a .lua can collapse onto the

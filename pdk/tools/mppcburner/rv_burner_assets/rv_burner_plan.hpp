@@ -34,6 +34,8 @@ struct archive_plan {
     std::size_t script_count = 0;        ///< how many script entries follow it
     std::size_t first_sound = 0;         ///< index of the first sound entry
     std::size_t sound_count = 0;         ///< how many sound entries follow it
+    std::size_t first_music = 0;         ///< index of the first music entry
+    std::size_t music_count = 0;         ///< how many music entries follow it
     std::size_t first_model = 0;         ///< index of the first model entry
     std::size_t model_count = 0;         ///< how many model entries follow it
     std::size_t first_model_texture = 0; ///< index of the first texture a model names
@@ -50,10 +52,11 @@ struct archive_plan {
 /// @param disc_dir     absolute, canonical disc directory the globs resolve against
 /// @param texture_dir  directory baked .mppctex files will be written to
 /// @param scripts_dir  directory compiled .luac files will be written to
-/// @param sound_dir    directory baked .pcm files will be written to
+/// @param sound_dir    directory baked .pcm files will be written to; [music] tracks go here too
 /// @param out          receives the plan; untouched on failure
 /// @param error        set with a message that already names its manifest section
-/// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise
+/// @return RV_OK on success, the RV_ERR_* of the refusing step otherwise; [music] tracks are planned
+///         as "<stem>.pcm" in sound_dir, baked by bake_music and copied as plain assets
 int plan_archive(const rv_pdklib::rv_manifest &manifest,
     const std::filesystem::path &disc_dir,
     const std::filesystem::path &texture_dir,

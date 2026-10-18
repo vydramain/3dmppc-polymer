@@ -543,6 +543,9 @@ format = "idx8"
 [sounds]
 files = ["assets/*.wav"]
 
+[music]
+files = ["assets/*.mp3"]
+
 [models]
 files = ["models/*.glb"]
 ```
@@ -552,6 +555,17 @@ files = ["models/*.glb"]
 44100 Hz samples - and put on the disc beside the textures. The WAV must already
 be PCM 16-bit 44100 Hz, mono or stereo (stereo is averaged to mono); anything
 else is refused, not resampled.
+
+`[music]` is optional too, and takes `.wav` or `.mp3` globs. Each track is baked by
+`mppcmusbaker` into a headerless `<name>.pcm` - S16LE mono 44100 Hz, the same as
+`[sounds]` - in the sound directory of the image. Unlike `[sounds]`, the track is not
+loaded into the sound memory: the disc reads the whole track once with `rv_cd_asset_open`
+and `rv_cd_asset_read` into its own memory; a disc can then page it in chunks into a
+small sound-memory region that a voice plays. A long track costs main RAM, which the console
+does not budget: a 25-minute track is about 132 MB. An MP3 must be MPEG Layer III at 44100 Hz;
+anything else is refused. The PCM is not stored in the project; it lives in the build
+directory and the image. A music and a sound file with the same stem collide and the
+burn is refused. A 1.2 console refuses a disc with `[music]`.
 
 `[models]` is optional the same way: each listed `.glb` (glTF 2.0) is baked by
 `mppcmodbaker` into a `<name>.mppcmod`; its embedded PNG textures are baked

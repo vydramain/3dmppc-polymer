@@ -153,6 +153,11 @@ struct rv_manifest {
     // by mppcmusbaker on the way in; no format key yet, there is only one output.
     std::vector<std::string> sounds_files;
 
+    // [music] - globs of .wav or .mp3 baked by mppcmusbaker into headerless S16LE mono 44100 "<name>.pcm".
+    // Read whole (rv_cd_asset_open/read) into main RAM; a disc may page it in chunks into a sound-memory region a voice plays,
+    // so a long track costs main RAM (not budgeted), not sound memory. The baked PCM lives only in the build dir and image.
+    std::vector<std::string> music_files;
+
     // [models] - .glb globs baked by mppcmodbaker into "<name>.mppcmod" and its textures
     std::vector<std::string> models_files;
 

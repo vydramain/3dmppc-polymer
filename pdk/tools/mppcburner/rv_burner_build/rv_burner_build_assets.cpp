@@ -143,6 +143,12 @@ int rv_burner_build_assets(const rv_burner_options &options,
         return sounds_err;
     }
 
+    const int music_err = bake_music(options.baker, disc_dir, plan, error);
+    if (music_err != RV_OK) {
+        rv_burner_print_error(error);
+        return music_err;
+    }
+
     std::vector<model_texture> model_textures;
     const int models_err = bake_models(options.baker, disc_dir, plan, model_textures, error);
     if (models_err != RV_OK) {
@@ -166,9 +172,9 @@ int rv_burner_build_assets(const rv_burner_options &options,
         destination.kind == rv_burner_destination_kind::directory ? "lua (uncompiled)" : "lua -> .luac";
     rv_burner_print_step(k_step_assets,
         "assets",
-        std::format("{} png -> .mppctex, {} wav -> .pcm, {} {}, {} copied",
+        std::format("{} png -> .mppctex, {} wav/mp3 -> .pcm, {} {}, {} copied",
             plan.texture_count + plan.model_texture_count,
-            plan.sound_count,
+            plan.sound_count + plan.music_count,
             plan.script_count,
             scripts_wording,
             plan.asset_count));

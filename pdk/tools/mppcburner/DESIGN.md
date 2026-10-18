@@ -55,3 +55,17 @@
     └──────────────────────────────────────────────┘
 
 Paths of .cpp/.hpp are given relative to pdk/lib/include/pdklib/rv_manifest/.
+
+--- [music] in the burner ---
+
+A [music] track is not made resident: the console streams it from the disc, so
+the burner does not load it into sound memory.
+
+    plan   rv_burner_assets/rv_burner_plan.cpp   glob -> .pcm name in the sound dir,
+                                                 shares the sound collision check
+    bake   rv_burner_assets/rv_burner_bake.cpp   bake_music(): mppcmusbaker, same
+                                                 range helper as bake_sounds()
+    map    rv_burner_build/rv_burner_map.cpp     one "music" line per track
+    burn   rv_burner_burn/rv_burner_burn.cpp     copied into the disc directory like
+                                                 a baked sound (never a symlink);
+                                                 a zip archive takes it as a file

@@ -138,7 +138,7 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     std::ostringstream out;
 
     // Every key of a present section is written, including empty arrays and zero
-    // counts; the optional sections ([textures], [sounds], [models]) are left off
+    // counts; the optional sections ([textures], [sounds], [music], [models]) are left off
     // when they carry nothing. This is the copy that goes
     // ONTO THE DISC, and there it has to say what the burner actually used
     // rather than leaning on a default a later version of the tool might
@@ -180,6 +180,12 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     if (!manifest.sounds_files.empty()) {
         out << "\n[sounds]\n";
         render_array(out, "files", manifest.sounds_files);
+    }
+
+    // [music] is optional like [sounds]: no tracks, no section, so an old disc renders byte-identically.
+    if (!manifest.music_files.empty()) {
+        out << "\n[music]\n";
+        render_array(out, "files", manifest.music_files);
     }
 
     // Optional like [sounds]: no models, no section.
