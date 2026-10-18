@@ -400,6 +400,17 @@ if(3DMPPC_DEVTOOLS)
     ALWAYS 1
   )
 
+  # The delivery contract for the shipped firmware (see cmake/rv_linux_compat_check.cmake).
+  # It checks the last built firmware: build 3dmppc_firmware first. No DEPENDS: a check
+  # must not rebuild anything. mppcburner will check disc.so with the same script.
+  add_custom_target(check-linux-compat
+    COMMAND ${CMAKE_COMMAND}
+            "-DRV_COMPAT_FILES=${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake"
+    COMMENT "Checking Linux compatibility of the last built player console firmware"
+    VERBATIM
+  )
+
   # The web kit, built with a pinned emsdk; see cmake/rv_emsdk.cmake.
   include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_emsdk.cmake)
 endif()
