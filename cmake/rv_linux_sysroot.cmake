@@ -22,11 +22,25 @@ get_filename_component(RV_LINUX_SYSROOT_BUILD_DIR "${CMAKE_BINARY_DIR}" REALPATH
 set(RV_LINUX_SYSROOT_ROOT ${RV_LINUX_SYSROOT_BUILD_DIR}/linux-sysroot)
 set(RV_LINUX_SYSROOT_DIR ${RV_LINUX_SYSROOT_ROOT}/sysroot)
 
+# curl fetches the sysroot on Linux hosts, so it is a build dependency there; it resumes a broken transfer,
+# which ExternalProject's own URL download cannot do.
+find_program(RV_LINUX_CURL curl)
+if(NOT RV_LINUX_CURL)
+    message(FATAL_ERROR "curl is not found: it fetches the Steam Runtime sysroot on Linux; install curl and configure again")
+endif()
+
 include(ExternalProject)
+# Ninja buffers a step's output unless the step uses the terminal, so the download's progress meter is shown live
+# only with this; the step keeps its console, and a failure message is still printed.
 ExternalProject_Add(3dmppc_linux_sysroot
-  URL ${RV_LINUX_SYSROOT_URL}
-  URL_HASH SHA256=${RV_LINUX_SYSROOT_SHA256}
-  DOWNLOAD_EXTRACT_TIMESTAMP ON
+  USES_TERMINAL_DOWNLOAD 1
+  DOWNLOAD_COMMAND ${CMAKE_COMMAND}
+          -DRV_SYSROOT_URL=${RV_LINUX_SYSROOT_URL}
+          -DRV_SYSROOT_SHA256=${RV_LINUX_SYSROOT_SHA256}
+          -DRV_SYSROOT_TARBALL=${RV_LINUX_SYSROOT_ROOT}/sdk.tar.gz
+          -DRV_SYSROOT_DIR=${RV_LINUX_SYSROOT_DIR}
+          -DRV_CURL=${RV_LINUX_CURL}
+          -P ${CMAKE_CURRENT_LIST_DIR}/rv_linux_sysroot_download.cmake
   PREFIX ${RV_LINUX_SYSROOT_ROOT}/ep
   SOURCE_DIR ${RV_LINUX_SYSROOT_DIR}
   CONFIGURE_COMMAND ""
@@ -34,8 +48,8 @@ ExternalProject_Add(3dmppc_linux_sysroot
   INSTALL_COMMAND ""
 )
 
-# The download step extracts. ExternalProject records the URL, the hash and the extract option in its urlinfo
-# file, which the download step depends on: a change to the URL or the hash runs the step again.
+# The download step extracts. The URL and the hash are on its command line; Ninja reruns a step whose command
+# changed (the Makefile generators do not), so a new URL or hash downloads again.
 # A fresh extract leaves the stamp and wrapper of an earlier tree beside it, and the prepare script would skip
 # on that stamp, so both are removed first. Each run of this step therefore prepares the tree it has just extracted.
 ExternalProject_Add_Step(3dmppc_linux_sysroot prepare
