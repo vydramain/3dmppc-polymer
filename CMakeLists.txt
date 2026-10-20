@@ -339,55 +339,30 @@ endif()
 # its own CMake project, configured in its own subdirectory of this build tree
 # and linking nothing from here; only their binaries land next to the console
 # in pconsole/. Both still build on their own with their own command.
-if(3DMPPC_DEVTOOLS)
+# A dev build nested in this one (the Linux dev console below) is the console only, so it skips this section.
+if(3DMPPC_DEVTOOLS AND NOT 3DMPPC_DEVKIT_NESTED)
   include(ExternalProject)
 
-  set(RV_DEVKIT_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-    -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
-  )
-
-  # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
-  # build every time and lets it answer "no work to do".
-  ExternalProject_Add(3dmppc_pdktools
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
-    BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools
-    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
-    BUILD_ALWAYS ON
-    INSTALL_COMMAND ""
-  )
-  ExternalProject_Add(3dmppc_editor
-    SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
-    BINARY_DIR ${CMAKE_BINARY_DIR}/editor
-    CMAKE_ARGS ${RV_DEVKIT_CMAKE_ARGS}
-    BUILD_ALWAYS ON
-    INSTALL_COMMAND ""
-  )
-
-  # The player console is the firmware that goes into the burned discs; the dev
-  # console above is not it. DEVTOOLS is one option per build tree, so the firmware
-  # is a nested build with it OFF. It reuses the SDL3 and LuaJIT sources fetched
-  # here instead of downloading them again.
-  # On Linux x86-64 it is built against the pinned Steam Runtime sniper sysroot (glibc 2.31,
-  # so it runs on the Steam Deck) with SDL3 from source, statically. Other hosts build it
-  # as before, against their own libraries.
-  set(RV_FIRMWARE_CMAKE_ARGS
-    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-    -D3DMPPC_DEVTOOLS=OFF
-    -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
-  )
-  set(RV_FIRMWARE_DEPENDS "")
-  set(RV_FIRMWARE_BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build)
+  # One toolchain for everything the kit builds. On Linux x86-64 that is the pinned Steam Runtime sniper
+  # sysroot (glibc 2.31, so the firmware runs on the Steam Deck) with its gcc-14 libstdc++, the one mppcburner
+  # builds a disc's disc.so with. The dev console exports its symbols to the disc (ENABLE_EXPORTS), so its
+  # libstdc++ template code interposes the disc's: a host GCC 16 std::format run on a GCC 14 disc's state
+  # crashed at boot. Other hosts build everything as before, against their own libraries.
+  set(RV_KIT_CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE})
+  set(RV_KIT_DEPENDS "")
+  set(RV_KIT_DIR_SUFFIX "")
+  set(RV_LINUX_KIT OFF)
   if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    set(RV_LINUX_KIT ON)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_sysroot.cmake)
-    list(APPEND RV_FIRMWARE_CMAKE_ARGS
+    list(APPEND RV_KIT_CMAKE_ARGS
       -DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake
       -DRV_LINUX_SYSROOT=${RV_LINUX_SYSROOT_DIR}
       -DCMAKE_DISABLE_FIND_PACKAGE_SDL3=ON
     )
-    set(RV_FIRMWARE_DEPENDS 3dmppc_linux_sysroot)
-    # A new dir: CMake ignores a toolchain file on an existing cache, so the old one would keep the host compiler.
-    set(RV_FIRMWARE_BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build-sniper)
+    set(RV_KIT_DEPENDS 3dmppc_linux_sysroot)
+    # New dirs: CMake ignores a toolchain file on an existing cache, so an old one would keep the host compiler.
+    set(RV_KIT_DIR_SUFFIX -sniper)
     # mppcburner reads this directory: toolchain.cmake builds a disc's disc.so, compat-check.cmake checks it.
     set(RV_LINUX_BURNER_DIR ${CMAKE_BINARY_DIR}/pconsole/firmware/linux)
     file(MAKE_DIRECTORY ${RV_LINUX_BURNER_DIR})
@@ -401,18 +376,67 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake")
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_compat_check.cmake
       ${RV_LINUX_BURNER_DIR}/compat-check.cmake COPYONLY)
   endif()
+  # The nested builds reuse the SDL3 and LuaJIT sources fetched here instead of downloading them again.
   if(DEFINED sdl3_SOURCE_DIR)
-    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
+    list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_SDL3=${sdl3_SOURCE_DIR})
   endif()
   if(DEFINED luajit_SOURCE_DIR)
-    list(APPEND RV_FIRMWARE_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
+    list(APPEND RV_KIT_CMAKE_ARGS -DFETCHCONTENT_SOURCE_DIR_LUAJIT=${luajit_SOURCE_DIR})
   endif()
 
+  # BUILD_ALWAYS: this build cannot see their sources, so it asks their own
+  # build every time and lets it answer "no work to do".
+  ExternalProject_Add(3dmppc_pdktools
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/pdk/tools
+    BINARY_DIR ${CMAKE_BINARY_DIR}/pdktools${RV_KIT_DIR_SUFFIX}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+    DEPENDS ${RV_KIT_DEPENDS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+  ExternalProject_Add(3dmppc_editor
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/editor
+    BINARY_DIR ${CMAKE_BINARY_DIR}/editor${RV_KIT_DIR_SUFFIX}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS} -DCMAKE_RUNTIME_OUTPUT_DIRECTORY=${CMAKE_BINARY_DIR}/pconsole
+    DEPENDS ${RV_KIT_DEPENDS}
+    BUILD_ALWAYS ON
+    INSTALL_COMMAND ""
+  )
+
+  # On Linux the dev console itself is a nested build with the kit's toolchain; the host-compiled console
+  # targets of this tree are kept out of the default build, so no binary here carries the host libstdc++.
+  if(RV_LINUX_KIT)
+    set_target_properties(3dmppc rv_dmain 3dmppc_platform_sdl3 PROPERTIES EXCLUDE_FROM_ALL ON)
+    ExternalProject_Add(3dmppc_devconsole
+      SOURCE_DIR ${CMAKE_SOURCE_DIR}
+      BINARY_DIR ${CMAKE_BINARY_DIR}/devconsole-sniper
+      CMAKE_ARGS ${RV_KIT_CMAKE_ARGS}
+        -D3DMPPC_DEVTOOLS=ON
+        -D3DMPPC_DEVKIT_NESTED=ON
+        -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
+      DEPENDS ${RV_KIT_DEPENDS}
+      BUILD_ALWAYS ON
+      INSTALL_COMMAND ""
+    )
+    ExternalProject_Add_Step(3dmppc_devconsole copy_devconsole
+      COMMAND ${CMAKE_COMMAND} -E copy
+              ${CMAKE_BINARY_DIR}/devconsole-sniper/pconsole/3dmppc
+              ${CMAKE_BINARY_DIR}/pconsole/3dmppc
+      DEPENDEES build
+      ALWAYS 1
+    )
+  endif()
+
+  # The player console is the firmware that goes into the burned discs; the dev
+  # console is not it. DEVTOOLS is one option per build tree, so the firmware
+  # is a nested build with it OFF.
   ExternalProject_Add(3dmppc_firmware
     SOURCE_DIR ${CMAKE_SOURCE_DIR}
-    BINARY_DIR ${RV_FIRMWARE_BINARY_DIR}
-    CMAKE_ARGS ${RV_FIRMWARE_CMAKE_ARGS}
-    DEPENDS ${RV_FIRMWARE_DEPENDS}
+    BINARY_DIR ${CMAKE_BINARY_DIR}/firmware-build${RV_KIT_DIR_SUFFIX}
+    CMAKE_ARGS ${RV_KIT_CMAKE_ARGS}
+      -D3DMPPC_DEVTOOLS=OFF
+      -D3DMPPC_LUAJIT=${3DMPPC_LUAJIT}
+    DEPENDS ${RV_KIT_DEPENDS}
     BUILD_ALWAYS ON
     INSTALL_COMMAND ""
   )
@@ -420,7 +444,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/rv_linux_toolchain.cmake")
   ExternalProject_Add_Step(3dmppc_firmware copy_firmware
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/pconsole/firmware
     COMMAND ${CMAKE_COMMAND} -E copy
-            ${RV_FIRMWARE_BINARY_DIR}/pconsole/3dmppc
+            ${CMAKE_BINARY_DIR}/firmware-build${RV_KIT_DIR_SUFFIX}/pconsole/3dmppc
             ${CMAKE_BINARY_DIR}/pconsole/firmware/3dmppc
     DEPENDEES build
     ALWAYS 1

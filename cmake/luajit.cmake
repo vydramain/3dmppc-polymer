@@ -62,5 +62,7 @@ add_library(libluajit STATIC IMPORTED)
 set_target_properties(libluajit PROPERTIES
   IMPORTED_LOCATION ${LUAJIT_BUILD_DIR}/src/libluajit.a
   INTERFACE_INCLUDE_DIRECTORIES ${LUAJIT_BUILD_DIR}/src
+  # ffi.load calls dlopen/dlsym; before glibc 2.34 (the sniper sysroot has 2.31) they are in libdl.
+  INTERFACE_LINK_LIBRARIES "${CMAKE_DL_LIBS}"
 )
 add_dependencies(libluajit libluajit_maker)
