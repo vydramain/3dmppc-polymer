@@ -1,4 +1,4 @@
--- Street lamps (example-cpp-lamps.cpp). A lamp burns from the first frame of the outward
+-- Street lamps (example-cpp-pdkkit-lamps.cpp). A lamp burns from the first frame of the outward
 -- half in which the eye comes within 8 m of it, until the first such frame of the return half.
 local mathx = require("example-lua-bare-math")
 local draw = require("example-lua-bare-draw")
