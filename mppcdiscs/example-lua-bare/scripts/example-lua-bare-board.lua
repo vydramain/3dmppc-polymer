@@ -1,4 +1,4 @@
--- The factory board's lettering "ОСТАЛОСЬ: 5" (example-cpp-board.cpp): one glyph model per
+-- The factory board's lettering "ОСТАЛОСЬ: 5" (example-cpp-pdkkit-board.cpp): one glyph model per
 -- cell, lit by a flicker table. Each lit cell draws its halo first, then the letters.
 local mathx = require("example-lua-bare-math")
 local draw = require("example-lua-bare-draw")
@@ -39,7 +39,7 @@ local HALF_FACTOR = 0.5
 local CELL_CENTRE = 0.5
 
 -- Own values, of the same kind as Doom's rndtable (256 bytes of pseudo-random data read by
--- frame index), not its numbers. Same table as example-cpp-board.cpp.
+-- frame index), not its numbers. Same table as example-cpp-pdkkit-board.cpp.
 local FLICKER_TABLE = {
     37, 201, 88, 14, 166, 243, 59, 117, 9, 180, 128, 72, 223, 45, 154, 96, 231, 6, 112, 190, 53, 147, 25, 210, 84, 169, 13, 238, 101, 66, 197, 31,
     142, 77, 255, 20, 178, 98, 230, 4, 133, 61, 215, 110, 39, 186, 92, 249, 17, 164, 121, 57, 208, 83, 2, 141, 226, 70, 105, 189, 44, 153, 27, 219,
@@ -58,7 +58,7 @@ function M.cell_lit(i, frame)
     return TEXT[i + 1] ~= false and FLICKER_TABLE[index + 1] > LIT_ABOVE
 end
 
--- Offset of cell i along the panel: centred on the panel, as example-cpp-board.cpp.
+-- Offset of cell i along the panel: centred on the panel, as example-cpp-pdkkit-board.cpp.
 local function along_of(half, i, cell)
     return mathx.f(-half + mathx.f(mathx.f(i + CELL_CENTRE) * cell))
 end

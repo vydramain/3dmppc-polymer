@@ -1,4 +1,4 @@
--- example-lua-bare's entry chunk: the demo world of example-cpp in Lua - the scene's meshes,
+-- example-lua-bare's entry chunk: the demo world of example-cpp-pdkkit in Lua - the scene's meshes,
 -- the camera route, the street lamps and the factory board. The disc's own hooks
 -- (src/example-lua-bare.cpp) forward one-to-one into the same-named functions here.
 -- Nothing touches _G: the chunk returns a module table, and the disc calls into it by name
@@ -20,10 +20,10 @@ local M = {}
 -- validate a reload candidate before the console knows whether it will pass.
 print("Hello from example lua!")
 
--- Same values as example-cpp (example-cpp-route.hpp, example-cpp.cpp).
+-- Same values as example-cpp-pdkkit (example-cpp-pdkkit-route.hpp, example-cpp-pdkkit.cpp).
 local SCENE_NAME = "main.scene.toml"
 -- Lens and clip planes; the far plane is a margin past the scene's extent.
--- As RV_ROUTE_FOV_Y in example-cpp-route.cpp: 60 degrees, converted to radians in float.
+-- As RV_ROUTE_FOV_Y in example-cpp-pdkkit-route.cpp: 60 degrees, converted to radians in float.
 local FOV_DEGREES = 60
 local DEGREES_PER_HALF_TURN = 180
 local NEAR_PLANE = 0.1
@@ -182,7 +182,7 @@ function M.frame_render(o_)
 
     local mathx = require("example-lua-bare-math")
     local at = state.frame_count % mathx.PERIOD_FRAMES
-    -- The sound first, as in example-cpp's frame_render: the music and the clack, then the picture.
+    -- The sound first, as in example-cpp-pdkkit's frame_render: the music and the clack, then the picture.
     local sound_code = require("example-lua-bare-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
     if sound_code < 0 then
         log_error_once("sound " .. state.sound.error_asset, sound_code, "not played")
@@ -202,7 +202,7 @@ function M.frame_render(o_)
         return
     end
 
-    -- The order of example-cpp's draw_world: meshes, then lamps, then the board.
+    -- The order of example-cpp-pdkkit's draw_world: meshes, then lamps, then the board.
     local draw = require("example-lua-bare-draw")
     for _, mesh in ipairs(state.meshes) do
         local code = draw.put(cg, cd, mesh.model, mesh.world, mesh.tint)
