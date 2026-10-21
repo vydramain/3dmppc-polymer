@@ -1,6 +1,6 @@
 [disc]
-id = "example-lua"
-title = "mppcdisc example with lua"
+id = "example-lua-bare"
+title = "mppcdisc example with lua: bare"
 
 [build]
 sources = ["src/*.cpp"]
