@@ -5,7 +5,6 @@
 // the loader and the dialect it reads with are compiled into the disc here.
 // Everything else includes rv_scene.hpp alone.
 
-#include "pdklib/rv_manifest/detail/rv_manifest_failer.cpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_lexer.cpp"
 #include "pdklib/rv_manifest/detail/rv_manifest_parser.cpp"
 #include "pdklib/rv_manifest/rv_manifest_dialect.cpp"
