@@ -59,6 +59,11 @@ PDK 1.0 also brings the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor
 `triangle_capacity`), the drive's `RV_CD_RESOURCE_MODEL` kind and the scene
 queries `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()`.
 
+A disc may declare the optional `[music]` disc section (see the main README).
+A disc without `[music]` is unchanged. A console whose manifest parser does
+not know `[music]` refuses a disc that has it, reporting an unknown section.
+Nothing in the ABI changed.
+
 ---
 
 ## Purpose — why this directory exists
