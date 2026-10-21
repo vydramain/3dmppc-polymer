@@ -8,6 +8,7 @@
 #include <iterator>
 #include <limits>
 #include <string>
+#include <system_error>
 
 #include "pdk/de/rv_dv.h"
 #include "rv_scene.hpp"
@@ -56,6 +57,11 @@ constexpr size_t color_channels = 3;
 // Sign and the "0." of a fixed-point number below one.
 constexpr int sign_bytes = 1;
 constexpr int zero_point_bytes = 2;
+
+// Room for the longest fixed text of a Q20.12 value: the sign, the six digits of 524288, the point
+// and fx_shift decimals.
+constexpr int unit_integer_digits = 6;
+constexpr size_t unit_buffer_bytes = static_cast<size_t>(sign_bytes + unit_integer_digits + 1 + fx_shift);
 
 // Room for the longest fixed text of T: the digits of the smallest subnormal after "0.",
 // or the digits of the largest magnitude. Covers every value, so to_chars never fails.
@@ -108,11 +114,6 @@ std::string rv_scene_number(T v)
     return std::string(buf.data(), r.ptr);
 }
 
-std::string rv_scene_element(float v)
-{
-    return rv_scene_number(v);
-}
-
 std::string rv_scene_element(double v)
 {
     return rv_scene_number(v);
@@ -140,10 +141,38 @@ std::string rv_scene_array(const T *items, size_t count)
     return out + array_end;
 }
 
-std::string rv_scene_vec3(const rv_vec3 &v)
+// Shortest fixed decimal text of a Q20.12 value that reads back, rounded as rv_scene_parse
+// rounds, as the same value; fx_shift digits are always exact, as the step is 1/4096.
+std::string rv_scene_units(fx v)
 {
-    const float parts[vec3_size] = { v.x, v.y, v.z };
-    return rv_scene_array(parts, vec3_size);
+    std::array<char, unit_buffer_bytes> buf{};
+    const double units = static_cast<double>(v) / fx_one; // exact: a double holds every fx
+    for (int digits = 0;; ++digits) {
+        const auto r = std::to_chars(buf.data(), buf.data() + buf.size(), units, std::chars_format::fixed, digits);
+        double back = 0.0;
+        const bool read = std::from_chars(buf.data(), r.ptr, back).ec == std::errc{};
+        fx q = 0;
+        if (digits == fx_shift || (read && fx_from_double(back, q) == RV_OK && q == v)) {
+            return std::string(buf.data(), r.ptr);
+        }
+    }
+}
+
+// "[a, b, c]" of Q20.12 values, each written by rv_scene_units.
+std::string rv_scene_unit_array(const fx *items, size_t count)
+{
+    std::string out = array_start;
+    for (size_t i = 0; i < count; ++i) {
+        out += i == 0 ? "" : array_sep;
+        out += rv_scene_units(items[i]);
+    }
+    return out + array_end;
+}
+
+std::string rv_scene_vec3(const fx_vec3 &v)
+{
+    const fx parts[vec3_size] = { v.x, v.y, v.z };
+    return rv_scene_unit_array(parts, vec3_size);
 }
 
 std::string rv_scene_tint(const rv_color &c)
@@ -221,13 +250,13 @@ void rv_scene_object_text(std::string &t, const rv_scene &scene, const rv_scene_
     rv_scene_field(t, object_mesh_key, rv_scene_quote(o.mesh));
     rv_scene_field(t, object_texture_key, rv_scene_quote(o.texture));
     if (rv_scene_writes_uv(o)) {
-        rv_scene_field(t, object_uv_key, rv_scene_array(o.uv, std::size(o.uv)));
+        rv_scene_field(t, object_uv_key, rv_scene_unit_array(o.uv, std::size(o.uv)));
     }
     if (rv_scene_writes_tint(o)) {
         rv_scene_field(t, object_tint_key, rv_scene_tint(o.tint));
     }
     if (rv_scene_writes_tess(o)) {
-        rv_scene_field(t, object_tess_key, rv_scene_number(o.tess));
+        rv_scene_field(t, object_tess_key, rv_scene_units(o.tess));
     }
     rv_scene_entries(t, o.extra);
 }
@@ -267,7 +296,7 @@ std::string rv_scene_render(const rv_scene &scene)
     if (!t.empty() && t.back() != '\n') {
         t += line_end;
     }
-    // A 0.0 scene, legacy header or version = "0.0", is written as the current PDK version.
+    // A document without a version (0.0, the default) is written as the current PDK version.
     const bool legacy = scene.version_major == 0 && scene.version_minor == 0;
     const uint32_t major = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MAJOR) : scene.version_major;
     const uint32_t minor = legacy ? static_cast<uint32_t>(RV_MPPC_VER_MINOR) : scene.version_minor;
