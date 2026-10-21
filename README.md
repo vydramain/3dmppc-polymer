@@ -565,7 +565,7 @@ small sound-memory region that a voice plays. A long track costs main RAM, which
 does not budget: a 25-minute track is about 132 MB. An MP3 must be MPEG Layer III at 44100 Hz;
 anything else is refused. The PCM is not stored in the project; it lives in the build
 directory and the image. A music and a sound file with the same stem collide and the
-burn is refused. A 1.2 console refuses a disc with `[music]`.
+burn is refused. A console whose manifest parser does not know `[music]` refuses a disc with it.
 
 `[models]` is optional the same way: each listed `.glb` (glTF 2.0) is baked by
 `mppcmodbaker` into a `<name>.mppcmod`; its embedded PNG textures are baked
