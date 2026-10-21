@@ -6,6 +6,7 @@
 #include <format>
 #include <fstream>
 #include <iterator>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -18,6 +19,7 @@
 #include "detail/rv_manifest_failer.hpp"
 #include "detail/rv_manifest_lexer.hpp"
 #include "detail/rv_manifest_parser.hpp"
+#include "detail/rv_manifest_sdk.hpp"
 #include "detail/rv_manifest_semantic.hpp"
 #include "detail/rv_manifest_token.hpp"
 #include "detail/rv_manifest_tree.hpp"
@@ -156,6 +158,10 @@ std::string rv_manifest_render(const rv_manifest &manifest)
     render_array(out, "sources", manifest.build_sources);
     render_array(out, "defines", manifest.build_defines);
     render_array(out, "include_dirs", manifest.build_include_dirs);
+    // No key without SDK trees: a console older than this key refuses an unknown one.
+    if (!manifest.build_sdk.empty()) {
+        render_array(out, "sdk", manifest.build_sdk);
+    }
 
     out << "\n[scripts]\n";
     render_array(out, "sources", manifest.scripts_sources);
@@ -316,6 +322,25 @@ static int validate_entry_names(const rv_manifest &manifest, std::string &error)
     return RV_OK;
 }
 
+// Guarantees on [build] sdk after validation: each name is a plain word (see
+// rv_manifest_sdk.hpp), and each tree is named once.
+static int validate_sdk_names(const rv_manifest &manifest, std::string &error)
+{
+    std::set<std::string> seen;
+    for (const std::string &name : manifest.build_sdk) {
+        if (!rv_manifest_sdk_name_is_valid(name)) {
+            error =
+                "[build] sdk '" + name + "' is not a tree name - use a lowercase letter, then lowercase letters, digits or '_'";
+            return RV_ERR_INVAL;
+        }
+        if (!seen.insert(name).second) {
+            error = "[build] sdk '" + name + "' is listed twice - name each tree once";
+            return RV_ERR_INVAL;
+        }
+    }
+    return RV_OK;
+}
+
 // By the time a manifest reaches here the binder has already turned the
 // spelling into an enumerator, and an unknown spelling left the field at its
 // value-initialised zero. So this catches both a typo and a missing `format`
@@ -451,6 +476,11 @@ int rv_manifest_validate(const rv_manifest &manifest, std::string &error)
     }
 
     code = validate_entry_names(manifest, error);
+    if (code != RV_OK) {
+        return code;
+    }
+
+    code = validate_sdk_names(manifest, error);
     if (code != RV_OK) {
         return code;
     }
