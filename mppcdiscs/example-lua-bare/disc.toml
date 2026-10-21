@@ -9,7 +9,7 @@ sources = ["src/*.cpp"]
 sources = ["scripts/*.lua"]
 
 [assets]
-# The scene is copied verbatim, as in example-cpp.
+# The scene is copied verbatim, as in example-cpp-pdkkit.
 files = ["scenes/*.scene.toml"]
 
 [textures]
