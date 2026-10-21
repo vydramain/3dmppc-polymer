@@ -30,7 +30,7 @@ constexpr const char *RV_SOUND_CLACK = "sfx_board_clack.pcm";
 // The clack's voice.
 constexpr int64_t RV_SOUND_CLACK_VOICE = 4;
 
-// Clack envelope and volume: the shape example-lua gives its tone, at full volume.
+// Clack envelope and volume: the shape example-lua-bare gives its tone, at full volume.
 constexpr int16_t RV_SOUND_CLACK_ATTACK = 5;
 constexpr int16_t RV_SOUND_CLACK_DECAY = 40;
 constexpr int16_t RV_SOUND_CLACK_SUSTAIN_RATE = 0;

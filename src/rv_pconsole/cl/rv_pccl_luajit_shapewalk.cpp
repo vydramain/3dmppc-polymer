@@ -26,7 +26,7 @@ namespace
 
 // The only four types a state value may hold. A function or a coroutine
 // would keep the OLD chunk's bytecode alive past a reload - the exact thing
-// "code != state" promises cannot happen (see example-lua.lua's own comment
+// "code != state" promises cannot happen (see example-lua-bare.lua's own comment
 // on `state`); userdata and thread have no business here either.
 bool legal_state_type(int t)
 {
