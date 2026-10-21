@@ -138,10 +138,12 @@ int rv_manifest_parser::parse_value(rv_manifest_mvalue &out)
         return RV_OK;
     case tk::INTEGER:
         out.kind = rv_manifest_value_kind::integer;
+        out.num_text = token.text;
         out.num = get().num;
         return RV_OK;
     case tk::REAL:
         out.kind = rv_manifest_value_kind::real;
+        out.num_text = token.text;
         out.real = get().real;
         return RV_OK;
     case tk::LBRACKET:
@@ -225,6 +227,7 @@ int rv_manifest_parser::parse_array_element(rv_manifest_mvalue &out)
     if (number) {
         const rv_manifest_token &t = get();
         out.nums.push_back(t.kind == tk::REAL ? t.real : static_cast<double>(t.num));
+        out.nums_text.push_back(t.text);
     } else {
         out.arr.push_back(get().text);
     }

@@ -210,7 +210,7 @@ rv_manifest_token rv_manifest_lexer::lex_integer()
         if (errno == ERANGE) {
             return invalid(line, "number '" + text + "' is out of range");
         }
-        rv_manifest_token token = token_of(tk::REAL, line);
+        rv_manifest_token token = token_of(tk::REAL, line, text);
         token.real = parsed;
         return token;
     }
@@ -222,7 +222,7 @@ rv_manifest_token rv_manifest_lexer::lex_integer()
     if (errno == ERANGE) {
         return invalid(line, "integer '" + digits + "' does not fit in 64 bits");
     }
-    rv_manifest_token token = token_of(tk::INTEGER, line);
+    rv_manifest_token token = token_of(tk::INTEGER, line, digits);
     token.num = static_cast<int64_t>(parsed);
     return token;
 }

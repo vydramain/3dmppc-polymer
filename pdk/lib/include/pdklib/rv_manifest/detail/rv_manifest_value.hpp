@@ -23,10 +23,12 @@ struct rv_manifest_mvalue {
     rv_manifest_value_kind kind = rv_manifest_value_kind::string;
     std::string str;
     int64_t num = 0;
+    std::string num_text; // source spelling of the scalar number, integer or real
     double real = 0.0;
     std::vector<std::string> arr;
     std::vector<double> nums; // an array of numbers; integers in it are exact up to 2^53
-    int line = 0;             // where the value STARTED, which is where the author must look
+    std::vector<std::string> nums_text; // source spelling of each element of nums
+    int line = 0;                       // where the value STARTED, which is where the author must look
 };
 
 inline std::string_view rv_manifest_kind_name(rv_manifest_value_kind k)
