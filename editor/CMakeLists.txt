@@ -25,6 +25,7 @@ get_filename_component(RV_REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/.. ABSOLUTE)
 
 include(${RV_REPO_ROOT}/cmake/sdl.cmake)
 include(${RV_REPO_ROOT}/cmake/pdklib.cmake)
+include(${RV_REPO_ROOT}/cmake/pdkkit.cmake)
 
 # --- Dear ImGui (vendored) ----------------------------------------------------
 # third_party/imgui/ORIGIN.md says what was taken and why. ImGui has no build
@@ -62,8 +63,8 @@ target_include_directories(3dmppc-editor PRIVATE src)
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_imgui)
 # libvterm: the Terminal tile's screen.
 target_link_libraries(3dmppc-editor PRIVATE 3dmppc_editor_vterm)
-# pdklib: the manifest parser the discs and the burner use, never a copy of it.
-target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdklib)
+# pdkkit brings pdklib: the manifest parser the discs and the burner use, never a copy of it.
+target_link_libraries(3dmppc-editor PRIVATE 3dmppc_pdkkit)
 
 # glTF reader: pdklib's, compiled here as mppcmodbaker compiles it (cmake/pdklib.cmake keeps
 # it out of 3dmppc_pdklib). cgltf is this target's own third party, SYSTEM like mppcmodbaker's.
