@@ -28,10 +28,10 @@ cmake -S . -B build -G Ninja && cmake --build build
 cmake -S pdk/tools -B pdk/tools/build -G Ninja && cmake --build pdk/tools/build
 
 # 3. burn the sample game into a disc
-./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp -o build/example-cpp.mppcdisc
+./pdk/tools/build/mppcburner/mppcburner build mppcdiscs/example-cpp-pdkkit -o build/example-cpp-pdkkit.mppcdisc
 
 # 4. run it
-./build/pconsole/3dmppc build/example-cpp.mppcdisc
+./build/pconsole/3dmppc build/example-cpp-pdkkit.mppcdisc
 ```
 
 Press **Esc** (or **Option/Start** on a gamepad) to quit.
@@ -39,11 +39,11 @@ Press **Esc** (or **Option/Start** on a gamepad) to quit.
 Ctrl+C in the terminal stops the console the same ordinary way.
 
 The same three commands work unchanged against
-[`mppcdiscs/example-lua/`](mppcdiscs/example-lua/) — swap the directory in
+[`mppcdiscs/example-lua-bare/`](mppcdiscs/example-lua-bare/) — swap the directory in
 steps 3 and 4 and the console runs a Lua chunk through `rv_cl` instead of
 compiled C++.
 
-A Lua disc's C++ side is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua")` after
+A Lua disc's C++ side is two lines: `RV_MPPC_DISC_LUA_DEF("example-lua-bare")` after
 `#include "pdklib/rv_dscript/rv_dscript.hpp"`, then `RV_MPPC_DISC_ENTRY_DEF` on
 the class it defined. The pdklib macro forwards each `disc_*` hook into the
 same-named Lua function, so the disc's own file carries no forwarding of its
@@ -59,7 +59,7 @@ the disc's own class derives from before being handed to `RV_MPPC_DISC_ENTRY_DEF
 It has less to carry than the Lua one - a C++
 disc's own class already is its `rv_de`, so this macro lives in pdklib alone
 and a disc is just as free to skip it and write all five hooks by hand, the
-way `mppcdiscs/example-cpp/` did before this macro existed. A
+way `mppcdiscs/example-cpp-pdkkit/` did before this macro existed. A
 script pulls in another with `require("name")`, which
 reads `name.luac` (`name.lua` in an `--unpacked` directory) off the disc, runs
 it once and hands every caller the same table.
@@ -316,16 +316,16 @@ still has to be an entry on whatever is mounted.
 ### A session
 
 ```sh
-build-dev/pconsole/mppcburner build mppcdiscs/example-lua --unpacked build-dev/example-lua.discdir \
+build-dev/pconsole/mppcburner build mppcdiscs/example-lua-bare --unpacked build-dev/example-lua-bare.discdir \
     --baker build-dev/pconsole
-build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua.discdir
+build-dev/pconsole/3dmppc --dev --paused build-dev/example-lua-bare.discdir
 ```
 
 ```
 1 status                    -> 1 ok protocol=1.0 frame=0 mode=paused entry_revision=0 …
 2 step                      -> 2 ok completed=1 frame=1 mode=paused
 3 get frame_count           -> 3 ok found=1 type=number value=1
-                               … edit scripts/example-lua.lua in your editor …
+                               … edit scripts/example-lua-bare.lua in your editor …
 4 reload entry              -> 4 ok entry_revision=1 entry_hash=dac227b078e5407b
 5 step                      -> 5 ok completed=1 frame=2 mode=paused
 6 get frame_count           -> 6 ok found=1 type=number value=2   <- state survived
@@ -452,7 +452,7 @@ sends the developer looking in the wrong place.
 
 The state contract a script has to follow to be reloadable at all — what lives
 in the persistent table and what dies with the code — is in
-[`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md), next to
+[`mppcdiscs/example-lua-bare/README.md`](mppcdiscs/example-lua-bare/README.md), next to
 the script that demonstrates it.
 
 ### What an acceptance run has to prove
@@ -517,7 +517,7 @@ mygame/
   assets/          PNGs and WAVs get baked into texels and samples; the rest is copied in
 ```
 
-Start by copying [`mppcdiscs/example-cpp/`](mppcdiscs/example-cpp/) — it is the smallest
+Start by copying [`mppcdiscs/example-cpp-pdkkit/`](mppcdiscs/example-cpp-pdkkit/) — it is the smallest
 complete disc and its README walks through what each piece is for.
 
 ### disc.toml
@@ -561,7 +561,7 @@ into `<stem>-<n>.mppctex` in the same texture directory as `[textures]`.
 both. Every `[budget.*]` section is optional - a disc that states none is held to the
 console's own built-in budget, a default-constructed `rv_manifest_budget`. Both
 example discs state theirs explicitly, and
-[`mppcdiscs/example-lua/disc.toml`](mppcdiscs/example-lua/disc.toml) says why
+[`mppcdiscs/example-lua-bare/disc.toml`](mppcdiscs/example-lua-bare/disc.toml) says why
 each number is what it is.
 
 ### Burning
@@ -624,8 +624,8 @@ unload your code, and a destructor belonging to unmapped code cannot run.
 | [`pdk/tools/README.md`](pdk/tools/README.md) | the authoring tools: what each one does and why they build separately |
 | [`pdk/tools/mppctexbaker/README.md`](pdk/tools/mppctexbaker/README.md) | the texture format, palette quantization, and the black-vs-transparent trap |
 | [`editor/README.md`](editor/README.md) | the editor: what it is, how it builds, where its requirements live |
-| [`mppcdiscs/example-cpp/README.md`](mppcdiscs/example-cpp/README.md) | the sample disc |
-| [`mppcdiscs/example-lua/README.md`](mppcdiscs/example-lua/README.md) | the scripting disc |
+| [`mppcdiscs/example-cpp-pdkkit/README.md`](mppcdiscs/example-cpp-pdkkit/README.md) | the sample disc |
+| [`mppcdiscs/example-lua-bare/README.md`](mppcdiscs/example-lua-bare/README.md) | the scripting disc |
 | [`mppcdiscs/README.md`](mppcdiscs/README.md) | the disc library |
 
 ---
@@ -668,7 +668,7 @@ unload your code, and a destructor belonging to unmapped code cannot run.
   | `rv_pdklib` | `pdk/lib` | the disc-side library |
   | `rv_3dmppc` | `src/` | the console, and nothing else |
   | `rv_pdktools` | `pdk/tools` | the authoring tools |
-  | the disc's own id | each packaged disc | `example_cpp::rv_dmain`, `mygame::rv_dmain`, … |
+  | the disc's own id | each packaged disc | `example_cpp_pdkkit::rv_dmain`, `mygame::rv_dmain`, … |
   | `rv_service` | `src/rv_dmain` | the built-in default disc for checking the console — a disc, but a linked-in one |
 
   A packaged disc needs no prefix and cannot collide with anything: it is built
