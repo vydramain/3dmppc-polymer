@@ -267,7 +267,7 @@ void sha256_final(sha256_ctx &ctx, unsigned char digest[hash_digest_bytes])
     }
 }
 
-// --- ELF64 section lookup, bounds-checked against an untrusted buffer. ---
+// --- ELF64 bounds check for an untrusted buffer. ---
 bool in_bounds(std::size_t elf_size, uint64_t off, uint64_t len)
 {
     if (off > elf_size) {
@@ -277,9 +277,9 @@ bool in_bounds(std::size_t elf_size, uint64_t off, uint64_t len)
     return len <= elf_size - off;
 }
 
-// Finds a section by name. Returns RV_OK and fills `sh` on success (including
-// "not found", which reports offset=0/size=0 via `found=false`).
-int find_section(const unsigned char *elf,
+} // namespace
+
+int rv_disc_hash_find_section(const unsigned char *elf,
     std::size_t elf_size,
     const char *name,
     bool &found,
@@ -380,6 +380,9 @@ int find_section(const unsigned char *elf,
     return RV_OK; // not found is not an error: contributes size 0.
 }
 
+namespace
+{
+
 int feed_section(const unsigned char *elf, std::size_t elf_size, const char *name, sha256_ctx &ctx, std::string &error)
 {
     bool found = false;
@@ -387,7 +390,7 @@ int feed_section(const unsigned char *elf, std::size_t elf_size, const char *nam
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
+    if (rv_disc_hash_find_section(elf, elf_size, name, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
         return RV_ERR_INVAL;
     }
 
@@ -414,7 +417,8 @@ int rv_disc_hash_magic_offset(const unsigned char *elf, std::size_t elf_size, st
     uint64_t sh_size = 0;
     uint32_t sh_type = SHT_NULL;
 
-    if (find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset, sh_size, sh_type, error) != RV_OK) {
+    if (rv_disc_hash_find_section(elf, elf_size, RV_MPPC_SECTION_NAME_DEF, found, sh_offset, sh_size, sh_type, error) !=
+        RV_OK) {
         return RV_ERR_INVAL;
     }
     if (!found) {
