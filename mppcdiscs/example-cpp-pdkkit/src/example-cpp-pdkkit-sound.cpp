@@ -1,4 +1,4 @@
-#include "example-cpp-sound.hpp"
+#include "example-cpp-pdkkit-sound.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -10,8 +10,8 @@
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
-#include "example-cpp-board.hpp"
-#include "example-cpp-route.hpp"
+#include "example-cpp-pdkkit-board.hpp"
+#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp
 {

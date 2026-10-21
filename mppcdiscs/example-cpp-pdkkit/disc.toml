@@ -6,7 +6,7 @@ title = "mppcdisc example: pdkkit"
 sources = ["src/*.cpp"]
 
 [assets]
-# The scene is copied verbatim: the disc reads its objects through the drive (src/example-cpp.cpp).
+# The scene is copied verbatim: the disc reads its objects through the drive (src/example-cpp-pdkkit.cpp).
 files = ["scenes/*.scene.toml"]
 
 [textures]

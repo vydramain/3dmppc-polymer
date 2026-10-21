@@ -1,4 +1,4 @@
-#include "example-cpp-lamps.hpp"
+#include "example-cpp-pdkkit-lamps.hpp"
 
 #include <cstdint>
 #include <vector>
@@ -12,7 +12,7 @@
 #include "pdklib/rv_ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "example-cpp-route.hpp"
+#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp
 {

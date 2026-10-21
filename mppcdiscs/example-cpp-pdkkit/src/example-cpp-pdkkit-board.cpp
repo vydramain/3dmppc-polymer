@@ -1,4 +1,4 @@
-#include "example-cpp-board.hpp"
+#include "example-cpp-pdkkit-board.hpp"
 
 #include <array>
 #include <cstddef>
@@ -12,7 +12,7 @@
 #include "pdklib/rv_ecs/rv_ecs_frame.hpp"
 #include "pdklib/rv_ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "example-cpp-route.hpp"
+#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp
 {

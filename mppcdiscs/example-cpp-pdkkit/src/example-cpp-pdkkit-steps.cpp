@@ -10,8 +10,8 @@
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "example-cpp-route.hpp"
-#include "example-cpp-sound.hpp"
+#include "example-cpp-pdkkit-route.hpp"
+#include "example-cpp-pdkkit-sound.hpp"
 
 namespace example_cpp
 {

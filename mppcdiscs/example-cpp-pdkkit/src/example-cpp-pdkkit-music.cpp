@@ -1,4 +1,4 @@
-#include "example-cpp-sound.hpp"
+#include "example-cpp-pdkkit-sound.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -13,7 +13,7 @@
 #include "pdk/cd/rv_cd.h"
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "example-cpp-route.hpp"
+#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp
 {

@@ -6,7 +6,7 @@
 #include "pdk/ca/rv_voice_conf.h"
 #include "pdk/rv_pdko.h"
 #include "pdklib/rv_math/rv_fx.hpp"
-#include "example-cpp-route.hpp"
+#include "example-cpp-pdkkit-route.hpp"
 
 namespace example_cpp
 {
@@ -75,10 +75,10 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
 
 // Records `asset` as the failure's name for the caller's log and returns `code`.
 int64_t fail(rv_sound_state &state, const char *asset, int64_t code);
-// Sets up and starts conf.voice (defined in example-cpp-sound.cpp).
+// Sets up and starts conf.voice (defined in example-cpp-pdkkit-sound.cpp).
 int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 
-// Music, in example-cpp-music.cpp. rv_music_init allocates the music slots and measures the bars; rv_sound_init
+// Music, in example-cpp-pdkkit-music.cpp. rv_music_init allocates the music slots and measures the bars; rv_sound_init
 // calls it first. rv_music_update starts the chain at an area change and at a bar start while it is not running,
 // moves it on at each mark, and on success records the frame's area and bar; rv_sound_update calls it. Only
 // rv_music_update needs the sound tables of rv_sound_init (areas, span_start).

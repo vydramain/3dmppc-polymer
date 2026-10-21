@@ -15,10 +15,10 @@
 #include "pdklib/rv_ecs/rv_ecs_loads.hpp"
 #include "pdklib/rv_ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "example-cpp-board.hpp"
-#include "example-cpp-lamps.hpp"
-#include "example-cpp-route.hpp"
-#include "example-cpp-sound.hpp"
+#include "example-cpp-pdkkit-board.hpp"
+#include "example-cpp-pdkkit-lamps.hpp"
+#include "example-cpp-pdkkit-route.hpp"
+#include "example-cpp-pdkkit-sound.hpp"
 
 namespace example_cpp
 {
