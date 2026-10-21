@@ -1,6 +1,6 @@
 [disc]
-id = "example-cpp"
-title = "mppcdisc example"
+id = "example-cpp-pdkkit"
+title = "mppcdisc example: pdkkit"
 
 [build]
 sources = ["src/*.cpp"]
