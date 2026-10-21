@@ -59,6 +59,19 @@ PDK 1.0 also brings the geometry controller `rv_cg` (`cg/rv_cg.h`, accessor
 `triangle_capacity`), the drive's `RV_CD_RESOURCE_MODEL` kind and the scene
 queries `rv_cd_scene_object_count()` / `rv_cd_scene_object_read()`.
 
+The input contract (`cio/rv_isource.h`) is defined as follows; this description
+changes neither the ABI nor any POD. `rv_imotion` carries acceleration in m/s^2
+with gravity included, angular velocity in rad/s on the console axes, and a
+unit quaternion (a rotation as four numbers) from pad to world: pitch and roll
+follow gravity, yaw drifts from connect time, and a pad without sensors gives
+the identity. Trackpad positions are in [-1, 1] with +y up and 0 while
+untouched; their TOUCH, CLICK, DPAD_* (the quarter under the finger) and SWIPE
+bits are in the buttons mask. STICK_TOUCH is a finger resting on a stick cap;
+the REAR_BTTN bits cover the upper (L4/R4) and lower (L5/R5) rear pairs. The
+console fills each of these only on a pad that has it (SDL3: motion, trackpads,
+rear buttons; stick touch on Steam Deck and Steam Controller), and declares in
+`iport_abilities` only what the pad has.
+
 ---
 
 ## Purpose — why this directory exists
