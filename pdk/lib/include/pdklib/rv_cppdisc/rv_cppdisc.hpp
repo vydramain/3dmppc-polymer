@@ -49,7 +49,7 @@
 // class_name is an ordinary identifier, nothing more. The macro defines the class
 // ONLY; a disc using it derives its own class from class_name, adds
 // whatever is its own content, and plants the FINAL class with
-// RV_MPPC_DISC_ENTRY_DEF, exactly as example-cpp.cpp does:
+// RV_MPPC_DISC_ENTRY_DEF, exactly as example-cpp-pdkkit.cpp does:
 //
 //   RV_MPPC_DISC_CPP_DEF(rv_dmain_base_)
 //   class rv_dmain : public rv_dmain_base_ { ... };
@@ -60,7 +60,7 @@
 // name hiding, not virtual dispatch, because RV_MPPC_DISC_ENTRY_DEF
 // already knows the disc's most-derived type and calls it directly. A disc
 // is free to skip this header and write all five hooks by hand, the way
-// example-cpp.cpp did before this header existed.
+// example-cpp-pdkkit.cpp did before this header existed.
 #pragma once
 
 #include <cstddef>
