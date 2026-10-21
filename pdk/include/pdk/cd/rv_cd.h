@@ -17,6 +17,11 @@
 #define RV_CD_VALUE_CAPACITY           64
 #define RV_CD_COMPONENT_FIELD_CAPACITY 8
 
+// Q20.12 fixed point: 12 fraction bits, so 1.0 is 4096. Lua sees them as
+// pdk.CD_Q_FRACTION_BITS and pdk.CD_Q_ONE.
+#define RV_CD_Q_FRACTION_BITS 12
+#define RV_CD_Q_ONE           4096
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -181,6 +186,25 @@ int64_t rv_cd_scene_component_read(rv_cd *cd, const char *scene, int64_t index, 
 // rv_cd_scene_object_read.
 int64_t rv_cd_scene_object_entity_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_entity *out);
 
+// Local transform in Q20.12 (RV_CD_Q_ONE is 1.0), relative to the parent
+// (rv_cd_scene_object.parent; -1 is scene space). position is x, y, z in scene
+// units; rotation is pitch (x), yaw (y), roll (z) in degrees, R = Ry * Rx * Rz as
+// pdklib rv_scene; scale is dimensionless. Values are Q20.12 numbers of the scene
+// document: the file's decimals round to the nearest one on load. An integer part
+// outside [-524288, 524287] does not load the scene (RV_ERR_INVAL, reason in the
+// console log).
+struct rv_cd_scene_local {
+    int32_t position[3];
+    int32_t rotation[3];
+    int32_t scale[3];
+};
+
+typedef struct rv_cd_scene_local rv_cd_scene_local;
+
+// Copies the local transform of object `index` into `out`. Errors as for
+// rv_cd_scene_object_read.
+int64_t rv_cd_scene_object_local_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_local *out);
+
 /* RV_CDEF_END */
 
 // Every name array of the struct must match the name capacity (the cdef carries
@@ -201,6 +225,8 @@ RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_component *)0)->fields) ==
         RV_CD_COMPONENT_FIELD_CAPACITY * sizeof(struct rv_cd_scene_field),
     "scene component field capacity");
 RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_entity *)0)->type) == RV_CD_NAME_CAPACITY, "scene entity type capacity");
+RV_CD_STATIC_ASSERT_(sizeof(rv_cd_scene_local) == 9 * sizeof(int32_t), "scene local transform size");
+RV_CD_STATIC_ASSERT_((1 << RV_CD_Q_FRACTION_BITS) == RV_CD_Q_ONE, "Q20.12 one is 1 << fraction bits");
 
 #ifdef __cplusplus
 } /* extern "C" */
