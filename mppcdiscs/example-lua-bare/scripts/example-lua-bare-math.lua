@@ -1,4 +1,4 @@
--- Route math of example-cpp-route.cpp in float32: every result is rounded to float,
+-- Route math of example-cpp-pdkkit-route.cpp in float32: every result is rounded to float,
 -- in the operation order of the C++, so the frames match it bit for bit.
 -- A module has no state of its own; it holds only constants and pure functions.
 local M = {}
@@ -34,7 +34,7 @@ function M.unit(v)
 end
 
 -- One component of the uniform Catmull-Rom segment from p1 to p2, t in [0, 1].
--- Same operation order as spline_component in example-cpp-route.cpp.
+-- Same operation order as spline_component in example-cpp-pdkkit-route.cpp.
 local function spline_component(p0, p1, p2, p3, t)
     local t2 = f(t * t)
     local t3 = f(t2 * t)

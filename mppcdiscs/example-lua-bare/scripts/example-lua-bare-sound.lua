@@ -1,4 +1,4 @@
--- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in play on
+-- The demo's music (example-cpp-pdkkit-sound.cpp, music and loop parts): the bars of the area the camera is in play on
 -- voice 1, one bar per second, two slots in turn; the voice's repeat and mark hand it on, and a new area restarts.
 -- A board clack plays on voice 4 when the lit letters change in the workshop. Two loops play on voices 8 and 16
 -- while the camera is in the workshop. The footsteps are in example-lua-bare-steps.lua.
@@ -432,7 +432,7 @@ function M.update(ca, cd, keys, frame, board_present, state)
     if not sound.ready then
         return 0
     end
-    -- Refused, as example-cpp refuses a table not period-sized: the steps would index past its end.
+    -- Refused, as example-cpp-pdkkit refuses a table not period-sized: the steps would index past its end.
     local table_of = steps.distance(keys)
     if #table_of ~= mathx.PERIOD_FRAMES then
         return fail(sound, "sound tables", ERR_INVAL)
