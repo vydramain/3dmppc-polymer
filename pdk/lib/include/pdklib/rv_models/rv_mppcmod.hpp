@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <span>
 #include <string>
@@ -52,6 +53,9 @@ enum rv_mppcmod_offset : int {
 
 /// The four magic bytes a .mppcmod opens with.
 inline constexpr char rv_mppcmod_magic[4] = { 'M', 'P', 'M', 'D' };
+
+/// File suffix of a baked model on the disc.
+inline constexpr const char *rv_mppcmod_extension = ".mppcmod";
 
 /// Offsets inside one part record; the name bytes follow the fixed part.
 enum rv_mppcmod_part_offset : int {
@@ -114,6 +118,13 @@ struct rv_mppcmod {
     std::vector<rv_mppcmod_vertex> vertices;
     std::vector<rv_mppcmod_triangle> triangles;
 };
+
+/// Disc name of a model: the file stem of `source` plus rv_mppcmod_extension, "factory.gltf" -> "factory.mppcmod".
+/// Directories follow std::filesystem rules of the platform; a leading dot is part of the name.
+inline std::string rv_mppcmod_disc_name(const std::string &source)
+{
+    return std::filesystem::path(source).stem().string() + rv_mppcmod_extension;
+}
 
 namespace detail
 {

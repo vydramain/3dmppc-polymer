@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "rv_burner_common/rv_burner_globs.hpp"
 
 namespace fs = std::filesystem;
@@ -25,6 +26,8 @@ namespace rv_pdktools
 //                     original file IS the payload and is archived as it is
 // @param extension    replaces the original suffix, e.g. ".luac"; nullptr keeps
 //                     the original file name unchanged
+// @param name_of      builds the disc name from the source path (models); when set,
+//                     it wins over extension
 // @param plan         receives the entries, appended in order
 // @param first        set to the index the first appended entry landed at
 // @param count        set to how many entries were appended
@@ -35,6 +38,7 @@ static int plan_section(const std::vector<std::string> &patterns,
     const fs::path &disc_dir,
     const fs::path &payload_dir,
     const char *extension,
+    std::string (*name_of)(const std::string &source),
     archive_plan &plan,
     std::size_t &first,
     std::size_t &count,
@@ -60,7 +64,13 @@ static int plan_section(const std::vector<std::string> &patterns,
         // A produced file keeps the author's file name and changes only its
         // suffix, so `ui/menu.lua` and `menu.luac` are recognisably the same
         // thing in a diagnostic. A copied file keeps its name entirely.
-        item.name = extension != nullptr ? fs::path(relative).stem().string() + extension : flat_name(relative);
+        if (name_of != nullptr) {
+            item.name = name_of(relative);
+        } else if (extension != nullptr) {
+            item.name = fs::path(relative).stem().string() + extension;
+        } else {
+            item.name = flat_name(relative);
+        }
         item.source = relative;
         item.payload = payload_dir.empty() ? (disc_dir / relative).string() : (payload_dir / item.name).string();
 
@@ -97,6 +107,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
         disc_dir,
         fs::path(),
         nullptr,
+        nullptr,
         plan,
         first_asset,
         plan.asset_count,
@@ -112,6 +123,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
         disc_dir,
         texture_dir,
         ".mppctex",
+        nullptr,
         plan,
         plan.first_texture,
         plan.texture_count,
@@ -127,6 +139,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
         disc_dir,
         scripts_dir,
         ".luac",
+        nullptr,
         plan,
         plan.first_script,
         plan.script_count,
@@ -142,6 +155,7 @@ int rv_pdktools::plan_archive(const rv_pdklib::rv_manifest &manifest,
         disc_dir,
         sound_dir,
         ".pcm",
+        nullptr,
         plan,
         plan.first_sound,
         plan.sound_count,
@@ -175,7 +189,8 @@ int rv_pdktools::plan_models(const rv_pdklib::rv_manifest &manifest,
         "[models] files",
         disc_dir,
         model_dir,
-        ".mppcmod",
+        nullptr,
+        rv_pdklib::rv_mppcmod_disc_name,
         next,
         next.first_model,
         next.model_count,
