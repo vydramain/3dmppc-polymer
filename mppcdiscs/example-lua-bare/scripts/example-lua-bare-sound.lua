@@ -1,11 +1,11 @@
 -- The demo's music (example-cpp-sound.cpp, music and loop parts): the bars of the area the camera is in play on
 -- voice 1, one bar per second, two slots in turn; the voice's repeat and mark hand it on, and a new area restarts.
 -- A board clack plays on voice 4 when the lit letters change in the workshop. Two loops play on voices 8 and 16
--- while the camera is in the workshop. The footsteps are in example-lua-steps.lua.
+-- while the camera is in the workshop. The footsteps are in example-lua-bare-steps.lua.
 -- The tables live in the entry's `state.sound`; the read buffer of write_slot is the one module local.
-local mathx = require("example-lua-math")
-local board = require("example-lua-board")
-local steps = require("example-lua-steps")
+local mathx = require("example-lua-bare-math")
+local board = require("example-lua-bare-board")
+local steps = require("example-lua-bare-steps")
 local M = {}
 
 -- Eye x of the camera, metres, as scenes/main.scene.toml places the objects: the factory is at x < 0,
@@ -46,7 +46,7 @@ local scratch = nil
 
 -- Music: Solid Maid sets no envelope, so the bar holds at full sustain; it is mixed at 10000 of 32767.
 local MUSIC_ENVELOPE = { ar = 0, dr = 0, sr = 0, rr = 0, sl = MAX_LEVEL, volume = 10000 }
--- Clack: the shape example-lua gives its tone, at full volume.
+-- Clack: the shape example-lua-bare gives its tone, at full volume.
 local CLACK_ENVELOPE = { ar = 5, dr = 40, sr = 0, rr = 120, sl = 26000, volume = MAX_LEVEL }
 
 -- The conveyor loop's voice, as Solid Maid sets it.
@@ -357,14 +357,14 @@ local function free_slots(ca, sound, count)
     for index = 1, count do
         local free_code = tonumber(pdk.ca_sound_asset_free(ca, sound.slots[index].addr))
         if free_code < 0 then
-            print(string.format("example-lua: music slot not freed: rv_err %d", free_code))
+            print(string.format("example-lua-bare: music slot not freed: rv_err %d", free_code))
         end
     end
 end
 
 -- Builds the music slots and the read buffer, checks the bar sizes and lists the span starts once; areas are computed per
 -- frame by area_at. Returns 0 or the first error, with
--- state.sound.error_asset naming the asset. state.sound must already exist (example-lua's disc_initialize).
+-- state.sound.error_asset naming the asset. state.sound must already exist (example-lua-bare's disc_initialize).
 function M.init(ca, cd, keys, state)
     local sound = state.sound
     -- The slots are sized to the largest bar, measured off the disc: a re-recorded bar must not overflow them.

@@ -59,4 +59,4 @@ card_slot_size = 8192
 # bytes, over 4400 stepped frames with the music, loops and footsteps: 358332 to 659645,
 # as the collector runs.
 script_memory_size = 1048576
-script_entry = "example-lua.luac"
+script_entry = "example-lua-bare.luac"

@@ -1,7 +1,7 @@
 -- The demo's footsteps (example-cpp-steps.cpp): one step per 0.95 m of horizontal eye path, on the floor of
 -- the frame's area, A and B alternating. The distance is tabulated once over the period; a frame whose
 -- distance crosses a multiple of the stride takes a step.
-local mathx = require("example-lua-math")
+local mathx = require("example-lua-bare-math")
 local M = {}
 
 -- One step per this many metres of horizontal eye path: Solid Maid's SM_STEP_STRIDE (solid-maid/src/sm_common.hpp),

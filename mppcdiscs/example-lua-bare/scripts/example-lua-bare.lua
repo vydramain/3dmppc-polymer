@@ -1,9 +1,9 @@
--- example-lua's entry chunk: the demo world of example-cpp in Lua - the scene's meshes,
+-- example-lua-bare's entry chunk: the demo world of example-cpp in Lua - the scene's meshes,
 -- the camera route, the street lamps and the factory board. The disc's own hooks
--- (src/example-lua.cpp) forward one-to-one into the same-named functions here.
+-- (src/example-lua-bare.cpp) forward one-to-one into the same-named functions here.
 -- Nothing touches _G: the chunk returns a module table, and the disc calls into it by name
 -- through rv_cl_script_call. The route math, the draw put, the lamps and the board are
--- modules (example-lua-*.lua), loaded with require inside the hooks; a module holds no state.
+-- modules (example-lua-bare-*.lua), loaded with require inside the hooks; a module holds no state.
 local M = {}
 
 -- `state` is not declared here: the console places its ONE persistent table
@@ -49,7 +49,7 @@ end
 
 -- The 16 numbers of a scene object's world, row-major, as a 1-based Lua table.
 local function world_of(object)
-    local MATRIX_LEN = require("example-lua-math").MATRIX_LEN
+    local MATRIX_LEN = require("example-lua-bare-math").MATRIX_LEN
     local world = {}
     for k = 0, MATRIX_LEN - 1 do
         world[k + 1] = object.world[k]
@@ -60,7 +60,7 @@ end
 local function add_mesh(meshes, object, name)
     local model = cstring(object.model)
     if model == "" then
-        print("warning: example-lua: mesh '" .. name .. "' has no model, not drawn")
+        print("warning: example-lua-bare: mesh '" .. name .. "' has no model, not drawn")
         return
     end
     local tint = { r = object.tint.r, g = object.tint.g, b = object.tint.b }
@@ -133,17 +133,17 @@ local function log_error_once(step, code, failure)
         return
     end
     state.logged_errors[step] = true
-    print(string.format("example-lua: %s %s: rv_err %d", step, failure or "not drawn", code))
+    print(string.format("example-lua-bare: %s %s: rv_err %d", step, failure or "not drawn", code))
 end
 
--- The disc's C++ side (src/example-lua.cpp) calls this with the organizer handle `o_`;
+-- The disc's C++ side (src/example-lua-bare.cpp) calls this with the organizer handle `o_`;
 -- pdk.cv(o_), pdk.cd(o_) and pdk.cg(o_) resolve it into the controller a call needs.
 function M.disc_initialize(o_)
     state.frame_count = 0
     state.logged_errors = {}
-    -- The music's tables (example-lua-sound.lua): ready after its init, frame -1 before the first frame.
+    -- The music's tables (example-lua-bare-sound.lua): ready after its init, frame -1 before the first frame.
     state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "" }
-    local mathx = require("example-lua-math")
+    local mathx = require("example-lua-bare-math")
     local scene, reason = scene_read(pdk.cd(o_), mathx)
     state.meshes = scene.meshes
     state.keys = scene.keys
@@ -151,13 +151,13 @@ function M.disc_initialize(o_)
     state.board_world = scene.board or {}
     state.board_found = scene.board ~= nil
     if reason ~= nil then
-        print("example-lua: " .. reason)
+        print("example-lua-bare: " .. reason)
     end
     if #state.keys > 0 then
-        require("example-lua-lamps").schedule(state.keys, state.lamps)
-        local sound_code = require("example-lua-sound").init(pdk.ca(o_), pdk.cd(o_), state.keys, state)
+        require("example-lua-bare-lamps").schedule(state.keys, state.lamps)
+        local sound_code = require("example-lua-bare-sound").init(pdk.ca(o_), pdk.cd(o_), state.keys, state)
         if sound_code < 0 then
-            print(string.format("example-lua: sound off: %s rv_err %d", state.sound.error_asset, sound_code))
+            print(string.format("example-lua-bare: sound off: %s rv_err %d", state.sound.error_asset, sound_code))
         end
     end
 end
@@ -180,10 +180,10 @@ function M.frame_render(o_)
         return -- disc_initialize has already said why
     end
 
-    local mathx = require("example-lua-math")
+    local mathx = require("example-lua-bare-math")
     local at = state.frame_count % mathx.PERIOD_FRAMES
     -- The sound first, as in example-cpp's frame_render: the music and the clack, then the picture.
-    local sound_code = require("example-lua-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
+    local sound_code = require("example-lua-bare-sound").update(pdk.ca(o_), cd, state.keys, at, state.board_found, state)
     if sound_code < 0 then
         log_error_once("sound " .. state.sound.error_asset, sound_code, "not played")
     end
@@ -203,19 +203,19 @@ function M.frame_render(o_)
     end
 
     -- The order of example-cpp's draw_world: meshes, then lamps, then the board.
-    local draw = require("example-lua-draw")
+    local draw = require("example-lua-bare-draw")
     for _, mesh in ipairs(state.meshes) do
         local code = draw.put(cg, cd, mesh.model, mesh.world, mesh.tint)
         if code < 0 then
             log_error_once(mesh.model, code)
         end
     end
-    local lamps_code = require("example-lua-lamps").draw(cg, cd, state.lamps, at)
+    local lamps_code = require("example-lua-bare-lamps").draw(cg, cd, state.lamps, at)
     if lamps_code < 0 then
         log_error_once("lamps", lamps_code)
     end
     if state.board_found then
-        local board_code = require("example-lua-board").draw(cg, cd, state.board_world, at)
+        local board_code = require("example-lua-bare-board").draw(cg, cd, state.board_world, at)
         if board_code < 0 then
             log_error_once("board", board_code)
         end

@@ -2,7 +2,7 @@
 -- every draw of the disc goes through (rv_draw_model and rv_draw_decal in example-cpp-draw.hpp).
 local M = {}
 
-local MATRIX_LEN = require("example-lua-math").MATRIX_LEN
+local MATRIX_LEN = require("example-lua-bare-math").MATRIX_LEN
 
 -- The ordering-table windows, as example-cpp-draw.hpp: the decal window is the world window
 -- DECAL_BIAS keys nearer, same width, so a decal wins over the wall it lies on.

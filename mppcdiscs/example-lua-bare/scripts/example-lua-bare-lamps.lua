@@ -1,7 +1,7 @@
 -- Street lamps (example-cpp-lamps.cpp). A lamp burns from the first frame of the outward
 -- half in which the eye comes within 8 m of it, until the first such frame of the return half.
-local mathx = require("example-lua-math")
-local draw = require("example-lua-draw")
+local mathx = require("example-lua-bare-math")
+local draw = require("example-lua-bare-draw")
 local M = {}
 
 local LIGHT_MODEL = "lamp_light.mppcmod"
@@ -34,10 +34,10 @@ function M.schedule(keys, lamps)
         local off = first_near(keys, at, OUTWARD_END, mathx.PERIOD_FRAMES)
         if on < 0 or off < 0 then
             lamp.on_frame, lamp.off_frame = 0, 0
-            print("warning: example-lua: " .. lamp.name .. " is not passed by the route in both halves: it stays dark")
+            print("warning: example-lua-bare: " .. lamp.name .. " is not passed by the route in both halves: it stays dark")
         else
             lamp.on_frame, lamp.off_frame = on, off
-            print(string.format("example-lua: %s burns from frame %d to %d of the period", lamp.name, on, off))
+            print(string.format("example-lua-bare: %s burns from frame %d to %d of the period", lamp.name, on, off))
         end
     end
 end

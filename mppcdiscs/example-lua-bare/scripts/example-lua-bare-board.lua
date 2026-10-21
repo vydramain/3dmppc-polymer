@@ -1,7 +1,7 @@
 -- The factory board's lettering "ОСТАЛОСЬ: 5" (example-cpp-board.cpp): one glyph model per
 -- cell, lit by a flicker table. Each lit cell draws its halo first, then the letters.
-local mathx = require("example-lua-math")
-local draw = require("example-lua-draw")
+local mathx = require("example-lua-bare-math")
+local draw = require("example-lua-bare-draw")
 local M = {}
 
 local HALO_MODEL = "halo.mppcmod"
