@@ -7,10 +7,10 @@
 namespace rv_editor
 {
 
-// The starting discs New Project copies: mppcdiscs/example-cpp and
-// example-lua of this repository, found at run time the way the icons are.
+// The starting discs New Project copies: mppcdiscs/example-cpp-pdkkit and
+// example-lua-bare of this repository, found at run time the way the icons are.
 struct rv_editor_template {
-    std::string id;          // "example-lua": its directory and disc id
+    std::string id;          // "example-lua-bare": its directory and disc id
     std::string name;        // "Minimal Lua"
     std::string description; // what it holds and what it shows
     std::filesystem::path dir;

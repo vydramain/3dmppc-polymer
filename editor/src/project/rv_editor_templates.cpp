@@ -63,8 +63,8 @@ void rv_editor_recent_save(const std::vector<std::filesystem::path> &list)
     }
 }
 
-// The template's name in a file or the text, replaced by the new id: "example-lua"
-// and the namespace spelling "example_lua".
+// The template's name in a file or the text, replaced by the new id: "example-lua-bare"
+// and the namespace spelling "example_lua_bare".
 std::string rv_editor_template_rename(std::string s, const std::string &from, const std::string &to)
 {
     std::string from_ns = from;
@@ -91,14 +91,14 @@ std::vector<rv_editor_template> rv_editor_templates()
 {
     const std::filesystem::path root = RV_EDITOR_TEMPLATE_DIR;
     return {
-        { "example-cpp",
+        { "example-cpp-pdkkit",
             rv_editor_text("templates.minimal_cpp_name"),
             rv_editor_text("templates.minimal_cpp_desc"),
-            root / "example-cpp" },
-        { "example-lua",
+            root / "example-cpp-pdkkit" },
+        { "example-lua-bare",
             rv_editor_text("templates.minimal_lua_name"),
             rv_editor_text("templates.minimal_lua_desc"),
-            root / "example-lua" },
+            root / "example-lua-bare" },
     };
 }
 
