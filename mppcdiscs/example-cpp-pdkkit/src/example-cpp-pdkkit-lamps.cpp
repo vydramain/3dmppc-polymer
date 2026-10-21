@@ -14,7 +14,7 @@
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 namespace
@@ -189,4 +189,4 @@ int rv_lamps_schedule(rv_pdklib::ecs_world &world, const std::vector<rv_route_ke
     return RV_OK;
 }
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

@@ -8,7 +8,7 @@
 #include "pdklib/rv_math/rv_fx.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 // The place the camera is in: the factory (workshop), the street, the flat (apartment).
@@ -92,4 +92,4 @@ int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 int64_t rv_steps_init(const std::vector<rv_route_key> &keys, rv_sound_state &state);
 int64_t rv_steps_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

@@ -8,7 +8,7 @@
 #include "pdklib/rv_ecs/rv_ecs_frame.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 // Light of a lamp_N_light object: the frames of the route period in which it burns, [on_frame, off_frame).
@@ -31,4 +31,4 @@ int ecs_system_lamp_light(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_fram
 // matrix); the lamps after it keep their schedule.
 int rv_lamps_schedule(rv_pdklib::ecs_world &world, const std::vector<rv_route_key> &keys);
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

@@ -9,7 +9,7 @@
 #include "pdklib/rv_ecs/rv_ecs_frame.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 // One period of the demo's camera loop: 4320 frames = 72 s at 1/60 s per frame.
@@ -64,4 +64,4 @@ int rv_route_collect(rv_pdklib::ecs_world &world, std::vector<rv_route_key> &key
 // else the code of rv_route_camera_at. Not logged: a frame repeats it, so the disc logs the first one.
 int ecs_system_route(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame);
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

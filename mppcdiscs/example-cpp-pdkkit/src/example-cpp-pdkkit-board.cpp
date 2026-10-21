@@ -14,7 +14,7 @@
 #include "pdklib/rv_logs/rv_logs.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 namespace
@@ -117,4 +117,4 @@ int ecs_system_flicker(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &
     return RV_OK;
 }
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

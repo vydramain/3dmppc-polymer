@@ -20,7 +20,7 @@
 #include "example-cpp-pdkkit-route.hpp"
 #include "example-cpp-pdkkit-sound.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 namespace
@@ -94,7 +94,7 @@ public:
 
     const char *disc_title() const
     {
-        return "example-cpp";
+        return "example-cpp-pdkkit";
     }
 
 private:
@@ -108,7 +108,7 @@ private:
     void log_sound_error(int64_t code);
 
     // Declared before world_: the world keeps a pointer to the type, so the type must outlive it.
-    example_cpp::ecs_entity_route route_type_;
+    example_cpp_pdkkit::ecs_entity_route route_type_;
     rv_pdklib::ecs_world world_;
     // The cam_NN keys, in NN order.
     std::vector<rv_route_key> keys_;
@@ -132,27 +132,28 @@ int rv_dmain::register_ecs()
     if (type_code != RV_OK) {
         return type_code;
     }
-    const int system_code = rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp::ecs_system_route);
+    const int system_code =
+        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_ROUTE_SYSTEM, example_cpp_pdkkit::ecs_system_route);
     if (system_code != RV_OK) {
         return system_code;
     }
     const int lamp_factory_code =
-        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp::ecs_lamp_light_factory);
+        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_lamp_light_factory);
     if (lamp_factory_code != RV_OK) {
         return lamp_factory_code;
     }
     const int lamp_system_code =
-        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp::ecs_system_lamp_light);
+        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_LAMP_LIGHT, example_cpp_pdkkit::ecs_system_lamp_light);
     if (lamp_system_code != RV_OK) {
         return lamp_system_code;
     }
     const int flicker_factory_code =
-        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp::ecs_flicker_factory);
+        rv_pdklib::ecs_component_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_flicker_factory);
     if (flicker_factory_code != RV_OK) {
         return flicker_factory_code;
     }
     const int flicker_system_code =
-        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp::ecs_system_flicker);
+        rv_pdklib::ecs_system_register(world_, RV_EXAMPLE_CPP_FLICKER, example_cpp_pdkkit::ecs_system_flicker);
     if (flicker_system_code != RV_OK) {
         return flicker_system_code;
     }
@@ -266,6 +267,6 @@ void rv_dmain::log_sound_error(int64_t code)
     RV_LOG_ERR("sound", "sound not played: {} rv_err {}", asset, code);
 }
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit
 
-RV_MPPC_DISC_ENTRY_DEF(example_cpp::rv_dmain);
+RV_MPPC_DISC_ENTRY_DEF(example_cpp_pdkkit::rv_dmain);

@@ -13,7 +13,7 @@
 #include "example-cpp-pdkkit-board.hpp"
 #include "example-cpp-pdkkit-route.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 namespace
@@ -290,4 +290,4 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     return code;
 }
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

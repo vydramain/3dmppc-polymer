@@ -8,7 +8,7 @@
 
 #include "pdklib/rv_logs/rv_logs.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 namespace
@@ -413,4 +413,4 @@ int ecs_system_route(ecs_world &world, const rv_pdklib::ecs_frame &frame)
     return RV_OK;
 }
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit

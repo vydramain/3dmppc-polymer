@@ -6,7 +6,7 @@
 #include "pdklib/rv_ecs/rv_ecs.hpp"
 #include "pdklib/rv_ecs/rv_ecs_frame.hpp"
 
-namespace example_cpp
+namespace example_cpp_pdkkit
 {
 
 // Cells of the board's text ("ОСТАЛОСЬ: 5"), counted from 0; a cell may be the space between colon and digit.
@@ -28,4 +28,4 @@ int ecs_flicker_factory(rv_pdklib::ecs_world &world, rv_pdklib::ecs_id id, const
 // Error: RV_ERR_NOENT when a dark entity cannot take its hidden mark (a stale id); logged with its cell.
 int ecs_system_flicker(rv_pdklib::ecs_world &world, const rv_pdklib::ecs_frame &frame);
 
-} // namespace example_cpp
+} // namespace example_cpp_pdkkit
