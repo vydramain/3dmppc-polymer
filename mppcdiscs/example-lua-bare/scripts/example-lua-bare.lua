@@ -12,16 +12,18 @@ local M = {}
 -- survives a reload: a chunk local or a field of M dies with the code.
 -- Keep only numbers, strings, booleans and tables in it. A function or a
 -- coroutine would keep the OLD bytecode alive after a reload; cdata is
--- userdata, which the console refuses. Copy plain values out of cdata first
--- (see scene_read). The console learns the shape of `state` right after
+-- userdata, which the console refuses. Keep plain copies of the layout's numbers
+-- (see copy_world), never its own tables. The console learns the shape of `state` right after
 -- disc_initialize and holds every later reload candidate to it.
 --
 -- The body stays PURE (no pdk call, no require, no write to `state`): it also runs to
 -- validate a reload candidate before the console knows whether it will pass.
 print("Hello from example lua!")
 
+-- The object kinds of the layout (example-lua-bare-layout.lua).
+local KIND_MESH = "mesh"
+local KIND_CAMERA = "camera"
 -- Same values as example-cpp-pdkkit (example-cpp-pdkkit-route.hpp, example-cpp-pdkkit.cpp).
-local SCENE_NAME = "main.scene.toml"
 -- Lens and clip planes; the far plane is a margin past the scene's extent.
 -- As RV_ROUTE_FOV_Y in example-cpp-pdkkit-route.cpp: 60 degrees, converted to radians in float.
 local FOV_DEGREES = 60
@@ -34,91 +36,72 @@ local BACKGROUND = { 20, 24, 40 }
 local BOARD_NAME = "board"
 local LAMP_PREFIX = "lamp_"
 
--- A NUL-terminated char array of the drive's scene record, as a Lua string.
-local function cstring(chars)
+-- The state keeps its own numbers: Reload Module rewrites the layout's tables in place, and a
+-- frame must not change with a reload. Copies one 1-based world of 16 numbers.
+local function copy_world(world)
     local out = {}
-    for i = 0, pdk.CD_NAME_CAPACITY - 1 do
-        local c = chars[i]
-        if c == 0 then
-            break
-        end
-        out[#out + 1] = string.char(c % 256)
+    for k = 1, require("example-lua-bare-math").MATRIX_LEN do
+        out[k] = world[k]
     end
-    return table.concat(out)
+    return out
 end
 
--- The 16 numbers of a scene object's world, row-major, as a 1-based Lua table.
-local function world_of(object)
-    local MATRIX_LEN = require("example-lua-bare-math").MATRIX_LEN
-    local world = {}
-    for k = 0, MATRIX_LEN - 1 do
-        world[k + 1] = object.world[k]
-    end
-    return world
+local function copy_tint(tint)
+    return { r = tint.r, g = tint.g, b = tint.b }
 end
 
-local function add_mesh(meshes, object, name)
-    local model = cstring(object.model)
-    if model == "" then
-        print("warning: example-lua-bare: mesh '" .. name .. "' has no model, not drawn")
+local function add_mesh(meshes, entry)
+    if entry.model == "" then
+        print("warning: example-lua-bare: mesh '" .. entry.name .. "' has no model, not drawn")
         return
     end
-    local tint = { r = object.tint.r, g = object.tint.g, b = object.tint.b }
-    meshes[#meshes + 1] = { model = model, world = world_of(object), tint = tint }
+    meshes[#meshes + 1] = { model = entry.model, world = copy_world(entry.world), tint = copy_tint(entry.tint) }
 end
 
 -- The camera's eye is world * (0,0,0) and its view direction world * (0,0,1) minus the eye.
-local function add_key(keys, object, name, mathx)
-    local digits = name:match("^cam_(%d%d)$")
+-- The layout's world is 1-based: the translation is column 4, the z axis column 3.
+local function add_key(keys, entry, mathx)
+    local digits = entry.name:match("^cam_(%d%d)$")
     if digits == nil then
         return -- a camera outside the route is not part of the loop
     end
-    local w = object.world
+    local w = entry.world
     keys[#keys + 1] = {
         index = tonumber(digits),
-        eye = { x = w[3], y = w[7], z = w[11] },
-        dir = mathx.unit({ x = w[2], y = w[6], z = w[10] }),
+        eye = { x = w[4], y = w[8], z = w[12] },
+        dir = mathx.unit({ x = w[3], y = w[7], z = w[11] }),
     }
 end
 
--- Fills `scene` from the objects of the scene. Returns nil, or the reason it stopped.
-local function read_objects(cd, mathx, scene)
-    local count = tonumber(pdk.cd_scene_object_count(cd, SCENE_NAME))
-    if count < 0 then
-        return string.format("%s not used: rv_err %d", SCENE_NAME, count)
-    end
-    local object = pdk.new("rv_cd_scene_object")
-    for i = 0, count - 1 do
-        local read = tonumber(pdk.cd_scene_object_read(cd, SCENE_NAME, i, object))
-        if read < 0 then
-            return string.format("%s not used: object %d rv_err %d", SCENE_NAME, i, read)
+-- Fills `scene` from the layout's entries, in scene order.
+local function read_objects(scene, mathx)
+    for _, entry in ipairs(require("example-lua-bare-layout")) do
+        if entry.name == BOARD_NAME then
+            scene.board = copy_world(entry.world)
         end
-        local name = cstring(object.name)
-        if name == BOARD_NAME then
-            scene.board = world_of(object)
-        end
-        if object.kind == pdk.CD_SCENE_MESH then
-            add_mesh(scene.meshes, object, name)
-            if #name > #LAMP_PREFIX and name:sub(1, #LAMP_PREFIX) == LAMP_PREFIX then
-                scene.lamps[#scene.lamps + 1] = { name = name, world = world_of(object), on_frame = 0, off_frame = 0 }
+        if entry.kind == KIND_MESH then
+            add_mesh(scene.meshes, entry)
+            if #entry.name > #LAMP_PREFIX and entry.name:sub(1, #LAMP_PREFIX) == LAMP_PREFIX then
+                scene.lamps[#scene.lamps + 1] = {
+                    name = entry.name,
+                    world = copy_world(entry.world),
+                    on_frame = 0,
+                    off_frame = 0,
+                }
             end
-        elseif object.kind == pdk.CD_SCENE_CAMERA then
-            add_key(scene.keys, object, name, mathx)
+        elseif entry.kind == KIND_CAMERA then
+            add_key(scene.keys, entry, mathx)
         end
     end
-    return nil
 end
 
--- Copies the meshes, the cam_NN keys (in NN order), the lamps and the board out of the scene.
--- On failure the lists come back empty with the reason, so the disc runs without the scene.
-local function scene_read(cd, mathx)
+-- Copies the meshes, the cam_NN keys (in NN order), the lamps and the board out of the layout.
+-- With no keys there is no loop: the lists come back empty with the reason, so the disc runs without the scene.
+local function scene_read(mathx)
     local scene = { meshes = {}, keys = {}, lamps = {} }
-    local reason = read_objects(cd, mathx, scene)
-    if reason == nil and #scene.keys == 0 then
-        reason = SCENE_NAME .. " not used: no cam_NN keys"
-    end
-    if reason ~= nil then
-        return { meshes = {}, keys = {}, lamps = {} }, reason
+    read_objects(scene, mathx)
+    if #scene.keys == 0 then
+        return { meshes = {}, keys = {}, lamps = {} }, "example-lua-bare-layout not used: no cam_NN keys"
     end
     table.sort(scene.keys, function(a, b)
         return a.index < b.index
@@ -144,7 +127,7 @@ function M.disc_initialize(o_)
     -- The music's tables (example-lua-bare-sound.lua): ready after its init, frame -1 before the first frame.
     state.sound = { ready = false, frame = -1, area = 0, bar = 0, slots = {}, error_asset = "" }
     local mathx = require("example-lua-bare-math")
-    local scene, reason = scene_read(pdk.cd(o_), mathx)
+    local scene, reason = scene_read(mathx)
     state.meshes = scene.meshes
     state.keys = scene.keys
     state.lamps = scene.lamps
