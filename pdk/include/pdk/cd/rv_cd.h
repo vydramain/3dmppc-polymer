@@ -10,6 +10,13 @@
 // Lua sees it as pdk.CD_NAME_CAPACITY.
 #define RV_CD_NAME_CAPACITY 64
 
+// Bytes per component field value, NUL included, and fields per component: the
+// fixed sizes of rv_cd_scene_component, so a component is a plain copy like an
+// object. A component past either limit does not load its scene (see below).
+// Lua sees them as pdk.CD_VALUE_CAPACITY and pdk.CD_COMPONENT_FIELD_CAPACITY.
+#define RV_CD_VALUE_CAPACITY           64
+#define RV_CD_COMPONENT_FIELD_CAPACITY 8
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -132,6 +139,48 @@ int64_t rv_cd_scene_object_count(rv_cd *cd, const char *scene);
 // a null argument, RV_ERR_NOENT for an unknown scene.
 int64_t rv_cd_scene_object_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_object *out);
 
+// One field of a component, as text. Key is NUL-terminated; value keeps the text
+// rv_scene_render writes: strings in double quotes, arrays as [a, b, c], numbers
+// in their shortest fixed form. The quotes tell a string from a number.
+struct rv_cd_scene_field {
+    char key[64];   // RV_CD_NAME_CAPACITY, spelled out for ffi.cdef
+    char value[64]; // RV_CD_VALUE_CAPACITY, spelled out for ffi.cdef
+};
+
+typedef struct rv_cd_scene_field rv_cd_scene_field;
+
+// A component of a scene, flattened over its objects in document order; only the
+// first field_count fields are in use. Over RV_CD_COMPONENT_FIELD_CAPACITY fields,
+// or a key or value past its capacity, the scene does not load (RV_ERR_INVAL;
+// the reason goes to the console log).
+struct rv_cd_scene_component {
+    int64_t object; // index of the object the component belongs to
+    char name[64];  // RV_CD_NAME_CAPACITY, spelled out for ffi.cdef
+    int64_t field_count;
+    rv_cd_scene_field fields[8]; // RV_CD_COMPONENT_FIELD_CAPACITY, spelled out for ffi.cdef
+};
+
+typedef struct rv_cd_scene_component rv_cd_scene_component;
+
+// The entity type of an object, NUL-terminated; empty means the base type.
+struct rv_cd_scene_entity {
+    char type[64]; // RV_CD_NAME_CAPACITY, spelled out for ffi.cdef
+};
+
+typedef struct rv_cd_scene_entity rv_cd_scene_entity;
+
+// Number of components in the scene, or a negative rv_err (RV_ERR_NOENT for an
+// unknown scene).
+int64_t rv_cd_scene_component_count(rv_cd *cd, const char *scene);
+
+// Copies component `index` into `out`. RV_ERR_INVAL for an index out of range or
+// a null argument, RV_ERR_NOENT for an unknown scene.
+int64_t rv_cd_scene_component_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_component *out);
+
+// Copies the entity type of object `index` into `out`. Errors as for
+// rv_cd_scene_object_read.
+int64_t rv_cd_scene_object_entity_read(rv_cd *cd, const char *scene, int64_t index, rv_cd_scene_entity *out);
+
 /* RV_CDEF_END */
 
 // Every name array of the struct must match the name capacity (the cdef carries
@@ -145,6 +194,13 @@ RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->id) == RV_CD_NAME_
 RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->name) == RV_CD_NAME_CAPACITY, "scene name capacity");
 RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->model) == RV_CD_NAME_CAPACITY, "scene model capacity");
 RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_object *)0)->texture) == RV_CD_NAME_CAPACITY, "scene texture capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_field *)0)->key) == RV_CD_NAME_CAPACITY, "scene field key capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_field *)0)->value) == RV_CD_VALUE_CAPACITY, "scene field value capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_component *)0)->name) == RV_CD_NAME_CAPACITY, "scene component name capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_component *)0)->fields) ==
+        RV_CD_COMPONENT_FIELD_CAPACITY * sizeof(struct rv_cd_scene_field),
+    "scene component field capacity");
+RV_CD_STATIC_ASSERT_(sizeof(((struct rv_cd_scene_entity *)0)->type) == RV_CD_NAME_CAPACITY, "scene entity type capacity");
 
 #ifdef __cplusplus
 } /* extern "C" */
