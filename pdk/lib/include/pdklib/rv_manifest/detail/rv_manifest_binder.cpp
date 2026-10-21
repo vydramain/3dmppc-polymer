@@ -46,6 +46,11 @@ constexpr bind_rule RULES[] = {
         [](rv_manifest &m, const rv_manifest_mvalue &v) {
             m.build_include_dirs = v.arr;
         } },
+    { rv_manifest_section_build, // [build] sdk = [ … ]
+        rv_manifest_key_build_sdk,
+        [](rv_manifest &m, const rv_manifest_mvalue &v) {
+            m.build_sdk = v.arr;
+        } },
 
     { rv_manifest_section_scripts, // [scripts] sources = [ … ]
         rv_manifest_key_scripts_sources,

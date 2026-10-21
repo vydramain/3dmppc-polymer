@@ -42,6 +42,7 @@ constexpr std::string_view rv_manifest_key_disc_title = "title";
 constexpr std::string_view rv_manifest_key_build_sources = "sources";
 constexpr std::string_view rv_manifest_key_build_defines = "defines";
 constexpr std::string_view rv_manifest_key_build_include_dirs = "include_dirs";
+constexpr std::string_view rv_manifest_key_build_sdk = "sdk";
 
 // Section ['scripts']
 constexpr std::string_view rv_manifest_key_scripts_sources = "sources";
@@ -112,6 +113,7 @@ constexpr rv_manifest_key_spec rv_manifest_build_keys[] = {
     { rv_manifest_key_build_sources, rv_manifest_value_kind::array },
     { rv_manifest_key_build_defines, rv_manifest_value_kind::array },
     { rv_manifest_key_build_include_dirs, rv_manifest_value_kind::array },
+    { rv_manifest_key_build_sdk, rv_manifest_value_kind::array },
 };
 
 constexpr rv_manifest_key_spec rv_manifest_scripts_keys[] = {

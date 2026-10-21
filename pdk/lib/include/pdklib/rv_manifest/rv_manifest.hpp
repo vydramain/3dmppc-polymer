@@ -139,6 +139,8 @@ struct rv_manifest {
     std::vector<std::string> build_sources;
     std::vector<std::string> build_defines;
     std::vector<std::string> build_include_dirs;
+    // Names of SDK trees beside the contract (<pdk root>/<name>/include) the disc asks the burner to compile against.
+    std::vector<std::string> build_sdk;
 
     // [scripts] - globs relative lua scripts to the disc directory
     std::vector<std::string> scripts_sources;
