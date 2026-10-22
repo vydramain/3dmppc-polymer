@@ -15,6 +15,7 @@
 #include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
 #include "pdklib/rv_logs/rv_logs.hpp"
+#include "pdklib/rv_scene/rv_scene_unit.hpp"
 #include "example-cpp-pdkkit-board.hpp"
 #include "example-cpp-pdkkit-lamps.hpp"
 #include "example-cpp-pdkkit-route.hpp"
