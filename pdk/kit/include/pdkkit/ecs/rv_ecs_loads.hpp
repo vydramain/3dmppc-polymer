@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <new>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -35,7 +36,7 @@ inline std::size_t ecs_load_position(const ecs_world &world, uint32_t number)
     return state.loads.size();
 }
 
-// Drops dead ids from every load. A load's record stays, even empty, until its own unload removes it.
+// Drops dead ids from every load. A record stays, even empty, except those ecs_scene_unload_now removes.
 inline void ecs_loads_prune(ecs_world &world)
 {
     auto &state = detail::ecs_state(world);
@@ -102,9 +103,29 @@ inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &root
     return RV_OK;
 }
 
-// Unloads now: destroys the load's entities and their descendants, then removes the load's record. Records of other
-// loads, even when they are left empty, stay. RV_ERR_NOENT for an unknown number; RV_ERR_INVAL for a parent cycle,
-// with nothing destroyed.
+// Whether load has live entities and every one of them is in doomed, so this unload destroys all of them.
+// ponytail: up to made x doomed comparisons per other load, inside one unload; a set of doomed ids once that product gets
+// large.
+inline bool ecs_load_emptied(const ecs_world &world, const ecs_load &load, const std::vector<ecs_id> &doomed)
+{
+    bool any_live = false;
+    for (const ecs_id id : load.made) {
+        const bool dead = !ecs_entity_alive(world, id);
+        if (dead) {
+            continue;
+        }
+        any_live = true;
+        const bool outside = std::find(doomed.begin(), doomed.end(), id) == doomed.end();
+        if (outside) {
+            return false;
+        }
+    }
+    return any_live;
+}
+
+// Unloads now: destroys the load's entities and their descendants, then removes the load's record and the records of
+// the other loads this unload emptied. A record that was empty before stays until its own unload. RV_ERR_NOENT for an
+// unknown number; RV_ERR_INVAL for a parent cycle, with nothing destroyed.
 inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
 {
     auto &state = detail::ecs_state(world);
@@ -117,6 +138,14 @@ inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
     if (collected != RV_OK) {
         return collected;
     }
+    // Records to remove, this load's first. Built before any destroy, so a failure here changes nothing.
+    std::vector<uint32_t> gone{ number };
+    for (const ecs_load &load : state.loads) {
+        const bool other = load.number != number;
+        if (other && ecs_load_emptied(world, load, doomed)) {
+            gone.push_back(load.number);
+        }
+    }
     // Room for each destroy's free-list push, so none allocates. The reserve may throw, before any change.
     state.free_slots.reserve(state.free_slots.size() + doomed.size());
     // Each id is alive and the room is reserved, so every destroy succeeds.
@@ -124,8 +153,11 @@ inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
         (void)ecs_entity_destroy(world, id);
     }
     ecs_loads_prune(world);
-    // Destroying changes no record, so position still names this load.
-    state.loads.erase(state.loads.begin() + static_cast<std::ptrdiff_t>(position));
+    // Erasing a record does not allocate, and destroying changed no record number.
+    static_assert(std::is_nothrow_move_assignable_v<ecs_load>, "the erase after the destroys must not throw");
+    std::erase_if(state.loads, [&gone](const ecs_load &load) {
+        return std::find(gone.begin(), gone.end(), load.number) != gone.end();
+    });
     return RV_OK;
 }
 
@@ -169,9 +201,10 @@ inline void ecs_loads_log_refused(const char *scene, const char *why)
     });
 }
 
-// Unloads load number with its descendants. In a frame the unload is queued and returns RV_OK at once; if it later
-// fails, ecs_world_frame returns that code unless the frame itself failed first. RV_ERR_NOENT for an unknown number;
-// RV_ERR_NOMEM or RV_ERR_INVAL when it cannot run (ecs_guard), with nothing changed.
+// Unloads load number with its descendants and the records of loads it empties (ecs_scene_unload_now). In a frame the
+// unload is queued and returns RV_OK at once; if it later fails, ecs_world_frame returns that code unless the frame
+// itself failed first. RV_ERR_NOENT for an unknown number; RV_ERR_NOMEM or RV_ERR_INVAL when it cannot run (ecs_guard),
+// with nothing changed.
 [[nodiscard]] inline int ecs_scene_unload(ecs_world &world, uint32_t number)
 {
     auto &state = detail::ecs_state(world);
