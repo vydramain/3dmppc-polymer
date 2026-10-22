@@ -1,4 +1,4 @@
-# The scene of the Solid Maid demo (pdklib/rv_scene/rv_scene.hpp): the factory, machines,
+# The scene of the Solid Maid demo (pdkkit/scene/rv_scene.hpp): the factory, machines,
 # street, house, apartment and furniture meshes, the board, lamps, and the camera route. 3dmppc-editor's
 # Scene layout edits it; the disc reads and draws it through the PDK.
 # The demo flies the route cam_00..cam_19. Camera rotation: pitch, yaw, roll in
