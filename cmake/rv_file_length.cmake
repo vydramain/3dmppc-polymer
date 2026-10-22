@@ -30,6 +30,8 @@ function(rv_check_file_lengths)
         ${RV_ROOT}/pdk/lib/*.hpp
         ${RV_ROOT}/pdk/tools/*.cpp
         ${RV_ROOT}/pdk/tools/*.hpp
+        ${RV_ROOT}/pdk/kit/*.cpp
+        ${RV_ROOT}/pdk/kit/*.hpp
         ${RV_ROOT}/editor/*.cpp
         ${RV_ROOT}/editor/*.hpp
         ${RV_ROOT}/mppcdiscs/*.cpp
