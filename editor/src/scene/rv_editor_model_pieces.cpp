@@ -29,7 +29,7 @@ void join(std::vector<uint32_t> &parent, uint32_t a, uint32_t b)
 
 } // namespace
 
-std::vector<rv_editor_piece> rv_editor_model_pieces(const rv_pdklib::rv_mppcmod &model)
+std::vector<rv_editor_piece> rv_editor_model_pieces(const rv_pdklib::rv_mppcmod_int_model &model)
 {
     // Every vertex starts alone; a triangle joins its three vertices into one set.
     std::vector<uint32_t> parent(model.vertices.size());
