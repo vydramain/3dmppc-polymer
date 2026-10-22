@@ -25,7 +25,12 @@
 #include "imgui.h"
 
 #include "pdk/rv_err.h"
+#include "pdklib/rv_gte/rv_gte_matrix.hpp"
+#include "pdklib/rv_logs/rv_logs.hpp"
+#include "panes/rv_editor_scene_glb.hpp"
 #include "panes/rv_editor_zbuf.hpp"
+#include "scene/rv_editor_scene.hpp"
+#include "text/rv_editor_text.hpp"
 #include "ui/rv_editor_icons.hpp"
 
 namespace rv_editor
@@ -42,6 +47,8 @@ constexpr float color_channel_max = 255.0f;
 constexpr double normalize_epsilon = 1e-12;
 // Bytes per pixel of the picture: RGBA8, as the z-buffer and the SDL texture both are.
 constexpr int rgba_channels = 4;
+// The near plane in Q20.12 raw: rv_editor_near rounded, as the console's near plane is.
+constexpr rv_pdklib::fx near_plane_raw = static_cast<rv_pdklib::fx>(rv_editor_near * rv_pdklib::fx_one + 0.5);
 
 vec3 cross(const vec3 &a, const vec3 &b)
 {
@@ -63,6 +70,8 @@ struct rv_editor_scene_target {
     SDL_Texture *texture = nullptr;
     // A failure is reported once per viewport, not once per frame.
     bool reported = false;
+    // Refused triangles are reported once per run of frames with refusals, per viewport.
+    bool refusal_reported = false;
 };
 
 // One picture per Scene viewport, keyed by its ImGui ID. An entry, and its texture, stays until
@@ -205,6 +214,75 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
     rv_editor_zbuf_draw(buf, zt);
 }
 
+// A scene point as Q20.12, then as view space through the camera's view matrix. RV_ERR_INVAL when either leaves int32.
+int rv_editor_view_fx_point(const rv_editor_view &v, const vec3 &p, rv_pdklib::fx_vec3 &out)
+{
+    std::int32_t scene[tri_vertices] = {};
+    for (int k = 0; k < tri_vertices; ++k) {
+        if (rv_pdklib::fx_from_double(p[k], scene[k]) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+    }
+    std::int32_t view[tri_vertices] = {};
+    if (rv_pdklib::rv_gte_point(v.camera.view, scene, view) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    out = { view[0], view[1], view[2] };
+    return RV_OK;
+}
+
+// The triangle's corners in view space as Q20.12, with its uv and colour. RV_ERR_INVAL when a corner leaves int32.
+int rv_editor_view_fx_tri(const rv_editor_view &v, const rv_editor_tri &tri, rv_editor_fx_tri &out)
+{
+    for (int k = 0; k < tri_vertices; ++k) {
+        if (rv_editor_view_fx_point(v, tri.p[k], out.v[k].p) != RV_OK) {
+            return RV_ERR_INVAL;
+        }
+        out.v[k].uv = tri.uv[k];
+        out.v[k].color = tri.color[k];
+    }
+    return RV_OK;
+}
+
+// A cut piece as the double triangle rv_editor_raster_piece takes: its uv and colour, and its corners in view-space
+// metres, raw / units (exact). The scene points are not carried: the rasteriser reads only the view points.
+void rv_editor_piece_metres(const rv_editor_fx_tri &piece, rv_editor_tri &tri, vec3 (&view_p)[tri_vertices])
+{
+    for (int k = 0; k < tri_vertices; ++k) {
+        const rv_pdklib::fx_vec3 &p = piece.v[k].p;
+        view_p[k] = { static_cast<double>(p.x) / rv_editor_gte_units_per_metre,
+            static_cast<double>(p.y) / rv_editor_gte_units_per_metre,
+            static_cast<double>(p.z) / rv_editor_gte_units_per_metre };
+        tri.uv[k] = piece.v[k].uv;
+        tri.color[k] = piece.v[k].color;
+    }
+}
+
+// One triangle: corners to view space, cut at the near plane, each piece rasterised. RV_ERR_INVAL when a
+// corner or cut point leaves int32; the triangle is then not drawn.
+int rv_editor_raster_tri(rv_editor_zbuf &buf,
+    const rv_editor_view &v,
+    const rv_editor_tri &tri,
+    const rv_editor_piece_style &st)
+{
+    rv_editor_fx_tri source{};
+    if (rv_editor_view_fx_tri(v, tri, source) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    rv_editor_fx_tri cut[rv_editor_fx_max_pieces] = {};
+    int count = 0;
+    if (rv_editor_clip_near_fx(source, near_plane_raw, cut, count) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    for (int i = 0; i < count; ++i) {
+        rv_editor_tri piece{};
+        vec3 view_p[tri_vertices] = {};
+        rv_editor_piece_metres(cut[i], piece, view_p);
+        rv_editor_raster_piece(buf, v, piece, view_p, st);
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 void rv_editor_draw_filled(ImDrawList *dl,
@@ -229,6 +307,7 @@ void rv_editor_draw_filled(ImDrawList *dl,
         return; // the reason is reported in rv_editor_target_make
     }
     rv_editor_zbuf_clear(t.buf);
+    int refused = 0;
     rv_editor_piece_style st;
     st.origin = origin;
     st.scale = ImVec2(static_cast<float>(w) / size.x, static_cast<float>(h) / size.y);
@@ -259,25 +338,19 @@ void rv_editor_draw_filled(ImDrawList *dl,
             const rv_editor_cpu_image *piece_tex = tri.cpu_tex != nullptr ? tri.cpu_tex : (tri.from_model ? nullptr : tex);
             st.texture = textured ? piece_tex : nullptr;
             st.from_model = tri.from_model;
-            vec3 view_p[tri_vertices];
-            bool in_front = true;
-            for (int k = 0; k < tri_vertices; ++k) {
-                view_p[k] = v.to_view(tri.p[k]);
-                in_front = in_front && view_p[k][2] >= rv_editor_near;
-            }
-            if (in_front) {
-                rv_editor_raster_piece(t.buf, v, tri, view_p, st);
-                continue;
-            }
-            // Behind the near plane: cut first, then each piece's corners are viewed.
-            for (const rv_editor_tri &piece : rv_editor_clip_near(v, tri)) {
-                vec3 piece_view[tri_vertices];
-                for (int k = 0; k < tri_vertices; ++k) {
-                    piece_view[k] = v.to_view(piece.p[k]);
-                }
-                rv_editor_raster_piece(t.buf, v, piece, piece_view, st);
+            if (rv_editor_raster_tri(t.buf, v, tri, st) != RV_OK) {
+                ++refused;
             }
         }
+    }
+    // Reported once per run of frames with refusals: the flag clears on a frame without any.
+    if (refused == 0) {
+        t.refusal_reported = false;
+    } else if (!t.refusal_reported) {
+        t.refusal_reported = true;
+        RV_LOG_WARN(scene_log_tag,
+            "{}",
+            rv_editor_text_format("project.filled_triangles_refused", std::make_format_args(refused)));
     }
     SDL_UpdateTexture(t.texture, nullptr, t.buf.colour.data(), w * rgba_channels);
     const ImTextureID id = static_cast<ImTextureID>(reinterpret_cast<intptr_t>(t.texture));
