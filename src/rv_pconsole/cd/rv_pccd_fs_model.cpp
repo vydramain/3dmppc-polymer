@@ -9,7 +9,6 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_logs/rv_logs.hpp"
-#include "pdklib/rv_models/rv_mppcmod.hpp"
 #include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/cd/rv_pccd_fs.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
@@ -48,14 +47,13 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
         RV_LOG_WARN("pccd", "model '{}' refused: it {}", rv_pdklib::rv_log_escape(resname), error);
         return RV_ERR_INVAL;
     }
-    const rv_pdklib::rv_mppcmod model = rv_pdklib::rv_mppcmod_int_to_float(int_model);
 
     // One entry per part, in part order, as model_upload() requires; a part
     // without a texture keeps addr_texture 0 and texture index -1.
-    std::vector<rv_pccg_part_texture> textures(model.parts.size(), rv_pccg_part_texture{ 0, 0, 0, 0 });
-    std::vector<int64_t> part_texture(model.parts.size(), -1);
-    for (size_t p = 0; p < model.parts.size(); ++p) {
-        const std::string &texture_name = model.parts[p].texture;
+    std::vector<rv_pccg_part_texture> textures(int_model.parts.size(), rv_pccg_part_texture{ 0, 0, 0, 0 });
+    std::vector<int64_t> part_texture(int_model.parts.size(), -1);
+    for (size_t p = 0; p < int_model.parts.size(); ++p) {
+        const std::string &texture_name = int_model.parts[p].texture;
         if (texture_name.empty()) {
             continue;
         }
@@ -74,7 +72,7 @@ int64_t rv_pccd_fs::model_resolve_(const char *resname, model_record *&record_ou
         part_texture[p] = static_cast<int64_t>(texture - textures_.data());
     }
 
-    const int64_t addr = cg_->model_upload(model, textures);
+    const int64_t addr = cg_->model_upload(int_model, textures);
     if (addr < 0) {
         RV_LOG_WARN("pccd", "model '{}' not uploaded (rv_err {})", rv_pdklib::rv_log_escape(resname), addr);
         return addr;

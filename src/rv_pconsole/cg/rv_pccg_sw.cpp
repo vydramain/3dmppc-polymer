@@ -25,7 +25,7 @@ constexpr int64_t RV_PCCG_SW_FIRST_ADDR = 16;
 // The bytes a model costs against model_memory_size: its .mppcmod size, field by field
 // as the format lays it out. The budget is in the burner's units, so a model that fits
 // a disc fits the console; the decoded copy kept in host memory is not what is charged.
-int64_t model_cost(const rv_pdklib::rv_mppcmod &model)
+int64_t model_cost(const rv_pdklib::rv_mppcmod_int_model &model)
 {
     int64_t bytes = rv_pdklib::rv_mppcmod_int_header_size;
     for (const rv_pdklib::rv_mppcmod_part &part : model.parts) {
@@ -54,19 +54,24 @@ int64_t ceil_div(int64_t a, int64_t b)
 }
 
 // The most host bytes any one record kind takes per .mppcmod byte, rounded up to a whole
-// number so the bound is an integer. A part is the decoded rv_mppcmod_part plus its
-// resident texture entry against the 12 fixed bytes. Its name, once it outgrows the
-// string's inline buffer, takes len+1 heap bytes; the +1 is taken at zero length, which
-// bounds every length since (A+1+len)/(12+len) never exceeds (A+1)/12. Vertices and
-// triangles are the struct size against their record size.
+// number so the bound is an integer. A model keeps two decoded copies, the integer model
+// and the float copy: transitional, E11g-2 returns one copy, so each kind counts both.
+// Counted: the struct sizes and the heap bytes of names that outgrow the string's inline
+// buffer. Not counted: allocator overhead.
+// A part is C = 2*sizeof(rv_mppcmod_part) + sizeof(rv_pccg_part_texture), plus the heap
+// bytes of its two names, len+1 each, against the 12 fixed bytes. The +2 is taken at zero
+// length, which bounds every length since (C+2+2len)/(12+len) never exceeds (C+2)/12 for
+// C >= 22. Vertices and triangles are both copies' struct sizes against their record size.
 int64_t host_bytes_per_file_byte()
 {
-    const int64_t part = ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 1),
-        rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
+    const int64_t part =
+        ceil_div(static_cast<int64_t>(2 * sizeof(rv_pdklib::rv_mppcmod_part) + sizeof(rv_pccg_part_texture) + 2),
+            rv_pdklib::RV_MPPCMOD_PART_FIXED_BYTES);
     const int64_t vertex =
-        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_vertex)), rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
+        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_int_vertex) + sizeof(rv_pdklib::rv_mppcmod_vertex)),
+            rv_pdklib::RV_MPPCMOD_INT_VERT_BYTES);
     const int64_t triangle =
-        ceil_div(static_cast<int64_t>(sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
+        ceil_div(static_cast<int64_t>(2 * sizeof(rv_pdklib::rv_mppcmod_triangle)), rv_pdklib::rv_mppcmod_triangle_bytes);
     return std::max({ part, vertex, triangle });
 }
 
@@ -92,7 +97,7 @@ bool camera_finite(const rv_cg_camera &camera)
 }
 
 // One texture entry per part, in part order: the rule model_upload and model_textures_set share.
-bool textures_per_part(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+bool textures_per_part(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     return textures.size() == model.parts.size();
 }
@@ -198,7 +203,7 @@ void rv_pccg_sw::frame_reset()
     triangles_ = 0;
 }
 
-int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     const bool texture_per_part = textures_per_part(model, textures);
     if (!texture_per_part) {
@@ -210,7 +215,7 @@ int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<c
         return RV_ERR_INVAL;
     }
     std::string error;
-    const int format_rc = rv_pdklib::rv_mppcmod_validate(model, error);
+    const int format_rc = rv_pdklib::rv_mppcmod_int_validate(model, error);
     if (format_rc != RV_OK) {
         RV_LOG_WARN("pccg", "model refused: {}", error);
         return RV_ERR_INVAL;
@@ -222,7 +227,11 @@ int64_t rv_pccg_sw::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<c
         return RV_ERR_NOMEM;
     }
     const int64_t addr = next_addr_++;
-    models_.push_back({ addr, bytes, model, std::vector<rv_pccg_part_texture>(textures.begin(), textures.end()) });
+    models_.push_back({ addr,
+        bytes,
+        model,
+        rv_pdklib::rv_mppcmod_int_to_float(model),
+        std::vector<rv_pccg_part_texture>(textures.begin(), textures.end()) });
     used_bytes_ += bytes;
     return addr;
 }
@@ -235,9 +244,9 @@ int64_t rv_pccg_sw::model_textures_set(int64_t addr, std::span<const rv_pccg_par
         RV_LOG_WARN("pccg", "textures refused: no model at address {}", addr);
         return RV_ERR_INVAL;
     }
-    const bool texture_per_part = textures_per_part(it->model, textures);
+    const bool texture_per_part = textures_per_part(it->int_model, textures);
     if (!texture_per_part) {
-        RV_LOG_WARN("pccg", "textures refused: {} texture(s) for {} part(s)", textures.size(), it->model.parts.size());
+        RV_LOG_WARN("pccg", "textures refused: {} texture(s) for {} part(s)", textures.size(), it->int_model.parts.size());
         return RV_ERR_INVAL;
     }
     // Only the texture entries change: the bytes charged and the record's address stay.

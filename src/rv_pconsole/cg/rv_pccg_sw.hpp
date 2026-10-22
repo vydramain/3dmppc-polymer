@@ -1,6 +1,6 @@
 // The software geometry controller: the rv_cg contract over a model memory it owns
-// and a camera it remembers. A model is kept as its decoded rv_mppcmod copy and
-// charged by its .mppcmod size against model_memory_size. Not an rv_pcpool: a pool
+// and a camera it remembers. A model is kept as its decoded integer model and a float
+// copy, and charged by its .mppcmod size against model_memory_size. Not an rv_pcpool: a pool
 // hands out bytes that a model would have to be serialized into, and nothing here
 // is ever read back from bytes.
 #pragma once
@@ -12,6 +12,7 @@
 
 #include "pdk/cg/rv_cg.h"
 #include "pdklib/rv_models/rv_mppcmod.hpp"
+#include "pdklib/rv_models/rv_mppcmod_int.hpp"
 #include "rv_pconsole/cg/rv_pccg.hpp"
 #include "rv_pconsole/cv/rv_pccv.hpp"
 #include "rv_pconsole/rv_pconsole_conf.hpp"
@@ -58,7 +59,7 @@ public:
     }
 
     void frame_reset() override;
-    int64_t model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures) override;
+    int64_t model_upload(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures) override;
     int64_t model_textures_set(int64_t addr, std::span<const rv_pccg_part_texture> textures) override;
     int64_t model_free(int64_t addr) override;
 
@@ -66,6 +67,8 @@ private:
     struct model_record {
         int64_t addr;
         int64_t bytes;
+        rv_pdklib::rv_mppcmod_int_model int_model;
+        // transitional: deleted by E11g-2, the put path on rv_gte reads the int16 vertices directly
         rv_pdklib::rv_mppcmod model;
         std::vector<rv_pccg_part_texture> textures;
     };

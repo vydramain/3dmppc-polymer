@@ -85,7 +85,7 @@ void rv_pccg_null::frame_reset()
     camera_set_ = false;
 }
 
-int64_t rv_pccg_null::model_upload(const rv_pdklib::rv_mppcmod &model, std::span<const rv_pccg_part_texture> textures)
+int64_t rv_pccg_null::model_upload(const rv_pdklib::rv_mppcmod_int_model &model, std::span<const rv_pccg_part_texture> textures)
 {
     // Argument validation stays on for null: a disc bug must look the same with cg off.
     if (textures.size() != model.parts.size()) {
