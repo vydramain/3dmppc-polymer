@@ -100,7 +100,7 @@ public:
 private:
     int read_scene();
     int register_ecs();
-    int collect_parts();
+    int collect_parts(uint32_t load_number);
     void draw_world();
     void log_draw_error(const char *step, int64_t code);
     void init_sound();
@@ -182,7 +182,7 @@ int rv_dmain::read_scene()
     if (route_code != RV_OK) {
         return route_code;
     }
-    const int parts_code = collect_parts();
+    const int parts_code = collect_parts(load_number);
     if (parts_code != RV_OK) {
         return parts_code;
     }
@@ -193,20 +193,23 @@ int rv_dmain::read_scene()
     return RV_OK;
 }
 
-// The board from the scene's entities, in file order.
-int rv_dmain::collect_parts()
+// The board from the entities of load load_number, in file order. A nameless entity refuses the scene.
+int rv_dmain::collect_parts(uint32_t load_number)
 {
-    for (const rv_pdkkit::ecs_load &load : world_.loads) {
-        for (const rv_pdkkit::ecs_id id : load.made) {
-            const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world_, id);
-            if (name == nullptr) {
-                RV_LOG_ERR("scene", "scene refused: an entity has no name");
-                return RV_ERR_INVAL;
-            }
-            if (name->text == RV_EXAMPLE_CPP_BOARD_NAME) {
-                board_found_ = true;
-            }
+    const auto find_board = [this](rv_pdkkit::ecs_id id) -> int {
+        const auto *name = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_name>(world_, id);
+        if (name == nullptr) {
+            RV_LOG_ERR("scene", "scene refused: an entity has no name");
+            return RV_ERR_INVAL;
         }
+        if (name->text == RV_EXAMPLE_CPP_BOARD_NAME) {
+            board_found_ = true;
+        }
+        return RV_OK;
+    };
+    const int walk_code = rv_pdkkit::ecs_scene_entities(world_, load_number, find_board);
+    if (walk_code != RV_OK) {
+        return walk_code;
     }
     return RV_OK;
 }
