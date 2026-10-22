@@ -25,7 +25,8 @@ struct ecs_component_world {
 };
 
 // Scene-space matrix of the entity with a transform: its local matrix, then each ancestor's applied outside it.
-// RV_ERR_INVAL for a missing or dead parent, or a chain longer than the live count (a cycle).
+// The chain follows ecs_component_parent. An ancestor without a transform is an identity; its parent link still counts.
+// RV_ERR_INVAL for a dead parent, or a chain longer than the live count (a cycle).
 // The logs are inside the guard too: a throwing log line becomes the guard's code.
 [[nodiscard]] inline int ecs_transform_world(ecs_world &world, ecs_id id, rv_pdklib::rv_mat4 &out)
 {
@@ -37,7 +38,8 @@ struct ecs_component_world {
             return RV_ERR_INVAL;
         }
         rv_pdklib::rv_mat4 m = rv_pdklib::rv_scene_local_trs(self->position, self->rotation, self->scale);
-        ecs_id parent = self->parent;
+        const ecs_component_parent *link = ecs_component_get<ecs_component_parent>(world, id);
+        ecs_id parent = link == nullptr ? ecs_id{} : link->parent;
         // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
         for (uint32_t steps = 0; parent != ecs_id{}; ++steps) {
             const bool cycle = steps >= state.live_count;
@@ -45,18 +47,23 @@ struct ecs_component_world {
                 RV_LOG_ERR(ecs_transform_tag, "entity {}:{}: parent chain is a cycle", id.index, id.generation);
                 return RV_ERR_INVAL;
             }
-            const ecs_component_transform *up = ecs_component_get<ecs_component_transform>(world, parent);
-            if (up == nullptr) {
+            const bool dead = !ecs_entity_alive(world, parent);
+            if (dead) {
                 RV_LOG_ERR(ecs_transform_tag,
-                    "entity {}:{}: parent {}:{} is dead or has no transform",
+                    "entity {}:{}: parent {}:{} is dead",
                     id.index,
                     id.generation,
                     parent.index,
                     parent.generation);
                 return RV_ERR_INVAL;
             }
-            m = rv_pdklib::rv_mat4_mul(rv_pdklib::rv_scene_local_trs(up->position, up->rotation, up->scale), m);
-            parent = up->parent;
+            const ecs_component_transform *up = ecs_component_get<ecs_component_transform>(world, parent);
+            const bool has_transform = up != nullptr;
+            if (has_transform) {
+                m = rv_pdklib::rv_mat4_mul(rv_pdklib::rv_scene_local_trs(up->position, up->rotation, up->scale), m);
+            }
+            const ecs_component_parent *up_link = ecs_component_get<ecs_component_parent>(world, parent);
+            parent = up_link == nullptr ? ecs_id{} : up_link->parent;
         }
         out = m;
         return RV_OK;

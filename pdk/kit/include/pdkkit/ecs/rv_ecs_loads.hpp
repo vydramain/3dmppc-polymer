@@ -48,15 +48,15 @@ inline void ecs_loads_prune(ecs_world &world)
 }
 
 // Whether the parent chain of id reaches one of roots. RV_ERR_INVAL for a cycle, which is logged.
-// The parent is matched against roots before its transform is looked up, so a root is reached even without a
-// transform, and even when it is dead: a child of a dead load root is still in the load's subtree. Another dead or
-// transform-less parent ends the chain.
+// The chain follows ecs_component_parent. The parent is matched against roots before its own link is read, so a root
+// is reached even when it is dead: a child of a dead load root is still in the load's subtree. A dead parent ends the
+// chain; an alive one without a transform is passed through.
 inline int ecs_chain_reaches(ecs_world &world, ecs_id id, const std::vector<ecs_id> &roots, bool &reached)
 {
     const auto &state = detail::ecs_state(world);
-    const ecs_component_transform *self = ecs_component_get<ecs_component_transform>(world, id);
+    const ecs_component_parent *link = ecs_component_get<ecs_component_parent>(world, id);
     reached = false;
-    ecs_id parent = self == nullptr ? ecs_id{} : self->parent;
+    ecs_id parent = link == nullptr ? ecs_id{} : link->parent;
     // An acyclic chain is shorter than live_count; reaching live_count steps means a cycle.
     for (uint32_t steps = 0; !reached && parent != ecs_id{}; ++steps) {
         const bool cycle = steps >= state.live_count;
@@ -65,17 +65,14 @@ inline int ecs_chain_reaches(ecs_world &world, ecs_id id, const std::vector<ecs_
             return RV_ERR_INVAL;
         }
         reached = std::find(roots.begin(), roots.end(), parent) != roots.end();
-        const ecs_component_transform *up = ecs_component_get<ecs_component_transform>(world, parent);
-        if (up == nullptr) {
-            break;
-        }
-        parent = up->parent;
+        const ecs_component_parent *up = ecs_component_get<ecs_component_parent>(world, parent);
+        parent = up == nullptr ? ecs_id{} : up->parent;
     }
     return RV_OK;
 }
 
-// Every live root, with or without a transform, then every other live transform holder under a root, each once.
-// Roots come first, the rest in transform pool order. RV_ERR_INVAL for a cycle, found before any change.
+// Every live root, with or without a transform, then every other live entity with a parent link under a root, each
+// once. Roots come first, the rest in ecs_component_parent pool order. RV_ERR_INVAL for a cycle, found before any change.
 inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &roots, std::vector<ecs_id> &out)
 {
     // ponytail: linear scans over roots; a sorted id list or a set if a load grows to thousands of objects.
@@ -86,7 +83,7 @@ inline int ecs_subtree_collect(ecs_world &world, const std::vector<ecs_id> &root
         }
     }
     std::vector<ecs_id> holders;
-    ecs_component_each<ecs_component_transform>(world, [&holders](ecs_id id, ecs_component_transform &) {
+    ecs_component_each<ecs_component_parent>(world, [&holders](ecs_id id, ecs_component_parent &) {
         holders.push_back(id);
     });
     for (const ecs_id id : holders) {
