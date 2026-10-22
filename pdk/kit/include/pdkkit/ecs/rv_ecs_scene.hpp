@@ -83,6 +83,16 @@ inline int ecs_scene_no_entity(const char *scene)
     return RV_ERR_NOENT;
 }
 
+// Failure of ecs_component_ensure: a stale entity is logged as before, any other code (RV_ERR_NOMEM) is returned as is.
+inline int ecs_scene_ensure_failed(const ecs_scene_reading &load, int code)
+{
+    if (code == RV_ERR_NOENT) {
+        return ecs_scene_no_entity(load.scene);
+    }
+    RV_LOG_ERR(ecs_scene_tag, "scene '{}': component add failed ({})", rv_pdklib::rv_log_escape(load.scene), code);
+    return code;
+}
+
 // Capacity for the whole load and its rollback, taken before the first change, so the rollback never allocates.
 inline void ecs_scene_reserve(ecs_scene_reading &load)
 {
@@ -102,8 +112,10 @@ inline const ecs_scene_object &ecs_scene_object_at(const ecs_scene_reading &load
 template <typename T>
 int ecs_scene_mark(ecs_scene_reading &load, ecs_id id)
 {
-    if (ecs_component_ensure<T>(load.world, id) == nullptr) {
-        return ecs_scene_no_entity(load.scene);
+    T *marker = nullptr;
+    const int ensured = ecs_component_ensure<T>(load.world, id, marker);
+    if (ensured != RV_OK) {
+        return ecs_scene_ensure_failed(load, ensured);
     }
     return RV_OK;
 }
@@ -119,9 +131,10 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &
             ecs_scene_text(object.name));
         return RV_OK;
     }
-    ecs_component_model *model = ecs_component_ensure<ecs_component_model>(load.world, id);
-    if (model == nullptr) {
-        return ecs_scene_no_entity(load.scene);
+    ecs_component_model *model = nullptr;
+    const int ensured = ecs_component_ensure<ecs_component_model>(load.world, id, model);
+    if (ensured != RV_OK) {
+        return ecs_scene_ensure_failed(load, ensured);
     }
     model->name = ecs_scene_text(object.model);
     model->tint = object.tint;
@@ -131,9 +144,10 @@ inline int ecs_scene_add_model(ecs_scene_reading &load, const ecs_scene_object &
 // Sprite of a quad or billboard. uv (pixels) and tess (subdivision density) convert at the boundary.
 inline int ecs_scene_add_sprite(ecs_scene_reading &load, const ecs_scene_object &object, ecs_id id, ecs_sprite_kind kind)
 {
-    ecs_component_sprite *sprite = ecs_component_ensure<ecs_component_sprite>(load.world, id);
-    if (sprite == nullptr) {
-        return ecs_scene_no_entity(load.scene);
+    ecs_component_sprite *sprite = nullptr;
+    const int ensured = ecs_component_ensure<ecs_component_sprite>(load.world, id, sprite);
+    if (ensured != RV_OK) {
+        return ecs_scene_ensure_failed(load, ensured);
     }
     const int uv_status = ecs_scene_units_from_float(object.uv, sprite->uv);
     if (uv_status != RV_OK) {
@@ -188,9 +202,10 @@ inline int ecs_scene_add_kind(ecs_scene_reading &load, const ecs_scene_object &o
 inline int ecs_scene_add_transform(ecs_scene_reading &load, int64_t index, ecs_id id)
 {
     const ecs_scene_local &local = load.records.locals[static_cast<std::size_t>(index)];
-    ecs_component_transform *transform = ecs_component_ensure<ecs_component_transform>(load.world, id);
-    if (transform == nullptr) {
-        return ecs_scene_no_entity(load.scene);
+    ecs_component_transform *transform = nullptr;
+    const int ensured = ecs_component_ensure<ecs_component_transform>(load.world, id, transform);
+    if (ensured != RV_OK) {
+        return ecs_scene_ensure_failed(load, ensured);
     }
     // Q20.12 int32 is fx: the values are copied as they are.
     transform->position = rv_pdklib::fx_vec3{ local.position[0], local.position[1], local.position[2] };
@@ -221,9 +236,10 @@ inline int ecs_scene_spawn(ecs_scene_reading &load, int64_t index)
     if (placed != RV_OK) {
         return placed;
     }
-    ecs_component_name *name = ecs_component_ensure<ecs_component_name>(load.world, id);
-    if (name == nullptr) {
-        return ecs_scene_no_entity(load.scene);
+    ecs_component_name *name = nullptr;
+    const int named = ecs_component_ensure<ecs_component_name>(load.world, id, name);
+    if (named != RV_OK) {
+        return ecs_scene_ensure_failed(load, named);
     }
     name->text = ecs_scene_text(object.name);
     return ecs_scene_add_kind(load, object, id);

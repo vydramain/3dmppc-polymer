@@ -69,19 +69,25 @@ struct ecs_component_decal {};
 // both faces as one layer of quads, not as a back-to-back pair.
 struct ecs_component_two_sided {};
 
-// Component of id, added with its defaults when missing. nullptr for a stale id.
-// The add fails only for a dead id or a held T, and both are excluded above. Growth of the pool may throw
-// std::bad_alloc before any state changes.
+// Component of id, added with its defaults when missing. out is written only on success. RV_ERR_NOENT for a dead or
+// stale id, otherwise the code of the add (RV_ERR_NOMEM when the pool cannot grow), RV_ERR_INVAL for any other
+// exception (ecs_guard). Nothing is added on failure.
 template <typename T>
-T *ecs_component_ensure(ecs_world &world, ecs_id id)
+[[nodiscard]] int ecs_component_ensure(ecs_world &world, ecs_id id, T *&out)
 {
-    if (!ecs_entity_alive(world, id)) {
-        return nullptr;
-    }
-    if (ecs_component_get<T>(world, id) == nullptr) {
-        ecs_component_add<T>(world, id);
-    }
-    return ecs_component_get<T>(world, id);
+    return ecs_guard([&]() -> int {
+        if (!ecs_entity_alive(world, id)) {
+            return RV_ERR_NOENT;
+        }
+        if (ecs_component_get<T>(world, id) == nullptr) {
+            const int added = ecs_component_add<T>(world, id);
+            if (added != RV_OK) {
+                return added;
+            }
+        }
+        out = ecs_component_get<T>(world, id);
+        return RV_OK;
+    });
 }
 
 // Field with the key, or nullptr. Only the first field_count fields are in use.
@@ -125,10 +131,8 @@ int ecs_marker_factory(ecs_world &world, ecs_id id, const ecs_scene_component &c
     if (fielded) {
         return RV_ERR_INVAL;
     }
-    if (ecs_component_ensure<T>(world, id) == nullptr) {
-        return RV_ERR_NOENT;
-    }
-    return RV_OK;
+    T *marker = nullptr;
+    return ecs_component_ensure<T>(world, id, marker);
 }
 
 inline int ecs_hidden_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)

@@ -73,10 +73,11 @@ inline int ecs_system_transform(ecs_world &world)
         if (computed != RV_OK) {
             return computed;
         }
-        ecs_component_world *out = ecs_component_ensure<ecs_component_world>(world, id);
-        if (out == nullptr) {
-            RV_LOG_ERR(ecs_transform_tag, "entity {}:{} is not alive", id.index, id.generation);
-            return RV_ERR_NOENT;
+        ecs_component_world *out = nullptr;
+        const int ensured = ecs_component_ensure<ecs_component_world>(world, id, out);
+        if (ensured != RV_OK) {
+            RV_LOG_ERR(ecs_transform_tag, "entity {}:{} world component not set: rv_err {}", id.index, id.generation, ensured);
+            return ensured;
         }
         out->matrix = matrix;
     }

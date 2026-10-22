@@ -104,13 +104,10 @@ int ecs_system_flicker(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &
             rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
             continue;
         }
-        const rv_pdkkit::ecs_component_hidden *hidden =
-            rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id);
-        if (hidden == nullptr) {
-            // Named: an unscoped enum does not format.
-            const int code = RV_ERR_NOENT;
-            RV_LOG_ERR("board", "flicker: cell {} cannot be hidden, stale entity: rv_err {}", state.cell, code);
-            return code;
+        rv_pdkkit::ecs_component_hidden *hidden = nullptr;
+        const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id, hidden);
+        if (hidden_code != RV_OK) {
+            return hidden_code;
         }
     }
     return RV_OK;

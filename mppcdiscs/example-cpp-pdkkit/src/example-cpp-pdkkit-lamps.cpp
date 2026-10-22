@@ -163,10 +163,10 @@ int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_fram
             // NOENT: the lamp has no hidden mark, so it is shown already.
             rv_pdkkit::ecs_component_remove<rv_pdkkit::ecs_component_hidden>(world, state.id);
         } else {
-            const rv_pdkkit::ecs_component_hidden *hidden =
-                rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id);
-            if (hidden == nullptr) {
-                return RV_ERR_NOENT;
+            rv_pdkkit::ecs_component_hidden *hidden = nullptr;
+            const int hidden_code = rv_pdkkit::ecs_component_ensure<rv_pdkkit::ecs_component_hidden>(world, state.id, hidden);
+            if (hidden_code != RV_OK) {
+                return hidden_code;
             }
         }
     }

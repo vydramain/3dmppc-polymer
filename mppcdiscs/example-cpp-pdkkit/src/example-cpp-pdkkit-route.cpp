@@ -389,9 +389,11 @@ int rv_route_collect(ecs_world &world, std::vector<rv_route_key> &keys)
 
 int ecs_entity_route::add_defaults(ecs_world &world, ecs_id id) const
 {
-    if (rv_pdkkit::ecs_component_ensure<ecs_component_route>(world, id) == nullptr) {
-        RV_LOG_ERR("scene", "route entity has no route component");
-        return RV_ERR_NOENT;
+    ecs_component_route *route = nullptr;
+    const int route_code = rv_pdkkit::ecs_component_ensure<ecs_component_route>(world, id, route);
+    if (route_code != RV_OK) {
+        RV_LOG_ERR("scene", "route component not added: rv_err {}", route_code);
+        return route_code;
     }
     return RV_OK;
 }
