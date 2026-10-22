@@ -10,6 +10,7 @@
 
 #include "pdkkit/component/rv_component_capacity.hpp"
 #include "pdkkit/component/rv_component_desc.hpp"
+#include "pdkkit/component/rv_component_record.hpp"
 
 namespace rv_pdkkit
 {
@@ -147,12 +148,18 @@ constexpr ecs_component_desc ecs_component_build(const char (&name)[N], const Fi
 
 // Describes T: a traits specialisation whose desc has the name and the fields, each at offsetof its member.
 // Fields: PDKKIT_FIELD(member, type, default...), where type is an ecs_field_type name (int32, fixed, fixed3, ...).
-#define PDKKIT_COMPONENT(T, NAME, ...)                                         \
-    template <>                                                                \
-    struct rv_pdkkit::ecs_component_traits<T> {                                \
-        using owner = T;                                                       \
-        static constexpr ::rv_pdkkit::ecs_component_desc desc =                \
-            ::rv_pdkkit::ecs_component_build(NAME __VA_OPT__(, ) __VA_ARGS__); \
+// The record is kept in the object by gnu::used and in the image by gnu::retain against --gc-sections; one copy per type
+// per linked image.
+#define PDKKIT_COMPONENT(T, NAME, ...)                                                                        \
+    template <>                                                                                               \
+    struct rv_pdkkit::ecs_component_traits<T> {                                                               \
+        using owner = T;                                                                                      \
+        static constexpr ::rv_pdkkit::ecs_component_desc desc =                                               \
+            ::rv_pdkkit::ecs_component_build(NAME __VA_OPT__(, ) __VA_ARGS__);                                \
+        [[gnu::used,                                                                                          \
+            gnu::retain,                                                                                      \
+            gnu::section(PDKKIT_RECORD_SECTION)]] static constexpr ::rv_pdkkit::ecs_component_record record = \
+            ::rv_pdkkit::ecs_record_make(desc);                                                               \
     }
 
 #define PDKKIT_FIELD(member, type, ...)                                                              \
