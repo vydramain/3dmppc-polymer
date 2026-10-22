@@ -243,6 +243,7 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
         return RV_OK;
     }
     const rv_sound_area area = state.areas[static_cast<std::size_t>(frame)];
+    const int64_t span_offset = (frame - state.span_start[static_cast<std::size_t>(frame)] + period) % period;
     // Decided against the previous frame before the music takes this one.
     const bool first = state.frame < 0;
     const bool clack = board_present && !first && area == rv_sound_area::workshop && letters_changed(state.frame, frame);
@@ -250,7 +251,7 @@ int64_t rv_sound_update(rv_pdko *pdk, int64_t frame, bool board_present, rv_soun
     // repeat every frame. The first failure is returned with its asset.
     int64_t code = RV_OK;
     const char *asset = "";
-    const int64_t music_code = rv_music_update(pdk, frame, state);
+    const int64_t music_code = rv_music_update(pdk, area, span_offset, state);
     if (music_code < 0) {
         code = music_code;
         asset = state.error_asset;

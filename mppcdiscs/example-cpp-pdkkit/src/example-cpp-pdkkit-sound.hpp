@@ -79,9 +79,14 @@ int64_t play_voice(rv_pdko *pdk, const rv_voice_conf &conf);
 
 // Music, in example-cpp-pdkkit-music.cpp. rv_music_init allocates the music slots and measures the bars; rv_sound_init
 // calls it first. rv_music_update starts the chain at an area change and at a bar start while it is not running,
-// moves it on at each mark, and on success records the frame's area and bar; rv_sound_update calls it. Only
-// rv_music_update needs the sound tables of rv_sound_init (areas, span_start).
+// moves it on at each mark, and on success records the area and bar; rv_sound_update calls it. Precondition: area is a
+// rv_sound_area and span_offset is in [0, RV_ROUTE_PERIOD_FRAMES), the frames since the area span's first frame; its
+// bar is span_offset / RV_SOUND_BAR_FRAMES. Otherwise RV_ERR_INVAL, with state.error_asset "music area" or "music
+// offset". Reads none of the sound tables (areas, span_start). Returns RV_OK or the first error: a disc code from the
+// bar's open or size; RV_ERR_INVAL for an empty bar or one larger than the slot; RV_ERR_IO when the bar's read gave no
+// bytes or failed (its own code is not passed on); a ca or voice code from the mark read, the bar write, the repeat
+// and mark, or the play. state.error_asset names the bar, or "music mark" for the mark read.
 int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state);
-int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state);
+int64_t rv_music_update(rv_pdko *pdk, rv_sound_area area, int64_t span_offset, rv_sound_state &state);
 
 } // namespace example_cpp_pdkkit

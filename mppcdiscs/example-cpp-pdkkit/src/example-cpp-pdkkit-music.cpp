@@ -62,7 +62,9 @@ constexpr rv_sound_song RV_SOUND_SONGS[] = {
     { RV_SOUND_STREET_BARS, static_cast<int64_t>(std::size(RV_SOUND_STREET_BARS)) },
     { RV_SOUND_FLAT_BARS, static_cast<int64_t>(std::size(RV_SOUND_FLAT_BARS)) },
 };
-static_assert(std::size(RV_SOUND_SONGS) == static_cast<std::size_t>(rv_sound_area::flat) + 1, "one song per rv_sound_area");
+// One song per area: the enum's last value plus one.
+constexpr int64_t RV_SOUND_AREA_COUNT = static_cast<int64_t>(rv_sound_area::flat) + 1;
+static_assert(std::size(RV_SOUND_SONGS) == static_cast<std::size_t>(RV_SOUND_AREA_COUNT), "one song per rv_sound_area");
 
 // One music voice plays the bars of both slots: the sound module moves it on at each bar's end by the repeat, and
 // the mark tells this frame it arrived. The partner voice of the old two-voice pattern is no longer used by music.
@@ -290,12 +292,17 @@ int64_t rv_music_init(rv_pdko *pdk, rv_sound_state &state)
     return RV_OK;
 }
 
-int64_t rv_music_update(rv_pdko *pdk, int64_t frame, rv_sound_state &state)
+int64_t rv_music_update(rv_pdko *pdk, rv_sound_area area, int64_t span_offset, rv_sound_state &state)
 {
-    const int64_t period = RV_ROUTE_PERIOD_FRAMES;
-    const std::size_t index = static_cast<std::size_t>(frame);
-    const rv_sound_area area = state.areas[index];
-    const int64_t span_offset = (frame - state.span_start[index] + period) % period;
+    const int64_t area_index = static_cast<int64_t>(area);
+    const bool area_in_range = area_index >= 0 && area_index < RV_SOUND_AREA_COUNT;
+    const bool offset_in_range = span_offset >= 0 && span_offset < RV_ROUTE_PERIOD_FRAMES;
+    if (!area_in_range) {
+        return fail(state, "music area", RV_ERR_INVAL);
+    }
+    if (!offset_in_range) {
+        return fail(state, "music offset", RV_ERR_INVAL);
+    }
     const int64_t bar = span_offset / RV_SOUND_BAR_FRAMES;
     // Decided against the previous frame, before this frame takes its area and bar. A running chain whose frame was
     // not committed (its arm failed) is not a first frame: it is finished above, not started again.
