@@ -129,21 +129,6 @@ int ecs_marker_factory(ecs_world &world, ecs_id id, const ecs_scene_component &c
     return ecs_component_ensure<T>(world, id, marker);
 }
 
-inline int ecs_hidden_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
-{
-    return ecs_marker_factory<ecs_component_hidden>(world, id, component);
-}
-
-inline int ecs_decal_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
-{
-    return ecs_marker_factory<ecs_component_decal>(world, id, component);
-}
-
-inline int ecs_two_sided_factory(ecs_world &world, ecs_id id, const ecs_scene_component &component)
-{
-    return ecs_marker_factory<ecs_component_two_sided>(world, id, component);
-}
-
 // Factory of the name, or nullptr. The empty name is never registered.
 inline ecs_component_factory ecs_component_find(const ecs_world &world, std::string_view name)
 {

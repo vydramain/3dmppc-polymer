@@ -28,18 +28,6 @@ namespace rv_pdkkit
 
 inline constexpr const char *ecs_scene_tag = "ecs-scene";
 
-// Factories the loader knows itself. They take precedence over a registered factory of the same name.
-struct ecs_scene_builtin {
-    std::string_view name;
-    ecs_component_factory make;
-};
-
-inline constexpr ecs_scene_builtin ecs_scene_builtins[] = {
-    { "hidden", ecs_hidden_factory },
-    { "decal", ecs_decal_factory },
-    { "two_sided", ecs_two_sided_factory },
-};
-
 // State of one load. made holds one entity per object, in file order.
 struct ecs_scene_reading {
     ecs_world &world;
@@ -253,17 +241,6 @@ inline int ecs_scene_link(ecs_scene_reading &load, int64_t index, ecs_id parent)
     return RV_OK;
 }
 
-// Factory of a name: a built-in first, then the world's registry. nullptr when neither has it.
-inline ecs_component_factory ecs_scene_factory(const ecs_world &world, std::string_view name)
-{
-    for (const ecs_scene_builtin &builtin : ecs_scene_builtins) {
-        if (builtin.name == name) {
-            return builtin.make;
-        }
-    }
-    return ecs_component_find(world, name);
-}
-
 // One [[component]] of the scene, given to its object's factory. An unknown name is skipped with a warning.
 inline int ecs_scene_add_component(ecs_scene_reading &load, int64_t index)
 {
@@ -278,7 +255,7 @@ inline int ecs_scene_add_component(ecs_scene_reading &load, int64_t index)
         return RV_ERR_INVAL;
     }
     const std::string_view name{ component.name, ecs_name_length(component.name) };
-    const ecs_component_factory make = ecs_scene_factory(load.world, name);
+    const ecs_component_factory make = ecs_component_find(load.world, name);
     if (make == nullptr) {
         RV_LOG_WARN(ecs_scene_tag,
             "scene '{}' object {}: unknown component '{}' skipped",
