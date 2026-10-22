@@ -82,14 +82,13 @@ int rv_editor_parts_nearest(const rv_editor_glb_model &glb,
     double &depth)
 {
     int best = -1;
-    for (size_t t = 0; t < glb.model.triangles.size(); ++t) {
-        const rv_pdklib::rv_mppcmod_triangle &tri = glb.model.triangles[t];
+    for (size_t t = 0; t < glb.quantized.triangles.size(); ++t) {
+        const rv_pdklib::rv_mppcmod_triangle &tri = glb.quantized.triangles[t];
         vec3 p[std::size(tri.index)];
         ImVec2 s[std::size(tri.index)];
         bool in_front = true;
         for (size_t k = 0; k < std::size(tri.index); ++k) {
-            const rv_pdklib::rv_mppcmod_vertex &vx = glb.model.vertices[tri.index[k]];
-            p[k] = rv_editor_affine_point(m, { vx.pos[0], vx.pos[1], vx.pos[2] });
+            p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(glb.quantized, tri.index[k]));
             in_front = in_front && v.point(p[k], s[k]);
         }
         if (!in_front) {
@@ -141,11 +140,10 @@ void rv_editor_parts_each_picked(const rv_editor_scene_doc &doc, const rv_editor
             continue;
         }
         for (const uint32_t t : glb.pieces[number - 1]) {
-            const rv_pdklib::rv_mppcmod_triangle &tri = glb.model.triangles[t];
+            const rv_pdklib::rv_mppcmod_triangle &tri = glb.quantized.triangles[t];
             std::array<vec3, tri_vertices> p{};
             for (size_t k = 0; k < tri_vertices; ++k) {
-                const rv_pdklib::rv_mppcmod_vertex &vx = glb.model.vertices[tri.index[k]];
-                p[k] = rv_editor_affine_point(m, { vx.pos[0], vx.pos[1], vx.pos[2] });
+                p[k] = rv_editor_affine_point(m, rv_editor_glb_vertex_metres(glb.quantized, tri.index[k]));
             }
             fn(p);
         }

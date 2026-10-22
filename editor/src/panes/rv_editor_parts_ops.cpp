@@ -152,7 +152,7 @@ int rv_editor_parts_split(const rv_editor_glb_model &glb,
     rv_editor_parts_plan &plan,
     std::string &error)
 {
-    std::vector<bool> is_picked(glb.model.triangles.size(), false);
+    std::vector<bool> is_picked(glb.quantized.triangles.size(), false);
     for (const size_t number : picked_pieces) {
         if (number < first_piece_number || number > glb.pieces.size()) {
             error = "picked piece " + std::to_string(number) + " is not in the model";
