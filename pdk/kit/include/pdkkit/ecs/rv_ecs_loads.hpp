@@ -102,9 +102,11 @@ inline int ecs_scene_unload_now(ecs_world &world, uint32_t number)
     if (collected != RV_OK) {
         return collected;
     }
-    // Each id was listed alive by ecs_subtree_collect, and nothing destroyed since, so every destroy succeeds.
+    // Room for each destroy's free-list push, so none allocates. The reserve may throw, before any change.
+    world.free_slots.reserve(world.free_slots.size() + doomed.size());
+    // Each id is alive and the room is reserved, so every destroy succeeds.
     for (const ecs_id id : doomed) {
-        ecs_entity_destroy(world, id);
+        (void)ecs_entity_destroy(world, id);
     }
     ecs_loads_prune(world);
     // Destroying changes no record, so position still names this load.

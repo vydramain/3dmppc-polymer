@@ -368,7 +368,7 @@ inline int ecs_scene_load_all(ecs_scene_reading &load, ecs_id parent)
 inline void ecs_scene_rollback(ecs_world &world, const std::vector<ecs_id> &made)
 {
     for (const ecs_id id : made) {
-        ecs_entity_destroy(world, id);
+        (void)ecs_entity_destroy(world, id);
     }
 }
 

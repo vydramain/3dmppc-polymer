@@ -101,11 +101,11 @@ inline int ecs_entity_create_as(ecs_world &world, std::string_view name, ecs_id 
     try {
         added = type->add_defaults(world, id);
     } catch (...) {
-        ecs_entity_destroy(world, id); // alive: add_defaults must not destroy it
+        (void)ecs_entity_destroy(world, id); // alive: add_defaults must not destroy it
         throw;
     }
     if (added != RV_OK) {
-        ecs_entity_destroy(world, id); // NOENT when add_defaults already destroyed id: nothing to undo
+        (void)ecs_entity_destroy(world, id); // NOENT when add_defaults already destroyed id: nothing to undo
         return added;
     }
     const bool alive = ecs_entity_alive(world, id);

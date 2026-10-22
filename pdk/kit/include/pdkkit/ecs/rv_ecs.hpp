@@ -5,8 +5,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <limits>
 #include <memory>
+#include <new>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -14,6 +16,7 @@
 // Full header, not a forward declaration: ecs_world holds rv_cg_camera by value.
 #include "pdk/cg/rv_cg.h"
 #include "pdk/rv_err.h"
+#include "pdklib/rv_logs/rv_logs.hpp"
 
 // Defined in pdk/cd/rv_cd.h; only a reference is taken here.
 struct rv_cd_scene_component;
@@ -120,18 +123,51 @@ inline void ecs_release_slot(ecs_world &world, uint32_t index)
     }
 }
 
-// RV_ERR_NOMEM when every index is taken.
-inline int ecs_entity_create(ecs_world &world, ecs_id &out)
+// Tag of the log lines written by ecs_guard.
+inline constexpr const char *ecs_core_tag = "ecs-core";
+
+// Logs an exception that escaped an ecs operation. The log may throw too, so the caller returns its code regardless.
+inline void ecs_guard_log(const char *what)
 {
-    if (world.free_slots.empty() && world.slots.size() >= ecs_slot_limit) {
-        return RV_ERR_NOMEM;
+    try {
+        RV_LOG_ERR(ecs_core_tag, "an ecs operation threw, RV_ERR_INVAL: {}", what);
+    } catch (...) {
+        // the line is lost
     }
-    const uint32_t index = ecs_take_slot(world);
-    ecs_slot &slot = world.slots[index];
-    slot.live = true;
-    ++world.live_count;
-    out = ecs_id{ index, slot.generation };
-    return RV_OK;
+}
+
+// Public ecs_* operations return int, so no exception may leave them: bad_alloc is RV_ERR_NOMEM, others RV_ERR_INVAL.
+// The helpers throw only before they change state, so the world is unchanged.
+template <typename Op>
+[[nodiscard]] int ecs_guard(Op &&op)
+{
+    try {
+        return op();
+    } catch (const std::bad_alloc &) {
+        return RV_ERR_NOMEM;
+    } catch (const std::exception &e) {
+        ecs_guard_log(e.what());
+        return RV_ERR_INVAL;
+    } catch (...) {
+        ecs_guard_log("unknown exception");
+        return RV_ERR_INVAL;
+    }
+}
+
+// RV_ERR_NOMEM when every index is taken.
+[[nodiscard]] inline int ecs_entity_create(ecs_world &world, ecs_id &out)
+{
+    return ecs_guard([&] {
+        if (world.free_slots.empty() && world.slots.size() >= ecs_slot_limit) {
+            return RV_ERR_NOMEM;
+        }
+        const uint32_t index = ecs_take_slot(world);
+        ecs_slot &slot = world.slots[index];
+        slot.live = true;
+        ++world.live_count;
+        out = ecs_id{ index, slot.generation };
+        return RV_OK;
+    });
 }
 
 inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
@@ -143,22 +179,25 @@ inline bool ecs_entity_alive(const ecs_world &world, ecs_id id)
     return slot.live && slot.generation == id.generation;
 }
 
-// RV_ERR_NOENT for an unknown or stale id. Drops the entity's components from every pool.
-inline int ecs_entity_destroy(ecs_world &world, ecs_id id)
+// RV_ERR_NOENT for an unknown or stale id. Drops the entity's components from every pool. The only throw is the
+// free-list push in ecs_release_slot, before any change: pool->drop does not throw (nothrow move, rv_ecs_store.hpp).
+[[nodiscard]] inline int ecs_entity_destroy(ecs_world &world, ecs_id id)
 {
-    if (!ecs_entity_alive(world, id)) {
-        return RV_ERR_NOENT;
-    }
-    ecs_release_slot(world, id.index);
-    for (const std::unique_ptr<ecs_pool_base> &pool : world.pools) {
-        if (pool) {
-            pool->drop(id);
+    return ecs_guard([&] {
+        if (!ecs_entity_alive(world, id)) {
+            return RV_ERR_NOENT;
         }
-    }
-    ecs_slot &slot = world.slots[id.index];
-    slot.live = false;
-    --world.live_count;
-    return RV_OK;
+        ecs_release_slot(world, id.index);
+        for (const std::unique_ptr<ecs_pool_base> &pool : world.pools) {
+            if (pool) {
+                pool->drop(id);
+            }
+        }
+        ecs_slot &slot = world.slots[id.index];
+        slot.live = false;
+        --world.live_count;
+        return RV_OK;
+    });
 }
 
 inline uint32_t ecs_world_count(const ecs_world &world)
