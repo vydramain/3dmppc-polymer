@@ -254,13 +254,13 @@ int ecs_builtins_register_list(ecs_world &world)
 }
 
 // Registers the built-in components of rv_ecs_component.hpp, the ones with a PDKKIT_COMPONENT description: not
-// ecs_component_parent, which the loader sets from an object's parent, nor ecs_component_model, which has no description yet.
-// A disc calls it before its own ecs_component_register calls; a disc that registers one of these names itself gets
-// RV_ERR_ALREADY from that call.
+// ecs_component_parent, which the loader sets from an object's parent. A disc calls it before its own
+// ecs_component_register calls; a disc that registers one of these names itself gets RV_ERR_ALREADY from that call.
 [[nodiscard]] inline int ecs_builtins_register(ecs_world &world)
 {
     return ecs_builtins_register_list<ecs_component_name,
         ecs_component_transform,
+        ecs_component_model,
         ecs_component_camera,
         ecs_component_volume,
         ecs_component_hidden,

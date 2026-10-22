@@ -4,6 +4,8 @@
 
 #include <charconv>
 #include <cstdint>
+#include <cstring>
+#include <string>
 #include <string_view>
 #include <system_error>
 
@@ -16,6 +18,7 @@
 #include "pdkkit/ecs/rv_ecs_scene_records.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdklib/rv_math/rv_fx.hpp"
+#include "pdklib/rv_models/rv_mppcmod.hpp"
 
 namespace rv_pdkkit
 {
@@ -42,11 +45,50 @@ struct ecs_component_name {
     char text[ecs_value_capacity]{};
 };
 
-// A .mppcmod model on the disc, with its tint. name is NUL-terminated, empty by default; sized as ecs_value_capacity,
-// like ecs_component_name::text.
+// Copies the .mppcmod name of source into out, NUL included. RV_ERR_INVAL when the name does not fit out whole; out is
+// then untouched.
+inline int ecs_model_name_copy(const std::string &source, char (&out)[ecs_value_capacity])
+{
+    const std::string disc = rv_pdklib::rv_mppcmod_disc_name(source);
+    const bool fits = disc.size() < sizeof out;
+    if (!fits) {
+        return RV_ERR_INVAL;
+    }
+    std::memset(out, 0, sizeof out);
+    std::memcpy(out, disc.data(), disc.size());
+    return RV_OK;
+}
+
+// A model on the disc and its tint. source is the model's file in assets/models/ ("factory.gltf"), from the scene; name
+// is the .mppcmod it has on the disc, derived from source by ecs_derive. Both are NUL-terminated, sized as
+// ecs_value_capacity, like ecs_component_name::text.
 struct ecs_component_model {
-    char name[ecs_value_capacity]{};
+    char source[ecs_value_capacity]{};
     rv_color tint = ecs_tint_white;
+    char name[ecs_value_capacity]{};
+
+    // Fills name from source. Refused when source is empty, has no file name, or when its .mppcmod name does not fit name.
+    static int ecs_derive(ecs_component_model &model, std::string &reason)
+    {
+        const std::string source{ model.source, ecs_name_length(model.source) };
+        const bool empty = source.empty();
+        if (empty) {
+            reason = "source is empty: a model needs its file in assets/models/";
+            return RV_ERR_INVAL;
+        }
+        const std::string disc = rv_pdklib::rv_mppcmod_disc_name(source);
+        const bool nameless = disc == rv_pdklib::rv_mppcmod_extension;
+        if (nameless) {
+            reason = "source has no file name";
+            return RV_ERR_INVAL;
+        }
+        const int copied = ecs_model_name_copy(source, model.name);
+        if (copied != RV_OK) {
+            reason = "the .mppcmod name of source does not fit the name field";
+            return RV_ERR_INVAL;
+        }
+        return RV_OK;
+    }
 };
 
 // Marks the entity as a camera.
@@ -60,7 +102,7 @@ struct ecs_component_decal {};
 // Marks the entity as drawn without back-face culling, the flag covers the whole model. A flat card is seen from
 // both faces as one layer of quads, not as a back-to-back pair.
 struct ecs_component_two_sided {};
-// Marks the entity's model to be turned to face the camera, as a billboard. Nothing turns it yet.
+// Marks the entity's model to be turned to face the camera, as a billboard. ecs_system_face_camera turns it.
 struct ecs_component_face_camera {};
 
 // Component of id, added with its defaults when missing. out is written only on success. RV_ERR_NOENT for a dead or
@@ -161,8 +203,7 @@ inline ecs_component_factory ecs_component_find(const ecs_world &world, std::str
 
 } // namespace rv_pdkkit
 
-// Descriptions of the built-in components except model, which has none yet; a disc registers each with
-// ecs_component_register<T>.
+// Descriptions of the built-in components; a disc registers each with ecs_component_register<T>.
 PDKKIT_COMPONENT(rv_pdkkit::ecs_component_name, "name", PDKKIT_FIELD(text, string, ""));
 
 PDKKIT_COMPONENT(rv_pdkkit::ecs_component_transform,
@@ -177,3 +218,7 @@ PDKKIT_COMPONENT(rv_pdkkit::ecs_component_hidden, "hidden");
 PDKKIT_COMPONENT(rv_pdkkit::ecs_component_decal, "decal");
 PDKKIT_COMPONENT(rv_pdkkit::ecs_component_two_sided, "two_sided");
 PDKKIT_COMPONENT(rv_pdkkit::ecs_component_face_camera, "face_camera");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_model,
+    "model",
+    PDKKIT_FIELD(source, model, ""),
+    PDKKIT_FIELD(tint, color, 255, 255, 255));
