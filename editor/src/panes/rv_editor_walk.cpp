@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "pdklib/rv_manifest/rv_manifest_asset_kind.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 
 namespace rv_editor
@@ -80,8 +81,24 @@ bool held_for(const name_index &index, const rv_editor_project &project)
     return true;
 }
 
+// The section bit of a file an [assets] pattern matched: texture and model get their own bit;
+// a copy or a sound keeps the assets bit.
+unsigned asset_kind_bit(const std::string &rel)
+{
+    switch (rv_pdklib::rv_manifest_asset_kind_of(rel)) {
+    case rv_pdklib::rv_manifest_asset_kind::texture:
+        return 1u << static_cast<unsigned>(rv_editor_name_section::textures);
+    case rv_pdklib::rv_manifest_asset_kind::model:
+        return 1u << static_cast<unsigned>(rv_editor_name_section::models);
+    default:
+        return 1u << static_cast<unsigned>(rv_editor_name_section::assets);
+    }
+}
+
 unsigned section_mask(const section_patterns &patterns, const std::string &rel)
 {
+    // Left only for a copy or a sound of [assets]; a texture or model of [assets] takes its own bit below.
+    constexpr unsigned assets_bit = 1u << static_cast<unsigned>(rv_editor_name_section::assets);
     unsigned mask = 0;
     for (std::size_t s = 0; s < section_count; ++s) {
         for (const std::string &pattern : patterns[s]) {
@@ -90,6 +107,9 @@ unsigned section_mask(const section_patterns &patterns, const std::string &rel)
                 break;
             }
         }
+    }
+    if ((mask & assets_bit) != 0) {
+        mask = (mask & ~assets_bit) | asset_kind_bit(rel);
     }
     return mask;
 }

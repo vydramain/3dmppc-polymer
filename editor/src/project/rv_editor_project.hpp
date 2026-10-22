@@ -17,12 +17,7 @@ namespace rv_editor
 constexpr int64_t console_native_screen_width = 320;
 constexpr int64_t console_native_screen_height = 240;
 
-// The mesh extensions the editor reads (glTF binary and text); the one table of them.
-inline constexpr std::string_view file_ext_glb = ".glb";
-inline constexpr std::string_view file_ext_gltf = ".gltf";
-inline constexpr std::string_view rv_editor_mesh_exts[] = { file_ext_glb, file_ext_gltf };
-
-// True when `name` ends in a mesh extension, so it names a [models] file.
+// True when `name` is a model file by pdklib's asset table (.gltf, .glb).
 bool rv_editor_is_model_file_name(std::string_view name);
 
 // Where the editor keeps what is not the game's.
@@ -151,22 +146,25 @@ struct rv_editor_project {
     int64_t screen_h = console_native_screen_height;
     std::filesystem::path cache_dir;            // builds and logs: $XDG_CACHE_HOME/3dmppc-editor/<hash>
     std::filesystem::path state_dir;            // memory card: $XDG_STATE_HOME/3dmppc-editor/<hash>
-    std::vector<std::string> assets_patterns;   // [assets] files, relative to root
+    std::vector<std::string> assets_patterns;   // every [assets] pattern, of any kind, relative to root
     std::vector<std::string> textures_patterns; // [textures] files, relative to root
     std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
-    std::vector<std::string> models_patterns;   // [models] files (.glb, .gltf), relative to root
+    // [models] patterns and the [assets] patterns ending in .gltf or .glb, relative to root. The import folder
+    // is named only by a "<folder>/*.gltf" pattern (rv_editor_model_target_dir). An [assets] pattern like
+    // "assets/models/*" is not in this list: the walk still finds its models by their own kind, but it names no folder.
+    std::vector<std::string> models_patterns;
     bool has_build_section = false;             // disc.toml has [build] sources: a C++ disc
     rv_editor_sdk_state sdk = rv_editor_sdk_state::unknown; // pdkkit or bare; unknown until the manifest loads
 };
 
 // True when `rel` (relative to p.root, '/'-separated) matches a pattern in
-// any of the four sections above.
+// any of the four lists above.
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel);
 
-// The disc.toml section a project file belongs to, by extension.
+// The disc.toml section Add to disc writes any file to: always [assets], whatever its extension.
 const char *rv_editor_project_disc_section(std::string_view rel);
 
-// Adds `rel` itself as a pattern to its section and reloads the manifest.
+// Adds `rel` itself as a pattern to [assets] and reloads the manifest.
 // RV_OK on success, error code from rv_editor_manifest_add_pattern on failure. disc.toml is untouched on failure.
 int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error);
 

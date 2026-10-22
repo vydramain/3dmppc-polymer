@@ -10,6 +10,7 @@
 
 #include "pdk/rv_err.h"
 #include "pdklib/rv_manifest/rv_manifest.hpp"
+#include "pdklib/rv_manifest/rv_manifest_asset_kind.hpp"
 #include "pdklib/rv_manifest/rv_manifest_pattern.hpp"
 #include "platform/rv_editor_process.hpp"
 #include "project/rv_editor_manifest_edit.hpp"
@@ -36,15 +37,8 @@ constexpr std::string_view sdk_kit_tree = "kit";
 // Directory name used for editor's cache and state subdirectories.
 constexpr std::string_view editor_dir_name = "3dmppc-editor";
 
-// Disc section names for assets, textures and sounds.
-constexpr std::string_view disc_section_textures = "textures";
-constexpr std::string_view disc_section_sounds = "sounds";
+// Disc section that Add to disc writes to; file kinds come from pdklib's asset table, not from here.
 constexpr std::string_view disc_section_assets = "assets";
-constexpr std::string_view disc_section_models = "models";
-
-// File extensions for automatic section detection.
-constexpr std::string_view file_ext_png = ".png";
-constexpr std::string_view file_ext_wav = ".wav";
 
 // XDG environment variables and fallback paths for user directories per XDG Base Directory spec.
 constexpr std::string_view xdg_cache_var = "XDG_CACHE_HOME";
@@ -245,7 +239,13 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.assets_patterns = manifest.assets_files;
     project.textures_patterns = manifest.textures_files.files;
     project.sounds_patterns = manifest.sounds_files;
+    // The model folder is found from a model pattern, so the [assets] models join [models].
     project.models_patterns = manifest.models_files;
+    for (const std::string &pattern : manifest.assets_files) {
+        if (rv_pdklib::rv_manifest_asset_kind_of(pattern) == rv_pdklib::rv_manifest_asset_kind::model) {
+            project.models_patterns.push_back(pattern);
+        }
+    }
     project.has_build_section = !manifest.build_sources.empty();
     const bool on_kit =
         std::find(manifest.build_sdk.begin(), manifest.build_sdk.end(), sdk_kit_tree) != manifest.build_sdk.end();
@@ -267,32 +267,19 @@ bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_vie
 
 bool rv_editor_is_model_file_name(std::string_view name)
 {
-    for (const std::string_view ext : rv_editor_mesh_exts) {
-        if (name.ends_with(ext)) {
-            return true;
-        }
-    }
-    return false;
+    return rv_pdklib::rv_manifest_asset_kind_of(name) == rv_pdklib::rv_manifest_asset_kind::model;
 }
 
-const char *rv_editor_project_disc_section(std::string_view rel)
+// The burner sorts the [assets] files by extension, so Add to disc puts any file in [assets] and
+// the preview's tooltip names that section, whatever the file is.
+const char *rv_editor_project_disc_section(std::string_view /*rel*/)
 {
-    if (rel.ends_with(std::string(file_ext_png))) {
-        return disc_section_textures.data();
-    }
-    if (rel.ends_with(std::string(file_ext_wav))) {
-        return disc_section_sounds.data();
-    }
-    if (rv_editor_is_model_file_name(rel)) {
-        return disc_section_models.data();
-    }
     return disc_section_assets.data();
 }
 
 int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
 {
-    const char *section = rv_editor_project_disc_section(rel);
-    const int err = rv_editor_manifest_add_pattern(project.manifest, section, rel, error);
+    const int err = rv_editor_manifest_add_pattern(project.manifest, disc_section_assets, rel, error);
     if (err != RV_OK) {
         return err;
     }
