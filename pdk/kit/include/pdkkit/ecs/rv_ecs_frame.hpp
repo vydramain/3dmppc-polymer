@@ -1,6 +1,7 @@
 #pragma once
 
-// Frame of the scene ECS: the frame record, the registry of frame systems, the camera, the draw system and the frame order.
+// Frame of the scene ECS: the frame record, the registry of frame systems, the camera, the draw system and the frame
+// order: the disc's systems, the transform, the face camera, then the draw.
 // Draw returns codes without logging: a frame repeats them. ecs_frame_run logs a failed system by name, returned or
 // thrown, once per run of the same failure: a repeat stays silent, and a frame whose systems all succeed starts a new run.
 // ecs_system_transform logs a broken parent chain with its reason; the scene loader never builds one.
@@ -17,6 +18,7 @@
 #include "pdk/rv_pdko.h"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_component.hpp"
+#include "pdkkit/ecs/rv_ecs_face_camera.hpp"
 #include "pdkkit/ecs/rv_ecs_loads.hpp"
 #include "pdkkit/ecs/rv_ecs_store.hpp"
 #include "pdkkit/ecs/rv_ecs_transform.hpp"
@@ -163,11 +165,15 @@ struct ecs_frame_scope {
 inline constexpr const char *ecs_frame_tag = "ecs-frame";
 
 // Best effort, as ecs_guard_log: the line is lost when formatting throws, and the frame's code stands.
+// A returned code with a reason text (a system's own refusal) logs the text after the code.
 inline void ecs_frame_log_failure(std::string_view name, int code, const ecs_reason &reason)
 {
     try {
+        const bool has_text = reason.text[0] != '\0';
         if (reason.thrown) {
             RV_LOG_ERR(ecs_frame_tag, "system {} threw, rv_err {}: {}", name, code, std::string_view{ reason.text });
+        } else if (has_text) {
+            RV_LOG_ERR(ecs_frame_tag, "system {} returned rv_err {}: {}", name, code, std::string_view{ reason.text });
         } else {
             RV_LOG_ERR(ecs_frame_tag, "system {} returned rv_err {}", name, code);
         }
@@ -202,8 +208,9 @@ inline void ecs_frame_no_report(const char *)
 {
 }
 
-// The disc's systems in registration order, the transform, then the draw of the loads' entities.
-// A system or the transform stops the frame at its first error; the draw returns the first failed put's code.
+// The disc's systems in registration order, the transform, the face camera, then the draw of the loads' entities.
+// A system, the transform or the face camera stops the frame at its first error; the draw returns the first failed
+// put's code. The face camera's failure is reported by name, as a system's is.
 // A system's exception is mapped by ecs_try, so it becomes a code and goes through the same report as a returned error.
 inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
 {
@@ -228,6 +235,12 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
     if (transformed != RV_OK) {
         return transformed;
     }
+    ecs_reason face_reason;
+    const int faced = ecs_system_face_camera(world, face_reason);
+    if (faced != RV_OK) {
+        ecs_frame_report(world, "ecs_system_face_camera", faced, face_reason);
+        return faced;
+    }
     ecs_draw_order_build(world);
     return ecs_system_draw(world, frame, state.draw_order);
 }
@@ -235,8 +248,8 @@ inline int ecs_frame_run(ecs_world &world, const ecs_frame &frame)
 // One frame. The camera is cleared first, so a frame whose systems set none draws nothing. Draws only the entities
 // of loads: entities a system creates outside a load are not drawn. Unloads asked for during the frame run after it,
 // even when the frame failed; a failed frame's code is returned before theirs. A system's exception ends the frame with
-// its code in ecs_frame_run; an exception from the transform or the draw gets the ecs_guard code. in_frame is cleared
-// by the scope before the guard returns.
+// its code in ecs_frame_run; an exception from the transform, the face camera or the draw gets the ecs_guard code.
+// in_frame is cleared by the scope before the guard returns.
 [[nodiscard]] inline int ecs_world_frame(ecs_world &world, const ecs_frame &frame)
 {
     auto &state = detail::ecs_state(world);
