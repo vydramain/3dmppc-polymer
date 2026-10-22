@@ -77,7 +77,7 @@ std::string rv_editor_parts_child_name(const rv_editor_scene &scene, const std::
 {
     const auto taken = [&scene](const std::string &candidate) {
         return std::ranges::any_of(scene.objects, [&candidate](const rv_editor_scene_object &o) {
-            return o.name == candidate;
+            return rv_editor_object_get_name(o) == candidate;
         });
     };
     std::string candidate = name + std::string(part_suffix);
@@ -200,13 +200,13 @@ int rv_editor_parts_prepare(const rv_editor_project &project,
         return RV_ERR_INVAL;
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-    if (o.kind != kind_mesh) {
+    if (rv_editor_object_get_kind(o) != kind_mesh) {
         error = "the selected object is not a mesh";
         return RV_ERR_INVAL;
     }
     std::filesystem::path source;
     std::shared_ptr<const rv_editor_glb_model> glb;
-    if (const int rc = rv_editor_parts_source(project, o.mesh, source, glb, error); rc != RV_OK) {
+    if (const int rc = rv_editor_parts_source(project, rv_editor_object_get_mesh(o), source, glb, error); rc != RV_OK) {
         return rc;
     }
     rv_editor_scene_picks_check(doc, o, glb->pieces.size());
@@ -223,7 +223,7 @@ int rv_editor_parts_prepare(const rv_editor_project &project,
         return rc;
     }
     plan.at = static_cast<size_t>(at);
-    plan.base = rv_editor_parts_base(o.name);
+    plan.base = rv_editor_parts_base(rv_editor_object_get_name(o));
     plan.glb = glb;
     return rv_editor_parts_split(*glb, doc.picked_pieces, plan, error);
 }
@@ -249,7 +249,7 @@ int rv_editor_parts_delete(const rv_editor_project &project, rv_editor_scene_doc
     }
     const std::string id = doc.selected;
     rv_editor_scene_step(doc);
-    doc.scene.objects[plan.at].mesh = kept;
+    rv_editor_object_set_mesh(doc.scene.objects[plan.at], kept);
     rv_editor_scene_select(doc, id);
     return RV_OK;
 }
@@ -282,14 +282,15 @@ int rv_editor_parts_detach(const rv_editor_project &project, rv_editor_scene_doc
     const std::string parent = doc.selected;
     rv_editor_scene_step(doc);
     // The child sits where the parent's model sits: its vertices are already in the parent's space.
+    rv_editor_scene_object &host = doc.scene.objects[plan.at];
     rv_editor_scene_object child;
     child.id = rv_editor_scene_new_id(doc.scene);
-    child.name = rv_editor_parts_child_name(doc.scene, doc.scene.objects[plan.at].name);
+    rv_editor_object_set_name(child, rv_editor_parts_child_name(doc.scene, rv_editor_object_get_name(host)));
     child.parent = parent;
-    child.kind = std::string(kind_mesh);
-    child.mesh = part;
-    child.tint = doc.scene.objects[plan.at].tint;
-    doc.scene.objects[plan.at].mesh = kept;
+    rv_editor_object_set_kind(child, std::string(kind_mesh));
+    rv_editor_object_set_mesh(child, part);
+    rv_editor_object_set_tint(child, rv_editor_object_get_tint(host));
+    rv_editor_object_set_mesh(host, kept);
     doc.scene.objects.push_back(child);
     rv_editor_scene_select(doc, child.id);
     return RV_OK;

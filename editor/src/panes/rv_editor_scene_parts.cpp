@@ -169,10 +169,10 @@ int rv_editor_parts_pick(const rv_editor_scene_doc &doc,
     double best_depth = 0.0;
     for (size_t i = 0; i < scene.objects.size(); ++i) {
         const rv_editor_scene_object &o = scene.objects[i];
-        if (o.kind != kind_mesh || rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
+        if (rv_editor_object_get_kind(o) != kind_mesh || rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
             continue;
         }
-        const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, o.mesh);
+        const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, rv_editor_object_get_mesh(o));
         if (!glb) {
             continue;
         }
@@ -220,7 +220,7 @@ void rv_editor_parts_click(rv_editor_scene_doc &doc,
         rv_editor_scene_select(doc, owner);
     }
     doc.picked_owner = owner;
-    doc.picked_mesh = o.mesh;
+    doc.picked_mesh = rv_editor_object_get_mesh(o);
     doc.picked_count = glb->pieces.size();
     if (doc.picked_pieces.erase(number) == 0) {
         doc.picked_pieces.insert(number);
@@ -242,14 +242,15 @@ rv_editor_parts_target rv_editor_parts_resolve(const rv_editor_scene_doc &doc, c
         return {};
     }
     const rv_editor_scene_object &o = doc.scene.objects[static_cast<size_t>(at)];
-    if (o.mesh != doc.picked_mesh) {
+    const std::string mesh = rv_editor_object_get_mesh(o);
+    if (mesh != doc.picked_mesh) {
         return {};
     }
     if (rv_editor_scene_visibility(doc, o) == rv_editor_visibility::absent) {
         return {};
     }
     // A model that does not load has no pieces to show; its error is on the object's edges.
-    const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, o.mesh);
+    const std::shared_ptr<const rv_editor_glb_model> glb = rv_editor_parts_model(project, mesh);
     if (!glb) {
         return {};
     }
