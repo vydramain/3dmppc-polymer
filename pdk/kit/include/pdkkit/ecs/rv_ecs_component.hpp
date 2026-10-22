@@ -10,6 +10,7 @@
 #include "pdk/cv/rv_vertex.h"
 #include "pdk/rv_err.h"
 #include "pdkkit/component/rv_component_capacity.hpp"
+#include "pdkkit/component/rv_component_macro.hpp"
 #include "pdkkit/ecs/rv_ecs.hpp"
 #include "pdkkit/ecs/rv_ecs_entity.hpp"
 #include "pdkkit/ecs/rv_ecs_scene_records.hpp"
@@ -59,6 +60,8 @@ struct ecs_component_decal {};
 // Marks the entity as drawn without back-face culling, the flag covers the whole model. A flat card is seen from
 // both faces as one layer of quads, not as a back-to-back pair.
 struct ecs_component_two_sided {};
+// Marks the entity's model to be turned to face the camera, as a billboard. Nothing turns it yet.
+struct ecs_component_face_camera {};
 
 // Component of id, added with its defaults when missing. out is written only on success. RV_ERR_NOENT for a dead or
 // stale id, otherwise the code of the add (RV_ERR_NOMEM when the pool cannot grow), RV_ERR_INVAL for any other
@@ -172,3 +175,20 @@ inline ecs_component_factory ecs_component_find(const ecs_world &world, std::str
 }
 
 } // namespace rv_pdkkit
+
+// Descriptions of the built-in components except model, which has none yet; a disc registers each with
+// ecs_component_register<T>.
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_name, "name", PDKKIT_FIELD(text, string, ""));
+
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_transform,
+    "transform",
+    PDKKIT_FIELD(position, fixed3, 0, 0, 0),
+    PDKKIT_FIELD(rotation, angle3, 0, 0, 0),
+    PDKKIT_FIELD(scale, fixed3, rv_pdklib::fx_one, rv_pdklib::fx_one, rv_pdklib::fx_one));
+
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_camera, "camera");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_volume, "volume");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_hidden, "hidden");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_decal, "decal");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_two_sided, "two_sided");
+PDKKIT_COMPONENT(rv_pdkkit::ecs_component_face_camera, "face_camera");
