@@ -1,12 +1,15 @@
-// CPU z-buffer rasteriser. Coverage and the top-left rule follow src/rv_pconsole/cv/rv_pcraster_poly.cpp.
-// Texel alpha 0 is the console's transparent texel 0000h (pdk/include/pdk/cv/rv_texel.h); the
-// TILE nearest-texel wrap follows rv_pctexel::wrap.
+// CPU z-buffer rasteriser. Coverage mirrors src/rv_pconsole/cv/rv_pcraster_poly.cpp in int64: edge_at,
+// is_top_left and clip_bounds, and normalize_winding inline in rv_editor_zbuf_draw. Samples are pixel
+// centres, not the console's corners (decision D4): the corners are doubled, so a centre is an integer. Texel alpha 0 is the
+// console's transparent texel 0000h (pdk/include/pdk/cv/rv_texel.h); the TILE nearest-texel wrap follows rv_pctexel::wrap.
 
 #include "panes/rv_editor_zbuf.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdio>
+#include <cstdlib>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -19,18 +22,21 @@ namespace rv_editor
 namespace
 {
 
-// A pixel is sampled at its centre, half a pixel past its integer corner.
-constexpr double RV_EDITOR_ZBUF_PIXEL_CENTRE = 0.5;
-
 // Colour channels: 0..1 per vertex, 0..255 per texel and in the buffer.
 constexpr double RV_EDITOR_ZBUF_CHANNEL_MAX = 255.0;
 
 // Flat colour: an opaque white texel, so the vertex colour is the pixel colour.
 constexpr rv_editor_zbuf_rgba RV_EDITOR_ZBUF_FLAT_TEXEL = { 255, 255, 255, 255 };
 
+// Corners are scaled by this, so a pixel's centre lies on an integer: the centre of pixel p is
+// RV_EDITOR_ZBUF_DOUBLING * p + RV_EDITOR_ZBUF_CENTRE_OFFSET, half a pixel past its corner.
+constexpr int64_t RV_EDITOR_ZBUF_DOUBLING = 2;
+constexpr int64_t RV_EDITOR_ZBUF_CENTRE_OFFSET = 1;
+
+// A point in doubled pixel units (RV_EDITOR_ZBUF_DOUBLING).
 struct rv_zbuf_point {
-    double x = 0.0;
-    double y = 0.0;
+    int64_t x = 0;
+    int64_t y = 0;
 };
 
 // The corner values interpolated over a triangle, before the texel and the tint.
@@ -43,45 +49,66 @@ struct rv_zbuf_attr {
     double a = 0.0;
 };
 
-// A triangle put in counter-clockwise screen order (area2 > 0), with its points.
+// A triangle put in counter-clockwise order (area2 > 0), with its doubled points.
 struct rv_zbuf_tri {
     rv_editor_zbuf_vertex corner[RV_EDITOR_ZBUF_CORNERS];
     rv_zbuf_point point[RV_EDITOR_ZBUF_CORNERS];
-    double area2 = 0.0;
+    int64_t area2 = 0;
     const rv_editor_zbuf_texture *texture = nullptr;
 };
 
 rv_zbuf_point point_of(const rv_editor_zbuf_vertex &corner)
 {
-    return { corner.x, corner.y };
+    return { RV_EDITOR_ZBUF_DOUBLING * corner.x, RV_EDITOR_ZBUF_DOUBLING * corner.y };
 }
 
-// Twice the signed area of (a, b, p): cross(b - a, p - a). The endpoints are taken in a fixed
-// order, so two triangles sharing an edge get the same magnitude bit for bit.
-double edge_at(rv_zbuf_point a, rv_zbuf_point b, rv_zbuf_point p)
+// The console's edge function: E(p) = (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x). Affine in p,
+// and twice the signed area of (a, b, p). Exact in int64 for corners within RV_EDITOR_ZBUF_COORD_LIMIT.
+int64_t edge_at(rv_zbuf_point a, rv_zbuf_point b, rv_zbuf_point p)
 {
-    const bool swapped = b.x < a.x || (b.x == a.x && b.y < a.y);
-    const rv_zbuf_point first = swapped ? b : a;
-    const rv_zbuf_point second = swapped ? a : b;
-    const double value = (second.x - first.x) * (p.y - first.y) - (second.y - first.y) * (p.x - first.x);
-    return swapped ? -value : value;
+    return (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x);
 }
 
-// Top-left rule, y grows downwards. A top edge is horizontal with the interior below it; a left
-// edge has the interior to its right, and every edge running upwards (dy < 0) is one. Only
-// these cover a centre lying exactly on them. A shared edge runs the other way in its second
-// triangle, so exactly one of the two covers it.
-bool covers(double edge, double dx, double dy)
+// Top-left rule, as the console's is_top_left: a top edge is horizontal with the interior below it,
+// a left edge has the interior to its right. Only these cover a centre lying exactly on them, so a
+// shared edge (traversed in opposite directions by its two triangles) is covered by exactly one.
+bool is_top_left(int64_t dx, int64_t dy)
 {
-    return edge > 0.0 || (edge == 0.0 && (dy < 0.0 || (dy == 0.0 && dx > 0.0)));
+    return dy > 0 || (dy == 0 && dx < 0);
+}
+
+// Covered: strictly inside, or on a top-left edge.
+bool covers(int64_t edge, int64_t dx, int64_t dy)
+{
+    return edge > 0 || (edge == 0 && is_top_left(dx, dy));
 }
 
 bool corner_valid(const rv_editor_zbuf_vertex &corner)
 {
-    const float values[] = { corner.x, corner.y, corner.z, corner.u, corner.v, corner.r, corner.g, corner.b, corner.a };
-    return corner.z > 0.0f && std::all_of(std::begin(values), std::end(values), [](float value) {
+    const float values[] = { corner.z, corner.u, corner.v, corner.r, corner.g, corner.b, corner.a };
+    const bool in_range = std::abs(static_cast<int64_t>(corner.x)) <= RV_EDITOR_ZBUF_COORD_LIMIT &&
+        std::abs(static_cast<int64_t>(corner.y)) <= RV_EDITOR_ZBUF_COORD_LIMIT;
+    return in_range && corner.z > 0.0f && std::all_of(std::begin(values), std::end(values), [](float value) {
         return std::isfinite(value);
     });
+}
+
+// Logs once why a corner was refused: x or y beyond the coordinate limit, or else a value that is
+// not finite or a z <= 0. Logged once per process; the per-frame count in rv_editor_draw_filled shows that it recurs.
+void report_corner_refusal(const rv_editor_zbuf_triangle &tri)
+{
+    static bool reported = false;
+    if (reported) {
+        return;
+    }
+    reported = true;
+    const bool beyond = std::any_of(std::begin(tri.corner), std::end(tri.corner), [](const rv_editor_zbuf_vertex &corner) {
+        return std::abs(static_cast<int64_t>(corner.x)) > RV_EDITOR_ZBUF_COORD_LIMIT ||
+            std::abs(static_cast<int64_t>(corner.y)) > RV_EDITOR_ZBUF_COORD_LIMIT;
+    });
+    std::fprintf(stderr,
+        "3dmppc-editor: z-buffer corner refused: %s\n",
+        beyond ? "x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT" : "a value is not finite or z <= 0");
 }
 
 bool texture_valid(const rv_editor_zbuf_texture *texture)
@@ -130,19 +157,21 @@ uint8_t channel(double unit, uint8_t texel)
 // stepping along the edges. Ceiling not measured; upgrade: incremental edge stepping per row.
 void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
 {
-    const rv_zbuf_point centre = { x + RV_EDITOR_ZBUF_PIXEL_CENTRE, y + RV_EDITOR_ZBUF_PIXEL_CENTRE };
+    // The centre of pixel (x, y) in doubled units.
+    const rv_zbuf_point centre = { RV_EDITOR_ZBUF_DOUBLING * x + RV_EDITOR_ZBUF_CENTRE_OFFSET,
+        RV_EDITOR_ZBUF_DOUBLING * y + RV_EDITOR_ZBUF_CENTRE_OFFSET };
     double perspective[RV_EDITOR_ZBUF_CORNERS] = {};
     double inv_z = 0.0;
     for (int i = 0; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
         // The edge opposite corner i runs from corner i + 1 to corner i + 2.
         const int a = (i + 1) % RV_EDITOR_ZBUF_CORNERS;
         const int b = (i + 2) % RV_EDITOR_ZBUF_CORNERS;
-        const double edge = edge_at(tri.point[a], tri.point[b], centre);
+        const int64_t edge = edge_at(tri.point[a], tri.point[b], centre);
         if (!covers(edge, tri.point[b].x - tri.point[a].x, tri.point[b].y - tri.point[a].y)) {
             return;
         }
         // Screen-linear weight, divided by the corner depth: 1/z interpolates linearly on screen.
-        perspective[i] = edge / tri.area2 / tri.corner[i].z;
+        perspective[i] = static_cast<double>(edge) / static_cast<double>(tri.area2) / tri.corner[i].z;
         inv_z += perspective[i];
     }
 
@@ -177,6 +206,19 @@ void shade_pixel(rv_editor_zbuf &buf, const rv_zbuf_tri &tri, int x, int y)
     buf.colour[index] = out;
 }
 
+// The triangle's bounding box in pixels, clipped to the buffer: the console's clip_bounds. Pixels
+// outside it are never covered. False when the box is empty.
+bool clip_bounds(const rv_zbuf_tri &tri, int width, int height, int64_t &min_x, int64_t &min_y, int64_t &max_x, int64_t &max_y)
+{
+    const int64_t xs[] = { tri.corner[0].x, tri.corner[1].x, tri.corner[2].x };
+    const int64_t ys[] = { tri.corner[0].y, tri.corner[1].y, tri.corner[2].y };
+    min_x = std::max<int64_t>(*std::min_element(std::begin(xs), std::end(xs)), 0);
+    max_x = std::min<int64_t>(*std::max_element(std::begin(xs), std::end(xs)), width - 1);
+    min_y = std::max<int64_t>(*std::min_element(std::begin(ys), std::end(ys)), 0);
+    max_y = std::min<int64_t>(*std::max_element(std::begin(ys), std::end(ys)), height - 1);
+    return min_x <= max_x && min_y <= max_y;
+}
+
 } // namespace
 
 int rv_editor_zbuf_init(rv_editor_zbuf &buf, int width, int height)
@@ -202,6 +244,11 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
     const bool sized = buf.width > 0 && buf.height > 0 && buf.colour.size() == pixel_count(buf.width, buf.height) &&
         buf.depth.size() == buf.colour.size();
     const bool corners_ok = std::all_of(std::begin(tri.corner), std::end(tri.corner), corner_valid);
+    if (!corners_ok) {
+        report_corner_refusal(tri);
+    }
+    // Only a corner is logged: the caller sizes the target before drawing, and the decoder guarantees
+    // a texture's w, h > 0, so the sized and texture checks cannot fail in practice.
     if (!sized || !corners_ok || !texture_valid(tri.texture)) {
         return RV_ERR_INVAL;
     }
@@ -211,44 +258,28 @@ int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri)
         prepared.corner[i] = tri.corner[i];
         prepared.point[i] = point_of(tri.corner[i]);
     }
+    // Normalised winding, as normalize_winding: the swap keeps every edge function's sense the same.
     prepared.area2 = edge_at(prepared.point[0], prepared.point[1], prepared.point[2]);
-    if (prepared.area2 < 0.0) {
+    if (prepared.area2 < 0) {
         std::swap(prepared.corner[1], prepared.corner[2]);
         std::swap(prepared.point[1], prepared.point[2]);
         prepared.area2 = -prepared.area2;
     }
     prepared.texture = tri.texture;
-    if (prepared.area2 == 0.0) {
+    if (prepared.area2 == 0) {
         return RV_OK;
     }
 
-    double min_x = prepared.point[0].x;
-    double max_x = min_x;
-    double min_y = prepared.point[0].y;
-    double max_y = min_y;
-    for (int i = 1; i < RV_EDITOR_ZBUF_CORNERS; ++i) {
-        min_x = std::min(min_x, prepared.point[i].x);
-        max_x = std::max(max_x, prepared.point[i].x);
-        min_y = std::min(min_y, prepared.point[i].y);
-        max_y = std::max(max_y, prepared.point[i].y);
-    }
-
-    // Outside the buffer: no centre can lie inside. Checked before any conversion to int, so
-    // coordinates far beyond the buffer never overflow it.
-    const double last_x = buf.width - 1.0;
-    const double last_y = buf.height - 1.0;
-    if (max_x < 0.0 || max_y < 0.0 || min_x > last_x || min_y > last_y) {
+    int64_t min_x = 0;
+    int64_t min_y = 0;
+    int64_t max_x = 0;
+    int64_t max_y = 0;
+    if (!clip_bounds(prepared, buf.width, buf.height, min_x, min_y, max_x, max_y)) {
         return RV_OK;
     }
-
-    // The pixel rectangle that can hold a centre inside the triangle, clipped to the buffer.
-    const int x0 = static_cast<int>(std::max(0.0, std::floor(min_x)));
-    const int x1 = static_cast<int>(std::min(last_x, std::ceil(max_x)));
-    const int y0 = static_cast<int>(std::max(0.0, std::floor(min_y)));
-    const int y1 = static_cast<int>(std::min(last_y, std::ceil(max_y)));
-    for (int y = y0; y <= y1; ++y) {
-        for (int x = x0; x <= x1; ++x) {
-            shade_pixel(buf, prepared, x, y);
+    for (int64_t y = min_y; y <= max_y; ++y) {
+        for (int64_t x = min_x; x <= max_x; ++x) {
+            shade_pixel(buf, prepared, static_cast<int>(x), static_cast<int>(y));
         }
     }
     return RV_OK;

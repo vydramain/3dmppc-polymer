@@ -163,9 +163,6 @@ const rv_editor_cpu_image *rv_editor_object_cpu_texture(const rv_editor_project 
 // What a triangle piece is drawn with: the viewport's frame, the object's colours, and the
 // triangle's shade and picture.
 struct rv_editor_piece_style {
-    // The viewport's top-left in ImGui units, and picture pixels per ImGui unit.
-    ImVec2 origin;
-    ImVec2 scale;
     // A plain piece's colour, the selected object's, and the object's tint (0..1).
     ImVec4 base;
     ImVec4 selection;
@@ -173,21 +170,32 @@ struct rv_editor_piece_style {
     bool selected = false;
     // The object's cull mode, as rv_editor_cull_mode gives it.
     std::uint32_t cull = rv_pdklib::gte_cull_screen_cw;
+    // The buffer's projection: its focal length and centre, in buffer pixels.
+    rv_pdklib::rv_gte_viewport screen{};
     // A .glb's triangle: its base is white and the tint applies, flat too.
     bool from_model = false;
     float shade = 1.0f;
     const rv_editor_cpu_image *texture = nullptr; // null: flat
 };
 
-// One triangle piece, its corners already in view space: coloured as the console draws it and
-// rasterised into `buf`. Colour: the selection colour when selected (no tint); a plain flat piece
-// its base colour, untinted; else white times the object's tint; each times the shade and the
-// corner's colour. A flat piece samples an opaque white texel, so the corner colour is the pixel.
-void rv_editor_raster_piece(rv_editor_zbuf &buf,
-    const rv_editor_view &v,
-    const rv_editor_tri &piece,
-    const vec3 (&view_p)[tri_vertices],
-    const rv_editor_piece_style &st)
+// Logs a refusal's cause once: `reported` is the refusing site's own flag, so each site reports once.
+// Logged once per process; the per-frame count in rv_editor_draw_filled shows that it recurs.
+void rv_editor_refuse_once(bool &reported, const char *what)
+{
+    if (reported) {
+        return;
+    }
+    reported = true;
+    std::fprintf(stderr, "3dmppc-editor: filled triangle refused: %s\n", what);
+}
+
+// One cut piece, its corners in view space as Q20.12: projected onto the buffer's pixels as rv_gte_project
+// does, coloured as the console draws it and rasterised into `buf`. Colour: the selection colour when
+// selected (no tint); a plain flat piece its base colour, untinted; else white times the object's tint;
+// each times the shade and the corner's colour. A flat piece samples an opaque white texel, so the
+// corner colour is the pixel. RV_ERR_INVAL when a corner does not project or the z-buffer refuses the
+// piece; the caller counts it as refused.
+int rv_editor_raster_piece(rv_editor_zbuf &buf, const rv_editor_fx_tri &piece, const rv_editor_piece_style &st)
 {
     const bool flat = st.texture == nullptr;
     const bool plain = flat && !st.from_model;
@@ -202,13 +210,19 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
     rv_editor_zbuf_triangle zt;
     zt.texture = flat ? nullptr : &picture;
     for (int k = 0; k < tri_vertices; ++k) {
-        const ImVec2 s = v.to_screen(view_p[k]);
-        const ImVec4 part = st.selected ? ImVec4(1, 1, 1, 1) : piece.color[k];
-        const ImVec2 uv = piece.uv[k];
+        rv_pdklib::rv_gte_screen s{};
+        if (rv_pdklib::rv_gte_project(piece.v[k].p, st.screen, s) != RV_OK) {
+            // Once per process, see rv_editor_refuse_once.
+            static bool reported = false;
+            rv_editor_refuse_once(reported, "a piece's corner does not project onto the buffer (z <= 0)");
+            return RV_ERR_INVAL;
+        }
+        const ImVec4 part = st.selected ? ImVec4(1, 1, 1, 1) : piece.v[k].color;
+        const ImVec2 uv = piece.v[k].uv;
         rv_editor_zbuf_vertex &c = zt.corner[k];
-        c.x = (s.x - st.origin.x) * st.scale.x;
-        c.y = (s.y - st.origin.y) * st.scale.y;
-        c.z = static_cast<float>(view_p[k][2]);
+        c.x = s.x;
+        c.y = s.y;
+        c.z = static_cast<float>(static_cast<double>(piece.v[k].p.z) / rv_editor_gte_units_per_metre);
         c.u = flat ? 0.0f : uv.x;
         c.v = flat ? 0.0f : uv.y;
         c.r = over.x * tint.x * st.shade * part.x;
@@ -216,10 +230,11 @@ void rv_editor_raster_piece(rv_editor_zbuf &buf,
         c.b = over.z * tint.z * st.shade * part.z;
         c.a = over.w;
     }
-    // The result is dropped. RV_ERR_INVAL for a corner non-finite or z <= 0 draws nothing, the right
-    // outcome for a degenerate piece. RV_ERR_INVAL for a texture without texels or size cannot happen
-    // here: the decoder guarantees w, h > 0.
-    rv_editor_zbuf_draw(buf, zt);
+    // A texture without texels or size cannot reach here: the decoder guarantees w, h > 0.
+    if (rv_editor_zbuf_draw(buf, zt) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    return RV_OK;
 }
 
 // A Q20.12 world point to view space through the camera's view matrix. RV_ERR_INVAL when the view point leaves int32.
@@ -251,30 +266,20 @@ int rv_editor_view_fx_tri(const rv_editor_view &v, const rv_editor_tri &tri, rv_
     return RV_OK;
 }
 
-// A cut piece as the double triangle rv_editor_raster_piece takes: its uv and colour, and its corners in view-space
-// metres, raw / units (exact). The scene points are not carried: the rasteriser reads only the view points.
-void rv_editor_piece_metres(const rv_editor_fx_tri &piece, rv_editor_tri &tri, vec3 (&view_p)[tri_vertices])
-{
-    for (int k = 0; k < tri_vertices; ++k) {
-        const rv_pdklib::fx_vec3 &p = piece.v[k].p;
-        view_p[k] = { static_cast<double>(p.x) / rv_editor_gte_units_per_metre,
-            static_cast<double>(p.y) / rv_editor_gte_units_per_metre,
-            static_cast<double>(p.z) / rv_editor_gte_units_per_metre };
-        tri.uv[k] = piece.v[k].uv;
-        tri.color[k] = piece.v[k].color;
-    }
-}
-
-// Whether the console drops a cut piece under `cull`: its corners projected as rv_gte_project does, with the
-// view's h and the centre at the origin. The signed area is unchanged by a centre shift only while the corners
-// stay inside gte_screen_limit, where rv_gte_clamp_screen does not alter them. Zero area is dropped in every
-// mode, as the console does. RV_ERR_INVAL when a corner does not project: the near cut leaves every corner at
-// z >= the near plane > 0, and rv_gte_project fails only at z <= 0, so this error means a broken cut.
-int rv_editor_piece_culled(const rv_editor_view &v, const rv_editor_fx_tri &piece, std::uint32_t cull, bool &culled)
+// Whether the console drops a cut piece under `cull`: its corners projected onto the buffer as the raster
+// projects them (vp), so the cull and the drawn piece agree at any scale. The signed area is unchanged by
+// the projection's centre only while the corners stay inside gte_screen_limit, where rv_gte_clamp_screen
+// does not alter them. Zero area is dropped in every mode, as the console does. RV_ERR_INVAL when a corner
+// does not project: the near cut leaves every corner at z >= the near plane > 0, and rv_gte_project fails
+// only at z <= 0, so this error means a broken cut.
+int rv_editor_piece_culled(rv_pdklib::rv_gte_viewport vp, const rv_editor_fx_tri &piece, std::uint32_t cull, bool &culled)
 {
     rv_pdklib::rv_gte_screen screen[tri_vertices] = {};
     for (int k = 0; k < tri_vertices; ++k) {
-        if (rv_pdklib::rv_gte_project(piece.v[k].p, { v.camera.h, 0, 0 }, screen[k]) != RV_OK) {
+        if (rv_pdklib::rv_gte_project(piece.v[k].p, vp, screen[k]) != RV_OK) {
+            // Once per process, see rv_editor_refuse_once.
+            static bool reported = false;
+            rv_editor_refuse_once(reported, "a cut piece's corner does not project for the cull (z <= 0)");
             return RV_ERR_INVAL;
         }
     }
@@ -285,7 +290,8 @@ int rv_editor_piece_culled(const rv_editor_view &v, const rv_editor_fx_tri &piec
 }
 
 // One triangle: corners to view space, cut at the near plane, each piece culled and rasterised. RV_ERR_INVAL when a
-// corner or cut point leaves int32, or a piece does not project; the triangle is then not drawn further.
+// corner or cut point leaves int32. A refused piece does not stop its siblings: every piece is tried, and the
+// first failure is the triangle's result.
 int rv_editor_raster_tri(rv_editor_zbuf &buf,
     const rv_editor_view &v,
     const rv_editor_tri &tri,
@@ -293,27 +299,35 @@ int rv_editor_raster_tri(rv_editor_zbuf &buf,
 {
     rv_editor_fx_tri source{};
     if (rv_editor_view_fx_tri(v, tri, source) != RV_OK) {
+        // Once per process, see rv_editor_refuse_once.
+        static bool reported = false;
+        rv_editor_refuse_once(reported, "a triangle has no Q20.12 corners, or a corner leaves int32 in view space");
         return RV_ERR_INVAL;
     }
     rv_editor_fx_tri cut[rv_editor_fx_max_pieces] = {};
     int count = 0;
     if (rv_editor_clip_near_fx(source, rv_editor_near_fx, cut, count) != RV_OK) {
+        // Once per process, see rv_editor_refuse_once.
+        static bool reported = false;
+        rv_editor_refuse_once(reported, "the near-plane cut failed");
         return RV_ERR_INVAL;
     }
+    int result = RV_OK;
     for (int i = 0; i < count; ++i) {
         bool culled = false;
-        if (rv_editor_piece_culled(v, cut[i], st.cull, culled) != RV_OK) {
-            return RV_ERR_INVAL;
+        const int cull_rc = rv_editor_piece_culled(st.screen, cut[i], st.cull, culled);
+        if (cull_rc != RV_OK && result == RV_OK) {
+            result = cull_rc;
         }
-        if (culled) {
+        if (cull_rc != RV_OK || culled) {
             continue;
         }
-        rv_editor_tri piece{};
-        vec3 view_p[tri_vertices] = {};
-        rv_editor_piece_metres(cut[i], piece, view_p);
-        rv_editor_raster_piece(buf, v, piece, view_p, st);
+        const int draw_rc = rv_editor_raster_piece(buf, cut[i], st);
+        if (draw_rc != RV_OK && result == RV_OK) {
+            result = draw_rc;
+        }
     }
-    return RV_OK;
+    return result;
 }
 
 } // namespace
@@ -339,11 +353,19 @@ void rv_editor_draw_filled(ImDrawList *dl,
     if (rv_editor_target_make(t, renderer, w, h) != RV_OK) {
         return; // the reason is reported in rv_editor_target_make
     }
+    // The buffer's own projection: the viewport's field at the buffer's height, centred at (w / 2, h / 2)
+    // in whole pixels. For an odd size that centre is half a pixel left of, and up from, the true one (D4).
+    rv_pdklib::rv_gte_viewport screen{};
+    if (rv_pdklib::rv_gte_camera_focal(rv_editor_camera_fov_fx, h, screen.h) != RV_OK) {
+        rv_editor_target_report(t, w, h, "the focal length cannot be built");
+        return;
+    }
+    screen.cx = w / 2;
+    screen.cy = h / 2;
     rv_editor_zbuf_clear(t.buf);
     int refused = 0;
     rv_editor_piece_style st;
-    st.origin = origin;
-    st.scale = ImVec2(static_cast<float>(w) / size.x, static_cast<float>(h) / size.y);
+    st.screen = screen;
     st.base = ImGui::ColorConvertU32ToFloat4(base);
     st.selection = ImGui::ColorConvertU32ToFloat4(selected_color);
     const rv_editor_scene &scene = doc.scene;

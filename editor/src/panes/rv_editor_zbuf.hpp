@@ -12,6 +12,11 @@ namespace rv_editor
 // A triangle has three corners.
 constexpr int RV_EDITOR_ZBUF_CORNERS = 3;
 
+// Largest |x| or |y| of a corner, in buffer pixels. Above it the int64 edge products could overflow:
+// doubled coordinates and centres are up to 2^29 + 1, differences up to 2^30 + 1, and each product
+// stays below 2^61.
+constexpr int64_t RV_EDITOR_ZBUF_COORD_LIMIT = int64_t{ 1 } << 28;
+
 struct rv_editor_zbuf_rgba {
     uint8_t r = 0;
     uint8_t g = 0;
@@ -26,11 +31,11 @@ struct rv_editor_zbuf_texture {
     int height = 0;
 };
 
-// One corner. x, y are pixels; z is view depth and must be > 0; u, v are glTF uv, repeated
-// (TILE); r, g, b, a are 0..1.
+// One corner. x, y are buffer pixels, integers as rv_gte_project gives them; z is view depth and
+// must be > 0; u, v are glTF uv, repeated (TILE); r, g, b, a are 0..1.
 struct rv_editor_zbuf_vertex {
-    float x = 0.0f;
-    float y = 0.0f;
+    int32_t x = 0;
+    int32_t y = 0;
     float z = 1.0f;
     float u = 0.0f;
     float v = 0.0f;
@@ -62,8 +67,8 @@ void rv_editor_zbuf_clear(rv_editor_zbuf &buf, rv_editor_zbuf_rgba background = 
 // Rasterises one triangle. A nearer pixel wins; on equal depth the pixel drawn first stays, so
 // draw order matters only for equal depths. A pixel whose output alpha is 0 writes neither
 // colour nor depth. Winding is not culled.
-// RV_ERR_INVAL, nothing drawn, for: an uninitialised buffer; a corner with non-finite values or
-// z <= 0; a texture without texels or with a non-positive size.
+// RV_ERR_INVAL, nothing drawn, for: an uninitialised buffer; a corner with non-finite values,
+// z <= 0, or x or y beyond RV_EDITOR_ZBUF_COORD_LIMIT; a texture without texels or with a non-positive size.
 int rv_editor_zbuf_draw(rv_editor_zbuf &buf, const rv_editor_zbuf_triangle &tri);
 
 } // namespace rv_editor
