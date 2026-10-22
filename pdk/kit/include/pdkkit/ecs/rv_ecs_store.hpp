@@ -134,9 +134,10 @@ template <typename T, typename World>
 auto *ecs_pool_lookup(World &world)
 {
     using Pool = std::conditional_t<std::is_const_v<World>, const ecs_pool<T>, ecs_pool<T>>;
+    auto &state = detail::ecs_state(world);
     const std::size_t number = ecs_type_number<T>();
-    const bool present = number < world.pools.size() && world.pools[number];
-    return present ? static_cast<Pool *>(world.pools[number].get()) : nullptr;
+    const bool present = number < state.pools.size() && state.pools[number];
+    return present ? static_cast<Pool *>(state.pools[number].get()) : nullptr;
 }
 
 // Pool of T in the world, or nullptr when no T was ever added.
@@ -156,11 +157,12 @@ const ecs_pool<T> *ecs_pool_find(const ecs_world &world)
 template <typename T>
 void ecs_pool_install(ecs_world &world, std::unique_ptr<ecs_pool<T>> pool)
 {
+    auto &state = detail::ecs_state(world);
     const std::size_t number = ecs_type_number<T>();
-    if (number >= world.pools.size()) {
-        world.pools.resize(number + 1);
+    if (number >= state.pools.size()) {
+        state.pools.resize(number + 1);
     }
-    world.pools[number] = std::move(pool);
+    state.pools[number] = std::move(pool);
 }
 
 // RV_ERR_NOENT for a stale id, RV_ERR_ALREADY when the entity already has a T, RV_ERR_NOMEM when the pool cannot grow,
