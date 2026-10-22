@@ -194,22 +194,6 @@ void rv_editor_scene_group_gap()
     ImGui::Dummy(ImVec2(gap, 0.0f));
 }
 
-// Aims the camera at the middle of the box lo..hi, backed off far enough to fit its diagonal.
-// RV_ERR_INVAL when the target or the distance leaves Q20.12; the camera is then unchanged.
-[[nodiscard]] int rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
-{
-    const vec3 middle = mul(add(lo, hi), half);
-    const double distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
-    rv_pdklib::fx_vec3 target{};
-    rv_pdklib::fx reach = 0;
-    if (rv_editor_frame_to_fx(middle, distance, target, reach) != RV_OK) {
-        return RV_ERR_INVAL;
-    }
-    rv_editor_camera_set_target_fx(cam, target);
-    rv_editor_camera_set_distance_fx(cam, reach);
-    return RV_OK;
-}
-
 // The dropdown item the camera's snap step is at, by raw match. Index is set only on a match: untouched on no match
 // and on error (warning logged once); the caller pre-sets the default.
 [[nodiscard]] int rv_editor_snap_step_index(const rv_editor_scene_camera &cam, int &index)
@@ -232,6 +216,20 @@ void rv_editor_scene_group_gap()
 }
 
 } // namespace
+
+int rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi)
+{
+    const vec3 middle = mul(add(lo, hi), half);
+    const double distance = std::max(frame_distance_base, std::sqrt(dot(sub(hi, lo), sub(hi, lo))) * frame_distance_multiplier);
+    rv_pdklib::fx_vec3 target{};
+    rv_pdklib::fx reach = 0;
+    if (rv_editor_frame_to_fx(middle, distance, target, reach) != RV_OK) {
+        return RV_ERR_INVAL;
+    }
+    rv_editor_camera_set_target_fx(cam, target);
+    rv_editor_camera_set_distance_fx(cam, reach);
+    return RV_OK;
+}
 
 // A drag of the selected object by the Toolchest's tool: along one axis for Move,
 // by the mouse for Rotate (yaw across, pitch up and down) and Scale (uniform).

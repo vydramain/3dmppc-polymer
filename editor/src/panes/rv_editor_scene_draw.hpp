@@ -116,6 +116,9 @@ vec3 sub(const vec3 &a, const vec3 &b);
 vec3 add(const vec3 &a, const vec3 &b);
 vec3 mul(const vec3 &a, double s);
 double dot(const vec3 &a, const vec3 &b);
+// Aims the camera at the middle of the box lo..hi, backed off far enough to fit its diagonal.
+// RV_ERR_INVAL when the target or the distance leaves Q20.12; the camera is then unchanged.
+[[nodiscard]] int rv_editor_frame_box(rv_editor_scene_camera &cam, const vec3 &lo, const vec3 &hi);
 
 // The near plane in metres. The Q20.12 plane both passes clip against is rv_editor_near_fx.
 inline constexpr double rv_editor_near = 0.05;
