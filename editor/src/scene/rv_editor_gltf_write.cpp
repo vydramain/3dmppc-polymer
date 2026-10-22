@@ -25,7 +25,8 @@ namespace rv_editor
 namespace
 {
 
-using rv_pdklib::rv_mppcmod;
+using rv_pdklib::rv_mppcmod_gltf_source_vertex;
+using rv_pdklib::rv_mppcmod_int_model;
 using rv_pdklib::rv_mppcmod_part;
 using rv_pdklib::rv_mppcmod_vertex;
 
@@ -149,7 +150,7 @@ int require_new(const std::filesystem::path &gltf, const std::filesystem::path &
 
 // Picks the selected triangles of each part. A selected triangle no part holds is refused:
 // the file could not give it a colour or a texture.
-int pick_runs(const rv_mppcmod &model, const std::vector<uint32_t> &tris, std::vector<run> &runs, std::string &error)
+int pick_runs(const rv_mppcmod_int_model &model, const std::vector<uint32_t> &tris, std::vector<run> &runs, std::string &error)
 {
     std::vector<bool> chosen(model.triangles.size(), false);
     for (const uint32_t t : tris) {
@@ -184,9 +185,10 @@ int pick_runs(const rv_mppcmod &model, const std::vector<uint32_t> &tris, std::v
     return RV_OK;
 }
 
-// Copies the used vertices in first-use order, negating z, and builds the index list. pick_runs
-// leaves at least one run, and every run has a triangle, so mesh.verts is never empty below.
-void build_mesh(const rv_mppcmod &model, gltf_mesh &mesh)
+// Copies the used vertices in first-use order, with the source floats and the model's colour, negating z,
+// and builds the index list. pick_runs leaves at least one run, and every run has a triangle, so mesh.verts
+// is never empty below.
+void build_mesh(const rv_mppcmod_int_model &model, const std::vector<rv_mppcmod_gltf_source_vertex> &source, gltf_mesh &mesh)
 {
     std::vector<size_t> remap(model.vertices.size(), RV_EDITOR_GLTF_UNMAPPED);
     for (run &r : mesh.runs) {
@@ -195,8 +197,10 @@ void build_mesh(const rv_mppcmod &model, gltf_mesh &mesh)
             for (const uint16_t v : model.triangles[t].index) {
                 if (remap[v] == RV_EDITOR_GLTF_UNMAPPED) {
                     remap[v] = mesh.verts.size();
-                    mesh.verts.push_back(model.vertices[v]);
-                    rv_mppcmod_vertex &copy = mesh.verts.back();
+                    rv_mppcmod_vertex &copy = mesh.verts.emplace_back();
+                    copy.pos = source[v].pos;
+                    copy.uv = source[v].uv;
+                    copy.color = model.vertices[v].color;
                     copy.pos[RV_EDITOR_GLTF_DEPTH_LANE] = -copy.pos[RV_EDITOR_GLTF_DEPTH_LANE];
                 }
                 mesh.indices.push_back(static_cast<uint16_t>(remap[v]));
@@ -382,7 +386,8 @@ int build_json(const gltf_mesh &mesh,
 } // namespace
 
 int rv_editor_gltf_write(const std::filesystem::path &gltf,
-    const rv_mppcmod &model,
+    const rv_mppcmod_int_model &model,
+    const std::vector<rv_mppcmod_gltf_source_vertex> &source,
     const std::vector<uint32_t> &tris,
     const std::map<std::string, std::string> &texture_uri,
     std::string &error)
@@ -405,16 +410,21 @@ int rv_editor_gltf_write(const std::filesystem::path &gltf,
     if (fresh != RV_OK) {
         return fresh;
     }
-    const int valid = rv_pdklib::rv_mppcmod_validate(model, error);
+    const int valid = rv_pdklib::rv_mppcmod_int_validate(model, error);
     if (valid != RV_OK) {
         return valid;
+    }
+    if (source.size() != model.vertices.size()) {
+        error = "the glTF source has " + std::to_string(source.size()) + " vertices, but the model has " +
+            std::to_string(model.vertices.size());
+        return RV_ERR_INVAL;
     }
     gltf_mesh mesh;
     const int picked = pick_runs(model, tris, mesh.runs, error);
     if (picked != RV_OK) {
         return picked;
     }
-    build_mesh(model, mesh);
+    build_mesh(model, source, mesh);
 
     std::vector<uint8_t> bin;
     build_bin(mesh, bin);
@@ -441,20 +451,6 @@ int rv_editor_gltf_write(const std::filesystem::path &gltf,
         return wrote_gltf;
     }
     return RV_OK;
-}
-
-int rv_editor_gltf_write(const std::filesystem::path &gltf,
-    const rv_pdklib::rv_mppcmod_int_model &model,
-    const std::vector<uint32_t> &tris,
-    const std::map<std::string, std::string> &texture_uri,
-    std::string &error)
-{
-    const int valid = rv_pdklib::rv_mppcmod_int_validate(model, error);
-    if (valid != RV_OK) {
-        return valid;
-    }
-    const rv_mppcmod float_model = rv_pdklib::rv_mppcmod_int_to_float(model);
-    return rv_editor_gltf_write(gltf, float_model, tris, texture_uri, error);
 }
 
 } // namespace rv_editor
