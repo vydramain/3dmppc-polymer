@@ -164,8 +164,8 @@ int rv_dmain::register_ecs()
     return RV_OK;
 }
 
-// Loads the scene into world_, then fills keys_ and the board from its entities and schedules the lamps. An error
-// leaves them partly filled; the caller clears them.
+// Loads the scene into world_, then fills keys_ and the board from its entities. The lamps are scheduled by the
+// lamp_light system on the first frame. An error leaves them partly filled; the caller clears them.
 int rv_dmain::read_scene()
 {
     const int register_code = register_ecs();
@@ -189,10 +189,6 @@ int rv_dmain::read_scene()
     const int parts_code = collect_parts(load_number);
     if (parts_code != RV_OK) {
         return parts_code;
-    }
-    const int lamp_code = rv_lamps_schedule(world_, keys_);
-    if (lamp_code != RV_OK) {
-        return lamp_code;
     }
     return RV_OK;
 }

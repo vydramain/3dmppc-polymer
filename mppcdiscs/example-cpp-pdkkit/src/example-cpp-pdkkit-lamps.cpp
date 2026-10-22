@@ -88,9 +88,15 @@ int first_near(const std::vector<rv_route_key> &keys, rv_pdklib::fx_vec3 at, int
 }
 
 // Schedule of one lamp_light entity, its base taken from the world matrix of its parent (lamp_N).
-// Error: the entity or its parent lacks a component, a Q20.12 failure or the route math; the entity keeps its schedule.
+// A lamp that cannot be scheduled is warned once and stays dark: on and off stay 0, and it is not retried.
+// Error: RV_ERR_NOENT only when the entity has no lamp_light component (the caller iterates those entities).
 int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::vector<rv_route_key> &keys)
 {
+    ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, id);
+    if (light == nullptr) {
+        return RV_ERR_NOENT;
+    }
+    light->scheduled = true;
     const auto *hierarchy = rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_parent>(world, id);
     const bool has_parent = hierarchy != nullptr;
     const auto *name =
@@ -98,37 +104,32 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     const auto *place =
         has_parent ? rv_pdkkit::ecs_component_get<rv_pdkkit::ecs_component_world>(world, hierarchy->parent) : nullptr;
     if (name == nullptr || place == nullptr) {
-        RV_LOG_ERR("lamps", "lamp_light entity has no parent with a name and a world matrix: not scheduled");
-        return RV_ERR_NOENT;
-    }
-    ecs_component_lamp_light *light = rv_pdkkit::ecs_component_get<ecs_component_lamp_light>(world, id);
-    if (light == nullptr) {
-        RV_LOG_ERR("lamps", "{}: no lamp_light component: not scheduled", std::string_view{ name->text });
-        return RV_ERR_NOENT;
+        RV_LOG_WARN("lamps", "lamp_light entity has no parent with a name and a world matrix: it stays dark");
+        return RV_OK;
     }
     rv_pdklib::fx_vec3 at = {};
     const int at_code = lamp_base(*place, at);
     if (at_code != RV_OK) {
-        RV_LOG_ERR("lamps", "{}: base leaves Q20.12, not scheduled: rv_err {}", std::string_view{ name->text }, at_code);
-        return at_code;
+        RV_LOG_WARN("lamps", "{}: base leaves Q20.12, it stays dark: rv_err {}", std::string_view{ name->text }, at_code);
+        return RV_OK;
     }
     int64_t on = -1;
     const int on_code = first_near(keys, at, 0, RV_LAMP_OUTWARD_END, on);
     if (on_code != RV_OK) {
-        RV_LOG_ERR("lamps",
-            "{}: route or lamp offset leaves Q20.12 in the outward half: rv_err {}",
+        RV_LOG_WARN("lamps",
+            "{}: route or lamp offset leaves Q20.12 in the outward half, it stays dark: rv_err {}",
             std::string_view{ name->text },
             on_code);
-        return on_code;
+        return RV_OK;
     }
     int64_t off = -1;
     const int off_code = first_near(keys, at, RV_LAMP_OUTWARD_END, RV_ROUTE_PERIOD_FRAMES, off);
     if (off_code != RV_OK) {
-        RV_LOG_ERR("lamps",
-            "{}: route or lamp offset leaves Q20.12 in the return half: rv_err {}",
+        RV_LOG_WARN("lamps",
+            "{}: route or lamp offset leaves Q20.12 in the return half, it stays dark: rv_err {}",
             std::string_view{ name->text },
             off_code);
-        return off_code;
+        return RV_OK;
     }
     const bool passed = on >= 0 && off >= 0;
     if (!passed) {
@@ -141,10 +142,54 @@ int schedule_lamp(rv_pdkkit::ecs_world &world, rv_pdkkit::ecs_id id, const std::
     return RV_OK;
 }
 
+// The route component of the world, nullptr without one. rv_route_collect refuses a scene with two routes at init.
+const ecs_component_route *route_of(rv_pdkkit::ecs_world &world)
+{
+    const ecs_component_route *route = nullptr;
+    rv_pdkkit::ecs_component_each<ecs_component_route>(world, [&route](rv_pdkkit::ecs_id, ecs_component_route &component) {
+        route = &component;
+    });
+    return route;
+}
+
+// Schedules each lamp_light entity not yet scheduled. Error: RV_ERR_NOENT from schedule_lamp; a lamp that cannot be
+// scheduled is warned by schedule_lamp and stays dark, so the others go on.
+int schedule_lamps(rv_pdkkit::ecs_world &world)
+{
+    // Collected first, then scheduled outside the walk.
+    std::vector<rv_pdkkit::ecs_id> unscheduled;
+    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world,
+        [&unscheduled](rv_pdkkit::ecs_id id, ecs_component_lamp_light &light) {
+            if (!light.scheduled) {
+                unscheduled.push_back(id);
+            }
+        });
+    if (unscheduled.empty()) {
+        return RV_OK;
+    }
+    // Unreachable until the route system collects the keys during the frame (next task): today rv_route_collect
+    // refuses the scene at load when there is no route entity or no cam_NN key.
+    const ecs_component_route *route = route_of(world);
+    if (route == nullptr || route->keys.empty()) {
+        return RV_OK;
+    }
+    for (const rv_pdkkit::ecs_id id : unscheduled) {
+        const int code = schedule_lamp(world, id, route->keys);
+        if (code != RV_OK) {
+            return code;
+        }
+    }
+    return RV_OK;
+}
+
 } // namespace
 
 int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_frame &frame)
 {
+    const int schedule_code = schedule_lamps(world);
+    if (schedule_code != RV_OK) {
+        return schedule_code;
+    }
     const int64_t phase = frame.frame % RV_ROUTE_PERIOD_FRAMES;
     // Collected first: the hidden mark is added and removed only after the walk.
     std::vector<lamp_state> states;
@@ -167,21 +212,6 @@ int ecs_system_lamp_light(rv_pdkkit::ecs_world &world, const rv_pdkkit::ecs_fram
             if (hidden_code != RV_OK) {
                 return hidden_code;
             }
-        }
-    }
-    return RV_OK;
-}
-
-int rv_lamps_schedule(rv_pdkkit::ecs_world &world, const std::vector<rv_route_key> &keys)
-{
-    std::vector<rv_pdkkit::ecs_id> lights;
-    rv_pdkkit::ecs_component_each<ecs_component_lamp_light>(world, [&lights](rv_pdkkit::ecs_id id, ecs_component_lamp_light &) {
-        lights.push_back(id);
-    });
-    for (const rv_pdkkit::ecs_id id : lights) {
-        const int code = schedule_lamp(world, id, keys);
-        if (code != RV_OK) {
-            return code;
         }
     }
     return RV_OK;
