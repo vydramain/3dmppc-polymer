@@ -2,6 +2,7 @@
 
 #include "project/rv_editor_project.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -30,6 +31,8 @@ constexpr size_t hash_buf_size = 17;
 
 // Manifest file name used by the project.
 constexpr std::string_view manifest_file = "disc.toml";
+// [build] sdk tree that makes a disc pdkkit; no [build], no sdk key, or sdk without it is bare.
+constexpr std::string_view sdk_kit_tree = "kit";
 // Directory name used for editor's cache and state subdirectories.
 constexpr std::string_view editor_dir_name = "3dmppc-editor";
 
@@ -231,6 +234,7 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
         project.sounds_patterns.clear();
         project.models_patterns.clear();
         project.has_build_section = false;
+        project.sdk = rv_editor_sdk_state::unknown;
         return;
     }
     project.manifest_error.clear();
@@ -243,6 +247,9 @@ void rv_editor_project_reload_manifest(rv_editor_project &project)
     project.sounds_patterns = manifest.sounds_files;
     project.models_patterns = manifest.models_files;
     project.has_build_section = !manifest.build_sources.empty();
+    const bool on_kit =
+        std::find(manifest.build_sdk.begin(), manifest.build_sdk.end(), sdk_kit_tree) != manifest.build_sdk.end();
+    project.sdk = on_kit ? rv_editor_sdk_state::pdkkit : rv_editor_sdk_state::bare;
 }
 
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel)

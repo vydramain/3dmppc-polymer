@@ -130,6 +130,13 @@ private:
     bool status_step_ = false;
 };
 
+// Which SDK the disc is built on, from disc.toml [build] sdk.
+enum class rv_editor_sdk_state {
+    pdkkit,  // sdk lists the "kit" tree
+    bare,    // no [build] or no sdk key, or sdk without "kit"
+    unknown, // disc.toml could not be loaded or failed validation; not reported as bare
+};
+
 // The game directory the window works on: a directory holding
 // disc.toml, whichever of the two was opened.
 struct rv_editor_project {
@@ -149,6 +156,7 @@ struct rv_editor_project {
     std::vector<std::string> sounds_patterns;   // [sounds] files, relative to root
     std::vector<std::string> models_patterns;   // [models] files (.glb, .gltf), relative to root
     bool has_build_section = false;             // disc.toml has [build] sources: a C++ disc
+    rv_editor_sdk_state sdk = rv_editor_sdk_state::unknown; // pdkkit or bare; unknown until the manifest loads
 };
 
 // True when `rel` (relative to p.root, '/'-separated) matches a pattern in
