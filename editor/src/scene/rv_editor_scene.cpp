@@ -317,4 +317,104 @@ bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_
     return rv_editor_scene_component_find(o, name) != nullptr;
 }
 
+std::string rv_editor_object_get_name(const rv_editor_scene_object &o)
+{
+    return o.name;
+}
+
+void rv_editor_object_set_name(rv_editor_scene_object &o, const std::string &value)
+{
+    o.name = value;
+}
+
+std::string rv_editor_object_get_kind(const rv_editor_scene_object &o)
+{
+    return o.kind;
+}
+
+void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value)
+{
+    o.kind = value;
+}
+
+rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o)
+{
+    return o.position;
+}
+
+void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value)
+{
+    o.position = value;
+}
+
+rv_editor_vec3 rv_editor_object_get_rotation(const rv_editor_scene_object &o)
+{
+    return o.rotation;
+}
+
+void rv_editor_object_set_rotation(rv_editor_scene_object &o, const rv_editor_vec3 &value)
+{
+    o.rotation = value;
+}
+
+rv_editor_vec3 rv_editor_object_get_scale(const rv_editor_scene_object &o)
+{
+    return o.scale;
+}
+
+void rv_editor_object_set_scale(rv_editor_scene_object &o, const rv_editor_vec3 &value)
+{
+    o.scale = value;
+}
+
+std::string rv_editor_object_get_mesh(const rv_editor_scene_object &o)
+{
+    return o.mesh;
+}
+
+void rv_editor_object_set_mesh(rv_editor_scene_object &o, const std::string &value)
+{
+    o.mesh = value;
+}
+
+std::string rv_editor_object_get_texture(const rv_editor_scene_object &o)
+{
+    return o.texture;
+}
+
+void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &value)
+{
+    o.texture = value;
+}
+
+rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o)
+{
+    return o.uv;
+}
+
+void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value)
+{
+    o.uv = value;
+}
+
+rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o)
+{
+    return o.tint;
+}
+
+void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &value)
+{
+    o.tint = value;
+}
+
+double rv_editor_object_get_tess(const rv_editor_scene_object &o)
+{
+    return o.tess;
+}
+
+void rv_editor_object_set_tess(rv_editor_scene_object &o, double value)
+{
+    o.tess = value;
+}
+
 } // namespace rv_editor

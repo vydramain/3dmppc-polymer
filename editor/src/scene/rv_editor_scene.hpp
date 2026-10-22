@@ -101,4 +101,29 @@ const rv_editor_scene_component *rv_editor_scene_component_find(const rv_editor_
 // True if the object has a component named `name`.
 bool rv_editor_scene_has_component(const rv_editor_scene_object &o, std::string_view name);
 
+// New code reaches an object's data through these accessors; the storage behind them will change
+// (raw Q20.12, then pdkkit components), so getters return by value. The fields stay public until then.
+// id, parent, entity, components and extra are the object's structure in both forms and stay direct
+// fields, so a whole-object copy (duplicate) stays valid.
+std::string rv_editor_object_get_name(const rv_editor_scene_object &o);
+void rv_editor_object_set_name(rv_editor_scene_object &o, const std::string &value);
+std::string rv_editor_object_get_kind(const rv_editor_scene_object &o);
+void rv_editor_object_set_kind(rv_editor_scene_object &o, const std::string &value);
+rv_editor_vec3 rv_editor_object_get_position(const rv_editor_scene_object &o);
+void rv_editor_object_set_position(rv_editor_scene_object &o, const rv_editor_vec3 &value);
+rv_editor_vec3 rv_editor_object_get_rotation(const rv_editor_scene_object &o);
+void rv_editor_object_set_rotation(rv_editor_scene_object &o, const rv_editor_vec3 &value);
+rv_editor_vec3 rv_editor_object_get_scale(const rv_editor_scene_object &o);
+void rv_editor_object_set_scale(rv_editor_scene_object &o, const rv_editor_vec3 &value);
+std::string rv_editor_object_get_mesh(const rv_editor_scene_object &o);
+void rv_editor_object_set_mesh(rv_editor_scene_object &o, const std::string &value);
+std::string rv_editor_object_get_texture(const rv_editor_scene_object &o);
+void rv_editor_object_set_texture(rv_editor_scene_object &o, const std::string &value);
+rv_editor_uv rv_editor_object_get_uv(const rv_editor_scene_object &o);
+void rv_editor_object_set_uv(rv_editor_scene_object &o, const rv_editor_uv &value);
+rv_editor_tint rv_editor_object_get_tint(const rv_editor_scene_object &o);
+void rv_editor_object_set_tint(rv_editor_scene_object &o, const rv_editor_tint &value);
+double rv_editor_object_get_tess(const rv_editor_scene_object &o);
+void rv_editor_object_set_tess(rv_editor_scene_object &o, double value);
+
 } // namespace rv_editor
