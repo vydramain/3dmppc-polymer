@@ -37,9 +37,6 @@ constexpr std::string_view sdk_kit_tree = "kit";
 // Directory name used for editor's cache and state subdirectories.
 constexpr std::string_view editor_dir_name = "3dmppc-editor";
 
-// Disc section that Add to disc writes to; file kinds come from pdklib's asset table, not from here.
-constexpr std::string_view disc_section_assets = "assets";
-
 // XDG environment variables and fallback paths for user directories per XDG Base Directory spec.
 constexpr std::string_view xdg_cache_var = "XDG_CACHE_HOME";
 constexpr std::string_view xdg_cache_fallback = ".cache";
@@ -270,16 +267,9 @@ bool rv_editor_is_model_file_name(std::string_view name)
     return rv_pdklib::rv_manifest_asset_kind_of(name) == rv_pdklib::rv_manifest_asset_kind::model;
 }
 
-// The burner sorts the [assets] files by extension, so Add to disc puts any file in [assets] and
-// the preview's tooltip names that section, whatever the file is.
-const char *rv_editor_project_disc_section(std::string_view /*rel*/)
-{
-    return disc_section_assets.data();
-}
-
 int rv_editor_project_put_on_disc(rv_editor_project &project, std::string_view rel, std::string &error)
 {
-    const int err = rv_editor_manifest_add_pattern(project.manifest, disc_section_assets, rel, error);
+    const int err = rv_editor_manifest_add_pattern(project.manifest, rv_editor_disc_assets_section, rel, error);
     if (err != RV_OK) {
         return err;
     }

@@ -161,8 +161,9 @@ struct rv_editor_project {
 // any of the four lists above.
 bool rv_editor_project_on_disc(const rv_editor_project &project, std::string_view rel);
 
-// The disc.toml section Add to disc writes any file to: always [assets], whatever its extension.
-const char *rv_editor_project_disc_section(std::string_view rel);
+// The disc.toml section Add to disc writes any file to, whatever its extension: the burner sorts
+// [assets] files by extension, so one section serves them all. The preview's tooltip names it too.
+inline constexpr std::string_view rv_editor_disc_assets_section = "assets";
 
 // Adds `rel` itself as a pattern to [assets] and reloads the manifest.
 // RV_OK on success, error code from rv_editor_manifest_add_pattern on failure. disc.toml is untouched on failure.

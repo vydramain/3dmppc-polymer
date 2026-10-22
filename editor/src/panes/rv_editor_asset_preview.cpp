@@ -295,7 +295,6 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
                 rv_editor_label_layout::wrap);
         }
         if (!rv_editor_project_on_disc(project, a->rel) && rv_editor_asset_belongs_on_disc(a->rel)) {
-            const char *section = rv_editor_project_disc_section(a->rel);
             rv_editor_label(rv_editor_text("asset_preview.not_in_disc_toml"), rv_editor_label_kind::normal, theme);
             ImGui::SameLine();
             if (rv_editor_button(rv_editor_text("asset_preview.button_add_to_disc"), theme)) {
@@ -306,7 +305,7 @@ void rv_editor_asset_preview(const rv_editor_asset *a,
                     rv_editor_add_last_error = { a->rel, error };
                 }
             }
-            const auto tooltip_args = std::make_format_args(section);
+            const auto tooltip_args = std::make_format_args(rv_editor_disc_assets_section);
             const auto tooltip_text = rv_editor_text_format("asset_preview.tooltip_add_to_disc", tooltip_args);
             rv_editor_item_tooltip(tooltip_text.c_str());
             if (rv_editor_add_last_error.rel == a->rel && !rv_editor_add_last_error.text.empty()) {
