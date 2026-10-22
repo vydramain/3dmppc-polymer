@@ -1,6 +1,6 @@
-// The Scene tile's tabs: the scene itself in front, PNGs and sounds opened
-// from Assets beside it, each a further tab (mirrors the Assets preview strip's
-// look for a picture and a player, without touching that file).
+// The Scene tile's tabs: the scene itself in front, PNGs, sounds and models
+// opened from Assets beside it, each a further tab (a picture and a player
+// mirror the Assets preview strip's look, without touching that file).
 
 #include "panes/rv_editor_panes.hpp"
 
@@ -34,6 +34,10 @@ constexpr std::string_view png_extension = ".png";
 constexpr std::string_view wav_extension = ".wav";
 constexpr std::string_view pcm_extension = ".pcm";
 
+// Model file extensions (glTF text and binary).
+constexpr std::string_view gltf_extension = ".gltf";
+constexpr std::string_view glb_extension = ".glb";
+
 // Path escape indicator: relative path goes outside project root.
 constexpr std::string_view path_escape_indicator = "..";
 
@@ -45,6 +49,8 @@ constexpr struct {
     { png_extension, rv_editor_scene_tab_kind::picture },
     { wav_extension, rv_editor_scene_tab_kind::sound },
     { pcm_extension, rv_editor_scene_tab_kind::sound },
+    { gltf_extension, rv_editor_scene_tab_kind::model },
+    { glb_extension, rv_editor_scene_tab_kind::model },
 };
 
 std::optional<rv_editor_scene_tab_kind> rv_editor_scene_tab_kind_for(std::string_view ext)
@@ -213,10 +219,16 @@ bool rv_editor_scene_tabs_draw(rv_editor_app &app,
         return true;
     }
     const rv_editor_scene_tab &tab = st.tabs[static_cast<size_t>(front - 1)];
-    if (tab.kind == rv_editor_scene_tab_kind::picture) {
+    switch (tab.kind) {
+    case rv_editor_scene_tab_kind::picture:
         rv_editor_scene_tab_picture(app, renderer, tab, theme);
-    } else {
+        break;
+    case rv_editor_scene_tab_kind::sound:
         rv_editor_scene_tab_sound(tab, theme);
+        break;
+    case rv_editor_scene_tab_kind::model:
+        rv_editor_scene_tab_model(renderer, tab, theme);
+        break;
     }
     return false;
 }
