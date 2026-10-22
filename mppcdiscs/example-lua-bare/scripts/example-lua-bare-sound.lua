@@ -8,10 +8,10 @@ local board = require("example-lua-bare-board")
 local steps = require("example-lua-bare-steps")
 local M = {}
 
--- Eye x of the camera, metres, as scenes/main.scene.toml places the objects: the factory is at x < 0,
--- the house facade stands at x = 33.8 with the flat behind it.
+-- Eye x of the camera in Q20.12 raw (4096 per metre), as scenes/main.scene.toml places the objects: the factory
+-- is at x < 0, the house facade stands at x = 33.8 m = 138444.8 raw. On whole raw values a strict > 138444 is x > 33.8.
 local WORKSHOP_MAX_X = 0
-local FLAT_MIN_X = 33.8
+local FLAT_MIN_X = 138444
 
 -- One bar is one second of music and the frame clock is 60 frames per second: a bar starts on an exact frame.
 local BAR_FRAMES = 60
