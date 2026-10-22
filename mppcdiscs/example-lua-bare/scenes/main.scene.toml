@@ -10,363 +10,617 @@ version = "1.0"
 
 [[object]]
 id = "5ce00001"
-name = "factory"
 parent = ""
-kind = "mesh"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "factory.glb"
-texture = ""
+
+[[component]]
+object = "5ce00001"
+name = "name"
+text = "factory"
+
+[[component]]
+object = "5ce00001"
+name = "transform"
+
+[[component]]
+object = "5ce00001"
+name = "model"
+source = "factory.glb"
 
 [[object]]
 id = "5ce00002"
-name = "board"
 parent = ""
-kind = "mesh"
+
+[[component]]
+object = "5ce00002"
+name = "name"
+text = "board"
+
+[[component]]
+object = "5ce00002"
+name = "transform"
 position = [-13.94, 4.3, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "board.glb"
-texture = ""
+
+[[component]]
+object = "5ce00002"
+name = "model"
+source = "board.glb"
 
 [[object]]
 id = "5ce00003"
-name = "street"
 parent = ""
-kind = "mesh"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "street.glb"
-texture = ""
+
+[[component]]
+object = "5ce00003"
+name = "name"
+text = "street"
+
+[[component]]
+object = "5ce00003"
+name = "transform"
+
+[[component]]
+object = "5ce00003"
+name = "model"
+source = "street.glb"
 
 [[object]]
 id = "5ce00004"
-name = "house"
 parent = ""
-kind = "mesh"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "house.glb"
-texture = ""
+
+[[component]]
+object = "5ce00004"
+name = "name"
+text = "house"
+
+[[component]]
+object = "5ce00004"
+name = "transform"
+
+[[component]]
+object = "5ce00004"
+name = "model"
+source = "house.glb"
 
 [[object]]
 id = "5ce00005"
-name = "apartment"
 parent = ""
-kind = "mesh"
-position = [0, 0.2375, -1.59375]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "apartment.glb"
-texture = ""
+
+[[component]]
+object = "5ce00005"
+name = "name"
+text = "apartment"
+
+[[component]]
+object = "5ce00005"
+name = "transform"
+position = [0, 0.2375, -1.5938]
+
+[[component]]
+object = "5ce00005"
+name = "model"
+source = "apartment.glb"
 
 [[object]]
 id = "5ce00006"
-name = "lamp_1"
 parent = ""
-kind = "mesh"
+
+[[component]]
+object = "5ce00006"
+name = "name"
+text = "lamp_1"
+
+[[component]]
+object = "5ce00006"
+name = "transform"
 position = [4, 0, 3.6]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "lamp.glb"
-texture = ""
+
+[[component]]
+object = "5ce00006"
+name = "model"
+source = "lamp.glb"
 
 [[object]]
 id = "5ce00007"
-name = "lamp_2"
 parent = ""
-kind = "mesh"
+
+[[component]]
+object = "5ce00007"
+name = "name"
+text = "lamp_2"
+
+[[component]]
+object = "5ce00007"
+name = "transform"
 position = [12, 0, -3.6]
 rotation = [0, 180, 0]
-scale = [1, 1, 1]
-mesh = "lamp.glb"
-texture = ""
+
+[[component]]
+object = "5ce00007"
+name = "model"
+source = "lamp.glb"
 
 [[object]]
 id = "5ce00008"
-name = "lamp_3"
 parent = ""
-kind = "mesh"
+
+[[component]]
+object = "5ce00008"
+name = "name"
+text = "lamp_3"
+
+[[component]]
+object = "5ce00008"
+name = "transform"
 position = [20, 0, 3.6]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "lamp.glb"
-texture = ""
+
+[[component]]
+object = "5ce00008"
+name = "model"
+source = "lamp.glb"
 
 [[object]]
 id = "5ce00009"
-name = "lamp_4"
 parent = ""
-kind = "mesh"
+
+[[component]]
+object = "5ce00009"
+name = "name"
+text = "lamp_4"
+
+[[component]]
+object = "5ce00009"
+name = "transform"
 position = [28, 0, -3.6]
 rotation = [0, 180, 0]
-scale = [1, 1, 1]
-mesh = "lamp.glb"
-texture = ""
+
+[[component]]
+object = "5ce00009"
+name = "model"
+source = "lamp.glb"
 
 [[object]]
 id = "5ce0000b"
-name = "machines"
 parent = ""
-kind = "mesh"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "machines.glb"
-texture = ""
+
+[[component]]
+object = "5ce0000b"
+name = "name"
+text = "machines"
+
+[[component]]
+object = "5ce0000b"
+name = "transform"
+
+[[component]]
+object = "5ce0000b"
+name = "model"
+source = "machines.glb"
 
 [[object]]
 id = "5ce0000c"
-name = "furniture"
 parent = ""
-kind = "mesh"
-position = [0, 0.2375, -1.59375]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "furniture.glb"
-texture = ""
+
+[[component]]
+object = "5ce0000c"
+name = "name"
+text = "furniture"
+
+[[component]]
+object = "5ce0000c"
+name = "transform"
+position = [0, 0.2375, -1.5938]
+
+[[component]]
+object = "5ce0000c"
+name = "model"
+source = "furniture.glb"
 
 [[object]]
 id = "5ce0000d"
-name = "yard"
 parent = ""
-kind = "mesh"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = "yard.glb"
-texture = ""
+
+[[component]]
+object = "5ce0000d"
+name = "name"
+text = "yard"
+
+[[component]]
+object = "5ce0000d"
+name = "transform"
+
+[[component]]
+object = "5ce0000d"
+name = "model"
+source = "yard.glb"
 
 [[object]]
 id = "5ce0000a"
-name = "route"
 parent = ""
-kind = "group"
-position = [0, 0, 0]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce0000a"
+name = "name"
+text = "route"
+
+[[component]]
+object = "5ce0000a"
+name = "transform"
 
 [[object]]
 id = "5ce10000"
-name = "cam_00"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10000"
+name = "name"
+text = "cam_00"
+
+[[component]]
+object = "5ce10000"
+name = "transform"
 position = [-9, 4.2, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10000"
+name = "camera"
 
 [[object]]
 id = "5ce10001"
-name = "cam_01"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10001"
+name = "name"
+text = "cam_01"
+
+[[component]]
+object = "5ce10001"
+name = "transform"
 position = [-8, 4, 0.6]
 rotation = [2, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10001"
+name = "camera"
 
 [[object]]
 id = "5ce10002"
-name = "cam_02"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10002"
+name = "name"
+text = "cam_02"
+
+[[component]]
+object = "5ce10002"
+name = "transform"
 position = [-6.5, 3.4, 1.5]
-rotation = [0, 0, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10002"
+name = "camera"
 
 [[object]]
 id = "5ce10003"
-name = "cam_03"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10003"
+name = "name"
+text = "cam_03"
+
+[[component]]
+object = "5ce10003"
+name = "transform"
 position = [-3, 2, 0]
 rotation = [0, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10003"
+name = "camera"
 
 [[object]]
 id = "5ce10004"
-name = "cam_04"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10004"
+name = "name"
+text = "cam_04"
+
+[[component]]
+object = "5ce10004"
+name = "transform"
 position = [-0.5, 1.7, 0]
 rotation = [0, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10004"
+name = "camera"
 
 [[object]]
 id = "5ce10005"
-name = "cam_05"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10005"
+name = "name"
+text = "cam_05"
+
+[[component]]
+object = "5ce10005"
+name = "transform"
 position = [3, 1.9, 0]
 rotation = [0, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10005"
+name = "camera"
 
 [[object]]
 id = "5ce10006"
-name = "cam_06"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10006"
+name = "name"
+text = "cam_06"
+
+[[component]]
+object = "5ce10006"
+name = "transform"
 position = [12, 2.8, 0]
 rotation = [0, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10006"
+name = "camera"
 
 [[object]]
 id = "5ce10007"
-name = "cam_07"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10007"
+name = "name"
+text = "cam_07"
+
+[[component]]
+object = "5ce10007"
+name = "transform"
 position = [24, 4, 0]
 rotation = [-3, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10007"
+name = "camera"
 
 [[object]]
 id = "5ce10008"
-name = "cam_08"
 parent = "5ce0000a"
-kind = "camera"
-position = [30.5, 7.2375, -1.59375]
+
+[[component]]
+object = "5ce10008"
+name = "name"
+text = "cam_08"
+
+[[component]]
+object = "5ce10008"
+name = "transform"
+position = [30.5, 7.2375, -1.5938]
 rotation = [-2, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10008"
+name = "camera"
 
 [[object]]
 id = "5ce10009"
-name = "cam_09"
 parent = "5ce0000a"
-kind = "camera"
-position = [33, 7.6875, -1.59375]
+
+[[component]]
+object = "5ce10009"
+name = "name"
+text = "cam_09"
+
+[[component]]
+object = "5ce10009"
+name = "transform"
+position = [33, 7.6875, -1.5938]
 rotation = [0, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10009"
+name = "camera"
 
 [[object]]
 id = "5ce1000a"
-name = "cam_10"
 parent = "5ce0000a"
-kind = "camera"
-position = [35.3, 7.6375, -1.59375]
+
+[[component]]
+object = "5ce1000a"
+name = "name"
+text = "cam_10"
+
+[[component]]
+object = "5ce1000a"
+name = "transform"
+position = [35.3, 7.6375, -1.5938]
 rotation = [5, 90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000a"
+name = "camera"
 
 [[object]]
 id = "5ce1000b"
-name = "cam_11"
 parent = "5ce0000a"
-kind = "camera"
-position = [36.6, 7.6375, -1.09375]
+
+[[component]]
+object = "5ce1000b"
+name = "name"
+text = "cam_11"
+
+[[component]]
+object = "5ce1000b"
+name = "transform"
+position = [36.6, 7.6375, -1.0938]
 rotation = [10, 180, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000b"
+name = "camera"
 
 [[object]]
 id = "5ce1000c"
-name = "cam_12"
 parent = "5ce0000a"
-kind = "camera"
-position = [35, 7.6875, -1.59375]
+
+[[component]]
+object = "5ce1000c"
+name = "name"
+text = "cam_12"
+
+[[component]]
+object = "5ce1000c"
+name = "transform"
+position = [35, 7.6875, -1.5938]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000c"
+name = "camera"
 
 [[object]]
 id = "5ce1000d"
-name = "cam_13"
 parent = "5ce0000a"
-kind = "camera"
-position = [32.5, 7.4375, -1.59375]
+
+[[component]]
+object = "5ce1000d"
+name = "name"
+text = "cam_13"
+
+[[component]]
+object = "5ce1000d"
+name = "transform"
+position = [32.5, 7.4375, -1.5938]
 rotation = [3, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000d"
+name = "camera"
 
 [[object]]
 id = "5ce1000e"
-name = "cam_14"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce1000e"
+name = "name"
+text = "cam_14"
+
+[[component]]
+object = "5ce1000e"
+name = "transform"
 position = [27, 5, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000e"
+name = "camera"
 
 [[object]]
 id = "5ce1000f"
-name = "cam_15"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce1000f"
+name = "name"
+text = "cam_15"
+
+[[component]]
+object = "5ce1000f"
+name = "transform"
 position = [18, 3.2, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce1000f"
+name = "camera"
 
 [[object]]
 id = "5ce10010"
-name = "cam_16"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10010"
+name = "name"
+text = "cam_16"
+
+[[component]]
+object = "5ce10010"
+name = "transform"
 position = [9, 2.4, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10010"
+name = "camera"
 
 [[object]]
 id = "5ce10011"
-name = "cam_17"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10011"
+name = "name"
+text = "cam_17"
+
+[[component]]
+object = "5ce10011"
+name = "transform"
 position = [2, 1.8, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10011"
+name = "camera"
 
 [[object]]
 id = "5ce10012"
-name = "cam_18"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10012"
+name = "name"
+text = "cam_18"
+
+[[component]]
+object = "5ce10012"
+name = "transform"
 position = [-1.5, 1.8, 0]
 rotation = [0, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10012"
+name = "camera"
 
 [[object]]
 id = "5ce10013"
-name = "cam_19"
 parent = "5ce0000a"
-kind = "camera"
+
+[[component]]
+object = "5ce10013"
+name = "name"
+text = "cam_19"
+
+[[component]]
+object = "5ce10013"
+name = "transform"
 position = [-5, 3, 0]
 rotation = [-3, -90, 0]
-scale = [1, 1, 1]
-mesh = ""
-texture = ""
+
+[[component]]
+object = "5ce10013"
+name = "camera"
